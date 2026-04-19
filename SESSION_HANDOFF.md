@@ -23,17 +23,82 @@ Commit `b9a4251` pushed to `main` at https://github.com/kareemhadylime/kareemhad
 - ✅ `gh` installed via `winget install GitHub.cli` → v2.90.0. **Not yet authed.** If you need it: `gh auth login`. Wasn't needed for the initial push — git used cached Windows credentials.
 - ⚠️ Supabase CLI — `npm i -g supabase` exited 0 but `supabase` binary not on bash PATH. Options: open a fresh terminal, use `scoop install supabase`, or skip CLI entirely and paste the migration SQL into Supabase dashboard → SQL Editor.
 
-## STILL BLOCKED: Google OAuth app not created
-`.env.local` has blank `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Steps from spec Part A.3:
-1. console.cloud.google.com → new project (name: `kareemhady`)
-2. APIs & Services → Library → enable Gmail API
-3. OAuth consent screen: External, app name, add test users `kareem.hady@gmail.com` / `kareem@fmplusme.com` / `kareem@limeinc.cc`, add scope `https://www.googleapis.com/auth/gmail.readonly`
-4. Credentials → OAuth client ID → Web application → authorized redirect URIs: `http://localhost:3000/api/auth/google/callback` + `https://<vercel-domain>/api/auth/google/callback` (latter after first deploy)
-5. Copy Client ID + Secret → paste into `.env.local` AND into Vercel env vars (Part C)
+## ✅ DONE: Google OAuth app created, creds in `.env.local`
+1. ✅ GCP project: `kareemhady-inboxops`, project number `593051355315`, no org
+2. ✅ Gmail API enabled
+3. ✅ OAuth consent (new "Google Auth Platform" UI — Branding/Audience/Data Access/Clients replaced old wizard)
+4. ✅ OAuth Web Client created — `593051355315-b4g0mm67eqhq041gajatba2hj1ohr8d9.apps.googleusercontent.com`. Redirect URI: `http://localhost:3000/api/auth/google/callback` (prod URI to add after Vercel deploy).
+5. ✅ Client ID + Secret written to `C:\kareemhady\.env.local` (NOT the worktree — `.env.local` lives in the main project root).
+
+### ⚠️ Action items for user
+- **Rotate client secret** — user pasted it in chat. After Phase 1 working, go to Clients → InboxOps web → reset secret, update `.env.local` + Vercel env.
+- **Trim scopes** — user accidentally added `gmail.modify` and `gmail.compose` in Data Access. Only `gmail.readonly` is needed (read-only Phase 1). Told user to remove modify/compose. Keep: `gmail.readonly`, `userinfo.email`, `userinfo.profile`, `openid`.
+- **Test users in Audience** — confirm all 3 mailboxes added (`kareem.hady@gmail.com`, `kareem@fmplusme.com`, `kareem@limeinc.cc`).
+
+**Project naming nit:** spec said `kareemhady`, actual is `kareemhady-inboxops`. Cosmetic only.
+
+## ✅ Path B (Vercel-first deploy) executed
+User chose deploy-to-Vercel. Done this turn:
+1. ✅ Supabase migration `init_inboxops_schema` applied via Supabase MCP — 4 tables created (`accounts`, `runs`, `email_logs`, `rules`), all empty, RLS disabled (fine for single-tenant w/ service-role key).
+2. ✅ Vercel project linked: `lime-investments/kareemhady` (`.vercel/` created in `C:\kareemhady\`, gitignored).
+3. ✅ Env vars added — **production + development**. **Preview SKIPPED** due to Vercel CLI plugin bug: `vercel env add NAME preview --value V --yes` fails with `git_branch_required` regardless of syntax (passing `main` as branch hits `branch_not_found: Cannot set Production Branch "main" for a Preview Environment Variable`). Preview env not needed for single-tenant prod app — fine to skip.
+4. ✅ First deploy: `vercel --prod --yes` → built in 31s → assigned `https://kareemhady.vercel.app` (alias) + `https://kareemhady-20a4ooras-lime-investments.vercel.app` (deployment URL).
+5. ✅ Updated `GOOGLE_OAUTH_REDIRECT_URI` and `NEXT_PUBLIC_APP_URL` in Vercel prod env from localhost → `https://kareemhady.vercel.app/...` (rm + re-add).
+6. ✅ Redeployed → `https://kareemhady-hipc9na5r-lime-investments.vercel.app` (alias `kareemhady.vercel.app` updated).
+
+## ✅ PHASE 1 COMPLETE — verified end-to-end at https://kareemhady.vercel.app
+3 accounts connected, 4 manual runs all succeeded (158 emails each), tokens AES-encrypted (base64 prefix verified, not plaintext `1//…`). All cron jobs configured. User saw stale dashboard at first — hard refresh fixed it (Next.js `dynamic = 'force-dynamic'` works server-side; browser was just cached).
+
+## ⏳ NEW SCOPE: Phase 2/3 — modular UI restructure + KIKA rule (BLOCKED ON USER APPROVAL)
+User wants:
+- **Landing → 2 cards: Admin / Emails**
+- `/admin/accounts` (move current Connected Emails UI here) + `/admin/rules` (rule list)
+- `/emails/output` (per-rule reports)
+- **First rule (KIKA Shopify orders)** for `kareem.hady@gmail.com`, last 24h:
+  - Filter: emails from "Shopify KIKA" (subject pattern `[KIKA] Order #N placed by …`)
+  - Aggregate: number of orders, total EGP, list of products w/ qty per product
+- Sample email shown: `[KIKA] Order #18911 placed by Farida Hammam`, total `LE 142.50 EGP`, product `Valentina Set` ×1
+
+### My proposed approach (waiting on user approval)
+1. Restructure landing into 2 cards routing to `/admin` and `/emails`
+2. `/admin/accounts` = current dashboard's Connected Accounts section
+3. `/admin/rules` = rules list (start hardcoded, add CRUD in v2)
+4. `/emails/output` = per-rule report views
+5. Extend `gmail.ts` with `fetchLast24hWithBody()` (current only fetches metadata)
+6. Add `src/lib/rules/kika.ts` — Claude Haiku call to extract order data from each KIKA email body, then aggregate. Cost ~$0.01/run for ~5–10 KIKA emails.
+7. Persist rule outputs to a new `rule_runs` table (or compute on-demand for v1)
+
+### Decisions waiting from user
+- **`ANTHROPIC_API_KEY`** — user must paste so we can wire Claude Haiku for parsing
+- **Hardcoded vs CRUD UI for rules** — recommended hardcoded v1 (faster), then CRUD pass
+
+## (Original Phase 1 — kept for reference, no longer blocking)
+
+### ✅ Production redirect URI added to Google
+User added `https://kareemhady.vercel.app/api/auth/google/callback` to OAuth client (initial typo `callbackS` corrected to `callback`).
+
+### 🐛 Fixed two Vercel issues that caused 404 on https://kareemhady.vercel.app
+1. **Vercel SSO Protection** (`ssoProtection.deploymentType: "all_except_custom_domains"`) was enabled by default on the new project — `kareemhady.vercel.app` is a Vercel subdomain (not a custom domain) so it was protected. Disabled with `vercel project protection disable kareemhady --sso`. Project state now: `ssoProtection: null`.
+2. **`framework: null`** on the project — Vercel auto-detect didn't fire (likely because project was created via `vercel link --yes` from CLI, not from GitHub import). Build correctly used Next.js 16.2.4 and produced all routes, but Vercel's edge wasn't routing through Next.js. Fixed by adding `"framework": "nextjs"` to `vercel.json` and redeploying.
+
+After both fixes: `curl https://kareemhady.vercel.app/` returns 200, dashboard HTML serves correctly.
+
+### Latest production deployment
+`dpl_Bk6BpTdvsfQ6fpfsQeNz6hfZn5AR` → `kareemhady-ayndz3ft5-lime-investments.vercel.app` (alias `kareemhady.vercel.app`).
+
+### Notes for future debugging
+- `vercel alias rm` + `vercel alias set` did NOT fix the 404 on its own — only the framework fix did. If you see Vercel 404s in the future where build succeeded, check `framework: null` first.
+- SSO Protection is NOW DISABLED. Anyone who can guess the URL can see the dashboard. For Phase 1 this is fine (no email content shown publicly without OAuth flow). Re-enable later if needed (would need a callback bypass mechanism).
+
+## Vars known to env (stored in `.env.local` + Vercel; never commit secret values to git)
+- `GOOGLE_CLIENT_ID` — public, prefixed `593051355315-...apps.googleusercontent.com`
+- `GOOGLE_CLIENT_SECRET` — secret; user pasted in chat → **rotate after Phase 1 working** (Cloud → Clients → InboxOps web → reset)
+- `ANTHROPIC_API_KEY` — secret; user pasted in chat → **rotate after Phase 2 working** (console.anthropic.com → API Keys → recreate)
+- Vercel project ID stored in `.vercel/project.json` at `C:\kareemhady\`
 
 ## Remaining Part C steps (user-owned)
-1. **Apply migration** — either `supabase link --project-ref bpjproljatbrbmszwbov && supabase db push`, or paste `supabase/migrations/0001_init.sql` into Supabase SQL Editor
-2. `vercel link` — create new project, name `kareemhady`
+1. ✅ Apply migration (done via MCP)
+2. ✅ `vercel link` (done)
 3. `vercel env add` for each var in `.env.example` — pick Production + Preview + Development for each
 4. `vercel --prod`
 5. After first deploy: add `https://<deployed-url>/api/auth/google/callback` to Google Cloud OAuth redirect URIs, update `GOOGLE_OAUTH_REDIRECT_URI` + `NEXT_PUBLIC_APP_URL` in Vercel env, redeploy
