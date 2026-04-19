@@ -73,7 +73,6 @@ export default async function RulesListPage() {
                     </div>
                     <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
                       <span>Account: {r.account?.email || 'all'}</span>
-                      <span>Last {r.conditions?.time_window_hours ?? 24}h</span>
                       {r.conditions?.from_contains && <span>from~{r.conditions.from_contains}</span>}
                       {r.conditions?.subject_contains && <span>subject~{r.conditions.subject_contains}</span>}
                       <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">

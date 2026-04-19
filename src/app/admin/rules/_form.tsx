@@ -75,16 +75,6 @@ export function RuleForm({
         </Field>
       </div>
 
-      <Field label="Default time window (hours) — used when no date range is chosen">
-        <input
-          type="number"
-          name="time_window_hours"
-          min={1}
-          defaultValue={cond.time_window_hours ?? 24}
-          className="ix-input"
-        />
-      </Field>
-
       <fieldset className="ix-card p-5 space-y-4">
         <legend className="text-sm font-semibold px-2 text-slate-700">
           Filters (all must match)

@@ -22,11 +22,9 @@ function buildRulePayload(formData: FormData) {
   const from = String(formData.get('from_contains') || '').trim();
   const subject = String(formData.get('subject_contains') || '').trim();
   const to = String(formData.get('to_contains') || '').trim();
-  const hours = parseInt(String(formData.get('time_window_hours') || '24'), 10);
   if (from) conditions.from_contains = from;
   if (subject) conditions.subject_contains = subject;
   if (to) conditions.to_contains = to;
-  conditions.time_window_hours = Number.isFinite(hours) && hours > 0 ? hours : 24;
 
   const actionType = String(formData.get('action_type') || 'shopify_order_aggregate');
   const currency = String(formData.get('currency') || 'EGP').trim() || 'EGP';
@@ -103,8 +101,11 @@ export async function runRuleAction(formData: FormData) {
   const { data: rule } = await sb.from('rules').select('domain').eq('id', id).maybeSingle();
   const slug = rule?.domain && isDomain(rule.domain) ? rule.domain : 'other';
 
+  const preset = String(formData.get('preset') || '');
+  const presetParam = preset && preset !== 'custom' ? `?preset=${preset}` : '';
+
   revalidatePath('/emails');
   revalidatePath(`/emails/${slug}`);
   revalidatePath(`/emails/${slug}/${id}`);
-  redirect(`/emails/${slug}/${id}`);
+  redirect(`/emails/${slug}/${id}${presetParam}`);
 }

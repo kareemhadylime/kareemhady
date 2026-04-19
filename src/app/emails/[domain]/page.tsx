@@ -152,8 +152,7 @@ export default async function DomainRulesPage({
                         )}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
-                        {r.account?.email || 'all accounts'} · last{' '}
-                        {r.conditions?.time_window_hours ?? 24}h
+                        {r.account?.email || 'all accounts'}
                       </div>
                     </div>
                     <ArrowRight

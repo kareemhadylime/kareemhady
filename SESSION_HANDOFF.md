@@ -104,6 +104,35 @@ User chose deploy-to-Vercel. Done this turn:
 ### Latest production deployment after Phase 3
 Commit `c0ac86d` deployed; smoke tests passed: `/`, `/emails/output`, `/emails/output?domain=kika`, `/admin/rules/new` all returned 200.
 
+## ✅ PHASE 4 SHIPPED — domain landing + per-domain rule pages (commit 490ad53)
+
+### Routing change
+- **`/emails`** is no longer "Reports & outputs" with one sub-card; it's now **6 domain cards** (+ "Other" card auto-appears if any rule has `domain IS NULL`). Each card shows label, description, icon, rule_count, last_run timestamp.
+- **`/emails/[domain]`** (NEW) — list of rule boxes under that domain. Validates domain via `isDomain()` or === 'other'.
+- **`/emails/[domain]/[ruleId]`** (MOVED from `/emails/output/[ruleId]`) — same dashboard, but now validates that the rule's domain matches the path domain (404 otherwise). Breadcrumbs are `Emails › <Domain> › <Rule>`.
+- **DELETED:** `/emails/output/page.tsx` and `/emails/output/[ruleId]/page.tsx`.
+
+### Engine / actions
+- `runRuleAction` now looks up the rule's domain and redirects to `/emails/{slug}/{id}` (slug = rule.domain or 'other').
+- `revalidatePath` calls updated to `/emails`, `/emails/{slug}`, `/emails/{slug}/{id}`.
+
+### New presets metadata + helpers (`src/lib/rules/presets.ts`)
+- `DOMAIN_DESCRIPTIONS` — one-liner per domain
+- `DOMAIN_ACCENTS` — color accent per domain (slate/violet/emerald/amber/indigo/rose)
+- `DOMAIN_ICON_NAMES` — lucide icon name per domain
+- `isDomain(s)` — type guard
+
+### New component
+- `src/app/_components/domain-icon.tsx` — `<DomainIcon domain={...} />` maps Personal→User, KIKA→ShoppingBag, LIME→Citrus, FMPLUS→Building2, VOLTAUTO→Zap, BEITHADY→Home, other→Layers.
+
+### Form copy
+- Domain field now has hint text: "Where this rule appears under Reports & outputs."
+- Empty option label: "— Other (no domain) —"
+
+### Smoke tests after deploy
+- `/`, `/emails`, `/emails/kika`, `/emails/personal`, `/admin/rules/new` → all 200
+- `/emails/foobar` → 404 (correctly rejected)
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google

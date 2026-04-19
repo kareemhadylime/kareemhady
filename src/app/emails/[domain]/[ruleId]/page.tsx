@@ -136,19 +136,26 @@ export default async function RuleOutputDetailPage({
             )}
           </div>
 
+          <p className="text-xs text-slate-500">
+            Pick a preset to run instantly, or set custom From/To dates.
+          </p>
+
           <div className="flex flex-wrap gap-2">
             {RANGE_PRESETS.map(p => (
-              <Link
-                key={p.id}
-                href={`/emails/${domain}/${ruleId}?preset=${p.id}`}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  activePreset === p.id
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {p.label}
-              </Link>
+              <form key={p.id} action={runRuleAction}>
+                <input type="hidden" name="id" value={ruleId} />
+                <input type="hidden" name="preset" value={p.id} />
+                <button
+                  type="submit"
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                    activePreset === p.id
+                      ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              </form>
             ))}
           </div>
 
@@ -175,15 +182,6 @@ export default async function RuleOutputDetailPage({
             </label>
             <button type="submit" className="ix-btn-primary">
               <Play size={16} /> Run with this range
-            </button>
-          </form>
-
-          <form action={runRuleAction}>
-            <input type="hidden" name="id" value={ruleId} />
-            <input type="hidden" name="preset" value={activePreset} />
-            <button type="submit" className="ix-btn-secondary">
-              <Play size={14} /> Run preset:{' '}
-              {RANGE_PRESETS.find(p => p.id === activePreset)?.label}
             </button>
           </form>
         </section>
