@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { Plus, Play, Pencil, Trash2, ChevronRight } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
+import { TopNav } from '@/app/_components/brand';
 import { deleteRule, runRuleAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -12,87 +14,89 @@ export default async function RulesListPage() {
     .order('priority', { ascending: true });
 
   return (
-    <main className="max-w-6xl mx-auto p-8 space-y-8">
-      <nav className="text-sm">
-        <Link href="/admin" className="text-blue-600 hover:underline">
-          ← Admin
-        </Link>
-      </nav>
-
-      <header className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Email rules</h1>
-          <p className="text-sm text-gray-500">
-            Filter incoming emails and produce structured outputs.
-          </p>
-        </div>
-        <Link
-          href="/admin/rules/new"
-          className="px-4 py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700"
-        >
-          New rule
-        </Link>
-      </header>
-
-      <section>
-        {!rules?.length ? (
-          <p className="text-gray-500 text-sm">
-            No rules yet. Create one to start aggregating emails.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {rules.map((r: any) => (
-              <div key={r.id} className="border rounded p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Link href={`/admin/rules/${r.id}`} className="font-semibold hover:underline">
-                      {r.name}
-                    </Link>
-                    {!r.enabled && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                        disabled
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500 space-x-2">
-                    <span>Account: {r.account?.email || 'all'}</span>
-                    <span>· Last {r.conditions?.time_window_hours ?? 24}h</span>
-                    {r.conditions?.from_contains && <span>· from~{r.conditions.from_contains}</span>}
-                    {r.conditions?.subject_contains && <span>· subject~{r.conditions.subject_contains}</span>}
-                    <span>· {r.actions?.type}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <form action={runRuleAction}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
-                    >
-                      Run
-                    </button>
-                  </form>
-                  <Link
-                    href={`/admin/rules/${r.id}`}
-                    className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
-                  >
-                    Edit
-                  </Link>
-                  <form action={deleteRule}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded border border-red-300 text-red-700 text-sm hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </form>
-                </div>
-              </div>
-            ))}
+    <>
+      <TopNav>
+        <Link href="/admin" className="ix-link">Admin</Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <span>Email rules</span>
+      </TopNav>
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
+        <header className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+              Admin · Email rules
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">Rules</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Filter emails and produce structured outputs.
+            </p>
           </div>
-        )}
-      </section>
-    </main>
+          <Link href="/admin/rules/new" className="ix-btn-primary">
+            <Plus size={16} /> New rule
+          </Link>
+        </header>
+
+        <section>
+          {!rules?.length ? (
+            <div className="ix-card p-8 text-center">
+              <p className="text-slate-500 text-sm mb-4">
+                No rules yet. Create one to start aggregating emails.
+              </p>
+              <Link href="/admin/rules/new" className="ix-btn-primary">
+                <Plus size={16} /> Create your first rule
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {rules.map((r: any) => (
+                <div
+                  key={r.id}
+                  className="ix-card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link href={`/admin/rules/${r.id}`} className="font-semibold hover:underline">
+                        {r.name}
+                      </Link>
+                      {!r.enabled && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          disabled
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+                      <span>Account: {r.account?.email || 'all'}</span>
+                      <span>Last {r.conditions?.time_window_hours ?? 24}h</span>
+                      {r.conditions?.from_contains && <span>from~{r.conditions.from_contains}</span>}
+                      {r.conditions?.subject_contains && <span>subject~{r.conditions.subject_contains}</span>}
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">
+                        {r.actions?.type}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <form action={runRuleAction}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <button type="submit" className="ix-btn-primary">
+                        <Play size={14} /> Run
+                      </button>
+                    </form>
+                    <Link href={`/admin/rules/${r.id}`} className="ix-btn-secondary">
+                      <Pencil size={14} /> Edit
+                    </Link>
+                    <form action={deleteRule}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <button type="submit" className="ix-btn-danger">
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </>
   );
 }

@@ -1,36 +1,45 @@
-import Link from 'next/link';
+import { ShieldCheck, Mail } from 'lucide-react';
+import { TopNav } from './_components/brand';
+import { ModuleCard } from './_components/module-card';
 
 export const dynamic = 'force-dynamic';
 
 export default function Home() {
   return (
-    <main className="max-w-5xl mx-auto p-8 space-y-10">
-      <header>
-        <h1 className="text-3xl font-bold">InboxOps</h1>
-        <p className="text-sm text-gray-500">Daily email digest · Phase 2</p>
-      </header>
-
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <Link
-          href="/admin"
-          className="block border rounded-lg p-6 hover:bg-gray-50 transition"
-        >
-          <h2 className="text-xl font-semibold mb-1">Admin</h2>
-          <p className="text-sm text-gray-500">
-            Connected mailboxes and email rules.
+    <>
+      <TopNav />
+      <main className="max-w-6xl mx-auto px-6 py-12 space-y-12 flex-1">
+        <section className="text-center space-y-4 pt-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-600" />
+            Phase 2 · KIKA Shopify aggregator live
+          </div>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight bg-gradient-to-br from-slate-900 to-slate-600 bg-clip-text text-transparent">
+            Your inbox, distilled.
+          </h1>
+          <p className="text-slate-500 max-w-xl mx-auto">
+            Connect Gmail mailboxes, set rules, and let Claude turn order
+            confirmations and notifications into clean dashboards.
           </p>
-        </Link>
+        </section>
 
-        <Link
-          href="/emails"
-          className="block border rounded-lg p-6 hover:bg-gray-50 transition"
-        >
-          <h2 className="text-xl font-semibold mb-1">Emails</h2>
-          <p className="text-sm text-gray-500">
-            Rule outputs and aggregated reports.
-          </p>
-        </Link>
-      </section>
-    </main>
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <ModuleCard
+            href="/admin"
+            title="Admin"
+            description="Connected mailboxes and email rules."
+            Icon={ShieldCheck}
+            accent="indigo"
+          />
+          <ModuleCard
+            href="/emails"
+            title="Emails"
+            description="Rule outputs and aggregated reports."
+            Icon={Mail}
+            accent="violet"
+          />
+        </section>
+      </main>
+    </>
   );
 }

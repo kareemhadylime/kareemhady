@@ -34,43 +34,47 @@ export function RuleForm({
           name="name"
           required
           defaultValue={initial.name || ''}
-          className="w-full border rounded px-3 py-2"
+          className="ix-input"
           placeholder="KIKA Shopify Orders (last 24h)"
         />
       </Field>
 
-      <Field label="Account">
-        <select
-          name="account_id"
-          defaultValue={initial.account_id || 'all'}
-          className="w-full border rounded px-3 py-2"
-        >
-          <option value="all">All accounts</option>
-          {accounts.map(a => (
-            <option key={a.id} value={a.id}>
-              {a.email}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="Account">
+          <select
+            name="account_id"
+            defaultValue={initial.account_id || 'all'}
+            className="ix-input"
+          >
+            <option value="all">All accounts</option>
+            {accounts.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.email}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-      <Field label="Time window (hours)">
-        <input
-          type="number"
-          name="time_window_hours"
-          min={1}
-          defaultValue={cond.time_window_hours ?? 24}
-          className="w-full border rounded px-3 py-2"
-        />
-      </Field>
+        <Field label="Time window (hours)">
+          <input
+            type="number"
+            name="time_window_hours"
+            min={1}
+            defaultValue={cond.time_window_hours ?? 24}
+            className="ix-input"
+          />
+        </Field>
+      </div>
 
-      <fieldset className="space-y-4 border rounded p-4">
-        <legend className="text-sm font-semibold px-1">Filters (all must match)</legend>
+      <fieldset className="ix-card p-5 space-y-4">
+        <legend className="text-sm font-semibold px-2 text-slate-700">
+          Filters (all must match)
+        </legend>
         <Field label="From contains">
           <input
             name="from_contains"
             defaultValue={cond.from_contains || ''}
-            className="w-full border rounded px-3 py-2"
+            className="ix-input"
             placeholder="kika"
           />
         </Field>
@@ -78,7 +82,7 @@ export function RuleForm({
           <input
             name="subject_contains"
             defaultValue={cond.subject_contains || ''}
-            className="w-full border rounded px-3 py-2"
+            className="ix-input"
             placeholder="Order"
           />
         </Field>
@@ -86,18 +90,18 @@ export function RuleForm({
           <input
             name="to_contains"
             defaultValue={cond.to_contains || ''}
-            className="w-full border rounded px-3 py-2"
+            className="ix-input"
           />
         </Field>
       </fieldset>
 
-      <fieldset className="space-y-4 border rounded p-4">
-        <legend className="text-sm font-semibold px-1">Action</legend>
+      <fieldset className="ix-card p-5 space-y-4">
+        <legend className="text-sm font-semibold px-2 text-slate-700">Action</legend>
         <Field label="Type">
           <select
             name="action_type"
             defaultValue={act.type || 'shopify_order_aggregate'}
-            className="w-full border rounded px-3 py-2"
+            className="ix-input"
           >
             <option value="shopify_order_aggregate">Shopify order aggregate</option>
           </select>
@@ -106,40 +110,36 @@ export function RuleForm({
           <input
             name="currency"
             defaultValue={act.currency || 'EGP'}
-            className="w-full border rounded px-3 py-2"
+            className="ix-input"
           />
         </Field>
       </fieldset>
 
-      <Field label="Priority">
-        <input
-          type="number"
-          name="priority"
-          defaultValue={initial.priority ?? 100}
-          className="w-full border rounded px-3 py-2"
-        />
-      </Field>
-
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="enabled"
-          defaultChecked={initial.enabled !== false}
-        />
-        Enabled
-      </label>
+      <div className="grid sm:grid-cols-2 gap-4 items-end">
+        <Field label="Priority">
+          <input
+            type="number"
+            name="priority"
+            defaultValue={initial.priority ?? 100}
+            className="ix-input"
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm py-2">
+          <input
+            type="checkbox"
+            name="enabled"
+            defaultChecked={initial.enabled !== false}
+            className="w-4 h-4 accent-indigo-600"
+          />
+          Enabled
+        </label>
+      </div>
 
       <div className="flex gap-3 pt-2">
-        <button
-          type="submit"
-          className="px-4 py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700"
-        >
+        <button type="submit" className="ix-btn-primary">
           {submitLabel}
         </button>
-        <Link
-          href="/admin/rules"
-          className="px-4 py-2 rounded border font-medium hover:bg-gray-50"
-        >
+        <Link href="/admin/rules" className="ix-btn-secondary">
           Cancel
         </Link>
       </div>
@@ -149,8 +149,8 @@ export function RuleForm({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block space-y-1">
-      <span className="text-sm font-medium">{label}</span>
+    <label className="block space-y-1.5">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
       {children}
     </label>
   );

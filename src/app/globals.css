@@ -1,26 +1,55 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-foreground: #0f172a;
+  --color-muted: #64748b;
+  --color-primary: #4f46e5;
+  --color-primary-soft: #eef2ff;
+  --color-accent: #8b5cf6;
+  --color-success: #059669;
+  --color-warn: #d97706;
+  --color-danger: #e11d48;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: var(--color-bg);
+  color: var(--color-foreground);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, rgba(139, 92, 246, 0.10), transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, rgba(79, 70, 229, 0.08), transparent 60%),
+    linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  background-attachment: fixed;
+  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+}
+
+@layer components {
+  .ix-card {
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+  }
+  .ix-btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium shadow-sm hover:bg-indigo-700 transition;
+  }
+  .ix-btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition;
+  }
+  .ix-btn-danger {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 text-sm hover:bg-rose-50 transition;
+  }
+  .ix-btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition;
+  }
+  .ix-input {
+    @apply w-full border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition;
+  }
+  .ix-link {
+    @apply text-indigo-600 hover:text-indigo-700 hover:underline;
+  }
 }

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase';
-import { fetchEmailFull } from '@/lib/gmail';
+import { fetchEmailFull, markMessagesAsRead } from '@/lib/gmail';
 import { aggregateShopifyOrders } from './aggregators/shopify-order';
 
 export type RuleConditions = {
@@ -73,12 +73,17 @@ export async function evaluateRule(ruleId: string) {
         throw new Error(`unknown_action_type: ${(action as any).type}`);
     }
 
+    const markRes = await markMessagesAsRead(
+      account.oauth_refresh_token_encrypted,
+      matches.map(m => m.gmail_message_id)
+    );
+
     await sb
       .from('rule_runs')
       .update({
         finished_at: new Date().toISOString(),
         status: 'succeeded',
-        output,
+        output: { ...output, marked_read: markRes.marked, mark_errors: markRes.errors.length },
       })
       .eq('id', run.id);
 

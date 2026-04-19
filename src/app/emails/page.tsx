@@ -1,31 +1,34 @@
+import { LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
+import { TopNav } from '../_components/brand';
+import { ModuleCard } from '../_components/module-card';
 
 export const dynamic = 'force-dynamic';
 
 export default function EmailsHome() {
   return (
-    <main className="max-w-5xl mx-auto p-8 space-y-8">
-      <nav className="text-sm">
-        <Link href="/" className="text-blue-600 hover:underline">
-          ← Home
-        </Link>
-      </nav>
-
-      <header>
-        <h1 className="text-3xl font-bold">Emails</h1>
-      </header>
-
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <Link
-          href="/emails/output"
-          className="block border rounded-lg p-6 hover:bg-gray-50 transition"
-        >
-          <h2 className="text-xl font-semibold mb-1">Rules output</h2>
-          <p className="text-sm text-gray-500">
-            Latest aggregated reports for each rule.
+    <>
+      <TopNav>
+        <Link href="/" className="ix-link">Home</Link>
+      </TopNav>
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
+        <header>
+          <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+            Emails
           </p>
-        </Link>
-      </section>
-    </main>
+          <h1 className="text-3xl font-bold tracking-tight">Reports &amp; outputs</h1>
+        </header>
+
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <ModuleCard
+            href="/emails/output"
+            title="Rules output"
+            description="Live dashboards from your enabled rules."
+            Icon={LayoutDashboard}
+            accent="violet"
+          />
+        </section>
+      </main>
+    </>
   );
 }

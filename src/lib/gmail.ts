@@ -1,7 +1,10 @@
 import { google } from 'googleapis';
 import { decrypt } from './crypto';
 
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+];
 
 export function getOAuthClient(redirectUri?: string) {
   return new google.auth.OAuth2(
@@ -104,6 +107,31 @@ function htmlToText(html: string): string {
     .replace(/\n[ \t]+/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+export async function markMessagesAsRead(
+  refreshTokenEncrypted: string,
+  messageIds: string[]
+): Promise<{ marked: number; errors: string[] }> {
+  if (!messageIds.length) return { marked: 0, errors: [] };
+  const gmail = await getGmailClientFromRefresh(refreshTokenEncrypted);
+  const errors: string[] = [];
+  let marked = 0;
+  await Promise.all(
+    messageIds.map(async id => {
+      try {
+        await gmail.users.messages.modify({
+          userId: 'me',
+          id,
+          requestBody: { removeLabelIds: ['UNREAD'] },
+        });
+        marked++;
+      } catch (e: any) {
+        errors.push(`${id}: ${e?.message || e}`);
+      }
+    })
+  );
+  return { marked, errors };
 }
 
 export async function fetchEmailFull(
