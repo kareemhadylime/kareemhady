@@ -42,13 +42,16 @@ export function RuleForm({
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-4">
-        <Field label="Domain">
+        <Field
+          label="Domain"
+          hint="Where this rule appears under Reports & outputs."
+        >
           <select
             name="domain"
             defaultValue={initial.domain || ''}
             className="ix-input"
           >
-            <option value="">— None —</option>
+            <option value="">— Other (no domain) —</option>
             {DOMAINS.map(d => (
               <option key={d} value={d}>
                 {DOMAIN_LABELS[d]}
@@ -178,11 +181,20 @@ export function RuleForm({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block space-y-1.5">
       <span className="text-sm font-medium text-slate-700">{label}</span>
       {children}
+      {hint && <span className="block text-xs text-slate-500">{hint}</span>}
     </label>
   );
 }

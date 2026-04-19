@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { evaluateRule } from '@/lib/rules/engine';
-import { resolvePreset, type RangePreset, DOMAINS, type Domain } from '@/lib/rules/presets';
+import { resolvePreset, type RangePreset, DOMAINS, isDomain, type Domain } from '@/lib/rules/presets';
 
 function buildRulePayload(formData: FormData) {
   const name = String(formData.get('name') || '').trim();
@@ -76,7 +76,7 @@ export async function deleteRule(formData: FormData) {
   const { error } = await sb.from('rules').delete().eq('id', id);
   if (error) throw new Error(`delete_failed: ${error.message}`);
   revalidatePath('/admin/rules');
-  revalidatePath('/emails/output');
+  revalidatePath('/emails');
 }
 
 function rangeFromForm(formData: FormData) {
@@ -98,7 +98,13 @@ export async function runRuleAction(formData: FormData) {
   if (!id) throw new Error('id_required');
   const range = rangeFromForm(formData);
   await evaluateRule(id, range);
-  revalidatePath('/emails/output');
-  revalidatePath(`/emails/output/${id}`);
-  redirect(`/emails/output/${id}`);
+
+  const sb = supabaseAdmin();
+  const { data: rule } = await sb.from('rules').select('domain').eq('id', id).maybeSingle();
+  const slug = rule?.domain && isDomain(rule.domain) ? rule.domain : 'other';
+
+  revalidatePath('/emails');
+  revalidatePath(`/emails/${slug}`);
+  revalidatePath(`/emails/${slug}/${id}`);
+  redirect(`/emails/${slug}/${id}`);
 }

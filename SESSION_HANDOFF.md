@@ -69,10 +69,40 @@ User chose deploy-to-Vercel. Done this turn:
 - Engine calls it post-aggregation; output gets `marked_read` + `mark_errors` counts
 - Failures are caught (won't fail the run); user sees green/amber banner on detail page
 
-### ⏳ User action items
+### ⏳ User action items (still pending from Phase 2.1)
 - **Add `gmail.modify` scope in Google Cloud → Data Access** (not done yet — user only granted readonly originally)
 - **Re-Connect each of 3 Gmail accounts** at `/admin/accounts` so OAuth picks up the new scope (existing tokens lack `gmail.modify`; mark calls return 403 until re-auth)
 - Test KIKA rule run after re-connect → confirm "Marked N email(s) as read" banner shows on detail page
+
+## ✅ PHASE 3 SHIPPED — domain tabs, date-range filter, mark-as-read toggle, no $ symbols (commit c0ac86d)
+
+### DB
+- Migration `add_domain_to_rules_and_mark_read_default` — added `rules.domain` text column + `idx_rules_domain` index. Updated KIKA seed: `domain='kika'`, `actions.mark_as_read=true`.
+
+### New lib
+- `src/lib/rules/presets.ts` — exports `DOMAINS` (`personal | kika | lime | fmplus | voltauto | beithady`), `DOMAIN_LABELS`, `RANGE_PRESETS` (today/last24h/last7d/mtd/ytd), `resolvePreset(preset)` returns ISO from/to, `dateInputValue(iso)` formats for `<input type="date">`.
+
+### Engine changes
+- `evaluateRule(ruleId, range?)` — optional `EvalRange` overrides default `time_window_hours`
+- Mark-as-read now **conditional** on `rule.actions.mark_as_read === true` (not unconditional)
+- Output JSON now embeds `time_range: { from, to, label? }` so detail page shows what range was used
+
+### UI changes
+- Rule form: Domain select + Mark-as-read checkbox (with rationale about gmail.modify scope)
+- Rules list: shows domain badge + "MARK READ" badge per rule
+- `/emails/output`: tab strip filters by `?domain=...` (counts shown per tab); each rule card shows domain badge
+- `/emails/output/[ruleId]`: new "Time range" section with preset chips + custom from/to date inputs + two Run buttons (custom range vs preset). Run history now includes a "Range" column showing `from → to` per past run.
+- `runRuleAction` server action accepts `preset` or `from`/`to` form fields; `rangeFromForm()` helper resolves to EvalRange
+
+### No more $ symbols
+- `DollarSign` icon replaced with `Wallet` (lucide-react) on output detail Stat
+- Currency rendered as plain text suffix (e.g. "Total EGP", "3,100 EGP") — never a `$`
+
+### ⚠️ Build gotcha
+- **Always `cd /c/kareemhady && npm run build` (or `vercel --prod`)** — running from inside the worktree directory (`C:\kareemhady\.claude\worktrees\dazzling-vaughan-ac37b7`) builds the worktree's stale Phase 1 checkout (only 6 routes), not the main project's code. The Bash tool's cwd may reset to the original worktree path between sessions.
+
+### Latest production deployment after Phase 3
+Commit `c0ac86d` deployed; smoke tests passed: `/`, `/emails/output`, `/emails/output?domain=kika`, `/admin/rules/new` all returned 200.
 
 ## (Original Phase 1 — kept for reference, no longer blocking)
 

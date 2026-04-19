@@ -19,7 +19,10 @@ import {
   RANGE_PRESETS,
   resolvePreset,
   dateInputValue,
+  isDomain,
+  DOMAIN_LABELS,
   type RangePreset,
+  type Domain,
 } from '@/lib/rules/presets';
 
 export const dynamic = 'force-dynamic';
@@ -28,11 +31,14 @@ export default async function RuleOutputDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ ruleId: string }>;
+  params: Promise<{ domain: string; ruleId: string }>;
   searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }) {
-  const { ruleId } = await params;
+  const { domain, ruleId } = await params;
   const sp = await searchParams;
+
+  if (domain !== 'other' && !isDomain(domain)) notFound();
+
   const sb = supabaseAdmin();
 
   const [{ data: rule }, { data: runs }] = await Promise.all([
@@ -45,6 +51,11 @@ export default async function RuleOutputDetailPage({
       .limit(20),
   ]);
   if (!rule) notFound();
+
+  const ruleDomainSlug = rule.domain && isDomain(rule.domain) ? rule.domain : 'other';
+  if (ruleDomainSlug !== domain) notFound();
+
+  const domainLabel = isDomain(domain) ? DOMAIN_LABELS[domain as Domain] : 'Other';
 
   const latest = runs?.[0];
   const out = latest?.output as any;
@@ -74,7 +85,7 @@ export default async function RuleOutputDetailPage({
       <TopNav>
         <Link href="/emails" className="ix-link">Emails</Link>
         <ChevronRight size={14} className="text-slate-400" />
-        <Link href="/emails/output" className="ix-link">Rules output</Link>
+        <Link href={`/emails/${domain}`} className="ix-link">{domainLabel}</Link>
         <ChevronRight size={14} className="text-slate-400" />
         <span className="truncate max-w-[200px]">{rule.name}</span>
       </TopNav>
@@ -82,7 +93,7 @@ export default async function RuleOutputDetailPage({
         <header className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-              Emails · Rules output
+              {domainLabel} · Rule output
             </p>
             <h1 className="text-3xl font-bold tracking-tight">{rule.name}</h1>
             <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
@@ -129,7 +140,7 @@ export default async function RuleOutputDetailPage({
             {RANGE_PRESETS.map(p => (
               <Link
                 key={p.id}
-                href={`/emails/output/${ruleId}?preset=${p.id}`}
+                href={`/emails/${domain}/${ruleId}?preset=${p.id}`}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                   activePreset === p.id
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -171,7 +182,8 @@ export default async function RuleOutputDetailPage({
             <input type="hidden" name="id" value={ruleId} />
             <input type="hidden" name="preset" value={activePreset} />
             <button type="submit" className="ix-btn-secondary">
-              <Play size={14} /> Run preset: {RANGE_PRESETS.find(p => p.id === activePreset)?.label}
+              <Play size={14} /> Run preset:{' '}
+              {RANGE_PRESETS.find(p => p.id === activePreset)?.label}
             </button>
           </form>
         </section>

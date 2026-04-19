@@ -11,6 +11,39 @@ export const DOMAIN_LABELS: Record<Domain, string> = {
   beithady: 'BEITHADY',
 };
 
+export const DOMAIN_DESCRIPTIONS: Record<Domain, string> = {
+  personal: 'Personal mailbox aggregations.',
+  kika: 'KIKA storefront orders and operations.',
+  lime: 'Lime Investments reports and finance.',
+  fmplus: 'FMPlus business operations.',
+  voltauto: 'VoltAuto pricing and inventory feeds.',
+  beithady: 'Beithady property and tenant updates.',
+};
+
+export type DomainAccent = 'slate' | 'violet' | 'emerald' | 'amber' | 'indigo' | 'rose';
+
+export const DOMAIN_ACCENTS: Record<Domain, DomainAccent> = {
+  personal: 'slate',
+  kika: 'violet',
+  lime: 'emerald',
+  fmplus: 'amber',
+  voltauto: 'indigo',
+  beithady: 'rose',
+};
+
+export const DOMAIN_ICON_NAMES: Record<Domain, string> = {
+  personal: 'User',
+  kika: 'ShoppingBag',
+  lime: 'Citrus',
+  fmplus: 'Building2',
+  voltauto: 'Zap',
+  beithady: 'Home',
+};
+
+export function isDomain(s: string | null | undefined): s is Domain {
+  return !!s && (DOMAINS as readonly string[]).includes(s);
+}
+
 export type RangePreset = 'today' | 'last24h' | 'last7d' | 'mtd' | 'ytd' | 'custom';
 
 export const RANGE_PRESETS: Array<{ id: RangePreset; label: string }> = [
