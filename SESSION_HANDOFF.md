@@ -49,28 +49,30 @@ User chose deploy-to-Vercel. Done this turn:
 ## ✅ PHASE 1 COMPLETE — verified end-to-end at https://kareemhady.vercel.app
 3 accounts connected, 4 manual runs all succeeded (158 emails each), tokens AES-encrypted (base64 prefix verified, not plaintext `1//…`). All cron jobs configured. User saw stale dashboard at first — hard refresh fixed it (Next.js `dynamic = 'force-dynamic'` works server-side; browser was just cached).
 
-## ⏳ NEW SCOPE: Phase 2/3 — modular UI restructure + KIKA rule (BLOCKED ON USER APPROVAL)
-User wants:
-- **Landing → 2 cards: Admin / Emails**
-- `/admin/accounts` (move current Connected Emails UI here) + `/admin/rules` (rule list)
-- `/emails/output` (per-rule reports)
-- **First rule (KIKA Shopify orders)** for `kareem.hady@gmail.com`, last 24h:
-  - Filter: emails from "Shopify KIKA" (subject pattern `[KIKA] Order #N placed by …`)
-  - Aggregate: number of orders, total EGP, list of products w/ qty per product
-- Sample email shown: `[KIKA] Order #18911 placed by Farida Hammam`, total `LE 142.50 EGP`, product `Valentina Set` ×1
+## ✅ PHASE 2 SHIPPED — modular UI + rule engine + Claude parsing (commits c1e8c69, f1d764e, e4f7226)
+- **Landing → 2 cards: Admin / Emails** with branded TopNav, gradient hero, lucide-react module icons (background flourish)
+- `/admin/accounts` — Connected Emails UI moved here + ingest runs + recent emails
+- `/admin/rules` — full CRUD (list / new / [id] edit / delete / run)
+- `/emails/output` — list of rule cards w/ KPI snapshot
+- `/emails/output/[ruleId]` — **dashboard layout**: 4 KPI cards (Orders / Total / Products / Emails matched), top-products with horizontal bar charts, orders table, run history
+- New libs: `src/lib/anthropic.ts`, `src/lib/rules/engine.ts`, `src/lib/rules/aggregators/shopify-order.ts` (Claude Haiku extracts order data per email via tool use; aggregates client-side)
+- New table: `rule_runs` (id, rule_id, started_at, finished_at, status, input_email_count, output jsonb, error)
+- KIKA rule seeded: `from_contains: kika`, `subject_contains: Order`, `time_window_hours: 24`, action `shopify_order_aggregate` currency `EGP`, account `kareem.hady@gmail.com`
+- Shared UI components: `src/app/_components/{brand,module-card,stat}.tsx`
+- Visual palette: indigo/violet on slate-50 base, gradient body bg, ix-card / ix-btn-primary utility classes in globals.css
+- Server actions in `src/app/admin/rules/actions.ts` (createRule, updateRule, deleteRule, runRuleAction) — no API routes for CRUD; forms call actions directly
+- Dynamic params use Next 16 `params: Promise<{...}>` pattern (verified against `node_modules/next/dist/docs/`)
 
-### My proposed approach (waiting on user approval)
-1. Restructure landing into 2 cards routing to `/admin` and `/emails`
-2. `/admin/accounts` = current dashboard's Connected Accounts section
-3. `/admin/rules` = rules list (start hardcoded, add CRUD in v2)
-4. `/emails/output` = per-rule report views
-5. Extend `gmail.ts` with `fetchLast24hWithBody()` (current only fetches metadata)
-6. Add `src/lib/rules/kika.ts` — Claude Haiku call to extract order data from each KIKA email body, then aggregate. Cost ~$0.01/run for ~5–10 KIKA emails.
-7. Persist rule outputs to a new `rule_runs` table (or compute on-demand for v1)
+### Mark-as-read (Phase 2.1)
+- Scope expanded: `gmail.readonly` + **`gmail.modify`** in `src/lib/gmail.ts` SCOPES
+- New `markMessagesAsRead(refreshTokenEncrypted, ids)` removes UNREAD label after rule processes
+- Engine calls it post-aggregation; output gets `marked_read` + `mark_errors` counts
+- Failures are caught (won't fail the run); user sees green/amber banner on detail page
 
-### Decisions waiting from user
-- **`ANTHROPIC_API_KEY`** — user must paste so we can wire Claude Haiku for parsing
-- **Hardcoded vs CRUD UI for rules** — recommended hardcoded v1 (faster), then CRUD pass
+### ⏳ User action items
+- **Add `gmail.modify` scope in Google Cloud → Data Access** (not done yet — user only granted readonly originally)
+- **Re-Connect each of 3 Gmail accounts** at `/admin/accounts` so OAuth picks up the new scope (existing tokens lack `gmail.modify`; mark calls return 403 until re-auth)
+- Test KIKA rule run after re-connect → confirm "Marked N email(s) as read" banner shows on detail page
 
 ## (Original Phase 1 — kept for reference, no longer blocking)
 

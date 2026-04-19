@@ -3,6 +3,7 @@ import { ChevronRight, Play, ArrowRight, ShoppingBag, ListChecks } from 'lucide-
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
 import { runRuleAction } from '@/app/admin/rules/actions';
+import { DOMAINS, DOMAIN_LABELS, type Domain } from '@/lib/rules/presets';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ type RuleRow = {
   id: string;
   name: string;
   enabled: boolean;
+  domain: string | null;
   conditions: any;
   actions: any;
   account: { email: string } | null;
@@ -21,13 +23,25 @@ type RuleRow = {
   } | null;
 };
 
-export default async function RulesOutputListPage() {
+export default async function RulesOutputListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ domain?: string }>;
+}) {
+  const sp = await searchParams;
+  const activeDomain: Domain | 'all' = (DOMAINS as readonly string[]).includes(sp.domain || '')
+    ? (sp.domain as Domain)
+    : 'all';
+
   const sb = supabaseAdmin();
 
-  const { data: rules } = await sb
+  let q = sb
     .from('rules')
-    .select('id, name, enabled, conditions, actions, account:accounts(email)')
+    .select('id, name, enabled, domain, conditions, actions, account:accounts(email)')
     .order('priority', { ascending: true });
+  if (activeDomain !== 'all') q = q.eq('domain', activeDomain);
+
+  const { data: rules } = await q;
 
   const enriched: RuleRow[] = await Promise.all(
     (rules || []).map(async (r: any) => {
@@ -41,6 +55,21 @@ export default async function RulesOutputListPage() {
       return { ...r, latest_run: latest };
     })
   );
+
+  const counts = await Promise.all(
+    DOMAINS.map(async d => {
+      const { count } = await sb
+        .from('rules')
+        .select('*', { count: 'exact', head: true })
+        .eq('domain', d);
+      return [d, count ?? 0] as const;
+    })
+  );
+  const { count: allCount } = await sb
+    .from('rules')
+    .select('*', { count: 'exact', head: true });
+  const countMap: Record<string, number> = { all: allCount ?? 0 };
+  for (const [d, n] of counts) countMap[d] = n;
 
   return (
     <>
@@ -60,10 +89,14 @@ export default async function RulesOutputListPage() {
           </p>
         </header>
 
+        <DomainTabs active={activeDomain} counts={countMap} />
+
         {!enriched.length ? (
           <div className="ix-card p-8 text-center">
             <p className="text-slate-500 text-sm mb-4">
-              No rules yet. Create your first one to start aggregating.
+              {activeDomain === 'all'
+                ? 'No rules yet. Create your first one to start aggregating.'
+                : `No rules under ${DOMAIN_LABELS[activeDomain as Domain]} yet.`}
             </p>
             <Link href="/admin/rules/new" className="ix-btn-primary">
               Create rule
@@ -75,21 +108,24 @@ export default async function RulesOutputListPage() {
               const out = r.latest_run?.output;
               const orders = out?.order_count ?? 0;
               const total = out?.total_amount ?? 0;
-              const currency = out?.currency || '';
+              const currency = out?.currency || 'EGP';
               return (
-                <Link
+                <div
                   key={r.id}
-                  href={`/emails/output/${r.id}`}
-                  className="group ix-card p-5 hover:shadow-md hover:-translate-y-0.5 transition relative overflow-hidden"
+                  className="group ix-card p-5 hover:shadow-md transition relative overflow-hidden"
                 >
                   <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 opacity-[0.06] blur-2xl pointer-events-none" />
-                  <div className="flex items-center justify-between gap-3">
+                  <Link
+                    href={`/emails/output/${r.id}`}
+                    className="flex items-center justify-between gap-3"
+                  >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 inline-flex items-center justify-center">
                           <ShoppingBag size={16} />
                         </div>
                         <h3 className="font-semibold truncate">{r.name}</h3>
+                        {r.domain && <DomainBadge d={r.domain as Domain} />}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
                         {r.account?.email || 'all accounts'} · last{' '}
@@ -100,7 +136,7 @@ export default async function RulesOutputListPage() {
                       size={18}
                       className="text-slate-400 group-hover:text-indigo-600 transition shrink-0"
                     />
-                  </div>
+                  </Link>
 
                   <div className="mt-5 grid grid-cols-3 gap-3">
                     <MiniStat label="Orders" value={String(orders)} />
@@ -128,7 +164,7 @@ export default async function RulesOutputListPage() {
                       </button>
                     </form>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
@@ -142,6 +178,63 @@ export default async function RulesOutputListPage() {
         </div>
       </main>
     </>
+  );
+}
+
+function DomainTabs({
+  active,
+  counts,
+}: {
+  active: string;
+  counts: Record<string, number>;
+}) {
+  const tabs: Array<{ id: string; label: string }> = [
+    { id: 'all', label: 'All' },
+    ...DOMAINS.map(d => ({ id: d, label: DOMAIN_LABELS[d] })),
+  ];
+  return (
+    <div className="ix-card p-1 inline-flex flex-wrap gap-1 max-w-full overflow-x-auto">
+      {tabs.map(t => {
+        const isActive = active === t.id;
+        const href = t.id === 'all' ? '/emails/output' : `/emails/output?domain=${t.id}`;
+        return (
+          <Link
+            key={t.id}
+            href={href}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+              isActive
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {t.label}
+            <span
+              className={`ml-1.5 text-xs ${
+                isActive ? 'text-indigo-100' : 'text-slate-400'
+              }`}
+            >
+              {counts[t.id] ?? 0}
+            </span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function DomainBadge({ d }: { d: Domain }) {
+  const palette: Record<Domain, string> = {
+    personal: 'bg-slate-100 text-slate-700',
+    kika: 'bg-violet-100 text-violet-700',
+    lime: 'bg-emerald-100 text-emerald-700',
+    fmplus: 'bg-amber-100 text-amber-700',
+    voltauto: 'bg-indigo-100 text-indigo-700',
+    beithady: 'bg-rose-100 text-rose-700',
+  };
+  return (
+    <span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${palette[d]}`}>
+      {DOMAIN_LABELS[d]}
+    </span>
   );
 }
 

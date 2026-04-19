@@ -3,26 +3,36 @@ import { notFound } from 'next/navigation';
 import {
   ChevronRight,
   ShoppingBag,
-  DollarSign,
+  Wallet,
   Package,
   Mail,
   Play,
   CheckCircle2,
   XCircle,
+  Calendar,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
 import { Stat } from '@/app/_components/stat';
 import { runRuleAction } from '@/app/admin/rules/actions';
+import {
+  RANGE_PRESETS,
+  resolvePreset,
+  dateInputValue,
+  type RangePreset,
+} from '@/lib/rules/presets';
 
 export const dynamic = 'force-dynamic';
 
 export default async function RuleOutputDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ ruleId: string }>;
+  searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
 }) {
   const { ruleId } = await params;
+  const sp = await searchParams;
   const sb = supabaseAdmin();
 
   const [{ data: rule }, { data: runs }] = await Promise.all([
@@ -40,11 +50,24 @@ export default async function RuleOutputDetailPage({
   const out = latest?.output as any;
   const orders = out?.order_count ?? 0;
   const total = out?.total_amount ?? 0;
-  const currency = out?.currency || (rule.actions?.currency as string) || '';
+  const currency = out?.currency || (rule.actions?.currency as string) || 'EGP';
   const products = out?.products || [];
   const orderList = out?.orders || [];
 
   const maxQty = Math.max(1, ...products.map((p: any) => p.total_quantity || 0));
+
+  const validPresets = RANGE_PRESETS.map(p => p.id);
+  const activePreset =
+    sp.preset && validPresets.includes(sp.preset as RangePreset)
+      ? (sp.preset as RangePreset)
+      : 'last24h';
+  const presetResolved = resolvePreset(activePreset);
+  const fromDefault = sp.from || dateInputValue(presetResolved.fromIso);
+  const toDefault = sp.to || dateInputValue(presetResolved.toIso);
+
+  const lastRange = out?.time_range as
+    | { from: string; to: string; label?: string }
+    | undefined;
 
   return (
     <>
@@ -67,8 +90,6 @@ export default async function RuleOutputDetailPage({
                 <Mail size={14} /> {(rule as any).account?.email || 'all accounts'}
               </span>
               <span>·</span>
-              <span>last {rule.conditions?.time_window_hours ?? 24}h</span>
-              <span>·</span>
               <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-700">
                 {rule.actions?.type}
               </span>
@@ -85,17 +106,81 @@ export default async function RuleOutputDetailPage({
               )}
             </p>
           </div>
-          <form action={runRuleAction}>
-            <input type="hidden" name="id" value={rule.id} />
+        </header>
+
+        <section className="ix-card p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-indigo-600" />
+            <h2 className="text-sm font-semibold">Time range</h2>
+            {lastRange && (
+              <span className="text-xs text-slate-500">
+                Last run covered:{' '}
+                <span className="font-medium text-slate-700">
+                  {new Date(lastRange.from).toLocaleDateString()}
+                  {' → '}
+                  {new Date(lastRange.to).toLocaleDateString()}
+                  {lastRange.label && ` (${lastRange.label})`}
+                </span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {RANGE_PRESETS.map(p => (
+              <Link
+                key={p.id}
+                href={`/emails/output/${ruleId}?preset=${p.id}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                  activePreset === p.id
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {p.label}
+              </Link>
+            ))}
+          </div>
+
+          <form action={runRuleAction} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="id" value={ruleId} />
+            <input type="hidden" name="preset" value="custom" />
+            <label className="space-y-1">
+              <span className="block text-xs font-medium text-slate-700">From</span>
+              <input
+                type="date"
+                name="from"
+                defaultValue={fromDefault}
+                className="ix-input w-[160px]"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-xs font-medium text-slate-700">To</span>
+              <input
+                type="date"
+                name="to"
+                defaultValue={toDefault}
+                className="ix-input w-[160px]"
+              />
+            </label>
             <button type="submit" className="ix-btn-primary">
-              <Play size={16} /> Run now
+              <Play size={16} /> Run with this range
             </button>
           </form>
-        </header>
+
+          <form action={runRuleAction}>
+            <input type="hidden" name="id" value={ruleId} />
+            <input type="hidden" name="preset" value={activePreset} />
+            <button type="submit" className="ix-btn-secondary">
+              <Play size={14} /> Run preset: {RANGE_PRESETS.find(p => p.id === activePreset)?.label}
+            </button>
+          </form>
+        </section>
 
         {!latest ? (
           <div className="ix-card p-10 text-center">
-            <p className="text-slate-500 mb-4">No runs yet. Click &ldquo;Run now&rdquo; to evaluate.</p>
+            <p className="text-slate-500 mb-4">
+              No runs yet. Pick a range above and click &ldquo;Run&rdquo; to evaluate.
+            </p>
           </div>
         ) : (
           <>
@@ -138,7 +223,7 @@ export default async function RuleOutputDetailPage({
               <Stat
                 label={`Total ${currency}`}
                 value={total.toLocaleString()}
-                Icon={DollarSign}
+                Icon={Wallet}
                 accent="emerald"
               />
               <Stat
@@ -176,8 +261,8 @@ export default async function RuleOutputDetailPage({
                             <span className="font-semibold text-slate-900">
                               {p.total_quantity}
                             </span>{' '}
-                            unit{p.total_quantity !== 1 ? 's' : ''} · {currency}{' '}
-                            {p.total_revenue.toLocaleString()}
+                            unit{p.total_quantity !== 1 ? 's' : ''} ·{' '}
+                            {p.total_revenue.toLocaleString()} {currency}
                           </div>
                         </div>
                         <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -236,26 +321,35 @@ export default async function RuleOutputDetailPage({
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="text-left py-2.5 px-6 font-medium">Started</th>
+                    <th className="text-left px-6 font-medium">Range</th>
                     <th className="text-left px-6 font-medium">Status</th>
                     <th className="text-right px-6 font-medium">Emails</th>
                     <th className="text-right px-6 font-medium">Orders</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {runs?.map(r => (
-                    <tr key={r.id} className="border-t border-slate-100">
-                      <td className="py-2.5 px-6 whitespace-nowrap">
-                        {new Date(r.started_at).toLocaleString()}
-                      </td>
-                      <td className="px-6">
-                        <StatusPill status={r.status} />
-                      </td>
-                      <td className="px-6 text-right tabular-nums">{r.input_email_count}</td>
-                      <td className="px-6 text-right tabular-nums">
-                        {(r.output as any)?.order_count ?? '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {runs?.map(r => {
+                    const tr = (r.output as any)?.time_range;
+                    return (
+                      <tr key={r.id} className="border-t border-slate-100">
+                        <td className="py-2.5 px-6 whitespace-nowrap">
+                          {new Date(r.started_at).toLocaleString()}
+                        </td>
+                        <td className="px-6 text-xs text-slate-600 whitespace-nowrap">
+                          {tr
+                            ? `${new Date(tr.from).toLocaleDateString()} → ${new Date(tr.to).toLocaleDateString()}`
+                            : '—'}
+                        </td>
+                        <td className="px-6">
+                          <StatusPill status={r.status} />
+                        </td>
+                        <td className="px-6 text-right tabular-nums">{r.input_email_count}</td>
+                        <td className="px-6 text-right tabular-nums">
+                          {(r.output as any)?.order_count ?? '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </section>

@@ -3,6 +3,7 @@ import { Plus, Play, Pencil, Trash2, ChevronRight } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
 import { deleteRule, runRuleAction } from './actions';
+import { DOMAIN_LABELS, type Domain } from '@/lib/rules/presets';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,9 +59,15 @@ export default async function RulesListPage() {
                       <Link href={`/admin/rules/${r.id}`} className="font-semibold hover:underline">
                         {r.name}
                       </Link>
+                      {r.domain && <DomainBadge d={r.domain as Domain} />}
                       {!r.enabled && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                           disabled
+                        </span>
+                      )}
+                      {r.actions?.mark_as_read && (
+                        <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                          mark read
                         </span>
                       )}
                     </div>
@@ -98,5 +105,21 @@ export default async function RulesListPage() {
         </section>
       </main>
     </>
+  );
+}
+
+function DomainBadge({ d }: { d: Domain }) {
+  const palette: Record<Domain, string> = {
+    personal: 'bg-slate-100 text-slate-700',
+    kika: 'bg-violet-100 text-violet-700',
+    lime: 'bg-emerald-100 text-emerald-700',
+    fmplus: 'bg-amber-100 text-amber-700',
+    voltauto: 'bg-indigo-100 text-indigo-700',
+    beithady: 'bg-rose-100 text-rose-700',
+  };
+  return (
+    <span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${palette[d]}`}>
+      {DOMAIN_LABELS[d]}
+    </span>
   );
 }

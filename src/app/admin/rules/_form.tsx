@@ -1,15 +1,17 @@
 import Link from 'next/link';
+import { DOMAINS, DOMAIN_LABELS } from '@/lib/rules/presets';
 
 export type RuleFormValues = {
   name?: string;
   account_id?: string | null;
+  domain?: string | null;
   conditions?: {
     from_contains?: string;
     subject_contains?: string;
     to_contains?: string;
     time_window_hours?: number;
   };
-  actions?: { type?: string; currency?: string };
+  actions?: { type?: string; currency?: string; mark_as_read?: boolean };
   enabled?: boolean;
   priority?: number;
 };
@@ -40,6 +42,20 @@ export function RuleForm({
       </Field>
 
       <div className="grid sm:grid-cols-2 gap-4">
+        <Field label="Domain">
+          <select
+            name="domain"
+            defaultValue={initial.domain || ''}
+            className="ix-input"
+          >
+            <option value="">— None —</option>
+            {DOMAINS.map(d => (
+              <option key={d} value={d}>
+                {DOMAIN_LABELS[d]}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Account">
           <select
             name="account_id"
@@ -54,17 +70,17 @@ export function RuleForm({
             ))}
           </select>
         </Field>
-
-        <Field label="Time window (hours)">
-          <input
-            type="number"
-            name="time_window_hours"
-            min={1}
-            defaultValue={cond.time_window_hours ?? 24}
-            className="ix-input"
-          />
-        </Field>
       </div>
+
+      <Field label="Default time window (hours) — used when no date range is chosen">
+        <input
+          type="number"
+          name="time_window_hours"
+          min={1}
+          defaultValue={cond.time_window_hours ?? 24}
+          className="ix-input"
+        />
+      </Field>
 
       <fieldset className="ix-card p-5 space-y-4">
         <legend className="text-sm font-semibold px-2 text-slate-700">
@@ -113,6 +129,21 @@ export function RuleForm({
             className="ix-input"
           />
         </Field>
+        <label className="flex items-start gap-3 text-sm pt-1">
+          <input
+            type="checkbox"
+            name="mark_as_read"
+            defaultChecked={act.mark_as_read === true}
+            className="w-4 h-4 mt-0.5 accent-indigo-600"
+          />
+          <span>
+            <span className="font-medium">Mark matched emails as read in Gmail</span>
+            <span className="block text-xs text-slate-500">
+              Removes the UNREAD label after each successful run. Requires the
+              gmail.modify scope on the connected account.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <div className="grid sm:grid-cols-2 gap-4 items-end">
