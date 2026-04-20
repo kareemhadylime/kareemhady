@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   GitCompare,
   Plane,
+  Banknote,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
