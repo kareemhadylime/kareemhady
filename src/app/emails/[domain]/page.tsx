@@ -129,6 +129,10 @@ export default async function DomainRulesPage({
               const out = r.latest_run?.output;
               const orders = out?.order_count ?? 0;
               const total = out?.total_amount ?? 0;
+              const productsArr = (out?.products as any[]) || [];
+              const subtotal =
+                out?.line_items_subtotal ??
+                productsArr.reduce((s: number, p: any) => s + (p.total_revenue || 0), 0);
               const currency = out?.currency || 'EGP';
               return (
                 <div
@@ -162,15 +166,19 @@ export default async function DomainRulesPage({
                     />
                   </Link>
 
-                  <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="mt-5 grid grid-cols-4 gap-3">
                     <MiniStat label="Orders" value={String(orders)} />
                     <MiniStat
-                      label={`Total ${currency}`}
+                      label={`Total paid ${currency}`}
                       value={total.toLocaleString()}
                     />
                     <MiniStat
+                      label={`Product revenue ${currency}`}
+                      value={subtotal.toLocaleString()}
+                    />
+                    <MiniStat
                       label="Products"
-                      value={String(out?.products?.length ?? 0)}
+                      value={String(productsArr.length)}
                     />
                   </div>
 

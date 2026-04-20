@@ -239,6 +239,29 @@ The user needs to click a preset / Run to get a new run whose output carries `li
 ### Deployment note for future
 - Vercel's build cache appears to have held an older bundle of `src/lib/rules/aggregators/shopify-order.ts` after Phase 4.4. **If new JSONB fields don't show up in `rule_runs.output`, force-redeploy with `vercel --prod --force --yes`.**
 
+## ✅ PHASE 4.6 SHIPPED — fallbacks so historical rule_runs render correctly (commit e9ad08c)
+
+### User confusion this turn
+Screenshot showed:
+- Product Revenue EGP = 0 (expected a number)
+- Chip stuck on "Last 24h" even though "Last run covered 4/1 → 4/20 (Month to date)"
+- User hadn't clicked anything
+
+User asked "Why old cache is persistent" — really asking why a stale-looking snapshot shows on page load.
+
+### Design clarification (not a bug)
+- `rule_runs` is an append-only table of run snapshots.
+- Detail page reads `WHERE rule_id=X ORDER BY started_at DESC LIMIT 1` and renders that one row. No auto-run on load (would burn Claude API on every visit).
+- So "cache" really = the latest stored snapshot. Runs created before a new field was added simply lack that field.
+
+### Fix: two client-side fallbacks on detail page
+1. `subtotal = out.line_items_subtotal ?? sum(products[].total_revenue)` — computes Product Revenue on the fly for Phase <4.4 runs, since the per-product `total_revenue` totals are already stored.
+2. `activePreset` chain expanded to `urlPreset || lastRunPreset || labelFallbackPreset || 'last24h'`. The label fallback matches `time_range.label` against `RANGE_PRESETS` (e.g. "Month to date" → `mtd`) for Phase <4.5 runs that predate `preset_id`.
+
+### No schema/migration change
+- Fallbacks are pure render-layer. Existing rule_runs JSONB untouched.
+- New runs continue to persist `line_items_subtotal` and `time_range.preset_id` natively (Phase 4.4/4.5 still in effect).
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google
