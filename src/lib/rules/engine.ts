@@ -151,6 +151,7 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
 
     let marked = 0;
     let markErrors = 0;
+    let markErrorReason: string | undefined;
     if (action.mark_as_read) {
       const markRes = await markMessagesAsRead(
         account.oauth_refresh_token_encrypted,
@@ -158,6 +159,11 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
       );
       marked = markRes.marked;
       markErrors = markRes.errors.length;
+      if (markRes.errors.length > 0) {
+        const first = markRes.errors[0];
+        const colon = first.indexOf(': ');
+        markErrorReason = (colon >= 0 ? first.slice(colon + 2) : first).slice(0, 300);
+      }
     }
 
     await sb
@@ -169,6 +175,7 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
           ...output,
           marked_read: marked,
           mark_errors: markErrors,
+          mark_error_reason: markErrorReason,
           time_range: timeRange,
         },
       })

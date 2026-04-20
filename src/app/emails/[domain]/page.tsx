@@ -177,7 +177,7 @@ export default async function DomainRulesPage({
                   </Link>
 
                   {isBeithady ? (
-                    <BeithadyMini out={out} currency={currency} />
+                    <BeithadyMini out={out} currency="USD" />
                   ) : (
                     <ShopifyMini out={out} currency={currency} />
                   )}
@@ -237,18 +237,15 @@ function ShopifyMini({ out, currency }: { out: any; currency: string }) {
   );
 }
 
-function BeithadyMini({ out, currency }: { out: any; currency: string }) {
+function BeithadyMini({ out }: { out: any; currency: string }) {
   const reservations = out?.reservation_count ?? 0;
-  const totalPayout = out?.total_payout ?? 0;
+  const totalPayout = Math.round(Number(out?.total_payout) || 0);
   const totalNights = out?.total_nights ?? 0;
   const uniqueBuildings = out?.unique_buildings ?? ((out?.by_building as any[]) || []).length;
   return (
     <div className="mt-5 grid grid-cols-4 gap-3">
       <MiniStat label="Reservations" value={String(reservations)} />
-      <MiniStat
-        label={`Total payout ${currency}`}
-        value={Number(totalPayout).toLocaleString()}
-      />
+      <MiniStat label="Total payout USD" value={totalPayout.toLocaleString()} />
       <MiniStat label="Nights" value={String(totalNights)} />
       <MiniStat label="Buildings" value={String(uniqueBuildings)} />
     </div>

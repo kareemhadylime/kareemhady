@@ -176,9 +176,28 @@ async function parseOne(
   };
 }
 
+export const BEITHADY_BUILDINGS: Record<
+  string,
+  { label: string; description?: string }
+> = {
+  'BH-26': { label: 'BH-26' },
+  'BH-73': { label: 'BH-73' },
+  'BH-435': { label: 'BH-435' },
+  'BH-OK': {
+    label: 'BH-OK',
+    description: 'Scattered apartments · One Kattameya compound',
+  },
+  'BH-MG': {
+    label: 'BH-MG',
+    description: 'Single apartment · Heliopolis',
+  },
+};
+
 function deriveBuildingCode(listingCode: string): string {
-  const first = listingCode.split('-')[0]?.trim();
-  return first || 'UNKNOWN';
+  const first = (listingCode || '').split('-')[0]?.trim().toUpperCase();
+  if (!first) return 'UNKNOWN';
+  const m = first.match(/^BH([A-Z0-9]+)$/);
+  return m ? `BH-${m[1]}` : first;
 }
 
 function deriveBedrooms(listingCode: string, listingName: string): number | null {
