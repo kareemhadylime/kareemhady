@@ -1,5 +1,58 @@
 # Kareemhady — Session Handoff (2026-04-20)
 
+## ✅ PHASE 5.2 SHIPPED — USD + integers + building catalog + re-auth banner (commit dd89e8d)
+
+### User feedback this turn
+> "All Currency is USD, No Decimal Digits in all"
+> "Whats Commission Absorbed ?"
+> "We Have Buildings: BH-26, BH-73, BH-435, BH-OK (Scattered Apartments in One Kattameya Compound), BH-MG (Single Apartment in Heliopolis)"
+> "Emails are not marked as read in mailbox"
+
+### Diagnosis of mark-as-read
+Queried `rule_runs` for the Beithady rule: latest successful run processed 62 emails, `marked_read=0, mark_errors=62` — every mark call 403'd. This is the known re-auth action item from Phase 2.1: `kareem@limeinc.cc`'s OAuth token was issued with `gmail.readonly` only; `gmail.modify` was added to the `SCOPES` array later but the existing refresh token doesn't carry it. User must re-Connect that mailbox at `/admin/accounts`. Can't be fixed in code.
+
+### Changes
+
+#### `src/lib/rules/aggregators/beithady-booking.ts`
+- Exported `BEITHADY_BUILDINGS` catalog:
+  ```ts
+  { 'BH-26': {...}, 'BH-73': {...}, 'BH-435': {...},
+    'BH-OK': { description: 'Scattered apartments · One Kattameya compound' },
+    'BH-MG': { description: 'Single apartment · Heliopolis' } }
+  ```
+- `deriveBuildingCode()` normalizes: any `BH<suffix>` from listing code becomes `BH-<suffix>` uppercased. So `BH73-3BR-SB-1-201 → BH-73`, `BHOK-... → BH-OK`.
+
+#### `src/lib/rules/engine.ts`
+- After `markMessagesAsRead`, if any errors came back we take the first one, strip the `"<messageId>: "` prefix, and persist the first 300 chars as `output.mark_error_reason`. UI surfaces this so the user sees the actual 403 message, not just a count.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- Added `fmt(n)` helper at module scope — rounds to integer and `.toLocaleString()`s. Used everywhere money is displayed.
+- `BeithadyView` now hardcodes `const CURRENCY = 'USD';` (ignores the `out?.currency` field).
+- Removed commissionAbsorbed computation + Commission Absorbed Stat card.
+- Added `avgListRate = mean(bookings[].rate_per_night)` + "Avg list rate/night USD" Stat in its slot.
+- Performance KPI strip is now: ADR · Avg list rate/night · Booking pace · Avg lead time.
+- Hero stat subtitles use `fmt()`; nights/stay hint shows `avgNights.toFixed(1)` for decimal granularity on a non-money number.
+- TrophyCards use `fmt()`; the "Most reserved building" card prepends the catalog description (e.g. "Scattered apartments · One Kattameya compound · 12 nights · 2,450 USD").
+- `BuildingTable` rewritten to pre-render all 5 canonical buildings (empty rows dimmed to `text-slate-400` with `—` cells) plus any extra codes discovered. Each row has a two-line cell: mono code on top, 11px gray description below.
+- Reservations table: rate + payout cells use `fmt()`; `Bldg` cell passes through `normalizeBuildingCode()` (local helper) so any historical un-normalized codes display canonical format.
+- Footer sum uses `fmt()`; mismatch banner uses `fmt()`.
+- Dropped `currency` prop from ChannelMix / BucketPanel / CheckInMonthPanel / BucketBars / GuestTable — each now writes "USD" literally.
+- New red banner between the parse_errors banner and the view: shows when `(mark_errors > 0 && marked_read === 0)`. Contents: "None of N emails could be marked as read", account email in mono, link to `/admin/accounts`, instruction to re-Connect with `gmail.modify`, sample error line from `mark_error_reason`. Complements the existing green "Marked N · (M errors)" success banner.
+
+#### `src/app/emails/[domain]/page.tsx`
+- `BeithadyMini` card: hardcoded "Total payout USD" label, `Math.round` before toLocaleString.
+
+### Known building-code gotcha
+Historical rule_runs have `building_code` stored as the raw first-segment (e.g. "BH73"). The new normalize happens at parse time. Until the rule is re-run, the stored `building_code` on old rows stays "BH73". The detail page's Bldg column normalizes on render via `normalizeBuildingCode()`, so the UI is consistent. The aggregator's `by_building` bucket keys on new runs will already be "BH-73"; the BuildingTable also normalizes pre-existing bucket labels when matching against the catalog.
+
+### Verification
+- `npm run build` passes (10.9s TS, all 14 routes).
+- `vercel --prod --yes` → dpl_DzExo6r5aZ5FUJjvjWUM9aYdK8A3 ready, aliased to kareemhady.vercel.app.
+- Stale Vercel build cache issue did NOT recur this time (no `--force` needed after the previous force-build).
+
+### Remaining user action
+**Re-Connect kareem@limeinc.cc at [/admin/accounts](https://kareemhady.vercel.app/admin/accounts)** so OAuth grants `gmail.modify`. Until then, every Beithady run will show the red "62/62 failed" banner. Kika works because `kareem.hady@gmail.com` was already re-authed earlier.
+
 ## ✅ PHASE 5.1 SHIPPED — Beithady dashboard redesigned as hospitality view (commit 84b8039, force-deployed)
 
 ### User feedback this turn
