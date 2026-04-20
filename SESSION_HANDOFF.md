@@ -1,5 +1,57 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.6 SHIPPED — canonical building classifier (commit 5626464)
+
+### User rules (verbatim)
+> Any Unit starting with BH-26 belongs to Building BH-26
+> Any Unit starting with BH-435 belongs to Building BH-435
+> Any Unit starting BH-(3 Digits)-xx belongs to BH-OK (One Kattameya)
+
+The previous `deriveBuildingCode` simply returned the first dash-separated segment of the listing code (`BH73-3BR-SB-1-201 → BH-73`). That was fine for BH-26 / BH-73 / BH-435 / BH-MG, but any other 3-digit code (BH-101, BH-205, etc.) was becoming its own bucket instead of rolling up to BH-OK.
+
+### Implementation
+
+#### `src/lib/rules/aggregators/beithady-booking.ts`
+New exported function applying the rules top-down:
+```ts
+export function classifyBuilding(listingCode: string): string {
+  const code = (listingCode || '').toUpperCase().trim();
+  if (!code) return 'UNKNOWN';
+  const m = code.match(/^BH-?([A-Z0-9]+)/);
+  if (!m) return code;
+  const suffix = m[1];
+  if (suffix.startsWith('26'))   return 'BH-26';
+  if (suffix.startsWith('435'))  return 'BH-435';
+  if (/^\d{3}/.test(suffix))     return 'BH-OK';
+  return `BH-${suffix}`;
+}
+```
+
+- Matches both `BH73-…` (emails as we've seen them) and `BH-73-…` (in case future listing codes use the dashed form).
+- Order matters: BH-26 and BH-435 are checked BEFORE the generic 3-digit fallback because their suffixes are also (entirely or partly) numeric and would otherwise get pulled into BH-OK.
+- `deriveBuildingCode` now delegates to `classifyBuilding`.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+Imports `classifyBuilding` and applies it on render so **historical rule_runs** (whose stored `building_code` is just the first segment like `BH73`) show the new mapping without requiring a re-run:
+- `normalizeBuildingCode(b)` now prefers `b.listing_code` (most faithful to the raw data) and falls back to `b.building_code`.
+- Reservations table Bldg column: `normalizeBuildingCode(b)` on each row.
+- `BuildingTable`: builds `itemsByCode` by re-classifying every bucket `label` with `classifyBuilding`, AGGREGATING across buckets that now map to the same canonical code. So if a legacy run had separate buckets for `BH101`, `BH102`, and `BH205`, they merge into a single `BH-OK` row with summed reservation_count / nights / total_payout.
+- Trophy card "Most reserved building": name + description lookup both go through `classifyBuilding(topBuilding.label)`.
+
+Section hint text updated to document the mapping:
+> Mapping: BH-26* → BH-26 · BH-435* → BH-435 · BH-73* → BH-73 · BH-<3 digits>-xx → BH-OK (scattered One Kattameya) · BH-MG → BH-MG (Heliopolis single).
+
+### Verification
+- `npm run build` passes.
+- `vercel --prod --yes` deployed, alias updated.
+- Historical runs immediately render the new classification via the render-time re-map.
+- A fresh Run is still recommended so `by_building` bucket keys and `booking.building_code` are persisted under the canonical codes at source.
+
+### Edge cases considered
+- `BH-260` → startsWith('26') → BH-26. If the user later has a real BH-260 that should NOT fold into BH-26, we'd need stricter matching (e.g. `/^26(-|$)/`). Flagged here for future if it ever comes up.
+- `BH-435A` → startsWith('435') → BH-435. Same caveat.
+- Listing codes that aren't `BH*` at all — returned as-is in uppercase (preserves data visibility for debugging weird rows).
+
 ## ✅ PHASE 5.5 SHIPPED — Airbnb reconciliation looks in the right mailbox (commit 455b580)
 
 ### User correction
