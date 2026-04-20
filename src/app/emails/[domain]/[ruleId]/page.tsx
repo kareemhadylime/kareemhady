@@ -697,7 +697,7 @@ function BeithadyView({
       <section>
         <SectionHeader
           title="Airbnb ↔ Guesty reconciliation"
-          hint="Cross-checks direct Airbnb reservation-confirmation emails (from Airbnb) against the Guesty NEW BOOKING emails. A mismatch means Guesty didn't relay the booking — go into Guesty and re-sync."
+          hint="Cross-checks Airbnb &ldquo;Reservation confirmed&rdquo; emails (relayed by Guesty to guesty@beithady.com) against the Guesty NEW BOOKING emails. A mismatch means Guesty didn't relay the booking — go into Guesty and re-sync."
         />
         <ReconciliationPanel out={out} />
       </section>
@@ -1734,7 +1734,7 @@ function ReconciliationPanel({ out }: { out: any }) {
       ) : (
         <div className="ix-card p-4 bg-slate-50 text-slate-600 text-xs">
           No Airbnb reservation-confirmation emails were found in this range. The
-          reconciliation looks for messages <span className="font-mono">from:airbnb.com subject:&quot;Reservation confirmed&quot;</span>.
+          reconciliation looks for messages <span className="font-mono">to:guesty@beithady.com subject:&quot;Reservation confirmed&quot;</span> (Airbnb confirmations relayed via Guesty).
         </div>
       )}
     </div>

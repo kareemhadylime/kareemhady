@@ -205,7 +205,7 @@ async function parseOne(
   };
 }
 
-const AIRBNB_SYSTEM = `You parse Airbnb reservation-confirmation emails sent directly by Airbnb (from automated@airbnb.com or noreply@airbnb.com). They confirm a new booking on the host's listing and include: the Airbnb confirmation code (starts with HM, alphanumeric, ~10 chars), guest name, check-in/out dates, listing name, number of nights/guests, and sometimes the host payout. Be strict: only extract values clearly present. If the email is not a reservation confirmation (e.g. inquiry, review, cancellation, payout notification), return null by omitting the tool call.`;
+const AIRBNB_SYSTEM = `You parse Airbnb reservation-confirmation emails that Airbnb sends to a Guesty inbox (guesty@beithady.com), which are then relayed through Guesty's mail service. The visible From is usually "service via Guesty" and the subject is of the form "Reservation confirmed - <Guest Name> arrives <Date>". The email body is Airbnb's standard reservation template with footer "Airbnb Ireland UC, 25 North Wall Quay, Dublin". Extract: the Airbnb confirmation code (starts with HM, alphanumeric, ~10 chars — look for it in the body or a View details link), guest name (from subject or body), check-in/out dates, listing name, number of nights/guests, and host payout / earnings if shown. Be strict: only extract values clearly present. If the email is not a reservation confirmation (e.g. alteration, cancellation, review request, payout-only notification), return null by omitting the tool call.`;
 
 const AIRBNB_TOOL = {
   name: 'extract_airbnb_confirmation',

@@ -154,8 +154,8 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
         const airbnbMatches = await searchMessages(
           account.oauth_refresh_token_encrypted,
           {
-            fromContains: 'airbnb.com',
             subjectContains: 'Reservation confirmed',
+            toContains: 'guesty@beithady.com',
             afterIso: fromIso,
             beforeIso: toIso,
             maxResults: 500,
