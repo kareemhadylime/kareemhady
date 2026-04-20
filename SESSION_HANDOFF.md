@@ -1,5 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🔧 PHASE 5.7.1 HOTFIX — missing Banknote icon import on detail page (commit 9a7742e)
+
+### What happened
+User manually "Redeploy"-ed commit 78d1cca (the last handoff-only commit) from the Vercel UI. Build failed:
+```
+Type error: Cannot find name 'Banknote'.
+./src/app/emails/[domain]/[ruleId]/page.tsx:1022:14
+```
+Vercel's Build Logs truncated after ~30 lines in the screenshot so the TS error wasn't directly visible — I reproduced by pulling main into the root project (`C:\kareemhady`, not the worktree) and running `npm run build`.
+
+### Root cause
+When I added `BeithadyPayoutView` in Phase 5.7, I imported `Banknote` into `src/app/emails/[domain]/page.tsx` (for the domain-list card icon) but forgot to add it to the lucide-react import block in `[ruleId]/page.tsx` where I also use it in the payout view's hero row.
+
+### Why my local `npm run build` didn't catch it
+The worktree's `.next/` cache from Phase 5.7's successful build masked the missing import. Vercel always builds from a cold cache, so it failed on first compile after commit 6b4c2a9. The user hadn't tried a vercel deploy immediately after 5.7 — they hit it when manually clicking Redeploy.
+
+### Fix
+One-line import addition + Vercel redeploy.
+
+### Verification
+- Pulled fix into `C:\kareemhady` main checkout, `npm run build` clean (all 14 routes).
+- `vercel --prod --yes` successful.
+
+### Lesson carried forward
+For large edits that introduce a symbol in one new location: `rm -rf .next && npm run build` locally before pushing — clears the Turbopack persistent cache so I catch import-drift class bugs before they surface on Vercel.
+
 ## 🚧 PHASE 5.8 IN PROGRESS — Stripe API reconciliation (blocked on user: STRIPE_SECRET_KEY)
 
 ### User request (this turn)
