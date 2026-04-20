@@ -79,6 +79,7 @@ export default async function RuleOutputDetailPage({
   const out = latest?.output as any;
   const actionType = (rule.actions as any)?.type || 'shopify_order_aggregate';
   const isBeithady = actionType === 'beithady_booking_aggregate';
+  const isPayout = actionType === 'beithady_payout_aggregate';
 
   const lastRange = out?.time_range as
     | {
@@ -318,7 +319,9 @@ export default async function RuleOutputDetailPage({
               </div>
             )}
 
-            {isBeithady ? (
+            {isPayout ? (
+              <BeithadyPayoutView out={out} emailsMatched={latest.input_email_count ?? 0} />
+            ) : isBeithady ? (
               <BeithadyView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : (
               <ShopifyView out={out} rule={rule} emailsMatched={latest.input_email_count ?? 0} />
@@ -336,16 +339,18 @@ export default async function RuleOutputDetailPage({
                     <th className="text-left px-6 font-medium">Status</th>
                     <th className="text-right px-6 font-medium">Emails</th>
                     <th className="text-right px-6 font-medium">
-                      {isBeithady ? 'Reservations' : 'Orders'}
+                      {isPayout ? 'Total AED' : isBeithady ? 'Reservations' : 'Orders'}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs?.map(r => {
                     const tr = (r.output as any)?.time_range;
-                    const count = isBeithady
-                      ? (r.output as any)?.reservation_count
-                      : (r.output as any)?.order_count;
+                    const count = isPayout
+                      ? Math.round(Number((r.output as any)?.total_aed) || 0)
+                      : isBeithady
+                        ? (r.output as any)?.reservation_count
+                        : (r.output as any)?.order_count;
                     return (
                       <tr key={r.id} className="border-t border-slate-100">
                         <td className="py-2.5 px-6 whitespace-nowrap">
@@ -931,6 +936,508 @@ function normalizeBuildingCode(b: {
 }): string {
   if (b.listing_code) return classifyBuilding(b.listing_code);
   return classifyBuilding(b.building_code || '');
+}
+
+function BeithadyPayoutView({
+  out,
+  emailsMatched,
+}: {
+  out: any;
+  emailsMatched: number;
+}) {
+  const totalAed: number = out?.total_aed ?? 0;
+  const airbnbAed: number = out?.airbnb_total_aed ?? 0;
+  const stripeAed: number = out?.stripe_total_aed ?? 0;
+  const airbnbCount: number = out?.airbnb_email_count ?? 0;
+  const stripeCount: number = out?.stripe_email_count ?? 0;
+  const airbnbLineItems: number = out?.airbnb_line_items_count ?? 0;
+  const airbnbUnique: number = out?.airbnb_unique_reservations ?? 0;
+  const airbnbUsd: number = out?.airbnb_total_usd ?? 0;
+  const refundCount: number = out?.refund_count ?? 0;
+  const refundUsd: number = out?.refund_total_usd ?? 0;
+  const lineItems: Array<{
+    confirmation_code: string;
+    guest_name: string;
+    listing_name: string | null;
+    booking_type: string | null;
+    check_in_date: string | null;
+    check_out_date: string | null;
+    amount: number;
+    currency: string;
+    is_refund: boolean;
+    building_code: string | null;
+    email_sent_date: string | null;
+  }> = out?.airbnb_line_items || [];
+  const airbnbPayoutsSummary: Array<{
+    email_date: string | null;
+    total_aed: number;
+    total_usd_from_items: number;
+    sent_date: string | null;
+    arrival_date: string | null;
+    line_item_count: number;
+    bank_iban_last4: string | null;
+  }> = out?.airbnb_payouts || [];
+  const stripePayouts: Array<{
+    email_date: string | null;
+    amount: number;
+    currency: string;
+    arrival_date: string | null;
+    bank_name: string | null;
+    bank_last4: string | null;
+    payout_id: string | null;
+  }> = out?.stripe_payouts || [];
+  const byMonth: Array<{
+    month: string;
+    label: string;
+    airbnb_aed: number;
+    stripe_aed: number;
+    total_aed: number;
+    count: number;
+  }> = out?.by_month || [];
+  const byBuilding: Array<{
+    key: string;
+    line_item_count: number;
+    unique_reservations: number;
+    total_usd: number;
+  }> = out?.by_building || [];
+
+  const airbnbShare = totalAed > 0 ? (airbnbAed / totalAed) * 100 : 0;
+  const stripeShare = totalAed > 0 ? (stripeAed / totalAed) * 100 : 0;
+  const refunds = lineItems.filter(l => l.is_refund);
+  const refundables = lineItems.filter(l => !l.is_refund);
+
+  return (
+    <>
+      <section
+        className="relative rounded-2xl overflow-hidden border border-emerald-200/60 shadow-sm"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(99,102,241,0.06) 45%, rgba(139,92,246,0.08) 100%)',
+        }}
+      >
+        <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-gradient-to-br from-emerald-400 to-indigo-400 opacity-20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-64 h-64 rounded-full bg-gradient-to-br from-indigo-400 to-violet-400 opacity-15 blur-3xl pointer-events-none" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-emerald-700 text-xs uppercase tracking-wider font-semibold">
+            <Banknote size={14} /> Beithady · Payouts received
+          </div>
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
+            <HeroStat
+              label="Total payouts AED"
+              value={fmt(totalAed)}
+              sub={`${emailsMatched.toLocaleString()} payout emails processed`}
+              Icon={Banknote}
+            />
+            <HeroStat
+              label="Airbnb AED"
+              value={fmt(airbnbAed)}
+              sub={`${airbnbCount} payouts · ${airbnbLineItems} line items`}
+              Icon={Plane}
+            />
+            <HeroStat
+              label="Stripe AED"
+              value={fmt(stripeAed)}
+              sub={`${stripeCount} payouts · Booking.com / Expedia / Manual`}
+              Icon={Wallet}
+            />
+            <HeroStat
+              label="Unique reservations paid"
+              value={airbnbUnique.toLocaleString()}
+              sub={`Airbnb line items · ${fmt(airbnbUsd)} USD · ${refundCount} refunds (${fmt(refundUsd)} USD)`}
+              Icon={CheckCircle2}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Bank destinations"
+          hint="Where the money lands. Airbnb pays in AED to Beithady Hospitality FZCO; Stripe settles the non-Airbnb channels to the same IBAN via BANQUE MISR."
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+          <div className="ix-card p-5">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+              Airbnb → Bank
+            </div>
+            <div className="mt-1 font-mono font-bold">Beithady Hospitality FZCO</div>
+            <div className="text-sm text-slate-600">IBAN ending 8439 · AED</div>
+          </div>
+          <div className="ix-card p-5">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+              Stripe → Bank
+            </div>
+            <div className="mt-1 font-mono font-bold">BANQUE MISR ••••8439</div>
+            <div className="text-sm text-slate-600">AED payouts (Booking.com · Expedia · Manual)</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Source split"
+          hint="Share of AED received by platform. Stripe routes Booking.com + Expedia + Manual payouts; Airbnb pays direct. Manual payouts at hotel (cash) don't appear in either email — track those separately."
+        />
+        <div className="ix-card p-6 mt-3 space-y-4">
+          <div className="h-3 w-full rounded-full overflow-hidden flex bg-slate-100">
+            <div
+              className="h-full bg-gradient-to-r from-rose-500 to-pink-500"
+              style={{ width: `${airbnbShare}%` }}
+              title={`Airbnb: ${fmt(airbnbAed)} AED (${airbnbShare.toFixed(1)}%)`}
+            />
+            <div
+              className="h-full bg-gradient-to-r from-indigo-500 to-blue-500"
+              style={{ width: `${stripeShare}%` }}
+              title={`Stripe: ${fmt(stripeAed)} AED (${stripeShare.toFixed(1)}%)`}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-gradient-to-br from-rose-500 to-pink-500" />
+                Airbnb
+              </span>
+              <span className="text-slate-600 tabular-nums text-xs">
+                {airbnbCount} payouts · {fmt(airbnbAed)} AED · {airbnbShare.toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-gradient-to-br from-indigo-500 to-blue-500" />
+                Stripe
+              </span>
+              <span className="text-slate-600 tabular-nums text-xs">
+                {stripeCount} payouts · {fmt(stripeAed)} AED · {stripeShare.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Cash flow by month"
+          hint="Payouts grouped by the date the email arrived in inbox (proxy for when the money was sent)."
+        />
+        <PayoutMonthChart items={byMonth} />
+      </section>
+
+      {byBuilding.length > 0 && (
+        <section>
+          <SectionHeader
+            title="Airbnb payouts by building"
+            hint="Building is inferred from BH-code in the listing name when present. Rows labelled UNKNOWN couldn't be attributed from the Airbnb listing alone."
+          />
+          <div className="ix-card overflow-hidden mt-3">
+            <table className="w-full text-sm">
+              <thead className="bg-emerald-50/60 text-emerald-900">
+                <tr>
+                  <th className="text-left py-2.5 px-6 font-medium">Building</th>
+                  <th className="text-right px-6 font-medium">Line items</th>
+                  <th className="text-right px-6 font-medium">Unique reservations</th>
+                  <th className="text-right px-6 font-medium">Total USD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byBuilding.map(b => (
+                  <tr key={b.key} className="border-t border-slate-100">
+                    <td className="py-2.5 px-6 font-mono font-semibold">{b.key}</td>
+                    <td className="px-6 text-right tabular-nums">{b.line_item_count}</td>
+                    <td className="px-6 text-right tabular-nums">{b.unique_reservations}</td>
+                    <td className="px-6 text-right tabular-nums font-medium">
+                      {fmt(b.total_usd)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <section>
+        <SectionHeader
+          title={`Airbnb payouts (${airbnbPayoutsSummary.length})`}
+          hint="Each payout email's header — total AED + line item count + dates."
+        />
+        <div className="ix-card overflow-hidden mt-3">
+          <table className="w-full text-sm">
+            <thead className="bg-rose-50/60 text-rose-900">
+              <tr>
+                <th className="text-left py-2.5 px-4 font-medium">Email date</th>
+                <th className="text-left px-4 font-medium">Sent</th>
+                <th className="text-left px-4 font-medium">Arrival</th>
+                <th className="text-right px-4 font-medium">Items</th>
+                <th className="text-right px-4 font-medium">USD in items</th>
+                <th className="text-right px-4 font-medium">Payout AED</th>
+                <th className="text-left px-4 font-medium">IBAN</th>
+              </tr>
+            </thead>
+            <tbody>
+              {airbnbPayoutsSummary.map((p, i) => (
+                <tr key={i} className="border-t border-slate-100 hover:bg-rose-50/30">
+                  <td className="py-2.5 px-4 whitespace-nowrap">
+                    {p.email_date ? new Date(p.email_date).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-4 whitespace-nowrap">{p.sent_date || '—'}</td>
+                  <td className="px-4 whitespace-nowrap">{p.arrival_date || '—'}</td>
+                  <td className="px-4 text-right tabular-nums">{p.line_item_count}</td>
+                  <td className="px-4 text-right tabular-nums">
+                    {fmt(p.total_usd_from_items)}
+                  </td>
+                  <td className="px-4 text-right tabular-nums font-medium">
+                    {fmt(p.total_aed)}
+                  </td>
+                  <td className="px-4 font-mono text-xs">
+                    {p.bank_iban_last4 ? `••${p.bank_iban_last4}` : '—'}
+                  </td>
+                </tr>
+              ))}
+              {!airbnbPayoutsSummary.length && (
+                <tr>
+                  <td colSpan={7} className="py-4 px-4 text-slate-500 text-center">
+                    No Airbnb payouts in this range.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title={`Airbnb line items (${refundables.length})`}
+          hint="Per-reservation breakdown. Confirmation code matches the booking_id in the Beithady Guesty Bookings rule — use that for cross-rule reconciliation."
+        />
+        <div className="ix-card overflow-hidden mt-3">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-rose-50/60 text-rose-900">
+                <tr>
+                  <th className="text-left py-2.5 px-4 font-medium">Code</th>
+                  <th className="text-left px-4 font-medium">Guest</th>
+                  <th className="text-left px-4 font-medium">Type</th>
+                  <th className="text-left px-4 font-medium">Listing</th>
+                  <th className="text-left px-4 font-medium">Bldg</th>
+                  <th className="text-left px-4 font-medium">Stay</th>
+                  <th className="text-right px-4 font-medium">Amount (USD)</th>
+                  <th className="text-left px-4 font-medium">Payout date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {refundables.map((li, i) => (
+                  <tr
+                    key={`${li.confirmation_code}-${i}`}
+                    className="border-t border-slate-100 hover:bg-rose-50/30"
+                  >
+                    <td className="py-2.5 px-4 font-mono text-xs text-rose-700 font-semibold">
+                      {li.confirmation_code}
+                    </td>
+                    <td className="px-4">{li.guest_name}</td>
+                    <td className="px-4 text-xs">
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                        {li.booking_type || '—'}
+                      </span>
+                    </td>
+                    <td
+                      className="px-4 max-w-[260px] truncate text-xs"
+                      title={li.listing_name || undefined}
+                    >
+                      {li.listing_name || '—'}
+                    </td>
+                    <td className="px-4 font-mono text-xs font-semibold">
+                      {li.building_code || '—'}
+                    </td>
+                    <td className="px-4 text-xs whitespace-nowrap">
+                      {li.check_in_date && li.check_out_date
+                        ? `${li.check_in_date} → ${li.check_out_date}`
+                        : '—'}
+                    </td>
+                    <td className="px-4 text-right tabular-nums font-medium">
+                      {fmt(li.amount)}
+                    </td>
+                    <td className="px-4 text-xs text-slate-500 whitespace-nowrap">
+                      {li.email_sent_date || '—'}
+                    </td>
+                  </tr>
+                ))}
+                {!refundables.length && (
+                  <tr>
+                    <td colSpan={8} className="py-4 px-4 text-slate-500 text-center">
+                      No Airbnb line items in this range.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {refunds.length > 0 && (
+        <section>
+          <SectionHeader
+            title={`Refunds / adjustments (${refunds.length})`}
+            hint="Negative-amount rows deducted from the payout. Review and cross-reference with cancellation emails."
+          />
+          <div className="ix-card overflow-hidden mt-3 border-amber-200">
+            <table className="w-full text-sm">
+              <thead className="bg-amber-50/60 text-amber-900">
+                <tr>
+                  <th className="text-left py-2.5 px-4 font-medium">Code</th>
+                  <th className="text-left px-4 font-medium">Guest</th>
+                  <th className="text-left px-4 font-medium">Type</th>
+                  <th className="text-left px-4 font-medium">Listing</th>
+                  <th className="text-right px-4 font-medium">Amount (USD)</th>
+                  <th className="text-left px-4 font-medium">Payout date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {refunds.map((li, i) => (
+                  <tr
+                    key={`${li.confirmation_code}-refund-${i}`}
+                    className="border-t border-amber-100 hover:bg-amber-50/30"
+                  >
+                    <td className="py-2.5 px-4 font-mono text-xs font-semibold">
+                      {li.confirmation_code}
+                    </td>
+                    <td className="px-4">{li.guest_name}</td>
+                    <td className="px-4 text-xs">{li.booking_type || '—'}</td>
+                    <td
+                      className="px-4 max-w-[260px] truncate text-xs"
+                      title={li.listing_name || undefined}
+                    >
+                      {li.listing_name || '—'}
+                    </td>
+                    <td className="px-4 text-right tabular-nums font-medium text-amber-700">
+                      {fmt(li.amount)}
+                    </td>
+                    <td className="px-4 text-xs text-slate-500 whitespace-nowrap">
+                      {li.email_sent_date || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      <section>
+        <SectionHeader
+          title={`Stripe payouts (${stripePayouts.length})`}
+          hint="Bank-settled transfers. Stripe emails don't carry per-booking detail, so use the Payout ID in the Stripe dashboard to see which charges were included."
+        />
+        <div className="ix-card overflow-hidden mt-3">
+          <table className="w-full text-sm">
+            <thead className="bg-indigo-50/60 text-indigo-900">
+              <tr>
+                <th className="text-left py-2.5 px-4 font-medium">Email date</th>
+                <th className="text-left px-4 font-medium">Est. arrival</th>
+                <th className="text-right px-4 font-medium">Amount AED</th>
+                <th className="text-left px-4 font-medium">Bank</th>
+                <th className="text-left px-4 font-medium">Payout ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stripePayouts.map((p, i) => (
+                <tr
+                  key={p.payout_id || i}
+                  className="border-t border-slate-100 hover:bg-indigo-50/30"
+                >
+                  <td className="py-2.5 px-4 whitespace-nowrap">
+                    {p.email_date ? new Date(p.email_date).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-4 whitespace-nowrap">{p.arrival_date || '—'}</td>
+                  <td className="px-4 text-right tabular-nums font-medium">
+                    {fmt(p.amount)}
+                  </td>
+                  <td className="px-4 text-xs">
+                    {p.bank_name ? `${p.bank_name}${p.bank_last4 ? ` ••${p.bank_last4}` : ''}` : '—'}
+                  </td>
+                  <td className="px-4 font-mono text-xs">{p.payout_id || '—'}</td>
+                </tr>
+              ))}
+              {!stripePayouts.length && (
+                <tr>
+                  <td colSpan={5} className="py-4 px-4 text-slate-500 text-center">
+                    No Stripe payouts in this range.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function PayoutMonthChart({
+  items,
+}: {
+  items: Array<{
+    month: string;
+    label: string;
+    airbnb_aed: number;
+    stripe_aed: number;
+    total_aed: number;
+    count: number;
+  }>;
+}) {
+  if (!items.length) {
+    return (
+      <div className="ix-card p-6 mt-3 text-center text-sm text-slate-500">
+        No payouts in this range.
+      </div>
+    );
+  }
+  const max = Math.max(1, ...items.map(i => i.total_aed));
+  return (
+    <div className="ix-card p-6 mt-3">
+      <div className="flex items-end gap-3 h-48">
+        {items.map(i => {
+          const airbnbPct = Math.round((i.airbnb_aed / max) * 100);
+          const stripePct = Math.round((i.stripe_aed / max) * 100);
+          return (
+            <div
+              key={i.month}
+              className="flex-1 flex flex-col items-center justify-end gap-1 group"
+              title={`${i.label}: AED ${fmt(i.total_aed)} total · Airbnb ${fmt(i.airbnb_aed)} · Stripe ${fmt(i.stripe_aed)}`}
+            >
+              <div className="text-[10px] font-semibold text-slate-700 tabular-nums">
+                {fmt(i.total_aed)}
+              </div>
+              <div className="w-full flex flex-col-reverse">
+                <div
+                  className="w-full bg-gradient-to-t from-rose-500 to-pink-400"
+                  style={{ height: `${Math.max(2, airbnbPct * 1.2)}px` }}
+                />
+                <div
+                  className="w-full bg-gradient-to-t from-indigo-500 to-blue-400"
+                  style={{ height: `${Math.max(2, stripePct * 1.2)}px` }}
+                />
+              </div>
+              <div className="text-[10px] text-slate-500 whitespace-nowrap">
+                {i.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 flex items-center gap-4 text-xs text-slate-600">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded bg-gradient-to-br from-rose-500 to-pink-500" />
+          Airbnb
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded bg-gradient-to-br from-indigo-500 to-blue-500" />
+          Stripe
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function HeroStat({

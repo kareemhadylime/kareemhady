@@ -211,7 +211,7 @@ export async function markMessagesAsRead(
 export async function fetchEmailFull(
   refreshTokenEncrypted: string,
   gmailMessageId: string
-): Promise<{ subject: string; from: string; bodyText: string }> {
+): Promise<{ subject: string; from: string; bodyText: string; receivedIso: string | null }> {
   const gmail = await getGmailClientFromRefresh(refreshTokenEncrypted);
   const res = await gmail.users.messages.get({
     userId: 'me',
@@ -224,9 +224,14 @@ export async function fetchEmailFull(
   );
   const { html, text } = extractBody(payload);
   const bodyText = text || (html ? htmlToText(html) : '');
+  const internalMs = res.data.internalDate ? Number(res.data.internalDate) : NaN;
+  const receivedIso = Number.isFinite(internalMs)
+    ? new Date(internalMs).toISOString()
+    : null;
   return {
     subject: headers.subject || '',
     from: headers.from || '',
     bodyText,
+    receivedIso,
   };
 }

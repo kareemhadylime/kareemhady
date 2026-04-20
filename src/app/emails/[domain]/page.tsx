@@ -8,6 +8,7 @@ import {
   ListChecks,
   Layers,
   BedDouble,
+  Banknote,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -136,13 +137,20 @@ export default async function DomainRulesPage({
             {enriched.map(r => {
               const out = r.latest_run?.output;
               const actionType = (r.actions as any)?.type || 'shopify_order_aggregate';
-              const isBeithady = actionType === 'beithady_booking_aggregate';
-              const currency = out?.currency || (isBeithady ? 'USD' : 'EGP');
+              const isBeithadyBooking = actionType === 'beithady_booking_aggregate';
+              const isBeithadyPayout = actionType === 'beithady_payout_aggregate';
+              const currency = out?.currency || (isBeithadyBooking ? 'USD' : 'EGP');
 
-              const Icon = isBeithady ? BedDouble : ShoppingBag;
-              const iconTint = isBeithady
-                ? 'bg-rose-50 text-rose-600'
-                : 'bg-violet-50 text-violet-600';
+              const Icon = isBeithadyPayout
+                ? Banknote
+                : isBeithadyBooking
+                  ? BedDouble
+                  : ShoppingBag;
+              const iconTint = isBeithadyPayout
+                ? 'bg-emerald-50 text-emerald-600'
+                : isBeithadyBooking
+                  ? 'bg-rose-50 text-rose-600'
+                  : 'bg-violet-50 text-violet-600';
 
               return (
                 <div
@@ -176,7 +184,9 @@ export default async function DomainRulesPage({
                     />
                   </Link>
 
-                  {isBeithady ? (
+                  {isBeithadyPayout ? (
+                    <BeithadyPayoutMini out={out} />
+                  ) : isBeithadyBooking ? (
                     <BeithadyMini out={out} currency="USD" />
                   ) : (
                     <ShopifyMini out={out} currency={currency} />
@@ -248,6 +258,22 @@ function BeithadyMini({ out }: { out: any; currency: string }) {
       <MiniStat label="Total payout USD" value={totalPayout.toLocaleString()} />
       <MiniStat label="Nights" value={String(totalNights)} />
       <MiniStat label="Buildings" value={String(uniqueBuildings)} />
+    </div>
+  );
+}
+
+function BeithadyPayoutMini({ out }: { out: any }) {
+  const totalAed = Math.round(Number(out?.total_aed) || 0);
+  const airbnbAed = Math.round(Number(out?.airbnb_total_aed) || 0);
+  const stripeAed = Math.round(Number(out?.stripe_total_aed) || 0);
+  const emails =
+    (out?.airbnb_email_count ?? 0) + (out?.stripe_email_count ?? 0);
+  return (
+    <div className="mt-5 grid grid-cols-4 gap-3">
+      <MiniStat label="Total AED" value={totalAed.toLocaleString()} />
+      <MiniStat label="Airbnb AED" value={airbnbAed.toLocaleString()} />
+      <MiniStat label="Stripe AED" value={stripeAed.toLocaleString()} />
+      <MiniStat label="Payout emails" value={String(emails)} />
     </div>
   );
 }
