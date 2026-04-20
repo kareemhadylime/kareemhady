@@ -1,5 +1,77 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.7 SHIPPED — Beithady payouts rule (Airbnb + Stripe) + dashboard (commit 6b4c2a9)
+
+### User request
+> Under Domain Beithady — create a rule for Beithady Payouts. Payouts are coming from two: Airbnb & Stripe. Airbnb with the form of attached email — Total Payout + corresponding reservations payouts + deducted refunds. Stripe payouts are some of Manual Payouts and Booking Payouts & Expedia Payouts (some manual payouts also paid in cash at hotels) — reconcile with previous reservations if possible. Suggest suitable indicative dashboard and necessary overlooking details.
+
+Two sample emails provided:
+1. **Airbnb payout via Guesty** — from "service via Guesty" to `guesty@beithady.com`, subject "We sent a payout of X د.إ AED". Body has bank IBAN last4, sent/arrival dates, then a list of line items per reservation: guest, Home or "Pass Through Tot", date range, listing name with Airbnb ID, confirmation code (HM...), USD amount.
+2. **Stripe payout** — from "'Stripe' via Payments beithady" to `payments@beithady.com`, subject "Your AED12,076.23 payout for Beithady Hospitality is on the way". Body has AED amount, estimated arrival, BANQUE MISR last4, Payout ID `po_...`. No per-booking breakdown in email.
+
+### New action type: `beithady_payout_aggregate`
+
+Uses two fixed Gmail searches (user's rule.conditions are ignored for this action type, documented in a note field in the row). Engine branches early via a new `evaluatePayoutRule(...)` helper rather than shoehorning the two-search flow into the existing single-search pipeline.
+
+### Files
+
+#### `src/lib/rules/aggregators/beithady-payout.ts` (new)
+- Types: `ParsedAirbnbPayout`, `AirbnbPayoutLineItem`, `ParsedStripePayout`, `BeithadyPayoutAggregate`, bucket types.
+- `parseAirbnbPayout` — Haiku tool_choice=tool. Prompt documents subject shape, body structure, "Pass Through Tot" alternate type, refund detection (negative amounts).
+- `parseStripePayout` — Haiku tool_choice=auto. Returns null for non-payout Stripe emails so Stripe password-reset / account-update mails don't pollute the aggregate.
+- `aggregateBeithadyPayouts(airbnbBodies, stripeBodies)`:
+  - Totals (AED combined, per source, USD from Airbnb line items, refund totals)
+  - Unique reservations (dedupe by confirmation_code on non-refund lines)
+  - Building attribution: `buildingFromLineItem` regex-matches `\bBH[-\s]?[A-Z0-9]+\b` inside the Airbnb listing name and pipes through `classifyBuilding`. Most Airbnb listings don't embed a BH-code → `UNKNOWN` bucket. Future Phase 5.8 can cross-match via confirmation_code against the Beithady Bookings rule's latest rule_run.
+  - By-month bucket keyed on email received date (stacked AED per source)
+  - Flat line items array + flat Stripe payouts array for the detail tables
+
+#### `src/lib/rules/engine.ts`
+- Added `'beithady_payout_aggregate'` to the `RuleAction['type']` union.
+- **Early branch** after account validation: `if (action.type === 'beithady_payout_aggregate') return evaluatePayoutRule(...)`.
+- New `evaluatePayoutRule` function at file end — runs two parallel searchMessages calls, opens its own rule_run with `input_email_count = airbnb + stripe`, fetches + aggregates, then marks BOTH batches via `markMessagesAsRead` (batchModify under the hood), stores `marked_read` / `mark_errors` for Airbnb and `marked_read_stripe` / `mark_errors_stripe` for Stripe.
+- `mark_error_reason` captures the first error from whichever batch had one.
+
+#### `src/lib/gmail.ts`
+- `fetchEmailFull` return type now includes `receivedIso: string | null`, computed from `res.data.internalDate`. This was needed to group payouts into monthly buckets (no existing caller broke — aggregators just ignore the extra field if they don't need it).
+
+#### `src/app/admin/rules/_form.tsx`
+- New action-type option "Beithady payout aggregate (Airbnb + Stripe)".
+- Currency hint updated ("AED is hardcoded for Beithady payouts").
+
+#### `src/app/emails/[domain]/page.tsx`
+- Card icon/tint branches three ways: Banknote (emerald) for payouts, BedDouble (rose) for bookings, ShoppingBag (violet) for Shopify.
+- New `BeithadyPayoutMini` function component: 4 mini-stats Total AED / Airbnb AED / Stripe AED / Payout emails.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- Run history table: extra branch for `isPayout` to show "Total AED" column with rounded AED.
+- New `isPayout` check, new view branch: `isPayout ? <BeithadyPayoutView> : isBeithady ? <BeithadyView> : <ShopifyView>`.
+- New `BeithadyPayoutView` component — emerald/indigo gradient hero (4 HeroStat) + Bank destinations cards + stacked source-split bar + stacked monthly chart (`PayoutMonthChart` helper, Airbnb pink over Stripe indigo) + building bucket table + Airbnb payouts header table + Airbnb line items table (with Bldg column via existing classifier) + optional Refunds table (amber) + Stripe payouts table.
+- Explicit copy in the source-split hint: "Manual payouts at hotel (cash) don't appear in either email — track those separately."
+
+### DB
+Seeded row id `f8eeb1a4-653b-46f4-8c8f-91cc83972a6a`:
+- name: "Beithady Payouts (Airbnb + Stripe)"
+- account: kareem@limeinc.cc (`e135f97d-429c-4879-ae20-ccfc12a40f53`)
+- domain: beithady, priority 110
+- conditions: `{ note: "conditions are ignored for beithady_payout_aggregate..." }` — documents why the usual from/subject/to fields are empty.
+- actions: `{ type: 'beithady_payout_aggregate', currency: 'AED', mark_as_read: true }`
+
+### Verification
+- `npm run build` passes (all 14 routes, TS 11.2s).
+- `vercel --prod --yes` successful.
+
+### Reconciliation roadmap (not done this phase)
+Airbnb payout line items carry the confirmation_code (HM...) which is the same key as the Beithady Bookings rule's `booking.booking_id`. A future cross-rule reconciliation section could:
+1. At render time in the payout view, look up the Beithady Bookings rule's latest successful rule_run output for the same time range.
+2. For each line item, find the matching booking → pull its building_code, listing_code (canonical BH), and expected payout.
+3. Show "Paid out vs Expected" and "Outstanding bookings (booked but not yet paid out)" tables.
+
+Stripe is harder — emails have no booking info. Reconciliation would need Stripe API access (Payout ID → Balance Transactions → Charges → metadata/guest name) which is outside the current email-only architecture.
+
+### Known caveat (cash-at-hotel manual payouts)
+User called out that some manual payouts are paid in cash at the hotel. These never hit Airbnb or Stripe email streams, so they won't appear in this dashboard. The Source Split hint copy flags this explicitly so the user remembers to track them separately.
+
 ## ✅ PHASE 5.6 SHIPPED — canonical building classifier (commit 5626464)
 
 ### User rules (verbatim)
