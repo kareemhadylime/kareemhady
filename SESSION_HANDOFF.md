@@ -1,5 +1,60 @@
 # Kareemhady — Session Handoff (2026-04-20)
 
+## ✅ PHASE 5.4 SHIPPED — mark-as-read uses batchModify (commit 86f981c)
+
+### User question
+User pasted a screenshot of the OAuth consent screen showing the app's two granted blocks:
+1. "View your email messages and settings" = `gmail.readonly`
+2. "Read, compose, and send emails from your Gmail account" (with bullets including "Create, change, or delete your email labels" and "Move new emails to your inbox, labels, spam, and trash") = `gmail.modify`
+
+User asked: "do they have the mark read rights?"
+
+### Diagnosis
+**Permissions were fine.** Google's consent-screen copy for `gmail.modify` misleadingly says "compose and send" but the underlying scope only grants label/metadata modification — which is exactly what `removeLabelIds: ['UNREAD']` needs. Confirmed against recent `rule_runs.output` for the Beithady rule:
+
+| started_at | marked | errors | error_reason |
+|---|---|---|---|
+| 14:05:39 | 21 | 8 | Too many concurrent requests for user. |
+| 14:05:13 | 29 | 33 | Too many concurrent requests for user. |
+| 12:38:45 (pre-re-auth) | 0 | 62 | (403 scope — now fixed) |
+
+So the user **had** re-authed kareem@limeinc.cc (the 0/62 run was before that; the recent 21/29 rows prove modify is now working). The residual errors were Gmail rate-limiting, not authz.
+
+### Fix — `src/lib/gmail.ts:markMessagesAsRead`
+Rewrote to use `gmail.users.messages.batchModify` which accepts up to 1000 ids in a single request. Chunks to 1000 for safety (per-user runs should be well under this anyway). If a chunk's batchModify itself throws, falls back to **serial** per-id modify for that chunk — preserves the "bad id doesn't kill the whole run" behaviour without reintroducing the parallelism that caused the rate-limit.
+
+Before:
+```ts
+await Promise.all(messageIds.map(async id => {
+  await gmail.users.messages.modify({...});
+}));
+```
+
+After:
+```ts
+for (let i = 0; i < messageIds.length; i += 1000) {
+  await gmail.users.messages.batchModify({
+    userId: 'me',
+    requestBody: { ids: chunk, removeLabelIds: ['UNREAD'] },
+  });
+  // fallback to serial modify on chunk error
+}
+```
+
+### Unchanged
+- Scopes in `SCOPES` (still readonly + modify)
+- Callers (engine.ts for both Guesty + Airbnb)
+- Persisted shape (`marked_read` / `mark_errors` / `mark_error_reason` / airbnb variants)
+- UI banners
+
+### Verification
+- `npm run build` passes, 14 routes.
+- `vercel --prod --yes` deployed; no `--force` needed.
+- Next Beithady run should show `marked_read` = full match count and `mark_errors` = 0 for both Guesty and Airbnb batches.
+
+### One byproduct worth calling out
+The new batchModify flow **doesn't distinguish** per-id success/failure in the happy path — `batchModify` is "all or nothing" for the chunk. So `mark_errors` will typically be 0, not "N out of M". Only the fallback serial branch produces per-id errors. For the user-facing banners this is fine: a green count when it works, a red banner with a single sample error message when it doesn't.
+
 ## ✅ PHASE 5.3 SHIPPED — Airbnb ↔ Guesty reservation reconciliation (commit d15d741)
 
 ### User feedback this turn
