@@ -109,6 +109,63 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+function gmailDateString(d: Date): string {
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}/${mm}/${dd}`;
+}
+
+export type GmailSearchOpts = {
+  fromContains?: string;
+  subjectContains?: string;
+  toContains?: string;
+  afterIso?: string;
+  beforeIso?: string;
+  maxResults?: number;
+};
+
+export async function searchMessages(
+  refreshTokenEncrypted: string,
+  opts: GmailSearchOpts
+): Promise<{ id: string; threadId: string }[]> {
+  const gmail = await getGmailClientFromRefresh(refreshTokenEncrypted);
+  const parts: string[] = ['-in:spam', '-in:trash'];
+  if (opts.fromContains) parts.push(`from:${opts.fromContains}`);
+  if (opts.subjectContains) parts.push(`subject:${opts.subjectContains}`);
+  if (opts.toContains) parts.push(`to:${opts.toContains}`);
+  if (opts.afterIso) {
+    const d = new Date(opts.afterIso);
+    d.setUTCDate(d.getUTCDate() - 1);
+    parts.push(`after:${gmailDateString(d)}`);
+  }
+  if (opts.beforeIso) {
+    const d = new Date(opts.beforeIso);
+    d.setUTCDate(d.getUTCDate() + 1);
+    parts.push(`before:${gmailDateString(d)}`);
+  }
+  const q = parts.join(' ');
+
+  const collected: { id: string; threadId: string }[] = [];
+  const cap = opts.maxResults ?? 200;
+  let pageToken: string | undefined;
+  while (collected.length < cap) {
+    const res = await gmail.users.messages.list({
+      userId: 'me',
+      q,
+      maxResults: Math.min(100, cap - collected.length),
+      pageToken,
+    });
+    const msgs = res.data.messages || [];
+    for (const m of msgs) {
+      if (m.id && m.threadId) collected.push({ id: m.id, threadId: m.threadId });
+    }
+    pageToken = res.data.nextPageToken || undefined;
+    if (!pageToken) break;
+  }
+  return collected;
+}
+
 export async function markMessagesAsRead(
   refreshTokenEncrypted: string,
   messageIds: string[]

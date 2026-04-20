@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase';
-import { fetchEmailFull, markMessagesAsRead } from '@/lib/gmail';
+import { fetchEmailFull, markMessagesAsRead, searchMessages } from '@/lib/gmail';
 import { aggregateShopifyOrders } from './aggregators/shopify-order';
 
 export type RuleConditions = {
@@ -35,24 +35,23 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     range?.fromIso ||
     new Date(Date.now() - (cond.time_window_hours || 24) * 3600 * 1000).toISOString();
 
-  let q = sb
-    .from('email_logs')
-    .select('id, gmail_message_id, account_id, from_address, subject, received_at')
-    .gte('received_at', fromIso)
-    .lte('received_at', toIso);
-  if (rule.account_id) q = q.eq('account_id', rule.account_id);
-  if (cond.from_contains) q = q.ilike('from_address', `%${cond.from_contains}%`);
-  if (cond.subject_contains) q = q.ilike('subject', `%${cond.subject_contains}%`);
-  if (cond.to_contains) q = q.ilike('to_address', `%${cond.to_contains}%`);
+  const account = (rule as any).account;
+  if (!account?.oauth_refresh_token_encrypted) {
+    throw new Error('account_or_token_missing — rule must be bound to a connected account for Phase 4');
+  }
 
-  const { data: matches, error: mErr } = await q
-    .order('received_at', { ascending: false })
-    .limit(500);
-  if (mErr) throw new Error(`match_query_failed: ${mErr.message}`);
+  const matches = await searchMessages(account.oauth_refresh_token_encrypted, {
+    fromContains: cond.from_contains,
+    subjectContains: cond.subject_contains,
+    toContains: cond.to_contains,
+    afterIso: fromIso,
+    beforeIso: toIso,
+    maxResults: 500,
+  });
 
   const { data: run, error: runErr } = await sb
     .from('rule_runs')
-    .insert({ rule_id: ruleId, input_email_count: matches?.length || 0, status: 'running' })
+    .insert({ rule_id: ruleId, input_email_count: matches.length, status: 'running' })
     .select()
     .single();
   if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
@@ -60,7 +59,7 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
   const timeRange = { from: fromIso, to: toIso, label: range?.label };
 
   try {
-    if (!matches?.length) {
+    if (!matches.length) {
       await sb
         .from('rule_runs')
         .update({
@@ -82,11 +81,8 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
       return { ok: true, run_id: run.id, input_email_count: 0 };
     }
 
-    const account = (rule as any).account;
-    if (!account?.oauth_refresh_token_encrypted) throw new Error('account_or_token_missing');
-
     const bodies = await Promise.all(
-      matches.map(m => fetchEmailFull(account.oauth_refresh_token_encrypted, m.gmail_message_id))
+      matches.map(m => fetchEmailFull(account.oauth_refresh_token_encrypted, m.id))
     );
 
     let output: any;
@@ -103,7 +99,7 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     if (action.mark_as_read) {
       const markRes = await markMessagesAsRead(
         account.oauth_refresh_token_encrypted,
-        matches.map(m => m.gmail_message_id)
+        matches.map(m => m.id)
       );
       marked = markRes.marked;
       markErrors = markRes.errors.length;

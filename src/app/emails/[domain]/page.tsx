@@ -16,6 +16,7 @@ import {
 } from '@/lib/rules/presets';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const ACCENT_TINTS: Record<DomainAccent, string> = {
   slate: 'bg-slate-50 text-slate-600',

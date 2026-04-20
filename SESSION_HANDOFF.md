@@ -133,6 +133,25 @@ Commit `c0ac86d` deployed; smoke tests passed: `/`, `/emails/output`, `/emails/o
 - `/`, `/emails`, `/emails/kika`, `/emails/personal`, `/admin/rules/new` → all 200
 - `/emails/foobar` → 404 (correctly rejected)
 
+## ✅ PHASE 4.1 SHIPPED — preset chips auto-Run + time_window_hours removed (commit b07c36e)
+
+### Bug user reported
+Picking a preset chip (e.g. "Month to date") only changed the URL searchParam — it didn't trigger evaluateRule, so the dashboard kept rendering the previously-cached 24h run. Looked like the range filter "reverted to 24h."
+
+### Fix
+- Preset chips on `/emails/[domain]/[ruleId]` are now `<form>` buttons (one per preset) that POST to `runRuleAction` with `preset=<id>`. Clicking immediately re-evaluates and the page renders the new run.
+- `runRuleAction` now appends `?preset=<id>` to the redirect URL so the chosen chip stays highlighted after the run.
+- The redundant secondary "Run preset: X" button was removed (chips themselves are the run trigger).
+
+### Per user request: removed `time_window_hours` field from the rule
+- Form: removed the "Default time window (hours)" `<input>`
+- Server action: stopped writing `conditions.time_window_hours`
+- UI: removed the "· last Nh" hint from `/admin/rules` and `/emails/[domain]` cards (no longer meaningful since UI controls the range)
+- Engine **kept** `(cond.time_window_hours || 24) * 3600 * 1000` as a defensive fallback for any callers that don't pass a range (e.g. a future cron). Existing seeded KIKA rule still has `time_window_hours: 24` in conditions; harmless because all UI buttons now pass an explicit range.
+
+### Cosmetic note for Kareem
+- KIKA rule's name `KIKA Shopify Orders (last 24h)` still has the literal "(last 24h)" text — just a string. Edit in `/admin/rules` if it's misleading now that range is dynamic.
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google
