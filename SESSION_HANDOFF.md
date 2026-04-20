@@ -171,6 +171,23 @@ Rule engine was filtering `public.email_logs`. The daily ingest (`src/lib/gmail.
 ### Implication for rules without an account
 - Rules with `account_id IS NULL` (the "All accounts" option in the form) will now throw when run — the engine can only pick one account's OAuth token at a time. Phase 1 seeded KIKA rule has `account_id` set so it works. If needed in future: loop over accounts in engine.
 
+## ✅ PHASE 4.3 SHIPPED — Jan 1 of current year is the earliest search floor (commit 373fdd9)
+
+### Change requested by user
+"Lets do it always the limit up to Year start — so 2026 will be back up to 1-JAN-2026, not to search the full library of emails."
+
+### Implementation
+- `evaluateRule` computes `yearStartMs = new Date(new Date().getUTCFullYear(), 0, 1).getTime()` and clamps `fromIso = max(requestedFromIso, yearStartMs)`. All Gmail searches are floored at this value.
+- `output.time_range` now carries `clamped_to_year_start?: boolean` and `requested_from?: string` so the UI can tell when a clamp happened.
+- Detail page shows an amber banner: "Requested start date X was clamped to Jan 1 (Jan 1 cap)."
+- Both date inputs (`From`, `To`) get `min={yyyy-01-01}` so the native picker hints the floor visually.
+- Preset section helper text updated: "Searches are always capped at Jan 1, {current year} at the earliest."
+
+### Behaviour per preset
+- Today / Last 24h / Last 7 days / MTD — all well within the cap, no change
+- YTD — already uses Jan 1, no change
+- Custom: if From predates Jan 1 of this year, it's silently clamped + user sees amber banner
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google

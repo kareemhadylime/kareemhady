@@ -25,6 +25,7 @@ export type ProductSummary = {
 export type ShopifyAggregateOutput = {
   order_count: number;
   total_amount: number;
+  line_items_subtotal: number;
   currency: string;
   products: ProductSummary[];
   orders: Array<Pick<ParsedOrder, 'order_number' | 'customer_name' | 'total_amount'>>;
@@ -94,12 +95,14 @@ export async function aggregateShopifyOrders(
 
   const productMap = new Map<string, ProductSummary>();
   let totalAmount = 0;
+  let lineItemsSubtotal = 0;
   let currency = currencyHint;
 
   for (const order of parsed) {
     totalAmount += order.total_amount || 0;
     if (order.currency) currency = order.currency;
     for (const item of order.line_items) {
+      lineItemsSubtotal += item.total || 0;
       const key = item.name.trim().toLowerCase();
       const existing = productMap.get(key);
       if (existing) {
@@ -120,6 +123,7 @@ export async function aggregateShopifyOrders(
   return {
     order_count: parsed.length,
     total_amount: Math.round(totalAmount * 100) / 100,
+    line_items_subtotal: Math.round(lineItemsSubtotal * 100) / 100,
     currency,
     products: Array.from(productMap.values()).sort((a, b) => b.total_quantity - a.total_quantity),
     orders: parsed.map(o => ({

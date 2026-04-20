@@ -62,6 +62,7 @@ export default async function RuleOutputDetailPage({
   const out = latest?.output as any;
   const orders = out?.order_count ?? 0;
   const total = out?.total_amount ?? 0;
+  const subtotal = out?.line_items_subtotal ?? 0;
   const currency = out?.currency || (rule.actions?.currency as string) || 'EGP';
   const products = out?.products || [];
   const orderList = out?.orders || [];
@@ -253,20 +254,23 @@ export default async function RuleOutputDetailPage({
                 accent="violet"
               />
               <Stat
-                label={`Total ${currency}`}
+                label={`Total paid ${currency}`}
                 value={total.toLocaleString()}
+                hint="Final customer charges (incl. shipping + tax, after discounts)"
                 Icon={Wallet}
                 accent="emerald"
               />
               <Stat
-                label="Products"
-                value={products.length.toLocaleString()}
+                label={`Product revenue ${currency}`}
+                value={subtotal.toLocaleString()}
+                hint="Sum of line items (list price × qty)"
                 Icon={Package}
                 accent="indigo"
               />
               <Stat
-                label="Emails matched"
-                value={(latest.input_email_count ?? 0).toLocaleString()}
+                label="Products"
+                value={products.length.toLocaleString()}
+                hint={`${(latest.input_email_count ?? 0).toLocaleString()} emails matched`}
                 Icon={Mail}
                 accent="amber"
               />
@@ -275,15 +279,19 @@ export default async function RuleOutputDetailPage({
             <section className="ix-card p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="text-lg font-semibold">Top products</h2>
-                  <p className="text-xs text-slate-500">By units sold in window</p>
+                  <h2 className="text-lg font-semibold">
+                    Products ({products.length})
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Ranked by units sold · Revenue = list price × qty, before shipping/tax/discounts
+                  </p>
                 </div>
               </div>
               {!products.length ? (
                 <p className="text-sm text-slate-500">No products in matched orders.</p>
               ) : (
                 <div className="space-y-3">
-                  {products.slice(0, 12).map((p: any) => {
+                  {products.map((p: any) => {
                     const pct = Math.round((p.total_quantity / maxQty) * 100);
                     return (
                       <div key={p.name}>
