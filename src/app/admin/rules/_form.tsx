@@ -113,9 +113,10 @@ export function RuleForm({
             className="ix-input"
           >
             <option value="shopify_order_aggregate">Shopify order aggregate</option>
+            <option value="beithady_booking_aggregate">Beithady booking aggregate (Guesty)</option>
           </select>
         </Field>
-        <Field label="Currency">
+        <Field label="Currency" hint="EGP for KIKA, USD for Beithady/Guesty (default).">
           <input
             name="currency"
             defaultValue={act.currency || 'EGP'}

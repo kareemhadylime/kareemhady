@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchEmailFull, markMessagesAsRead, searchMessages } from '@/lib/gmail';
 import { aggregateShopifyOrders } from './aggregators/shopify-order';
+import { aggregateBeithadyBookings } from './aggregators/beithady-booking';
 
 export type RuleConditions = {
   from_contains?: string;
@@ -10,7 +11,7 @@ export type RuleConditions = {
 };
 
 export type RuleAction = {
-  type: 'shopify_order_aggregate';
+  type: 'shopify_order_aggregate' | 'beithady_booking_aggregate';
   currency?: string;
   mark_as_read?: boolean;
 };
@@ -80,18 +81,49 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
 
   try {
     if (!matches.length) {
+      const emptyBase =
+        action.type === 'beithady_booking_aggregate'
+          ? {
+              reservation_count: 0,
+              total_payout: 0,
+              total_guest_paid: 0,
+              total_nights: 0,
+              total_guests: 0,
+              avg_nights_per_booking: 0,
+              avg_rate_per_night: 0,
+              avg_payout_per_booking: 0,
+              avg_lead_time_days: null,
+              unique_guests: 0,
+              unique_listings: 0,
+              unique_buildings: 0,
+              currency: action.currency || 'USD',
+              by_channel: [],
+              by_building: [],
+              by_bedrooms: [],
+              by_listing: [],
+              top_channel: null,
+              top_building: null,
+              top_bedrooms: null,
+              top_listing: null,
+              bookings: [],
+              parse_errors: 0,
+              parse_failures: [],
+            }
+          : {
+              order_count: 0,
+              total_amount: 0,
+              currency: action.currency || 'EGP',
+              products: [],
+              orders: [],
+              parse_errors: 0,
+            };
       await sb
         .from('rule_runs')
         .update({
           finished_at: new Date().toISOString(),
           status: 'succeeded',
           output: {
-            order_count: 0,
-            total_amount: 0,
-            currency: action.currency || 'EGP',
-            products: [],
-            orders: [],
-            parse_errors: 0,
+            ...emptyBase,
             marked_read: 0,
             mark_errors: 0,
             time_range: timeRange,
@@ -109,6 +141,9 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     switch (action.type) {
       case 'shopify_order_aggregate':
         output = await aggregateShopifyOrders(bodies, action.currency || 'EGP');
+        break;
+      case 'beithady_booking_aggregate':
+        output = await aggregateBeithadyBookings(bodies, action.currency || 'USD');
         break;
       default:
         throw new Error(`unknown_action_type: ${(action as any).type}`);

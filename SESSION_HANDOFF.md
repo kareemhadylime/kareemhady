@@ -1,4 +1,37 @@
-# Kareemhady — Session Handoff (2026-04-19)
+# Kareemhady — Session Handoff (2026-04-20)
+
+## ✅ PHASE 5 SHIPPED — Beithady Guesty Bookings rule + reservation dashboard
+
+### What's new
+- **New aggregator**: `src/lib/rules/aggregators/beithady-booking.ts` — uses Claude Haiku tool-use to extract Guesty booking notifications (channel, listing, listing_code, guest, dates, nights, guests, rate, total_payout, booking_id). Derives `building_code` (first dash-segment of listing_code) and `bedrooms` (regex `\dBR`). Dedups by booking_id, computes buckets by channel/building/bedrooms/listing, totals, averages, unique guests, optional lead-time (days from email received → check-in).
+- **Engine**: `src/lib/rules/engine.ts` action union extended with `beithady_booking_aggregate`. Empty-run stub now branches on action type so Beithady runs with zero matches still render valid dashboard shape.
+- **Admin form**: `_form.tsx` Type select now offers "Beithady booking aggregate (Guesty)" alongside Shopify. Currency hint added (EGP for KIKA, USD default for Beithady).
+- **Domain list page** (`/emails/[domain]`): cards branch on action type. Beithady cards show Reservations / Total payout / Nights / Buildings; Shopify cards unchanged. Beithady icon is `BedDouble` with rose tint.
+- **Detail page** (`/emails/[domain]/[ruleId]`): refactored to share header + time range + banners + run history, then branches to `ShopifyView` or `BeithadyView`. Beithady view includes:
+  - 4 primary KPIs: Reservations / Total payout / Nights reserved / Buildings
+  - 4 derived KPIs: Avg payout / Avg rate per night / Avg nights per booking / Avg lead time
+  - 4 Top-highlight cards: Top apartment / Top building / Top bedroom count / Top channel
+  - 4 breakdown bar-charts: by channel / building / bedroom count / listing
+  - Full reservations table with Booking / Channel / Listing / Bldg / Guest / Check-in / Check-out / Nights / Guests / Rate / Payout columns + subtotal row + KPI mismatch warning
+  - Guest repeat-visitor table grouped by guest name, sorted by bookings then payout
+  - Run history "Orders" column becomes "Reservations" when Beithady rule
+- **Rule row inserted** in DB for kareem@limeinc.cc:
+  - id: `587ab03f-0b90-4b0a-a562-4858609e0839`
+  - name: "Beithady Guesty Bookings", domain: `beithady`, account: kareem@limeinc.cc (`e135f97d-429c-4879-ae20-ccfc12a40f53`)
+  - conditions: `from_contains: guesty`, `subject_contains: NEW BOOKING`
+  - actions: `type: beithady_booking_aggregate, currency: USD, mark_as_read: true`
+  - enabled: true, priority: 100
+
+### Period filters
+Same presets as KIKA (today/last24h/last7d/mtd/ytd/custom), same Jan-1 clamp, same preset chips auto-run, same ranged custom form — all shared infrastructure reused verbatim.
+
+### Mark-as-read
+Rule has `mark_as_read: true`. After each run, Guesty booking emails get UNREAD label removed in kareem@limeinc.cc Gmail (assuming the account was re-authed with `gmail.modify` scope — same action item as KIKA).
+
+### Lead-time caveat
+Gmail's message metadata for `received_at` is not currently threaded into the aggregator (we pass `receivedAtByIndex` as optional parameter but engine currently passes only `bodies`). Lead-time KPI is therefore `null` in v1 runs. Wire-up is a one-line follow-up if desired: capture `internalDate` from `gmail.users.messages.get` and pass through.
+
+
 
 ## Status: Phase 1 scaffold pushed, Google OAuth blank, Part C user-owned
 Commit `b9a4251` pushed to `main` at https://github.com/kareemhadylime/kareemhady (16 files, 1263 insertions). Project moved out of the VoltAuto worktree into its own home at `C:\kareemhady` with its own `CLAUDE.md`, `.claude/settings.json` (Stop-hook for handoff continuity), and this handoff file.

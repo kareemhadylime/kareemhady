@@ -1,6 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronRight, Play, ArrowRight, ShoppingBag, ListChecks, Layers } from 'lucide-react';
+import {
+  ChevronRight,
+  Play,
+  ArrowRight,
+  ShoppingBag,
+  ListChecks,
+  Layers,
+  BedDouble,
+} from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
 import { DomainIcon } from '@/app/_components/domain-icon';
@@ -127,13 +135,15 @@ export default async function DomainRulesPage({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {enriched.map(r => {
               const out = r.latest_run?.output;
-              const orders = out?.order_count ?? 0;
-              const total = out?.total_amount ?? 0;
-              const productsArr = (out?.products as any[]) || [];
-              const subtotal =
-                out?.line_items_subtotal ??
-                productsArr.reduce((s: number, p: any) => s + (p.total_revenue || 0), 0);
-              const currency = out?.currency || 'EGP';
+              const actionType = (r.actions as any)?.type || 'shopify_order_aggregate';
+              const isBeithady = actionType === 'beithady_booking_aggregate';
+              const currency = out?.currency || (isBeithady ? 'USD' : 'EGP');
+
+              const Icon = isBeithady ? BedDouble : ShoppingBag;
+              const iconTint = isBeithady
+                ? 'bg-rose-50 text-rose-600'
+                : 'bg-violet-50 text-violet-600';
+
               return (
                 <div
                   key={r.id}
@@ -146,8 +156,8 @@ export default async function DomainRulesPage({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 inline-flex items-center justify-center">
-                          <ShoppingBag size={16} />
+                        <div className={`w-8 h-8 rounded-lg inline-flex items-center justify-center ${iconTint}`}>
+                          <Icon size={16} />
                         </div>
                         <h3 className="font-semibold truncate">{r.name}</h3>
                         {!r.enabled && (
@@ -166,21 +176,11 @@ export default async function DomainRulesPage({
                     />
                   </Link>
 
-                  <div className="mt-5 grid grid-cols-4 gap-3">
-                    <MiniStat label="Orders" value={String(orders)} />
-                    <MiniStat
-                      label={`Total paid ${currency}`}
-                      value={total.toLocaleString()}
-                    />
-                    <MiniStat
-                      label={`Product revenue ${currency}`}
-                      value={subtotal.toLocaleString()}
-                    />
-                    <MiniStat
-                      label="Products"
-                      value={String(productsArr.length)}
-                    />
-                  </div>
+                  {isBeithady ? (
+                    <BeithadyMini out={out} currency={currency} />
+                  ) : (
+                    <ShopifyMini out={out} currency={currency} />
+                  )}
 
                   <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
                     <span>
@@ -213,6 +213,44 @@ function MiniStat({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="text-lg font-bold tabular-nums mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function ShopifyMini({ out, currency }: { out: any; currency: string }) {
+  const orders = out?.order_count ?? 0;
+  const total = out?.total_amount ?? 0;
+  const productsArr = (out?.products as any[]) || [];
+  const subtotal =
+    out?.line_items_subtotal ??
+    productsArr.reduce((s: number, p: any) => s + (p.total_revenue || 0), 0);
+  return (
+    <div className="mt-5 grid grid-cols-4 gap-3">
+      <MiniStat label="Orders" value={String(orders)} />
+      <MiniStat label={`Total paid ${currency}`} value={total.toLocaleString()} />
+      <MiniStat
+        label={`Product revenue ${currency}`}
+        value={subtotal.toLocaleString()}
+      />
+      <MiniStat label="Products" value={String(productsArr.length)} />
+    </div>
+  );
+}
+
+function BeithadyMini({ out, currency }: { out: any; currency: string }) {
+  const reservations = out?.reservation_count ?? 0;
+  const totalPayout = out?.total_payout ?? 0;
+  const totalNights = out?.total_nights ?? 0;
+  const uniqueBuildings = out?.unique_buildings ?? ((out?.by_building as any[]) || []).length;
+  return (
+    <div className="mt-5 grid grid-cols-4 gap-3">
+      <MiniStat label="Reservations" value={String(reservations)} />
+      <MiniStat
+        label={`Total payout ${currency}`}
+        value={Number(totalPayout).toLocaleString()}
+      />
+      <MiniStat label="Nights" value={String(totalNights)} />
+      <MiniStat label="Buildings" value={String(uniqueBuildings)} />
     </div>
   );
 }
