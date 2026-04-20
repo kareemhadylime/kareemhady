@@ -1,5 +1,51 @@
 # Kareemhady — Session Handoff (2026-04-20)
 
+## ✅ PHASE 5.3 SHIPPED — Airbnb ↔ Guesty reservation reconciliation (commit d15d741)
+
+### User feedback this turn
+> "I want you also to check messages from Airbnb Guesty with Reservation Confirmation and cross reference with the Guesty Messages Confirmation and check for any missing reservations"
+> "Also Mark all checked Airbnb Reservation Confirmation as read once cross referenced"
+
+### Design
+Beithady rule now does two Gmail searches per run, parses both, cross-references by Airbnb confirmation code (HMxxxxx — same as the `booking_id` Guesty already extracts), and surfaces three reconciliation buckets plus mark-as-read on both sets.
+
+### `src/lib/rules/aggregators/beithady-booking.ts`
+- **New types**: `ParsedAirbnbConfirmation`, `ReconciliationMissing`.
+- **Output type** extended with: `airbnb_emails_checked`, `airbnb_confirmations_parsed`, `airbnb_parse_errors`, `airbnb_parse_failures[]`, `airbnb_matched_in_guesty`, `missing_from_guesty[]`, `guesty_not_in_airbnb`.
+- **New Haiku tool** `extract_airbnb_confirmation` (`tool_choice: 'auto'`, not forced) — so non-confirmation Airbnb emails (inquiries, reviews, payout notices) return no tool_use and get silently dropped rather than erroring.
+- **`aggregateBeithadyBookings` signature change**: new third param `airbnbBodies` (defaults to `[]`). Existing callers without reconciliation still work.
+- **Reconciliation logic**:
+  - Parse all Airbnb bodies with `Promise.allSettled`; dedupe by `confirmation_code`.
+  - `guestyCodes = Set(parsed.booking_id.toUpperCase())`, `airbnbCodes = Set(confirmation_code.toUpperCase())`.
+  - `missing_from_guesty` = Airbnb parsed rows whose code ∉ guestyCodes (the actionable set: Guesty missed the booking).
+  - `airbnb_matched_in_guesty` = count of Airbnb rows whose code ∈ guestyCodes.
+  - `guesty_not_in_airbnb` = count of Guesty bookings with `channel ∋ 'airbnb'` whose `booking_id` ∉ airbnbCodes. Useful inverse signal.
+
+### `src/lib/rules/engine.ts`
+- Inside the `beithady_booking_aggregate` switch case:
+  1. Second `searchMessages` call: `fromContains: 'airbnb.com'`, `subjectContains: 'Reservation confirmed'`, same time range (reuses yearStart clamp and Jan-1 cap).
+  2. `fetchEmailFull` each Airbnb match.
+  3. `aggregateBeithadyBookings(bodies, currency, airbnbBodies)`.
+  4. Stores `airbnbMatchIds` for the mark step.
+- Mark-as-read now calls `markMessagesAsRead` twice: once for Guesty ids, once for Airbnb ids. Separate counts persisted as `marked_read` / `mark_errors` (Guesty) and `marked_read_airbnb` / `mark_errors_airbnb` (Airbnb). `mark_error_reason` captures the first error from whichever call had one.
+- Empty-state branch (no Guesty matches) now also includes all the reconciliation fields with zero values so the UI renders cleanly.
+
+### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- **New icons**: `AlertTriangle`, `GitCompare`, `Plane`. Removed unused `Percent`.
+- **New section** "Airbnb ↔ Guesty reconciliation" placed right after "Most reserved" (before "Booking received from"). Rendered by `ReconciliationPanel` component:
+  - **4 Stat cards**: Airbnb confirmations (rose, Plane icon) · Matched in Guesty (emerald, CheckCircle2) · Missing from Guesty (amber/emerald, AlertTriangle) · Guesty (Airbnb) not matched (indigo/emerald, GitCompare).
+  - **Airbnb mark-as-read banner** when either `marked_read_airbnb > 0` or `mark_errors_airbnb > 0`. Green if fully marked, red if all failed.
+  - **Missing-from-Guesty table** (amber header with AlertTriangle) listing: Code · Guest · Listing · Check-in · Check-out · Nights · Payout (USD, integer via `fmt()`). Includes action copy: "Investigate in Guesty: open the reservation by code and confirm it was imported; if not, trigger a manual sync."
+  - Fallbacks: all-matched → green banner; no Airbnb emails found → muted placeholder explaining the search pattern.
+
+### Verification
+- `npm run build` passes (TS 10.1s, 14 routes).
+- Deploy: `vercel --prod --yes` → `dpl_...` aliased to kareemhady.vercel.app.
+- Build cache did not need `--force` this time.
+
+### Known caveat (unchanged from 5.2)
+Airbnb mark calls will 403 until `kareem@limeinc.cc` is re-Connected at `/admin/accounts` to grant `gmail.modify`. The new red banner variant in Reconciliation Panel surfaces this alongside the existing one on the main view.
+
 ## ✅ PHASE 5.2 SHIPPED — USD + integers + building catalog + re-auth banner (commit dd89e8d)
 
 ### User feedback this turn
