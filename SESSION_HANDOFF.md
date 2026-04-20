@@ -1,5 +1,57 @@
 # Kareemhady — Session Handoff (2026-04-20)
 
+## ✅ PHASE 5.1 SHIPPED — Beithady dashboard redesigned as hospitality view (commit 84b8039, force-deployed)
+
+### User feedback this turn
+Screenshot from `/emails/beithady/<id>` showed:
+1. **Failed run**: `unknown_action_type: beithady_booking_aggregate` — the Vercel bundle was stale, engine didn't know the new action type yet.
+2. **Complaint**: "you copied the dashboard of kika, this is not the info I need, customize as per my rule request, every rule has to have its own output based on the business and the info I want to see"
+
+The Phase 5 view used the same 4-stat + bar-card pattern as KIKA, just with different labels — the user perceived it as a template clone, not a property dashboard.
+
+### Fix 1 — force-redeploy
+`vercel --prod --force --yes` → dpl_BTxNHRrL2uEoiDDfFps4bXDBXXA1 ready, aliased to kareemhady.vercel.app. Bundle now contains the `beithady_booking_aggregate` branch in engine.ts. Next Run click on the rule will succeed.
+
+### Fix 2 — full BeithadyView rewrite (`src/app/emails/[domain]/[ruleId]/page.tsx`)
+Replaced the Stat-strip-with-bar-cards pattern with a purpose-built hospitality dashboard:
+
+- **Rose/pink gradient hero band** — 3 oversized KPIs in a single card (Reservations / Total payout / Nights reserved). Distinct visual identity vs the KIKA plain white cards.
+- **"Most reserved" trophy trio** — 3 themed cards (apartment rose / building indigo / bedroom-count violet) matching the user's explicit 3-metric ask. Each has a `TrophyCard` with chip-tagged rank, Lucide icon, mono listing code, primary count, secondary nights+payout.
+- **"Booking received from"** — new `ChannelMix` component with a single stacked horizontal bar (100%-width, one segment per channel) + per-channel legend pills. Colored `ChannelBadge` (Airbnb rose, Booking.com blue, Vrbo/Expedia amber, Direct emerald, other slate).
+- **"Reservations in each building" table** — proper tabular breakdown with columns: Building · Reservations · Share % (inline bar) · Nights · Avg nights/res · Total payout · Avg payout/res.
+- **Performance KPI row** — ADR (payout/nights), Booking pace (res/day over range days), Commission absorbed (Σ rate×nights − payout), Avg lead time.
+- **Length-of-stay distribution** — bucketed Short ≤2 / Mid 3-7 / Long 8-14 / Extended 15+.
+- **Lead-time distribution** — bucketed last-minute <1 / short 1-7 / medium 8-30 / far 31-90 / distant 90+, computed client-side from check-in vs time_range.from.
+- **Check-ins by month** — vertical bar chart (rose→pink gradient) grouped by YYYY-MM.
+- **Check-in weekday mix** — 7-bar chart with count + share% per weekday (indigo→violet gradient).
+- **Top listings** — BucketBars top 15.
+- **Reservations table** — rose-themed header/hover, mono booking id in rose-700, colored ChannelBadge cell, sub-total row summing nights/guests/payout + mismatch warning.
+- **Guests repeat-visitor table** — unchanged shape, rose-themed header.
+
+### New helper components (same file)
+`HeroStat`, `SectionHeader`, `TrophyCard`, `ChannelBadge`, `ChannelMix`, `BuildingTable`, `BucketPanel`, `CheckInMonthPanel`, `CheckInWeekdayPanel`, `BucketBars`, plus client-side bucketers `bucketStayLengths`, `bucketLeadTimes`, `groupByCheckInMonth`, `groupByCheckInWeekday`.
+
+### Dead code removed
+`HighlightCard` and `BucketCard` helpers + `Star` / `Globe2` icon imports. Added icons: `DoorOpen`, `Percent`, `Hourglass`, `BookOpen`, `CalendarDays`.
+
+### Architecture note for future rules
+The user wrote: "every rule has to have its own output based on the business and the info I want to see". Going forward, each new action type should get its own `XxxView` component that's visually and structurally distinct — not just relabelled stats. Current setup:
+- `ShopifyView` → KIKA (shopify_order_aggregate)
+- `BeithadyView` → Beithady (beithady_booking_aggregate)
+- Future Lime / FMPlus / VoltAuto rules each need their own view when rule action types are added.
+
+### Verification
+- `npm run build` passes (Turbopack 25.2s compile, TS 2.9min).
+- `vercel --prod --force --yes` completed successfully; alias updated.
+- User was told to click Run on the rule to populate data (the stale "failed" run history row is left as-is — will be superseded by the next successful run).
+
+### Rule row (unchanged from Phase 5)
+- id: `587ab03f-0b90-4b0a-a562-4858609e0839`
+- name: "Beithady Guesty Bookings"
+- account: kareem@limeinc.cc (`e135f97d-429c-4879-ae20-ccfc12a40f53`)
+- conditions: `from_contains: guesty`, `subject_contains: NEW BOOKING`
+- actions: `type: beithady_booking_aggregate, currency: USD, mark_as_read: true`
+
 ## ✅ PHASE 5 SHIPPED — Beithady Guesty Bookings rule + reservation dashboard
 
 ### What's new
