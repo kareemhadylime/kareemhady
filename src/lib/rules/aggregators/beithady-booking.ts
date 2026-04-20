@@ -306,11 +306,26 @@ export const BEITHADY_BUILDINGS: Record<
   },
 };
 
+// Canonical Beithady building classifier.
+// Rules (evaluated top-down):
+//  1. Listing code starting with BH-26  → BH-26
+//  2. Listing code starting with BH-435 → BH-435
+//  3. Listing code BH-<3 digits>-...    → BH-OK (scattered Kattameya)
+//  4. Anything else BH-<suffix>         → BH-<suffix> (e.g. BH-73, BH-MG)
+export function classifyBuilding(listingCode: string): string {
+  const code = (listingCode || '').toUpperCase().trim();
+  if (!code) return 'UNKNOWN';
+  const m = code.match(/^BH-?([A-Z0-9]+)/);
+  if (!m) return code;
+  const suffix = m[1];
+  if (suffix.startsWith('26')) return 'BH-26';
+  if (suffix.startsWith('435')) return 'BH-435';
+  if (/^\d{3}/.test(suffix)) return 'BH-OK';
+  return `BH-${suffix}`;
+}
+
 function deriveBuildingCode(listingCode: string): string {
-  const first = (listingCode || '').split('-')[0]?.trim().toUpperCase();
-  if (!first) return 'UNKNOWN';
-  const m = first.match(/^BH([A-Z0-9]+)$/);
-  return m ? `BH-${m[1]}` : first;
+  return classifyBuilding(listingCode);
 }
 
 function deriveBedrooms(listingCode: string, listingName: string): number | null {

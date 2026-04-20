@@ -37,7 +37,7 @@ import {
   type RangePreset,
   type Domain,
 } from '@/lib/rules/presets';
-import { BEITHADY_BUILDINGS } from '@/lib/rules/aggregators/beithady-booking';
+import { BEITHADY_BUILDINGS, classifyBuilding } from '@/lib/rules/aggregators/beithady-booking';
 
 const fmt = (n: number | string | null | undefined): string =>
   Math.round(Number(n) || 0).toLocaleString();
@@ -661,7 +661,7 @@ function BeithadyView({
           />
           <TrophyCard
             rank="Most reserved building"
-            name={BEITHADY_BUILDINGS[topBuilding?.label || '']?.label || topBuilding?.label || '—'}
+            name={topBuilding ? classifyBuilding(topBuilding.label) : '—'}
             primary={
               topBuilding
                 ? `${topBuilding.reservation_count} reservation${topBuilding.reservation_count !== 1 ? 's' : ''}`
@@ -669,7 +669,7 @@ function BeithadyView({
             }
             secondary={
               topBuilding
-                ? `${BEITHADY_BUILDINGS[topBuilding.label]?.description ? BEITHADY_BUILDINGS[topBuilding.label]?.description + ' · ' : ''}${topBuilding.nights} nights · ${fmt(topBuilding.total_payout)} ${CURRENCY}`
+                ? `${BEITHADY_BUILDINGS[classifyBuilding(topBuilding.label)]?.description ? BEITHADY_BUILDINGS[classifyBuilding(topBuilding.label)]?.description + ' · ' : ''}${topBuilding.nights} nights · ${fmt(topBuilding.total_payout)} ${CURRENCY}`
                 : ''
             }
             Icon={Building2}
@@ -713,7 +713,7 @@ function BeithadyView({
       <section>
         <SectionHeader
           title={`Reservations in each building (${uniqueBuildings})`}
-          hint="Known Beithady buildings: BH-26, BH-73, BH-435 · BH-OK (scattered apartments, One Kattameya) · BH-MG (single apartment, Heliopolis)."
+          hint="Mapping: BH-26* → BH-26 · BH-435* → BH-435 · BH-73* → BH-73 · BH-<3 digits>-xx → BH-OK (scattered One Kattameya) · BH-MG → BH-MG (Heliopolis single)."
         />
         <BuildingTable items={byBuilding} totalRes={reservations} />
       </section>
@@ -830,7 +830,7 @@ function BeithadyView({
             </thead>
             <tbody>
               {bookings.map((b: any, i: number) => {
-                const bldgNormalized = normalizeBuildingCode(b.building_code || '');
+                const bldgNormalized = normalizeBuildingCode(b);
                 return (
                   <tr key={`${b.booking_id}-${i}`} className="border-t border-slate-100 hover:bg-rose-50/30">
                     <td className="py-2.5 px-4 font-mono text-xs text-rose-700">
@@ -921,12 +921,16 @@ function BeithadyView({
   );
 }
 
-function normalizeBuildingCode(code: string): string {
-  const up = (code || '').toUpperCase().trim();
-  if (!up) return 'UNKNOWN';
-  if (up.startsWith('BH-')) return up;
-  const m = up.match(/^BH([A-Z0-9]+)$/);
-  return m ? `BH-${m[1]}` : up;
+// Re-apply the canonical classifier at render time so historical rule_runs
+// (stored before the new mapping rules) display the correct building.
+// Uses the listing_code when available (which carries the full prefix); falls
+// back to the stored building_code otherwise.
+function normalizeBuildingCode(b: {
+  building_code?: string;
+  listing_code?: string;
+}): string {
+  if (b.listing_code) return classifyBuilding(b.listing_code);
+  return classifyBuilding(b.building_code || '');
 }
 
 function HeroStat({
@@ -1126,7 +1130,27 @@ function BuildingTable({
     );
   }
   const knownCodes = Object.keys(BEITHADY_BUILDINGS);
-  const itemsByCode = new Map(items.map(i => [normalizeBuildingCode(i.label), i]));
+  // Re-classify each bucket label so legacy rows (e.g. stored as "BH101") are
+  // re-mapped to the correct canonical building (e.g. BH-OK) on render.
+  const reclassified = new Map<string, BucketStat>();
+  for (const i of items) {
+    const key = classifyBuilding(i.label);
+    const existing = reclassified.get(key);
+    if (existing) {
+      existing.reservation_count += i.reservation_count;
+      existing.nights += i.nights;
+      existing.total_payout += i.total_payout;
+    } else {
+      reclassified.set(key, {
+        key,
+        label: key,
+        reservation_count: i.reservation_count,
+        nights: i.nights,
+        total_payout: i.total_payout,
+      });
+    }
+  }
+  const itemsByCode = reclassified;
   const rows: Array<{ item: BucketStat | null; code: string; description?: string }> = [];
   for (const code of knownCodes) {
     const match = itemsByCode.get(code) || null;
