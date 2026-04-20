@@ -62,10 +62,13 @@ export default async function RuleOutputDetailPage({
   const out = latest?.output as any;
   const orders = out?.order_count ?? 0;
   const total = out?.total_amount ?? 0;
-  const subtotal = out?.line_items_subtotal ?? 0;
   const currency = out?.currency || (rule.actions?.currency as string) || 'EGP';
   const products = out?.products || [];
   const orderList = out?.orders || [];
+
+  const subtotal =
+    out?.line_items_subtotal ??
+    products.reduce((s: number, p: any) => s + (p.total_revenue || 0), 0);
 
   const maxQty = Math.max(1, ...products.map((p: any) => p.total_quantity || 0));
 
@@ -89,7 +92,11 @@ export default async function RuleOutputDetailPage({
     lastRange?.preset_id && validPresets.includes(lastRange.preset_id as RangePreset)
       ? (lastRange.preset_id as RangePreset)
       : null;
-  const activePreset: RangePreset = urlPreset || lastRunPreset || 'last24h';
+  const labelFallbackPreset = lastRange?.label
+    ? (RANGE_PRESETS.find(p => p.label === lastRange.label)?.id ?? null)
+    : null;
+  const activePreset: RangePreset =
+    urlPreset || lastRunPreset || labelFallbackPreset || 'last24h';
   const presetResolved = resolvePreset(activePreset);
   const fromDefault = sp.from || dateInputValue(presetResolved.fromIso);
   const toDefault = sp.to || dateInputValue(presetResolved.toIso);

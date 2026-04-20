@@ -215,6 +215,30 @@ Also: product chart was capped at `products.slice(0, 12)`, so 57 of 69 products 
 ### Retry note
 The user needs to click a preset / Run to get a new run whose output carries `line_items_subtotal`; older rule_runs still show 0 for "Product revenue" until re-run.
 
+## ✅ PHASE 4.5 SHIPPED — parse_failures detail + preset auto-highlight (commit ef823a6, force-deployed)
+
+### User's three complaints this turn
+1. "Still total is not correct" + screenshot showing old TOTAL EGP / EMAILS MATCHED cards — Phase 4.4 labels weren't visible.
+2. "Parsing error" — 12 of 193 KIKA emails failed to parse; no way to see which ones.
+3. "When i go out cache clears and the default is 9am to previous 24hrs" — returning to the detail page resets chip to Last 24h even though the displayed data was MTD/YTD.
+
+### Diagnosis of #1
+- `git log` on main shows `44fa251 Phase 4.4` deployed. `curl https://kareemhady.vercel.app/emails/kika/<id>` returned HTML containing "Total paid" / "Product revenue" and none of "TOTAL EGP" / "EMAILS MATCHED" → **Phase 4.4 is actually live; user's browser was cached**. Needed hard refresh.
+- `rule_runs.output` on recent runs (10:11:04 / 10:11:36) was missing `line_items_subtotal`. Suspected Vercel build cache holding an older aggregator bundle. **Fix: `vercel --prod --force --yes`** to invalidate build cache.
+
+### Fix for #2 (parse_failures)
+- `aggregateShopifyOrders` now emits `parse_failures: [{subject, from, reason}]` alongside the numeric `parse_errors` count.
+- Reason is either `String(rejection.message)` (Promise rejected — Claude API error/network) or `'no_tool_output'` (Claude returned no tool_use block).
+- Detail page's amber "N email(s) could not be parsed" banner is now a `<details>` element — clicking it expands a list of up to 50 failed emails with subject/from/reason. Gives user visibility into whether the filter is catching non-order emails.
+
+### Fix for #3 (preset auto-highlight)
+- `EvalRange` now carries `presetId?: string`. `rangeFromForm` in `actions.ts` injects it (either the resolved preset id or the literal `'custom'`).
+- Engine persists it as `time_range.preset_id` in the output JSONB.
+- Detail page now resolves `activePreset = urlPreset || lastRunPreset || 'last24h'` — so returning to the page with no `?preset` query shows the chip matching the last run that was actually executed.
+
+### Deployment note for future
+- Vercel's build cache appears to have held an older bundle of `src/lib/rules/aggregators/shopify-order.ts` after Phase 4.4. **If new JSONB fields don't show up in `rule_runs.output`, force-redeploy with `vercel --prod --force --yes`.**
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google
