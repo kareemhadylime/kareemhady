@@ -262,6 +262,20 @@ User asked "Why old cache is persistent" — really asking why a stale-looking s
 - Fallbacks are pure render-layer. Existing rule_runs JSONB untouched.
 - New runs continue to persist `line_items_subtotal` and `time_range.preset_id` natively (Phase 4.4/4.5 still in effect).
 
+## ✅ PHASE 4.7 SHIPPED — domain-list cards now match detail-page labels (commit fada7e9)
+
+### User reported
+Screenshot from `/emails/kika` still showing "TOTAL EGP" (and no Product Revenue) even after hard refresh. Phase 4.4's rename only touched the DETAIL page (`/emails/[domain]/[ruleId]`), not the LIST page (`/emails/[domain]`).
+
+### Fix
+Applied the same change to `src/app/emails/[domain]/page.tsx` rule cards:
+- "Total EGP" → "Total paid EGP"
+- Added "Product revenue EGP" mini-stat with the same fallback (`line_items_subtotal ?? sum(products[].total_revenue)`)
+- Mini-stats grid bumped from 3 to 4 columns
+
+### Verification
+`curl https://kareemhady.vercel.app/emails/kika | grep` confirms the page now serves "Total paid" and "Product revenue", no "TOTAL EGP".
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google

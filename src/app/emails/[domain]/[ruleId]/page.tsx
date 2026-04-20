@@ -384,6 +384,36 @@ export default async function RuleOutputDetailPage({
                     </tr>
                   )}
                 </tbody>
+                {orderList.length > 0 && (() => {
+                  const sum = orderList.reduce(
+                    (s: number, o: any) => s + (Number(o.total_amount) || 0),
+                    0
+                  );
+                  const mismatch = Math.abs(sum - total) > 0.01;
+                  return (
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-semibold">
+                      <tr>
+                        <td className="py-2.5 px-6" colSpan={2}>
+                          Sum of {orderList.length} orders
+                        </td>
+                        <td className="py-2.5 px-6 text-right tabular-nums">
+                          {Math.round(sum * 100) / 100 === sum
+                            ? sum.toLocaleString()
+                            : sum.toFixed(2)}
+                        </td>
+                      </tr>
+                      {mismatch && (
+                        <tr className="text-amber-700">
+                          <td className="px-6 pb-2 text-xs font-normal" colSpan={3}>
+                            ⚠ This sum differs from the KPI &ldquo;Total paid&rdquo; above by{' '}
+                            {(sum - total).toLocaleString()} {currency}. Likely a
+                            rounding issue in a stored order &mdash; re-run the rule to refresh.
+                          </td>
+                        </tr>
+                      )}
+                    </tfoot>
+                  );
+                })()}
               </table>
             </section>
 
