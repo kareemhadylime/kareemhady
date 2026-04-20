@@ -16,8 +16,11 @@ import {
   Users,
   TrendingUp,
   CalendarClock,
-  Star,
-  Globe2,
+  CalendarDays,
+  DoorOpen,
+  Percent,
+  Hourglass,
+  BookOpen,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -521,7 +524,6 @@ function BeithadyView({
   const totalGuests: number = out?.total_guests ?? 0;
   const totalGuestPaid: number = out?.total_guest_paid ?? 0;
   const avgNights: number = out?.avg_nights_per_booking ?? 0;
-  const avgRate: number = out?.avg_rate_per_night ?? 0;
   const avgPayout: number = out?.avg_payout_per_booking ?? 0;
   const avgLeadTime: number | null = out?.avg_lead_time_days ?? null;
   const uniqueGuests: number = out?.unique_guests ?? 0;
@@ -536,182 +538,242 @@ function BeithadyView({
   const topListing: BucketStat | null = out?.top_listing || byListing[0] || null;
   const topBuilding: BucketStat | null = out?.top_building || byBuilding[0] || null;
   const topBedrooms: BucketStat | null = out?.top_bedrooms || byBedrooms[0] || null;
-  const topChannel: BucketStat | null = out?.top_channel || byChannel[0] || null;
+  const timeRange = out?.time_range as
+    | { from: string; to: string }
+    | undefined;
+
+  const adr = totalNights > 0 ? totalPayout / totalNights : 0;
+  const rangeDays = timeRange
+    ? Math.max(
+        1,
+        Math.round(
+          (Date.parse(timeRange.to) - Date.parse(timeRange.from)) /
+            (24 * 3600 * 1000)
+        )
+      )
+    : 0;
+  const bookingPace = rangeDays > 0 ? reservations / rangeDays : 0;
+  const commissionAbsorbed = bookings.reduce((acc: number, b: any) => {
+    const gross = Number(b.rate_per_night || 0) * Number(b.nights || 0);
+    const net = Number(b.total_payout || 0);
+    if (gross > net && gross > 0) return acc + (gross - net);
+    return acc;
+  }, 0);
+
+  const stayBuckets = bucketStayLengths(bookings);
+  const leadBuckets = bucketLeadTimes(bookings, timeRange?.from);
+  const checkInByMonth = groupByCheckInMonth(bookings);
+  const checkInByWeekday = groupByCheckInWeekday(bookings);
 
   return (
     <>
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat
-          label="Reservations"
-          value={reservations.toLocaleString()}
-          hint={`${emailsMatched.toLocaleString()} emails matched`}
-          Icon={BedDouble}
-          accent="violet"
-        />
-        <Stat
-          label={`Total payout ${currency}`}
-          value={Number(totalPayout).toLocaleString()}
-          hint="After commission, across all bookings"
-          Icon={Wallet}
-          accent="emerald"
-        />
-        <Stat
-          label="Nights reserved"
-          value={totalNights.toLocaleString()}
-          hint={`${totalGuests.toLocaleString()} total guests · ${uniqueGuests.toLocaleString()} unique`}
-          Icon={Moon}
-          accent="indigo"
-        />
-        <Stat
-          label="Buildings"
-          value={uniqueBuildings.toLocaleString()}
-          hint={`${uniqueListings.toLocaleString()} distinct listings`}
-          Icon={Building2}
-          accent="amber"
-        />
+      <section
+        className="relative rounded-2xl overflow-hidden border border-rose-200/60 shadow-sm"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(244,63,94,0.08) 0%, rgba(236,72,153,0.06) 45%, rgba(251,146,60,0.08) 100%)',
+        }}
+      >
+        <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-gradient-to-br from-rose-400 to-orange-400 opacity-20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-64 h-64 rounded-full bg-gradient-to-br from-pink-400 to-violet-400 opacity-15 blur-3xl pointer-events-none" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-rose-700 text-xs uppercase tracking-wider font-semibold">
+            <BedDouble size={14} /> Beithady · Reservations performance
+          </div>
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+            <HeroStat
+              label="Reservations"
+              value={reservations.toLocaleString()}
+              sub={`${emailsMatched.toLocaleString()} booking emails · ${uniqueGuests.toLocaleString()} unique guests`}
+              Icon={BedDouble}
+            />
+            <HeroStat
+              label={`Total payout (${currency})`}
+              value={Number(totalPayout).toLocaleString()}
+              sub={`After commission · avg ${Number(avgPayout).toLocaleString()} / res`}
+              Icon={Wallet}
+            />
+            <HeroStat
+              label="Nights reserved"
+              value={totalNights.toLocaleString()}
+              sub={`${totalGuests.toLocaleString()} total guests · avg ${Number(avgNights).toLocaleString()} nights / stay`}
+              Icon={Moon}
+            />
+          </div>
+        </div>
       </section>
 
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat
-          label={`Avg payout ${currency}`}
-          value={Number(avgPayout).toLocaleString()}
-          hint="Per reservation"
-          Icon={TrendingUp}
-          accent="emerald"
+      <section>
+        <SectionHeader
+          title="Most reserved"
+          hint="Top performers across apartments, buildings, and bedroom counts during this period."
         />
-        <Stat
-          label={`Avg rate/night ${currency}`}
-          value={Number(avgRate).toLocaleString()}
-          hint="Across all bookings"
-          Icon={Wallet}
-          accent="indigo"
-        />
-        <Stat
-          label="Avg nights/booking"
-          value={Number(avgNights).toLocaleString()}
-          hint="Length of stay"
-          Icon={Moon}
-          accent="violet"
-        />
-        <Stat
-          label="Avg lead time"
-          value={avgLeadTime != null ? `${avgLeadTime.toLocaleString()} d` : '—'}
-          hint="Days from booking email to check-in"
-          Icon={CalendarClock}
-          accent="amber"
-        />
-      </section>
-
-      {(topListing || topBuilding || topBedrooms || topChannel) && (
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <HighlightCard
-            title="Top apartment"
-            label={topListing?.label || '—'}
-            value={
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+          <TrophyCard
+            rank="Most reserved apartment"
+            name={topListing?.label || '—'}
+            primary={
               topListing
                 ? `${topListing.reservation_count} reservation${topListing.reservation_count !== 1 ? 's' : ''}`
                 : 'No bookings yet'
             }
-            sub={
+            secondary={
               topListing
                 ? `${topListing.nights} nights · ${topListing.total_payout.toLocaleString()} ${currency}`
                 : ''
             }
-            Icon={Star}
-            tint="bg-rose-50 text-rose-600"
+            Icon={DoorOpen}
+            palette="rose"
           />
-          <HighlightCard
-            title="Top building"
-            label={topBuilding?.label || '—'}
-            value={
+          <TrophyCard
+            rank="Most reserved building"
+            name={topBuilding?.label || '—'}
+            primary={
               topBuilding
                 ? `${topBuilding.reservation_count} reservation${topBuilding.reservation_count !== 1 ? 's' : ''}`
                 : 'No bookings yet'
             }
-            sub={
+            secondary={
               topBuilding
                 ? `${topBuilding.nights} nights · ${topBuilding.total_payout.toLocaleString()} ${currency}`
                 : ''
             }
             Icon={Building2}
-            tint="bg-indigo-50 text-indigo-600"
+            palette="indigo"
           />
-          <HighlightCard
-            title="Top bedroom count"
-            label={topBedrooms?.label || '—'}
-            value={
+          <TrophyCard
+            rank="Most reserved bedroom count"
+            name={topBedrooms?.label || '—'}
+            primary={
               topBedrooms
                 ? `${topBedrooms.reservation_count} reservation${topBedrooms.reservation_count !== 1 ? 's' : ''}`
                 : 'No bookings yet'
             }
-            sub={
+            secondary={
               topBedrooms
                 ? `${topBedrooms.nights} nights · ${topBedrooms.total_payout.toLocaleString()} ${currency}`
                 : ''
             }
             Icon={BedDouble}
-            tint="bg-violet-50 text-violet-600"
+            palette="violet"
           />
-          <HighlightCard
-            title="Top channel"
-            label={topChannel?.label || '—'}
-            value={
-              topChannel
-                ? `${topChannel.reservation_count} reservation${topChannel.reservation_count !== 1 ? 's' : ''}`
-                : 'No bookings yet'
-            }
-            sub={
-              topChannel
-                ? `${topChannel.nights} nights · ${topChannel.total_payout.toLocaleString()} ${currency}`
-                : ''
-            }
-            Icon={Globe2}
-            tint="bg-emerald-50 text-emerald-600"
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Booking received from"
+          hint="Channel mix for this period. Share is calculated on reservation count."
+        />
+        <ChannelMix items={byChannel} totalReservations={reservations} currency={currency} />
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Reservations in each building"
+          hint="Ranked by reservation count. Building = first segment of listing code (e.g. BH73)."
+        />
+        <BuildingTable items={byBuilding} currency={currency} totalRes={reservations} />
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Performance"
+          hint="Operational KPIs to gauge the period at a glance."
+        />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-3">
+          <Stat
+            label={`ADR ${currency}`}
+            value={Math.round(adr).toLocaleString()}
+            hint="Average Daily Rate — Total payout / nights"
+            Icon={TrendingUp}
+            accent="emerald"
           />
-        </section>
-      )}
+          <Stat
+            label="Booking pace"
+            value={bookingPace ? bookingPace.toFixed(2) : '—'}
+            hint={rangeDays ? `Reservations / day across ${rangeDays} d` : 'Run a range first'}
+            Icon={CalendarClock}
+            accent="indigo"
+          />
+          <Stat
+            label={`Commission absorbed ${currency}`}
+            value={Math.round(commissionAbsorbed).toLocaleString()}
+            hint="Σ (rate × nights − payout) when positive"
+            Icon={Percent}
+            accent="amber"
+          />
+          <Stat
+            label="Avg lead time"
+            value={avgLeadTime != null ? `${avgLeadTime.toLocaleString()} d` : '—'}
+            hint="Days from booking email to check-in"
+            Icon={Hourglass}
+            accent="rose"
+          />
+        </div>
+      </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <BucketCard
-          title={`Bookings by channel (${byChannel.length})`}
-          hint="Where the reservation came from (Airbnb, Booking.com, etc.)"
-          items={byChannel}
+        <BucketPanel
+          title="Length of stay"
+          hint="Short ≤2 · Mid 3-7 · Long 8-14 · Extended 15+"
+          items={stayBuckets}
           currency={currency}
-          accent="emerald"
+          Icon={Moon}
+          palette="violet"
         />
-        <BucketCard
-          title={`Bookings by building (${byBuilding.length})`}
-          hint="First dash-separated segment of listing code"
-          items={byBuilding}
+        <BucketPanel
+          title="Lead time from email to check-in"
+          hint="Last-minute <1 day · Short 1-7 · Medium 8-30 · Far 31-90 · Distant 90+"
+          items={leadBuckets}
           currency={currency}
-          accent="indigo"
+          Icon={Hourglass}
+          palette="indigo"
         />
-        <BucketCard
-          title={`Bookings by bedroom count (${byBedrooms.length})`}
-          hint="Derived from listing code/name (e.g. 3BR)"
-          items={byBedrooms}
-          currency={currency}
-          accent="violet"
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <CheckInMonthPanel items={checkInByMonth} currency={currency} />
+        <CheckInWeekdayPanel items={checkInByWeekday} />
+      </section>
+
+      <section>
+        <SectionHeader
+          title={`By bedroom count (${byBedrooms.length})`}
+          hint="How demand splits across unit sizes."
         />
-        <BucketCard
-          title={`Bookings by listing (${byListing.length})`}
-          hint="Per-unit reservation ranking (top 50)"
-          items={byListing}
-          currency={currency}
-          accent="rose"
+        <div className="mt-3">
+          <BucketBars items={byBedrooms} currency={currency} palette="rose" />
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title={`Top listings (${byListing.length})`}
+          hint="Individual apartments ranked by reservation count — click the reservations table below for per-booking detail."
         />
+        <div className="mt-3">
+          <BucketBars items={byListing.slice(0, 15)} currency={currency} palette="emerald" />
+        </div>
       </section>
 
       <section className="ix-card overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-          <h2 className="text-lg font-semibold">Reservations ({bookings.length})</h2>
-          <p className="text-xs text-slate-500">
-            Guest Paid: {Number(totalGuestPaid).toLocaleString()} {currency} · Total Payout: {Number(totalPayout).toLocaleString()} {currency}
-          </p>
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <BookOpen size={18} className="text-rose-500" />
+              Reservations ({bookings.length})
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Guest paid (ledger): {Number(totalGuestPaid).toLocaleString()} {currency}
+              {' · '}
+              Total payout (after commission): {Number(totalPayout).toLocaleString()} {currency}
+            </p>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
+            <thead className="bg-rose-50/60 text-rose-900">
               <tr>
                 <th className="text-left py-2.5 px-4 font-medium">Booking</th>
                 <th className="text-left px-4 font-medium">Channel</th>
@@ -728,15 +790,17 @@ function BeithadyView({
             </thead>
             <tbody>
               {bookings.map((b: any, i: number) => (
-                <tr key={`${b.booking_id}-${i}`} className="border-t border-slate-100">
-                  <td className="py-2.5 px-4 font-mono text-xs text-indigo-600">
+                <tr key={`${b.booking_id}-${i}`} className="border-t border-slate-100 hover:bg-rose-50/30">
+                  <td className="py-2.5 px-4 font-mono text-xs text-rose-700">
                     {b.booking_id}
                   </td>
-                  <td className="px-4">{b.channel}</td>
-                  <td className="px-4 max-w-[200px] truncate" title={b.listing_code}>
+                  <td className="px-4">
+                    <ChannelBadge name={b.channel} />
+                  </td>
+                  <td className="px-4 max-w-[220px] truncate font-mono text-xs" title={b.listing_code}>
                     {b.listing_code}
                   </td>
-                  <td className="px-4 font-mono text-xs">{b.building_code}</td>
+                  <td className="px-4 font-mono text-xs font-semibold">{b.building_code}</td>
                   <td className="px-4">{b.guest_name}</td>
                   <td className="px-4 whitespace-nowrap">{b.check_in_date}</td>
                   <td className="px-4 whitespace-nowrap">{b.check_out_date}</td>
@@ -752,8 +816,8 @@ function BeithadyView({
               ))}
               {!bookings.length && (
                 <tr>
-                  <td colSpan={11} className="py-3 px-4 text-slate-500">
-                    No reservations matched.
+                  <td colSpan={11} className="py-6 px-4 text-slate-500 text-center">
+                    No reservations matched the selected range.
                   </td>
                 </tr>
               )}
@@ -767,15 +831,20 @@ function BeithadyView({
                 (s: number, b: any) => s + (Number(b.nights) || 0),
                 0
               );
+              const sumGuests = bookings.reduce(
+                (s: number, b: any) => s + (Number(b.guests) || 0),
+                0
+              );
               const mismatch = Math.abs(sumPayout - totalPayout) > 0.01;
               return (
-                <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-semibold">
+                <tfoot className="bg-rose-50/40 border-t-2 border-rose-200 font-semibold">
                   <tr>
                     <td className="py-2.5 px-4" colSpan={7}>
-                      Sum of {bookings.length} reservations
+                      Total · {bookings.length} reservations
                     </td>
                     <td className="px-4 text-right tabular-nums">{sumNights}</td>
-                    <td className="px-4" colSpan={2}></td>
+                    <td className="px-4 text-right tabular-nums">{sumGuests}</td>
+                    <td className="px-4" />
                     <td className="px-4 text-right tabular-nums">
                       {Math.round(sumPayout * 100) / 100 === sumPayout
                         ? sumPayout.toLocaleString()
@@ -786,7 +855,7 @@ function BeithadyView({
                     <tr className="text-amber-700">
                       <td className="px-4 pb-2 text-xs font-normal" colSpan={11}>
                         ⚠ Sum differs from KPI Total payout by{' '}
-                        {(sumPayout - totalPayout).toLocaleString()} {currency}.
+                        {(sumPayout - totalPayout).toLocaleString()} {currency}. Re-run the rule to refresh stored totals.
                       </td>
                     </tr>
                   )}
@@ -799,8 +868,11 @@ function BeithadyView({
 
       <section className="ix-card overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="text-lg font-semibold">Guests ({uniqueGuests})</h2>
-          <p className="text-xs text-slate-500">Repeat guests grouped by name</p>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Users size={18} className="text-rose-500" />
+            Guests ({uniqueGuests})
+          </h2>
+          <p className="text-xs text-slate-500">Grouped by name — use for repeat-guest intel.</p>
         </div>
         <GuestTable bookings={bookings} currency={currency} />
       </section>
@@ -808,96 +880,588 @@ function BeithadyView({
   );
 }
 
-function HighlightCard({
-  title,
+function HeroStat({
   label,
   value,
   sub,
   Icon,
-  tint,
 }: {
-  title: string;
   label: string;
   value: string;
   sub?: string;
   Icon: any;
-  tint: string;
 }) {
   return (
-    <div className="ix-card p-5">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-lg inline-flex items-center justify-center ${tint}`}>
-          <Icon size={18} />
-        </div>
-        <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-          {title}
-        </div>
+    <div className="relative">
+      <div className="flex items-center gap-2 text-rose-700/80 text-[11px] uppercase tracking-wider font-semibold">
+        <Icon size={14} /> {label}
       </div>
-      <div className="mt-3 font-semibold truncate" title={label}>
-        {label}
+      <div className="text-5xl font-bold tracking-tight mt-2 text-slate-900 tabular-nums">
+        {value}
       </div>
-      <div className="text-sm text-slate-700 tabular-nums mt-0.5">{value}</div>
-      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+      {sub && <div className="text-xs text-slate-600 mt-2">{sub}</div>}
     </div>
   );
 }
 
-function BucketCard({
+function SectionHeader({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div>
+      <h2 className="text-xl font-bold tracking-tight text-slate-900">{title}</h2>
+      {hint && <p className="text-xs text-slate-500 mt-0.5">{hint}</p>}
+    </div>
+  );
+}
+
+function TrophyCard({
+  rank,
+  name,
+  primary,
+  secondary,
+  Icon,
+  palette,
+}: {
+  rank: string;
+  name: string;
+  primary: string;
+  secondary?: string;
+  Icon: any;
+  palette: 'rose' | 'indigo' | 'violet';
+}) {
+  const themes: Record<
+    typeof palette,
+    { bg: string; ring: string; text: string; chip: string; glow: string }
+  > = {
+    rose: {
+      bg: 'from-rose-50 via-white to-pink-50',
+      ring: 'ring-rose-200/70',
+      text: 'text-rose-700',
+      chip: 'bg-rose-100 text-rose-700',
+      glow: 'from-rose-400 to-pink-500',
+    },
+    indigo: {
+      bg: 'from-indigo-50 via-white to-blue-50',
+      ring: 'ring-indigo-200/70',
+      text: 'text-indigo-700',
+      chip: 'bg-indigo-100 text-indigo-700',
+      glow: 'from-indigo-400 to-violet-500',
+    },
+    violet: {
+      bg: 'from-violet-50 via-white to-fuchsia-50',
+      ring: 'ring-violet-200/70',
+      text: 'text-violet-700',
+      chip: 'bg-violet-100 text-violet-700',
+      glow: 'from-violet-400 to-fuchsia-500',
+    },
+  };
+  const t = themes[palette];
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl ring-1 ${t.ring} bg-gradient-to-br ${t.bg} p-5`}
+    >
+      <div
+        className={`absolute -top-8 -right-8 w-28 h-28 rounded-full bg-gradient-to-br ${t.glow} opacity-20 blur-2xl pointer-events-none`}
+      />
+      <div className="flex items-center justify-between gap-3">
+        <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full ${t.chip}`}>
+          {rank}
+        </span>
+        <Icon size={18} className={t.text} />
+      </div>
+      <div className="mt-4 font-mono text-lg font-bold truncate text-slate-900" title={name}>
+        {name}
+      </div>
+      <div className={`text-sm font-semibold ${t.text} mt-1`}>{primary}</div>
+      {secondary && <div className="text-xs text-slate-600 mt-0.5">{secondary}</div>}
+    </div>
+  );
+}
+
+function ChannelBadge({ name }: { name: string }) {
+  const key = (name || '').toLowerCase();
+  let cls = 'bg-slate-100 text-slate-700';
+  if (key.includes('airbnb')) cls = 'bg-rose-100 text-rose-700';
+  else if (key.includes('booking')) cls = 'bg-blue-100 text-blue-700';
+  else if (key.includes('vrbo') || key.includes('expedia'))
+    cls = 'bg-amber-100 text-amber-700';
+  else if (key.includes('direct')) cls = 'bg-emerald-100 text-emerald-700';
+  return (
+    <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full ${cls}`}>
+      {name || 'Unknown'}
+    </span>
+  );
+}
+
+function ChannelMix({
+  items,
+  totalReservations,
+  currency,
+}: {
+  items: BucketStat[];
+  totalReservations: number;
+  currency: string;
+}) {
+  if (!items.length) {
+    return (
+      <div className="ix-card p-6 mt-3 text-center text-sm text-slate-500">
+        No channel data yet.
+      </div>
+    );
+  }
+  const colors = [
+    'from-rose-500 to-pink-500',
+    'from-indigo-500 to-blue-500',
+    'from-amber-500 to-orange-500',
+    'from-emerald-500 to-teal-500',
+    'from-violet-500 to-fuchsia-500',
+    'from-slate-500 to-slate-700',
+  ];
+  return (
+    <div className="ix-card p-6 mt-3 space-y-4">
+      <div className="h-3 w-full rounded-full overflow-hidden flex bg-slate-100">
+        {items.map((c, i) => {
+          const pct = totalReservations
+            ? (c.reservation_count / totalReservations) * 100
+            : 0;
+          return (
+            <div
+              key={c.key}
+              className={`h-full bg-gradient-to-r ${colors[i % colors.length]}`}
+              style={{ width: `${pct}%` }}
+              title={`${c.label}: ${c.reservation_count} (${pct.toFixed(1)}%)`}
+            />
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((c, i) => {
+          const pct = totalReservations
+            ? (c.reservation_count / totalReservations) * 100
+            : 0;
+          return (
+            <div
+              key={c.key}
+              className="flex items-center justify-between text-sm gap-3"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`inline-block w-2.5 h-2.5 rounded-full bg-gradient-to-br ${colors[i % colors.length]}`}
+                />
+                <ChannelBadge name={c.label} />
+              </div>
+              <div className="text-slate-600 tabular-nums text-right shrink-0 text-xs">
+                <span className="font-semibold text-slate-900">
+                  {c.reservation_count}
+                </span>{' '}
+                res · {pct.toFixed(1)}% · {c.nights}n ·{' '}
+                {c.total_payout.toLocaleString()} {currency}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BuildingTable({
+  items,
+  currency,
+  totalRes,
+}: {
+  items: BucketStat[];
+  currency: string;
+  totalRes: number;
+}) {
+  if (!items.length) {
+    return (
+      <div className="ix-card p-6 mt-3 text-center text-sm text-slate-500">
+        No buildings yet.
+      </div>
+    );
+  }
+  return (
+    <div className="ix-card overflow-hidden mt-3">
+      <table className="w-full text-sm">
+        <thead className="bg-indigo-50/60 text-indigo-900">
+          <tr>
+            <th className="text-left py-2.5 px-6 font-medium">Building</th>
+            <th className="text-right px-6 font-medium">Reservations</th>
+            <th className="text-right px-6 font-medium">Share</th>
+            <th className="text-right px-6 font-medium">Nights</th>
+            <th className="text-right px-6 font-medium">Avg nights / res</th>
+            <th className="text-right px-6 font-medium">Total payout ({currency})</th>
+            <th className="text-right px-6 font-medium">Avg payout / res</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(b => {
+            const pct = totalRes ? (b.reservation_count / totalRes) * 100 : 0;
+            const avgNights = b.reservation_count
+              ? b.nights / b.reservation_count
+              : 0;
+            const avgPayout = b.reservation_count
+              ? b.total_payout / b.reservation_count
+              : 0;
+            return (
+              <tr key={b.key} className="border-t border-slate-100 hover:bg-indigo-50/30">
+                <td className="py-2.5 px-6 font-mono font-semibold text-indigo-700">
+                  {b.label}
+                </td>
+                <td className="px-6 text-right tabular-nums font-semibold">
+                  {b.reservation_count}
+                </td>
+                <td className="px-6 text-right tabular-nums">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-1.5 w-16 rounded-full bg-slate-100 overflow-hidden inline-block">
+                      <span
+                        className="block h-full bg-gradient-to-r from-indigo-500 to-violet-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </span>
+                    {pct.toFixed(1)}%
+                  </span>
+                </td>
+                <td className="px-6 text-right tabular-nums">{b.nights}</td>
+                <td className="px-6 text-right tabular-nums">
+                  {avgNights.toFixed(1)}
+                </td>
+                <td className="px-6 text-right tabular-nums font-medium">
+                  {b.total_payout.toLocaleString()}
+                </td>
+                <td className="px-6 text-right tabular-nums text-slate-600">
+                  {Math.round(avgPayout).toLocaleString()}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type DistBucket = {
+  key: string;
+  label: string;
+  count: number;
+  nights: number;
+  payout: number;
+};
+
+function bucketStayLengths(bookings: any[]): DistBucket[] {
+  const defs: Array<{
+    key: string;
+    label: string;
+    match: (n: number) => boolean;
+  }> = [
+    { key: 'short', label: 'Short ≤2 nights', match: n => n <= 2 },
+    { key: 'mid', label: 'Mid 3–7 nights', match: n => n >= 3 && n <= 7 },
+    { key: 'long', label: 'Long 8–14 nights', match: n => n >= 8 && n <= 14 },
+    { key: 'ext', label: 'Extended 15+ nights', match: n => n >= 15 },
+  ];
+  const out: DistBucket[] = defs.map(d => ({
+    key: d.key,
+    label: d.label,
+    count: 0,
+    nights: 0,
+    payout: 0,
+  }));
+  for (const b of bookings) {
+    const n = Number(b.nights) || 0;
+    const idx = defs.findIndex(d => d.match(n));
+    if (idx >= 0) {
+      out[idx].count += 1;
+      out[idx].nights += n;
+      out[idx].payout += Number(b.total_payout) || 0;
+    }
+  }
+  return out;
+}
+
+function bucketLeadTimes(
+  bookings: any[],
+  rangeFromIso?: string
+): DistBucket[] {
+  const defs: Array<{
+    key: string;
+    label: string;
+    match: (d: number) => boolean;
+  }> = [
+    { key: 'lm', label: 'Last-minute <1 d', match: d => d < 1 },
+    { key: 's', label: 'Short 1–7 d', match: d => d >= 1 && d <= 7 },
+    { key: 'm', label: 'Medium 8–30 d', match: d => d >= 8 && d <= 30 },
+    { key: 'f', label: 'Far 31–90 d', match: d => d >= 31 && d <= 90 },
+    { key: 'd', label: 'Distant 90+ d', match: d => d > 90 },
+  ];
+  const out: DistBucket[] = defs.map(d => ({
+    key: d.key,
+    label: d.label,
+    count: 0,
+    nights: 0,
+    payout: 0,
+  }));
+  const anchor = rangeFromIso ? Date.parse(rangeFromIso) : NaN;
+  if (!Number.isFinite(anchor)) {
+    return out.map(o => ({ ...o, label: o.label + ' (needs run)' }));
+  }
+  for (const b of bookings) {
+    const ci = Date.parse((b.check_in_date || '') + 'T00:00:00Z');
+    if (!Number.isFinite(ci)) continue;
+    const d = Math.round((ci - anchor) / (24 * 3600 * 1000));
+    const idx = defs.findIndex(def => def.match(d));
+    if (idx >= 0) {
+      out[idx].count += 1;
+      out[idx].nights += Number(b.nights) || 0;
+      out[idx].payout += Number(b.total_payout) || 0;
+    }
+  }
+  return out;
+}
+
+function groupByCheckInMonth(bookings: any[]): DistBucket[] {
+  const map = new Map<string, DistBucket>();
+  for (const b of bookings) {
+    const ci = String(b.check_in_date || '');
+    if (!/^\d{4}-\d{2}/.test(ci)) continue;
+    const key = ci.slice(0, 7);
+    const label = new Date(key + '-01T00:00:00Z').toLocaleString(undefined, {
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+    const existing = map.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.nights += Number(b.nights) || 0;
+      existing.payout += Number(b.total_payout) || 0;
+    } else {
+      map.set(key, {
+        key,
+        label,
+        count: 1,
+        nights: Number(b.nights) || 0,
+        payout: Number(b.total_payout) || 0,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function groupByCheckInWeekday(bookings: any[]): DistBucket[] {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const out: DistBucket[] = days.map((d, i) => ({
+    key: String(i),
+    label: d,
+    count: 0,
+    nights: 0,
+    payout: 0,
+  }));
+  for (const b of bookings) {
+    const ci = Date.parse((b.check_in_date || '') + 'T00:00:00Z');
+    if (!Number.isFinite(ci)) continue;
+    const wd = new Date(ci).getUTCDay();
+    out[wd].count += 1;
+    out[wd].nights += Number(b.nights) || 0;
+    out[wd].payout += Number(b.total_payout) || 0;
+  }
+  return out;
+}
+
+function BucketPanel({
   title,
   hint,
   items,
   currency,
-  accent,
+  Icon,
+  palette,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
+  items: DistBucket[];
+  currency: string;
+  Icon: any;
+  palette: 'violet' | 'indigo' | 'rose' | 'emerald';
+}) {
+  const bars: Record<typeof palette, string> = {
+    violet: 'from-violet-500 to-fuchsia-500',
+    indigo: 'from-indigo-500 to-blue-500',
+    rose: 'from-rose-500 to-pink-500',
+    emerald: 'from-emerald-500 to-teal-500',
+  };
+  const max = Math.max(1, ...items.map(i => i.count));
+  return (
+    <div className="ix-card p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={16} className="text-slate-500" />
+        <h3 className="text-base font-semibold">{title}</h3>
+      </div>
+      {hint && <p className="text-xs text-slate-500 mb-3">{hint}</p>}
+      <div className="space-y-3">
+        {items.map(i => {
+          const pct = Math.round((i.count / max) * 100);
+          return (
+            <div key={i.key}>
+              <div className="flex items-center justify-between text-sm mb-1 gap-3">
+                <div className="font-medium text-slate-700">{i.label}</div>
+                <div className="text-slate-500 tabular-nums text-right text-xs shrink-0">
+                  <span className="font-semibold text-slate-900">{i.count}</span> res
+                  {i.nights ? ` · ${i.nights}n` : ''}
+                  {i.payout ? ` · ${i.payout.toLocaleString()} ${currency}` : ''}
+                </div>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full bg-gradient-to-r ${bars[palette]}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CheckInMonthPanel({
+  items,
+  currency,
+}: {
+  items: DistBucket[];
+  currency: string;
+}) {
+  if (!items.length) {
+    return (
+      <div className="ix-card p-6 text-center text-sm text-slate-500">
+        No check-ins in this period.
+      </div>
+    );
+  }
+  const max = Math.max(1, ...items.map(i => i.count));
+  return (
+    <div className="ix-card p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <CalendarDays size={16} className="text-rose-500" />
+        <h3 className="text-base font-semibold">Check-ins by month</h3>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        Operational heat — when reservations actually land on the ground.
+      </p>
+      <div className="flex items-end gap-2 h-40">
+        {items.map(i => {
+          const h = Math.round((i.count / max) * 100);
+          return (
+            <div
+              key={i.key}
+              className="flex-1 flex flex-col items-center justify-end gap-1 group"
+              title={`${i.label}: ${i.count} reservations · ${i.nights}n · ${i.payout.toLocaleString()} ${currency}`}
+            >
+              <div className="text-[10px] font-semibold text-slate-700">
+                {i.count}
+              </div>
+              <div
+                className="w-full rounded-md bg-gradient-to-t from-rose-500 to-pink-400 group-hover:from-rose-600 transition"
+                style={{ height: `${Math.max(4, h)}%` }}
+              />
+              <div className="text-[10px] text-slate-500 whitespace-nowrap">
+                {i.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CheckInWeekdayPanel({ items }: { items: DistBucket[] }) {
+  const max = Math.max(1, ...items.map(i => i.count));
+  const total = items.reduce((s, i) => s + i.count, 0);
+  return (
+    <div className="ix-card p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <CalendarClock size={16} className="text-indigo-500" />
+        <h3 className="text-base font-semibold">Check-in day-of-week mix</h3>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        Which weekdays guests arrive on — drives cleaning and front-desk staffing.
+      </p>
+      <div className="grid grid-cols-7 gap-2">
+        {items.map(i => {
+          const pct = total ? (i.count / total) * 100 : 0;
+          const h = Math.round((i.count / max) * 100);
+          return (
+            <div key={i.key} className="flex flex-col items-center">
+              <div className="h-24 w-full flex items-end justify-center">
+                <div
+                  className="w-full rounded-md bg-gradient-to-t from-indigo-500 to-violet-400"
+                  style={{ height: `${Math.max(4, h)}%` }}
+                />
+              </div>
+              <div className="text-[10px] font-semibold text-slate-700 mt-1">
+                {i.label}
+              </div>
+              <div className="text-[10px] text-slate-500 tabular-nums">
+                {i.count} · {pct.toFixed(0)}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BucketBars({
+  items,
+  currency,
+  palette,
+}: {
   items: BucketStat[];
   currency: string;
-  accent: 'emerald' | 'indigo' | 'violet' | 'rose';
+  palette: 'rose' | 'emerald' | 'indigo' | 'violet';
 }) {
-  const max = Math.max(1, ...items.map(i => i.reservation_count));
-  const barClass: Record<typeof accent, string> = {
+  if (!items.length) {
+    return (
+      <div className="ix-card p-6 text-center text-sm text-slate-500">
+        No data.
+      </div>
+    );
+  }
+  const bars: Record<typeof palette, string> = {
+    rose: 'from-rose-500 to-pink-500',
     emerald: 'from-emerald-500 to-teal-500',
     indigo: 'from-indigo-500 to-violet-500',
     violet: 'from-violet-500 to-fuchsia-500',
-    rose: 'from-rose-500 to-pink-500',
   };
+  const max = Math.max(1, ...items.map(i => i.reservation_count));
   return (
-    <div className="ix-card p-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="text-xs text-slate-500">{hint}</p>
-      </div>
-      {!items.length ? (
-        <p className="text-sm text-slate-500">No data.</p>
-      ) : (
-        <div className="space-y-3">
-          {items.map(b => {
-            const pct = Math.round((b.reservation_count / max) * 100);
-            return (
-              <div key={b.key}>
-                <div className="flex items-center justify-between text-sm mb-1 gap-3">
-                  <div className="font-medium truncate" title={b.label}>
-                    {b.label}
-                  </div>
-                  <div className="text-slate-500 tabular-nums shrink-0 text-right">
-                    <span className="font-semibold text-slate-900">
-                      {b.reservation_count}
-                    </span>{' '}
-                    res · {b.nights}n · {b.total_payout.toLocaleString()} {currency}
-                  </div>
-                </div>
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-full bg-gradient-to-r ${barClass[accent]}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
+    <div className="ix-card p-6 space-y-3">
+      {items.map(b => {
+        const pct = Math.round((b.reservation_count / max) * 100);
+        return (
+          <div key={b.key}>
+            <div className="flex items-center justify-between text-sm mb-1 gap-3">
+              <div className="font-mono text-xs truncate" title={b.label}>
+                {b.label}
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="text-slate-500 tabular-nums text-right shrink-0 text-xs">
+                <span className="font-semibold text-slate-900">
+                  {b.reservation_count}
+                </span>{' '}
+                res · {b.nights}n · {b.total_payout.toLocaleString()} {currency}
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className={`h-full bg-gradient-to-r ${bars[palette]}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
