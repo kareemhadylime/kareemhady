@@ -1,5 +1,48 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🚧 PHASE 5.8 IN PROGRESS — Stripe API reconciliation (blocked on user: STRIPE_SECRET_KEY)
+
+### User request (this turn)
+> "I want you to connect to stripe through api to extract Payment Transactions to reconcile with Reservations and Payouts on the same rule, guide me to give you the right api and secrets to access stripe data"
+
+### Guidance given
+1. **Use Restricted key, NOT Standard secret** — safer (read-only, scoped). On Stripe's "How will you be using this key?" screen, user picked **Option 1: "Powering an integration you built"** (confirmed by me — Options 2/3 are for third-party SaaS / direct AI-agent MCP, neither applies here since the key sits in Vercel env and is called by our own server code).
+2. **Permissions toggled** (all Read, everything else None):
+   - Core → Charges
+   - Core → PaymentIntents
+   - Core → Refunds
+   - Core → Customers
+   - Balance → Balance transactions
+   - Connected accounts and people → Payouts
+3. **Do NOT create a new Stripe account** despite Guesty's yellow banner — we want to read from the SAME account Guesty manages so payouts from Booking.com / Expedia / Manual settle into rows we can reconcile. A new account would have no overlap.
+4. **Storage path**:
+   - `C:\kareemhady\.env.local`: `STRIPE_SECRET_KEY=rk_live_...`
+   - Vercel production env: `vercel env add STRIPE_SECRET_KEY production`
+   - Then `vercel --prod --yes` to redeploy.
+
+### Blocker hit this turn
+User ran `vercel env add STRIPE_SECRET_KEY production` in PowerShell → PSSecurityException: "vercel.ps1 cannot be loaded because running scripts is disabled on this system." Default PowerShell Execution Policy (`Restricted`) blocks npm-installed shims.
+
+Two workarounds given:
+- **A**: `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` + `Y` to confirm. Then vercel CLI works. (Scoped to user, allows local scripts, keeps remote-script signing requirement.)
+- **B**: Skip CLI — add env var via Vercel dashboard at `/settings/environment-variables`, redeploy via Deployments tab.
+
+### What I'll do once user replies "key is set"
+1. `npm i stripe`
+2. Create `src/lib/stripe.ts` with lazy client initializer reading `STRIPE_SECRET_KEY`.
+3. Extend `evaluatePayoutRule` in `src/lib/rules/engine.ts`:
+   - After the existing Stripe-email parsing, also call `stripe.payouts.list({ created: { gte: fromTs, lte: toTs }, limit: 100 })` to catch any Stripe payouts that didn't email.
+   - For each payout (from either source), call `stripe.balanceTransactions.list({ payout: po_..., limit: 100, expand: ['data.source'] })` → each transaction is a charge/refund/application_fee etc.
+   - For `charge` type, resolve the charge → guest metadata (`charges.metadata.guest_name` / `description` / `statement_descriptor`).
+4. Extend `aggregateBeithadyPayouts` output with a `stripe_breakdown: Array<{ payout_id, date, amount_aed, transactions: Array<{ type, amount, charge_id?, guest?, description?, metadata? }> }>`.
+5. New dashboard section "Stripe payout breakdown" showing per-payout transaction drill-down. Cross-reference with the confirmation_code map from the Beithady Bookings rule (previously-deferred Phase 5.8 reconciliation roadmap).
+6. Currency handling: Stripe likely reports transactions in the original currency (USD/EUR for OTAs) + the payout is converted to AED. The balance-transaction `amount` is in settlement (AED) minor units; `source_amount`/`source_currency` when available reflects the original charge.
+
+### Security posture reaffirmed
+- Restricted key = read-only. If leaked: attacker can see data, NOT move money.
+- Never commit key. Never paste in chat. If suspected leak: Developers → API keys → that row → Roll (revokes instantly).
+- Stripe's publishable key from user's screenshot (`pk_live_51RcAec...`) is NOT sensitive (public by design) but I'm not storing or using it — we only need server-side access.
+
 ## ✅ PHASE 5.7 SHIPPED — Beithady payouts rule (Airbnb + Stripe) + dashboard (commit 6b4c2a9)
 
 ### User request
