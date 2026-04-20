@@ -1,4 +1,53 @@
-# Kareemhady — Session Handoff (2026-04-20)
+# Kareemhady — Session Handoff (2026-04-21)
+
+## ✅ PHASE 5.5 SHIPPED — Airbnb reconciliation looks in the right mailbox (commit 455b580)
+
+### User correction
+Screenshot of the live dashboard showed the reconciliation section reporting "0 Airbnb emails scanned / 0 confirmations parsed" while "19 Guesty (Airbnb) not matched". Second screenshot of an actual Airbnb confirmation email revealed why:
+
+- **Subject**: "Reservation confirmed - Mohamed-Mutasim Mohamed arrives Apr 20"
+- **From**: "service via Guesty" (not airbnb.com)
+- **To**: `guesty@beithady.com` (not kareem@beithady.com)
+- **Body**: standard Airbnb template with "Airbnb Ireland UC, 25 North Wall Quay, Dublin" footer
+
+Airbnb sends confirmations to the Guesty-owned alias `guesty@beithady.com`; Guesty's mail relay then forwards them to the kareem@limeinc.cc mailbox with rewritten From. `from:airbnb.com` never matches.
+
+### Changes
+
+#### `src/lib/rules/engine.ts`
+Inside the `beithady_booking_aggregate` search, swapped the filter:
+```diff
+-  fromContains: 'airbnb.com',
+-  subjectContains: 'Reservation confirmed',
++  subjectContains: 'Reservation confirmed',
++  toContains: 'guesty@beithady.com',
+```
+Subject alone is specific enough (the Guesty NEW BOOKING stream uses a different subject "NEW BOOKING from Airbnb"), but `to:guesty@beithady.com` adds an extra guard against other "Reservation confirmed"-style subjects that might appear from other sources.
+
+#### `src/lib/rules/aggregators/beithady-booking.ts`
+Rewrote `AIRBNB_SYSTEM` prompt to match reality:
+- Subject pattern: `"Reservation confirmed - <Guest Name> arrives <Date>"`
+- From: "service via Guesty" (Airbnb's original From is rewritten by Guesty's relay)
+- Footer: "Airbnb Ireland UC, 25 North Wall Quay, Dublin"
+- HM-prefixed confirmation code lives in the body / "View details" link area
+- Explicitly lists non-confirmation Airbnb emails (alteration, cancellation, review, payout-only) as things to skip
+
+`tool_choice: 'auto'` stays — non-confirmation Airbnb emails now get silently dropped rather than parsed into garbage rows.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- Reconciliation section hint updated to say "Airbnb emails (relayed by Guesty to guesty@beithady.com)" — calling out the indirection so the user understands what's being searched.
+- Empty-state placeholder now quotes the actual search string: `to:guesty@beithady.com subject:"Reservation confirmed"` (Airbnb confirmations relayed via Guesty).
+
+### Verification
+- Build: 14 routes, TS clean.
+- Deploy: `vercel --prod --yes` successful, aliased to kareemhady.vercel.app.
+- Expected result after next Run: Airbnb confirmations count becomes non-zero; "Guesty (Airbnb) not matched" drops from 19 as Airbnb codes get paired with Guesty booking_ids.
+
+### Semantic reminder for future sessions
+**All three Airbnb signals in one mailbox arrive via Guesty's relay, not direct from Airbnb**:
+1. Guesty NEW BOOKING from Airbnb → subject "NEW BOOKING from Airbnb", to `kareem@beithady.com`
+2. Airbnb Reservation confirmed → subject "Reservation confirmed - ...", to `guesty@beithady.com`
+3. Future signal sources (cancellations, alterations) would follow the same pattern — check TO addresses, not FROM domains.
 
 ## ✅ PHASE 5.4 SHIPPED — mark-as-read uses batchModify (commit 86f981c)
 
