@@ -69,24 +69,30 @@ export default async function RuleOutputDetailPage({
 
   const maxQty = Math.max(1, ...products.map((p: any) => p.total_quantity || 0));
 
-  const validPresets = RANGE_PRESETS.map(p => p.id);
-  const activePreset =
-    sp.preset && validPresets.includes(sp.preset as RangePreset)
-      ? (sp.preset as RangePreset)
-      : 'last24h';
-  const presetResolved = resolvePreset(activePreset);
-  const fromDefault = sp.from || dateInputValue(presetResolved.fromIso);
-  const toDefault = sp.to || dateInputValue(presetResolved.toIso);
-
   const lastRange = out?.time_range as
     | {
         from: string;
         to: string;
         label?: string;
+        preset_id?: string;
         clamped_to_year_start?: boolean;
         requested_from?: string;
       }
     | undefined;
+
+  const validPresets = RANGE_PRESETS.map(p => p.id);
+  const urlPreset =
+    sp.preset && validPresets.includes(sp.preset as RangePreset)
+      ? (sp.preset as RangePreset)
+      : null;
+  const lastRunPreset =
+    lastRange?.preset_id && validPresets.includes(lastRange.preset_id as RangePreset)
+      ? (lastRange.preset_id as RangePreset)
+      : null;
+  const activePreset: RangePreset = urlPreset || lastRunPreset || 'last24h';
+  const presetResolved = resolvePreset(activePreset);
+  const fromDefault = sp.from || dateInputValue(presetResolved.fromIso);
+  const toDefault = sp.to || dateInputValue(presetResolved.toIso);
 
   const yearStartStr = `${new Date().getUTCFullYear()}-01-01`;
 
@@ -218,9 +224,30 @@ export default async function RuleOutputDetailPage({
             )}
 
             {out?.parse_errors > 0 && (
-              <div className="ix-card p-4 border-amber-200 bg-amber-50 text-amber-800 text-sm">
-                {out.parse_errors} email(s) could not be parsed and were skipped.
-              </div>
+              <details className="ix-card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+                <summary className="p-4 cursor-pointer font-medium">
+                  {out.parse_errors} email(s) could not be parsed and were skipped.
+                  {Array.isArray(out.parse_failures) && out.parse_failures.length > 0 && (
+                    <span className="ml-1 text-xs text-amber-700 font-normal">
+                      (click to see which)
+                    </span>
+                  )}
+                </summary>
+                {Array.isArray(out.parse_failures) && out.parse_failures.length > 0 && (
+                  <ul className="px-4 pb-4 space-y-2 text-xs">
+                    {out.parse_failures.slice(0, 50).map((f: any, i: number) => (
+                      <li
+                        key={i}
+                        className="border-t border-amber-200 pt-2 first:border-t-0 first:pt-0"
+                      >
+                        <div className="font-medium truncate">{f.subject || '(no subject)'}</div>
+                        <div className="text-amber-700 truncate">{f.from}</div>
+                        <div className="text-amber-600">Reason: {f.reason}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </details>
             )}
 
             {lastRange?.clamped_to_year_start && (

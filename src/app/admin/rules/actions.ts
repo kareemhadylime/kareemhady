@@ -79,14 +79,16 @@ export async function deleteRule(formData: FormData) {
 
 function rangeFromForm(formData: FormData) {
   const preset = String(formData.get('preset') || '') as RangePreset;
-  if (preset && preset !== 'custom') return resolvePreset(preset);
+  if (preset && preset !== 'custom') {
+    return { ...resolvePreset(preset), presetId: preset };
+  }
 
   const fromStr = String(formData.get('from') || '').trim();
   const toStr = String(formData.get('to') || '').trim();
   if (fromStr && toStr) {
     const fromIso = new Date(fromStr + 'T00:00:00').toISOString();
     const toIso = new Date(toStr + 'T23:59:59').toISOString();
-    return { fromIso, toIso, label: `${fromStr} → ${toStr}` };
+    return { fromIso, toIso, label: `${fromStr} → ${toStr}`, presetId: 'custom' };
   }
   return undefined;
 }

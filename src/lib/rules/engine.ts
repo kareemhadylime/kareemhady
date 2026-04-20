@@ -15,7 +15,12 @@ export type RuleAction = {
   mark_as_read?: boolean;
 };
 
-export type EvalRange = { fromIso: string; toIso: string; label?: string };
+export type EvalRange = {
+  fromIso: string;
+  toIso: string;
+  label?: string;
+  presetId?: string;
+};
 
 export async function evaluateRule(ruleId: string, range?: EvalRange) {
   const sb = supabaseAdmin();
@@ -68,6 +73,7 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     from: fromIso,
     to: toIso,
     label: range?.label,
+    preset_id: range?.presetId,
     clamped_to_year_start: clampedToYearStart || undefined,
     requested_from: clampedToYearStart ? requestedFromIso : undefined,
   };

@@ -188,6 +188,33 @@ Rule engine was filtering `public.email_logs`. The daily ingest (`src/lib/gmail.
 - YTD — already uses Jan 1, no change
 - Custom: if From predates Jan 1 of this year, it's silently clamped + user sees amber banner
 
+## ✅ PHASE 4.4 SHIPPED — split "Total paid" vs "Product revenue"; show all products (commit 44fa251)
+
+### Bug user hit
+"Filter 7 Days — These Don't Match the Total of 375K ????" — product bars summed to ~166K but Total KPI said 373,918.86.
+
+### Root cause
+Two different numbers were labelled as "Total":
+- `order.total_amount` from Claude extraction = **final customer charge** (incl. shipping + tax, after discounts)
+- `line_item.total` from Claude extraction = **list price × qty** (pre-discount, pre-shipping, pre-tax)
+Per-product revenue was the sum of line items; the KPI was the sum of order totals. For KIKA, large "Custom discount" lines (seen earlier: 3100 list → 142.50 paid) make these wildly different.
+
+Also: product chart was capped at `products.slice(0, 12)`, so 57 of 69 products were invisible.
+
+### Fix
+- Aggregator (`shopify-order.ts`) now emits a separate `line_items_subtotal` alongside `total_amount`.
+- Detail page KPI strip renamed:
+  - "Total paid EGP" (Wallet icon, emerald) — with hint "Final customer charges (incl. shipping + tax, after discounts)"
+  - "Product revenue EGP" (Package icon, indigo) — with hint "Sum of line items (list price × qty)"
+  - "Emails matched" demoted into the "Products" card's hint line to free a slot.
+- Product list now renders **all** products (removed the `.slice(0, 12)` cap); heading reads "Products (N)" with a clarifying line.
+
+### Schema implications
+- No DB changes. `rule_runs.output` is JSONB so the new `line_items_subtotal` field appears on new runs only; historical runs still render fine (subtotal treated as 0 if missing, which is honest).
+
+### Retry note
+The user needs to click a preset / Run to get a new run whose output carries `line_items_subtotal`; older rule_runs still show 0 for "Product revenue" until re-run.
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google

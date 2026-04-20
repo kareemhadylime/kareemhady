@@ -30,6 +30,7 @@ export type ShopifyAggregateOutput = {
   products: ProductSummary[];
   orders: Array<Pick<ParsedOrder, 'order_number' | 'customer_name' | 'total_amount'>>;
   parse_errors: number;
+  parse_failures: Array<{ subject: string; from: string; reason: string }>;
 };
 
 const SYSTEM = `You parse Shopify order-notification emails (e.g. from KIKA store) and extract structured order data. Be strict: only extract values clearly present in the email. If a field is missing, omit the order rather than guessing.`;
@@ -86,11 +87,26 @@ export async function aggregateShopifyOrders(
 ): Promise<ShopifyAggregateOutput> {
   const parsed: ParsedOrder[] = [];
   let parseErrors = 0;
+  const parseFailures: Array<{ subject: string; from: string; reason: string }> = [];
 
   const results = await Promise.allSettled(bodies.map(b => parseOne(b.bodyText)));
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) parsed.push(r.value);
-    else parseErrors++;
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const src = bodies[i];
+    if (r.status === 'fulfilled' && r.value) {
+      parsed.push(r.value);
+    } else {
+      parseErrors++;
+      const reason =
+        r.status === 'rejected'
+          ? String((r as PromiseRejectedResult).reason?.message || (r as PromiseRejectedResult).reason || 'rejected')
+          : 'no_tool_output';
+      parseFailures.push({
+        subject: src.subject.slice(0, 200),
+        from: src.from.slice(0, 200),
+        reason: reason.slice(0, 300),
+      });
+    }
   }
 
   const productMap = new Map<string, ProductSummary>();
@@ -132,5 +148,6 @@ export async function aggregateShopifyOrders(
       total_amount: o.total_amount,
     })),
     parse_errors: parseErrors,
+    parse_failures: parseFailures,
   };
 }
