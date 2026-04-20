@@ -78,8 +78,16 @@ export default async function RuleOutputDetailPage({
   const toDefault = sp.to || dateInputValue(presetResolved.toIso);
 
   const lastRange = out?.time_range as
-    | { from: string; to: string; label?: string }
+    | {
+        from: string;
+        to: string;
+        label?: string;
+        clamped_to_year_start?: boolean;
+        requested_from?: string;
+      }
     | undefined;
+
+  const yearStartStr = `${new Date().getUTCFullYear()}-01-01`;
 
   return (
     <>
@@ -138,7 +146,8 @@ export default async function RuleOutputDetailPage({
           </div>
 
           <p className="text-xs text-slate-500">
-            Pick a preset to run instantly, or set custom From/To dates.
+            Pick a preset to run instantly, or set custom From/To dates. Searches are
+            always capped at Jan 1, {new Date().getUTCFullYear()} at the earliest.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -169,6 +178,7 @@ export default async function RuleOutputDetailPage({
                 type="date"
                 name="from"
                 defaultValue={fromDefault}
+                min={yearStartStr}
                 className="ix-input w-[160px]"
               />
             </label>
@@ -178,6 +188,7 @@ export default async function RuleOutputDetailPage({
                 type="date"
                 name="to"
                 defaultValue={toDefault}
+                min={yearStartStr}
                 className="ix-input w-[160px]"
               />
             </label>
@@ -208,6 +219,16 @@ export default async function RuleOutputDetailPage({
             {out?.parse_errors > 0 && (
               <div className="ix-card p-4 border-amber-200 bg-amber-50 text-amber-800 text-sm">
                 {out.parse_errors} email(s) could not be parsed and were skipped.
+              </div>
+            )}
+
+            {lastRange?.clamped_to_year_start && (
+              <div className="ix-card p-4 border-amber-200 bg-amber-50 text-amber-800 text-sm">
+                Requested start date{' '}
+                {lastRange.requested_from
+                  ? new Date(lastRange.requested_from).toLocaleDateString()
+                  : ''}{' '}
+                was clamped to {new Date(lastRange.from).toLocaleDateString()} (Jan 1 cap).
               </div>
             )}
 

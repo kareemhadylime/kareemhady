@@ -31,9 +31,17 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
   const action = (rule.actions || {}) as RuleAction;
 
   const toIso = range?.toIso || new Date().toISOString();
-  const fromIso =
+  const requestedFromIso =
     range?.fromIso ||
     new Date(Date.now() - (cond.time_window_hours || 24) * 3600 * 1000).toISOString();
+
+  const yearStartMs = new Date(new Date().getUTCFullYear(), 0, 1).getTime();
+  const requestedFromMs = new Date(requestedFromIso).getTime();
+  const fromIso =
+    requestedFromMs < yearStartMs
+      ? new Date(yearStartMs).toISOString()
+      : requestedFromIso;
+  const clampedToYearStart = fromIso !== requestedFromIso;
 
   const account = (rule as any).account;
   if (!account?.oauth_refresh_token_encrypted) {
@@ -56,7 +64,13 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     .single();
   if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
 
-  const timeRange = { from: fromIso, to: toIso, label: range?.label };
+  const timeRange = {
+    from: fromIso,
+    to: toIso,
+    label: range?.label,
+    clamped_to_year_start: clampedToYearStart || undefined,
+    requested_from: clampedToYearStart ? requestedFromIso : undefined,
+  };
 
   try {
     if (!matches.length) {

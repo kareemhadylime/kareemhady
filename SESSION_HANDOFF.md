@@ -152,6 +152,25 @@ Picking a preset chip (e.g. "Month to date") only changed the URL searchParam �
 ### Cosmetic note for Kareem
 - KIKA rule's name `KIKA Shopify Orders (last 24h)` still has the literal "(last 24h)" text — just a string. Edit in `/admin/rules` if it's misleading now that range is dynamic.
 
+## ✅ PHASE 4.2 SHIPPED — rule eval now queries Gmail directly (commit f8e6fd5)
+
+### The real bug user hit
+After Phase 4.1, picking "Month to date" / "Year to date" still returned the same 8 orders as "Last 24h". User reported: "still report reverts to 24hr results, no effect on changing dates."
+
+### Root cause
+Rule engine was filtering `public.email_logs`. The daily ingest (`src/lib/gmail.ts:fetchLast24hMetadata`) only fetches emails `newer_than:1d` — so email_logs is a **24-hour rolling cache**. Confirmed via SQL: 8 KIKA emails in the cache, ALL from 2026-04-19. Widening the date filter found the same 8 rows because older emails were never ingested.
+
+### Fix
+- New `searchMessages(refreshTokenEncrypted, opts)` in `src/lib/gmail.ts` — builds a Gmail query string from the rule's conditions + date range (e.g. `from:kika subject:Order after:2026/04/12 before:2026/04/20 -in:spam -in:trash`), pages through up to 500 results. Gmail's `after:`/`before:` are day-granular, so we pad by ±1 day and let the aggregator be the source of truth.
+- `evaluateRule` no longer touches `email_logs`. It requires `rule.account_id` (throws `account_or_token_missing` if null) and calls `searchMessages` directly. This guarantees the eval always sees fresh data for whatever range the UI passes.
+- `email_logs` is now only used by the dashboard's "recent emails" view on `/admin/accounts` — it remains a shallow 24h cache for display.
+
+### Timeout
+- Added `export const maxDuration = 60;` to `/emails/[domain]/page.tsx` and `/emails/[domain]/[ruleId]/page.tsx`. YTD runs on a large mailbox could otherwise hit Vercel's default 10s timeout; Vercel Pro allows up to 60s.
+
+### Implication for rules without an account
+- Rules with `account_id IS NULL` (the "All accounts" option in the form) will now throw when run — the engine can only pick one account's OAuth token at a time. Phase 1 seeded KIKA rule has `account_id` set so it works. If needed in future: loop over accounts in engine.
+
 ## (Original Phase 1 — kept for reference, no longer blocking)
 
 ### ✅ Production redirect URI added to Google
