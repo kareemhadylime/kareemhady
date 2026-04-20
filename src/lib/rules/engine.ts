@@ -108,6 +108,13 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
               bookings: [],
               parse_errors: 0,
               parse_failures: [],
+              airbnb_emails_checked: 0,
+              airbnb_confirmations_parsed: 0,
+              airbnb_parse_errors: 0,
+              airbnb_parse_failures: [],
+              airbnb_matched_in_guesty: 0,
+              missing_from_guesty: [],
+              guesty_not_in_airbnb: 0,
             }
           : {
               order_count: 0,
@@ -138,13 +145,35 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     );
 
     let output: any;
+    let airbnbMatchIds: string[] = [];
     switch (action.type) {
       case 'shopify_order_aggregate':
         output = await aggregateShopifyOrders(bodies, action.currency || 'EGP');
         break;
-      case 'beithady_booking_aggregate':
-        output = await aggregateBeithadyBookings(bodies, action.currency || 'USD');
+      case 'beithady_booking_aggregate': {
+        const airbnbMatches = await searchMessages(
+          account.oauth_refresh_token_encrypted,
+          {
+            fromContains: 'airbnb.com',
+            subjectContains: 'Reservation confirmed',
+            afterIso: fromIso,
+            beforeIso: toIso,
+            maxResults: 500,
+          }
+        );
+        airbnbMatchIds = airbnbMatches.map(m => m.id);
+        const airbnbBodies = await Promise.all(
+          airbnbMatches.map(m =>
+            fetchEmailFull(account.oauth_refresh_token_encrypted, m.id)
+          )
+        );
+        output = await aggregateBeithadyBookings(
+          bodies,
+          action.currency || 'USD',
+          airbnbBodies
+        );
         break;
+      }
       default:
         throw new Error(`unknown_action_type: ${(action as any).type}`);
     }
@@ -152,6 +181,8 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     let marked = 0;
     let markErrors = 0;
     let markErrorReason: string | undefined;
+    let markedAirbnb = 0;
+    let markAirbnbErrors = 0;
     if (action.mark_as_read) {
       const markRes = await markMessagesAsRead(
         account.oauth_refresh_token_encrypted,
@@ -163,6 +194,19 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
         const first = markRes.errors[0];
         const colon = first.indexOf(': ');
         markErrorReason = (colon >= 0 ? first.slice(colon + 2) : first).slice(0, 300);
+      }
+      if (airbnbMatchIds.length > 0) {
+        const markAirbnbRes = await markMessagesAsRead(
+          account.oauth_refresh_token_encrypted,
+          airbnbMatchIds
+        );
+        markedAirbnb = markAirbnbRes.marked;
+        markAirbnbErrors = markAirbnbRes.errors.length;
+        if (markAirbnbRes.errors.length > 0 && !markErrorReason) {
+          const first = markAirbnbRes.errors[0];
+          const colon = first.indexOf(': ');
+          markErrorReason = (colon >= 0 ? first.slice(colon + 2) : first).slice(0, 300);
+        }
       }
     }
 
@@ -176,6 +220,9 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
           marked_read: marked,
           mark_errors: markErrors,
           mark_error_reason: markErrorReason,
+          airbnb_emails_matched: airbnbMatchIds.length,
+          marked_read_airbnb: markedAirbnb,
+          mark_errors_airbnb: markAirbnbErrors,
           time_range: timeRange,
         },
       })

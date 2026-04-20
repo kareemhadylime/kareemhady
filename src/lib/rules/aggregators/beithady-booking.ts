@@ -23,6 +23,28 @@ export type EnrichedBooking = ParsedBooking & {
   bedrooms: number | null;
 };
 
+export type ParsedAirbnbConfirmation = {
+  confirmation_code: string;
+  guest_name: string;
+  check_in_date: string;
+  check_out_date: string;
+  listing_name: string | null;
+  nights: number | null;
+  guests: number | null;
+  host_payout: number | null;
+  currency: string | null;
+};
+
+export type ReconciliationMissing = {
+  confirmation_code: string;
+  guest_name: string;
+  check_in_date: string;
+  check_out_date: string;
+  listing_name: string | null;
+  nights: number | null;
+  host_payout: number | null;
+};
+
 export type BucketStat = {
   key: string;
   label: string;
@@ -56,6 +78,13 @@ export type BeithadyAggregateOutput = {
   bookings: EnrichedBooking[];
   parse_errors: number;
   parse_failures: Array<{ subject: string; from: string; reason: string }>;
+  airbnb_emails_checked: number;
+  airbnb_confirmations_parsed: number;
+  airbnb_parse_errors: number;
+  airbnb_parse_failures: Array<{ subject: string; from: string; reason: string }>;
+  airbnb_matched_in_guesty: number;
+  missing_from_guesty: ReconciliationMissing[];
+  guesty_not_in_airbnb: number;
 };
 
 const SYSTEM = `You parse Guesty booking-notification emails for Beithady (short-term rental operator) and extract structured reservation data. Emails have fields like Listing, Listing Code (e.g. BH73-3BR-SB-1-201), Guest Name, Check-in/out Date, Nights, Guests, Rate Per Night, Total Payout (after commission), Booking ID. Be strict: only extract values clearly present. If a field is missing or unreadable, omit the booking rather than guessing.`;
@@ -176,6 +205,90 @@ async function parseOne(
   };
 }
 
+const AIRBNB_SYSTEM = `You parse Airbnb reservation-confirmation emails sent directly by Airbnb (from automated@airbnb.com or noreply@airbnb.com). They confirm a new booking on the host's listing and include: the Airbnb confirmation code (starts with HM, alphanumeric, ~10 chars), guest name, check-in/out dates, listing name, number of nights/guests, and sometimes the host payout. Be strict: only extract values clearly present. If the email is not a reservation confirmation (e.g. inquiry, review, cancellation, payout notification), return null by omitting the tool call.`;
+
+const AIRBNB_TOOL = {
+  name: 'extract_airbnb_confirmation',
+  description: 'Extract fields from an Airbnb reservation-confirmation email.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      confirmation_code: {
+        type: 'string',
+        description:
+          'Airbnb confirmation/reservation code — starts with HM and is alphanumeric. Also known as the booking code.',
+      },
+      guest_name: {
+        type: 'string',
+        description: 'Full name of the guest who booked.',
+      },
+      check_in_date: {
+        type: 'string',
+        description: 'Check-in date in ISO YYYY-MM-DD.',
+      },
+      check_out_date: {
+        type: 'string',
+        description: 'Check-out date in ISO YYYY-MM-DD.',
+      },
+      listing_name: {
+        type: ['string', 'null'],
+        description: 'Name of the listing the booking was made on, if shown.',
+      },
+      nights: {
+        type: ['number', 'null'],
+        description: 'Number of nights if shown.',
+      },
+      guests: {
+        type: ['number', 'null'],
+        description: 'Number of guests if shown.',
+      },
+      host_payout: {
+        type: ['number', 'null'],
+        description: 'Host payout amount if shown. Numeric only, no currency symbol.',
+      },
+      currency: {
+        type: ['string', 'null'],
+        description: 'Currency code if shown (USD, EUR, etc).',
+      },
+    },
+    required: ['confirmation_code', 'guest_name', 'check_in_date', 'check_out_date'],
+  },
+};
+
+async function parseAirbnbConfirmation(
+  subject: string,
+  bodyText: string
+): Promise<ParsedAirbnbConfirmation | null> {
+  const trimmedBody = bodyText.length > 12000 ? bodyText.slice(0, 12000) : bodyText;
+  const content = `SUBJECT: ${subject}\n\n${trimmedBody}`;
+  const res = await anthropic().messages.create({
+    model: HAIKU,
+    max_tokens: 1024,
+    system: [
+      { type: 'text', text: AIRBNB_SYSTEM, cache_control: { type: 'ephemeral' } },
+    ],
+    tools: [AIRBNB_TOOL],
+    tool_choice: { type: 'auto' },
+    messages: [{ role: 'user', content }],
+  });
+  const toolUse = res.content.find(b => b.type === 'tool_use');
+  if (!toolUse || toolUse.type !== 'tool_use') return null;
+  const raw = toolUse.input as Record<string, unknown>;
+  const code = String(raw.confirmation_code || '').trim().toUpperCase();
+  if (!code) return null;
+  return {
+    confirmation_code: code,
+    guest_name: String(raw.guest_name || '').trim(),
+    check_in_date: String(raw.check_in_date || '').trim(),
+    check_out_date: String(raw.check_out_date || '').trim(),
+    listing_name: raw.listing_name ? String(raw.listing_name) : null,
+    nights: raw.nights != null ? Number(raw.nights) : null,
+    guests: raw.guests != null ? Number(raw.guests) : null,
+    host_payout: raw.host_payout != null ? Number(raw.host_payout) : null,
+    currency: raw.currency ? String(raw.currency).trim() || null : null,
+  };
+}
+
 export const BEITHADY_BUILDINGS: Record<
   string,
   { label: string; description?: string }
@@ -254,6 +367,7 @@ function daysBetween(fromIso: string, toIso: string): number | null {
 export async function aggregateBeithadyBookings(
   bodies: Array<{ subject: string; from: string; bodyText: string }>,
   currencyHint: string,
+  airbnbBodies: Array<{ subject: string; from: string; bodyText: string }> = [],
   receivedAtByIndex?: Array<string | null>
 ): Promise<BeithadyAggregateOutput> {
   const parsed: EnrichedBooking[] = [];
@@ -383,6 +497,70 @@ export async function aggregateBeithadyBookings(
   const moneyRound = (values: BucketStat[]): BucketStat[] =>
     values.map(v => ({ ...v, total_payout: roundMoney(v.total_payout) }));
 
+  // Airbnb reservation-confirmation reconciliation
+  const airbnbResults = await Promise.allSettled(
+    airbnbBodies.map(b => parseAirbnbConfirmation(b.subject, b.bodyText))
+  );
+  const airbnbParsed: ParsedAirbnbConfirmation[] = [];
+  const airbnbFailures: Array<{ subject: string; from: string; reason: string }> = [];
+  let airbnbParseErrors = 0;
+  const seenAirbnbCodes = new Set<string>();
+  for (let i = 0; i < airbnbResults.length; i++) {
+    const r = airbnbResults[i];
+    const src = airbnbBodies[i];
+    if (r.status === 'fulfilled' && r.value && r.value.confirmation_code) {
+      if (seenAirbnbCodes.has(r.value.confirmation_code)) continue;
+      seenAirbnbCodes.add(r.value.confirmation_code);
+      airbnbParsed.push(r.value);
+    } else if (r.status === 'rejected') {
+      airbnbParseErrors++;
+      airbnbFailures.push({
+        subject: src.subject.slice(0, 200),
+        from: src.from.slice(0, 200),
+        reason: String(
+          (r as PromiseRejectedResult).reason?.message ||
+            (r as PromiseRejectedResult).reason ||
+            'rejected'
+        ).slice(0, 300),
+      });
+    }
+    // fulfilled-but-null is silent — normal for non-confirmation Airbnb emails
+  }
+
+  const guestyCodes = new Set(
+    parsed
+      .map(b => (b.booking_id || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
+  const airbnbCodes = new Set(
+    airbnbParsed.map(a => a.confirmation_code.toUpperCase())
+  );
+
+  const missingFromGuesty: ReconciliationMissing[] = airbnbParsed
+    .filter(a => !guestyCodes.has(a.confirmation_code))
+    .map(a => ({
+      confirmation_code: a.confirmation_code,
+      guest_name: a.guest_name,
+      check_in_date: a.check_in_date,
+      check_out_date: a.check_out_date,
+      listing_name: a.listing_name,
+      nights: a.nights,
+      host_payout: a.host_payout != null ? roundMoney(a.host_payout) : null,
+    }));
+
+  const airbnbMatched = airbnbParsed.filter(a =>
+    guestyCodes.has(a.confirmation_code)
+  ).length;
+
+  // Bookings in Guesty that came from Airbnb channel but weren't found
+  // in the Airbnb direct emails (useful signal: delivery delay on Airbnb's side
+  // or the Airbnb direct notification was filtered out of the mailbox).
+  const guestyNotInAirbnb = parsed.filter(
+    b =>
+      (b.channel || '').toLowerCase().includes('airbnb') &&
+      !airbnbCodes.has((b.booking_id || '').toUpperCase())
+  ).length;
+
   return {
     reservation_count: reservationCount,
     total_payout: roundMoney(totalPayout),
@@ -413,5 +591,12 @@ export async function aggregateBeithadyBookings(
     })),
     parse_errors: parseErrors,
     parse_failures: parseFailures,
+    airbnb_emails_checked: airbnbBodies.length,
+    airbnb_confirmations_parsed: airbnbParsed.length,
+    airbnb_parse_errors: airbnbParseErrors,
+    airbnb_parse_failures: airbnbFailures,
+    airbnb_matched_in_guesty: airbnbMatched,
+    missing_from_guesty: missingFromGuesty,
+    guesty_not_in_airbnb: guestyNotInAirbnb,
   };
 }

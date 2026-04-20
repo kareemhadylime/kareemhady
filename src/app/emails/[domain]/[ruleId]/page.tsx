@@ -18,9 +18,11 @@ import {
   CalendarClock,
   CalendarDays,
   DoorOpen,
-  Percent,
   Hourglass,
   BookOpen,
+  AlertTriangle,
+  GitCompare,
+  Plane,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -690,6 +692,14 @@ function BeithadyView({
             palette="violet"
           />
         </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Airbnb ↔ Guesty reconciliation"
+          hint="Cross-checks direct Airbnb reservation-confirmation emails (from Airbnb) against the Guesty NEW BOOKING emails. A mismatch means Guesty didn't relay the booking — go into Guesty and re-sync."
+        />
+        <ReconciliationPanel out={out} />
       </section>
 
       <section>
@@ -1577,6 +1587,157 @@ function GuestTable({ bookings }: { bookings: any[] }) {
         )}
       </tbody>
     </table>
+  );
+}
+
+function ReconciliationPanel({ out }: { out: any }) {
+  const airbnbChecked: number = out?.airbnb_emails_checked ?? 0;
+  const airbnbParsed: number = out?.airbnb_confirmations_parsed ?? 0;
+  const airbnbParseErrors: number = out?.airbnb_parse_errors ?? 0;
+  const matchedInGuesty: number = out?.airbnb_matched_in_guesty ?? 0;
+  const guestyNotInAirbnb: number = out?.guesty_not_in_airbnb ?? 0;
+  const missingFromGuesty: Array<{
+    confirmation_code: string;
+    guest_name: string;
+    check_in_date: string;
+    check_out_date: string;
+    listing_name: string | null;
+    nights: number | null;
+    host_payout: number | null;
+  }> = out?.missing_from_guesty || [];
+  const markedRead: number = out?.marked_read_airbnb ?? 0;
+  const markErrors: number = out?.mark_errors_airbnb ?? 0;
+
+  const missingCount = missingFromGuesty.length;
+  const hasRunReconciliation = airbnbChecked > 0 || airbnbParsed > 0;
+
+  return (
+    <div className="mt-3 space-y-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Stat
+          label="Airbnb confirmations"
+          value={airbnbParsed.toLocaleString()}
+          hint={`${airbnbChecked.toLocaleString()} email${airbnbChecked !== 1 ? 's' : ''} scanned${airbnbParseErrors > 0 ? ` · ${airbnbParseErrors} parse errors` : ''}`}
+          Icon={Plane}
+          accent="rose"
+        />
+        <Stat
+          label="Matched in Guesty"
+          value={matchedInGuesty.toLocaleString()}
+          hint="Airbnb code found in a Guesty NEW BOOKING email"
+          Icon={CheckCircle2}
+          accent="emerald"
+        />
+        <Stat
+          label="Missing from Guesty"
+          value={missingCount.toLocaleString()}
+          hint="Airbnb confirmed but no matching Guesty email"
+          Icon={AlertTriangle}
+          accent={missingCount > 0 ? 'amber' : 'emerald'}
+        />
+        <Stat
+          label="Guesty (Airbnb) not matched"
+          value={guestyNotInAirbnb.toLocaleString()}
+          hint="Guesty Airbnb bookings with no direct Airbnb confirmation"
+          Icon={GitCompare}
+          accent={guestyNotInAirbnb > 0 ? 'indigo' : 'emerald'}
+        />
+      </div>
+
+      {hasRunReconciliation && (markedRead > 0 || markErrors > 0) && (
+        <div
+          className={`ix-card p-3 text-xs ${
+            markErrors > 0 && markedRead === 0
+              ? 'border-rose-200 bg-rose-50 text-rose-800'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          }`}
+        >
+          {markedRead > 0 && (
+            <>
+              <CheckCircle2 size={14} className="inline mr-1" />
+              Marked {markedRead} Airbnb confirmation email
+              {markedRead !== 1 ? 's' : ''} as read.
+            </>
+          )}
+          {markErrors > 0 && (
+            <span className="ml-2">
+              ({markErrors} Airbnb mark error{markErrors !== 1 ? 's' : ''} — usually
+              means kareem@limeinc.cc needs re-auth for gmail.modify.)
+            </span>
+          )}
+        </div>
+      )}
+
+      {missingCount > 0 ? (
+        <div className="ix-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 bg-amber-50/60">
+            <h3 className="text-base font-semibold flex items-center gap-2 text-amber-900">
+              <AlertTriangle size={16} />
+              {missingCount} Airbnb reservation{missingCount !== 1 ? 's' : ''} missing from Guesty
+            </h3>
+            <p className="text-xs text-amber-800 mt-0.5">
+              Airbnb sent a confirmation email but no matching Guesty NEW BOOKING was
+              received. Investigate in Guesty: open the reservation by code and confirm
+              it was imported; if not, trigger a manual sync.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left py-2.5 px-4 font-medium">Code</th>
+                  <th className="text-left px-4 font-medium">Guest</th>
+                  <th className="text-left px-4 font-medium">Listing</th>
+                  <th className="text-left px-4 font-medium">Check-in</th>
+                  <th className="text-left px-4 font-medium">Check-out</th>
+                  <th className="text-right px-4 font-medium">Nights</th>
+                  <th className="text-right px-4 font-medium">Payout (USD)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingFromGuesty.map((m, i) => (
+                  <tr
+                    key={`${m.confirmation_code}-${i}`}
+                    className="border-t border-slate-100 hover:bg-amber-50/30"
+                  >
+                    <td className="py-2.5 px-4 font-mono text-xs text-rose-700 font-semibold">
+                      {m.confirmation_code}
+                    </td>
+                    <td className="px-4">{m.guest_name}</td>
+                    <td
+                      className="px-4 max-w-[260px] truncate"
+                      title={m.listing_name || undefined}
+                    >
+                      {m.listing_name || '—'}
+                    </td>
+                    <td className="px-4 whitespace-nowrap">{m.check_in_date}</td>
+                    <td className="px-4 whitespace-nowrap">{m.check_out_date}</td>
+                    <td className="px-4 text-right tabular-nums">
+                      {m.nights ?? '—'}
+                    </td>
+                    <td className="px-4 text-right tabular-nums font-medium">
+                      {m.host_payout != null ? fmt(m.host_payout) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : hasRunReconciliation ? (
+        <div className="ix-card p-4 border-emerald-200 bg-emerald-50 text-emerald-800 text-sm flex items-center gap-2">
+          <CheckCircle2 size={16} />
+          All {matchedInGuesty} Airbnb confirmation
+          {matchedInGuesty !== 1 ? 's' : ''} have a matching Guesty booking. Nothing
+          missing.
+        </div>
+      ) : (
+        <div className="ix-card p-4 bg-slate-50 text-slate-600 text-xs">
+          No Airbnb reservation-confirmation emails were found in this range. The
+          reconciliation looks for messages <span className="font-mono">from:airbnb.com subject:&quot;Reservation confirmed&quot;</span>.
+        </div>
+      )}
+    </div>
   );
 }
 
