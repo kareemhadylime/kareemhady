@@ -174,20 +174,37 @@ export async function markMessagesAsRead(
   const gmail = await getGmailClientFromRefresh(refreshTokenEncrypted);
   const errors: string[] = [];
   let marked = 0;
-  await Promise.all(
-    messageIds.map(async id => {
-      try {
-        await gmail.users.messages.modify({
-          userId: 'me',
-          id,
-          requestBody: { removeLabelIds: ['UNREAD'] },
-        });
-        marked++;
-      } catch (e: any) {
-        errors.push(`${id}: ${e?.message || e}`);
+
+  // Gmail batchModify accepts up to 1000 ids per call — chunk to be safe.
+  const CHUNK = 1000;
+  for (let i = 0; i < messageIds.length; i += CHUNK) {
+    const chunk = messageIds.slice(i, i + CHUNK);
+    try {
+      await gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: {
+          ids: chunk,
+          removeLabelIds: ['UNREAD'],
+        },
+      });
+      marked += chunk.length;
+    } catch (e: any) {
+      // Fall back to per-message modify for this chunk so a single bad id
+      // doesn't fail the whole batch. Serial to avoid rate-limit.
+      for (const id of chunk) {
+        try {
+          await gmail.users.messages.modify({
+            userId: 'me',
+            id,
+            requestBody: { removeLabelIds: ['UNREAD'] },
+          });
+          marked++;
+        } catch (e2: any) {
+          errors.push(`${id}: ${e2?.message || e2}`);
+        }
       }
-    })
-  );
+    }
+  }
   return { marked, errors };
 }
 
