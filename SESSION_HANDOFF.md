@@ -1,5 +1,76 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ BEITHADY LISTINGS CATALOG SHIPPED — authoritative property table + classifier wiring (commit 6aee045)
+
+### User request
+> "C:\kareemhady\.claude\Documents — Look at file Beithady Listings ... This is a full list of Properties, save it for further match across Beithady Domain Rules"
+
+Imported the 91-row CSV and made it the single source of truth for building classification and listing metadata across all five Beithady rules.
+
+### Source
+`C:\kareemhady\.claude\Documents\Beithady Listings.csv` — columns: NICKNAME, TITLE, TYPE OF UNIT, TAGS, LISTING ID.
+
+Building groups represented:
+- **BH-26** (22 units: BH-26-001 … BH-26-501) · Kattameya
+- **BH-435** (14 units: BH-435-001 … BH-435-402) · New Cairo
+- **BH-73** (26 units, mix of SINGLE-UNIT / MULTI-UNIT / SUB-UNIT: BH73-1BR-C-8, BH73-2BR-SB-5, BH73-3BR-SB-1/2/3, BH73-ST-C-7, BH73-4BR-C-405, etc.) · New Cairo, 24/7 desk
+- **BH-ONEKAT** (10 scattered Kattameya units: BH-101-55, BH-107-46, BH-109-23/43, BH-114-73, BH-115-75, BH-116-36, BH-202-61, BH-203-86, BH-213-82) — rendered as **BH-OK** in the UI (existing canonical code)
+- **BH-MG** (1 Heliopolis apartment: BH-MG-20-1)
+- **BH-GOUNA** (3 units: BH-MANG-M15B13 Mangroovy, BH-MB34-105 AbuTig, BH-WS-E245 WaterSide) · El Gouna resorts
+- **BH-NEWCAI** (1 standalone New Cairo unit near AUC: BH-NEWCAI-4021)
+- **DXB** (3 Dubai units: LIME-MA-1402 Marina, REEHAN-204 Reehan, YANSOON-105 Yansoon)
+
+### Files
+
+#### `src/lib/rules/beithady-listings.ts` (new, 224 lines)
+- `BeithadyListing` type with nickname, title, unit_type (`SINGLE-UNIT` | `MULTI-UNIT` | `SUB-UNIT`), tags (parsed from CSV), building_tag (primary = first tag), guesty_listing_id.
+- `RAW` const — 91 tuples `[nickname, title, unit_type, tagsJoined, guestyId]`. Easy to re-paste from a future CSV update.
+- `BEITHADY_LISTINGS` — readonly array, built once at module load.
+- Lookup maps built at module load: `byNickname` (upper-case), `byGuestyId`, `byTitle` (lower-case, first-write-wins for duplicated titles like the 10+ identical "Luxury 2 Bedroom Residence by Beit Hady" BH-435 units).
+- Exports:
+  - `getListingByNickname(code)` — exact, case-insensitive
+  - `getListingByGuestyId(id)` — exact
+  - `findListingByName(name)` — three-strategy fuzzy match: (1) extract `\bBH[-\s]?[A-Z0-9-]+\b` from input and try exact + progressive prefix/contains comparisons against all nicknames; (2) exact title match; (3) substring — catalog title inside input (≥12 chars minimum).
+  - `buildingFromListingName(name)` — shortcut returning the canonical building code directly.
+  - `canonicalBuildingFromTag(tag)` — translates `BH-ONEKAT → BH-OK` (the only remap); everything else passes through as-is.
+  - `getCanonicalBuilding(listing)` — sugar for the above applied to `listing.building_tag`.
+
+#### `src/lib/rules/aggregators/beithady-booking.ts`
+- `classifyBuilding(code)` now consults `getListingByNickname(code)` FIRST. If the code matches a catalog row, returns `getCanonicalBuilding(listing)` — which handles all the new buckets (DXB, BH-GOUNA, BH-NEWCAI) plus the BH-ONEKAT → BH-OK remap.
+- Legacy prefix rules remain as FALLBACK for any future listings added to the rules engine before they're added to the catalog. So the system fails-open: new bookings still classify, they just might go through the fuzzy prefix path until the catalog is updated.
+- `BEITHADY_BUILDINGS` registry got three new entries (`BH-GOUNA`, `BH-NEWCAI`, `DXB`) with descriptions. Existing entries gained descriptions too (rendered in the Booking rule's trophy card + building hint).
+
+#### `src/lib/rules/aggregators/beithady-{payout,review,inquiry,request}.ts`
+Each of the four aggregators has a `buildingFromListing(listing_name)` / `buildingFromLineItem(li)` helper used to bucket emails without a clean BH-code. All four now:
+1. Try `buildingFromListingName(name)` first (catalog match).
+2. Fall back to regex extraction + `classifyBuilding`.
+3. Fall back to the existing name-cue heuristic (`ednc`/`new cairo`/`kattameya` → BH-OK; `heliopolis`/`merghany` → BH-MG).
+
+### Verification
+- `rm -rf .next && npm run build` clean, TS 12.4s, 14 routes.
+- commit 6aee045 on main via `git push origin HEAD:main`.
+- Pulled into `C:\kareemhady`, `vercel --prod --yes` → `kareemhady-48taxnpmc-lime-investments.vercel.app` (Ready, 53s).
+
+### Expected impact on real data
+Previously, any Airbnb listing title that didn't include a BH-code (e.g. Gouna listings, Dubai listings, the BH-ONEKAT compound units where the title is just "Luxurious 3 Bedroom in Katameya") would bucket into **UNKNOWN** or fall into the wrong name-cue branch. With the catalog wired in:
+- Gouna titles (Mangroovy / AbuTig / WaterSide) now bucket as **BH-GOUNA**
+- Dubai titles (Burj Dubai / Dubai Mall / Marina) now bucket as **DXB**
+- "Stunning Gated 2 BR-Mins To AUC" (BH-NEWCAI-4021) no longer accidentally matches the "new cairo" cue → BH-OK; now correctly **BH-NEWCAI**
+- BH-ONEKAT units with generic titles now correctly route to **BH-OK** via the nickname prefix match
+
+The Beithady-dashboard by-building tables should show these new rows next time the rules run. Historical rule_runs still render their stored bucket labels (the UI re-applies `classifyBuilding` render-time for the booking rule — Phase 5.6 behavior — so the bookings rule auto-reclassifies without a re-run; the other four rules need a re-run to pick up the new classification).
+
+### How to update the catalog going forward
+When listings change:
+1. Paste the new rows into the `RAW` array in `src/lib/rules/beithady-listings.ts`, keeping the tuple format.
+2. Update the header-comment import date.
+3. Commit + deploy — no DB migration needed.
+
+### What's NOT wired in yet (possible follow-ups)
+- **Guesty listing-ID matching on Stripe transactions** — Stripe API transactions carry `customer` / `charge` metadata; if Guesty ever surfaces the Guesty listing id inside charge metadata, `getListingByGuestyId` would let us pin each Stripe txn to a specific unit (not just a building). Currently the Stripe cross-match uses the bookings rule's `booking_id` only.
+- **Unit-type-aware rendering** — we now know if a listing is SINGLE-UNIT / MULTI-UNIT / SUB-UNIT. MULTI-UNIT masters have several SUB-UNIT children (e.g. BH73-3BR-SB-1 → BH73-3BR-SB-1-001/101/201/301/401). UI doesn't show this hierarchy yet; would be useful in the Bookings rule's listing table.
+- **Admin page showing the catalog** — no UI surfaces the catalog itself. Could add `/admin/beithady-listings` that renders the table. Skipped this turn — user asked for "save for further match," not a dashboard.
+
 ## ✅ PHASE 5.8 FOLLOW-UP SHIPPED — cross-match payouts against Beithady Bookings (commit e93f8c2)
 
 ### User request
