@@ -1,5 +1,65 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 PHASE 7.2 + 7.3 PLANNING — Beithady Financials rule (awaiting user answers on 5 decisions)
+
+### User direction
+> "Dashboard surface: render Odoo data in / or a new /finance route. Vendors Payables / Employee Payables / Owners Payables. There is the Beithady Consolidated Company P&L for FEB 2026, use the Structure to Build the New Rule Under Beithady Domain - Beithady Financials with Period Filters"
+
+Plus business context (critical, save in memory):
+- **Beithady FZco owns 100% of Beithady Egypt LLC**. Intercompany Master Services & Master Lease Agreement signed 29 Oct 2025.
+- **Operating model**: FZCO (Dubai) = brand/pricing/distribution hub + guest revenue collector. Egypt = on-ground turnkey ops. Egypt invoices FZCO one monthly lump-sum Turnkey Fee per building. 10% auto-escalation per year. Back-to-back with head-lease.
+- **BH-26, BH-73, BH-34, BH-OKAT** are **Leased (arbitrage)** — Beithady leases + furnishes + short-term rents. Full operational P&L.
+- **BH-435** is **Management** — A1HOSPITALITY (Lime 50%) owns the building, Beithady FZCO manages for **25% of top-line revenue including all utilities**.
+- **Odoo Analytic Plans** split this: "Leased" plan (BH-26/73/34/OKAT) and "Management" plan (BH-435). Per-building slicing requires joining through `account.move.line.analytic_distribution`.
+
+### Documents read this turn (in `C:\kareemhady\.claude\Documents\`)
+- `Beithady Consolidated P&L.xlsx` — source-of-truth P&L format. 3 sheets: Consolidated P&L (109 rows), %-breakdown, Balance Sheet (28/02/2026), Filters. Feb 2026 totals: Revenue 3.57M EGP, Cost of Rev 2.15M, Sub GP 1.42M, Home Owner Cut 1.76M, GP -337K, G&A 1.62M, EBITDA -1.96M, INT-TAX-DEP 2.21M, Net Profit -4.16M. Balance Sheet: Assets 75.5M, Liabilities 85.3M (Payables 11.89M), Equity -9.8M. **Filters confirmed: Companies = FZCO + Egypt only (NOT A1HOSPITALITY); Options = "With Draft Entries".**
+- `Intercompany Master Services & Master Lease Agreement ... (oct 29, 2025).docx` — 20-clause agreement. Key clauses: §5 commercial (monthly lump-sum invoicing by 5th, 15-day payment, 10% annual escalation), §6 term structure (back-to-back with head-lease), §15 IP (brand vests solely in FZCO), Annexes A-E per building. **Annexes: BH-26 Lotus Building New Cairo (USD 21k/month, 12-yr term starting 1 Jun 2026), BH-73, BH-34, BH-OKAT (One Kattameya), BH-435.** BH-435 is in this file but terms locked — details come from the 25% management fee context user provided separately.
+
+### P&L grouping derived from account codes
+Standard Egyptian accounting prefix pattern (works because Odoo CoA uses 6-digit codes):
+- 400xxx = Activity revenues | 401xxx = Other revenues
+- 500xxx = Agents Cost | 501xxx = Direct cost for reservations | 502xxx = Operating Cost
+- 504xxx = Home Owner Cut (+ Rent 504100)
+- 600xxx = Back Office Salaries & Benefits | 601xxx = Office/Stores Rent & Utilities | 602xxx = Transportation | 603xxx = Legal & Financial | 604xxx = Marketing | 605xxx = Other Expenses
+- 606xxx = Interest | 607xxx = Depreciation
+
+Memory file recommended for writing before coding: `account_code_prefix_mapping.md` so Phase 7.3 can reference it.
+
+### Data gap to solve (Phase 7.2)
+Supabase has **invoice headers only** (`odoo_invoices`: amount_total, move_type, state). Feb 2026 P&L needs **per-account breakdown** → required:
+- `account.account` (chart of accounts: code, name, account_type) — NEW table `odoo_accounts`
+- `account.move.line` (per-line detail: `account_id`, `partner_id`, `debit`, `credit`, `balance`, `amount_residual`, `analytic_distribution` jsonb, `parent_state`, `date`) — NEW table `odoo_move_lines`
+- `res.partner` (vendors/employees/owners with rank fields + category tags) — NEW table `odoo_partners`
+- **Sync must include drafts** (xlsx says "With Draft Entries") — our 7.1 sync filters to `posted`. For move lines we'll include `parent_state IN (draft, posted)`.
+- Expected volume: 365d × (5+10 companies) × posted+draft ≈ **20-30k move lines**.
+
+### Rules architecture understood
+- `src/lib/rules/aggregators/beithady-*.ts` — each rule is a ~600-line aggregator producing a typed aggregate object
+- `src/lib/rules/presets.ts` — domain definitions (`beithady` already exists, rose accent, Home icon) + `RangePreset` (today/last24h/last7d/mtd/ytd/custom)
+- Route: `/emails/[domain]/[ruleId]` — so Beithady Financials = `/emails/beithady/financials`
+- Need to extend `RangePreset` with `this_month`, `last_month`, `this_quarter`, `last_quarter` for finance periods
+
+### 5 questions sent to user (awaiting answers)
+1. **Intercompany eliminations** — Egypt → FZCO Turnkey Fees would double-count if we raw-sum. Does the Feb 2026 xlsx eliminate these, or is it a raw sum?
+2. **Currency** — 3.57M EGP shown, but many txns USD/AED. Is this Odoo's line-level `balance` (always company-currency) or externally converted?
+3. **Employee/Owner classification** — is there `hr.employee → res.partner` linkage or a tag/category we can rely on for the payables split?
+4. **Scope A1HOSPITALITY** — drop from consolidated P&L (per the Filters sheet), keep for per-building BH-435 owner analysis in a later rule?
+5. **Build order** — (a) 7.2 alone first (verify data matches xlsx totals), then 7.3 UI; **recommended**. (b) 7.2 + 7.3 combined.
+
+### Proposed Phase 7.2 schema
+- `odoo_accounts`: id bigint pk, code text, name text, account_type text, company_ids bigint[]
+- `odoo_move_lines`: id bigint pk, move_id bigint fk → odoo_invoices, company_id fk, account_id fk → odoo_accounts, partner_id bigint, date, debit/credit/balance/amount_residual numeric, currency, analytic_distribution jsonb, parent_state text, reconciled bool
+- `odoo_partners`: id bigint pk, name, email, phone, supplier_rank, customer_rank, is_employee bool, is_owner bool, active bool, category_ids bigint[]
+
+### Proposed Phase 7.3 deliverables
+- `src/lib/rules/aggregators/beithady-financials.ts` — aggregator with P&L tree matching Feb 2026 hierarchy + payables split
+- `src/app/emails/beithady/financials/page.tsx` — UI with period filter, P&L hierarchy render, payables panel
+- Register in `presets.ts` + `engine.ts`
+
+### Status
+Nothing coded this turn. 1,400 lines of docx + 109 xlsx rows digested. Memory file candidates noted. **Waiting on user answers to Q1-Q5 before writing schema or code.**
+
 ## ✅ PHASE 7.1 SHIPPED — Odoo backfill sync live, 3,675 invoices synced to Supabase (commit 4744a74, deployed)
 
 User picked option (a): ship now with `[4, 5, 10]` scope + post-migration analytic-account probe deferred to 7.2.
