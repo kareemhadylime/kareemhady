@@ -327,15 +327,38 @@ export async function syncOdooMoveLines(
   };
 }
 
-// Extract a building code like "BH-26" / "BH-73" / "BH-435" from an analytic
-// account name. Returns null if no such prefix is present.
+// Extract a building code from an analytic account name.
+//
+// Per the intercompany master agreement + user direction, the portfolio
+// collapses to 5 logical buildings:
+//   BH-26  (Lotus Building, New Cairo — 22 units + General + GYM)
+//   BH-34  (Annex C)
+//   BH-73  (Cairo — 29 units + General)
+//   BH-435 (AbdelHameed Gouda Elsahar, A1-owned — 14 units + General)
+//   BH-OK  (One Kattameya — Separate Units, per contract Annex D 'BH-OKAT')
+//
+// Every BH-1XX / BH-2XX sub-unit code (BH-101-55, BH-203-86, etc.) rolls up
+// into BH-OK since those are scattered One Kattameya units, not standalone
+// buildings.
 function extractBuildingCode(name: string): string | null {
-  // Accept "BH-26 Lotus", "BH 26", "BH26 …", "Beit Hady 26". Normalise to BH-NN.
-  const m =
-    /\b(?:BH|Beit\s*Hady)[\s\-]*(\d{2,3}[A-Z]?)\b/i.exec(name) ||
-    /\bBH-?(\d{2,3}[A-Z]?)/i.exec(name);
-  if (!m) return null;
-  return `BH-${m[1].toUpperCase()}`;
+  if (!name) return null;
+
+  // Explicit One Kattameya / OKAT / OK references.
+  if (/\bBH[\s\-]*(?:OK|OKAT)\b/i.test(name)) return 'BH-OK';
+  if (/\bone\s*katta\w*|OKAT\b/i.test(name)) return 'BH-OK';
+
+  // The four named buildings. Require a word-boundary / dash / end-of-match
+  // after the number so BH-26 catches 'BH-26-001' but does NOT inadvertently
+  // eat 'BH-260-XX' (none observed, but belt-and-braces).
+  const named =
+    /\bBH[\s\-]*(26|34|73|435)(?:[\s\-]|$)/i.exec(name) ||
+    /\bBeit\s*Hady[\s\-]*(26|34|73|435)(?:[\s\-]|$)/i.exec(name);
+  if (named) return `BH-${named[1]}`;
+
+  // Any other BH-<digit> pattern is a One Kattameya sub-unit code.
+  if (/\bBH[\s\-]*\d/i.test(name)) return 'BH-OK';
+
+  return null;
 }
 
 // Arbitrage vs Management classification by name pattern.
