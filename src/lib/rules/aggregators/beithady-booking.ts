@@ -89,6 +89,7 @@ export type BeithadyAggregateOutput = {
   airbnb_matched_in_guesty: number;
   missing_from_guesty: ReconciliationMissing[];
   guesty_not_in_airbnb: number;
+  guesty_enriched_count?: number;
 };
 
 const SYSTEM = `You parse Guesty booking-notification emails for Beithady (short-term rental operator) and extract structured reservation data. Emails have fields like Listing, Listing Code (e.g. BH73-3BR-SB-1-201), Guest Name, Check-in/out Date, Nights, Guests, Rate Per Night, Total Payout (after commission), Booking ID. Be strict: only extract values clearly present. If a field is missing or unreadable, omit the booking rather than guessing.`;
@@ -453,6 +454,48 @@ export async function aggregateBeithadyBookings(
     }
   }
 
+  // Guesty enrichment: overlay authoritative fields on email-parsed rows.
+  // Policy: Guesty wins on every conflict (user direction 2026-04-21). Email
+  // parser still seeds the row (so bookings without Guesty coverage still
+  // flow through), but matched rows get trusted values for guest_name,
+  // listing_name, dates, nights, payout, currency, channel, building_code.
+  try {
+    const { batchLookupGuestyReservations, overlayGuestyOnBooking } =
+      await import('@/lib/guesty-enrichment');
+    const matches = await batchLookupGuestyReservations(
+      parsed.map(b => ({
+        key: b.booking_id || '',
+        platformCode: b.booking_id || null,
+        guestyCode: null,
+      }))
+    );
+    let matchedCount = 0;
+    for (let i = 0; i < parsed.length; i++) {
+      const g = matches.get(parsed[i].booking_id || '') || null;
+      if (g) {
+        const overlaid = overlayGuestyOnBooking(
+          parsed[i] as unknown as Record<string, unknown>,
+          g
+        );
+        // Re-derive building_code if Guesty gave us one, else keep email's.
+        if (g.building_code) {
+          (overlaid as unknown as { building_code?: string }).building_code =
+            g.building_code;
+        }
+        parsed[i] = overlaid as unknown as EnrichedBooking;
+        matchedCount++;
+      }
+    }
+    // Stash enrichment count on the function object so the return can read
+    // it without adding a new parameter. TS arrays can't hold ad-hoc props.
+    (aggregateBeithadyBookings as unknown as {
+      lastEnrichmentCount?: number;
+    }).lastEnrichmentCount = matchedCount;
+  } catch {
+    // Enrichment is best-effort. Mirror tables may not exist yet on fresh
+    // environments; fall back to pure email-parsed output.
+  }
+
   const channelMap = new Map<string, BucketStat>();
   const buildingMap = new Map<string, BucketStat>();
   const bedroomsMap = new Map<string, BucketStat>();
@@ -637,5 +680,11 @@ export async function aggregateBeithadyBookings(
     airbnb_matched_in_guesty: airbnbMatched,
     missing_from_guesty: missingFromGuesty,
     guesty_not_in_airbnb: guestyNotInAirbnb,
+    // Enrichment audit: how many email-parsed rows matched against the
+    // Guesty mirror and had their fields overlaid.
+    guesty_enriched_count:
+      (aggregateBeithadyBookings as unknown as {
+        lastEnrichmentCount?: number;
+      }).lastEnrichmentCount ?? 0,
   };
 }
