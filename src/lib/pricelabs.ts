@@ -89,20 +89,51 @@ export type PriceLabsListing = {
   id: string;
   name?: string;
   pms?: string;               // 'guesty' | 'airbnb' | ...
-  pms_reference_id?: string;  // joins to the PMS's listing ID (e.g. Guesty _id)
+  pms_reference_id?: string;
   no_of_bedrooms?: number;
   currency?: string;
   min_stay?: number;
   push_enabled?: boolean;
   market?: string;
   city?: string;
+  city_name?: string;
   country?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | string;
+  longitude?: number | string;
   occupancy_based_rates?: boolean;
+  // Price range (PriceLabs actually returns these as `base` / `min` / `max`
+  // on the detail endpoint, without the _price suffix — we accept both).
+  base?: number;
+  min?: number;
+  max?: number;
   base_price?: number;
   min_price?: number;
   max_price?: number;
+  cleaning_fees?: number;
+  group?: string;        // PL internal grouping, e.g. 'BH_Cairo_Buildings'
+  subgroup?: string | null;
+  tags?: string;         // comma-separated, e.g. 'BH-435-303,BH-435'
+  isHidden?: boolean;
+  // Channel-level joinable IDs (Airbnb confirmation-code, Booking ref, etc.)
+  channel_listing_details?: Array<{
+    channel_name: string;
+    channel_listing_id: string | number;
+  }>;
+  // Revenue intelligence (detail endpoint only)
+  last_date_pushed?: string;
+  adr_past_30?: number;
+  stly_adr_past_30?: number;
+  booking_pickup_past_30?: number;
+  revenue_past_30?: number;
+  stly_revenue_past_30?: number;
+  occupancy_next_7?: string;            // e.g. '14 %'
+  market_occupancy_next_7?: string;
+  occupancy_next_30?: string;
+  market_occupancy_next_30?: string;
+  occupancy_next_60?: string;
+  market_occupancy_next_60?: string;
+  recommended_base_price?: number | string; // may be "Unavailable" for new listings
+  last_refreshed_at?: string;
   [k: string]: unknown;
 };
 
@@ -163,13 +194,23 @@ export async function getPricelabsListingPrices(
 }
 
 /**
- * Fetch one listing's full detail. Includes fields that don't surface on
- * the `/listings` catalog call (base_price, min_price, max_price, etc.).
+ * Fetch one listing's full detail, including the revenue-intelligence block
+ * (adr_past_30, revenue_past_30 + STLY comparisons, occupancy vs market for
+ * next 7/30/60 days, recommended_base_price, tags, channel_listing_details).
+ *
+ * The endpoint returns `{"listings": [{...}]}` even for a single-id request;
+ * we unwrap to the first element.
  */
 export async function getPricelabsListing(
   listingId: string
-): Promise<PriceLabsListing> {
-  return pricelabsFetch<PriceLabsListing>(`/listings/${listingId}`);
+): Promise<PriceLabsListing | null> {
+  const res = await pricelabsFetch<
+    { listings?: PriceLabsListing[] } | PriceLabsListing
+  >(`/listings/${listingId}`);
+  if (res && typeof res === 'object' && 'listings' in res && Array.isArray(res.listings)) {
+    return res.listings[0] || null;
+  }
+  return (res as PriceLabsListing) || null;
 }
 
 export { pricelabsFetch };

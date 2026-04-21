@@ -1,19 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   listPricelabsListings,
-  getPricelabsListingPrices,
-  pricelabsFetch,
+  getPricelabsListing,
 } from '@/lib/pricelabs';
 
-// Smoke-test endpoint for the PriceLabs integration. Verifies auth + returns
-// a listing sample (with `pms_reference_id` so we can see the join to
-// Guesty listing ids) + optionally a recommended-rate sample for one
-// listing so rate-card format is clear.
+// Smoke-test endpoint for the PriceLabs integration. Returns:
+//   - total listings + by-PMS breakdown
+//   - first-5 catalog sample
+//   - rich detail for the first listing (ADR, occupancy vs market, STLY
+//     revenue comparison, channel cross-references, building tags)
 //
-// Protected by CRON_SECRET (same bearer pattern as the other ping routes):
+// Protected by CRON_SECRET:
 //   curl -H "Authorization: Bearer $CRON_SECRET" https://kareemhady.vercel.app/api/pricelabs/ping
-//   Add ?withPrices=1 to include a sample of listing_prices for the first
-//   listing in the catalog.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -34,167 +32,82 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const env = {
-    PRICELABS_API_KEY: !!process.env.PRICELABS_API_KEY,
-  };
-  if (!env.PRICELABS_API_KEY) {
+  if (!process.env.PRICELABS_API_KEY) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          'PriceLabs credentials missing — set PRICELABS_API_KEY in the environment. Generate via Account → Profile → API in the PriceLabs portal.',
-        env,
+          'PriceLabs credentials missing — set PRICELABS_API_KEY (Account → Profile → API).',
       },
       { status: 400 }
     );
   }
 
-  const withPrices = req.nextUrl.searchParams.get('withPrices') === '1';
-  const probe = req.nextUrl.searchParams.get('probe') === '1';
   const started = Date.now();
-
-  // Endpoint probe: PriceLabs' v1 API paths for rate recommendations aren't
-  // publicly indexed, so this mode tries a set of candidates and reports
-  // which respond 200. Run once with ?probe=1 to discover the right path.
-  if (probe) {
-    const listings = await listPricelabsListings();
-    const first = listings[0];
-    if (!first) {
-      return NextResponse.json(
-        { ok: false, error: 'no listings to probe with' },
-        { status: 500 }
-      );
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    const end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-    const candidates: Array<{ method: 'GET'; path: string; query?: Record<string, string> }> = [
-      { method: 'GET', path: `/listings/${first.id}` },
-      { method: 'GET', path: `/listings/${first.id}/prices` },
-      { method: 'GET', path: `/listings/${first.id}/recommendations` },
-      { method: 'GET', path: `/listing_prices`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/listing_prices`, query: { listing_id: first.id, date_from: today, date_to: end } },
-      { method: 'GET', path: `/dailyrec_new`, query: { listing_id: first.id, date_from: today, date_to: end } },
-      { method: 'GET', path: `/dnepricing`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/pricing`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/rates`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/calendar`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/listings/prices`, query: { id: first.id } },
-      { method: 'GET', path: `/reservation_data`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/reservations`, query: { listing_id: first.id } },
-      { method: 'GET', path: `/neighborhood_data`, query: { listing_id: first.id } },
-    ];
-
-    type ProbeResult = {
-      path: string;
-      query?: Record<string, string>;
-      status: number | 'error';
-      body_sample?: string;
-      error?: string;
-    };
-    const results: ProbeResult[] = [];
-    for (const c of candidates) {
-      try {
-        const data = await pricelabsFetch<unknown>(c.path, { query: c.query, retries: 0 });
-        const sample = JSON.stringify(data).slice(0, 250);
-        results.push({ path: c.path, query: c.query, status: 200, body_sample: sample });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        const m = /pricelabs_(\d{3})/.exec(msg);
-        results.push({
-          path: c.path,
-          query: c.query,
-          status: m ? Number(m[1]) : 'error',
-          error: msg.slice(0, 200),
-        });
-      }
-      // Be polite to the 60/min rate limit.
-      await new Promise(r => setTimeout(r, 200));
-    }
-
-    return NextResponse.json({
-      ok: true,
-      mode: 'probe',
-      duration_ms: Date.now() - started,
-      probed_with_listing: { id: first.id, name: first.name },
-      results,
-    });
-  }
-
   try {
     const listings = await listPricelabsListings();
 
-    // Count by PMS so we can spot how Beithady's Guesty listings surface.
+    // By-PMS breakdown
     const byPms = new Map<string, number>();
     for (const l of listings) {
       const key = l.pms || 'unknown';
       byPms.set(key, (byPms.get(key) || 0) + 1);
     }
 
+    // Building-tag breakdown (PriceLabs-side, parsed from `tags`).
+    const byBuildingTag = new Map<string, number>();
+    for (const l of listings) {
+      const tag = String(l.tags || '')
+        .split(',')
+        .map(s => s.trim().toUpperCase())
+        .find(s => /^BH[-\s]*(26|34|73|435|OK|OKAT|\d{2,3})$/i.test(s));
+      const building = normalizeBuildingTag(tag || null);
+      byBuildingTag.set(building, (byBuildingTag.get(building) || 0) + 1);
+    }
+
     const sample = listings.slice(0, 5).map(l => ({
       id: l.id,
       name: l.name,
       pms: l.pms || null,
-      pms_reference_id: l.pms_reference_id || null,
       bedrooms: l.no_of_bedrooms ?? null,
-      base_price: l.base_price ?? null,
-      min_price: l.min_price ?? null,
-      max_price: l.max_price ?? null,
-      currency: l.currency || null,
       push_enabled: l.push_enabled ?? null,
-      market: l.market || l.city || null,
     }));
 
-    let priceSample: unknown = null;
-    if (withPrices && listings.length > 0) {
-      // The /listings/prices endpoint returns {"listings": [...]}. Try a few
-      // query variations to figure out what actually populates the array.
-      const first = listings[0];
-      const today = new Date().toISOString().slice(0, 10);
-      const future = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
-      const variants: Array<{ label: string; query: Record<string, string> }> = [
-        { label: 'id only', query: { id: first.id } },
-        { label: 'id + date range', query: { id: first.id, date_from: today, date_to: future } },
-        { label: 'listing_id param', query: { listing_id: first.id } },
-        { label: 'ids (plural)', query: { ids: first.id } },
-        { label: 'ids array json', query: { ids: JSON.stringify([first.id]) } },
-        { label: 'listings (plural)', query: { listings: first.id } },
-      ];
-      const tries = [] as Array<{ label: string; query: Record<string, string>; top_keys: string[]; sample: string }>;
-      for (const v of variants) {
-        try {
-          const raw = await pricelabsFetch<Record<string, unknown>>('/listings/prices', { query: v.query, retries: 0 });
-          tries.push({
-            label: v.label,
-            query: v.query,
-            top_keys: raw ? Object.keys(raw) : [],
-            sample: JSON.stringify(raw).slice(0, 500),
-          });
-        } catch (e) {
-          tries.push({
-            label: v.label,
-            query: v.query,
-            top_keys: [],
-            sample: `ERROR: ${e instanceof Error ? e.message.slice(0, 200) : 'unknown'}`,
-          });
-        }
-        await new Promise(r => setTimeout(r, 250));
+    // Rich detail for one listing so we can inspect the per-listing payload.
+    let detail: unknown = null;
+    if (listings.length > 0) {
+      const d = await getPricelabsListing(listings[0].id);
+      if (d) {
+        detail = {
+          id: d.id,
+          name: d.name,
+          pms: d.pms,
+          city: d.city_name,
+          base: d.base ?? d.base_price ?? null,
+          min: d.min ?? d.min_price ?? null,
+          max: d.max ?? d.max_price ?? null,
+          push_enabled: d.push_enabled,
+          last_date_pushed: d.last_date_pushed,
+          group: d.group,
+          tags: d.tags,
+          revenue_intel: {
+            adr_past_30: d.adr_past_30,
+            stly_adr_past_30: d.stly_adr_past_30,
+            revenue_past_30: d.revenue_past_30,
+            stly_revenue_past_30: d.stly_revenue_past_30,
+            booking_pickup_past_30: d.booking_pickup_past_30,
+            occupancy_next_7: d.occupancy_next_7,
+            market_occupancy_next_7: d.market_occupancy_next_7,
+            occupancy_next_30: d.occupancy_next_30,
+            market_occupancy_next_30: d.market_occupancy_next_30,
+            occupancy_next_60: d.occupancy_next_60,
+            market_occupancy_next_60: d.market_occupancy_next_60,
+            recommended_base_price: d.recommended_base_price,
+            last_refreshed_at: d.last_refreshed_at,
+          },
+          channel_listing_details: d.channel_listing_details || [],
+        };
       }
-
-      // Also hit /listings/{id} for the detail view — we saw that responds 200.
-      let detailSample: string;
-      try {
-        const detail = await pricelabsFetch<Record<string, unknown>>(`/listings/${first.id}`, { retries: 0 });
-        detailSample = JSON.stringify(detail).slice(0, 1500);
-      } catch (e) {
-        detailSample = `ERROR: ${e instanceof Error ? e.message.slice(0, 200) : 'unknown'}`;
-      }
-
-      priceSample = {
-        listing_id: first.id,
-        listing_name: first.name,
-        detail_sample: detailSample,
-        tries,
-      };
     }
 
     return NextResponse.json({
@@ -204,8 +117,11 @@ export async function GET(req: NextRequest) {
       by_pms: Array.from(byPms.entries())
         .map(([pms, count]) => ({ pms, count }))
         .sort((a, b) => b.count - a.count),
+      by_building_tag: Array.from(byBuildingTag.entries())
+        .map(([building, count]) => ({ building, count }))
+        .sort((a, b) => b.count - a.count),
       sample,
-      price_sample: priceSample,
+      detail,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -218,4 +134,15 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Normalize building tags to the canonical 5 used across the Odoo/Guesty
+// integrations: BH-26, BH-34, BH-73, BH-435, BH-OK.
+function normalizeBuildingTag(tag: string | null): string {
+  if (!tag) return 'untagged';
+  const up = tag.toUpperCase();
+  if (/^BH[-\s]*(26|34|73|435)$/.test(up)) return up.replace(/[\s-]+/, '-');
+  if (/^BH[-\s]*(OK|OKAT)/.test(up)) return 'BH-OK';
+  if (/^BH[-\s]*\d/.test(up)) return 'BH-OK';
+  return 'untagged';
 }
