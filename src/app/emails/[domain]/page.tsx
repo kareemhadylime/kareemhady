@@ -12,6 +12,7 @@ import {
   Star,
   MessageCircleQuestion,
   LifeBuoy,
+  Calculator,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
@@ -126,6 +127,35 @@ export default async function DomainRulesPage({
             <ListChecks size={16} /> New rule
           </Link>
         </header>
+
+        {d === 'beithady' && (
+          <Link
+            href="/emails/beithady/financials"
+            className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
+          >
+            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 opacity-[0.08] blur-2xl pointer-events-none" />
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-rose-50 text-rose-600">
+                <Calculator size={24} strokeWidth={2.2} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">Financials</h3>
+                  <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-600">
+                    Odoo
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Consolidated P&amp;L (Egypt + Dubai) · Vendors / Employee / Owners Payables · period filters
+                </p>
+              </div>
+            </div>
+            <ArrowRight
+              size={18}
+              className="text-slate-400 group-hover:text-indigo-600 transition shrink-0"
+            />
+          </Link>
+        )}
 
         {!enriched.length ? (
           <div className="ix-card p-10 text-center">

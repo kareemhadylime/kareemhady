@@ -197,16 +197,6 @@ export type OdooInvoice = {
   currency_id?: [number, string] | false;
 };
 
-export type OdooPartner = {
-  id: number;
-  name?: string;
-  email?: string | false;
-  phone?: string | false;
-  is_company?: boolean;
-  supplier_rank?: number;
-  customer_rank?: number;
-};
-
 export type OdooAnalyticAccount = {
   id: number;
   name?: string;
@@ -220,4 +210,44 @@ export type OdooCompany = {
   country_id?: [number, string] | false;
   currency_id?: [number, string] | false;
   partner_id?: [number, string] | false;
+};
+
+export type OdooAccount = {
+  id: number;
+  code?: string | false;
+  name?: string;
+  account_type?: string;          // 'income' / 'expense_direct_cost' / 'liability_payable' / etc.
+  company_ids?: number[];
+};
+
+export type OdooPartner = {
+  id: number;
+  name?: string;
+  email?: string | false;
+  phone?: string | false;
+  is_company?: boolean;
+  active?: boolean;
+  supplier_rank?: number;
+  customer_rank?: number;
+  category_id?: number[];          // many2many tag IDs
+};
+
+export type OdooMoveLine = {
+  id: number;
+  move_id?: [number, string] | false;
+  company_id?: [number, string] | false;
+  account_id?: [number, string] | false;
+  partner_id?: [number, string] | false;
+  date?: string | false;
+  name?: string | false;
+  debit?: number;
+  credit?: number;
+  balance?: number;
+  amount_residual?: number;
+  currency_id?: [number, string] | false;
+  amount_currency?: number;
+  analytic_distribution?: Record<string, number> | false;
+  parent_state?: string;           // 'draft' | 'posted' | 'cancel'
+  move_type?: string;
+  reconciled?: boolean;
 };
