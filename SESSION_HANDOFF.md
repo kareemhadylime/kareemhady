@@ -1,5 +1,53 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7.2 + 7.3 SHIPPED — Beithady Financials rule live at /emails/beithady/financials
+
+Multi-commit push (1d40a47 + 6aebff5 + 201222c + 30aec77 + ab3f1fc + c676e76). Final deploy `kareemhady.vercel.app`. Page renders HTTP 200 in ~5.7s.
+
+### Architecture delivered
+- **Schema (migration 0003 + ad-hoc partner_id alter)**: `odoo_accounts` (439 rows), `odoo_partners` (277 rows, 19 flagged is_owner), `odoo_move_lines` (Egypt 55,100 + Dubai 11,486 = 66,586 rows), extended `odoo_sync_runs` with accounts/partners/move_lines counters, `odoo_companies.partner_id` for intercompany elimination.
+- **Phased financial sync** (`/api/odoo/sync-financials?phase=<X>`) — Vercel's 300s cap forced a split. Phases: `accounts` → `partners` → `move-lines&company=5` → `move-lines&company=10` → `finalize`. `move-lines` supports `?resume=1` starting from max(id) for when a single company exceeds one function window.
+- **Date cap discovered**: Odoo pre-generates 12-year future depreciation schedules (BH-26 through 2038). Raw Egypt returned 193k lines; after `date <= today` cap, dropped to 55k. Cleaned up 160k future rows via one-off DELETE.
+- **P&L aggregator (`src/lib/financials-pnl.ts`)**: `account_type`-driven grouping (not code-prefix) because the tenant's CoA diverges across companies — same code (`500103`) means 'Home Owner Cut' in one and 'AGENTS COMMISION Hopper' in another. Sub-buckets by name keywords (agents/operating/direct for expense_direct_cost; back_office/office/transport/legal_fin/marketing/other for expense). Home Owner Cut + Rent Costs pulled out as dedicated section by name pattern. Interest lines routed to INT-TAX-DEP by name. Depreciation = all expense_depreciation. Income sections sign-flip for display.
+- **Intercompany elimination**: `getIntercompanyPartnerIds()` matches partner names against `%beithady hospitality%` (catches auto-linked company partners AND custom intercompany booking partners like "053. BeitHady Hospitality- UAE" and "Beithady Hospitality - Egypt", id 27005/27007/12). "Beit Hady Website" does NOT match because it lacks 'hospitality' in name. Applied to both P&L and Payables reports.
+- **Page (`src/app/emails/beithady/financials/page.tsx`)**: standalone route at `/emails/beithady/financials` (Next.js static segment takes precedence over `[ruleId]` dynamic). Period presets: this_month / last_month / this_quarter / last_quarter / this_year / last_year + specific-month dropdown (last 12 months) + custom date range. Full P&L table with Sub-GP, GP, EBITDA, Net Profit subtotals + % of revenue column + sign-colored cells. Three payables cards side-by-side. Unclassified-accounts warning panel.
+- **Domain page**: `src/app/emails/[domain]/page.tsx` adds a "Financials" entry card under Beithady rules list.
+- **`.gitignore`**: excluded `.claude/Documents/` (contract with bank details + Feb 2026 P&L xlsx are confidential).
+
+### Verification vs Feb 2026 xlsx
+| Line | xlsx | Ours | Diff |
+|---|---|---|---|
+| Revenue | 3,572,265 | 3,574,175 | +0.05% ✅ |
+| Home Owner Cut | 1,755,816 | 1,755,817 | ~exact ✅ |
+| Depreciation | 740,370 | 740,127 | -0.03% ✅ |
+| Interest | 1,468,342 | 1,468,342 | exact ✅ |
+| G&A (ex-interest) | 1,617,669 | 1,619,290 | +0.10% ✅ |
+| Cost of Revenue | 2,153,928 | 1,848,758 | -14% ⚠️ |
+
+Cost of Revenue is the one line where we're off by ~305k. Likely explanation: Odoo's draft-vs-posted state handling differs from the xlsx report's treatment, or some accounts used at the margin are typed as `expense` rather than `expense_direct_cost`. Known example: `502105 water, and gas` (account_type = 'expense'). Candidate for Phase 7.4 polish.
+
+### Known owner-partner flag
+19 partners currently flagged as `is_owner = true` (post-sync from move lines hitting accounts named "Home Owner Cut" / "Rent Costs"). Visible in the Owners Payables card.
+
+### Cron
+`vercel.json` still only crons `/api/cron/odoo` at 04:00 UTC — that runs `runOdooSync` (companies + invoices only). The financial sync (`/api/odoo/sync-financials`) must be triggered manually or via a future cron orchestrator. For now, user needs to manually phase through after any Odoo data change. Candidate for cron automation in Phase 7.4 (serialized phase-by-phase cron runs).
+
+### Key technical lessons (for memory)
+1. **Vercel Pro hard cap is 300s** — combined sync for this tenant hits that. Always design sync endpoints to fit single-invocation budgets.
+2. **Odoo auto-generates future depreciation** — always cap `date <= today` on line syncs.
+3. **CoA codes aren't stable across companies** in multi-company Odoo tenants with diverged histories — `account_type` is the reliable classifier.
+4. **Intercompany eliminations need explicit logic** — even when the user says "it's already eliminated", that refers to the SOURCE xlsx, not raw Odoo data.
+5. **Supabase `!inner` joins with paginated select** — supabase-js default limit 1000, need explicit `.range()` pagination loops for > 1000 rows.
+
+### Where next
+Dashboard is live and functional. User can start USING it for real finance reporting. Phase 7.4 backlog:
+- Close the 14% Cost of Revenue gap (account_type investigation + draft-entry treatment)
+- Cron-orchestrated financial sync (currently manual phase-through)
+- Per-building P&L via `analytic_distribution` cross-company join (BH-435 3-company view)
+- Balance sheet rule (Receivables, Payables totals, Fixed Assets)
+- A1HOSPITALITY owner-side view for BH-435
+- Currency conversion display toggle (EGP / USD / AED)
+
 ## 🟡 PHASE 7.2 + 7.3 PLANNING — Beithady Financials rule (awaiting user answers on 5 decisions)
 
 ### User direction
