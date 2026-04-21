@@ -1,5 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PAYOUTS: CLICK "BY BUILDING" ROWS TO DRILL INTO LINE ITEMS (commit b5a1971)
+
+### User request
+User shared a screenshot of the "Airbnb payouts by building" table (UNKNOWN 12 items / BH-73 9 / BH-435 3 / BH-OK 2) and said:
+> "trying to click on unknown to try to see whats the problem ....Nothing Happens Unclickable"
+
+### The fix
+Added a URL-driven `?building=<key>` filter. Clicking a building row toggles the filter on; clicking the active row (or the Clear button) removes it. Same URL-param pattern already used elsewhere (Requests group-by toggle, Range preset).
+
+### Files changed (single file)
+`src/app/emails/[domain]/[ruleId]/page.tsx`:
+
+- Detail page server: added `building?: string` to `searchParams` type; resolved into `airbnbBuildingFilter = sp?.building?.trim() || null`; threaded into `BeithadyPayoutView` alongside `domain`, `ruleId`, `searchParamsSnapshot`.
+- `BeithadyPayoutView` signature extended with those props. New `buildPayoutHref(nextBuildingKey | null)` helper inside the component — constructs the URL preserving `preset` / `from` / `to`, appends `?building=X` when setting, omits the param when clearing, and **adds `#airbnb-line-items` anchor so the browser scrolls to the drill-in** after the click.
+- **By-building table rows clickable via stretched-link pattern**: each `<tr>` is `position: relative`; the Building cell wraps its content in `<Link>` containing a `<span className="absolute inset-0" />` that expands to cover the full row. Entire row is clickable, hover-emerald, valid HTML (`<a>` inside `<td>`, never wrapping `<tr>`). Active row gets `bg-emerald-100/60` + a small `active · clear` chip. Clicking the active row passes `null` to `buildPayoutHref` and clears the filter.
+- Line items pre-filtered at render via `filteredRefundables = buildingFilter ? refundables.filter(l => (l.building_code || 'UNKNOWN') === buildingFilter) : refundables`. UNKNOWN bucket catches line items whose `building_code` is null.
+- Airbnb line items section gained `id="airbnb-line-items"` anchor + `scroll-mt-6` for a small offset from top.
+- When a filter is active, an emerald banner renders above the table: "Filtered to {X} — showing {N} of {M} line items" + "Clear filter" button that links back to the no-filter URL. UNKNOWN banner appends an explanation: "These are line items whose listing name didn't match the Beithady catalog or a BH-code" (so the user immediately understands why those items fell through).
+- Section title updates to reflect filter: `Airbnb line items · UNKNOWN (12 of 26)`.
+- Hint copy updated on the by-building section: "Click a row to filter the line items table below."
+- `AirbnbLineItemsTable` client component unchanged — it just receives the already-filtered list. The existing click-row-for-modal detail interaction still works inside the filtered view.
+
+### Verification
+- `rm -rf .next && npm run build` clean, TS pass, 14 routes.
+- commit b5a1971 on main via `git push origin HEAD:main`.
+- Deployment: first `vercel --prod --yes` threw `ECONNRESET` on the response but `vercel inspect` confirmed `kareemhady-1ikcfj49z` went Ready + was aliased to `kareemhady.vercel.app`. The CLI errored on the response, not the upload — the deploy itself succeeded.
+
+### URL pattern
+- Drill into UNKNOWN: `/emails/beithady/<payout-rule-id>?building=UNKNOWN#airbnb-line-items`
+- Drill into BH-73: `?building=BH-73`
+- Clear: click the active row or the Clear filter button (returns to no-param URL)
+
+### Why this shape over alternatives
+- **URL param vs client state**: state survives refresh + is shareable (paste "show me what went to UNKNOWN" URL in Slack).
+- **Stretched-link vs onClick**: keeps the whole interaction server-renderable. `<a>`-inside-`<td>` with a stretched span is the cleanest cross-browser way to make a whole `<tr>` clickable without invalid HTML.
+- **Section anchor**: clicking a building row 4 cards above the table was confusing without the scroll — anchor jumps the viewport to the drill-in location automatically.
+
+### Open question for next run
+After the user re-runs the rule with the updated listings catalog (commit 6aee045), they should see FEWER UNKNOWN line items — Gouna / Dubai / BH-NEWCAI listings that previously fell into UNKNOWN should now route to their canonical buckets. If UNKNOWN is still large, clicking it reveals the remaining listings and we can tune the `findListingByName` fuzzy matcher.
+
 ## ✅ STRIPE API ARRIVAL-DATE FILTER + AIRBNB LINE-ITEM MODAL (commit 1ea2c30)
 
 ### User request
