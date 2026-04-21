@@ -30,12 +30,18 @@ export async function GET(req: NextRequest) {
   // use 'BH73-*' (no dash after BH) while others use 'BH-73-*'. We accept
   // either. Omit the fields projection entirely so Guesty returns its
   // default field set including listingType + masterListingId.
+  // Guesty's default projection omits listingType + masterListingId — must
+  // request them explicitly.
+  const GUESTY_FIELDS =
+    '_id nickname title active listingType masterListingId bedrooms accommodates propertyType accountId address.full tags customFields';
+
   let offset = 0;
   const all: GuestyListing[] = [];
   while (offset < 500) {
     const res = await listGuestyListings({
       limit: 100,
       skip: offset,
+      fields: GUESTY_FIELDS,
     });
     all.push(...(res.results || []));
     if ((res.results || []).length < 100) break;
