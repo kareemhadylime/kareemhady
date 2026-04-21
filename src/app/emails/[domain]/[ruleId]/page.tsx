@@ -81,12 +81,15 @@ export default async function RuleOutputDetailPage({
     from?: string;
     to?: string;
     group?: string;
+    building?: string;
   }>;
 }) {
   const { domain, ruleId } = await params;
   const sp = await searchParams;
   const requestsGroupMode: 'guest' | 'reservation' =
     sp?.group === 'guest' ? 'guest' : 'reservation';
+  const airbnbBuildingFilter =
+    sp?.building && sp.building.trim() ? sp.building.trim() : null;
 
   if (domain !== 'other' && !isDomain(domain)) notFound();
 
@@ -417,6 +420,10 @@ export default async function RuleOutputDetailPage({
                 emailsMatched={latest.input_email_count ?? 0}
                 crossMatchBookings={crossMatchBookings}
                 crossMatchRunAt={crossMatchRunAt}
+                buildingFilter={airbnbBuildingFilter}
+                domain={domain}
+                ruleId={ruleId}
+                searchParamsSnapshot={sp}
               />
             ) : isBeithady ? (
               <BeithadyView out={out} emailsMatched={latest.input_email_count ?? 0} />
@@ -1092,12 +1099,38 @@ function BeithadyPayoutView({
   emailsMatched,
   crossMatchBookings = [],
   crossMatchRunAt = null,
+  buildingFilter = null,
+  domain = '',
+  ruleId = '',
+  searchParamsSnapshot,
 }: {
   out: any;
   emailsMatched: number;
   crossMatchBookings?: CrossMatchBooking[];
   crossMatchRunAt?: string | null;
+  buildingFilter?: string | null;
+  domain?: string;
+  ruleId?: string;
+  searchParamsSnapshot?:
+    | {
+        preset?: string;
+        from?: string;
+        to?: string;
+        group?: string;
+        building?: string;
+      }
+    | undefined;
 }) {
+  const buildPayoutHref = (nextBuilding: string | null) => {
+    if (!domain || !ruleId) return '#';
+    const qs = new URLSearchParams();
+    if (searchParamsSnapshot?.preset) qs.set('preset', searchParamsSnapshot.preset);
+    if (searchParamsSnapshot?.from) qs.set('from', searchParamsSnapshot.from);
+    if (searchParamsSnapshot?.to) qs.set('to', searchParamsSnapshot.to);
+    if (nextBuilding) qs.set('building', nextBuilding);
+    const q = qs.toString();
+    return `/emails/${domain}/${ruleId}${q ? `?${q}` : ''}#airbnb-line-items`;
+  };
   const bookingsByCode = new Map<string, CrossMatchBooking>();
   const bookingsByGuest = new Map<string, CrossMatchBooking[]>();
   for (const b of crossMatchBookings) {
@@ -1184,6 +1217,9 @@ function BeithadyPayoutView({
   const stripeShare = totalAed > 0 ? (stripeAed / totalAed) * 100 : 0;
   const refunds = lineItems.filter(l => l.is_refund);
   const refundables = lineItems.filter(l => !l.is_refund);
+  const filteredRefundables = buildingFilter
+    ? refundables.filter(l => (l.building_code || 'UNKNOWN') === buildingFilter)
+    : refundables;
 
   return (
     <>
@@ -1309,7 +1345,7 @@ function BeithadyPayoutView({
         <section>
           <SectionHeader
             title="Airbnb payouts by building"
-            hint="Building is inferred from BH-code in the listing name when present. Rows labelled UNKNOWN couldn't be attributed from the Airbnb listing alone."
+            hint="Click a row to filter the line items table below. Rows labelled UNKNOWN are line items whose listing name didn't match the Beithady catalog or a BH-code — clicking drills into exactly those items."
           />
           <div className="ix-card overflow-hidden mt-3">
             <table className="w-full text-sm">
@@ -1322,16 +1358,46 @@ function BeithadyPayoutView({
                 </tr>
               </thead>
               <tbody>
-                {byBuilding.map(b => (
-                  <tr key={b.key} className="border-t border-slate-100">
-                    <td className="py-2.5 px-6 font-mono font-semibold">{b.key}</td>
-                    <td className="px-6 text-right tabular-nums">{b.line_item_count}</td>
-                    <td className="px-6 text-right tabular-nums">{b.unique_reservations}</td>
-                    <td className="px-6 text-right tabular-nums font-medium">
-                      {fmt(b.total_usd)}
-                    </td>
-                  </tr>
-                ))}
+                {byBuilding.map(b => {
+                  const isActive = buildingFilter === b.key;
+                  const href = buildPayoutHref(isActive ? null : b.key);
+                  return (
+                    <tr
+                      key={b.key}
+                      className={`relative border-t border-slate-100 transition ${
+                        isActive
+                          ? 'bg-emerald-100/60'
+                          : 'hover:bg-emerald-50/40 cursor-pointer'
+                      }`}
+                    >
+                      <td className="py-2.5 px-6 font-mono font-semibold">
+                        <Link
+                          href={href}
+                          prefetch={false}
+                          className="hover:underline"
+                          aria-label={
+                            isActive
+                              ? `Clear filter for ${b.key}`
+                              : `Filter line items to ${b.key}`
+                          }
+                        >
+                          <span className="absolute inset-0" aria-hidden="true" />
+                          {b.key}
+                          {isActive && (
+                            <span className="ml-2 text-[10px] uppercase tracking-wider font-semibold text-emerald-700 bg-white border border-emerald-300 rounded px-1 py-0.5">
+                              active · clear
+                            </span>
+                          )}
+                        </Link>
+                      </td>
+                      <td className="px-6 text-right tabular-nums">{b.line_item_count}</td>
+                      <td className="px-6 text-right tabular-nums">{b.unique_reservations}</td>
+                      <td className="px-6 text-right tabular-nums font-medium">
+                        {fmt(b.total_usd)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1388,17 +1454,40 @@ function BeithadyPayoutView({
         </div>
       </section>
 
-      <section>
+      <section id="airbnb-line-items" className="scroll-mt-6">
         <SectionHeader
-          title={`Airbnb line items (${refundables.length})`}
+          title={
+            buildingFilter
+              ? `Airbnb line items · ${buildingFilter} (${filteredRefundables.length} of ${refundables.length})`
+              : `Airbnb line items (${refundables.length})`
+          }
           hint={
             crossMatchBookings.length > 0
               ? `Per-reservation breakdown. Cross-matched against ${crossMatchBookings.length} Guesty bookings${crossMatchRunAt ? ` (last run ${new Date(crossMatchRunAt).toLocaleString()})` : ''}. Click any row to see full details.`
               : 'Per-reservation breakdown. Click any row to see full details. Run the Beithady Guesty Bookings rule to populate matched-booking columns.'
           }
         />
+        {buildingFilter && (
+          <div className="ix-card p-3 mt-3 text-xs bg-emerald-50 border-emerald-200 text-emerald-800 flex items-center justify-between flex-wrap gap-2">
+            <span>
+              Filtered to{' '}
+              <span className="font-mono font-semibold">{buildingFilter}</span>{' '}
+              — showing {filteredRefundables.length} of {refundables.length} line
+              items.
+              {buildingFilter === 'UNKNOWN' &&
+                ' These are line items whose listing name didn\u2019t match the Beithady catalog or a BH-code.'}
+            </span>
+            <Link
+              href={buildPayoutHref(null)}
+              prefetch={false}
+              className="ix-btn-secondary text-xs"
+            >
+              Clear filter
+            </Link>
+          </div>
+        )}
         <AirbnbLineItemsTable
-          lineItems={refundables}
+          lineItems={filteredRefundables}
           bookings={crossMatchBookings}
           crossMatchRunAt={crossMatchRunAt}
         />
