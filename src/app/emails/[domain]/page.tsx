@@ -130,29 +130,55 @@ export default async function DomainRulesPage({
         </header>
 
         {d === 'kika' && (
-          <Link
-            href="/emails/kika/financials"
-            className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
-          >
-            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 opacity-[0.08] blur-2xl pointer-events-none" />
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-violet-50 text-violet-600">
-                <Calculator size={24} strokeWidth={2.2} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold">Financials</h3>
-                  <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">
-                    Odoo
-                  </span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Link
+              href="/emails/kika/financials"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
+            >
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-violet-50 text-violet-600">
+                  <Calculator size={24} strokeWidth={2.2} />
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  P&amp;L for X Label for Tailoring Kika · segment tabs (Kika / X-Label / In &amp; Out) · period filters
-                </p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Financials</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-600">
+                      Odoo
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    P&amp;L for X Label for Tailoring Kika · segment tabs (Kika / X-Label / In &amp; Out) · period filters
+                  </p>
+                </div>
               </div>
-            </div>
-            <ArrowRight size={18} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
-          </Link>
+              <ArrowRight size={18} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
+            </Link>
+
+            <Link
+              href="/emails/kika/sales"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
+            >
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-emerald-500 to-indigo-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-emerald-50 text-emerald-600">
+                  <ShoppingBag size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Sales Intelligence</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">
+                      Shopify
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Orders · revenue · AOV · top products · top customers · daily trend · kika-swim-wear
+                  </p>
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
+            </Link>
+          </div>
         )}
 
         {d === 'beithady' && (

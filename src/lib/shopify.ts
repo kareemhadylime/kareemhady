@@ -135,19 +135,43 @@ export async function getShopifyShop(): Promise<ShopifyShop> {
   return res?.shop;
 }
 
+export type ShopifyOrderLineItem = {
+  id: number;
+  product_id?: number | null;
+  variant_id?: number | null;
+  title: string;
+  name?: string;
+  sku?: string;
+  vendor?: string;
+  quantity: number;
+  price: string;
+  total_discount?: string;
+};
+
 export type ShopifyOrder = {
   id: number;
   name: string; // '#1234'
   email?: string;
   created_at: string;
   processed_at?: string;
+  cancelled_at?: string | null;
   currency: string;
   total_price: string;
   subtotal_price?: string;
+  total_discounts?: string;
+  total_tax?: string;
+  total_shipping_price_set?: { shop_money?: { amount?: string } };
   financial_status?: string; // 'paid' | 'pending' | 'refunded' | ...
   fulfillment_status?: string | null;
-  customer?: { id: number; email: string; first_name?: string; last_name?: string } | null;
-  line_items?: Array<{ id: number; title: string; quantity: number; price: string; sku?: string }>;
+  tags?: string;
+  customer?: {
+    id: number;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+  } | null;
+  line_items?: ShopifyOrderLineItem[];
+  refunds?: Array<{ transactions?: Array<{ amount?: string; kind?: string }> }>;
 };
 
 export async function listShopifyOrders(params: {
@@ -165,6 +189,47 @@ export async function listShopifyOrders(params: {
     },
   });
   return res?.orders || [];
+}
+
+// Paginated variant of listShopifyOrders using Shopify's Link header
+// cursor pagination. Yields all orders matching the filter via an async
+// generator — callers can break out early.
+export async function* iterateShopifyOrders(params: {
+  status?: 'any' | 'open' | 'closed' | 'cancelled';
+  createdAtMin?: string;
+  createdAtMax?: string;
+  pageSize?: number;
+} = {}): AsyncGenerator<ShopifyOrder[]> {
+  const token = await resolveAdminToken();
+  const url = new URL(`${baseUrl()}/orders.json`);
+  url.searchParams.set('status', params.status || 'any');
+  if (params.createdAtMin) url.searchParams.set('created_at_min', params.createdAtMin);
+  if (params.createdAtMax) url.searchParams.set('created_at_max', params.createdAtMax);
+  url.searchParams.set('limit', String(params.pageSize || 250));
+
+  let next: string | null = url.toString();
+  while (next) {
+    const res = await fetch(next, {
+      method: 'GET',
+      headers: { 'X-Shopify-Access-Token': token, Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(
+        `shopify_${res.status}: GET orders — ${text.slice(0, 300)}`
+      );
+    }
+    const json = (await res.json()) as { orders?: ShopifyOrder[] };
+    yield json.orders || [];
+
+    // Parse Link header for next cursor
+    const link = res.headers.get('link') || '';
+    const nextMatch = /<([^>]+)>;\s*rel="next"/.exec(link);
+    next = nextMatch ? nextMatch[1] : null;
+
+    // Respect the 2 req/sec base rate (bucket of 40).
+    await new Promise(r => setTimeout(r, 500));
+  }
 }
 
 export type ShopifyOrderCount = { count: number };
