@@ -150,22 +150,17 @@ export async function GET(req: NextRequest) {
       const dateFrom = today.toISOString().slice(0, 10);
       const end = new Date(today.getTime() + 14 * 24 * 3600 * 1000);
       const dateTo = end.toISOString().slice(0, 10);
-      const priced = await getPricelabsListingPrices(listings[0].id, {
-        dateFrom,
-        dateTo,
-      });
+      const raw = await pricelabsFetch<Record<string, unknown>>(
+        '/listings/prices',
+        { query: { id: listings[0].id, date_from: dateFrom, date_to: dateTo } }
+      );
+      // Surface the raw shape so we can see how PL structures this response.
       priceSample = {
         listing_id: listings[0].id,
         listing_name: listings[0].name,
         range: `${dateFrom} → ${dateTo}`,
-        rows: (priced?.data || []).slice(0, 7).map(p => ({
-          date: p.date,
-          current_price: p.price ?? null,
-          recommended_rate: p.recommended_rate ?? null,
-          min_stay: p.min_stay ?? null,
-          booking_prob: p.booking_prob ?? null,
-          reason: p.reason || null,
-        })),
+        raw_top_level_keys: raw ? Object.keys(raw) : [],
+        raw_sample: JSON.stringify(raw).slice(0, 1200),
       };
     }
 
