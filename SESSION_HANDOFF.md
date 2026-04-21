@@ -1,5 +1,28 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 PHASE 7.1 PLANNING — Proposed scope + migration plan, awaiting user go/no-go
+
+User said "ready for 7.1". Before writing the migration, I sent a plan + one decision to confirm.
+
+### Proposed scope filter
+**Scope Beithady-only data by analytic account name `LIKE 'BH-%'`.** Rationale: fmplus Odoo hosts 4+ unrelated businesses; analytic accounts are the only clean per-property discriminator we've seen. Alternatives considered: per-company `res.company_id` (need to probe if multi-company is on), per-journal filter (need to see journal names). Picked analytic accounts because we already confirmed `BH-Laila Elwy` exists.
+
+### Proposed Phase 7.1 sequence (mirrors Guesty cadence)
+1. **Exploration ping first** — extend `/api/odoo/ping` with `?explore=1` mode returning: count + names of all `BH-*` analytic accounts, `res.company` list, journals with "BH"/"beithady" in name. Confirms scope filter before committing schema.
+2. **Migration `0009_odoo.sql`** — tables `odoo_analytic_accounts`, `odoo_invoices` (FK to analytic account, preserve original currency), `odoo_sync_runs`. Unique `(odoo_id)` keys. Defer partners + payments to 7.2.
+3. **`src/lib/run-odoo-sync.ts`** — mirrors `run-daily.ts` pattern. Pulls `BH-*` analytic accounts + their posted invoices (last 365 days default). Upserts.
+4. **`/api/odoo/run-now`** — manual trigger route.
+5. **Cron** — add 04:00 UTC entry to `vercel.json` → new `/api/cron/odoo` handler (stagger from Gmail 06:00/07:00 UTC).
+
+### Open decisions offered to user
+- Scope filter (analytic account prefix) — default pick, user can override
+- Exploration-first step yes/no
+- Backfill window (365d default)
+- Defer partners + payments to 7.2 yes/no
+
+### Status
+**Waiting on user confirmation** before any code writes. Nothing committed this turn.
+
 ## ✅ PHASE 7.0.3 — Odoo connection verified end-to-end (no code changes)
 
 User regenerated API key + updated `ODOO_API_KEY` in Vercel. Redeploy to `kareemhady-7m4fvqp4l-lime-investments.vercel.app` + ping returned HTTP 200.
