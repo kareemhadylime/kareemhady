@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Mail, Plus, RefreshCw, ChevronRight } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
+import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ export default async function AccountsPage() {
                   <div className="text-xs text-slate-500">
                     Last synced:{' '}
                     {a.last_synced_at
-                      ? new Date(a.last_synced_at).toLocaleString()
+                      ? fmtCairoDateTime(a.last_synced_at)
                       : 'never'}
                   </div>
                 </div>
@@ -89,7 +90,7 @@ export default async function AccountsPage() {
                 {runs?.map((r: any) => (
                   <tr key={r.id} className="border-t border-slate-100">
                     <td className="py-2.5 px-4 whitespace-nowrap">
-                      {new Date(r.started_at).toLocaleString()}
+                      {fmtCairoDateTime(r.started_at)}
                     </td>
                     <td className="px-4">{r.trigger}</td>
                     <td className="px-4">
@@ -129,7 +130,7 @@ export default async function AccountsPage() {
                   <tr key={e.id} className="border-t border-slate-100">
                     <td className="py-2.5 px-4 whitespace-nowrap text-slate-600">
                       {e.received_at
-                        ? new Date(e.received_at).toLocaleString()
+                        ? fmtCairoDateTime(e.received_at)
                         : '-'}
                     </td>
                     <td className="px-4 truncate max-w-xs">{e.from_address}</td>

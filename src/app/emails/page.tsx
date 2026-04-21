@@ -3,6 +3,7 @@ import { ArrowUpRight, Layers } from 'lucide-react';
 import { TopNav } from '../_components/brand';
 import { DomainIcon } from '../_components/domain-icon';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fmtCairoDate } from '@/lib/fmt-date';
 import {
   DOMAINS,
   DOMAIN_LABELS,
@@ -161,7 +162,7 @@ function DomainCard({ c }: { c: DomainCardData }) {
         </span>
         <span>
           {c.last_run_at
-            ? `Last run · ${new Date(c.last_run_at).toLocaleDateString()}`
+            ? `Last run · ${fmtCairoDate(c.last_run_at)}`
             : 'No runs yet'}
         </span>
       </div>

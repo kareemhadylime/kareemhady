@@ -55,6 +55,7 @@ import {
 } from '@/lib/rules/presets';
 import { BEITHADY_BUILDINGS, classifyBuilding } from '@/lib/rules/aggregators/beithady-booking';
 import { AirbnbLineItemsTable } from './AirbnbLineItemsTable';
+import { fmtCairoDate, fmtCairoDateTime } from '@/lib/fmt-date';
 
 const fmt = (n: number | string | null | undefined): string =>
   Math.round(Number(n) || 0).toLocaleString();
@@ -224,7 +225,7 @@ export default async function RuleOutputDetailPage({
                   <span>
                     Last run{' '}
                     {latest.finished_at
-                      ? new Date(latest.finished_at).toLocaleString()
+                      ? fmtCairoDateTime(latest.finished_at)
                       : '…'}
                   </span>
                 </>
@@ -241,9 +242,9 @@ export default async function RuleOutputDetailPage({
               <span className="text-xs text-slate-500">
                 Last run covered:{' '}
                 <span className="font-medium text-slate-700">
-                  {new Date(lastRange.from).toLocaleDateString()}
+                  {fmtCairoDate(lastRange.from)}
                   {' → '}
-                  {new Date(lastRange.to).toLocaleDateString()}
+                  {fmtCairoDate(lastRange.to)}
                   {lastRange.label && ` (${lastRange.label})`}
                 </span>
               </span>
@@ -352,9 +353,9 @@ export default async function RuleOutputDetailPage({
               <div className="ix-card p-4 border-amber-200 bg-amber-50 text-amber-800 text-sm">
                 Requested start date{' '}
                 {lastRange.requested_from
-                  ? new Date(lastRange.requested_from).toLocaleDateString()
+                  ? fmtCairoDate(lastRange.requested_from)
                   : ''}{' '}
-                was clamped to {new Date(lastRange.from).toLocaleDateString()} (Jan 1 cap).
+                was clamped to {fmtCairoDate(lastRange.from)} (Jan 1 cap).
               </div>
             )}
 
@@ -490,11 +491,11 @@ export default async function RuleOutputDetailPage({
                     return (
                       <tr key={r.id} className="border-t border-slate-100">
                         <td className="py-2.5 px-6 whitespace-nowrap">
-                          {new Date(r.started_at).toLocaleString()}
+                          {fmtCairoDateTime(r.started_at)}
                         </td>
                         <td className="px-6 text-xs text-slate-600 whitespace-nowrap">
                           {tr
-                            ? `${new Date(tr.from).toLocaleDateString()} → ${new Date(tr.to).toLocaleDateString()}`
+                            ? `${fmtCairoDate(tr.from)} → ${fmtCairoDate(tr.to)}`
                             : '—'}
                         </td>
                         <td className="px-6">
@@ -1426,7 +1427,7 @@ function BeithadyPayoutView({
               {airbnbPayoutsSummary.map((p, i) => (
                 <tr key={i} className="border-t border-slate-100 hover:bg-rose-50/30">
                   <td className="py-2.5 px-4 whitespace-nowrap">
-                    {p.email_date ? new Date(p.email_date).toLocaleDateString() : '—'}
+                    {p.email_date ? fmtCairoDate(p.email_date) : '—'}
                   </td>
                   <td className="px-4 whitespace-nowrap">{p.sent_date || '—'}</td>
                   <td className="px-4 whitespace-nowrap">{p.arrival_date || '—'}</td>
@@ -1463,7 +1464,7 @@ function BeithadyPayoutView({
           }
           hint={
             crossMatchBookings.length > 0
-              ? `Per-reservation breakdown. Cross-matched against ${crossMatchBookings.length} Guesty bookings${crossMatchRunAt ? ` (last run ${new Date(crossMatchRunAt).toLocaleString()})` : ''}. Click any row to see full details.`
+              ? `Per-reservation breakdown. Cross-matched against ${crossMatchBookings.length} Guesty bookings${crossMatchRunAt ? ` (last run ${fmtCairoDateTime(crossMatchRunAt)})` : ''}. Click any row to see full details.`
               : 'Per-reservation breakdown. Click any row to see full details. Run the Beithady Guesty Bookings rule to populate matched-booking columns.'
           }
         />
@@ -1565,7 +1566,7 @@ function BeithadyPayoutView({
                   className="border-t border-slate-100 hover:bg-indigo-50/30"
                 >
                   <td className="py-2.5 px-4 whitespace-nowrap">
-                    {p.email_date ? new Date(p.email_date).toLocaleDateString() : '—'}
+                    {p.email_date ? fmtCairoDate(p.email_date) : '—'}
                   </td>
                   <td className="px-4 whitespace-nowrap">{p.arrival_date || '—'}</td>
                   <td className="px-4 text-right tabular-nums font-medium">
@@ -2890,7 +2891,7 @@ function BeithadyReviewView({
                   </div>
                   <div className="text-[11px] text-slate-500 whitespace-nowrap">
                     {f.email_date
-                      ? new Date(f.email_date).toLocaleDateString()
+                      ? fmtCairoDate(f.email_date)
                       : '—'}
                   </div>
                 </div>
@@ -2981,7 +2982,7 @@ function BeithadyReviewView({
                   >
                     <td className="py-2.5 px-4 whitespace-nowrap text-xs text-slate-600">
                       {r.email_date
-                        ? new Date(r.email_date).toLocaleDateString()
+                        ? fmtCairoDate(r.email_date)
                         : '—'}
                     </td>
                     <td className="px-4">{r.guest_name}</td>
@@ -3368,7 +3369,7 @@ function BeithadyInquiryView({
                     </td>
                     <td className="px-4 whitespace-nowrap text-xs text-slate-600">
                       {g.latest_received_iso
-                        ? new Date(g.latest_received_iso).toLocaleString()
+                        ? fmtCairoDateTime(g.latest_received_iso)
                         : '—'}
                     </td>
                     <td className="px-4">
@@ -3543,7 +3544,7 @@ function BeithadyInquiryView({
                         <div className="flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
                           Last{' '}
                           {thread.latestReceived
-                            ? new Date(thread.latestReceived).toLocaleString()
+                            ? fmtCairoDateTime(thread.latestReceived)
                             : '—'}
                           <SlaBadge receivedIso={thread.worstReceived} />
                         </div>
@@ -3578,7 +3579,7 @@ function BeithadyInquiryView({
                                 <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
                                   <span className="tabular-nums">
                                     {inq.received_iso
-                                      ? new Date(inq.received_iso).toLocaleString()
+                                      ? fmtCairoDateTime(inq.received_iso)
                                       : '—'}
                                   </span>
                                   {catLabel && (
@@ -4023,7 +4024,7 @@ function BeithadyRequestView({
                     </div>
                     <div className="text-[11px] text-slate-500 whitespace-nowrap">
                       {g.latest_received_iso
-                        ? new Date(g.latest_received_iso).toLocaleString()
+                        ? fmtCairoDateTime(g.latest_received_iso)
                         : '—'}
                     </div>
                   </div>
@@ -4074,7 +4075,7 @@ function BeithadyRequestView({
                               <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
                                 <span className="tabular-nums">
                                   {m.received_iso
-                                    ? new Date(m.received_iso).toLocaleString()
+                                    ? fmtCairoDateTime(m.received_iso)
                                     : '—'}
                                 </span>
                                 {catLabel && (
@@ -4332,7 +4333,7 @@ function GuestThreadsList({ messages }: { messages: RequestMessage[] }) {
               <div className="text-[11px] text-slate-500 whitespace-nowrap">
                 Last{' '}
                 {thread.latestReceivedIso
-                  ? new Date(thread.latestReceivedIso).toLocaleString()
+                  ? fmtCairoDateTime(thread.latestReceivedIso)
                   : '—'}
               </div>
             </div>
@@ -4384,7 +4385,7 @@ function GuestThreadsList({ messages }: { messages: RequestMessage[] }) {
                       <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
                         <span className="tabular-nums">
                           {m.received_iso
-                            ? new Date(m.received_iso).toLocaleString()
+                            ? fmtCairoDateTime(m.received_iso)
                             : '—'}
                         </span>
                         {catLabel && (
@@ -4700,9 +4701,9 @@ function StripeApiBreakdownSection({
                       )}
                     </div>
                     <div className="mt-1 text-xs text-slate-600">
-                      Created {new Date(p.created_iso).toLocaleString()}
+                      Created {fmtCairoDateTime(p.created_iso)}
                       {p.arrival_date_iso
-                        ? ` · Arrives ${new Date(p.arrival_date_iso).toLocaleDateString()}`
+                        ? ` · Arrives ${fmtCairoDate(p.arrival_date_iso)}`
                         : ''}
                       {p.destination_bank || p.destination_last4
                         ? ` · ${p.destination_bank || ''}${p.destination_last4 ? ` ••${p.destination_last4}` : ''}`
@@ -4771,7 +4772,7 @@ function StripeApiBreakdownSection({
                               className="border-t border-slate-100 hover:bg-slate-50/40"
                             >
                               <td className="py-2 px-4 whitespace-nowrap text-xs text-slate-600">
-                                {new Date(t.created_iso).toLocaleDateString()}
+                                {fmtCairoDate(t.created_iso)}
                               </td>
                               <td className="px-4">
                                 <span

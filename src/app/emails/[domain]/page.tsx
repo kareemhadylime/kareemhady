@@ -14,6 +14,7 @@ import {
   LifeBuoy,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { TopNav } from '@/app/_components/brand';
 import { DomainIcon } from '@/app/_components/domain-icon';
 import { runRuleAction } from '@/app/admin/rules/actions';
@@ -219,7 +220,7 @@ export default async function DomainRulesPage({
                   <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
                     <span>
                       {r.latest_run?.finished_at
-                        ? `Last run · ${new Date(r.latest_run.finished_at).toLocaleString()}`
+                        ? `Last run · ${fmtCairoDateTime(r.latest_run.finished_at)}`
                         : 'Not run yet'}
                       {r.latest_run?.status === 'failed' && ' · failed'}
                     </span>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, CheckCircle2, Building2, Calendar, User } from 'lucide-react';
+import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export type AirbnbLineItem = {
   confirmation_code: string;
@@ -205,7 +206,7 @@ export function AirbnbLineItemsTable({
         </div>
         {lineItems.length > 0 && (
           <div className="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-100 bg-slate-50/50">
-            Click any row to see full details {crossMatchRunAt ? `(cross-matched against Guesty bookings last run ${new Date(crossMatchRunAt).toLocaleString()})` : ''}
+            Click any row to see full details {crossMatchRunAt ? `(cross-matched against Guesty bookings last run ${fmtCairoDateTime(crossMatchRunAt)})` : ''}
           </div>
         )}
       </div>
