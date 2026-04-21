@@ -190,10 +190,16 @@ export async function syncOdooMoveLines(companyId: number) {
   const sb = supabaseAdmin();
   const started = Date.now();
   const ctx = { allowed_company_ids: [companyId] };
+  // Cap at today — Odoo's depreciation/amortization entries are
+  // pre-generated for the full asset term (e.g. BH-26 projects through
+  // 2038). Those future rows are ~10x the historical volume and useless
+  // for period P&L reporting; exclude them.
+  const today = new Date().toISOString().slice(0, 10);
   const domain = [
     ['company_id', '=', companyId],
     ['parent_state', 'in', ['draft', 'posted']],
     ['date', '>=', cutoffDate()],
+    ['date', '<=', today],
   ];
 
   const PAGE = 500;
