@@ -22,36 +22,50 @@ function parseNumeric(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// Normalize building tags to the 5 canonical codes used across Odoo + Guesty.
-function normalizeBuildingTag(tag: string | null): string | null {
+// Identify a canonical-5 building code from a single token. Returns null
+// for unit-level codes like BH-435-303 so the caller can keep looking for
+// a cleaner tag (e.g. the sibling "BH-435" tag on the same listing).
+function exactBuildingTag(tag: string | null): string | null {
   if (!tag) return null;
   const up = tag.toUpperCase().replace(/\s+/g, '');
-  if (/^BH[-]?(26|34|73|435)$/.test(up)) {
-    const m = /(26|34|73|435)$/.exec(up);
-    return m ? `BH-${m[1]}` : null;
-  }
-  if (/^BH[-]?(OK|OKAT)/.test(up)) return 'BH-OK';
-  if (/^BH[-]?\d/.test(up)) return 'BH-OK'; // scatter unit
+  const m = /^BH[-]?(26|34|73|435)$/.exec(up);
+  if (m) return `BH-${m[1]}`;
+  if (/^BH[-]?(OK|OKAT)$/.test(up)) return 'BH-OK';
   return null;
 }
 
-function extractBuildingCode(tags: string | null | undefined, name: string | null | undefined): string | null {
-  // Tags take priority — they're canonical in PL. Split on comma, find first BH-\d match.
+function extractBuildingCode(
+  tags: string | null | undefined,
+  name: string | null | undefined
+): string | null {
   const tagList = String(tags || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
+
+  // Pass 1: prefer an EXACT canonical tag (BH-26 / BH-435 / BH-OK / …).
   for (const t of tagList) {
-    const code = normalizeBuildingTag(t);
+    const code = exactBuildingTag(t);
     if (code) return code;
   }
-  // Fall back to parsing the listing name (e.g. "BH-26-001 -- …").
-  const m =
-    /\bBH[-\s]?(26|34|73|435)(?:[-\s]|$)/i.exec(name || '') ||
-    /\bBH[-\s]?(OK|OKAT)/i.exec(name || '') ||
-    /\bBH[-\s]?\d/i.exec(name || '');
-  if (!m) return null;
-  return normalizeBuildingTag(m[0]);
+
+  // Pass 2: any unit-level BH-\d tag means the listing belongs to One
+  // Kattameya's scatter-unit portfolio. We accept unit-level codes from
+  // the main buildings too (BH-26-001 → BH-26) by stripping the suffix.
+  for (const t of tagList) {
+    const m = /^BH[-\s]?(26|34|73|435)(?:[-\s]|$)/i.exec(t);
+    if (m) return `BH-${m[1]}`;
+  }
+  for (const t of tagList) {
+    if (/^BH[-\s]?\d/i.test(t)) return 'BH-OK';
+  }
+
+  // Fallback: parse the listing name.
+  const nameMajor = /\bBH[-\s]?(26|34|73|435)(?:[-\s]|$)/i.exec(name || '');
+  if (nameMajor) return `BH-${nameMajor[1]}`;
+  if (/\bBH[-\s]?(OK|OKAT)/i.test(name || '')) return 'BH-OK';
+  if (/\bBH[-\s]?\d/i.test(name || '')) return 'BH-OK';
+  return null;
 }
 
 export async function runPricelabsSync(trigger: 'cron' | 'manual') {
