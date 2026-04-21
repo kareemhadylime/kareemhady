@@ -1,5 +1,72 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.8 SHIPPED — Stripe API reconciliation on Beithady Payouts (commit 8568d40)
+
+### User request
+> "complete phase 5.8"
+
+Unblocked: `STRIPE_SECRET_KEY` was already set (local .env.local + Vercel production, 8h old at the start of this turn). Extended the existing Beithady Payouts rule with live Stripe API drill-down so email-parsed payouts can be reconciled against API-visible payouts, and each payout's component transactions are itemized.
+
+### Files
+
+#### `src/lib/stripe.ts` (new, 11 lines)
+Lazy singleton client reading `STRIPE_SECRET_KEY`. Throws `STRIPE_SECRET_KEY not set` if called without the env var.
+
+#### `src/lib/stripe-payouts.ts` (new, 254 lines)
+- Types: `StripeTransactionDetail`, `StripeApiPayoutDetail`, `StripeApiBreakdown`.
+- `listPayoutsInRange(client, fromTs, toTs)` — auto-paginates `stripe.payouts.list({ created: { gte, lte } })`, capped at **MAX_PAYOUTS = 100** per run.
+- `listTransactionsForPayout(client, payoutId)` — auto-paginates `stripe.balanceTransactions.list({ payout, expand: ['data.source'] })`, capped at **MAX_TXNS_PER_PAYOUT = 200**. The `expand: ['data.source']` is critical: it inlines the underlying Charge/Refund object so we don't need a second round-trip per txn.
+- `extractTxnDetail(txn)` resolves per-type:
+  - `charge` → description, statement_descriptor, receipt_email, customer_id, metadata. `source_amount`/`source_currency` populated when the charge currency differs from the settlement (txn) currency — so USD/EUR OTA charges show alongside AED settlement.
+  - `refund` → charge_id, reason, metadata.
+  - `payout` type transactions are filtered out upstream in `fetchStripePayoutBreakdown` — they're the payout's own debit leg, not a component.
+- `fetchStripePayoutBreakdown(fromIso, toIso)`:
+  - Wraps the Stripe client initializer in try/catch so a missing key returns `{ error: 'STRIPE_SECRET_KEY not set', api_payouts: [], ... }` rather than throwing and failing the whole rule_run.
+  - Wraps `listPayoutsInRange` in try/catch too — network / auth / scope errors are surfaced as `.error` on the breakdown.
+  - Per-payout txn fetch failures are swallowed so one payout's failure doesn't kill the others; the payout still shows with its header but empty txns.
+  - Fee amount sum uses each BalanceTransaction's embedded `fee` field (Stripe fees are per-txn, not a separate `payout_fee` BT type — had to remove a first-draft filter that used a non-existent `payout_fee` type).
+
+#### `src/lib/rules/aggregators/beithady-payout.ts`
+- `BeithadyPayoutAggregate` extended with Phase 5.8 fields: `stripe_api`, `stripe_api_total_aed`, `reconcile_matched`, `reconcile_api_only`, `reconcile_email_only`, `stripe_api_charge_count`, `stripe_api_refund_count`, `stripe_api_guest_names`.
+- `aggregateBeithadyPayouts` now takes a third optional arg `stripeApi: StripeApiBreakdown | null = null`. Reconciles payout_ids between the email-parsed Stripe payouts and the API set, counts charges/refunds across all API txns, and flags how many had a guest name extractable from `metadata.guest_name` / `metadata.guestName` / description patterns (`/guest|reservation|booking/i`).
+
+#### `src/lib/rules/engine.ts`
+- `evaluatePayoutRule` runs `fetchStripePayoutBreakdown(fromIso, toIso)` **in the same Promise.all** as the Airbnb + Stripe email body fetches (parallel API + Gmail). Passes the breakdown to `aggregateBeithadyPayouts` as the third arg. Re-running always triggers a fresh API pull.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- Added `<StripeApiBreakdownSection out={out} />` at the end of `BeithadyPayoutView`.
+- New `StripeApiBreakdownSection` component:
+  - Three states: no `stripe_api` (old rule_run — pre-5.8 data), `stripe_api.error` (red banner with error message + likely-cause troubleshooting for key/scope/network), or normal breakdown.
+  - 4 Stat cards: API total AED, Matched, API-only, Email-only. `reconcile_api_only`/`reconcile_email_only` tinted amber/indigo when non-zero.
+  - Green confirmation banner when any txns have guest names extracted.
+  - Per-payout cards (sorted newest-first by `created_iso`) with header: payout_id monospace, status chip, method, created + arrival + destination bank/last4. Right-aligned: big AED amount + txn count + net components + fees.
+  - Expanded txn table per payout (capped at 100 rows in UI, truncation note shown): time, type chip (emerald/rose/amber/slate by type), AED amount, source amount+currency when different, extracted guest name, detected confirmation code (HM-xxxx or BH-xxxx regex match against description+metadata), description (truncated, title-attr on hover).
+- Helpers `extractGuestFromTxn` and `extractConfirmationCodeFromTxn` live in-file, used only by this section.
+
+### Verification
+- `rm -rf .next && npm run build` passed on first attempt after fixing the `payout_fee` type-check error (replaced with per-txn fee summation).
+- `git push origin HEAD:main` → commit 8568d40.
+- Pulled into `C:\kareemhady`, `npm install` (installs stripe@22.0.2 in root too), then `vercel --prod --yes` → `kareemhady-hr865kerg-lime-investments.vercel.app` (Ready, 50s build).
+
+### Design choices worth remembering
+- **API + email both kept** — we don't remove the email-parsed `stripe_payouts` section. Email arrives in near-realtime; API requires the key. Showing both lets the user cross-verify. Matched/api-only/email-only surfaces drift (email missing = Stripe sent it but Gmail lost it; api-only = email hasn't arrived yet).
+- **One round-trip per payout via `expand: ['data.source']`** — if we naively called `charges.retrieve(charge_id)` for every balance transaction, a YTD run with 100 payouts × 10 txns each = 1000 extra API calls. The expand option keeps it at ~101 calls total (1 list + 100 per-payout lists with inlined charges).
+- **Non-fatal Stripe failure** — if the key is wrong or network is down, the rule_run still succeeds with email-only data and the UI shows a red banner explaining why API data is missing. Avoids "the whole run failed" when Stripe has a blip.
+- **Guest name extraction is heuristic** — Guesty's metadata schema isn't guaranteed to use `guest_name` / `guestName`. We check both + a generic "guest|for X" regex on description. If Guesty uses a different key in practice, we'll see `0 of N guest names extracted` in the green banner and can tune the key list.
+- **No confirmation-code cross-reference yet against the Beithady Bookings rule** — I capture confirmation codes per-txn when present (HMxxxxxxxx / BH-xxx patterns) but don't yet join them against `latest rule_run.output.bookings[].booking_id`. That's the next step if the user asks for it after seeing real API data.
+
+### Cost sanity check
+Stripe API: 1 list-payouts call + ~100 list-txns calls per YTD run = ~101 calls. Free tier covers this trivially. No per-call cost.
+
+### What would still be nice but isn't done
+1. **Cross-match confirmation_code against Beithady Bookings rule** — at render time, look up the latest `beithady_booking_aggregate` rule_run for the same time range; for each Stripe txn where we extracted an HM-code, display the matching booking's building_code + expected payout next to it. Would close the full reconciliation loop (Stripe charge → Guesty booking → Airbnb payout line item).
+2. **Store API response smaller** — current payloads put the full per-txn rows into `rule_runs.output` (JSONB). For YTD with 100 payouts × 10 txns, that's a few MB. Fine for now but could be moved to a separate `stripe_api_snapshots` table if it grows.
+3. **Webhook instead of polling** — Stripe can POST payout.created / payout.updated to a webhook endpoint so we never miss one and don't need to poll YTD. Bigger lift, skipped for v1.
+
+### Remaining queue
+- **All three Beithady Phase-5-series rules now live** (Reviews / Inquiries / Guest Requests) + Stripe reconciliation layered onto the existing Payouts rule. No other queued phases from the user's explicit asks.
+- **Vercel orphan-project cleanup** still pending user action — user said they'd handle deletes manually via UI; I offered to unlink the worktree's `.vercel/project.json` but haven't yet since no confirmation.
+
 ## ✅ PHASE 5.11 SHIPPED — Beithady guest requests rule (in-stay messages) + per-reservation threads (commit 77ccff3)
 
 ### User request
