@@ -1,5 +1,117 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.9 SHIPPED — Beithady reviews rule (Airbnb) + flagged-review action plans (commit 7907bdf)
+
+### User request
+> "do one by one"
+
+After I proposed splitting the Reviews / Inquiries / Guest Requests asks into sequential phases (see scoping turn below), the user said do them one at a time. Shipped Phase 5.9 (Reviews) this turn.
+
+### New action type: `beithady_reviews_aggregate`
+
+Uses a single fixed Gmail search (conditions ignored, note field documents that). Engine branches early via `evaluateReviewsRule(...)` following the same shape as `evaluatePayoutRule`.
+
+### Files
+
+#### `src/lib/rules/aggregators/beithady-review.ts` (new, 399 lines)
+- Types: `ParsedAirbnbReview`, `ReviewActionPlan`, `ReviewBuildingBucket`, `ReviewMonthBucket`, `FlaggedReview`, `BeithadyReviewAggregate`.
+- `parseAirbnbReview` — Haiku tool_choice **auto** (non-review Airbnb mail like "Review your upcoming stay" or host-side "Time to review X" is silently dropped). Prompt documents the subject pattern `"<Guest> left a <N>-star review!"`, explains that email body usually does NOT contain the actual review text (guest has 48h to finalize), so `review_text` is typically null — this is expected, not a parse failure.
+- `suggestActionPlan` — second Haiku call, tool_choice=**tool** (must return). Runs only for ratings < 3. Output shape: category (cleanliness/noise/staff/amenities/check_in/location/value/communication/other), priority (high/medium/low), root_cause, suggested_response (2-3 sentences, empathetic, no boilerplate), internal_action (one concrete operational step).
+- `aggregateBeithadyReviews`:
+  - Parse + settle all reviews, count parse_errors separately
+  - Histogram across 1-5
+  - By-building via `classifyBuilding` — Airbnb listing names rarely carry BH-codes, so the `buildingFromListing` helper also does name-cue matching ("ednc"/"new cairo"/"kattameya" → BH-OK; "heliopolis"/"merghany" → BH-MG). Otherwise `UNKNOWN`.
+  - Best/worst require ≥2 reviews per building to qualify (single 5-star would trivially "win" otherwise).
+  - Action plans generated in parallel via `Promise.allSettled` only for flagged reviews.
+
+#### `src/lib/rules/engine.ts`
+- Added `'beithady_reviews_aggregate'` to the `RuleAction['type']` union.
+- Early branch after account validation.
+- New `evaluateReviewsRule` at end of file — standard pattern: search → open rule_run → fetch full bodies → aggregate → mark-as-read → close run. Single search, no multi-source complexity like payouts.
+
+#### `src/app/admin/rules/_form.tsx`
+- New action-type option "Beithady reviews aggregate (Airbnb)".
+- Currency hint updated ("ignored for Beithady reviews").
+
+#### `src/app/emails/[domain]/page.tsx`
+- Card icon/tint branches four ways now: Star (amber) for reviews, Banknote (emerald) for payouts, BedDouble (rose) for bookings, ShoppingBag (violet) for Shopify.
+- New `BeithadyReviewMini` — 4 mini-stats: Reviews / Avg rating ⭐ / Flagged <3 / 5-star.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- New `isReviews` check. Detail view branch order: reviews → payouts → bookings → shopify.
+- Run-history table: extra branch for `isReviews` ("Reviews" column showing `total_reviews`).
+- New `BeithadyReviewView` component — amber/rose gradient hero (4 HeroStat: Total / Avg / Flagged / 5-star) + rating distribution bars (1-5, emerald for 5-star, rose for 1-2, amber otherwise) + best/worst building cards (emerald and rose tinted) + By-building table + By-month trend + **Flagged reviews cards** (one per flagged review with guest name, star row, priority badge, listing/stay, optional review text, category chip, root cause, suggested public reply in emerald callout, internal action in indigo callout) + All-reviews compact table.
+- New `StarRow` helper renders filled/empty star icons for a rating.
+
+### DB
+Seeded row id `777647f1-8528-40b2-9b7d-61cbfbaf729b`:
+- name: "Beithady Reviews (Airbnb)"
+- account: kareem@limeinc.cc (`e135f97d-429c-4879-ae20-ccfc12a40f53`)
+- domain: beithady, priority 120
+- conditions: `{ note: "conditions are ignored for beithady_reviews_aggregate..." }`
+- actions: `{ type: 'beithady_reviews_aggregate', mark_as_read: true }` — no currency (reviews aren't monetary).
+
+### Verification
+- Clean `.next/` + `npm run build` passed (14 routes, TS 10.0s).
+- `git push origin HEAD:main` from worktree → commit 7907bdf landed on main.
+- Pulled into `C:\kareemhady` root checkout, `vercel --prod --yes` deployed (`dpl_Bv2puBeQrmzpLonLagLyfQoHHWZX`).
+
+### Gotcha worth remembering
+Worktree `.vercel/project.json` links to a DIFFERENT Vercel project (`vigorous-almeida-bec425`) than the one backing `kareemhady.vercel.app` (`kareemhady`). Always run `vercel --prod` from `C:\kareemhady` after pushing, not from the worktree. My first `vercel --prod` run from here deployed to the wrong project; the real deploy happened after pulling into `C:\kareemhady`.
+
+### Cost sanity check
+Each review email: 1 Haiku call (~800 tokens out). Each flagged review: 1 additional Haiku call (~700 tokens out). At 100 reviews/year with 10% flagged, that's ~100 parse calls + 10 action-plan calls per run = well under $0.20 total even on YTD runs. No budget concern.
+
+### Next phases (queued, user said "one by one")
+- **Phase 5.10 — `beithady_inquiries_aggregate`**: guest inquiries with urgency classification + 24h SLA countdown.
+- **Phase 5.11 — `beithady_requests_aggregate`**: in-stay guest requests with date-change/amenity/complaint segregation.
+- **Phase 5.8 — Stripe API reconciliation** still sitting open (blocked on `STRIPE_SECRET_KEY`). Not pursued this turn since user's "do one by one" implied continuing the new Reviews/Inquiries/Requests track.
+
+## 🗣️ PHASE 5.9–5.11 SCOPING TURN — awaiting user confirmation (no code yet)
+
+### User request (this turn)
+> "New Task — New Rule Under Beithady Domain. (1) Reviews – collect Airbnb reviews, segregate by rating level, flag <3, segregate by units, best/worst, suggest action plan for bad reviews. (2) Inquiries – summarize guest inquiries, combine by same guest, flag urgent vs location-info, top-view dashboard. (3) Guest Requests – for reservations: combine by guest/reservation, segregate date-change / amenity / immediate-complaint requests."
+
+Three email samples pasted:
+- **Inquiry** — from "service via Guesty" to `guesty@beithady.com`, subject `Inquiry for Luxury 3BR | 24/7 Front Desk & Security for Apr 23 – 27, 2026` ("Respond to Fatema's inquiry", 3 adults 3 children, 24h SLA warning).
+- **Review** — from "service via Guesty" to `guesty@beithady.com`, subject `Charlie left a 5-star review!` ("Overall rating: 5 Great", listing "Luxury 3BR - Near EDNC - 247 Front Desk & Security").
+- **Guest request (reservation reply)** — subject `RE: Reservation for Luxury 2 Bedroom Residence by Beit Hady, Apr 24 – 29`, booker "Adel" sending Arabic messages ("لما بحاول اقدم الطلب بيقولي no refund"), with the Airbnb reservation card inline.
+
+### My reply to the user (proposal, NOT yet built)
+Split into three sequential phases, each following the `beithady_payout_aggregate` pattern (new aggregator file + engine early-branch + action-type union entry + dashboard mini card + dedicated detail view):
+
+1. **Phase 5.9 — `beithady_reviews_aggregate`**
+   - Search: `to:guesty@beithady.com subject:"review"` (picks up "left a N-star review" subjects).
+   - Haiku parse: rating (1–5), guest name, listing name, review text, stay dates.
+   - Aggregate: totals + avg rating + histogram, by-unit buckets via `classifyBuilding(listing_name)`, best/worst buckets, **flag any rating < 3** as `needs_attention`.
+   - Action plan: second Haiku call on flagged reviews → suggested response + root-cause category (cleanliness / noise / staff / amenities / location / other).
+
+2. **Phase 5.10 — `beithady_inquiries_aggregate`**
+   - Search: `to:guesty@beithady.com subject:"Inquiry for"` (matches "Inquiry for Luxury 3BR...").
+   - Haiku parse: guest name, listing, check-in/out range, guest party size, inquiry text (if present in body — the sample only had "What is the name of the compound please?" as guest question).
+   - Group by guest name+email; classify urgency (Haiku): `urgent` (trip within 48h / price disputes / booking issues) / `location_info` / `amenity_question` / `pricing` / `other`.
+   - Dashboard: top-view table, urgency-sorted, with 24h-SLA countdown per inquiry (since these have the "24 hours to respond" clock).
+
+3. **Phase 5.11 — `beithady_requests_aggregate`**
+   - Search: `to:guesty@beithady.com subject:"Reservation for"` (picks up both original reservation emails AND the `RE:` replies with guest messages).
+   - Haiku parse: confirmation code, guest name, stay dates, message body (multiple message turns possible in one email — extract newest guest message + context).
+   - Combine by confirmation_code so multiple messages from same guest roll up into one row.
+   - Haiku classify request type: `date_change` / `amenity_request` / `immediate_complaint` / `refund_dispute` / `other`. Flag `immediate_complaint` as urgent (needs intervention during stay).
+   - Cross-reference against Beithady Bookings rule (same confirmation_code key) to show current stay status (checked-in / pre-arrival / departed).
+
+### Two tradeoffs flagged to user
+1. **Phase 5.8 (Stripe API reconciliation) is still open in prior handoff** — blocked on `STRIPE_SECRET_KEY`. Asked user: pause 5.8 and ship 5.9–5.11 first, or finish 5.8 first?
+2. **All-in-one commit vs one-commit-per-phase**: asked user which they prefer. Recommend one-per-phase since each needs real-email sample validation before moving on.
+
+### What I'm waiting on before writing code
+- User's go-ahead on (a) order (5.8 first or 5.9–5.11 first), (b) all three in one commit or phased, (c) any corrections to the search filters / bucket taxonomies / urgency rules above.
+
+### Notes for next session
+- No files changed this turn — pure scoping.
+- Git status clean, branch `claude/vigorous-almeida-bec425` (worktree `vigorous-almeida-bec425`).
+- When user replies, the work will start with Phase 5.9 Reviews unless they redirect. Each aggregator will live under `src/lib/rules/aggregators/` and register its action type in `src/lib/rules/engine.ts` via an `evaluateXRule` early-branch just like `evaluatePayoutRule`.
+- Every new rule needs a seeded row in the `rules` table bound to `kareem@limeinc.cc` (account id `e135f97d-429c-4879-ae20-ccfc12a40f53`, domain `beithady`), same as Phase 5.7.
+
 ## 🔧 PHASE 5.7.1 HOTFIX — missing Banknote icon import on detail page (commit 9a7742e)
 
 ### What happened
