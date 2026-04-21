@@ -1,5 +1,60 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ CAIRO TIMEZONE ON ALL DASHBOARD TIMESTAMPS (commit 77256a9)
+
+### User question
+> "are timings correct to Cairo Time GMT +2 (mind Day Saving Schedule)"
+
+### The bug
+Bare `new Date(iso).toLocaleString()` calls in server components used the Node runtime's default timezone. On Vercel that's **UTC**, not Cairo. So "Last run · 4/21/2026, 6:45:35 AM" shown to the user was actually the UTC time — Cairo would have been 8:45 AM (UTC+2 on 4/21, before the DST switch on April 24).
+
+Client-side renders would respect the browser timezone but only after hydration, and the Airbnb Line Items modal table (client component) was the only client-rendered date — still inconsistent depending on the viewer's laptop clock.
+
+### The fix
+New module `src/lib/fmt-date.ts` with two helpers:
+- `fmtCairoDateTime(iso)` — returns "4/21/2026, 8:45:35 AM" in `Africa/Cairo`
+- `fmtCairoDate(iso)` — returns "4/21/2026" in `Africa/Cairo`
+
+Both pin `timeZone: 'Africa/Cairo'` explicitly. IANA `Africa/Cairo` handles Egypt's DST automatically (EEST UTC+3 from the last Friday of April through the last Thursday of October since 2023 re-instatement, EET UTC+2 otherwise). Locale pinned to `en-US` so the displayed format stays exactly what the user already has on screen (server + client render identically).
+
+### Files changed
+- `src/lib/fmt-date.ts` — new helper module.
+- `src/app/emails/page.tsx` — 1 call (home emails page, domain cards "Last run · 4/21/2026").
+- `src/app/emails/[domain]/page.tsx` — 1 call (per-domain card's "Last run · <datetime>").
+- `src/app/emails/[domain]/[ruleId]/page.tsx` — 22 calls (detail page: latest-run header timestamp, time-range clamp warning dates, run history "Started" column, Airbnb payout email dates, Stripe API payout created/arrival dates + transaction timestamps, inquiry / review / request received timestamps in their various cards, cross-match run timestamp, etc.).
+- `src/app/emails/[domain]/[ruleId]/AirbnbLineItemsTable.tsx` — 1 call (footer caption: "last run <datetime>").
+- `src/app/admin/accounts/page.tsx` — 3 calls (accounts last_synced_at, runs started_at, email_logs received_at).
+
+### Left untouched on purpose
+- **Numeric `.toLocaleString()` calls** — count / currency formatting, not timezone-sensitive. Scan passed them over.
+- **Month-bucket label generation** in `beithady-review.ts` + `beithady-payout.ts` — renders "Apr 2026" style labels from UTC month-start keys. The output is a bucket identifier used for sort + display, not a Cairo moment.
+- **Detail page line 2055** — same month-label pattern used for the chart x-axis, keeps its explicit UTC options.
+
+### Why Africa/Cairo vs fixed GMT+2
+Egypt runs DST:
+- EET (UTC+2) from last Thursday of October to last Friday of April (winter)
+- EEST (UTC+3) from last Friday of April to last Thursday of October (summer)
+
+Hardcoding `GMT+2` would break every April 24 → October 30. `Africa/Cairo` in the IANA tz database tracks this automatically — no code changes ever needed for future DST transitions.
+
+Today (2026-04-21) Egypt is in EET (UTC+2). On 2026-04-24 it'll switch to EEST (UTC+3). The dashboard will reflect the switch automatically.
+
+### Sed-based bulk replacement
+For the detail page's 22 calls + accounts page's 3 + AirbnbLineItemsTable's 1, ran:
+```
+sed -i 's/new Date(\([^)]*\))\.toLocaleString()/fmtCairoDateTime(\1)/g;
+        s/new Date(\([^)]*\))\.toLocaleDateString()/fmtCairoDate(\1)/g'
+```
+with the escape-brackets-in-path gotcha — had to cd into each directory rather than use the `[domain]/[ruleId]` path glob, since bash interprets the brackets as a glob pattern and couldn't find the file otherwise.
+
+### Verification
+- `rm -rf .next && npm run build` clean, 14 routes.
+- commit 77256a9 on main via `git push origin HEAD:main`.
+- Deployed via root `C:\kareemhady` → `kareemhady-6puoe28m2-lime-investments.vercel.app` (Ready, 49s).
+
+### Note for the next session
+If a future component introduces a new `new Date(x).toLocaleString()` or `.toLocaleDateString()` call, use `fmtCairoDateTime(x)` / `fmtCairoDate(x)` from `@/lib/fmt-date` instead. The bare calls are correct timezone-wise only if the server happens to match Cairo.
+
 ## ✅ PAYOUTS: CLICK "BY BUILDING" ROWS TO DRILL INTO LINE ITEMS (commit b5a1971)
 
 ### User request
