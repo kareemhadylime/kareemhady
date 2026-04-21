@@ -1,5 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🔧 PHASE 6.1 — Guesty ping: account_id is now optional / auto-detected (commit 921a939)
+
+### User feedback
+Couldn't find Account ID in Guesty URL (`app.guesty.com/account/company-info` has no ID segment). Sent screenshots of OAuth Applications (already has "Beit Hady App" — different purpose), Marketplace, OAuth Analytics (all zeros — unused), Webhooks (PriceLabs endpoint configured, 0% errors).
+
+### Change
+`src/app/api/guesty/ping/route.ts` now:
+- Errors only when `GUESTY_CLIENT_ID` or `GUESTY_CLIENT_SECRET` is missing — `GUESTY_ACCOUNT_ID` is no longer required.
+- Adds `accountId` to the `fields` projection on `/listings` and `/reservations` so Guesty stamps it into each record.
+- Auto-detects Account ID from the first record returned → response includes `detected_account_id` + `account_id_source: 'env' | 'auto-detected from API response' | 'not found'`.
+
+Rationale: OAuth creds already scope to one account, so Account ID is cosmetic — used only for display in the ping. User can now set just 2 env vars, hit ping, read the auto-detected ID, optionally copy to Vercel later.
+
+### Guidance I sent user for Guesty UI
+1. **Create new OAuth app** (don't reuse "Beit Hady App" — that's for Booking/Added Services): OAuth Applications → New Application → name "InboxOps" → scopes `open-api` + `reservations:read` + `listings:read` + `guests:read` + `reviews:read` + `communication:read` + `tasks:read` + `payments:read`. Capture Client ID + Client Secret (secret shown once).
+2. **Vercel env**: `GUESTY_CLIENT_ID`, `GUESTY_CLIENT_SECRET` to Production + Preview + Development. Skip `GUESTY_ACCOUNT_ID` — ping auto-detects.
+3. **Local .env.local**: same two vars.
+4. **Redeploy** (`vercel --prod --yes` from `C:\kareemhady`).
+5. **Test**: `curl -H "Authorization: Bearer $CRON_SECRET" https://kareemhady.vercel.app/api/guesty/ping`.
+6. **Later (webhook step)**: Add Endpoint `https://kareemhady.vercel.app/api/webhooks/guesty` with events `reservation.*`, `conversation.message.*`, `review.*`, `payout.sent`, `payment.received`, `task.*`, `listing.updated`, `listing.calendar.updated` → copy signing secret to `GUESTY_WEBHOOK_SECRET`.
+
+### Verification
+- Build clean, 15 routes.
+- Deployed to `kareemhady-cfkcv1cyz-lime-investments.vercel.app`.
+
+### Waiting on user
+OAuth app creation + credentials in Vercel + smoke-test response. Once ping returns `ok: true` with real listing/reservation samples, next step is Supabase migration `0008_guesty.sql` + `guesty_reservation_pull` rule + webhook endpoint.
+
 ## ✅ PHASE 6 SCAFFOLD — Guesty Open API client + smoke-test endpoint (commit d9c8c2d)
 
 ### User direction
