@@ -25,49 +25,32 @@ export async function GET(req: NextRequest) {
 
   const started = Date.now();
 
-  // 1. Fetch Guesty listings. Use a broad filter on nickname starting with
-  // "BH-73" — Beithady's naming convention. Guesty's filters accept Mongo-
-  // style `$regex` under the hood. Fall back to a larger pull + client-side
-  // filter if regex isn't accepted on this tenant.
-  let guestyListings: GuestyListing[] = [];
-  try {
+  // 1. Fetch ALL Guesty listings (small tenant, ~100), then filter for
+  // BH-73 in memory. Beithady's naming convention varies: some listings
+  // use 'BH73-*' (no dash after BH) while others use 'BH-73-*'. We accept
+  // either. Omit the fields projection entirely so Guesty returns its
+  // default field set including listingType + masterListingId.
+  let offset = 0;
+  const all: GuestyListing[] = [];
+  while (offset < 500) {
     const res = await listGuestyListings({
       limit: 100,
-      filters: { nickname: { $regex: '^BH-73', $options: 'i' } },
-      fields: '_id nickname title active listingType masterListingId bedrooms accommodates propertyType tags customFields',
+      skip: offset,
     });
-    guestyListings = res.results || [];
-  } catch (e) {
-    // Fallback: fetch wider + filter in JS
-    const res = await listGuestyListings({
-      limit: 100,
-      fields: '_id nickname title active listingType masterListingId bedrooms accommodates propertyType tags customFields',
-    });
-    guestyListings = (res.results || []).filter(l =>
-      String(l.nickname || '').toUpperCase().startsWith('BH-73') ||
-      String(l.title || '').toUpperCase().includes('BH-73')
-    );
+    all.push(...(res.results || []));
+    if ((res.results || []).length < 100) break;
+    offset += 100;
   }
 
-  // If still empty, try a paged broad pull for BH-73 substring match.
-  if (guestyListings.length === 0) {
-    let offset = 0;
-    const all: GuestyListing[] = [];
-    while (offset < 500) {
-      const res = await listGuestyListings({
-        limit: 100,
-        skip: offset,
-        fields: '_id nickname title active listingType masterListingId bedrooms accommodates propertyType tags',
-      });
-      all.push(...(res.results || []));
-      if ((res.results || []).length < 100) break;
-      offset += 100;
-    }
-    guestyListings = all.filter(l =>
-      String(l.nickname || '').toUpperCase().includes('BH-73') ||
-      String(l.title || '').toUpperCase().includes('BH-73')
-    );
-  }
+  // Match BH-73 with OR without the dash, but exclude neighbours like BH-73x
+  // and make sure BH-734 / BH-735 etc. don't slip through.
+  const isBh73 = (s: string | undefined | null): boolean => {
+    const up = String(s || '').toUpperCase();
+    return /\bBH-?73(?:-|\b)/.test(up);
+  };
+  const guestyListings = all.filter(
+    l => isBh73(l.nickname) || isBh73(l.title)
+  );
 
   // Classify by listing type.
   const byType = new Map<string, number>();
