@@ -494,8 +494,10 @@ export async function rebuildAnalyticLinks() {
   await sb.from('odoo_move_line_analytics').delete().neq('move_line_id', 0);
 
   // Page through move_lines with non-empty analytic_distribution and expand
-  // the jsonb keys (comma-separated => multiple account ids).
-  const PAGE = 2000;
+  // the jsonb keys (comma-separated => multiple account ids). PAGE must
+  // match or undercut Supabase's PostgREST max-rows cap (default 1000) —
+  // otherwise a short batch is interpreted as end-of-set.
+  const PAGE = 1000;
   let offset = 0;
   let links = 0;
   while (true) {
