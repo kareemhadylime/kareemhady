@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟠 Monitor still running at 22:17 — Guesty 429 not cleared yet
+
+Background Monitor task `bzf31vm76` retrying `POST /api/guesty/run-now` every 90s until `ok: true`. Monitor times out after 10 minutes from 22:15:31 start (i.e. ~22:25:31). Rate-limit events so far:
+- 22:15:31 — still rate-limited
+- 22:17:03 — still rate-limited
+
+If monitor exits without success, wait longer (Guesty's OAuth-endpoint rate limit has historically taken 5+ min to clear in this session). Pure time-decay — no code to change. Once the first successful sync lands, the `integration_tokens` table gets populated and subsequent invocations skip OAuth entirely.
+
+**Resume check (next session)**: run one of —
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" -X POST https://kareemhady.vercel.app/api/guesty/run-now
+# or view the mirror directly:
+# SELECT count(*) FROM guesty_listings;
+# SELECT count(*) FROM guesty_reservations;
+```
+
 ## 🟢 PHASE 9 — Full Guesty mirror + email-rule enrichment (commits d829a04 + 222fc27, sync BLOCKED on Guesty rate-limit)
 
 User direction (2026-04-21):
