@@ -108,13 +108,23 @@ type SectionKey = keyof PnlReport['sections'];
 
 // A single classify entry point. Returns the section + subgroup + label for
 // a given account, using type + name heuristics.
+//
+// Scope-aware: "Rent Costs" means different things depending on the company.
+// For Beithady (arbitrage operator), rent paid to head-lease holders rolls
+// up into "Home Owner Cut" (as the xlsx presents it). For A1 (owner), rent
+// is its own operational cost — not money-out-to-owner. So when the
+// aggregator is scoped to A1 only, we don't route "Rent Costs" into
+// home_owner_cut.
 function classifyAccount(
   code: string,
   name: string,
-  accountType: string
+  accountType: string,
+  isA1OnlyScope: boolean
 ): { section: SectionKey; subgroupKey: string; subgroupLabel: string; flip: boolean } | null {
   const n = (name || '').toLowerCase();
-  const isHomeOwner = /home\s*owner|rent\s*cost/i.test(n);
+  const isHomeOwnerName = /home\s*owner/i.test(n);
+  const isRentCost = /rent\s*cost/i.test(n);
+  const isHomeOwner = isHomeOwnerName || (isRentCost && !isA1OnlyScope);
   const isInterest = /\binterest\b|partners?\s*interest|loans?\s*interest/i.test(n);
 
   switch (accountType) {
@@ -370,13 +380,13 @@ export async function buildPnlReport(params: {
   companyIds?: number[];
 }): Promise<PnlReport & { intercompany_excluded_lines: number }> {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
-  // Eliminate only when the scope spans both Beithady entities — a
-  // single-company view wants its raw book including intercompany lines.
   const eliminateIntercompany =
     companyIds.includes(5) && companyIds.includes(10);
   const excludePartnerIds = eliminateIntercompany
     ? await getIntercompanyPartnerIds()
     : [];
+  const isA1OnlyScope =
+    companyIds.length === 1 && companyIds[0] === 4;
   const { rows, totalLineCount, excluded } = await fetchAccountTotals({
     fromDate: params.fromDate,
     toDate: params.toDate,
@@ -395,7 +405,7 @@ export async function buildPnlReport(params: {
   const unclassified: PnlLeaf[] = [];
 
   for (const r of rows) {
-    const cls = classifyAccount(r.code, r.name, r.account_type);
+    const cls = classifyAccount(r.code, r.name, r.account_type, isA1OnlyScope);
     if (!cls) continue; // balance-sheet accounts — not P&L
     const display = cls.flip ? -r.sum_balance : r.sum_balance;
     if (Math.abs(display) < 0.005) continue; // zero-balance noise
