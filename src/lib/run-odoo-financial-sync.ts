@@ -7,12 +7,12 @@ import {
 } from './odoo';
 import { cutoffDate } from './run-odoo-sync';
 
-// Scope for financial reporting (Beithady Financials rule):
+// Scope for financial reporting. Phase 7.5 adds A1HOSPITALITY since the
+// user wants per-company views including A1 as BH-435's owner.
+//   4  = A1HOSPITALITY (BH-435 owner; Lime 50% stake)
 //   5  = Beithady Hospitality - (EGYPT)
 //   10 = Beithady Hospitality FZCO - (Dubai)
-// A1HOSPITALITY (id 4) is out of this scope per the Feb 2026 xlsx Filters
-// sheet + user direction.
-export const FINANCIALS_COMPANY_IDS = [5, 10];
+export const FINANCIALS_COMPANY_IDS = [4, 5, 10];
 
 // "Home Owner Cut" detection. The tenant's CoA does NOT use 504xxx codes
 // as the Feb 2026 xlsx suggested — the account is named "Home Owner Cut"

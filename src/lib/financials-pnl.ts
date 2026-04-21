@@ -1,9 +1,52 @@
 import { supabaseAdmin } from './supabase';
 
-// Consolidated P&L for Beithady Egypt (5) + Beithady Dubai (10). A1HOSPITALITY
-// is excluded per the Feb 2026 xlsx Filters sheet. Intercompany eliminations
-// are already handled upstream (user confirmed).
+// Default scope = Consolidated Beithady (Egypt 5 + Dubai 10).
+// Callers can override via opts.companyIds for per-company views:
+//   [4]        → A1HOSPITALITY standalone
+//   [5]        → Beithady Egypt standalone
+//   [10]       → Beithady FZCO Dubai standalone
+//   [5, 10]    → Consolidated Beithady (xlsx default, intercompany eliminated)
+//   [4, 5, 10] → Full portfolio (rarely useful — A1 is owner-side, different LOB)
 export const PNL_COMPANY_IDS = [5, 10];
+export const ALL_FINANCIALS_COMPANY_IDS = [4, 5, 10];
+
+export const COMPANY_LABELS: Record<number, string> = {
+  4: 'A1HOSPITALITY',
+  5: 'Beithady Hospitality - (EGYPT)',
+  10: 'Beithady Hospitality FZCO - (Dubai)',
+};
+
+export type CompanyScope = 'consolidated' | 'egypt' | 'dubai' | 'a1' | 'custom';
+
+export function scopeCompanyIds(scope: CompanyScope, custom?: number[]): number[] {
+  switch (scope) {
+    case 'consolidated':
+      return [5, 10];
+    case 'egypt':
+      return [5];
+    case 'dubai':
+      return [10];
+    case 'a1':
+      return [4];
+    case 'custom':
+      return custom && custom.length > 0 ? custom : [5, 10];
+  }
+}
+
+export function scopeLabel(scope: CompanyScope): string {
+  switch (scope) {
+    case 'consolidated':
+      return 'Beithady Consolidated (Egypt + Dubai)';
+    case 'egypt':
+      return 'Beithady Hospitality Egypt';
+    case 'dubai':
+      return 'Beithady Hospitality FZCO (Dubai)';
+    case 'a1':
+      return 'A1HOSPITALITY';
+    case 'custom':
+      return 'Custom scope';
+  }
+}
 
 // The tenant's CoA diverges between companies — same code can mean different
 // things (500103 = "Home Owner Cut" in some companies, "AGENTS COMMISION
@@ -327,7 +370,13 @@ export async function buildPnlReport(params: {
   companyIds?: number[];
 }): Promise<PnlReport & { intercompany_excluded_lines: number }> {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
-  const excludePartnerIds = await getIntercompanyPartnerIds();
+  // Eliminate only when the scope spans both Beithady entities — a
+  // single-company view wants its raw book including intercompany lines.
+  const eliminateIntercompany =
+    companyIds.includes(5) && companyIds.includes(10);
+  const excludePartnerIds = eliminateIntercompany
+    ? await getIntercompanyPartnerIds()
+    : [];
   const { rows, totalLineCount, excluded } = await fetchAccountTotals({
     fromDate: params.fromDate,
     toDate: params.toDate,
@@ -452,7 +501,11 @@ export async function buildPayablesReport(params: {
 }): Promise<PayablesReport> {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
   const sb = supabaseAdmin();
-  const excludeSet = new Set(await getIntercompanyPartnerIds());
+  const eliminateIntercompany =
+    companyIds.includes(5) && companyIds.includes(10);
+  const excludeSet = new Set(
+    eliminateIntercompany ? await getIntercompanyPartnerIds() : []
+  );
 
   // Pull open-AP lines (amount_residual != 0) within company scope. Matching
   // by name "Home Owner Cut" and "Rent Costs" is how we detect owner lines
@@ -555,6 +608,313 @@ export async function buildPayablesReport(params: {
     employees: reduce('employee'),
     owners: reduce('owner'),
   };
+}
+
+// -------- Balance Sheet ----------
+
+export type BalanceSheetLeaf = {
+  code: string;
+  name: string;
+  account_type: string;
+  balance: number;
+};
+
+export type BalanceSheetGroup = {
+  key: string;
+  label: string;
+  total: number;
+  accounts: BalanceSheetLeaf[];
+};
+
+export type BalanceSheetReport = {
+  as_of: string;
+  company_ids: number[];
+  assets: {
+    total: number;
+    current: {
+      total: number;
+      bank_and_cash: BalanceSheetGroup;
+      receivables: BalanceSheetGroup;
+      prepayments: BalanceSheetGroup;
+      other_current: BalanceSheetGroup;
+    };
+    fixed: BalanceSheetGroup;
+    non_current: BalanceSheetGroup;
+  };
+  liabilities: {
+    total: number;
+    current: {
+      total: number;
+      payables: BalanceSheetGroup;
+      other_current: BalanceSheetGroup;
+    };
+    non_current: BalanceSheetGroup;
+  };
+  equity: {
+    total: number;
+    unallocated_earnings: BalanceSheetGroup;
+    retained_earnings: BalanceSheetGroup;
+    other: BalanceSheetGroup;
+  };
+  liabilities_plus_equity: number;
+  balanced: boolean; // assets == liab+eq within 1 EGP
+};
+
+function classifyBalanceSheet(
+  accountType: string,
+  name: string
+): { section: 'assets' | 'liabilities' | 'equity'; group: string; label: string } | null {
+  const n = (name || '').toLowerCase();
+  switch (accountType) {
+    case 'asset_cash':
+      return { section: 'assets', group: 'bank_and_cash', label: 'Bank and Cash Accounts' };
+    case 'asset_receivable':
+      return { section: 'assets', group: 'receivables', label: 'Receivables' };
+    case 'asset_prepayments':
+      return { section: 'assets', group: 'prepayments', label: 'Prepayments' };
+    case 'asset_current':
+      return { section: 'assets', group: 'other_current', label: 'Other Current Assets' };
+    case 'asset_fixed':
+      return { section: 'assets', group: 'fixed', label: 'Fixed Assets' };
+    case 'asset_non_current':
+      return { section: 'assets', group: 'non_current', label: 'Non-current Assets' };
+    case 'liability_payable':
+      return {
+        section: 'liabilities',
+        group: 'payables',
+        label: 'Payables',
+      };
+    case 'liability_current':
+      return {
+        section: 'liabilities',
+        group: 'other_current',
+        label: 'Other Current Liabilities',
+      };
+    case 'liability_non_current':
+      return {
+        section: 'liabilities',
+        group: 'non_current',
+        label: 'Non-current Liabilities',
+      };
+    case 'equity':
+      if (/retain/i.test(n)) {
+        return { section: 'equity', group: 'retained_earnings', label: 'Retained Earnings' };
+      }
+      return {
+        section: 'equity',
+        group: 'unallocated_earnings',
+        label: 'Unallocated Earnings',
+      };
+    case 'equity_unaffected':
+      return {
+        section: 'equity',
+        group: 'unallocated_earnings',
+        label: 'Unallocated Earnings',
+      };
+    default:
+      return null;
+  }
+}
+
+export async function buildBalanceSheet(params: {
+  asOf: string;
+  companyIds?: number[];
+}): Promise<BalanceSheetReport> {
+  const companyIds = params.companyIds || PNL_COMPANY_IDS;
+  const sb = supabaseAdmin();
+
+  // Balance sheet is cumulative — ALL entries from inception up to asOf.
+  // We only have last-365d data synced, but for current snapshots that's
+  // usually enough unless closing entries exist earlier. For true cumulative
+  // balance we'd need a full backfill. For now: sum our synced lines as
+  // cumulative + annotate as "based on 365d window".
+  const PAGE = 1000;
+  let offset = 0;
+  type Row = {
+    balance: number;
+    odoo_accounts: {
+      code: string | null;
+      name: string;
+      account_type: string | null;
+    } | null;
+  };
+
+  const byAccount = new Map<
+    string,
+    { code: string; name: string; account_type: string; sum: number }
+  >();
+
+  while (true) {
+    const { data, error } = await sb
+      .from('odoo_move_lines')
+      .select('balance, odoo_accounts!inner(code, name, account_type)')
+      .lte('date', params.asOf)
+      .in('company_id', companyIds)
+      .eq('parent_state', 'posted') // Posted only for balance sheet — draft shouldn't move equity
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`buildBalanceSheet: ${error.message}`);
+    const rows = (data as unknown as Row[]) || [];
+    if (rows.length === 0) break;
+
+    for (const r of rows) {
+      if (!r.odoo_accounts) continue;
+      const code = r.odoo_accounts.code || '';
+      const name = r.odoo_accounts.name || '';
+      const accountType = r.odoo_accounts.account_type || '';
+      const key = `${code}||${name}||${accountType}`;
+      const existing = byAccount.get(key);
+      const bal = Number(r.balance) || 0;
+      if (existing) existing.sum += bal;
+      else byAccount.set(key, { code, name, account_type: accountType, sum: bal });
+    }
+    if (rows.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  // Seed empty structure
+  const mkGroup = (key: string, label: string): BalanceSheetGroup => ({
+    key,
+    label,
+    total: 0,
+    accounts: [],
+  });
+
+  const report: BalanceSheetReport = {
+    as_of: params.asOf,
+    company_ids: companyIds,
+    assets: {
+      total: 0,
+      current: {
+        total: 0,
+        bank_and_cash: mkGroup('bank_and_cash', 'Bank and Cash Accounts'),
+        receivables: mkGroup('receivables', 'Receivables'),
+        prepayments: mkGroup('prepayments', 'Prepayments'),
+        other_current: mkGroup('other_current', 'Other Current Assets'),
+      },
+      fixed: mkGroup('fixed', 'Fixed Assets'),
+      non_current: mkGroup('non_current', 'Non-current Assets'),
+    },
+    liabilities: {
+      total: 0,
+      current: {
+        total: 0,
+        payables: mkGroup('payables', 'Payables'),
+        other_current: mkGroup('other_current', 'Other Current Liabilities'),
+      },
+      non_current: mkGroup('non_current', 'Non-current Liabilities'),
+    },
+    equity: {
+      total: 0,
+      unallocated_earnings: mkGroup('unallocated_earnings', 'Unallocated Earnings'),
+      retained_earnings: mkGroup('retained_earnings', 'Retained Earnings'),
+      other: mkGroup('other', 'Other Equity'),
+    },
+    liabilities_plus_equity: 0,
+    balanced: false,
+  };
+
+  for (const acc of byAccount.values()) {
+    if (Math.abs(acc.sum) < 0.005) continue;
+    const cls = classifyBalanceSheet(acc.account_type, acc.name);
+    if (!cls) continue;
+    const leaf: BalanceSheetLeaf = {
+      code: acc.code,
+      name: acc.name,
+      account_type: acc.account_type,
+      balance: acc.sum,
+    };
+
+    if (cls.section === 'assets') {
+      if (cls.group === 'fixed') {
+        report.assets.fixed.accounts.push(leaf);
+        report.assets.fixed.total += leaf.balance;
+      } else if (cls.group === 'non_current') {
+        report.assets.non_current.accounts.push(leaf);
+        report.assets.non_current.total += leaf.balance;
+      } else {
+        const grp = report.assets.current[
+          cls.group as 'bank_and_cash' | 'receivables' | 'prepayments' | 'other_current'
+        ];
+        grp.accounts.push(leaf);
+        grp.total += leaf.balance;
+        report.assets.current.total += leaf.balance;
+      }
+      report.assets.total += leaf.balance;
+    } else if (cls.section === 'liabilities') {
+      if (cls.group === 'non_current') {
+        report.liabilities.non_current.accounts.push(leaf);
+        report.liabilities.non_current.total += leaf.balance;
+      } else {
+        const grp = report.liabilities.current[
+          cls.group as 'payables' | 'other_current'
+        ];
+        grp.accounts.push(leaf);
+        grp.total += leaf.balance;
+        report.liabilities.current.total += leaf.balance;
+      }
+      // Liabilities carry a credit normal balance — flip to show as positive totals
+      report.liabilities.total += leaf.balance;
+    } else if (cls.section === 'equity') {
+      const grp = report.equity[
+        cls.group as 'unallocated_earnings' | 'retained_earnings' | 'other'
+      ];
+      grp.accounts.push(leaf);
+      grp.total += leaf.balance;
+      report.equity.total += leaf.balance;
+    }
+  }
+
+  // Liabilities + Equity SHOULD be credit-normal; Assets are debit-normal.
+  // Odoo's `balance` = debit - credit. So L + E will be NEGATIVE in raw sum
+  // while A is POSITIVE. For display we flip signs on L + E so totals read
+  // positive, matching the xlsx format.
+  report.liabilities.total = -report.liabilities.total;
+  report.liabilities.current.total = -report.liabilities.current.total;
+  report.liabilities.current.payables.total = -report.liabilities.current.payables.total;
+  report.liabilities.current.other_current.total = -report.liabilities.current.other_current.total;
+  report.liabilities.non_current.total = -report.liabilities.non_current.total;
+  for (const g of [
+    report.liabilities.current.payables,
+    report.liabilities.current.other_current,
+    report.liabilities.non_current,
+  ]) {
+    g.accounts = g.accounts.map(a => ({ ...a, balance: -a.balance }));
+  }
+
+  report.equity.total = -report.equity.total;
+  report.equity.unallocated_earnings.total = -report.equity.unallocated_earnings.total;
+  report.equity.retained_earnings.total = -report.equity.retained_earnings.total;
+  report.equity.other.total = -report.equity.other.total;
+  for (const g of [
+    report.equity.unallocated_earnings,
+    report.equity.retained_earnings,
+    report.equity.other,
+  ]) {
+    g.accounts = g.accounts.map(a => ({ ...a, balance: -a.balance }));
+  }
+
+  report.liabilities_plus_equity = report.liabilities.total + report.equity.total;
+  report.balanced =
+    Math.abs(report.assets.total - report.liabilities_plus_equity) < 1;
+
+  // Sort each group's accounts by balance desc
+  const sortGroup = (g: BalanceSheetGroup) => {
+    g.accounts.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
+  };
+  sortGroup(report.assets.current.bank_and_cash);
+  sortGroup(report.assets.current.receivables);
+  sortGroup(report.assets.current.prepayments);
+  sortGroup(report.assets.current.other_current);
+  sortGroup(report.assets.fixed);
+  sortGroup(report.assets.non_current);
+  sortGroup(report.liabilities.current.payables);
+  sortGroup(report.liabilities.current.other_current);
+  sortGroup(report.liabilities.non_current);
+  sortGroup(report.equity.unallocated_earnings);
+  sortGroup(report.equity.retained_earnings);
+  sortGroup(report.equity.other);
+
+  return report;
 }
 
 // -------- Period helpers ----------
