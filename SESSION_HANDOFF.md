@@ -1,5 +1,30 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟠 PHASE 10.1.2 — Correct store handle is `kika-swim-wear` (third correction)
+
+User shared the admin link: `https://admin.shopify.com/store/kika-swim-wear?ui_locales=en`. The store's actual myshopify handle is **`kika-swim-wear`**, not `thekikastore` (that's the display name) and not `shopfromkika` (my original guess).
+
+### Canonical env values
+```
+SHOPIFY_STORE_DOMAIN=kika-swim-wear
+SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_xxxxxxxxxxxxxxxxxx
+```
+
+### Legacy custom-app URL to try for the token
+- Modern admin: `https://admin.shopify.com/store/kika-swim-wear/settings/apps/development`
+- Classic: `https://kika-swim-wear.myshopify.com/admin/settings/apps/development`
+
+If either loads without redirecting to Dev Dashboard → create app → read-only scopes (read_orders, read_products, read_customers, read_inventory, read_locations) → install → copy `shpat_...` token.
+
+### Fallback if legacy is fully gone
+Build OAuth install flow using the Dev Dashboard KIKA app's Client ID + Secret (already visible to user: `0d09d6f6e7b8eb66f2b07b9ca4b6c57c`). Plan:
+- `/api/shopify/auth/start` — redirects to `https://kika-swim-wear.myshopify.com/admin/oauth/authorize?client_id=...&scope=read_orders,read_products,read_customers,read_inventory,read_locations&redirect_uri=https://kareemhady.vercel.app/api/shopify/auth/callback&state=...`
+- `/api/shopify/auth/callback` — HMAC validate, exchange `code` for access_token via `POST https://kika-swim-wear.myshopify.com/admin/oauth/access_token`, store in `integration_tokens` where provider='shopify:kika-swim-wear'.
+- New env: `SHOPIFY_APP_CLIENT_ID`, `SHOPIFY_APP_CLIENT_SECRET`.
+- Existing `SHOPIFY_ADMIN_ACCESS_TOKEN` becomes optional override (legacy path); otherwise `shopifyFetch()` reads from `integration_tokens` table.
+
+Still waiting on user to try the legacy URLs and report back. No code changes this turn.
+
 ## 🟠 PHASE 10.1.1 — Shopify Dev Dashboard only exposes OAuth creds, not shpat token
 
 User opened their KIKA app's Settings page in Dev Dashboard. Surfaced:
