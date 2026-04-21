@@ -5,13 +5,12 @@ import {
   type OdooInvoice,
 } from './odoo';
 
-// Beithady finance scope. A1HOSPITALITY retained in the invoice backfill
-// for a future BH-435 owner-side view but EXCLUDED from the consolidated
-// Financials rule — see memory/beithady_intercompany_model.md.
+// Full finance scope. Beithady + A1 + Kika (X Label for Tailoring Kika).
 //   4  = A1HOSPITALITY (BH-435 owner; Lime 50% stake)
 //   5  = Beithady Hospitality - (EGYPT)
+//   6  = X Label for Tailoring Kika (3 segments: IN&OUT / X-label / Kika)
 //   10 = Beithady Hospitality FZCO - (Dubai)
-const SCOPE_COMPANY_IDS = [4, 5, 10];
+const SCOPE_COMPANY_IDS = [4, 5, 6, 10];
 
 const BACKFILL_DAYS = 365;
 const PAGE_SIZE = 200;
