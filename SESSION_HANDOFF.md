@@ -1,5 +1,22 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 6.2 — Guesty connection verified end-to-end (no code changes)
+
+### What happened
+User completed the Guesty OAuth app creation, added `GUESTY_CLIENT_ID` + `GUESTY_CLIENT_SECRET` (+ `GUESTY_ACCOUNT_ID`) to Vercel Production + Preview, redeployed, and ran the smoke test. Live connection works.
+
+### Ping response (HTTP 200, 1.67s total, 569ms Guesty round-trip)
+- `ok: true`
+- **Listings**: `total_count: 90` (5 sampled, all Beit Hady units — `BH73-ST-C-004`, `BH73-1BR-C-8`, `BH73-1BR-C-8-306`, `BH73-1BR-C-8-106`, `BH73-4BR-C-405`, all `active: true`)
+- **Reservations**: `total_count: 34` — sources include `airbnb2`, `Booking.com`, `manual`. Check-ins 2026-04-21 → 2026-04-29, payouts in USD, real guest names flowing.
+- **Account ID**: `68342f589bf7f8c07ec2435c` — `account_id_source: "env"` (user kept `GUESTY_ACCOUNT_ID` in Vercel instead of deleting; auto-detected value matches, so harmless).
+
+### Open question for user
+Told user `GUESTY_ACCOUNT_ID` is optional — the ping endpoint auto-detects from API response. User opted to keep it (or just didn't delete). Either is fine; env value and auto-detect match.
+
+### Next step
+Phase 6.3 — actually ingest Guesty data: Supabase migration `0008_guesty.sql` (tables for listings + reservations + maybe conversations), `guesty_reservation_pull` rule type, webhook endpoint at `/api/webhooks/guesty` with `GUESTY_WEBHOOK_SECRET` signature verification, dashboard surfacing. User has NOT yet configured the Guesty Webhooks endpoint — deferred.
+
 ## 🔧 PHASE 6.1 — Guesty ping: account_id is now optional / auto-detected (commit 921a939)
 
 ### User feedback
