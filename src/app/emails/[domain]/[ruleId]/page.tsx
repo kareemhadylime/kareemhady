@@ -58,6 +58,15 @@ import { BEITHADY_BUILDINGS, classifyBuilding } from '@/lib/rules/aggregators/be
 const fmt = (n: number | string | null | undefined): string =>
   Math.round(Number(n) || 0).toLocaleString();
 
+// AED is pegged to USD at 1 USD = 3.6725 AED (fixed by the UAE Central
+// Bank since 1997). We show all Beithady Payouts amounts in USD so they
+// reconcile with Guesty (USD-reported) and Airbnb line items (USD).
+const AED_PER_USD = 3.6725;
+const aedToUsd = (aed: number | string | null | undefined): number =>
+  (Number(aed) || 0) / AED_PER_USD;
+const fmtAedAsUsd = (aed: number | string | null | undefined): string =>
+  fmt(aedToUsd(aed));
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -449,7 +458,7 @@ export default async function RuleOutputDetailPage({
                           : isReviews
                             ? 'Reviews'
                             : isPayout
-                              ? 'Total AED'
+                              ? 'Total USD'
                               : isBeithady
                                 ? 'Reservations'
                                 : 'Orders'}
@@ -466,7 +475,7 @@ export default async function RuleOutputDetailPage({
                         : isReviews
                           ? (r.output as any)?.total_reviews
                           : isPayout
-                            ? Math.round(Number((r.output as any)?.total_aed) || 0)
+                            ? Math.round(aedToUsd((r.output as any)?.total_aed))
                             : isBeithady
                               ? (r.output as any)?.reservation_count
                               : (r.output as any)?.order_count;
@@ -1192,20 +1201,20 @@ function BeithadyPayoutView({
           </div>
           <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
             <HeroStat
-              label="Total payouts AED"
-              value={fmt(totalAed)}
-              sub={`${emailsMatched.toLocaleString()} payout emails processed`}
+              label="Total payouts USD"
+              value={fmtAedAsUsd(totalAed)}
+              sub={`${emailsMatched.toLocaleString()} payout emails · AED settlement ÷ 3.6725 peg`}
               Icon={Banknote}
             />
             <HeroStat
-              label="Airbnb AED"
-              value={fmt(airbnbAed)}
-              sub={`${airbnbCount} payouts · ${airbnbLineItems} line items`}
+              label="Airbnb USD"
+              value={fmt(airbnbUsd || aedToUsd(airbnbAed))}
+              sub={`${airbnbCount} payouts · ${airbnbLineItems} line items (native USD)`}
               Icon={Plane}
             />
             <HeroStat
-              label="Stripe AED"
-              value={fmt(stripeAed)}
+              label="Stripe USD"
+              value={fmtAedAsUsd(stripeAed)}
               sub={`${stripeCount} payouts · Booking.com / Expedia / Manual`}
               Icon={Wallet}
             />
@@ -1222,7 +1231,7 @@ function BeithadyPayoutView({
       <section>
         <SectionHeader
           title="Bank destinations"
-          hint="Where the money lands. Airbnb pays in AED to Beithady Hospitality FZCO; Stripe settles the non-Airbnb channels to the same IBAN via BANQUE MISR."
+          hint="Where the money lands. Airbnb and Stripe both settle in AED to Beithady Hospitality FZCO — we display USD throughout (1 USD = 3.6725 AED peg)."
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
           <div className="ix-card p-5">
@@ -1230,14 +1239,14 @@ function BeithadyPayoutView({
               Airbnb → Bank
             </div>
             <div className="mt-1 font-mono font-bold">Beithady Hospitality FZCO</div>
-            <div className="text-sm text-slate-600">IBAN ending 8439 · AED</div>
+            <div className="text-sm text-slate-600">IBAN ending 8439 · settles AED</div>
           </div>
           <div className="ix-card p-5">
             <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
               Stripe → Bank
             </div>
             <div className="mt-1 font-mono font-bold">BANQUE MISR ••••8439</div>
-            <div className="text-sm text-slate-600">AED payouts (Booking.com · Expedia · Manual)</div>
+            <div className="text-sm text-slate-600">Settles AED (Booking.com · Expedia · Manual)</div>
           </div>
         </div>
       </section>
@@ -1245,19 +1254,19 @@ function BeithadyPayoutView({
       <section>
         <SectionHeader
           title="Source split"
-          hint="Share of AED received by platform. Stripe routes Booking.com + Expedia + Manual payouts; Airbnb pays direct. Manual payouts at hotel (cash) don't appear in either email — track those separately."
+          hint="Share of USD received by platform. Stripe routes Booking.com + Expedia + Manual payouts; Airbnb pays direct. Manual payouts at hotel (cash) don't appear in either email — track those separately."
         />
         <div className="ix-card p-6 mt-3 space-y-4">
           <div className="h-3 w-full rounded-full overflow-hidden flex bg-slate-100">
             <div
               className="h-full bg-gradient-to-r from-rose-500 to-pink-500"
               style={{ width: `${airbnbShare}%` }}
-              title={`Airbnb: ${fmt(airbnbAed)} AED (${airbnbShare.toFixed(1)}%)`}
+              title={`Airbnb: ${fmtAedAsUsd(airbnbAed)} USD (${airbnbShare.toFixed(1)}%)`}
             />
             <div
               className="h-full bg-gradient-to-r from-indigo-500 to-blue-500"
               style={{ width: `${stripeShare}%` }}
-              title={`Stripe: ${fmt(stripeAed)} AED (${stripeShare.toFixed(1)}%)`}
+              title={`Stripe: ${fmtAedAsUsd(stripeAed)} USD (${stripeShare.toFixed(1)}%)`}
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -1267,7 +1276,7 @@ function BeithadyPayoutView({
                 Airbnb
               </span>
               <span className="text-slate-600 tabular-nums text-xs">
-                {airbnbCount} payouts · {fmt(airbnbAed)} AED · {airbnbShare.toFixed(1)}%
+                {airbnbCount} payouts · {fmtAedAsUsd(airbnbAed)} USD · {airbnbShare.toFixed(1)}%
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -1276,7 +1285,7 @@ function BeithadyPayoutView({
                 Stripe
               </span>
               <span className="text-slate-600 tabular-nums text-xs">
-                {stripeCount} payouts · {fmt(stripeAed)} AED · {stripeShare.toFixed(1)}%
+                {stripeCount} payouts · {fmtAedAsUsd(stripeAed)} USD · {stripeShare.toFixed(1)}%
               </span>
             </div>
           </div>
@@ -1327,7 +1336,7 @@ function BeithadyPayoutView({
       <section>
         <SectionHeader
           title={`Airbnb payouts (${airbnbPayoutsSummary.length})`}
-          hint="Each payout email's header — total AED + line item count + dates."
+          hint="Each payout email's header — USD total + line item count + dates. Amount column is AED settlement converted at the 3.6725 peg; 'USD in items' is the native sum of per-reservation USD line amounts."
         />
         <div className="ix-card overflow-hidden mt-3">
           <table className="w-full text-sm">
@@ -1338,7 +1347,7 @@ function BeithadyPayoutView({
                 <th className="text-left px-4 font-medium">Arrival</th>
                 <th className="text-right px-4 font-medium">Items</th>
                 <th className="text-right px-4 font-medium">USD in items</th>
-                <th className="text-right px-4 font-medium">Payout AED</th>
+                <th className="text-right px-4 font-medium">Payout USD</th>
                 <th className="text-left px-4 font-medium">IBAN</th>
               </tr>
             </thead>
@@ -1355,7 +1364,7 @@ function BeithadyPayoutView({
                     {fmt(p.total_usd_from_items)}
                   </td>
                   <td className="px-4 text-right tabular-nums font-medium">
-                    {fmt(p.total_aed)}
+                    {fmtAedAsUsd(p.total_aed)}
                   </td>
                   <td className="px-4 font-mono text-xs">
                     {p.bank_iban_last4 ? `••${p.bank_iban_last4}` : '—'}
@@ -1554,7 +1563,7 @@ function BeithadyPayoutView({
               <tr>
                 <th className="text-left py-2.5 px-4 font-medium">Email date</th>
                 <th className="text-left px-4 font-medium">Est. arrival</th>
-                <th className="text-right px-4 font-medium">Amount AED</th>
+                <th className="text-right px-4 font-medium">Amount USD</th>
                 <th className="text-left px-4 font-medium">Bank</th>
                 <th className="text-left px-4 font-medium">Payout ID</th>
               </tr>
@@ -1570,7 +1579,7 @@ function BeithadyPayoutView({
                   </td>
                   <td className="px-4 whitespace-nowrap">{p.arrival_date || '—'}</td>
                   <td className="px-4 text-right tabular-nums font-medium">
-                    {fmt(p.amount)}
+                    {fmtAedAsUsd(p.amount)}
                   </td>
                   <td className="px-4 text-xs">
                     {p.bank_name ? `${p.bank_name}${p.bank_last4 ? ` ••${p.bank_last4}` : ''}` : '—'}
@@ -1629,10 +1638,10 @@ function PayoutMonthChart({
             <div
               key={i.month}
               className="flex-1 flex flex-col items-center justify-end gap-1 group"
-              title={`${i.label}: AED ${fmt(i.total_aed)} total · Airbnb ${fmt(i.airbnb_aed)} · Stripe ${fmt(i.stripe_aed)}`}
+              title={`${i.label}: $${fmtAedAsUsd(i.total_aed)} USD total · Airbnb $${fmtAedAsUsd(i.airbnb_aed)} · Stripe $${fmtAedAsUsd(i.stripe_aed)}`}
             >
               <div className="text-[10px] font-semibold text-slate-700 tabular-nums">
-                {fmt(i.total_aed)}
+                {fmtAedAsUsd(i.total_aed)}
               </div>
               <div className="w-full flex flex-col-reverse">
                 <div
@@ -4601,15 +4610,15 @@ function StripeApiBreakdownSection({
         title="Stripe API reconciliation"
         hint={
           crossMatchCount > 0
-            ? `Live data from Stripe, cross-matched against ${crossMatchCount} Guesty bookings. "Matched Bldg" is Guesty's canonical building code; "Expected (USD)" is the booking's stored total_payout. Guest name is pulled from charge metadata / description.`
-            : 'Live data from Stripe. Each payout drilled into balance transactions so we can see which charges / refunds made up the settled AED amount. Run the Beithady Bookings rule to enable cross-matching.'
+            ? `Live data from Stripe, cross-matched against ${crossMatchCount} Guesty bookings. "Matched Bldg" is Guesty's canonical building code; "Expected (USD)" is the booking's stored total_payout. Guest name is pulled from charge metadata / description. Amounts shown in USD (AED settlement ÷ 3.6725 peg).`
+            : 'Live data from Stripe. Each payout drilled into balance transactions so we can see which charges / refunds made up the settled amount. Amounts shown in USD (AED settlement ÷ 3.6725 peg). Run the Beithady Bookings rule to enable cross-matching.'
         }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
         <Stat
-          label="API total AED"
-          value={fmt(apiTotal)}
+          label="API total USD"
+          value={fmtAedAsUsd(apiTotal)}
           hint={`${apiPayouts.length} payouts · ${chargeCount} charges · ${refundCount} refunds`}
           Icon={Wallet}
           accent="emerald"
@@ -4712,17 +4721,17 @@ function StripeApiBreakdownSection({
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold tabular-nums">
-                      {fmt(p.amount)}{' '}
+                      {fmtAedAsUsd(p.amount)}{' '}
                       <span className="text-sm text-slate-500 font-medium">
-                        {p.currency}
+                        USD
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-500">
                       {p.transaction_count} txn
                       {p.transaction_count !== 1 ? 's' : ''} · net{' '}
-                      {fmt(p.net_components_amount)}
+                      {fmtAedAsUsd(p.net_components_amount)}
                       {p.fee_components_amount
-                        ? ` · fees ${fmt(p.fee_components_amount)}`
+                        ? ` · fees ${fmtAedAsUsd(p.fee_components_amount)}`
                         : ''}
                     </div>
                   </div>
@@ -4741,7 +4750,7 @@ function StripeApiBreakdownSection({
                           <th className="text-left py-2 px-4 font-medium">Time</th>
                           <th className="text-left px-4 font-medium">Type</th>
                           <th className="text-right px-4 font-medium">
-                            Amount
+                            Amount USD
                           </th>
                           <th className="text-right px-4 font-medium">
                             Source amt
@@ -4792,7 +4801,10 @@ function StripeApiBreakdownSection({
                                 </span>
                               </td>
                               <td className="px-4 text-right tabular-nums font-medium">
-                                {fmt(t.amount)}
+                                {t.source_currency === 'USD' &&
+                                t.source_amount != null
+                                  ? fmt(t.source_amount)
+                                  : fmtAedAsUsd(t.amount)}
                               </td>
                               <td className="px-4 text-right tabular-nums text-xs text-slate-600">
                                 {t.source_amount != null

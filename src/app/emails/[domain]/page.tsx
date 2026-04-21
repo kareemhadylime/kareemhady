@@ -287,16 +287,24 @@ function BeithadyMini({ out }: { out: any; currency: string }) {
 }
 
 function BeithadyPayoutMini({ out }: { out: any }) {
-  const totalAed = Math.round(Number(out?.total_aed) || 0);
-  const airbnbAed = Math.round(Number(out?.airbnb_total_aed) || 0);
-  const stripeAed = Math.round(Number(out?.stripe_total_aed) || 0);
+  // AED pegged to USD at 3.6725 since 1997 — safe hardcoded conversion.
+  const AED_PER_USD = 3.6725;
+  const toUsd = (aed: number) => Math.round((Number(aed) || 0) / AED_PER_USD);
+  const totalUsd = toUsd(out?.total_aed);
+  // Prefer the native airbnb_total_usd (summed from per-reservation USD
+  // line items) over peg-converted airbnb_total_aed when available.
+  const airbnbUsd =
+    out?.airbnb_total_usd != null && Number(out.airbnb_total_usd) > 0
+      ? Math.round(Number(out.airbnb_total_usd))
+      : toUsd(out?.airbnb_total_aed);
+  const stripeUsd = toUsd(out?.stripe_total_aed);
   const emails =
     (out?.airbnb_email_count ?? 0) + (out?.stripe_email_count ?? 0);
   return (
     <div className="mt-5 grid grid-cols-4 gap-3">
-      <MiniStat label="Total AED" value={totalAed.toLocaleString()} />
-      <MiniStat label="Airbnb AED" value={airbnbAed.toLocaleString()} />
-      <MiniStat label="Stripe AED" value={stripeAed.toLocaleString()} />
+      <MiniStat label="Total USD" value={totalUsd.toLocaleString()} />
+      <MiniStat label="Airbnb USD" value={airbnbUsd.toLocaleString()} />
+      <MiniStat label="Stripe USD" value={stripeUsd.toLocaleString()} />
       <MiniStat label="Payout emails" value={String(emails)} />
     </div>
   );
