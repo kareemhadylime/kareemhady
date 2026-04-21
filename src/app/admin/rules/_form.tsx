@@ -116,6 +116,7 @@ export function RuleForm({
             <option value="beithady_booking_aggregate">Beithady booking aggregate (Guesty)</option>
             <option value="beithady_payout_aggregate">Beithady payout aggregate (Airbnb + Stripe)</option>
             <option value="beithady_reviews_aggregate">Beithady reviews aggregate (Airbnb)</option>
+            <option value="beithady_inquiries_aggregate">Beithady inquiries aggregate (Airbnb)</option>
           </select>
         </Field>
         <Field

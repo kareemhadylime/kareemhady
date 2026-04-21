@@ -4,6 +4,7 @@ import { aggregateShopifyOrders } from './aggregators/shopify-order';
 import { aggregateBeithadyBookings } from './aggregators/beithady-booking';
 import { aggregateBeithadyPayouts } from './aggregators/beithady-payout';
 import { aggregateBeithadyReviews } from './aggregators/beithady-review';
+import { aggregateBeithadyInquiries } from './aggregators/beithady-inquiry';
 
 export type RuleConditions = {
   from_contains?: string;
@@ -17,7 +18,8 @@ export type RuleAction = {
     | 'shopify_order_aggregate'
     | 'beithady_booking_aggregate'
     | 'beithady_payout_aggregate'
-    | 'beithady_reviews_aggregate';
+    | 'beithady_reviews_aggregate'
+    | 'beithady_inquiries_aggregate';
   currency?: string;
   mark_as_read?: boolean;
 };
@@ -80,6 +82,24 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
 
   if (action.type === 'beithady_reviews_aggregate') {
     return evaluateReviewsRule({
+      ruleId,
+      account,
+      action,
+      fromIso,
+      toIso,
+      timeRange: {
+        from: fromIso,
+        to: toIso,
+        label: range?.label,
+        preset_id: range?.presetId,
+        clamped_to_year_start: clampedToYearStart || undefined,
+        requested_from: clampedToYearStart ? requestedFromIso : undefined,
+      },
+    });
+  }
+
+  if (action.type === 'beithady_inquiries_aggregate') {
+    return evaluateInquiriesRule({
       ruleId,
       account,
       action,
@@ -427,6 +447,87 @@ async function evaluateReviewsRule(args: {
     );
 
     const output = await aggregateBeithadyReviews(bodies);
+
+    let markedRead = 0;
+    let markErrors = 0;
+    let markErrorReason: string | undefined;
+    if (action.mark_as_read && matches.length > 0) {
+      const r = await markMessagesAsRead(token, matches.map(m => m.id));
+      markedRead = r.marked;
+      markErrors = r.errors.length;
+      if (r.errors[0]) {
+        const e0 = r.errors[0];
+        const colon = e0.indexOf(': ');
+        markErrorReason = (colon >= 0 ? e0.slice(colon + 2) : e0).slice(0, 300);
+      }
+    }
+
+    await sb
+      .from('rule_runs')
+      .update({
+        finished_at: new Date().toISOString(),
+        status: 'succeeded',
+        output: {
+          ...output,
+          marked_read: markedRead,
+          mark_errors: markErrors,
+          mark_error_reason: markErrorReason,
+          time_range: timeRange,
+        },
+      })
+      .eq('id', run.id);
+
+    return { ok: true, run_id: run.id, input_email_count: matches.length };
+  } catch (e: any) {
+    await sb
+      .from('rule_runs')
+      .update({
+        finished_at: new Date().toISOString(),
+        status: 'failed',
+        error: String(e?.message || e),
+      })
+      .eq('id', run.id);
+    throw e;
+  }
+}
+
+async function evaluateInquiriesRule(args: {
+  ruleId: string;
+  account: { oauth_refresh_token_encrypted: string };
+  action: RuleAction;
+  fromIso: string;
+  toIso: string;
+  timeRange: Record<string, unknown>;
+}) {
+  const { ruleId, account, action, fromIso, toIso, timeRange } = args;
+  const sb = supabaseAdmin();
+  const token = account.oauth_refresh_token_encrypted;
+
+  // Airbnb inquiry subjects all start with "Inquiry for ..." and arrive at
+  // guesty@beithady.com via the Guesty relay. Tokens "Inquiry" + to-address
+  // are narrow enough to skip secondary filtering; the parser still drops
+  // non-inquiry noise via tool_choice=auto.
+  const matches = await searchMessages(token, {
+    subjectContains: 'Inquiry',
+    toContains: 'guesty@beithady.com',
+    afterIso: fromIso,
+    beforeIso: toIso,
+    maxResults: 500,
+  });
+
+  const { data: run, error: runErr } = await sb
+    .from('rule_runs')
+    .insert({ rule_id: ruleId, input_email_count: matches.length, status: 'running' })
+    .select()
+    .single();
+  if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
+
+  try {
+    const bodies = await Promise.all(
+      matches.map(m => fetchEmailFull(token, m.id))
+    );
+
+    const output = await aggregateBeithadyInquiries(bodies);
 
     let markedRead = 0;
     let markErrors = 0;

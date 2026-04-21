@@ -10,6 +10,7 @@ import {
   BedDouble,
   Banknote,
   Star,
+  MessageCircleQuestion,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -141,22 +142,27 @@ export default async function DomainRulesPage({
               const isBeithadyBooking = actionType === 'beithady_booking_aggregate';
               const isBeithadyPayout = actionType === 'beithady_payout_aggregate';
               const isBeithadyReviews = actionType === 'beithady_reviews_aggregate';
+              const isBeithadyInquiries = actionType === 'beithady_inquiries_aggregate';
               const currency = out?.currency || (isBeithadyBooking ? 'USD' : 'EGP');
 
-              const Icon = isBeithadyReviews
-                ? Star
-                : isBeithadyPayout
-                  ? Banknote
-                  : isBeithadyBooking
-                    ? BedDouble
-                    : ShoppingBag;
-              const iconTint = isBeithadyReviews
-                ? 'bg-amber-50 text-amber-600'
-                : isBeithadyPayout
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : isBeithadyBooking
-                    ? 'bg-rose-50 text-rose-600'
-                    : 'bg-violet-50 text-violet-600';
+              const Icon = isBeithadyInquiries
+                ? MessageCircleQuestion
+                : isBeithadyReviews
+                  ? Star
+                  : isBeithadyPayout
+                    ? Banknote
+                    : isBeithadyBooking
+                      ? BedDouble
+                      : ShoppingBag;
+              const iconTint = isBeithadyInquiries
+                ? 'bg-sky-50 text-sky-600'
+                : isBeithadyReviews
+                  ? 'bg-amber-50 text-amber-600'
+                  : isBeithadyPayout
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : isBeithadyBooking
+                      ? 'bg-rose-50 text-rose-600'
+                      : 'bg-violet-50 text-violet-600';
 
               return (
                 <div
@@ -190,7 +196,9 @@ export default async function DomainRulesPage({
                     />
                   </Link>
 
-                  {isBeithadyReviews ? (
+                  {isBeithadyInquiries ? (
+                    <BeithadyInquiryMini out={out} />
+                  ) : isBeithadyReviews ? (
                     <BeithadyReviewMini out={out} />
                   ) : isBeithadyPayout ? (
                     <BeithadyPayoutMini out={out} />
@@ -297,6 +305,21 @@ function BeithadyReviewMini({ out }: { out: any }) {
       <MiniStat label="Avg rating" value={avg ? avg.toFixed(2) + '⭐' : '—'} />
       <MiniStat label="Flagged <3" value={String(low)} />
       <MiniStat label="5-star" value={String(five)} />
+    </div>
+  );
+}
+
+function BeithadyInquiryMini({ out }: { out: any }) {
+  const total = out?.total_inquiries ?? 0;
+  const guests = out?.unique_guests ?? 0;
+  const manual = out?.manual_attention_count ?? 0;
+  const emails = out?.email_count ?? 0;
+  return (
+    <div className="mt-5 grid grid-cols-4 gap-3">
+      <MiniStat label="Inquiries" value={String(total)} />
+      <MiniStat label="Unique guests" value={String(guests)} />
+      <MiniStat label="Needs attention" value={String(manual)} />
+      <MiniStat label="Emails" value={String(emails)} />
     </div>
   );
 }

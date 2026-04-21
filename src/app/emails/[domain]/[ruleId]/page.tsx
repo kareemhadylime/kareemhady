@@ -30,6 +30,10 @@ import {
   Flag,
   MessageSquareWarning,
   Lightbulb,
+  MessageCircleQuestion,
+  Timer,
+  Clock,
+  UserCircle2,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -88,6 +92,7 @@ export default async function RuleOutputDetailPage({
   const isBeithady = actionType === 'beithady_booking_aggregate';
   const isPayout = actionType === 'beithady_payout_aggregate';
   const isReviews = actionType === 'beithady_reviews_aggregate';
+  const isInquiries = actionType === 'beithady_inquiries_aggregate';
 
   const lastRange = out?.time_range as
     | {
@@ -327,7 +332,9 @@ export default async function RuleOutputDetailPage({
               </div>
             )}
 
-            {isReviews ? (
+            {isInquiries ? (
+              <BeithadyInquiryView out={out} emailsMatched={latest.input_email_count ?? 0} />
+            ) : isReviews ? (
               <BeithadyReviewView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : isPayout ? (
               <BeithadyPayoutView out={out} emailsMatched={latest.input_email_count ?? 0} />
@@ -349,26 +356,30 @@ export default async function RuleOutputDetailPage({
                     <th className="text-left px-6 font-medium">Status</th>
                     <th className="text-right px-6 font-medium">Emails</th>
                     <th className="text-right px-6 font-medium">
-                      {isReviews
-                        ? 'Reviews'
-                        : isPayout
-                          ? 'Total AED'
-                          : isBeithady
-                            ? 'Reservations'
-                            : 'Orders'}
+                      {isInquiries
+                        ? 'Inquiries'
+                        : isReviews
+                          ? 'Reviews'
+                          : isPayout
+                            ? 'Total AED'
+                            : isBeithady
+                              ? 'Reservations'
+                              : 'Orders'}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs?.map(r => {
                     const tr = (r.output as any)?.time_range;
-                    const count = isReviews
-                      ? (r.output as any)?.total_reviews
-                      : isPayout
-                        ? Math.round(Number((r.output as any)?.total_aed) || 0)
-                        : isBeithady
-                          ? (r.output as any)?.reservation_count
-                          : (r.output as any)?.order_count;
+                    const count = isInquiries
+                      ? (r.output as any)?.total_inquiries
+                      : isReviews
+                        ? (r.output as any)?.total_reviews
+                        : isPayout
+                          ? Math.round(Number((r.output as any)?.total_aed) || 0)
+                          : isBeithady
+                            ? (r.output as any)?.reservation_count
+                            : (r.output as any)?.order_count;
                     return (
                       <tr key={r.id} className="border-t border-slate-100">
                         <td className="py-2.5 px-6 whitespace-nowrap">
@@ -2826,6 +2837,465 @@ function BeithadyReviewView({
             </span>
             . Airbnb notifies once a guest posts a review (subject like
             &quot;Charlie left a 5-star review!&quot;).
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+type InquiryCategory =
+  | 'location_info'
+  | 'amenity'
+  | 'pricing'
+  | 'booking_logistics'
+  | 'availability'
+  | 'group_question'
+  | 'other';
+
+const INQUIRY_CATEGORY_LABEL: Record<InquiryCategory, string> = {
+  location_info: 'Location / directions',
+  amenity: 'Amenity',
+  pricing: 'Pricing',
+  booking_logistics: 'Check-in / logistics',
+  availability: 'Availability',
+  group_question: 'Group / policy',
+  other: 'Other',
+};
+
+const INQUIRY_CATEGORY_TINT: Record<InquiryCategory, string> = {
+  location_info: 'bg-indigo-100 text-indigo-800',
+  amenity: 'bg-teal-100 text-teal-800',
+  pricing: 'bg-amber-100 text-amber-800',
+  booking_logistics: 'bg-blue-100 text-blue-800',
+  availability: 'bg-emerald-100 text-emerald-800',
+  group_question: 'bg-fuchsia-100 text-fuchsia-800',
+  other: 'bg-slate-100 text-slate-700',
+};
+
+function inquirySlaState(receivedIso: string | null): {
+  label: string;
+  tone: 'overdue' | 'urgent' | 'soon' | 'fresh' | 'unknown';
+  hoursRemaining: number | null;
+} {
+  if (!receivedIso) return { label: 'Unknown', tone: 'unknown', hoursRemaining: null };
+  const received = new Date(receivedIso).getTime();
+  if (Number.isNaN(received))
+    return { label: 'Unknown', tone: 'unknown', hoursRemaining: null };
+  const deadline = received + 24 * 3600 * 1000;
+  const now = Date.now();
+  const remaining = (deadline - now) / (3600 * 1000);
+  if (remaining <= 0) {
+    const overdue = Math.abs(remaining);
+    return {
+      label: `Overdue by ${overdue < 24 ? overdue.toFixed(1) + 'h' : (overdue / 24).toFixed(1) + 'd'}`,
+      tone: 'overdue',
+      hoursRemaining: remaining,
+    };
+  }
+  if (remaining <= 6)
+    return {
+      label: `${remaining.toFixed(1)}h left`,
+      tone: 'urgent',
+      hoursRemaining: remaining,
+    };
+  if (remaining <= 12)
+    return {
+      label: `${remaining.toFixed(1)}h left`,
+      tone: 'soon',
+      hoursRemaining: remaining,
+    };
+  return {
+    label: `${remaining.toFixed(1)}h left`,
+    tone: 'fresh',
+    hoursRemaining: remaining,
+  };
+}
+
+function SlaBadge({ receivedIso }: { receivedIso: string | null }) {
+  const s = inquirySlaState(receivedIso);
+  const toneClass: Record<string, string> = {
+    overdue: 'bg-rose-600 text-white',
+    urgent: 'bg-rose-100 text-rose-800 border border-rose-200',
+    soon: 'bg-amber-100 text-amber-800 border border-amber-200',
+    fresh: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    unknown: 'bg-slate-100 text-slate-600 border border-slate-200',
+  };
+  const Icon = s.tone === 'overdue' ? AlertTriangle : Timer;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${toneClass[s.tone]}`}
+      title={`24h SLA from email received time · ${receivedIso || 'no timestamp'}`}
+    >
+      <Icon size={11} />
+      {s.label}
+    </span>
+  );
+}
+
+function BeithadyInquiryView({
+  out,
+  emailsMatched,
+}: {
+  out: any;
+  emailsMatched: number;
+}) {
+  const total: number = out?.total_inquiries ?? 0;
+  const uniqueGuests: number = out?.unique_guests ?? 0;
+  const manualCount: number = out?.manual_attention_count ?? 0;
+  const byCategory: Array<{ key: InquiryCategory; count: number }> =
+    out?.by_category || [];
+  const byBuilding: Array<{ key: string; count: number }> = out?.by_building || [];
+  const byGuest: Array<{
+    guest_name: string;
+    inquiry_count: number;
+    latest_received_iso: string | null;
+    categories: InquiryCategory[];
+    listings: string[];
+    has_manual_attention: boolean;
+  }> = out?.by_guest || [];
+  const inquiries: Array<{
+    guest_name: string;
+    guest_question: string | null;
+    listing_name: string | null;
+    stay_start: string | null;
+    stay_end: string | null;
+    num_adults: number | null;
+    num_children: number | null;
+    num_infants: number | null;
+    received_iso: string | null;
+    building_code: string | null;
+    classification: {
+      category: InquiryCategory;
+      summary: string;
+      needs_manual_attention: boolean;
+    } | null;
+  }> = out?.inquiries || [];
+
+  const sortedInquiries = [...inquiries].sort((a, b) => {
+    const aS = inquirySlaState(a.received_iso);
+    const bS = inquirySlaState(b.received_iso);
+    const toneOrder = { overdue: 0, urgent: 1, soon: 2, fresh: 3, unknown: 4 };
+    if (toneOrder[aS.tone] !== toneOrder[bS.tone])
+      return toneOrder[aS.tone] - toneOrder[bS.tone];
+    if (
+      (a.classification?.needs_manual_attention ? 1 : 0) !==
+      (b.classification?.needs_manual_attention ? 1 : 0)
+    )
+      return a.classification?.needs_manual_attention ? -1 : 1;
+    return 0;
+  });
+
+  const overdueCount = sortedInquiries.filter(
+    i => inquirySlaState(i.received_iso).tone === 'overdue'
+  ).length;
+  const urgentCount = sortedInquiries.filter(
+    i => inquirySlaState(i.received_iso).tone === 'urgent'
+  ).length;
+
+  return (
+    <>
+      <section
+        className="relative rounded-2xl overflow-hidden border border-sky-200/60 shadow-sm"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(14,165,233,0.10) 0%, rgba(99,102,241,0.08) 45%, rgba(139,92,246,0.08) 100%)',
+        }}
+      >
+        <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-gradient-to-br from-sky-400 to-indigo-400 opacity-20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-64 h-64 rounded-full bg-gradient-to-br from-indigo-400 to-violet-400 opacity-15 blur-3xl pointer-events-none" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-sky-700 text-xs uppercase tracking-wider font-semibold">
+            <MessageCircleQuestion size={14} /> Beithady · Guest inquiries
+          </div>
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
+            <HeroStat
+              label="Total inquiries"
+              value={total.toLocaleString()}
+              sub={`${emailsMatched.toLocaleString()} inquiry emails processed`}
+              Icon={MessageCircleQuestion}
+            />
+            <HeroStat
+              label="Unique guests"
+              value={uniqueGuests.toLocaleString()}
+              sub={
+                total > 0 && uniqueGuests > 0
+                  ? `${(total / uniqueGuests).toFixed(1)} avg inquiries / guest`
+                  : 'No inquiries yet'
+              }
+              Icon={UserCircle2}
+            />
+            <HeroStat
+              label="Overdue (>24h)"
+              value={overdueCount.toLocaleString()}
+              sub={
+                overdueCount > 0
+                  ? 'SLA already missed — escalate'
+                  : 'All within 24h SLA'
+              }
+              Icon={AlertTriangle}
+            />
+            <HeroStat
+              label="Needs manual decision"
+              value={manualCount.toLocaleString()}
+              sub={
+                manualCount > 0
+                  ? 'Pricing / policy / special asks'
+                  : 'All answerable from listing'
+              }
+              Icon={Flag}
+            />
+          </div>
+          {(overdueCount > 0 || urgentCount > 0) && (
+            <div className="mt-5 flex flex-wrap gap-3 text-xs">
+              {overdueCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 text-white font-semibold">
+                  <AlertTriangle size={12} /> {overdueCount} overdue
+                </span>
+              )}
+              {urgentCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-200 font-semibold">
+                  <Clock size={12} /> {urgentCount} under 6h
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {byCategory.length > 0 && (
+        <section>
+          <SectionHeader
+            title="By category"
+            hint="What guests are asking about. Helps see whether the listing copy / FAQ is missing commonly-asked info."
+          />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+            {byCategory.map(c => (
+              <div key={c.key} className="ix-card p-4">
+                <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+                  {INQUIRY_CATEGORY_LABEL[c.key] || c.key}
+                </div>
+                <div className="mt-1 text-2xl font-bold tabular-nums">
+                  {c.count}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {byBuilding.length > 0 && (
+        <section>
+          <SectionHeader
+            title="By building"
+            hint="Inquiries grouped by inferred building. UNKNOWN rows couldn't be attributed from the listing name alone."
+          />
+          <div className="ix-card overflow-hidden mt-3">
+            <table className="w-full text-sm">
+              <thead className="bg-sky-50/60 text-sky-900">
+                <tr>
+                  <th className="text-left py-2.5 px-6 font-medium">Building</th>
+                  <th className="text-right px-6 font-medium">Inquiries</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byBuilding.map(b => (
+                  <tr key={b.key} className="border-t border-slate-100">
+                    <td className="py-2.5 px-6 font-mono font-semibold">{b.key}</td>
+                    <td className="px-6 text-right tabular-nums">{b.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {byGuest.length > 0 && (
+        <section>
+          <SectionHeader
+            title={`Combined by guest (${byGuest.length})`}
+            hint="Multiple inquiries from the same name roll up here. Sorted: manual-attention first, then most inquiries, then most recent."
+          />
+          <div className="ix-card overflow-hidden mt-3">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left py-2.5 px-4 font-medium">Guest</th>
+                  <th className="text-right px-4 font-medium">Inquiries</th>
+                  <th className="text-left px-4 font-medium">Categories</th>
+                  <th className="text-left px-4 font-medium">Listings</th>
+                  <th className="text-left px-4 font-medium">Latest</th>
+                  <th className="text-left px-4 font-medium">SLA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byGuest.map((g, i) => (
+                  <tr
+                    key={`${g.guest_name}-${i}`}
+                    className={`border-t border-slate-100 ${
+                      g.has_manual_attention ? 'bg-rose-50/30' : ''
+                    }`}
+                  >
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <UserCircle2 size={14} className="text-slate-400" />
+                        <span className="font-medium">{g.guest_name}</span>
+                        {g.has_manual_attention && (
+                          <Flag size={12} className="text-rose-600" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 text-right tabular-nums font-semibold">
+                      {g.inquiry_count}
+                    </td>
+                    <td className="px-4">
+                      <div className="flex flex-wrap gap-1">
+                        {g.categories.map(c => (
+                          <span
+                            key={c}
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${INQUIRY_CATEGORY_TINT[c] || INQUIRY_CATEGORY_TINT.other}`}
+                          >
+                            {INQUIRY_CATEGORY_LABEL[c] || c}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td
+                      className="px-4 max-w-[240px] text-xs text-slate-600 truncate"
+                      title={g.listings.join(' · ') || undefined}
+                    >
+                      {g.listings.length === 0
+                        ? '—'
+                        : g.listings.length === 1
+                          ? g.listings[0]
+                          : `${g.listings[0]} +${g.listings.length - 1}`}
+                    </td>
+                    <td className="px-4 whitespace-nowrap text-xs text-slate-600">
+                      {g.latest_received_iso
+                        ? new Date(g.latest_received_iso).toLocaleString()
+                        : '—'}
+                    </td>
+                    <td className="px-4">
+                      <SlaBadge receivedIso={g.latest_received_iso} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {sortedInquiries.length > 0 && (
+        <section>
+          <SectionHeader
+            title={`All inquiries (${sortedInquiries.length}) · sorted by SLA urgency`}
+            hint="Each row is one inquiry email. Red = overdue (>24h since received), amber = last 6h before SLA. The classifier's 1-sentence summary is the quick read; full question below when embedded."
+          />
+          <div className="space-y-3 mt-3">
+            {sortedInquiries.map((inq, i) => {
+              const cat = inq.classification?.category;
+              const catLabel =
+                cat && INQUIRY_CATEGORY_LABEL[cat] ? INQUIRY_CATEGORY_LABEL[cat] : null;
+              const catTint =
+                cat && INQUIRY_CATEGORY_TINT[cat]
+                  ? INQUIRY_CATEGORY_TINT[cat]
+                  : INQUIRY_CATEGORY_TINT.other;
+              const party = [
+                inq.num_adults != null ? `${inq.num_adults}a` : null,
+                inq.num_children != null ? `${inq.num_children}c` : null,
+                inq.num_infants != null ? `${inq.num_infants}i` : null,
+              ]
+                .filter(Boolean)
+                .join(' / ');
+              const needsAttention = !!inq.classification?.needs_manual_attention;
+              return (
+                <div
+                  key={i}
+                  className={`ix-card overflow-hidden ${
+                    needsAttention ? 'border-rose-200/80' : ''
+                  }`}
+                >
+                  <div className="px-5 py-3 flex items-start justify-between flex-wrap gap-3 border-b border-slate-100">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <UserCircle2 size={15} className="text-slate-400" />
+                        <span className="font-semibold">{inq.guest_name}</span>
+                        {catLabel && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${catTint}`}
+                          >
+                            {catLabel}
+                          </span>
+                        )}
+                        {needsAttention && (
+                          <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white flex items-center gap-1">
+                            <Flag size={10} /> needs decision
+                          </span>
+                        )}
+                        {inq.building_code && (
+                          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                            {inq.building_code}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="mt-1 text-xs text-slate-600 truncate"
+                        title={inq.listing_name || undefined}
+                      >
+                        {inq.listing_name || 'Unknown listing'}
+                        {inq.stay_start && inq.stay_end
+                          ? ` · ${inq.stay_start} → ${inq.stay_end}`
+                          : ''}
+                        {party ? ` · ${party}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
+                      {inq.received_iso
+                        ? new Date(inq.received_iso).toLocaleString()
+                        : '—'}
+                      <SlaBadge receivedIso={inq.received_iso} />
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-2">
+                    {inq.classification?.summary && (
+                      <div className="text-sm text-slate-800">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mr-2">
+                          Summary
+                        </span>
+                        {inq.classification.summary}
+                      </div>
+                    )}
+                    {inq.guest_question && (
+                      <blockquote className="border-l-4 border-sky-300 pl-4 text-sm text-slate-700 italic">
+                        {inq.guest_question}
+                      </blockquote>
+                    )}
+                    {!inq.guest_question && !inq.classification?.summary && (
+                      <div className="text-xs text-slate-500">
+                        No question text embedded in the email. Likely a
+                        &quot;wants to book&quot; availability check — open in Gmail
+                        for full context.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {total === 0 && (
+        <section>
+          <div className="ix-card p-6 bg-slate-50 text-slate-600 text-sm">
+            No inquiry emails in this range. The rule searches for messages{' '}
+            <span className="font-mono">
+              to:guesty@beithady.com subject:&quot;Inquiry&quot;
+            </span>
+            . Airbnb notifies when a guest sends a pre-booking inquiry (subject
+            starts with &quot;Inquiry for ...&quot;).
           </div>
         </section>
       )}
