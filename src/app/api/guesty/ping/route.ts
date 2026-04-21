@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error: 'Guesty credentials missing',
+        error:
+          'Guesty credentials missing — set GUESTY_CLIENT_ID and GUESTY_CLIENT_SECRET. GUESTY_ACCOUNT_ID is optional and will be auto-detected from the API response on first successful call.',
         env: {
           GUESTY_CLIENT_ID: hasClientId,
           GUESTY_CLIENT_SECRET: hasClientSecret,
@@ -48,19 +49,39 @@ export async function GET(req: NextRequest) {
   const started = Date.now();
   try {
     const [listingsRes, reservationsRes] = await Promise.all([
-      listGuestyListings({ limit: 5, fields: '_id nickname title active listingType' }),
+      listGuestyListings({
+        limit: 5,
+        fields: '_id nickname title active listingType accountId',
+      }),
       listGuestyReservations({
         limit: 5,
         sort: '-createdAt',
         fields:
-          '_id confirmationCode status source listingId guest.fullName checkInDateLocalized checkOutDateLocalized nightsCount money.hostPayout money.currency integration.platform integration.confirmationCode createdAt',
+          '_id confirmationCode status source listingId accountId guest.fullName checkInDateLocalized checkOutDateLocalized nightsCount money.hostPayout money.currency integration.platform integration.confirmationCode createdAt',
       }),
     ]);
+
+    // Auto-detect accountId from first record — lets the user skip the
+    // GUESTY_ACCOUNT_ID env var during bootstrap. Guesty stamps accountId
+    // on most documents.
+    const detectedAccountId =
+      ((listingsRes.results || [])[0] as { accountId?: string } | undefined)?.accountId ||
+      ((reservationsRes.results || [])[0] as { accountId?: string } | undefined)?.accountId ||
+      null;
 
     return NextResponse.json({
       ok: true,
       duration_ms: Date.now() - started,
-      account_id: process.env.GUESTY_ACCOUNT_ID || null,
+      account_id:
+        process.env.GUESTY_ACCOUNT_ID ||
+        detectedAccountId ||
+        null,
+      detected_account_id: detectedAccountId,
+      account_id_source: process.env.GUESTY_ACCOUNT_ID
+        ? 'env'
+        : detectedAccountId
+          ? 'auto-detected from API response'
+          : 'not found',
       listings: {
         count_returned: listingsRes.results?.length ?? 0,
         total_count: listingsRes.count,
