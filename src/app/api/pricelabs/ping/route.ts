@@ -146,21 +146,54 @@ export async function GET(req: NextRequest) {
 
     let priceSample: unknown = null;
     if (withPrices && listings.length > 0) {
-      const today = new Date();
-      const dateFrom = today.toISOString().slice(0, 10);
-      const end = new Date(today.getTime() + 14 * 24 * 3600 * 1000);
-      const dateTo = end.toISOString().slice(0, 10);
-      const raw = await pricelabsFetch<Record<string, unknown>>(
-        '/listings/prices',
-        { query: { id: listings[0].id, date_from: dateFrom, date_to: dateTo } }
-      );
-      // Surface the raw shape so we can see how PL structures this response.
+      // The /listings/prices endpoint returns {"listings": [...]}. Try a few
+      // query variations to figure out what actually populates the array.
+      const first = listings[0];
+      const today = new Date().toISOString().slice(0, 10);
+      const future = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+      const variants: Array<{ label: string; query: Record<string, string> }> = [
+        { label: 'id only', query: { id: first.id } },
+        { label: 'id + date range', query: { id: first.id, date_from: today, date_to: future } },
+        { label: 'listing_id param', query: { listing_id: first.id } },
+        { label: 'ids (plural)', query: { ids: first.id } },
+        { label: 'ids array json', query: { ids: JSON.stringify([first.id]) } },
+        { label: 'listings (plural)', query: { listings: first.id } },
+      ];
+      const tries = [] as Array<{ label: string; query: Record<string, string>; top_keys: string[]; sample: string }>;
+      for (const v of variants) {
+        try {
+          const raw = await pricelabsFetch<Record<string, unknown>>('/listings/prices', { query: v.query, retries: 0 });
+          tries.push({
+            label: v.label,
+            query: v.query,
+            top_keys: raw ? Object.keys(raw) : [],
+            sample: JSON.stringify(raw).slice(0, 500),
+          });
+        } catch (e) {
+          tries.push({
+            label: v.label,
+            query: v.query,
+            top_keys: [],
+            sample: `ERROR: ${e instanceof Error ? e.message.slice(0, 200) : 'unknown'}`,
+          });
+        }
+        await new Promise(r => setTimeout(r, 250));
+      }
+
+      // Also hit /listings/{id} for the detail view — we saw that responds 200.
+      let detailSample: string;
+      try {
+        const detail = await pricelabsFetch<Record<string, unknown>>(`/listings/${first.id}`, { retries: 0 });
+        detailSample = JSON.stringify(detail).slice(0, 1500);
+      } catch (e) {
+        detailSample = `ERROR: ${e instanceof Error ? e.message.slice(0, 200) : 'unknown'}`;
+      }
+
       priceSample = {
-        listing_id: listings[0].id,
-        listing_name: listings[0].name,
-        range: `${dateFrom} → ${dateTo}`,
-        raw_top_level_keys: raw ? Object.keys(raw) : [],
-        raw_sample: JSON.stringify(raw).slice(0, 1200),
+        listing_id: first.id,
+        listing_name: first.name,
+        detail_sample: detailSample,
+        tries,
       };
     }
 
