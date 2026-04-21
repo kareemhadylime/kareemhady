@@ -131,7 +131,9 @@ export async function odooExecute<T = unknown>(
 }
 
 // search_read is the workhorse for reading records — combines search+read
-// in one RPC, returns records with the requested fields.
+// in one RPC, returns records with the requested fields. Optional `context`
+// (e.g. `{ allowed_company_ids: [1, 2] }`) is critical for multi-company
+// tenants — without it, Odoo scopes to the API user's default company only.
 export async function odooSearchRead<T = Record<string, unknown>>(
   model: string,
   domain: unknown[] = [],
@@ -140,21 +142,27 @@ export async function odooSearchRead<T = Record<string, unknown>>(
     limit?: number;
     offset?: number;
     order?: string;
+    context?: Record<string, unknown>;
   } = {}
 ): Promise<T[]> {
-  return odooExecute<T[]>(model, 'search_read', [domain], {
+  const kwargs: Record<string, unknown> = {
     fields: options.fields,
     limit: options.limit ?? 80,
     offset: options.offset ?? 0,
     order: options.order,
-  });
+  };
+  if (options.context) kwargs.context = options.context;
+  return odooExecute<T[]>(model, 'search_read', [domain], kwargs);
 }
 
 export async function odooSearchCount(
   model: string,
-  domain: unknown[] = []
+  domain: unknown[] = [],
+  options: { context?: Record<string, unknown> } = {}
 ): Promise<number> {
-  return odooExecute<number>(model, 'search_count', [domain]);
+  const kwargs: Record<string, unknown> = {};
+  if (options.context) kwargs.context = options.context;
+  return odooExecute<number>(model, 'search_count', [domain], kwargs);
 }
 
 // ---- Server-version probe (no auth required — hits /common.version)
@@ -204,4 +212,12 @@ export type OdooAnalyticAccount = {
   name?: string;
   code?: string | false;
   balance?: number;
+};
+
+export type OdooCompany = {
+  id: number;
+  name?: string;
+  country_id?: [number, string] | false;
+  currency_id?: [number, string] | false;
+  partner_id?: [number, string] | false;
 };

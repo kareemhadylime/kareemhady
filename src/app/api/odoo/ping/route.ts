@@ -6,6 +6,7 @@ import {
   type OdooInvoice,
   type OdooPartner,
   type OdooAnalyticAccount,
+  type OdooCompany,
 } from '@/lib/odoo';
 
 // Smoke-test endpoint for the Odoo 18 integration. Returns server version +
@@ -14,9 +15,13 @@ import {
 //
 // Protected by CRON_SECRET (same bearer pattern as the daily cron):
 //   curl -H "Authorization: Bearer $CRON_SECRET" https://kareemhady.vercel.app/api/odoo/ping
+//
+// Explore mode (?explore=1) pivots the response to list all res.company rows
+// with per-company posted-invoice counts + journal counts. Used once to
+// identify the Beithady company IDs before writing the Phase 7.1 migration.
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') || '';
@@ -55,14 +60,90 @@ export async function GET(req: NextRequest) {
   }
 
   const started = Date.now();
-  try {
-    // Run the four reads in parallel. Invoice domain filters to posted
-    // customer/vendor invoices only — drafts + cancels would inflate counts.
-    const invoiceDomain = [
-      ['move_type', 'in', ['out_invoice', 'in_invoice']],
-      ['state', '=', 'posted'],
-    ];
+  const explore = req.nextUrl.searchParams.get('explore') === '1';
 
+  // Invoice domain — reused in both modes. Filters to posted customer/vendor
+  // invoices only; drafts + cancels would inflate counts.
+  const invoiceDomain = [
+    ['move_type', 'in', ['out_invoice', 'in_invoice']],
+    ['state', '=', 'posted'],
+  ];
+
+  if (explore) {
+    try {
+      // List all companies. Pass allowed_company_ids context to bypass the
+      // API user's default-company scoping (otherwise Odoo filters to just
+      // the user's current-selected company).
+      const companies = await odooSearchRead<OdooCompany>(
+        'res.company',
+        [],
+        {
+          fields: ['name', 'country_id', 'currency_id', 'partner_id'],
+          limit: 100,
+          order: 'id asc',
+        }
+      );
+
+      const allCompanyIds = companies.map(c => c.id);
+
+      // Per-company posted-invoice count. Pass allowed_company_ids per call
+      // so the domain's company_id filter actually sees that company's data.
+      const perCompany = await Promise.all(
+        companies.map(async c => {
+          try {
+            const [invoiceCount, journalCount] = await Promise.all([
+              odooSearchCount(
+                'account.move',
+                [...invoiceDomain, ['company_id', '=', c.id]],
+                { context: { allowed_company_ids: allCompanyIds } }
+              ),
+              odooSearchCount(
+                'account.journal',
+                [['company_id', '=', c.id]],
+                { context: { allowed_company_ids: allCompanyIds } }
+              ),
+            ]);
+            return {
+              id: c.id,
+              name: c.name,
+              country: Array.isArray(c.country_id) ? c.country_id[1] : null,
+              currency: Array.isArray(c.currency_id) ? c.currency_id[1] : null,
+              posted_invoice_count: invoiceCount,
+              journal_count: journalCount,
+            };
+          } catch (e) {
+            return {
+              id: c.id,
+              name: c.name,
+              country: Array.isArray(c.country_id) ? c.country_id[1] : null,
+              currency: Array.isArray(c.currency_id) ? c.currency_id[1] : null,
+              error: e instanceof Error ? e.message : String(e),
+            };
+          }
+        })
+      );
+
+      return NextResponse.json({
+        ok: true,
+        mode: 'explore',
+        duration_ms: Date.now() - started,
+        company_count: companies.length,
+        companies: perCompany,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        {
+          ok: false,
+          mode: 'explore',
+          duration_ms: Date.now() - started,
+          error: e instanceof Error ? e.message : String(e),
+        },
+        { status: 500 }
+      );
+    }
+  }
+
+  try {
     const [version, invoiceCount, invoices, partners, analyticAccounts] =
       await Promise.all([
         odooVersion(),
