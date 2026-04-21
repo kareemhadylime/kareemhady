@@ -127,12 +127,14 @@ function TotalsBlock({
   report: Awaited<ReturnType<typeof buildPricingReport>>;
 }) {
   const t = report.totals;
+  const physicalUnits = report.listings.reduce((s, r) => s + r.unit_count, 0);
+  const mtlParents = report.listings.filter(r => r.is_multi_unit_parent).length;
   return (
     <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
-        label="Units Synced"
-        value={`${report.total_listings}`}
-        sub={`${report.total_push_enabled} push-enabled`}
+        label="Physical Units"
+        value={`${physicalUnits}`}
+        sub={`${report.total_listings} listings · ${mtlParents} MTL parents`}
         icon={<Building2 size={18} className="text-indigo-600" />}
       />
       <StatCard
@@ -200,7 +202,9 @@ function BuildingBreakdown({
           <thead className="text-[11px] uppercase tracking-wide text-slate-500 bg-slate-50">
             <tr>
               <th className="text-left px-3 py-2">Building</th>
-              <th className="text-right px-3 py-2">Units</th>
+              <th className="text-right px-3 py-2" title="PriceLabs items (parents + singles)">Listings</th>
+              <th className="text-right px-3 py-2" title="Σ physical units (multi-unit parents expanded)">Phys. Units</th>
+              <th className="text-right px-3 py-2" title="Multi-unit parent listings (manage N sub-units each)">MTL Parents</th>
               <th className="text-right px-3 py-2">Pushing</th>
               <th className="text-right px-3 py-2">Avg Base</th>
               <th className="text-right px-3 py-2">Avg ADR (30d)</th>
@@ -208,7 +212,6 @@ function BuildingBreakdown({
               <th className="text-right px-3 py-2">YoY</th>
               <th className="text-right px-3 py-2">Occ next-30</th>
               <th className="text-right px-3 py-2">vs Market</th>
-              <th className="text-right px-3 py-2">With Recs</th>
             </tr>
           </thead>
           <tbody>
@@ -231,6 +234,12 @@ function BuildingBreakdown({
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {b.listings}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-semibold">
+                    {b.physical_units}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
+                    {b.multi_unit_parents}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-slate-500">
                     {b.units_pushing}
@@ -273,9 +282,6 @@ function BuildingBreakdown({
                       ? '—'
                       : `${b.occupancy_delta_30 >= 0 ? '+' : ''}${fmt1(b.occupancy_delta_30)} pp`}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
-                    {b.with_recs}
-                  </td>
                 </tr>
               );
             })}
@@ -307,6 +313,7 @@ function ListingTable({
             <tr>
               <th className="text-left px-3 py-2">Listing</th>
               <th className="text-left px-3 py-2">Bldg</th>
+              <th className="text-center px-3 py-2" title="Multi-unit parent manages N sub-listings">Units</th>
               <th className="text-center px-3 py-2">Push</th>
               <th className="text-right px-3 py-2">Base</th>
               <th className="text-right px-3 py-2">ADR 30d</th>
@@ -326,6 +333,18 @@ function ListingTable({
                 </td>
                 <td className="px-3 py-1.5 text-[11px] font-medium text-slate-600">
                   {r.building_code || '—'}
+                </td>
+                <td className="px-3 py-1.5 text-center">
+                  {r.is_multi_unit_parent ? (
+                    <span
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700"
+                      title={`Multi-unit parent · ${r.unit_count} sub-units`}
+                    >
+                      {r.unit_count}×
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">1</span>
+                  )}
                 </td>
                 <td className="px-3 py-1.5 text-center">
                   {r.push_enabled === true ? (

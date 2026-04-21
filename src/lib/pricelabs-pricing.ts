@@ -6,6 +6,11 @@ export type PricingListingRow = {
   building_code: string | null;
   bedrooms: number | null;
   push_enabled: boolean | null;
+  // Multi-Unit Strategy: PriceLabs names its parent listings with "-- N Units"
+  // suffix. We parse that out so we can count PHYSICAL units, not listings.
+  // Children listings = 1 unit; standalone = 1 unit; parents = N units.
+  unit_count: number;
+  is_multi_unit_parent: boolean;
   base: number | null;
   min_price: number | null;
   max_price: number | null;
@@ -33,6 +38,8 @@ export type PricingListingRow = {
 export type PricingBuildingSummary = {
   building_code: string;
   listings: number;
+  physical_units: number;          // Σ unit_count — true physical footprint
+  multi_unit_parents: number;
   units_pushing: number;
   avg_base: number | null;
   avg_adr_past_30: number | null;
@@ -167,8 +174,19 @@ export async function buildPricingReport(
     channelsByListing.set(ch.listing_id, arr);
   }
 
+  // Parse "-- N Units" suffix from a PL listing name. Missing suffix = 1 unit.
+  const parseUnitCount = (name: string | null | undefined): { units: number; isParent: boolean } => {
+    const m = /\b(\d+)\s*Units?\b/i.exec(String(name || ''));
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n > 1) return { units: n, isParent: true };
+    }
+    return { units: 1, isParent: false };
+  };
+
   const rows: PricingListingRow[] = listings.map(l => {
     const s = (snapsByListing.get(l.id) || {}) as Record<string, unknown>;
+    const { units, isParent } = parseUnitCount(l.name);
     const adr = numberOrNull(s.adr_past_30);
     const stlyAdr = numberOrNull(s.stly_adr_past_30);
     const rev = numberOrNull(s.revenue_past_30);
@@ -181,6 +199,8 @@ export async function buildPricingReport(
       building_code: l.building_code,
       bedrooms: l.bedrooms,
       push_enabled: l.push_enabled,
+      unit_count: units,
+      is_multi_unit_parent: isParent,
       base: numberOrNull(s.base),
       min_price: numberOrNull(s.min_price),
       max_price: numberOrNull(s.max_price),
@@ -236,9 +256,13 @@ export async function buildPricingReport(
       const bStly = sumNonNull(items.map(i => i.stly_revenue_past_30));
       const occ30 = avg(items.map(i => i.occupancy_next_30));
       const mktOcc30 = avg(items.map(i => i.market_occupancy_next_30));
+      const physicalUnits = items.reduce((s, i) => s + i.unit_count, 0);
+      const parents = items.filter(i => i.is_multi_unit_parent).length;
       return {
         building_code,
         listings: items.length,
+        physical_units: physicalUnits,
+        multi_unit_parents: parents,
         units_pushing: items.filter(i => i.push_enabled === true).length,
         avg_base: avg(items.map(i => i.base)),
         avg_adr_past_30: avg(items.map(i => i.adr_past_30)),
