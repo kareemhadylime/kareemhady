@@ -1,5 +1,22 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟢 PHASE 10.1.6 — Dev Dashboard URL config found in Versions; app ready, awaiting browser install click
+
+User found the right config page after clicking into Versions. Screenshot confirms the KIKA OUTPUT app (client_id `e91d0612396dd960fa56d0c06ea7d7a9`, secret hidden, matches env) is now configured with:
+- **App URL**: `https://kareemhady.vercel.app` ✓
+- **Redirect URLs**: `https://kareemhady.vercel.app/api/shopify/auth/callback` ✓
+- **Embed app in Shopify admin**: ON (harmless for our backend-only use)
+- **Scopes**: includes read_orders, read_products, read_customers, read_inventory, read_locations (plus many others the user selected)
+- **Use legacy install flow**: UNCHECKED
+
+### Watch out for "managed install"
+With the new Dev Dashboard + "Embed app in Shopify admin" ON + legacy install flow OFF, Shopify may use **managed install** which installs the app silently without hitting our OAuth callback. If the browser-install doesn't return to `/emails/kika?shopify=installed` and the token doesn't land in `integration_tokens`, the fix is to check **"Use legacy install flow"** in the same config section (visible just above the Redirect URLs field), save, release a new version, and retry.
+
+### State
+- `integration_tokens` still has no `shopify:*` row (verified via MCP).
+- Next action: user opens `https://kareemhady.vercel.app/api/shopify/auth/start` in browser while logged into Shopify, approves install on kika-swim-wear.
+- On success → `/api/shopify/ping` validates connection, then Phase 10.2 (schema + sync + sales dashboard).
+
 ## 🟠 PHASE 10.1.5 — Dev Dashboard hides URL-config fields; offered Partners Dashboard fallback
 
 User went to `https://admin.shopify.com/store/kika-swim-wear/apps/kika-output` looking for where to set the redirect URL — couldn't find it. The `kika-output` handle in that URL is different from the `kika-1` handle in earlier screenshots, meaning the user may have a second app already installed on the store.
