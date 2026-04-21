@@ -1,5 +1,53 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 8 CONNECTION VERIFIED — PriceLabs live, rich revenue intel surfaced (commits 3f3f1b6 → a9c41ac)
+
+User added `PRICELABS_API_KEY` to Vercel; I redeployed and iterated until the API shape was fully mapped.
+
+### Discovery journey this turn
+1. First smoke test (auth OK) returned 69 listings all `pms: "guesty"` — but `pms_reference_id` was null and price/base fields all null in the catalog response. Suggested the catalog endpoint is lightweight and detail lives elsewhere.
+2. `/listing_prices` (my original assumption from research notes) returned **404**. PriceLabs docs aren't publicly indexed via WebFetch, so I shipped a `?probe=1` debug mode that tested 14 candidate endpoints against a real listing.
+3. Probe winners: `GET /listings/{id}` → 200 with rich detail; `GET /listings/prices?id=X` → 200 but empty `{listings: []}`. The rest 404/400.
+4. Inspected raw `/listings/{id}` body — found gold: ADR/STLY comparison, occupancy vs market 7/30/60-day, revenue past 30 vs STLY, channel_listing_details (Airbnb 1091789238403851086, Booking 14409469, rentalsUnited 4492275 for BH-435-303), tags "BH-435-303,BH-435", group "BH_Cairo_Buildings", recommended_base_price (often "Unavailable" for new listings).
+5. `/listings/prices` empty response correlates to `recommended_base_price: "Unavailable"` — not an endpoint bug, PL's ML model just hasn't generated recs for new listings yet.
+
+### Final client state (`src/lib/pricelabs.ts`)
+- `listPricelabsListings()` → 69 catalog entries (id/name/pms/push_enabled/bedrooms)
+- `getPricelabsListing(id)` → single-listing detail, unwraps the `{listings: [one]}` shape. Exposes 20+ revenue-intelligence fields.
+- `getPricelabsListingPrices(listingId, {dateFrom, dateTo})` → corrected path to `GET /listings/prices?id=X&date_from=&date_to=`. Returns `{listings: []}` shape (empty when listing has no recs — probably needs a batch variant or richer date range to populate; deferred to 8.1).
+- Fetch wrapper honors 429/5xx Retry-After, tolerates empty 200 bodies, captures `X-Request-ID` in error messages.
+
+### Final ping response (tested at https://kareemhady.vercel.app/api/pricelabs/ping)
+| Building (normalized tag) | PriceLabs count | Odoo analytic count |
+|---|---|---|
+| BH-26 | 22 | 22 (exact match — 22 Lotus units) |
+| BH-435 | 14 | 14 (exact match) |
+| BH-73 | 13 | 29 (16 missing — PL not managing those units yet) |
+| untagged | 20 | — (likely BH-OK scatter + BH-34, whose tags don't match the BH-\d pattern) |
+| **Total** | **69** | (vs 91 in Guesty → 22 listings not synced to PL at all) |
+
+Sample detail for BH-435-303:
+- Base $120 USD, push_enabled, 3 channels live
+- ADR past 30: $79 (vs STLY $64) = **+23% YoY**
+- Revenue past 30: $1,586 (STLY $1,602) = flat
+- Occupancy next 7d: **14%** beats market 11%
+- Occupancy next 30d: 3% trails market 5%; next 60d: 2% trails 3%
+- Rec base price: "Unavailable" (new listing)
+
+### Known gaps + observations
+1. **16 BH-73 units missing from PL** — need to cross-check against Guesty listings (58 BH-73 analytic accounts ÷ 2 companies ≈ 29 units expected vs PL's 13). User should add them in the PL portal.
+2. **20 listings have no building tag** (or tag doesn't match `BH-\d` pattern). Likely BH-OK / BH-34 / BH-OKAT variants. Need to inspect tag values in a future turn and expand `normalizeBuildingTag` to handle them.
+3. **`/listings/prices` returns empty for listings without recs**. The documented late-2025 `booking_prob` / `adjusted_price` fields would land here; not accessible until PL's model publishes recs for more Beithady listings.
+4. **`pms_reference_id` is null** on catalog responses — but PriceLabs' `id` field IS the Guesty `_id` (same ObjectId format, same values). Join to `guesty_*` tables will work on `pricelabs.id === guesty.listing._id`. Documented in code comments.
+
+### Next step (Phase 8.1 — NOT started)
+Schema + sync + cron + dashboard. Likely shape:
+- `pricelabs_listings` (per-listing snapshot with revenue intel + rec-base-price + tag + last_refreshed_at)
+- `pricelabs_daily_prices` (per-listing-per-day base / recommended / min_stay if it ever surfaces)
+- `pricelabs_channels` (link table: pricelabs_listing_id + channel_name + channel_listing_id)
+- Cron at 04:35 UTC iterating all listings (69 × ~1s = ~70s → fits one function invocation)
+- Dashboard: new `/emails/beithady/pricing` page with per-building ADR/STLY/occupancy-vs-market grid. Could also fold into the Financials page as a sibling tab.
+
 ## 🟡 PHASE 8 SCAFFOLD — PriceLabs API client + smoke-test endpoint (commit 05470d2, deployed, BLOCKED on user API key)
 
 User direction: "now connect pricelabs api".
