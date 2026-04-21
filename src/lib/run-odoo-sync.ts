@@ -46,12 +46,13 @@ export async function runOdooSync(trigger: 'cron' | 'manual') {
     for (const companyId of SCOPE_COMPANY_IDS) {
       const ctx = { allowed_company_ids: [companyId] };
 
-      // 1. Company record — upsert with in_scope=true.
+      // 1. Company record — upsert with in_scope=true and partner_id so we
+      // can eliminate intercompany lines in the P&L aggregator.
       const companyRows = await odooSearchRead<OdooCompany>(
         'res.company',
         [['id', '=', companyId]],
         {
-          fields: ['name', 'country_id', 'currency_id'],
+          fields: ['name', 'country_id', 'currency_id', 'partner_id'],
           limit: 1,
           context: ctx,
         }
@@ -68,6 +69,9 @@ export async function runOdooSync(trigger: 'cron' | 'manual') {
             : null,
           currency: Array.isArray(company.currency_id)
             ? company.currency_id[1]
+            : null,
+          partner_id: Array.isArray(company.partner_id)
+            ? company.partner_id[0]
             : null,
           in_scope: true,
           last_synced_at: new Date().toISOString(),

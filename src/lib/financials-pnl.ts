@@ -238,25 +238,45 @@ type RawAggregateRow = {
   sum_balance: number;
 };
 
+// Intercompany elimination. The tenant books monthly Turnkey Fee invoices
+// between Beithady Egypt (5) and FZCO Dubai (10) — see memory
+// beithady_intercompany_model.md for the full structure. On the consolidated
+// P&L those lines must be eliminated or revenue + cost both inflate by the
+// same amount. Partners representing the other Beithady entity carry names
+// like "Beithady Hospitality - Egypt" / "053. BeitHady Hospitality- UAE";
+// we match by that pattern. Customer "Beit Hady Website" partners are NOT
+// intercompany (it's the booking-website flow) — the 'hospitality' keyword
+// excludes them.
+async function getIntercompanyPartnerIds(): Promise<number[]> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('odoo_partners')
+    .select('id, name')
+    .or(
+      'name.ilike.%beithady hospitality%,name.ilike.%beit hady hospitality%'
+    );
+  return (data || []).map(r => Number((r as { id: number }).id));
+}
+
 async function fetchAccountTotals(params: {
   fromDate: string;
   toDate: string;
   companyIds: number[];
-}): Promise<{ rows: RawAggregateRow[]; totalLineCount: number }> {
+  excludePartnerIds: number[];
+}): Promise<{ rows: RawAggregateRow[]; totalLineCount: number; excluded: number }> {
   const sb = supabaseAdmin();
-  // Pull all move lines in period + JOIN accounts. Supabase-js doesn't
-  // support server-side GROUP BY on FK joins, so we aggregate in-memory.
-  // Paginate to avoid the 1000-row default cap.
   const PAGE = 1000;
   let offset = 0;
   const byAccount = new Map<string, RawAggregateRow>();
   let totalLineCount = 0;
+  const excludeSet = new Set(params.excludePartnerIds);
+  let excluded = 0;
 
   while (true) {
     const { data, error } = await sb
       .from('odoo_move_lines')
       .select(
-        'balance, odoo_accounts!inner(code, name, account_type)'
+        'balance, partner_id, odoo_accounts!inner(code, name, account_type)'
       )
       .gte('date', params.fromDate)
       .lte('date', params.toDate)
@@ -266,6 +286,7 @@ async function fetchAccountTotals(params: {
     if (error) throw new Error(`fetchAccountTotals: ${error.message}`);
     const rows = (data as unknown as Array<{
       balance: number;
+      partner_id: number | null;
       odoo_accounts: { code: string | null; name: string; account_type: string | null } | null;
     }>) || [];
     if (rows.length === 0) break;
@@ -273,12 +294,13 @@ async function fetchAccountTotals(params: {
 
     for (const r of rows) {
       if (!r.odoo_accounts) continue;
+      if (r.partner_id != null && excludeSet.has(Number(r.partner_id))) {
+        excluded++;
+        continue;
+      }
       const code = r.odoo_accounts.code || '';
       const name = r.odoo_accounts.name || '';
       const accountType = r.odoo_accounts.account_type || '';
-      // Composite key: (code|name|type) — account records share codes across
-      // companies with DIFFERENT names (same code, different meaning), so
-      // don't collapse by code alone.
       const key = `${code}||${name}||${accountType}`;
       const existing = byAccount.get(key);
       const bal = Number(r.balance) || 0;
@@ -295,7 +317,7 @@ async function fetchAccountTotals(params: {
   const rows = Array.from(byAccount.values()).sort((a, b) =>
     (a.code || '').localeCompare(b.code || '')
   );
-  return { rows, totalLineCount };
+  return { rows, totalLineCount, excluded };
 }
 
 export async function buildPnlReport(params: {
@@ -303,12 +325,14 @@ export async function buildPnlReport(params: {
   toDate: string;
   label: string;
   companyIds?: number[];
-}): Promise<PnlReport> {
+}): Promise<PnlReport & { intercompany_excluded_lines: number }> {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
-  const { rows, totalLineCount } = await fetchAccountTotals({
+  const excludePartnerIds = await getIntercompanyPartnerIds();
+  const { rows, totalLineCount, excluded } = await fetchAccountTotals({
     fromDate: params.fromDate,
     toDate: params.toDate,
     companyIds,
+    excludePartnerIds,
   });
 
   const sections: PnlReport['sections'] = {
@@ -392,6 +416,7 @@ export async function buildPnlReport(params: {
     totals,
     line_count: totalLineCount,
     unclassified: unclassified.sort((a, b) => a.code.localeCompare(b.code)),
+    intercompany_excluded_lines: excluded,
   };
 }
 
@@ -427,6 +452,7 @@ export async function buildPayablesReport(params: {
 }): Promise<PayablesReport> {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
   const sb = supabaseAdmin();
+  const excludeSet = new Set(await getIntercompanyPartnerIds());
 
   // Pull open-AP lines (amount_residual != 0) within company scope. Matching
   // by name "Home Owner Cut" and "Rent Costs" is how we detect owner lines
@@ -475,6 +501,7 @@ export async function buildPayablesReport(params: {
 
   for (const l of allRows) {
     if (!l.odoo_partners || l.partner_id == null) continue;
+    if (excludeSet.has(Number(l.partner_id))) continue; // intercompany
     const acctName = (l.odoo_accounts?.name || '').toLowerCase();
     const acctType = l.odoo_accounts?.account_type || '';
 
