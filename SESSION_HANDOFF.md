@@ -1,5 +1,70 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 10.2 SHIPPED — Kika Shopify mirror + Sales Intelligence dashboard (commits 72d79a6 + 73284d6)
+
+### Install flow completed
+User opened `/api/shopify/auth/start` → approved on Shopify → callback persisted `shpat_b59ebe…` (38 chars) to `integration_tokens` as `shopify:kika-swim-wear`. Smoke-test returned shop metadata correctly: KIKA on `thekikastore.com`, EGP currency, Africa/Cairo timezone, Professional plan, 286 orders last 30d / 604 YTD.
+
+### Ping env-check fix
+`/api/shopify/ping` initially rejected with "SHOPIFY_ADMIN_ACCESS_TOKEN missing" because the old env check didn't know about the OAuth-populated token. Relaxed to only require `SHOPIFY_STORE_DOMAIN` — `shopifyFetch()`'s resolver handles both env-based and DB-based tokens.
+
+### Schema (migration 0007_shopify.sql, applied via MCP)
+- `shopify_orders`: full mirror with financial_status, fulfillment_status, totals (subtotal, total, discounts, tax, shipping, refunded_amount), customer denormalized (id + name), tags, line_item_count, raw jsonb. Indexed on `created_at desc`, `financial_status`, `customer_id`.
+- `shopify_line_items`: per-item detail (product_id, variant_id, title, sku, vendor, quantity, price, total_discount) with FK cascade to orders.
+- `shopify_sync_runs`: run log.
+
+### Sync worker (`src/lib/run-shopify-sync.ts`)
+- `iterateShopifyOrders()` async generator uses Shopify's `Link` header cursor pagination (not offset). 500ms spacing respects Shopify's 2 req/sec base rate.
+- Filters `created_at >= now - 365d`, all statuses. Orders upsert first (FK satisfaction), then line items.
+- Refunded amount summed from nested `refunds[].transactions[].amount`.
+- Tags split comma-separated string → text[].
+
+### Routes
+- `GET /api/cron/shopify` — scheduled 04:45 UTC in vercel.json.
+- `GET|POST /api/shopify/run-now` — bearer-protected manual trigger.
+
+### First full backfill (manual trigger)
+- Duration: **118.7s** for 365d of data (well under 300s Vercel cap).
+- **1,714 orders + 2,816 line items** synced.
+- Date range: 2025-04-22 → 2026-04-21 (exactly 1 year).
+- 756 paid / 130 pending / 46 refunded.
+- Gross revenue: **7,321,062 EGP** (~EGP 7.3M/year).
+- AOV: **4,271 EGP**.
+- Refunds total: 158,512 EGP (2.2% of gross).
+
+### Dashboard (`/emails/kika/sales`)
+- Top stat cards: Orders / Gross Revenue / AOV / Customers.
+- Daily trend table with inline horizontal bar chart (revenue), including orders + units per day.
+- Top products by revenue (20 items) + Top customers by revenue (15).
+- Financial + fulfillment status breakdown cards.
+- Recent orders table (15 most recent) with colored status pills.
+- Latest-sync timestamp + order/line count in header.
+- Period presets: last_7d / last_30d / mtd / ytd + custom date range.
+
+Smoke-tested all 4 presets → HTTP 200.
+
+### Kika domain page
+Now shows two cards in a 2-col grid:
+1. **Financials** (violet / Odoo) — P&L with segment tabs
+2. **Sales Intelligence** (emerald / Shopify) — new
+
+### Vercel cron now at 12 entries
+```
+04:00 /api/cron/odoo
+04:05-04:30 /api/cron/odoo-financials (6 phases)
+04:35 /api/cron/pricelabs
+04:40 /api/cron/guesty
+04:45 /api/cron/shopify   ← NEW
+06:00, 07:00 /api/cron/daily (Gmail)
+```
+
+### Phase 10.3+ backlog
+1. **Product + customer master sync** (`shopify_products`, `shopify_customers` tables). Currently we denormalize customer_name on the order row and parse product title from line items; a proper product catalog would enable variant-level analytics, inventory trend, SKU-based reporting.
+2. **Shopify webhooks** for real-time order notifications (order create / update / refund). Schema already supports upsert-by-id so webhook handler is a thin wrapper.
+3. **Cross-join to Odoo Kika segment P&L** — the dashboard's revenue figure should reconcile with the Kika analytic account revenue in Odoo (already ~867K for Jan-Feb 2026; Shopify is higher because it includes pending/unfulfilled orders).
+4. **Abandoned checkout tracking** — Shopify exposes /checkouts; would surface recoverable lost revenue.
+5. **Inventory alerts** — pull /inventory_levels with low-stock threshold.
+
 ## 🟢 PHASE 10.1.6 — Dev Dashboard URL config found in Versions; app ready, awaiting browser install click
 
 User found the right config page after clicking into Versions. Screenshot confirms the KIKA OUTPUT app (client_id `e91d0612396dd960fa56d0c06ea7d7a9`, secret hidden, matches env) is now configured with:
