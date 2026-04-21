@@ -1,5 +1,23 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 PHASE 10.1 KICKOFF — Shopify onboarding guidance sent, no code changes
+
+User shared a screenshot of the Shopify Dev Dashboard showing a custom app "KIKA" with handle `kika-1` and 0 installs. Asked where API parameters come from. Sent two paths:
+
+**Path A (recommended)** — skip the Dev Dashboard for single-store use. Create the custom app from inside the store admin at `shopfromkika.myshopify.com/admin` → Settings → Apps and sales channels → Develop apps → Create app → Admin API scopes read-only (read_orders, read_products, read_customers, read_inventory, read_locations) → Install → copy the Admin API access token (`shpat_...` shown once).
+
+**Path B** — continue with the KIKA app already visible in the Dev Dashboard: click into it, enable the same scopes, install to shopfromkika store, then grab the token.
+
+User needs to add to Vercel + `.env.local`:
+```
+SHOPIFY_STORE_DOMAIN=shopfromkika
+SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_xxxxxxxxxxxxxxxxxx
+```
+
+Then say "done" → I run the ping at `/api/shopify/ping`.
+
+No code changes this turn. Scaffold from prior commits (7376e95) is live and ready.
+
 ## ✅ PHASE 10 — KIKA Financials + Shopify scaffold (commits 7376e95 + e557371)
 
 Three things shipped together: partial Phase 9.2 enrichment helper, KIKA financial dashboard, and Shopify read-only scaffold for the shopfromkika store.
