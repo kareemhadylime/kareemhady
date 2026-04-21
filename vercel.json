@@ -9,6 +9,7 @@
     { "path": "/api/cron/odoo-financials?phase=move-lines-5", "schedule": "15 4 * * *" },
     { "path": "/api/cron/odoo-financials?phase=move-lines-10", "schedule": "20 4 * * *" },
     { "path": "/api/cron/odoo-financials?phase=analytics", "schedule": "25 4 * * *" },
-    { "path": "/api/cron/odoo-financials?phase=finalize", "schedule": "30 4 * * *" }
+    { "path": "/api/cron/odoo-financials?phase=finalize", "schedule": "30 4 * * *" },
+    { "path": "/api/cron/pricelabs", "schedule": "35 4 * * *" }
   ]
 }
