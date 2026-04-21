@@ -1,5 +1,59 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.8 FOLLOW-UP SHIPPED — cross-match payouts against Beithady Bookings (commit e93f8c2)
+
+### User request
+> "follow-up cross match"
+
+Closes the reconciliation loop: Airbnb payout line items AND Stripe API transactions both now join against the latest Beithady Bookings rule run so the UI shows Guesty's canonical `building_code` + expected `total_payout` next to each paid row. Fully render-time / server-side; no new stored fields.
+
+### Key insight used
+Guesty's `booking_id` field in the Beithady Bookings rule's output IS the Airbnb HM-xxxxxxxx confirmation code (verified against the existing reconciliation logic in `beithady-booking.ts:545-552` which builds `guestyCodes` from `booking_id` and intersects with Airbnb `confirmation_code`s). So a single map keyed by uppercase confirmation code handles both the Airbnb email leg and the Stripe API leg.
+
+### Files (single-file diff)
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+**Server component** — after the normal rule/runs fetch, when `isPayout`, do a small sequential lookup:
+1. Query `rules` by `domain=beithady`, filter JS-side for `actions.type === 'beithady_booking_aggregate'`.
+2. If found, query `rule_runs` for the latest `status=succeeded` row, pull `output.bookings[]`.
+3. Pass as `crossMatchBookings` (array) + `crossMatchRunAt` (ISO) to `BeithadyPayoutView`.
+
+If no bookings rule exists OR no successful runs yet → empty array, UI gracefully falls back to "—" in match columns. No errors, no warnings.
+
+**BeithadyPayoutView** — builds two maps ONCE at render:
+- `bookingsByCode: Map<string (upper-cased confirmation), CrossMatchBooking>` — primary lookup
+- `bookingsByGuest: Map<string (lowercased guest name), CrossMatchBooking[]>` — fallback only when exactly one booking shares a name (list.length === 1). Prevents ambiguous joins when a guest booked twice under different codes.
+
+Exposes a single `lookupBooking(code, guestName) → CrossMatchBooking | null` helper typed `BookingLookup` and threads it down.
+
+**Airbnb line items table** — two new columns between "Bldg" and "Stay":
+- **Matched Bldg** — Guesty's canonical `building_code` (emerald, semibold) when matched, else `—`. More accurate than the existing "Bldg" column which is regex-derived from the Airbnb listing name (often `UNKNOWN` when the listing doesn't carry a BH-code).
+- **Expected (USD)** — Guesty's stored `total_payout` for the matched booking. Compared against the line item's `amount` (non-refund only); if `|Δ| > $1`, shows a `↑` (overpaid vs expected) or `↓` (underpaid) arrow with the Δ on hover. Subtle way to surface payout drift.
+
+**StripeApiBreakdownSection** — accepts `lookupBooking` + `crossMatchCount` props. Same two new columns in the per-payout transaction table. Guest column also gets a small green `✓` next to the name when matched (title tooltip shows channel + listing_code for the matched booking).
+
+**Match-rate banner** — computed pre-render by iterating all txns once:
+- If `crossMatchCount > 0` AND `totalTxns > 0`: show `GitCompare` icon + "Cross-matched X of Y Stripe transactions to a Guesty booking" in an emerald card when `matchedTxns > 0`, amber card when 0.
+- When matchedTxns === 0, the banner asks the user to share a sample Stripe charge's metadata keys so the extractor (currently checks `guest_name`/`guestName`/`guest`/`reservation_guest`) can be tuned to Guesty's actual schema.
+
+### Verification
+- `rm -rf .next && npm run build` clean, TS 10.0s, 14 routes.
+- commit e93f8c2 on main via `git push origin HEAD:main`.
+- Pulled into `C:\kareemhady`, `vercel --prod --yes` → `kareemhady-e1xjoi2w8-lime-investments.vercel.app` (Ready, 49s build).
+
+### Design choices worth remembering
+- **Render-time join, not aggregate-time** — bookings might update between payout runs. Rather than baking a snapshot into each payout run's output (which would go stale), the detail page does a fresh `rule_runs` lookup every time it's rendered. One extra Supabase query per page view; negligible.
+- **Exact match on booking_id, guest-name only as fallback** — guest names can collide. The fallback only fires when (a) no confirmation code extracted AND (b) exactly one booking has that guest name. Keeps the UI honest about what was "matched" vs guessed.
+- **No schema changes** — `BeithadyPayoutAggregate` is untouched. This was a UI-only enhancement. Older `rule_runs` render correctly (match columns just show `—`) because the lookup key reads from live DB, not the stored output.
+- **Payout Δ indicator** — shows up only when difference > $1 and only on non-refund rows. Small affordance for spotting when Airbnb paid out a different amount than Guesty expected (possible causes: currency FX drift, late refund, host service fee change). Doesn't hard-flag — just shows the arrow + value on hover.
+
+### Guest-name extractor status (to re-check after a real run)
+The `extractGuestFromTxn` helper in `StripeApiBreakdownSection` checks these metadata keys: `guest_name`, `guestName`, `guest`, `reservation_guest`. Plus a regex fallback on description (`/(?:guest|for)\s+([A-Z][a-zA-Z'\`\- ]{1,40})/`). After the user runs the Payouts rule next time, if the match-rate banner shows "0 of N Stripe transactions matched" with a non-empty bookings list, the keys list needs tuning. User has agreed to share a sample charge's metadata when that happens.
+
+### Next / queue
+- Still waiting on a real-data run to validate the match rate. User said they'd share sample Stripe charge metadata if the extractor needs tuning.
+- Still unstarted: user-side Vercel orphan cleanup (4 random-name projects — `vigorous-almeida-bec425`, `peaceful-moser-39791b`, `exciting-ride-1a2629`, `gifted-mcclintock`).
+
 ## ✅ PHASE 5.8 SHIPPED — Stripe API reconciliation on Beithady Payouts (commit 8568d40)
 
 ### User request
