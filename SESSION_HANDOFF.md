@@ -1,5 +1,65 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7.6 SHIPPED — Analytic plans/accounts/links + BH-building & LOB segregation + cron automation (commits e740ac4 + ce5bd49)
+
+User request: "Cron automation for financial sync phases / plan/account resolution is not built yet".
+
+### Schema additions (migration 0004_odoo_analytic.sql, applied via MCP)
+- **`odoo_analytic_plans`** — Odoo 17+ `account.analytic.plan` containers. Synced 52 plans across FINANCIALS_COMPANY_IDS scope.
+- **`odoo_analytic_accounts`** — per-building / per-LOB accounts with `plan_id`, `root_plan_id`, derived `building_code`, `lob_label`. Synced 210 accounts.
+- **`odoo_move_line_analytics`** — flat projection of `analytic_distribution` jsonb. Splits composite keys (e.g. `{"538,537": 100}` → two rows because Odoo multi-plan-allocates). Synced **69,751 link rows** covering all 69,697 move lines that carry analytics.
+- Extended `odoo_sync_runs` with analytic counters.
+
+### Classification derived at sync time (via regex on analytic-account names)
+**Buildings detected (13 distinct):**
+- **BH-26**: 47 accounts (Lotus, New Cairo)
+- **BH-34**: 2 accounts
+- **BH-73**: 58 accounts
+- **BH-435**: 44 accounts (AbdelHameed Gouda Elsahar St.; A1-owned)
+- Plus minor: BH-101, BH-107, BH-109, BH-114, BH-115, BH-116, BH-202, BH-203, BH-213
+
+**LOB detected:**
+- **Arbitrage** (Leased model): 16 accounts
+- **Management** (BH-435 model): 17 accounts
+
+### Postgres RPC `pnl_aggregated`
+Pushes GROUP BY + analytic EXISTS filter + partner exclusion into Postgres — avoids supabase-js URL-length limits when filtering by building/LOB touches 20k+ lines. Signature: `(from date, to date, company_ids bigint[], building_code text default null, lob_label text default null, exclude_partner_ids bigint[] default null)`. Returns per-account totals + line counts.
+
+### Bug found & fixed during rollout
+Initial `rebuildAnalyticLinks` used `PAGE = 2000`. Supabase PostgREST caps at `max-rows = 1000` by default, so the first batch returned 1000 rows and the loop interpreted `rows.length < PAGE` as end-of-set — producing only **1,000** link rows. Fixed by setting `PAGE = 1000` to match the cap; full rerun now produces 69,751 links.
+
+### Cron automation (vercel.json)
+9 cron entries now scheduled. Daily 04:00-04:30 UTC window:
+```
+04:00  /api/cron/odoo                               → companies + invoices (~15s)
+04:05  /api/cron/odoo-financials?phase=metadata     → accounts + partners
+04:10  /api/cron/odoo-financials?phase=move-lines-4 → A1 move lines (resume=true)
+04:15  /api/cron/odoo-financials?phase=move-lines-5 → Egypt move lines (resume=true)
+04:20  /api/cron/odoo-financials?phase=move-lines-10→ Dubai move lines (resume=true)
+04:25  /api/cron/odoo-financials?phase=analytics    → plans + accounts + links
+04:30  /api/cron/odoo-financials?phase=finalize     → owner flag
+```
+Plus existing Gmail crons at 06:00 + 07:00 UTC. All resume-aware + idempotent. Each phase fits in ~30s comfortably within the 300s cap.
+
+### UI updates
+- **Segregation panel** between Scope tabs and the P&L: dropdowns for Building (All / each BH-*) + LOB (All / Arbitrage / Management). Submit form preserves scope + period.
+- Active filter annotates the P&L subtitle (e.g. `Building: BH-26 · LOB: Arbitrage`).
+- Period preset + month-specific links preserve `building` and `lob` query params across navigation.
+- Clear-filters link visible when a filter is active.
+- Note: Balance Sheet and Payables are NOT filtered by building/LOB (those are balance-sheet concepts that don't segregate cleanly by analytic). UI warns the user of this via an amber note when filter is active.
+
+### Smoke-tested (20 combinations all HTTP 200)
+4 scopes × 5 filter states (none, BH-26, BH-435, Arbitrage, Management). Scope-aware Rent Costs routing (from 7.5) still works under analytic filtering.
+
+### Verification via RPC
+Feb 2026, BH-26 scope: Revenue From Airbnb 941,788 EGP (44% of the 2,136,790 consolidated) — plausible share for the 22-unit Lotus Building property. Agents Commission Airbnb 177,807 (67% of 265,958 consolidated). Data is internally consistent.
+
+### Known gaps still open
+1. **Balance Sheet undercounts pre-2025 history** — our 365d move-line window misses inception-to-April-2025 entries. A1 snapshot still shows Assets 2.17M vs xlsx 9.44M. Not addressed this turn.
+2. **Cost of Revenue consolidated -14%** — still open; investigation deferred.
+3. **Building-scoped Balance Sheet / Payables** — not implemented; only P&L supports the filter. Would require a per-account-type analytic breakdown which is iffy for accrued liabilities.
+4. **Cron first fire** will be next 04:00 UTC (02:00 Cairo) — no results to verify yet. Dashboard's latest-sync metadata will update after that window.
+
 ## ✅ PHASE 7.5 SHIPPED — 4 company views + Balance Sheet + A1 in scope (commits c9aa061 + 06ae34c)
 
 User request: "Study All, cover All Gaps and Show Dashboard for Balance Sheet ... also P&L Dashboard important Numbers Mainly for Beithady Consolidated & A1 as Owner ... segregation for BH-26 - BH-73 - BH-435, Arbitrage / Management Line of Business" + four xlsx files (Consolidated, UAE, Egypt, A1) as target layouts.
