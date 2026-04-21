@@ -1,5 +1,63 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7 SCAFFOLD — Odoo 18 JSON-RPC client + smoke-test endpoint (commit 2691f4a, deployed)
+
+### Credentials gathered
+- `ODOO_URL=https://fmplus.odoo.com` (user pasted `.../odoo` — code strips the `/odoo` web-client suffix automatically in `getCreds()`)
+- `ODOO_DB=fmplus` (inferred from subdomain; Odoo Online always matches)
+- `ODOO_USER=kareem@fmplusme.com`
+- `ODOO_API_KEY=<user has it, not yet in Vercel>`
+
+User reported Bad Request on `/web/session/get_session_info` — that's a JSON-RPC endpoint wanting POST, harmless. DB name confirmed via subdomain convention.
+
+### What shipped
+Zero-dep scaffold mirroring the Guesty pattern (pure fetch, no `odoo-await` — kept deps minimal).
+
+#### `src/lib/odoo.ts` (new, ~180 lines)
+- **JSON-RPC over HTTPS** to `{ODOO_URL}/jsonrpc`. Two services used: `common` (for auth + version probe) and `object` (for `execute_kw` against models).
+- **Auth flow**: `authenticate(db, user, api_key, {})` → returns `uid` (int). Cached per cold start, invalidated if `user:key` changes. API key is sent on every `execute_kw` call as the password field.
+- **URL normalization** — `getCreds()` strips trailing `/odoo` path + trailing slashes, so user can paste the web-client URL.
+- Exported helpers:
+  - `odooExecute<T>(model, method, args, kwargs)` — low-level escape hatch for any model method
+  - `odooSearchRead<T>(model, domain, { fields, limit, offset, order })` — workhorse for reading records (combines search + read in one RPC)
+  - `odooSearchCount(model, domain)` — for ping totals
+  - `odooVersion()` — unauthenticated server probe (calls `common.version`)
+- Typed shapes: `OdooInvoice` (`account.move` with `move_type`, `state`, `partner_id` tuple, `amount_total_signed`, `currency_id`), `OdooPartner`, `OdooAnalyticAccount`.
+- Error handling: JSON-RPC errors distinguished from HTTP errors; `odoo_http_{status}`, `odoo_rpc_error`, `odoo_auth_failed` prefixes for grep-friendly logs.
+
+#### `src/app/api/odoo/ping/route.ts` (new)
+- `GET /api/odoo/ping` protected by `CRON_SECRET` bearer (same pattern as `/api/guesty/ping` and `/api/cron/daily`).
+- Missing-env check returns 400 with a per-var boolean map so user can see which one isn't set.
+- Four reads in parallel:
+  - `odooVersion()` → server version string
+  - `odooSearchCount('account.move', [['move_type', 'in', ['out_invoice', 'in_invoice']], ['state', '=', 'posted']])` → total posted invoice count (filtered to customer + vendor invoices in posted state only; drafts + cancels excluded to avoid inflation)
+  - `odooSearchRead<OdooInvoice>` → 5 most recent posted invoices
+  - `odooSearchRead<OdooPartner>` → 5 most recent partners
+  - `odooSearchRead<OdooAnalyticAccount>` → 5 most recent analytic accounts (eventual per-property P&L tags)
+- Response shape: `{ ok: true, duration_ms, server: { version, serie }, invoices: { posted_total, sample }, partners: { sample }, analytic_accounts: { sample } }`.
+
+#### `.env.example`
+- Added 4 vars with inline comment documenting the API-key creation path (Profile → My Profile → Account Security → New API Key) + recommendation to use a dedicated "API Bot" user with scoped read-only accounting access, not personal admin login.
+
+### Verification
+- `npx tsc --noEmit` clean.
+- Vercel build deployed to `kareemhady-gn95129gv-lime-investments.vercel.app` — READY.
+- **Env vars NOT yet added to Vercel** — deploy compiled fine but ping will return 400 until user adds them.
+
+### Waiting on user
+Add `ODOO_URL`, `ODOO_DB`, `ODOO_USER`, `ODOO_API_KEY` to Vercel (Production + Preview + Development) + `.env.local`, then I redeploy + curl the ping. If green, Phase 7.1 is Supabase migration `0009_odoo.sql` + backfill rule.
+
+### Gotchas to remember when wiring rules later
+- Datetimes stored UTC — use existing Cairo tz helper when rendering.
+- `allowed_company_ids` context must be set on reads if multi-company — single-company for fmplus tenant should be fine.
+- `partner_id`/`currency_id` etc. are tuples `[id, display_name]` or `false`; `Array.isArray` check before indexing.
+- `move_type` values: `out_invoice` = customer invoice, `in_invoice` = vendor bill, `out_refund` / `in_refund` = credit notes, `entry` = journal entry (skip for revenue/cost).
+- Analytic accounts (`account.analytic.account`) are the per-property P&L mechanism — Beithady listings should each map to one; confirm name pattern matches listing `nickname` (e.g. `BH73-ST-C-004`) during 7.1.
+
+## ✅ PHASE 6.2 — Guesty connection verified end-to-end (worktree only, no main commit)
+
+Ping returned `ok: true`, 569ms Guesty round-trip. 90 listings total (all Beit Hady `BH73-*`), 34 reservations flowing from `airbnb2` / `Booking.com` / `manual`, check-ins 2026-04-21 → 2026-04-29, USD payouts. Account ID `68342f589bf7f8c07ec2435c` (env value matches auto-detect). Phase 6 complete.
+
 ## 🔧 PHASE 6.1 — Guesty ping: account_id is now optional / auto-detected (commit 921a939)
 
 ### User feedback
