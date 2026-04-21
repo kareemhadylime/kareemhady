@@ -1,5 +1,55 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟢 PHASE 9 — Full Guesty mirror + email-rule enrichment (commits d829a04 + 222fc27, sync BLOCKED on Guesty rate-limit)
+
+User direction (2026-04-21):
+> "Full Guesty→Supabase sync so the BH-73-style comparison can run without hitting Guesty's OAuth rate limit. Use Info from Guesty, Pricelabs To Improve Data on Different Rules under Beithady coming From emails wherever possible — If Conflict Guesty & Pricelabs data wins"
+
+### Schema (migration 0006_guesty.sql, applied via MCP)
+- `guesty_listings`: id (Guesty `_id`), account_id, nickname, title, `listing_type` (SINGLE | MTL | SLT), `master_listing_id` (FK to self for children), bedrooms, accommodates, property_type, active, tags[], address_{full,city,country}, derived `building_code`, raw jsonb. Indexed on nickname, building_code, master_listing_id, listing_type.
+- `guesty_reservations`: id, confirmation_code, `platform_confirmation_code` (Airbnb HM-xxx / Booking ref), status, source, integration_platform, listing_id FK + denormalized listing_nickname, guest_name/email/phone, check-in/out dates, nights, guests, currency, host_payout, guest_paid, fare_accommodation, cleaning_fee, created/updated, raw jsonb. Indexed on every common lookup key including `lower(guest_email)`.
+- `guesty_sync_runs`: run log.
+- `integration_tokens`: 1-row cache (provider='guesty') with access_token + expires_at + refreshed_at. Solves the cold-start OAuth rate-limit problem (see below).
+- RPC `guesty_backfill_reservation_nicknames()`: single SQL pass to project listing.nickname onto every reservation row without per-row round-trips.
+
+### Sync (`src/lib/run-guesty-sync.ts`)
+- Listings: paged (100 at a time), explicit fields projection including `listingType` + `masterListingId` (Guesty's default projection omits them on this tenant).
+- Reservations: filter `createdAt >= now - 365d`, sorted by createdAt, paged 100 at a time. Upsert-by-id.
+- Scheduled 04:40 UTC via `vercel.json`. Manual trigger: `POST /api/guesty/run-now` (bearer).
+
+### Enrichment layer (`src/lib/guesty-enrichment.ts`)
+- `batchLookupGuestyReservations(items)`: one-shot batch lookup of many bookings by Airbnb HM-code OR Guesty confirmation_code. Returns `Map<key, GuestyReservationLite>`. Uses `.in()` on two columns in parallel, merges results.
+- `lookupGuestyReservation({platformCode, guestyCode})`: single-row variant.
+- `lookupListingByNickname(nickname)`: resolves nickname → `{id, building_code, listing_type, master_listing_id}`.
+- `overlayGuestyOnBooking(emailRow, guesty)`: pure function that merges Guesty's trusted fields over an email-parsed row. **Policy: Guesty wins on every conflict.** Seeds `_guesty_matched: boolean` + `_guesty_overrides: string[]` audit fields. Known overlays: guest_name, guest_email, listing_name, listing_nickname, check_in/out_date, nights, total_payout/host_payout, currency, channel/source, building_code.
+
+### First aggregator integrated: `beithady-booking.ts`
+After `parseOne()` runs across all email bodies, we batch-lookup each parsed row by `booking_id` (Airbnb HM-code → `platform_confirmation_code`) and overlay the results. Dynamic-imported so the mirror module stays out of the hot path when tables are empty. Output now exposes `guesty_enriched_count` so the dashboard can surface how many rows were authoritatively validated this run.
+
+### Guesty OAuth cold-start fix (commit 222fc27)
+Original module-scoped token cache worked only WITHIN a single Vercel container. Each cold start re-minted a token → blew through the `/oauth2/token` rate limit after a few calls this session. Fix: two-tier cache.
+1. In-process for warm reuse
+2. `integration_tokens` table as the cold-start-durable cache
+Tokens live 24h; refresh when < 5 min remain. Both paths fall back gracefully if Supabase is unreachable.
+
+### Current status — sync still blocked on 429
+After deploying the cache fix, `/api/guesty/run-now` still returns `guesty_oauth_failed: 429`. Root cause: the Supabase cache is empty (no successful token ever persisted), so every attempt re-hits the rate-limited endpoint. Waiting for Guesty's rate-limit window to clear (typically 1-5 minutes). Started a background Monitor that retries every 90s until `ok: true`.
+
+### Vercel cron now at 11 entries
+```
+04:00 /api/cron/odoo
+04:05-04:30 /api/cron/odoo-financials (6 phases)
+04:35 /api/cron/pricelabs
+04:40 /api/cron/guesty  ← NEW
+06:00, 07:00 /api/cron/daily (Gmail)
+```
+
+### Phase 9.1 backlog (not started)
+1. **Other Beithady aggregators**: payout / reviews / inquiries / requests all still pure email-parse. Enrichment helper is ready — just need to wire each one. Payout is highest value (host_payout from Guesty is cent-exact vs Airbnb email approximations).
+2. **PriceLabs enrichment**: overlay `base_price` and `recommended_base_price` onto listings in the booking output so per-listing views show the pricing context.
+3. **Dashboard badge**: show the `_guesty_matched` / `_guesty_overrides` audit so the user can see which fields were authoritatively corrected per row.
+4. **Token cache used by other integrations**: Odoo + PriceLabs could use the same `integration_tokens` table pattern.
+
 ## ✅ PHASE 8.1.1 — BH-73 Multi-Unit Strategy surfaced (commits 156201b → 756103d)
 
 User flagged: "BH-73 Uses new Multi Unit Strategy where Main units has several below as parent and child - Compare with Guesty Database"
