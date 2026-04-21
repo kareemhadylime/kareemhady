@@ -1,5 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7.6.1 — Building dropdown cleaned to the 5 canonical buildings (commit 98f1621)
+
+User direction:
+> "Combine all BH-XXX Under BH-OK (One Kattemia) as one analytic account
+> BH-73 (29 Units Only) + BH-73-General
+> BH-435 (14 Units Only) + BH-435-General
+> BH-26 (22 Units Only) + BH-26 General"
+
+Refactored `extractBuildingCode()` in `src/lib/run-odoo-financial-sync.ts`:
+- Explicit "OK" / "OKAT" / "One Kattameya" text → BH-OK
+- Numeric 26 / 34 / 73 / 435 → keep as their own building
+- Any other `BH-<digit>` pattern (BH-101-55, BH-203-86, etc.) → BH-OK (contract Annex D "Separate Units")
+
+Re-ran `?phase=analytic-accounts` to reclassify all 210 analytic accounts.
+
+### Dropdown is now canonical
+| Building | Accounts | Distinct names | What they are |
+|---|---|---|---|
+| BH-26 | 47 | 24 | 22 units + BH-26 GYM + BH-26 GENERAL (Lotus Building, New Cairo) |
+| BH-34 | 2 | 1 | BH-34-GENERAL (Annex C, not yet operating) |
+| BH-73 | 58 | 30 | 29 units + BH-73 GENERAL |
+| BH-435 | 44 | 16 | 14 units + 2 generals (BH-435 General / BH-435-GENERAL — duplicate spelling in Odoo; aggregate together) |
+| BH-OK | 20 | 10 | One Kattameya separate-unit codes (BH-101-55, BH-107-46, BH-109-23/43, BH-114-73, BH-115-75, BH-116-36, BH-202-61, BH-203-86, BH-213-82) |
+
+### Feb 2026 revenue by building (sanity check)
+BH-26 1,609,665 (45% of 3,572K consolidated) · BH-435 1,061,902 (30%) · BH-OK 429,173 (12%) · BH-73 291,565 (8%) · BH-34 null.
+Sums to ~95% of consolidated revenue, which tracks — remaining 5% is un-tagged lines or analytic-distribution misses. Dashboard dropdown now shows exactly 5 buildings.
+
 ## ✅ PHASE 7.6 SHIPPED — Analytic plans/accounts/links + BH-building & LOB segregation + cron automation (commits e740ac4 + ce5bd49)
 
 User request: "Cron automation for financial sync phases / plan/account resolution is not built yet".
