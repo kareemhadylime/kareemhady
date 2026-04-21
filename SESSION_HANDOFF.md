@@ -1,5 +1,28 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ⚠️ PHASE 7.0.2 — Auth still failing after DB fix: API key regeneration needed
+
+After user updated `ODOO_DB=fmplus-live-17577886` and redeployed, the Postgres-level error went away but auth now returns:
+```
+odoo_auth_failed: authenticate returned false — check ODOO_USER and ODOO_API_KEY
+```
+
+User sent screenshot of Odoo → Change My Preferences dialog confirming:
+- Display name: "Kareem Hady"
+- Email / login: **`kareem@fmplusme.com`** ✅ (matches `ODOO_USER` already set)
+- Timezone: Africa/Cairo (consistent with our Cairo tz rendering convention)
+
+Since `ODOO_USER` is confirmed correct, the `authenticate → false` response points to the API key value. Most likely copy error (whitespace / newline / truncation — Odoo shows the key once and it's long).
+
+### Instructed user to regenerate
+1. In the preferences dialog, click **Account Security** tab.
+2. Delete the existing API key (trash icon).
+3. **New API Key** → name `kareemhady-vercel` → duration **Persistent key** → confirm password.
+4. Copy the key from the green one-time-display box, no leading/trailing whitespace.
+5. Update `ODOO_API_KEY` in Vercel (Prod + Preview + Dev) + `.env.local`.
+
+Waiting on user "done" → I redeploy + retest.
+
 ## ⚠️ PHASE 7.0.1 — DB name correction: NOT `fmplus`, actually `fmplus-live-17577886`
 
 First ping attempt returned `odoo_rpc_error: common.authenticate — ... FATAL: database "fmplus" does not exist`. My subdomain-matches-DB-name assumption was wrong for this tenant — it's hosted on odoo.sh infra, so the DB name follows `{tenant}-{env}-{id}` pattern.
