@@ -1,5 +1,180 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 6 SCAFFOLD — Guesty Open API client + smoke-test endpoint (commit d9c8c2d)
+
+### User direction
+> "lets do guesty"
+
+After presenting the 4-platform research synthesis, user picked Guesty as the first integration. Not unexpected — biggest unlock, user already pays for PRO.
+
+### What shipped
+Scaffolding only — the OAuth flow, generic fetch helper, typed list methods for reservations + listings, and a smoke-test endpoint. No DB schema, no rule type, no dashboard wiring yet. Intentionally minimal so the user can validate auth + API connectivity on real data before we commit to the bigger migration.
+
+### Files
+
+#### `src/lib/guesty.ts` (new, ~220 lines)
+- **OAuth 2.0 client_credentials flow** against `https://open-api.guesty.com/oauth2/token` with `scope=open-api`.
+- **Module-scoped in-memory token cache** (`cachedToken` singleton) with `expiresAt` check. Lazy-refresh when < 5 min remain. TTL is 24h (no refresh token — re-hit the token endpoint).
+- `guestyFetch<T>(path, opts)` — generic helper:
+  - Bearer injection from cache
+  - Query-param serialization (handles null/undefined skip)
+  - JSON body auto-encoding with `Content-Type`
+  - **429 retry** honoring `Retry-After` header, max 2 retries (Guesty PRO is ~120/min, `/listings` tighter ~60/min)
+  - 500-series retry, 4xx-except-429 throws immediately
+- Typed exports:
+  - `GuestyListing` — `_id`, `nickname`, `title`, `active`, **`listingType: 'SINGLE' | 'MTL' | 'SLT'`**, `masterListingId` (for multi-unit parent lookup), `customFields`, `address`
+  - `GuestyReservation` — `_id`, `confirmationCode`, `status`, `source`, `listingId`, `guest.fullName`, `checkInDateLocalized` (property-tz wall date — **don't mix with** the UTC variant), `checkOutDateLocalized`, `nightsCount`, `guestsCount`, `money.{currency, hostPayout, guestPaid, fareAccommodation, cleaningFee}`, **`integration.confirmationCode`** (Airbnb HM-code), `createdAt`, `updatedAt`
+- `listGuestyReservations(params)` — limit/skip, filters (Mongo-style, JSON-serialized), fields projection, sort
+- `listGuestyListings(params)` — same shape
+- Exports `guestyFetch` and `getAccessToken` for downstream use
+
+#### `src/app/api/guesty/ping/route.ts` (new)
+Smoke-test endpoint. `GET /api/guesty/ping` protected by `CRON_SECRET` bearer (same pattern as `/api/cron/daily`).
+
+Response when credentials are missing → 400 with which env vars are present:
+```json
+{ "ok": false, "error": "Guesty credentials missing", "env": { "GUESTY_CLIENT_ID": false, ... } }
+```
+
+Response when auth works → 200 with 5 listings (`_id`, `nickname`, `title`, `active`, `listingType`) + 5 most-recent reservations (`_id`, `confirmationCode`, `status`, `source`, `guest`, checkIn/checkOut, `nights`, `hostPayout`, `currency`, `airbnb_code`, `createdAt`) + total counts + `duration_ms`.
+
+Usage (once user sets credentials):
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  https://kareemhady.vercel.app/api/guesty/ping
+```
+
+#### `.env.example`
+- New: `GUESTY_CLIENT_ID`, `GUESTY_CLIENT_SECRET`, `GUESTY_ACCOUNT_ID`, `GUESTY_WEBHOOK_SECRET` — with inline comments on where/how to create each.
+- Backfilled the `STRIPE_SECRET_KEY` entry that was live since Phase 5.8 but missing from the example.
+
+### What user needs to do (credentials)
+1. Guesty UI → **Integrations → Marketplace → API** → "New secret token" → scope `open-api` → capture **Client ID** + **Client Secret** (secret shown once).
+2. Note **Account ID** from URL (`app.guesty.com/accounts/<id>/...`).
+3. Add to Vercel Prod + Preview + Dev: `GUESTY_CLIENT_ID`, `GUESTY_CLIENT_SECRET`, `GUESTY_ACCOUNT_ID` (webhook secret can wait).
+4. Also add same vars to `C:\kareemhady\.env.local` for local dev.
+5. Hit the ping endpoint to verify.
+
+### Verification
+- `rm -rf .next && npm run build` clean (15 routes now; `/api/guesty/ping` new).
+- commit d9c8c2d on main via `git push origin HEAD:main`.
+- Deployed via root `C:\kareemhady` → `kareemhady-qd0spoo16-lime-investments.vercel.app` (Ready, 48s).
+
+### What's NOT done yet (next after smoke-test passes)
+1. **Supabase migration `0008_guesty.sql`** — tables `guesty_reservations`, `guesty_listings`, `guesty_reviews`, `guesty_messages`, `guesty_webhook_events` with unique `(account_id, guesty_id)` per table.
+2. **Rule type `guesty_reservation_pull`** in `src/lib/rules/engine.ts` — cron job that calls `listGuestyReservations({ filters: { createdAt: { $gte: last_run } }, ... })`, upserts to `guesty_reservations`. Runs alongside the existing `beithady_booking_aggregate` email rule for cross-check during cutover.
+3. **Webhook endpoint `src/app/api/webhooks/guesty/route.ts`** — HMAC-SHA256 verify of `x-guesty-signature` header, raw body, event-type router.
+4. **Dashboard swap** — point `/emails/beithady/<bookings-rule-id>` at the new `guesty_reservations` table; keep the email-derived output accessible under a "legacy" view during cutover.
+5. **Backfill script** — one-off `npm run guesty:backfill` that paginates through 2 years of reservations.
+6. **Apply same pattern** to reviews (`/reviews` endpoint) + conversations/messages (`/communication/conversations`) — these would replace Phase 5.9 (Reviews), 5.10 (Inquiries), 5.11 (Guest Requests) rules once trust is established.
+
+### Gotchas to remember for the next step
+- **MULTI-UNIT parents** — Guesty models multi-unit buildings (our BH-73 with MULTI-UNIT/SUB-UNIT children) as `listingType: 'MTL'` with child listings pointing via `masterListingId`. Reservations always attach to the SUB-UNIT child — aggregate up via `masterListingId` when rolling up to building-level metrics.
+- **Canceled reservations** stay in `/reservations` unless filtered — would double-count payouts if we don't exclude `status: 'canceled'`.
+- **Multi-currency** — `money.currency` can vary per reservation. Currently the email-driven rule defaults USD globally, which may mask EGP bookings. The API will force us to handle this correctly.
+- **Webhook ordering not guaranteed** — always upsert-by-id with `updatedAt` comparison before overwriting; never trust ordering.
+- **Offset pagination** (`skip` + `limit`, max 100) — prefer `sort=-createdAt` for resumable paging.
+- **Localized vs UTC timestamps** — `checkInDateLocalized` is a wall date in the listing's timezone (string `YYYY-MM-DD`, no tz info), while `checkInDate` (without suffix) is a UTC ISO. Use the localized variant for display; use `createdAt` / `updatedAt` (UTC) for all sync pagination + CAIRO rendering via existing helper.
+
+## 🔬 PLATFORM INTEGRATION RESEARCH COMPLETE — 4 of 4 agents returned (NO CODE YET; synthesis prepared for user)
+
+### User request
+> "My Intention to Connect all our platforms to this app kareemhady — Odoo 18, Guesty PRO, Price Labs, Green Whatsapp. Study carefully the detailed steps and what are the data that can be used through api from each one of them."
+
+### Approach
+Spawned 4 parallel research agents (general-purpose) — each digging into one platform's API docs, auth model, endpoint catalog, rate limits, webhook support, and fit with existing Beithady rules. Agents were briefed to return 500-800 word structured briefs, not code.
+
+### Status — 3 of 4 complete; Guesty still in flight
+
+#### ✅ Odoo 18 (returned)
+- **Auth**: JSON-RPC + API key (Odoo 14+ feature, Odoo 18 unchanged). User generates in **Profile → Account Security → New API Key**. Env vars needed: `ODOO_URL`, `ODOO_DB`, `ODOO_USER`, `ODOO_API_KEY`. Create a dedicated "API Bot" user with scoped permissions.
+- **Works on** odoo.sh / Enterprise / Community / self-hosted — identical API. Odoo Online SaaS blocks custom modules (matters for the native webhook story).
+- **Node SDK**: `odoo-await` (Ivan Chernyshov, actively maintained through 2025, works with 18). Avoid `odoo-xmlrpc` (callback style).
+- **Models for hospitality ops**: `account.move` (invoices/bills via `move_type` filter), `hr.expense` (per-property expenses with `analytic_account_id` tag), `account.payment`, `account.bank.statement.line` (Stripe reconciliation), `res.partner` (vendors/cleaners/guests), `account.analytic.account` (critical for per-property P&L), `crm.lead`, `product.product`.
+- **Webhooks**: native in Odoo 18 via `base.automation` rules + "Send Webhook Notification" action. Configure in Settings → Technical → Automation Rules.
+- **Gotchas**: datetimes stored UTC (apply Cairo tz on render); `allowed_company_ids` context needed for multi-company; XML-RPC returns `False` / JSON-RPC returns `false` — normalise; v17 renamed `invoice_date`, `amount_total_signed` (stable in 18 but older docs may lie).
+
+#### ✅ PriceLabs (returned)
+- **Access tier**: API is **free on every paid plan**, no separate tier. Rate limit ~60 req/min per API key (parallel fan-out > 10 concurrent will 429).
+- **Auth**: `X-API-Key` header (NOT `Authorization: Bearer`). Generated in **Account → Profile → API**. Base URL `https://api.pricelabs.co/v1`. One key per account, regenerable.
+- **Endpoints**: `GET /listings` (canonical catalog — includes `pms_reference_id` joinable to Guesty listing_id + `pms = 'guesty'`), `GET /listing_prices` (per-listing daily recommendations — recommended_rate, min_stay, reasons, late-2025 additions `booking_prob`, `adjusted_price`), `GET /reservations`, `GET /listing/min_stay`, `POST /listings`/`PUT /listings/{id}` (push overrides), `GET /neighborhood_data`, `GET /market_dashboards` (requires ~$10/mo add-on), `POST /sync_now` (ad-hoc recalc, uses rate limit).
+- **No webhooks as of 2026** — pull-only. Plan on a daily Vercel cron at 03:30 UTC (after PriceLabs' ~03:00 UTC internal nightly recalc).
+- **REST-only, no official Node SDK** — build a thin `fetch` wrapper in `src/lib/pricelabs.ts` matching the shape of `src/lib/stripe-payouts.ts`.
+- **Dashboard surface**: per-listing-per-day `gap_pct = (rec - pushed)/pushed`. Flag `> +15%` (leakage) or `< -10%` (missed upside), plus `push_enabled=false` as "PL paused, manual pricing" warning.
+- **Gotchas**: `/listings` returns all in one response (no pagination under ~500 listings — Beithady at 91 is safe). `/listing_prices` is per-listing per-call — serialize with ~1s spacing. `>180d` ranges silently truncate at 500d. Listing-local timezone (Africa/Cairo for Beithady; Dubai listings would be Asia/Dubai — distinguish). 401 returns empty body; log `X-Request-ID`.
+- **Items to confirm on the live portal**: exact header capitalisation (`X-API-Key` vs `X-Api-Key`), current `/listing_prices` schema fields, Market Dashboard availability on user's plan.
+
+#### ✅ Green-API WhatsApp (returned)
+- **What it is**: third-party WhatsApp gateway scripting an automated WhatsApp Web session. **NOT Meta's official WABA**. Cheaper + faster setup; carries ban risk if Meta flags automated patterns. Acceptable for ~50-200 msgs/day hospitality use; bad for marketing blasts.
+- **Account setup**: register at console.green-api.com → create "instance" → scan QR from WhatsApp → phone must stay online with WhatsApp installed (disconnects > 14 days kill the session).
+- **Tiers (2026)**: Developer (free, ~2 msg/sec, 1 instance, 14d expiry on inactivity), Business (~$40/mo, higher limits, 99.5% uptime), Enterprise (custom).
+- **Credentials**: `idInstance` + `apiTokenInstance`. Base URL `https://api.green-api.com/waInstance{idInstance}/{method}/{apiTokenInstance}` — **token in URL path**, which leaks in proxy logs / CDN access logs / browser history. Rotate quarterly, server-only, redact from log pipelines.
+- **Endpoints**: `GET /getStateInstance` (health poll every 5 min), `POST /sendMessage` (chatId format `{phone}@c.us`), `sendFileByUrl`/`Upload` (100MB cap), `sendContact`/`sendLocation`/`sendPoll`, `getChatHistory`, `checkWhatsapp`. Webhook mode preferred over `receiveNotification` polling.
+- **Webhook payloads**: `typeWebhook = incomingMessageReceived | outgoingMessageStatus | stateInstanceChanged | deviceInfo`. Message `typeMessage = textMessage | imageMessage | videoMessage | audioMessage | documentMessage | locationMessage | contactMessage | buttonsResponseMessage | listResponseMessage | quotedMessage | reactionMessage | pollMessage`.
+- **CRITICAL SECURITY GAP**: Green-API does NOT sign webhook payloads (no HMAC, no shared secret, no `X-GreenApi-Signature` header as of 2026). Mitigations: obscure random path `/api/webhooks/green/{long-random-slug}`, IP-allowlist Green-API egress ranges, validate `instanceData.idInstance` matches expected, HTTPS-only. Treat as untrusted input.
+- **Rate discipline**: max 1 msg / 3-5 sec per recipient, random jitter, warm new numbers (day 1: 10 msgs, day 7: 100), vary wording. Ban = number dies, no chat export, must get new SIM + re-scan.
+- **Fits for Beithady**: (a) inbound webhook → reuse existing inquiry/request urgency classifier + category taxonomy; (b) cron 24h pre-arrival → pull Guesty check-ins → send WhatsApp with address/code/WiFi; (c) +2h post-checkout → review reminder; (d) urgent inbound (broken AC, lockout) → Slack/email escalation.
+- **Env vars**: `GREENAPI_ID_INSTANCE`, `GREENAPI_API_TOKEN`, `GREENAPI_WEBHOOK_SECRET_PATH`.
+- **Compare to Meta Cloud API**: Meta = 2-4 week setup + pre-approved templates outside 24h window + per-conversation pricing + policy-compliant. Green-API = 10-min setup + free-form + phone-dependent + ban risk. For v1 integration, Green-API is pragmatic; if ops scale, migrate to Meta.
+
+#### ✅ Guesty PRO Open API (returned — biggest unlock)
+- **Included in PRO** (verify on account). Open API base: `https://open-api.guesty.com/v1`. **Rate limit ~120 req/min per token**; `/listings` and `/calendar` tighter at ~60/min. 429 includes `Retry-After`.
+- **Auth**: OAuth2 client_credentials. UI path: Guesty → *Integrations → Marketplace → API* → "New secret token". Token endpoint `POST /oauth2/token` with `grant_type=client_credentials&scope=open-api`. **24h TTL**, no refresh token — re-hit token endpoint. Cache in-memory, lazy-refresh at <5 min remaining.
+- **Core endpoints**:
+  - `GET /listings` — full catalog. `_id`, `nickname` (our `listing_code`), `title`, `address`, bedrooms/bathrooms, `propertyType`, `tags`, `customFields`, `amenities`. **MULTI-UNIT parents have `listingType: 'MTL'`; children point via `masterListingId`** — our Beithady listings CSV MULTI-UNIT/SUB-UNIT can be cross-verified here.
+  - `GET /reservations` — filterable by `checkIn`/`checkOut`/`createdAt` with `$gte`/`$lte`, `status` (inquiry/reserved/confirmed/canceled), `source` (Airbnb/Booking.com/Direct/Vrbo), `listingId`. Offset pagination (`skip`+`limit` up to 100).
+  - `GET /reservations/{id}` — full detail: `guest`, `money.hostPayout` (net after commission, matches our `total_payout` to the cent), `money.fareAccommodation`/`cleaningFee`/`guestPaid`, `integration.platform`, `integration.confirmationCode` (Airbnb HM-code), `checkInDateLocalized` (property-tz wall date) vs UTC variants.
+  - `GET /guests/{id}`, `GET /calendar?listingId&from&to`, `GET /reviews` (with `overallRating`, `public.content`, `reservationId`, `channel`).
+  - `GET /communication/conversations` + `/messages` — **replaces the RE: Reservation email scraping** in the Guest Requests rule. Each message has `module` (sms/email/airbnb/booking-chat), `body`, `from`, `createdAt`.
+  - `GET /tasks` — housekeeping/maintenance. `GET /payments` — receivables. `GET /integrations` — Airbnb / Booking.com / Expedia / Vrbo connection health + channel listing IDs. `GET /analytics/{occupancy,revenue}` — gated add-on.
+- **Webhooks** via `POST /webhooks` (or UI Integrations → Webhooks). Events: `reservation.new/updated/status.updated/canceled`, `conversation.message.received/sent`, `review.new/updated`, `listing.created/updated/calendar.updated`, `task.created/updated`, `payment.received`, `payout.sent`. **Signature verification: HMAC-SHA256 of raw body, `x-guesty-signature` header** — use a constant-time compare.
+- **No official Node SDK**. OpenAPI 3 spec at `/openapi.json` — plan is `openapi-typescript` → generated types + thin `fetch`-based client in `src/lib/guesty.ts` (~150 LOC).
+- **Field mapping** (email → API) is a ready map in the handoff research output — `booking_id` → `reservation.confirmationCode`, Airbnb HM → `reservation.integration.confirmationCode`, `guest_name` → `reservation.guest.fullName`, `listing_code` → `listing.nickname`, `total_payout` → `reservation.money.hostPayout`, `check_in_date` → `reservation.checkInDateLocalized`, `channel` → `reservation.source`, `nights` → `reservation.nightsCount`.
+- **Gotchas**: MULTI-UNIT rollup via `masterListingId`; `checkInDateLocalized` vs `checkInDate` (localized = property wall date, non-localized = UTC ISO — don't mix); offset pagination max `limit=100`; `canceled` reservations stay in results unless filtered (would double-count payouts); `money.currency` varies per reservation (multi-currency) — email rule's USD default masks EGP bookings; webhook ordering not guaranteed — always upsert-by-id with `updatedAt` comparison.
+- **Env vars**: `GUESTY_CLIENT_ID`, `GUESTY_CLIENT_SECRET`, `GUESTY_WEBHOOK_SECRET`, `GUESTY_ACCOUNT_ID`.
+- **Integration path** (8 steps): (1) create creds in Guesty UI, (2) add env vars, (3) `src/lib/guesty.ts` with token cache + 429-retry + `list{Reservations,Listings,Reviews,Conversations}` methods, (4) migration `0008_guesty.sql` for `guesty_{reservations,listings,reviews,messages,webhook_events}` tables with `(account_id, guesty_id)` unique keys, (5) new rule `guesty_reservation_pull` — cron + on-demand, replaces the LLM email parsing (keep email rule in parallel for cross-check during cutover), (6) webhook endpoint `src/app/api/webhooks/guesty/route.ts` with HMAC verify + event-type router, (7) dashboard swap `/emails/beithady/<bookings-rule>` to read from `guesty_reservations` directly, (8) backfill script pulls last 2 years via pagination.
+
+### Full synthesized roadmap for user
+
+**Priority 1 — Guesty PRO Open API (biggest unlock)**
+Replaces email-driven parsing with live data for all 5 Beithady rules (bookings, payouts via `/payments`, reviews, inquiries via `/communication/conversations`, guest requests via same). Accurate to the cent, no LLM parse errors, near-realtime via webhooks. User already pays for PRO.
+
+**Priority 2 — Odoo 18 (finance closure)**
+Pulls invoices (`account.move` with `out_invoice` for guests, `in_invoice` for vendor bills), per-property expenses tagged by `analytic_account_id`, bank-statement lines for Stripe reconciliation, vendor CRM. Enables per-property P&L in a new `finance` domain alongside `beithady`.
+
+**Priority 3 — PriceLabs (revenue optimization)**
+Pulls daily rate recommendations, min-stay rules, gap-vs-pushed analysis. Flags revenue leakage (price above recommendation → empty nights) and missed upside (price below → leaving money on table). Pull-only, daily cron. `pms_reference_id` in `/listings` response joins cleanly to `guesty_listing_id`.
+
+**Priority 4 — Green-API WhatsApp (guest messaging)**
+Inbound webhook → reuse existing inquiry/request classifier + urgency taxonomy. Outbound automation: 24h pre-arrival check-in instructions, post-checkout review reminders, urgent-incident escalation. Ship BUT warn user about ban risk + security gap (unsigned webhooks); plan Meta Cloud API migration path if volume grows.
+
+### Credential checklist — what user needs to provision before I write code
+- **Guesty**: Client ID + Client Secret (from Integrations → Marketplace → API) + Webhook secret + Account ID
+- **Odoo**: URL (`https://beithady.odoo.com` or self-hosted), DB name (from `/web/database/selector`), API Bot user email, API key (from Profile → Account Security)
+- **PriceLabs**: API key (from Account → Profile → API)
+- **Green-API**: create instance in console.green-api.com, scan QR with dedicated Beithady WhatsApp number, grab `idInstance` + `apiTokenInstance`
+
+### Schema direction (high-level, not yet migrated)
+- New domain `finance` for Odoo-backed rules
+- Extend `beithady` with `pricelabs_pricing_snapshot` rule (daily cron)
+- New domain `whatsapp` for Green-API inbound
+- New Supabase tables per platform: `guesty_{reservations,listings,reviews,messages,webhook_events,accounts}`, `pricelabs_snapshots`, `whatsapp_messages`, `odoo_records`
+- Integration tokens stored AES-GCM encrypted using existing `TOKEN_ENCRYPTION_KEY`
+
+### What happens next session (synthesis still pending)
+When Guesty returns, produce:
+1. **Prioritized roadmap** — Guesty first (replaces email ingestion with live data; user already pays for PRO), then Odoo (finance closure), then PriceLabs (revenue optimization), then Green-API (guest messaging).
+2. **Credential checklist** for the user — exactly what env vars / OAuth creds / instance IDs to provision before I write code.
+3. **Schema mapping** — how each platform's data maps onto existing rules (bookings, payouts, reviews, inquiries, requests) + where new domains are needed (likely `finance` for Odoo, extend `beithady` with `pricelabs_pricing_snapshot`, new `whatsapp` domain).
+4. **5-step integration skeleton per platform** using the existing rule-engine pattern (aggregator file + engine branch + mini card + detail view + seeded rule row).
+
+### No code changes this turn
+Pure research/planning. The Cairo timezone fix (commit 77256a9) is still the last shipped change.
+
+### If picking up fresh
+- Guesty research output will be in the agent's output file by then; the summary will auto-stream into the next conversation. If not, re-run the Guesty research agent.
+- Do NOT start writing integration code before confirming the roadmap + credentials with the user. This is a research/planning turn.
+
 ## ✅ CAIRO TIMEZONE ON ALL DASHBOARD TIMESTAMPS (commit 77256a9)
 
 ### User question
