@@ -1,5 +1,64 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 10 — KIKA Financials + Shopify scaffold (commits 7376e95 + e557371)
+
+Three things shipped together: partial Phase 9.2 enrichment helper, KIKA financial dashboard, and Shopify read-only scaffold for the shopfromkika store.
+
+### Phase 9.2 partial (batchLookupPricelabsByListingId)
+New helper in `src/lib/guesty-enrichment.ts` — fetches the latest-day snapshot's `base`, `recommended_base_price`, `rec_base_unavailable`, `occupancy_next_30`, `market_occupancy_next_30` for a batch of listing ids. Drops into any aggregator that has Guesty listing ids so pricing context can be overlaid. Not yet wired into booking.ts — trivial to add when needed. Other Phase 9.2 items (audit badge, sync-freshness metric, token-cache for Odoo/PriceLabs) still deferred.
+
+### KIKA Financials
+**Schema**: no new migrations. Reused the existing Odoo mirror by extending `FINANCIALS_COMPANY_IDS` to `[4, 5, 6, 10]` and `SCOPE_COMPANY_IDS` to the same. Company 6 is "X Label for Tailoring Kika" in fmplus Odoo.
+
+**Debugging moment** worth remembering: first Kika sync claimed `move_lines_synced: 11524` with HTTP 200, but the `odoo_move_lines` table showed zero rows for company 6. Root cause: the FK `odoo_move_lines.company_id → odoo_companies(id) on delete cascade` silently rejected every row because company 6 didn't exist in `odoo_companies`. `FINANCIALS_COMPANY_IDS` was extended but `SCOPE_COMPANY_IDS` (which drives the company + invoice phase in `run-odoo-sync.ts`) wasn't. Extended both, re-ran `/api/odoo/run-now` followed by `?phase=move-lines&company=6` + `?phase=analytic-links` (rebuild), and 11,524 rows + 80,314 analytic links landed cleanly.
+
+**Aggregator** (`src/lib/kika-financials.ts`):
+- `classifyKikaSegment(name)` maps analytic-account name → segment via keyword:
+  - `IN&OUT TRANSACTIONS` / `outsource` → `inout`
+  - `X-label` / `xlabel` → `xlabel`
+  - `kika` / `shopfromkika` / `shopify` → `kika`
+  - everything else → null (consolidated only)
+- `classifyKikaAccount(code, name, account_type)` uses Kika's CoA prefix convention (different from Beithady's):
+  - 401xxx Revenue (Shopify 010/020, Corporate 030, Other 050)
+  - 501xxx COGS (Raw Material, Direct Labor, Manufacturing Overhead)
+  - 502xxx Cost of Operation (Repair, Freight, Commission, Dep. Equipment)
+  - 601 Marketing / 602 Other Expense / 603 Rent+Utilities / 604 Back-Office Salaries / 605 Transport / 606 Depreciation
+- `buildKikaPnlReport({ fromDate, toDate, segment })`:
+  - Segment filter: joins through `odoo_move_line_analytics` → `odoo_analytic_accounts` using the 3 resolved Kika analytic ids (744 / 745 / 746 on this tenant).
+  - Consolidated: all company-6 lines without analytic filter.
+
+**Dashboard** (`/emails/kika/financials`):
+- 4 segment tabs (Consolidated / Kika Shopify / X-Label Uniforms / In&Out Outsource) with icon + violet accent.
+- Period presets (this/last month, this year) + month picker + custom date range.
+- Same xlsx hierarchy: Revenue → Cost of Revenue → Gross Profit → General Expenses → EBITDA → INT-TAXES-DEP → Net Profit with sign-colored subtotals + % of revenue column.
+- Kika domain page (`/emails/kika`) now carries a Financials entry card (violet accent to distinguish from Beithady's rose).
+
+### Verification vs `XLABEL KIKA Financial Statement.xlsx` (Jan-Feb 2026)
+| Line | Xlsx | Ours | Match |
+|---|---|---|---|
+| Revenue (consolidated) | 2,585,079 | **2,585,079** | ✅ exact |
+| Cost of Revenue | 1,430,001 | 1,425,647 | ✅ -0.3% |
+| General Expenses | 638,552 | 641,252 | ✅ +0.4% |
+| Depreciation | 1,852 | 3,507 | ⚠️ +89% (1.6k EGP noise) |
+| Kika segment revenue | 867,854 | **867,854** | ✅ exact |
+| X-Label segment revenue | 1,715,555 | **1,715,555** | ✅ exact |
+| IN&OUT segment revenue | 1,670 | **1,670** | ✅ exact |
+
+All 4 tab URLs (`?segment=consolidated|kika|xlabel|inout`) return HTTP 200.
+
+### Kika Shopify scaffold (Phase 10.1 foundation)
+- `src/lib/shopify.ts` — REST 2024-10 client with `X-Shopify-Access-Token` auth, 429/5xx retry, empty-body tolerance. Handles short (`shopfromkika`) or full (`shopfromkika.myshopify.com`) domain input. Typed helpers: `getShopifyShop()`, `listShopifyOrders({status, createdAtMin/Max, limit})`, `countShopifyOrders(...)`.
+- `/api/shopify/ping` — CRON_SECRET-protected smoke test returning shop metadata (name, domain, currency, timezone, plan) + 30d/YTD order counts + 10-order sample with financial/fulfillment status, totals, line item count, customer name.
+- `.env.example`: `SHOPIFY_STORE_DOMAIN` + `SHOPIFY_ADMIN_ACCESS_TOKEN`. Inline comment documents how to create a custom app in Shopify Admin (Settings → Apps → Develop apps) with read-only scopes.
+
+### Waiting on user for Shopify
+Add `SHOPIFY_STORE_DOMAIN` (e.g. `shopfromkika`) and `SHOPIFY_ADMIN_ACCESS_TOKEN` (starts `shpat_...`) to Vercel + `.env.local`, then trigger the ping. Once connection verified, Phase 10.2 will build a proper schema (`shopify_orders`, `shopify_products`, `shopify_customers`, `shopify_sync_runs`) + daily cron + Kika sales dashboard that joins order data with the Odoo P&L revenue.
+
+### Known gaps carried forward
+1. **Depreciation 1.6k EGP diff** in Kika consolidated — likely a couple of accrual lines tagged `expense_depreciation` in Odoo that the xlsx categorized elsewhere. Negligible for practical use.
+2. **Phase 9.2 remaining**: dashboard audit badge for Guesty-enriched rows, sync-freshness metric on dashboards, `integration_tokens` cache pattern for Odoo + PriceLabs, booking aggregator PriceLabs overlay wiring.
+3. **Guesty OAuth still rate-limited** from earlier session testing. 04:40 UTC cron should recover naturally.
+
 ## ✅ PHASE 9.1 SHIPPED — All 5 Beithady email aggregators now Guesty-enriched (commit c186842)
 
 Code deployed; Guesty mirror sync still rate-limited — enrichment is a no-op until the mirror populates (gracefully handled via try/catch + dynamic import). Naturally resumes when the 04:40 UTC cron succeeds or Guesty's rate-limit window clears.
