@@ -1,5 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 PHASE 7.1 SCOPE — A1HOSPITALITY added for owner-side P&L of BH-435 (awaiting portfolio mapping)
+
+### User direction
+> "Get the A1 Hospitality owns Building BH-435, Lime owns 50% of the Company, Beithady is doing the Property Management for it"
+
+Reveals a non-trivial ownership/management split that changes the scope:
+- **Building BH-435** is owned by **A1HOSPITALITY** (Odoo company id=4).
+- **Lime Commercial Investment** (id=3) owns **50%** of A1HOSPITALITY.
+- **Beithady Hospitality - (EGYPT)** (id=5) performs the Property Management, earning PM fees in its own books.
+
+### Scope decision
+Updated Phase 7.1 scope to **`company_id IN (4, 5, 10)`**:
+- **id=4 A1HOSPITALITY** (191 posted invoices) — owner-side P&L for BH-435 (depreciation, capex, owner draws, Lime 50% distributions)
+- **id=5 Beithady Hospitality Egypt** (2,266 invoices) — PM-side revenue + Egypt unit operations
+- **id=10 Beithady Hospitality FZCO Dubai** (1,328 invoices) — Dubai unit operations
+
+**Total: ~3,785 posted invoices in scope.** Lime (id=3) NOT in scope — mentioned only for ownership context; add later if Lime's 50%-share distribution view is wanted.
+
+### Why this scope shape matters for schema
+- **Per-building P&L is multi-company by definition**: BH-435 has owner-side entries in A1HOSPITALITY's books + PM-side entries in Beithady Egypt's books. A naive `SELECT * FROM odoo_invoices WHERE building='BH-435'` would show only half the picture without a cross-company analytic-account join.
+- **Dashboard must expose a Building dimension** that aggregates across companies via analytic account — don't treat Beithady Egypt's books as the full story for BH-435.
+- **Unknown — likely more of these splits**: any other Beithady-managed buildings owned by FMPLUS Property, Lime Commercial, or a non-scoped entity? Need to map before we're confident Phase 7.1's scope is complete.
+
+### Memory saved
+Wrote `C:\Users\karee\.claude\projects\C--kareemhady\memory\beithady_ownership_structure.md` + MEMORY.md pointer so future sessions understand the PM-vs-owner split.
+
+### Open question sent to user
+Two options offered:
+- **(a)** Ship Phase 7.1 now with `[4, 5, 10]` + post-migration probe to list all `BH-*` analytic accounts by company → surface any other owner companies needing inclusion (backfill-friendly path).
+- **(b)** User maps out the full ownership table (which Odoo company owns which BH-* building) first, then we ship with a complete scope from day one.
+
+### Status
+**Awaiting user pick.** No code written this turn. Still have `src/lib/odoo.ts` + `/api/odoo/ping` (with `?explore=1`) shipped and working.
+
 ## 🟢 PHASE 7.1 EXPLORE PROBE COMPLETE — Beithady company IDs + volumes confirmed (commits 765524e, d8ecd30)
 
 User said "go ahead" → shipped `?explore=1` mode on `/api/odoo/ping`. Took two iterations:
