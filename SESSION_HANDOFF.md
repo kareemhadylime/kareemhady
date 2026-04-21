@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ⚠️ PHASE 7.0.1 — DB name correction: NOT `fmplus`, actually `fmplus-live-17577886`
+
+First ping attempt returned `odoo_rpc_error: common.authenticate — ... FATAL: database "fmplus" does not exist`. My subdomain-matches-DB-name assumption was wrong for this tenant — it's hosted on odoo.sh infra, so the DB name follows `{tenant}-{env}-{id}` pattern.
+
+Found the real name by hitting the unauth'd endpoint:
+```
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"call","params":{},"id":1}' \
+  https://fmplus.odoo.com/web/database/list
+# → {"result":["fmplus-live-17577886"]}
+```
+
+User needs to update `ODOO_DB` in Vercel (Prod + Preview + Dev) + `.env.local` to `fmplus-live-17577886`, then I redeploy + retest.
+
+**Lesson for future Odoo Online tenants**: don't infer DB name from subdomain — always probe `/web/database/list`. Free Odoo Online may match subdomain; paid/odoo.sh adds the `-live-{id}` suffix.
+
 ## ✅ PHASE 7 SCAFFOLD — Odoo 18 JSON-RPC client + smoke-test endpoint (commit 2691f4a, deployed)
 
 ### Credentials gathered
