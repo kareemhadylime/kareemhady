@@ -4,6 +4,8 @@ import {
   type OdooAccount,
   type OdooPartner,
   type OdooMoveLine,
+  type OdooAnalyticAccount,
+  type OdooAnalyticPlan,
 } from './odoo';
 import { cutoffDate } from './run-odoo-sync';
 
@@ -321,6 +323,241 @@ export async function syncOdooMoveLines(
     resume_hint: complete
       ? null
       : `call again with ?phase=move-lines&company=${companyId}&resume=1`,
+    duration_ms: Date.now() - started,
+  };
+}
+
+// Extract a building code like "BH-26" / "BH-73" / "BH-435" from an analytic
+// account name. Returns null if no such prefix is present.
+function extractBuildingCode(name: string): string | null {
+  // Accept "BH-26 Lotus", "BH 26", "BH26 …", "Beit Hady 26". Normalise to BH-NN.
+  const m =
+    /\b(?:BH|Beit\s*Hady)[\s\-]*(\d{2,3}[A-Z]?)\b/i.exec(name) ||
+    /\bBH-?(\d{2,3}[A-Z]?)/i.exec(name);
+  if (!m) return null;
+  return `BH-${m[1].toUpperCase()}`;
+}
+
+// Arbitrage vs Management classification by name pattern.
+function extractLobLabel(
+  accountName: string,
+  planName: string | null
+): string | null {
+  const combined = `${accountName} ${planName || ''}`.toLowerCase();
+  if (/arbitrage|leased/.test(combined)) return 'Arbitrage';
+  if (/management|manage|mgmt/.test(combined)) return 'Management';
+  return null;
+}
+
+export async function syncOdooAnalyticPlans() {
+  const sb = supabaseAdmin();
+  const started = Date.now();
+  const byId = new Map<
+    number,
+    OdooAnalyticPlan & { _companies: Set<number> }
+  >();
+  for (const companyId of FINANCIALS_COMPANY_IDS) {
+    const ctx = { allowed_company_ids: [companyId] };
+    let offset = 0;
+    while (true) {
+      const batch = await odooSearchRead<OdooAnalyticPlan>(
+        'account.analytic.plan',
+        [],
+        {
+          fields: ['name', 'parent_id', 'company_id'],
+          limit: 200,
+          offset,
+          context: ctx,
+        }
+      );
+      if (batch.length === 0) break;
+      for (const p of batch) {
+        const existing = byId.get(p.id);
+        if (existing) existing._companies.add(companyId);
+        else byId.set(p.id, { ...p, _companies: new Set([companyId]) });
+      }
+      if (batch.length < 200) break;
+      offset += 200;
+    }
+  }
+  const rows = Array.from(byId.values()).map(p => ({
+    id: p.id,
+    name: p.name || '',
+    parent_plan_id: Array.isArray(p.parent_id) ? p.parent_id[0] : null,
+    company_ids: Array.from(p._companies),
+    last_synced_at: new Date().toISOString(),
+  }));
+  if (rows.length > 0) {
+    for (let i = 0; i < rows.length; i += 500) {
+      await sb
+        .from('odoo_analytic_plans')
+        .upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+    }
+  }
+  return {
+    ok: true,
+    analytic_plans_synced: rows.length,
+    duration_ms: Date.now() - started,
+  };
+}
+
+export async function syncOdooAnalyticAccounts() {
+  const sb = supabaseAdmin();
+  const started = Date.now();
+  // Build a plan_id → plan_name map once so classification can use it.
+  const { data: plans } = await sb.from('odoo_analytic_plans').select('id, name');
+  const planNameById = new Map<number, string>(
+    (plans || []).map(r => [
+      Number((r as { id: number }).id),
+      String((r as { name: string }).name || ''),
+    ])
+  );
+
+  const byId = new Map<
+    number,
+    OdooAnalyticAccount & { _companies: Set<number> }
+  >();
+  for (const companyId of FINANCIALS_COMPANY_IDS) {
+    const ctx = { allowed_company_ids: [companyId] };
+    let offset = 0;
+    while (true) {
+      const batch = await odooSearchRead<OdooAnalyticAccount>(
+        'account.analytic.account',
+        [],
+        {
+          fields: [
+            'name',
+            'code',
+            'plan_id',
+            'root_plan_id',
+            'company_id',
+            'active',
+          ],
+          limit: 500,
+          offset,
+          order: 'id asc',
+          context: ctx,
+        }
+      );
+      if (batch.length === 0) break;
+      for (const a of batch) {
+        const existing = byId.get(a.id);
+        if (existing) existing._companies.add(companyId);
+        else byId.set(a.id, { ...a, _companies: new Set([companyId]) });
+      }
+      if (batch.length < 500) break;
+      offset += 500;
+    }
+  }
+
+  const rows = Array.from(byId.values()).map(a => {
+    const planId = Array.isArray(a.plan_id) ? a.plan_id[0] : null;
+    const rootPlanId = Array.isArray(a.root_plan_id) ? a.root_plan_id[0] : planId;
+    const planName = planId != null ? planNameById.get(planId) || null : null;
+    const name = a.name || '';
+    return {
+      id: a.id,
+      name,
+      code: typeof a.code === 'string' ? a.code : null,
+      plan_id: planId,
+      root_plan_id: rootPlanId,
+      company_ids: Array.from(a._companies),
+      active: a.active ?? true,
+      building_code: extractBuildingCode(name),
+      lob_label: extractLobLabel(name, planName),
+      last_synced_at: new Date().toISOString(),
+    };
+  });
+  if (rows.length > 0) {
+    for (let i = 0; i < rows.length; i += 500) {
+      await sb
+        .from('odoo_analytic_accounts')
+        .upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+    }
+  }
+  return {
+    ok: true,
+    analytic_accounts_synced: rows.length,
+    duration_ms: Date.now() - started,
+  };
+}
+
+// Rebuild odoo_move_line_analytics from the analytic_distribution jsonb
+// on odoo_move_lines. This is a pure in-DB projection pass — no Odoo
+// fetch needed. Can be called any time after move-lines are synced.
+export async function rebuildAnalyticLinks() {
+  const sb = supabaseAdmin();
+  const started = Date.now();
+
+  // Truncate is cheapest vs merge for a projection; the FK from move_lines
+  // preserves integrity. Use a delete-all to avoid DDL privileges.
+  await sb.from('odoo_move_line_analytics').delete().neq('move_line_id', 0);
+
+  // Page through move_lines with non-empty analytic_distribution and expand
+  // the jsonb keys (comma-separated => multiple account ids).
+  const PAGE = 2000;
+  let offset = 0;
+  let links = 0;
+  while (true) {
+    const { data, error } = await sb
+      .from('odoo_move_lines')
+      .select('id, analytic_distribution')
+      .not('analytic_distribution', 'is', null)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`rebuildAnalyticLinks: ${error.message}`);
+    const rows = (data as Array<{
+      id: number;
+      analytic_distribution: Record<string, number> | null;
+    }>) || [];
+    if (rows.length === 0) break;
+
+    const inserts: Array<{
+      move_line_id: number;
+      analytic_account_id: number;
+      percentage: number;
+    }> = [];
+    for (const r of rows) {
+      if (!r.analytic_distribution) continue;
+      for (const [keyComposite, pct] of Object.entries(r.analytic_distribution)) {
+        const ids = keyComposite.split(',').map(s => parseInt(s.trim(), 10));
+        for (const id of ids) {
+          if (Number.isFinite(id)) {
+            inserts.push({
+              move_line_id: r.id,
+              analytic_account_id: id,
+              percentage: Number(pct) || 100,
+            });
+          }
+        }
+      }
+    }
+
+    // Dedupe within this batch (rare but possible if same id appears twice)
+    const seen = new Set<string>();
+    const unique = inserts.filter(i => {
+      const k = `${i.move_line_id}:${i.analytic_account_id}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+
+    if (unique.length > 0) {
+      for (let i = 0; i < unique.length; i += 1000) {
+        await sb
+          .from('odoo_move_line_analytics')
+          .upsert(unique.slice(i, i + 1000), {
+            onConflict: 'move_line_id,analytic_account_id',
+          });
+      }
+      links += unique.length;
+    }
+    if (rows.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  return {
+    ok: true,
+    analytic_links_synced: links,
     duration_ms: Date.now() - started,
   };
 }

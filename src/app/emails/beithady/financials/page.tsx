@@ -21,6 +21,8 @@ import {
   resolveFinancePeriod,
   scopeCompanyIds,
   scopeLabel,
+  listAvailableBuildings,
+  listAvailableLobs,
   COMPANY_LABELS,
   type PnlReport,
   type PayablesReport,
@@ -76,6 +78,8 @@ export default async function FinancialsPage({
     to?: string;
     month?: string;
     scope?: string;
+    building?: string;
+    lob?: string;
     view?: 'pnl' | 'balance_sheet';
   }>;
 }) {
@@ -84,17 +88,23 @@ export default async function FinancialsPage({
   const period = resolveFinancePeriod(preset, sp.from, sp.to);
   const scope: CompanyScope = isCompanyScope(sp.scope) ? sp.scope : 'consolidated';
   const companyIds = scopeCompanyIds(scope);
+  const buildingCode = sp.building && sp.building !== 'all' ? sp.building : undefined;
+  const lobLabel = sp.lob && sp.lob !== 'all' ? sp.lob : undefined;
 
-  const [pnl, payables, balanceSheet, latestSync] = await Promise.all([
+  const [pnl, payables, balanceSheet, latestSync, buildings, lobs] = await Promise.all([
     buildPnlReport({
       fromDate: period.fromDate,
       toDate: period.toDate,
       label: period.label,
       companyIds,
+      buildingCode,
+      lobLabel,
     }),
     buildPayablesReport({ asOf: period.toDate, companyIds }),
     buildBalanceSheet({ asOf: period.toDate, companyIds }),
     getLatestSync(),
+    listAvailableBuildings(),
+    listAvailableLobs(),
   ]);
 
   const keepParams = {
@@ -170,9 +180,25 @@ export default async function FinancialsPage({
           fromDefault={period.fromDate}
           toDefault={period.toDate}
           scope={scope}
+          buildingCode={buildingCode}
+          lobLabel={lobLabel}
         />
 
-        <PnlSection pnl={pnl} scopeLbl={scopeLabel(scope)} />
+        <AnalyticFilter
+          buildings={buildings}
+          lobs={lobs}
+          activeBuilding={buildingCode}
+          activeLob={lobLabel}
+          scope={scope}
+          preset={preset}
+        />
+
+        <PnlSection
+          pnl={pnl}
+          scopeLbl={scopeLabel(scope)}
+          buildingCode={buildingCode}
+          lobLabel={lobLabel}
+        />
 
         <BalanceSheetSection bs={balanceSheet} />
 
@@ -225,16 +251,106 @@ function CompanyTabs({
   );
 }
 
+function AnalyticFilter({
+  buildings,
+  lobs,
+  activeBuilding,
+  activeLob,
+  scope,
+  preset,
+}: {
+  buildings: Array<{ code: string; account_count: number; sample_name: string }>;
+  lobs: Array<{ label: string; account_count: number }>;
+  activeBuilding: string | undefined;
+  activeLob: string | undefined;
+  scope: CompanyScope;
+  preset: string;
+}) {
+  if (buildings.length === 0 && lobs.length === 0) return null;
+  return (
+    <section className="ix-card p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        <Briefcase size={16} className="text-emerald-600" />
+        <h2 className="text-sm font-semibold">Segregation</h2>
+        <span className="text-[11px] text-slate-500">
+          filter the P&amp;L by building or line of business (via Odoo analytic accounts)
+        </span>
+      </div>
+      <form className="flex flex-wrap items-end gap-3" action="" method="get">
+        <input type="hidden" name="scope" value={scope} />
+        <input type="hidden" name="preset" value={preset} />
+        <label className="space-y-1">
+          <span className="block text-xs font-medium text-slate-700">Building</span>
+          <select
+            name="building"
+            defaultValue={activeBuilding || 'all'}
+            className="ix-input w-[180px]"
+          >
+            <option value="all">All buildings</option>
+            {buildings.map(b => (
+              <option key={b.code} value={b.code}>
+                {b.code} ({b.account_count} acct)
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="block text-xs font-medium text-slate-700">Line of Business</span>
+          <select
+            name="lob"
+            defaultValue={activeLob || 'all'}
+            className="ix-input w-[180px]"
+          >
+            <option value="all">All LOBs</option>
+            {lobs.map(l => (
+              <option key={l.label} value={l.label}>
+                {l.label} ({l.account_count})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700"
+        >
+          Apply
+        </button>
+        {(activeBuilding || activeLob) && (
+          <Link
+            href={`?scope=${scope}&preset=${preset}`}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+          >
+            Clear
+          </Link>
+        )}
+      </form>
+      {(activeBuilding || activeLob) && (
+        <p className="text-[11px] text-amber-700 bg-amber-50 px-3 py-1.5 rounded">
+          Filtering active — only P&amp;L lines tagged with{' '}
+          {activeBuilding ? <strong>Building {activeBuilding}</strong> : ''}
+          {activeBuilding && activeLob ? ' AND ' : ''}
+          {activeLob ? <strong>LOB {activeLob}</strong> : ''} in Odoo's analytic
+          distribution are included. Balance Sheet + Payables are NOT filtered.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function PeriodFilter({
   activeId,
   fromDefault,
   toDefault,
   scope,
+  buildingCode,
+  lobLabel,
 }: {
   activeId: string;
   fromDefault: string;
   toDefault: string;
   scope: CompanyScope;
+  buildingCode?: string;
+  lobLabel?: string;
 }) {
   const now = new Date();
   const months: Array<{ value: string; label: string }> = [];
@@ -257,7 +373,15 @@ function PeriodFilter({
 
       <div className="flex flex-wrap gap-2">
         {FINANCE_PRESETS.map(p => {
-          const href = `?preset=${p.id}&scope=${scope}`;
+          const qs = [
+            `preset=${p.id}`,
+            `scope=${scope}`,
+            buildingCode ? `building=${encodeURIComponent(buildingCode)}` : '',
+            lobLabel ? `lob=${encodeURIComponent(lobLabel)}` : '',
+          ]
+            .filter(Boolean)
+            .join('&');
+          const href = `?${qs}`;
           const active = activeId === p.id;
           return (
             <Link
@@ -337,9 +461,13 @@ function PeriodFilter({
 function PnlSection({
   pnl,
   scopeLbl,
+  buildingCode,
+  lobLabel,
 }: {
   pnl: PnlReport & { intercompany_excluded_lines?: number };
   scopeLbl: string;
+  buildingCode?: string;
+  lobLabel?: string;
 }) {
   const t = pnl.totals;
   const rev = t.revenue || 1;
@@ -358,6 +486,8 @@ function PnlSection({
             {pnl.intercompany_excluded_lines
               ? ` Intercompany excluded (${pnl.intercompany_excluded_lines} lines).`
               : ''}
+            {buildingCode ? ` · Building: ${buildingCode}` : ''}
+            {lobLabel ? ` · LOB: ${lobLabel}` : ''}
           </p>
         </div>
         <div className="text-right">

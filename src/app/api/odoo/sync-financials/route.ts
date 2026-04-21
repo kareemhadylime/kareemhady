@@ -3,6 +3,9 @@ import {
   syncOdooAccounts,
   syncOdooPartners,
   syncOdooMoveLines,
+  syncOdooAnalyticPlans,
+  syncOdooAnalyticAccounts,
+  rebuildAnalyticLinks,
   finalizeOwnerFlag,
   FINANCIALS_COMPANY_IDS,
 } from '@/lib/run-odoo-financial-sync';
@@ -52,6 +55,12 @@ async function handle(req: NextRequest) {
           await syncOdooMoveLines(companyId, { resume })
         );
       }
+      case 'analytic-plans':
+        return NextResponse.json(await syncOdooAnalyticPlans());
+      case 'analytic-accounts':
+        return NextResponse.json(await syncOdooAnalyticAccounts());
+      case 'analytic-links':
+        return NextResponse.json(await rebuildAnalyticLinks());
       case 'finalize':
         return NextResponse.json(await finalizeOwnerFlag());
       case 'all': {

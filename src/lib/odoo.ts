@@ -202,6 +202,17 @@ export type OdooAnalyticAccount = {
   name?: string;
   code?: string | false;
   balance?: number;
+  plan_id?: [number, string] | false;
+  root_plan_id?: [number, string] | false;
+  company_id?: [number, string] | false;
+  active?: boolean;
+};
+
+export type OdooAnalyticPlan = {
+  id: number;
+  name?: string;
+  parent_id?: [number, string] | false;
+  company_id?: [number, string] | false;
 };
 
 export type OdooCompany = {

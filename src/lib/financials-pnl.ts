@@ -316,61 +316,47 @@ async function fetchAccountTotals(params: {
   toDate: string;
   companyIds: number[];
   excludePartnerIds: number[];
+  buildingCode?: string;
+  lobLabel?: string;
 }): Promise<{ rows: RawAggregateRow[]; totalLineCount: number; excluded: number }> {
   const sb = supabaseAdmin();
-  const PAGE = 1000;
-  let offset = 0;
-  const byAccount = new Map<string, RawAggregateRow>();
+  // Delegate aggregation to the pnl_aggregated Postgres function so we can
+  // efficiently filter by building_code / lob_label via the analytic link
+  // table without hauling 60k+ rows through supabase-js.
+  const { data, error } = await sb.rpc('pnl_aggregated', {
+    p_from: params.fromDate,
+    p_to: params.toDate,
+    p_company_ids: params.companyIds,
+    p_building_code: params.buildingCode || null,
+    p_lob_label: params.lobLabel || null,
+    p_exclude_partner_ids:
+      params.excludePartnerIds.length > 0 ? params.excludePartnerIds : null,
+  });
+  if (error) throw new Error(`fetchAccountTotals: ${error.message}`);
+  const rawRows = (data as Array<{
+    code: string;
+    name: string;
+    account_type: string;
+    sum_balance: number | string;
+    line_count: number | string;
+  }>) || [];
+
   let totalLineCount = 0;
-  const excludeSet = new Set(params.excludePartnerIds);
-  let excluded = 0;
-
-  while (true) {
-    const { data, error } = await sb
-      .from('odoo_move_lines')
-      .select(
-        'balance, partner_id, odoo_accounts!inner(code, name, account_type)'
-      )
-      .gte('date', params.fromDate)
-      .lte('date', params.toDate)
-      .in('company_id', params.companyIds)
-      .in('parent_state', ['draft', 'posted'])
-      .range(offset, offset + PAGE - 1);
-    if (error) throw new Error(`fetchAccountTotals: ${error.message}`);
-    const rows = (data as unknown as Array<{
-      balance: number;
-      partner_id: number | null;
-      odoo_accounts: { code: string | null; name: string; account_type: string | null } | null;
-    }>) || [];
-    if (rows.length === 0) break;
-    totalLineCount += rows.length;
-
-    for (const r of rows) {
-      if (!r.odoo_accounts) continue;
-      if (r.partner_id != null && excludeSet.has(Number(r.partner_id))) {
-        excluded++;
-        continue;
-      }
-      const code = r.odoo_accounts.code || '';
-      const name = r.odoo_accounts.name || '';
-      const accountType = r.odoo_accounts.account_type || '';
-      const key = `${code}||${name}||${accountType}`;
-      const existing = byAccount.get(key);
-      const bal = Number(r.balance) || 0;
-      if (existing) {
-        existing.sum_balance += bal;
-      } else {
-        byAccount.set(key, { code, name, account_type: accountType, sum_balance: bal });
-      }
-    }
-    if (rows.length < PAGE) break;
-    offset += PAGE;
-  }
-
-  const rows = Array.from(byAccount.values()).sort((a, b) =>
-    (a.code || '').localeCompare(b.code || '')
-  );
-  return { rows, totalLineCount, excluded };
+  const rows: RawAggregateRow[] = rawRows.map(r => {
+    const lc = Number(r.line_count) || 0;
+    totalLineCount += lc;
+    return {
+      code: r.code || '',
+      name: r.name || '',
+      account_type: r.account_type || '',
+      sum_balance: Number(r.sum_balance) || 0,
+    };
+  });
+  rows.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+  // The RPC handles both exclusion and filtering internally; `excluded` is
+  // no longer individually counted — surface whether any filter/exclusion
+  // was active so the UI can label the report correctly.
+  return { rows, totalLineCount, excluded: 0 };
 }
 
 export async function buildPnlReport(params: {
@@ -378,6 +364,8 @@ export async function buildPnlReport(params: {
   toDate: string;
   label: string;
   companyIds?: number[];
+  buildingCode?: string;
+  lobLabel?: string;
 }): Promise<PnlReport & { intercompany_excluded_lines: number }> {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
   const eliminateIntercompany =
@@ -392,6 +380,8 @@ export async function buildPnlReport(params: {
     toDate: params.toDate,
     companyIds,
     excludePartnerIds,
+    buildingCode: params.buildingCode,
+    lobLabel: params.lobLabel,
   });
 
   const sections: PnlReport['sections'] = {
@@ -925,6 +915,49 @@ export async function buildBalanceSheet(params: {
   sortGroup(report.equity.other);
 
   return report;
+}
+
+// -------- Analytic filter options ----------
+
+export async function listAvailableBuildings(): Promise<
+  Array<{ code: string; sample_name: string; account_count: number }>
+> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('odoo_analytic_accounts')
+    .select('building_code, name')
+    .not('building_code', 'is', null);
+  const groups = new Map<string, { sample_name: string; account_count: number }>();
+  for (const r of (data || []) as Array<{
+    building_code: string | null;
+    name: string;
+  }>) {
+    if (!r.building_code) continue;
+    const g = groups.get(r.building_code);
+    if (g) g.account_count += 1;
+    else groups.set(r.building_code, { sample_name: r.name, account_count: 1 });
+  }
+  return Array.from(groups.entries())
+    .map(([code, v]) => ({ code, ...v }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
+export async function listAvailableLobs(): Promise<
+  Array<{ label: string; account_count: number }>
+> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('odoo_analytic_accounts')
+    .select('lob_label')
+    .not('lob_label', 'is', null);
+  const counts = new Map<string, number>();
+  for (const r of (data || []) as Array<{ lob_label: string | null }>) {
+    if (!r.lob_label) continue;
+    counts.set(r.lob_label, (counts.get(r.lob_label) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([label, account_count]) => ({ label, account_count }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 // -------- Period helpers ----------
