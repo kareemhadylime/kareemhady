@@ -1,5 +1,73 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.11 SHIPPED — Beithady guest requests rule (in-stay messages) + per-reservation threads (commit 77ccff3)
+
+### User request
+> "phase 5.11"
+
+Completes the three-rule Beithady arc: Reviews (5.9) + Inquiries (5.10) + Guest Requests (5.11). Sample email reviewed in the original turn: subject `RE: Reservation for Luxury 2 Bedroom Residence by Beit Hady, Apr 24 – 29`, from "service via Guesty" to `guesty@beithady.com`, body shows Adel (Booker) sending "Image sent" and Arabic text `لما بحاول اقدم الطلب بيقولي no refund` ("when I try to submit the request, it tells me no refund"), listing card with Luxury 2BR, check-in Friday Apr 24 3PM, checkout Wed Apr 29 11AM, 2 adults 2 children.
+
+### New action type: `beithady_requests_aggregate`
+
+Single Gmail search. Engine branches early via `evaluateRequestsRule`.
+
+### Files
+
+#### `src/lib/rules/aggregators/beithady-request.ts` (new, 444 lines)
+- Types: `ParsedGuestMessage`, `RequestCategory` (7-way), `RequestUrgency` (immediate/high/normal), `RequestClassification`, `StoredMessage`, `RequestReservationGroup`, `BeithadyRequestAggregate`.
+- `parseGuestMessage` — Haiku tool_choice **auto**. Subject `RE: Reservation for <Listing>, <Dates>`. Extracts guest name (the Booker in the topmost bubble), listing, check-in/out dates, party size, `message_text` verbatim (preserves Arabic — NO translation at parse time), `has_image` flag, `message_count_in_thread` (capped at 20). Drops outbound alteration proposals, cancellations, booking confirmations with no guest body.
+- `classifyMessage` — second Haiku call, tool_choice=**tool**. Category: `date_change` / `amenity_request` / `immediate_complaint` / `refund_dispute` / `check_in_help` / `general_question` / `other`. Urgency: `immediate` (hours — no hot water, can't enter, arriving today, refund dispute escalating) / `high` (today but not next hour) / `normal`. Summary is 1-2 sentences in **English** (translates from Arabic). `suggested_action` is one imperative concrete step (e.g. "Dispatch maintenance to unit to check AC within 1 hour" or "Open a date-change proposal in Airbnb for Apr 26-30 and message guest to confirm").
+- `aggregateBeithadyRequests`: parse+settle, classify+settle separately. Groups messages by `normalizeSubject(subject)` — strip `RE:` / `Fwd:` prefixes (repeatable with `+` regex so `Re: Re: foo` → `foo`), lowercased. Group preserves max_urgency (using URGENCY_RANK), has_immediate_complaint bool, all categories union, latest_summary + latest_suggested_action from newest message.
+- `by_reservation` sort: immediate-complaint first → max_urgency desc → most-recent desc.
+
+#### `src/lib/rules/engine.ts`
+- Added `'beithady_requests_aggregate'` to `RuleAction['type']`.
+- Early branch after inquiries branch.
+- New `evaluateRequestsRule` — `subjectContains: 'Reservation'` + `toContains: 'guesty@beithady.com'`. Standard rule_run + mark-as-read flow.
+
+#### `src/app/admin/rules/_form.tsx`
+- New action-type option "Beithady guest requests aggregate (Airbnb)".
+
+#### `src/app/emails/[domain]/page.tsx`
+- Sixth icon/tint branch: `LifeBuoy` (orange) for requests.
+- `BeithadyRequestMini` — 4 mini-stats: Messages / Reservations / Immediate / Emails.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- New `isRequests` check. View branch order: requests → inquiries → reviews → payouts → bookings → shopify.
+- Run-history "Messages" column (from `total_messages`).
+- New `BeithadyRequestView` — orange/rose/amber gradient hero (4 HeroStat: Messages / Active reservations / Immediate / Currently in-stay) + red Immediate pill when non-zero + by-category stat grid with **per-category icons** (CalendarRange for date_change, Wrench for amenity, Siren for immediate_complaint, Banknote for refund_dispute, DoorOpen for check_in_help) + **reservation-thread cards** (one per reservation group, sorted immediate-first).
+- Thread card design: colored border when immediate-complaint (rose) or in-stay (orange-tinted); header has guest, `StayPhaseBadge` (pre_arrival / in_stay / post_stay / unknown — computed at render from check-in/out vs now), `UrgencyBadge`, immediate-complaint siren badge, building chip, msg count, listing + stay dates, category chip row; latest summary callout (slate); latest suggested-action callout (emerald with Lightbulb icon); then **per-message timeline** sorted newest-first with time, category chip, urgency badge, image indicator, thread-bubble count, Haiku summary, verbatim message quote (with `whitespace-pre-wrap` for Arabic / multi-line preservation), per-message suggested_action.
+- Helpers: `REQUEST_CATEGORY_LABEL`, `REQUEST_CATEGORY_TINT`, `REQUEST_CATEGORY_ICON` maps; `stayPhaseOf(ci, co)` computed at render time so phase stays current between runs; `StayPhaseBadge` + `UrgencyBadge` components.
+
+### DB
+Seeded row id `19e5a773-b3a3-46be-8aa9-92cb6397548f`:
+- name: "Beithady Guest Requests (Airbnb)"
+- account: kareem@limeinc.cc (`e135f97d-429c-4879-ae20-ccfc12a40f53`)
+- domain: beithady, priority 130
+- actions: `{ type: 'beithady_requests_aggregate', mark_as_read: true }`
+
+### Verification
+- Clean `.next/` + `npm run build` (14 routes, TS 9.4s).
+- `git push origin HEAD:main` → commit 77ccff3.
+- Pulled into `C:\kareemhady`, `vercel --prod --yes` → `kareemhady-3w0eq2f4l-lime-investments.vercel.app` (Ready, 48s build).
+
+### Design choices worth remembering
+- **Arabic preservation**: parse prompt explicitly says "preserve Arabic if Arabic" — we keep the verbatim guest text. The classifier's `summary` field translates to English for the dashboard, but the original quote shows in the timeline. `whitespace-pre-wrap` on the blockquote keeps line breaks intact.
+- **Per-message vs per-thread view**: one email can contain multiple bubbles (as in the Adel sample). We parse the newest bubble as `message_text` and record thread depth via `message_count_in_thread`. Each EMAIL is one row; each reservation groups 1..N rows. The thread card shows both aggregate info (urgency/phase/categories) at top and the full per-email timeline below.
+- **Stay phase at render time**: like the Inquiries SLA countdown, phase is recomputed from check-in/out against `Date.now()` on each page view. A guest checking in tomorrow becomes `in_stay` the day after the run without needing a re-run.
+
+### Cost sanity check
+Each reservation-message email: 2 Haiku calls (parse ~1200 tokens, classify ~500 tokens). In-stay messages are medium volume (~100-200/year expected). YTD run well under $0.50.
+
+### Beithady arc complete
+All three asks from the original turn shipped in sequence:
+- **5.9 Reviews** — avg rating, 1-5 histogram, best/worst building, flagged-review action plans with suggested reply + internal action.
+- **5.10 Inquiries** — summarize + combine by guest + urgency (SLA-based) + category buckets with 24h countdown.
+- **5.11 Guest Requests** — combine by reservation + date_change / amenity_request / immediate_complaint segregation with per-message suggested actions.
+
+### Remaining queue
+- **Phase 5.8 — Stripe API reconciliation** still blocked on user setting `STRIPE_SECRET_KEY`. When user returns to this, I'll resume from the Phase 5.8 plan: `npm i stripe`, add `src/lib/stripe.ts`, extend `evaluatePayoutRule` to list payouts via API + drill into balance transactions + cross-reference with Beithady Bookings confirmation_codes.
+
 ## ✅ PHASE 5.10 SHIPPED — Beithady inquiries rule (Airbnb) + SLA countdown + per-guest rollup (commit c83a489)
 
 ### User request
