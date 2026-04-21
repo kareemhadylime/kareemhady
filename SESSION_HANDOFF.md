@@ -1,5 +1,35 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟠 PHASE 10.1.1 — Shopify Dev Dashboard only exposes OAuth creds, not shpat token
+
+User opened their KIKA app's Settings page in Dev Dashboard. Surfaced:
+- **Client ID**: `0d09d6f6e7b8eb66f2b07b9ca4b6c57c`
+- **Secret**: hidden/rotatable
+- **Contact email**: malak.ahady@gmail.com
+- **Google Cloud Pub/Sub** + **Amazon EventBridge** options for webhook delivery
+
+**Key insight**: Shopify's new Dev Dashboard flow forces apps through the OAuth2 authorization-code pattern. The Client ID + Secret shown there are the OAuth app credentials for a public/distributable app — NOT a direct Admin API token. Our scaffold uses `X-Shopify-Access-Token` with `shpat_...` which requires an INSTALLED app on a specific merchant.
+
+Sidebar in the Dev Dashboard app view: Monitoring / Logs / Versions / Settings — no obvious "Install on store" or "Custom distribution" option exposed in the screenshot.
+
+### Two paths forward offered to user
+
+**Path 1 (tried first — simpler):** Hit the legacy custom-app URL directly:
+```
+https://thekikastore.myshopify.com/admin/settings/apps/development
+```
+If Shopify still honors it, the legacy flow is intact: create app → Admin API scopes (read_orders/products/customers/inventory/locations) → Install → copy `shpat_...` token from API credentials tab.
+
+**Path 2 (fallback if Path 1 404s):** Build the OAuth install flow in our app:
+- `/api/shopify/auth/start` — redirects to `https://thekikastore.myshopify.com/admin/oauth/authorize?client_id=...&scope=read_orders,...&redirect_uri=https://kareemhady.vercel.app/api/shopify/auth/callback&state=...`
+- `/api/shopify/auth/callback` — validates HMAC, exchanges `code` for access_token via `POST /admin/oauth/access_token`, stores the `shpat_...` in `integration_tokens` table (same pattern as Guesty).
+- New env: `SHOPIFY_APP_CLIENT_ID` + `SHOPIFY_APP_CLIENT_SECRET`.
+- Existing `SHOPIFY_ADMIN_ACCESS_TOKEN` becomes optional override; otherwise code reads from `integration_tokens` where provider='shopify:{shop_domain}'.
+- ~30 min implementation if needed.
+
+### Current state
+No code changes this turn. Waiting on user to try the legacy URL and report back. Scaffold (commit 7376e95) is still current and ready for either token path.
+
 ## 🟡 PHASE 10.1 — Shopify store handle corrected + Dev Dashboard path locked in (still blocked on token)
 
 User sent a screenshot of the KIKA store admin at **Settings → Apps → Upgrade guide → App development**, which shows Shopify redirecting all custom-app work to the new Dev Dashboard ("Build apps in Dev Dashboard" button). The legacy Path A (create custom app directly in store admin) is effectively deprecated for this tenant — Shopify now only offers Path B (Dev Dashboard).
