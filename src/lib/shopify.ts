@@ -148,6 +148,15 @@ export type ShopifyOrderLineItem = {
   total_discount?: string;
 };
 
+export type ShopifyFulfillment = {
+  id: number;
+  created_at?: string;
+  updated_at?: string;
+  status?: string;            // 'success' | 'cancelled' | 'error' | ...
+  shipment_status?: string | null; // 'delivered' | 'in_transit' | 'out_for_delivery' | ...
+  tracking_number?: string | null;
+};
+
 export type ShopifyOrder = {
   id: number;
   name: string; // '#1234'
@@ -171,7 +180,41 @@ export type ShopifyOrder = {
     last_name?: string;
   } | null;
   line_items?: ShopifyOrderLineItem[];
+  fulfillments?: ShopifyFulfillment[];
   refunds?: Array<{ transactions?: Array<{ amount?: string; kind?: string }> }>;
+};
+
+export type ShopifyProduct = {
+  id: number;
+  title: string;
+  product_type?: string;
+  vendor?: string;
+  status?: string;
+  handle?: string;
+  tags?: string;
+  created_at?: string;
+  updated_at?: string;
+  variants?: Array<{
+    id: number;
+    inventory_quantity?: number;
+    price?: string;
+    sku?: string;
+  }>;
+};
+
+export type ShopifyCustomer = {
+  id: number;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  orders_count?: number;
+  total_spent?: string;
+  tags?: string;
+  state?: string; // 'enabled' | 'disabled' | 'invited' | ...
+  created_at?: string;
+  updated_at?: string;
+  last_order_id?: number | null;
 };
 
 export async function listShopifyOrders(params: {
@@ -228,6 +271,58 @@ export async function* iterateShopifyOrders(params: {
     next = nextMatch ? nextMatch[1] : null;
 
     // Respect the 2 req/sec base rate (bucket of 40).
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
+// Paginated products via Link header
+export async function* iterateShopifyProducts(params: {
+  pageSize?: number;
+} = {}): AsyncGenerator<ShopifyProduct[]> {
+  const token = await resolveAdminToken();
+  const url = new URL(`${baseUrl()}/products.json`);
+  url.searchParams.set('limit', String(params.pageSize || 250));
+  let next: string | null = url.toString();
+  while (next) {
+    const res = await fetch(next, {
+      method: 'GET',
+      headers: { 'X-Shopify-Access-Token': token, Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`shopify_${res.status}: GET products — ${text.slice(0, 300)}`);
+    }
+    const json = (await res.json()) as { products?: ShopifyProduct[] };
+    yield json.products || [];
+    const link = res.headers.get('link') || '';
+    const nextMatch = /<([^>]+)>;\s*rel="next"/.exec(link);
+    next = nextMatch ? nextMatch[1] : null;
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
+// Paginated customers via Link header
+export async function* iterateShopifyCustomers(params: {
+  pageSize?: number;
+} = {}): AsyncGenerator<ShopifyCustomer[]> {
+  const token = await resolveAdminToken();
+  const url = new URL(`${baseUrl()}/customers.json`);
+  url.searchParams.set('limit', String(params.pageSize || 250));
+  let next: string | null = url.toString();
+  while (next) {
+    const res = await fetch(next, {
+      method: 'GET',
+      headers: { 'X-Shopify-Access-Token': token, Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`shopify_${res.status}: GET customers — ${text.slice(0, 300)}`);
+    }
+    const json = (await res.json()) as { customers?: ShopifyCustomer[] };
+    yield json.customers || [];
+    const link = res.headers.get('link') || '';
+    const nextMatch = /<([^>]+)>;\s*rel="next"/.exec(link);
+    next = nextMatch ? nextMatch[1] : null;
     await new Promise(r => setTimeout(r, 500));
   }
 }

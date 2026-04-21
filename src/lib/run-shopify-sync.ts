@@ -1,8 +1,12 @@
 import { supabaseAdmin } from './supabase';
 import {
   iterateShopifyOrders,
+  iterateShopifyProducts,
+  iterateShopifyCustomers,
   type ShopifyOrder,
   type ShopifyOrderLineItem,
+  type ShopifyProduct,
+  type ShopifyCustomer,
 } from './shopify';
 
 // Shopify order mirror sync. Pulls orders in the backfill window plus any
@@ -43,8 +47,76 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
 
   let ordersSynced = 0;
   let lineItemsSynced = 0;
+  let productsSynced = 0;
+  let customersSynced = 0;
 
   try {
+    // Products master — small catalog, sync first so orders can reference.
+    for await (const batch of iterateShopifyProducts({ pageSize: 250 })) {
+      if (batch.length === 0) continue;
+      const rows = batch.map((p: ShopifyProduct) => {
+        const variants = Array.isArray(p.variants) ? p.variants : [];
+        const totalInventory = variants.reduce(
+          (s, v) => s + (Number(v.inventory_quantity) || 0),
+          0
+        );
+        return {
+          id: p.id,
+          title: p.title || null,
+          product_type: p.product_type || null,
+          vendor: p.vendor || null,
+          status: p.status || null,
+          handle: p.handle || null,
+          tags:
+            typeof p.tags === 'string' && p.tags.trim().length > 0
+              ? p.tags.split(',').map(t => t.trim())
+              : [],
+          total_inventory: totalInventory,
+          variant_count: variants.length,
+          created_at: toTs(p.created_at),
+          updated_at: toTs(p.updated_at),
+          raw: (p as unknown) as Record<string, unknown>,
+          synced_at: new Date().toISOString(),
+        };
+      });
+      for (let i = 0; i < rows.length; i += 200) {
+        await sb
+          .from('shopify_products')
+          .upsert(rows.slice(i, i + 200), { onConflict: 'id' });
+      }
+      productsSynced += rows.length;
+    }
+
+    // Customer master
+    for await (const batch of iterateShopifyCustomers({ pageSize: 250 })) {
+      if (batch.length === 0) continue;
+      const rows = batch.map((c: ShopifyCustomer) => ({
+        id: c.id,
+        email: c.email || null,
+        first_name: c.first_name || null,
+        last_name: c.last_name || null,
+        phone: c.phone || null,
+        orders_count: c.orders_count ?? 0,
+        total_spent: toNumber(c.total_spent),
+        tags:
+          typeof c.tags === 'string' && c.tags.trim().length > 0
+            ? c.tags.split(',').map(t => t.trim())
+            : [],
+        state: c.state || null,
+        created_at: toTs(c.created_at),
+        updated_at: toTs(c.updated_at),
+        last_order_id: c.last_order_id ?? null,
+        raw: (c as unknown) as Record<string, unknown>,
+        synced_at: new Date().toISOString(),
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        await sb
+          .from('shopify_customers')
+          .upsert(rows.slice(i, i + 200), { onConflict: 'id' });
+      }
+      customersSynced += rows.length;
+    }
+
     for await (const batch of iterateShopifyOrders({
       status: 'any',
       createdAtMin: cutoff,
@@ -64,6 +136,24 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
             customer.email ||
             null
           : null;
+        // Fulfillment timestamps for the exec dashboard.
+        const fulfillments = Array.isArray(o.fulfillments) ? o.fulfillments : [];
+        const firstFulfilledAt = fulfillments
+          .map(f => f.created_at)
+          .filter((d): d is string => typeof d === 'string')
+          .sort()[0] || null;
+        const firstDeliveredAt =
+          fulfillments
+            .filter(f => f.shipment_status === 'delivered')
+            .map(f => f.updated_at)
+            .filter((d): d is string => typeof d === 'string')
+            .sort()[0] || null;
+        const hoursToFulfill =
+          firstFulfilledAt && o.created_at
+            ? (new Date(firstFulfilledAt).getTime() -
+                new Date(o.created_at).getTime()) /
+              3_600_000
+            : null;
         return {
           id: o.id,
           shop_domain: domain,
@@ -74,6 +164,12 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
           created_at: toTs(o.created_at),
           processed_at: toTs(o.processed_at),
           cancelled_at: toTs(o.cancelled_at),
+          first_fulfilled_at: firstFulfilledAt,
+          first_delivered_at: firstDeliveredAt,
+          hours_to_fulfill:
+            hoursToFulfill != null && Number.isFinite(hoursToFulfill)
+              ? Number(hoursToFulfill.toFixed(2))
+              : null,
           financial_status: o.financial_status || null,
           fulfillment_status: o.fulfillment_status || null,
           currency: o.currency || null,
@@ -135,6 +231,8 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
         status: 'succeeded',
         orders_synced: ordersSynced,
         line_items_synced: lineItemsSynced,
+        products_synced: productsSynced,
+        customers_synced: customersSynced,
       })
       .eq('id', runId);
 
@@ -143,6 +241,8 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
       run_id: runId,
       orders_synced: ordersSynced,
       line_items_synced: lineItemsSynced,
+      products_synced: productsSynced,
+      customers_synced: customersSynced,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -154,6 +254,8 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
         error: msg,
         orders_synced: ordersSynced,
         line_items_synced: lineItemsSynced,
+        products_synced: productsSynced,
+        customers_synced: customersSynced,
       })
       .eq('id', runId);
     return { ok: false, error: msg };

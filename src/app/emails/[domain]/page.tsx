@@ -14,6 +14,7 @@ import {
   LifeBuoy,
   Calculator,
   TrendingUp,
+  Calendar,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
@@ -131,6 +132,31 @@ export default async function DomainRulesPage({
 
         {d === 'kika' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Link
+              href="/emails/kika/exec"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden col-span-full"
+            >
+              <div className="absolute -top-6 -right-6 w-40 h-40 rounded-full bg-gradient-to-br from-amber-500 to-rose-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-amber-50 text-amber-600">
+                  <Calendar size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Executive Summary</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600">
+                      Exec
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Easy-read KPIs · orders / revenue / AOV / returning customers /
+                    fulfillment time / most-delayed / delivered-then-refunded % · cash-only context
+                  </p>
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
+            </Link>
+
             <Link
               href="/emails/kika/financials"
               className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
