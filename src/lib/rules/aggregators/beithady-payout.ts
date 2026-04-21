@@ -1,5 +1,6 @@
 import { anthropic, HAIKU } from '@/lib/anthropic';
 import { classifyBuilding } from './beithady-booking';
+import { buildingFromListingName } from '../beithady-listings';
 import type { StripeApiBreakdown } from '@/lib/stripe-payouts';
 
 export type AirbnbPayoutLineItem = {
@@ -283,10 +284,12 @@ async function parseStripePayout(
 const roundMoney = (n: number) => Math.round(n * 100) / 100;
 
 function buildingFromLineItem(li: AirbnbPayoutLineItem): string | null {
-  // Airbnb line items don't carry Beithady listing_code directly. Attempt to
-  // derive the building from the listing name (e.g. "... By BeitHady -" often
-  // has no BH-code). Falls back to null so UI can group these under "Unknown".
   if (!li.listing_name) return null;
+  // Prefer the authoritative listings catalog (handles titles like
+  // "Stunning 2BD - Mangroovy - Gouna" that don't embed a BH-code).
+  const catalog = buildingFromListingName(li.listing_name);
+  if (catalog) return catalog;
+  // Fallback to regex extraction for any catalog-miss.
   const m = li.listing_name.match(/\bBH[-\s]?[A-Z0-9]+\b/i);
   if (!m) return null;
   return classifyBuilding(m[0].replace(/\s+/g, ''));

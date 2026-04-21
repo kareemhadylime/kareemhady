@@ -1,5 +1,6 @@
 import { anthropic, HAIKU } from '@/lib/anthropic';
 import { classifyBuilding } from './beithady-booking';
+import { buildingFromListingName } from '../beithady-listings';
 
 export type ParsedAirbnbReview = {
   guest_name: string;
@@ -210,9 +211,12 @@ async function suggestActionPlan(
 
 function buildingFromListing(listing: string | null | undefined): string | null {
   if (!listing) return null;
+  // Authoritative catalog match first.
+  const catalog = buildingFromListingName(listing);
+  if (catalog) return catalog;
+  // Fallbacks for unseen listings.
   const m = listing.match(/\bBH[-\s]?[A-Z0-9]+\b/i);
   if (m) return classifyBuilding(m[0].replace(/\s+/g, ''));
-  // Airbnb listing names usually don't carry the BH- code — tag by building name cues.
   const lower = listing.toLowerCase();
   if (lower.includes('ednc') || lower.includes('new cairo') || lower.includes('kattameya'))
     return 'BH-OK';

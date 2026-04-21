@@ -1,5 +1,6 @@
 import { anthropic, HAIKU } from '@/lib/anthropic';
 import { classifyBuilding } from './beithady-booking';
+import { buildingFromListingName } from '../beithady-listings';
 
 export type ParsedGuestMessage = {
   guest_name: string;
@@ -244,6 +245,8 @@ function normalizeSubject(subject: string): string {
 
 function buildingFromListing(listing: string | null | undefined): string | null {
   if (!listing) return null;
+  const catalog = buildingFromListingName(listing);
+  if (catalog) return catalog;
   const m = listing.match(/\bBH[-\s]?[A-Z0-9]+\b/i);
   if (m) return classifyBuilding(m[0].replace(/\s+/g, ''));
   const lower = listing.toLowerCase();

@@ -1,4 +1,8 @@
 import { anthropic, HAIKU } from '@/lib/anthropic';
+import {
+  getCanonicalBuilding,
+  getListingByNickname,
+} from '../beithady-listings';
 
 export type ParsedBooking = {
   booking_id: string;
@@ -293,28 +297,48 @@ export const BEITHADY_BUILDINGS: Record<
   string,
   { label: string; description?: string }
 > = {
-  'BH-26': { label: 'BH-26' },
-  'BH-73': { label: 'BH-73' },
-  'BH-435': { label: 'BH-435' },
+  'BH-26': { label: 'BH-26', description: 'Building 26 · Kattameya' },
+  'BH-73': { label: 'BH-73', description: 'Building 73 · New Cairo · 24/7 desk' },
+  'BH-435': { label: 'BH-435', description: 'Building 435 · New Cairo' },
   'BH-OK': {
     label: 'BH-OK',
     description: 'Scattered apartments · One Kattameya compound',
   },
   'BH-MG': {
     label: 'BH-MG',
-    description: 'Single apartment · Heliopolis',
+    description: 'Single apartment · Heliopolis (Merghany / Almaza)',
+  },
+  'BH-GOUNA': {
+    label: 'BH-GOUNA',
+    description: 'El Gouna resorts (Mangroovy · AbuTig · WaterSide)',
+  },
+  'BH-NEWCAI': {
+    label: 'BH-NEWCAI',
+    description: 'Standalone New Cairo unit near AUC',
+  },
+  DXB: {
+    label: 'DXB',
+    description: 'Dubai apartments (Marina · Reehan · Yansoon)',
   },
 };
 
 // Canonical Beithady building classifier.
-// Rules (evaluated top-down):
-//  1. Listing code starting with BH-26  → BH-26
-//  2. Listing code starting with BH-435 → BH-435
-//  3. Listing code BH-<3 digits>-...    → BH-OK (scattered Kattameya)
-//  4. Anything else BH-<suffix>         → BH-<suffix> (e.g. BH-73, BH-MG)
+// Primary: consult the authoritative listings catalog
+// (src/lib/rules/beithady-listings.ts) — when the input matches a known
+// nickname, return its tag-derived canonical building code. That handles
+// edge cases the prefix rules miss (DXB, BH-GOUNA, BH-NEWCAI, BH-MANG-*).
+// Fallback: legacy prefix rules for codes that aren't catalogued yet.
+//  1. Listing code starting with BH-26   → BH-26
+//  2. Listing code starting with BH-435  → BH-435
+//  3. Listing code BH-<3 digits>-...     → BH-OK (scattered Kattameya)
+//  4. Anything else BH-<suffix>          → BH-<suffix>
 export function classifyBuilding(listingCode: string): string {
   const code = (listingCode || '').toUpperCase().trim();
   if (!code) return 'UNKNOWN';
+
+  const listing = getListingByNickname(code);
+  if (listing) return getCanonicalBuilding(listing);
+
   const m = code.match(/^BH-?([A-Z0-9]+)/);
   if (!m) return code;
   const suffix = m[1];
