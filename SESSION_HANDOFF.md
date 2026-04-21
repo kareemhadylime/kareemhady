@@ -1,5 +1,46 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟢 PHASE 7.1 EXPLORE PROBE COMPLETE — Beithady company IDs + volumes confirmed (commits 765524e, d8ecd30)
+
+User said "go ahead" → shipped `?explore=1` mode on `/api/odoo/ping`. Took two iterations:
+
+### Round 1 (commit 765524e) — blocked
+Passed `allowed_company_ids: [all 11 company ids]` to the context for each per-company count call. Every call errored:
+```
+odoo_rpc_error: object.execute_kw — Access to unauthorized or invalid companies.
+```
+Cause: Odoo 16+ validates every id in `allowed_company_ids` against the API user's `res.users.company_ids` set. The fmplus tenant has one company the user can't see: **MASK for development, investment and trading (id=11)**. One bad id poisoned every call.
+
+### Round 2 (commit d8ecd30) — clean
+Changed per-company calls to pass `allowed_company_ids: [c.id]` (single-element). Now each call is isolated — 10 companies succeed, MASK's call errors only itself.
+
+### Full company + volume table
+| Company | ID | Posted invoices | Journals |
+|---|---|---|---|
+| FMPLUS Property & Facility Management | 1 | 6,752 | 86 |
+| VOLTAUTO | 2 | 878 | 18 |
+| Lime Commercial Investment | 3 | 202 | 14 |
+| **A1HOSPITALITY** | **4** | **191** | **22** |
+| **Beithady Hospitality - (EGYPT)** | **5** | **2,266** | **25** |
+| X Label for Tailoring Kika | 6 | 939 | 29 |
+| Lime For Restaurants | 7 | 72 | 11 |
+| 202993 security creation new company | 9 | 0 | 0 |
+| **Beithady Hospitality FZCO - (Dubai)** | **10** | **1,328** | **24** |
+| MASK for development, investment and trading | 11 | — (access denied) | — |
+| The Bees Art Direction for Managing Websites | 15 | 0 | 7 |
+
+- Tenant total: 12,626 posted invoices across 11 companies (10 API-accessible).
+- **Beithady scope `[5, 10]`**: **3,594 posted invoices** (28% of tenant) — sync volume is manageable.
+- Note: **company currencies all listed as EGP** in `res.company.currency_id` — but individual transactions carry their own currency (we saw USD in first ping for "Direct Reservations"), so row-level currency must be preserved.
+- A1HOSPITALITY (id=4, 191 invoices) is another hospitality company in the tenant — possibly legacy/sub-brand/pre-Beithady. **Unsure if in scope.**
+
+### Waiting on user answer
+One question sent: should Phase 7.1 scope be just Beithady `[5, 10]` or `[4, 5, 10]` (include A1HOSPITALITY)? Once answered, I ship migration `0009_odoo.sql` + sync worker + `/api/odoo/run-now` + cron `/api/cron/odoo` (04:00 UTC) in one commit.
+
+### Library changes shipped this turn (commit 765524e)
+- `src/lib/odoo.ts`: `odooSearchRead` and `odooSearchCount` now accept an optional `context` kwarg. New `OdooCompany` type (`id`, `name`, `country_id` tuple, `currency_id` tuple, `partner_id` tuple).
+- `src/app/api/odoo/ping/route.ts`: `?explore=1` branch returns `{ ok, mode: 'explore', company_count, companies: [...] }`. `maxDuration` bumped to 60s since 11 companies × 2 count calls runs ~15s total.
+
 ## 🔄 PHASE 7.1 PLAN REVISED — Scope filter pivots from analytic-accounts to `company_id` (awaiting explore-patch go-ahead)
 
 User dropped the Odoo company-switcher screenshot — fmplus tenant is **multi-company**, which is much cleaner than analytic-account prefix scoping. Company list:
