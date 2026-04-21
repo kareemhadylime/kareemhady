@@ -8,9 +8,12 @@
 const TOKEN_URL = 'https://open-api.guesty.com/oauth2/token';
 const API_BASE = 'https://open-api.guesty.com/v1';
 
-// Module-scoped token cache. Vercel cold starts create a fresh instance,
-// so each cold function does one token fetch — well under the rate limit.
-// Warm instances share the cached token across requests.
+// Token cache — two-tier:
+//   1. Module scope for warm-invocation reuse within a single Vercel
+//      container.
+//   2. Supabase `integration_tokens` table so cold starts don't keep
+//      re-minting tokens on Guesty's tight OAuth rate limit.
+// Guesty tokens live 24h; we refresh when < 5 min remaining.
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
@@ -22,11 +25,41 @@ async function getAccessToken(): Promise<string> {
     );
   }
 
-  // Refresh when under 5 minutes remain on the current token.
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 5 * 60 * 1000) {
+  const now = Date.now();
+  const FIVE_MIN = 5 * 60 * 1000;
+
+  // 1. In-process cache
+  if (cachedToken && cachedToken.expiresAt > now + FIVE_MIN) {
     return cachedToken.value;
   }
 
+  // 2. Supabase cache — avoid per-cold-start OAuth hits. Lazy-imported
+  //    so this module still works in contexts where supabase isn't set up.
+  try {
+    const { supabaseAdmin } = await import('./supabase');
+    const sb = supabaseAdmin();
+    const { data } = await sb
+      .from('integration_tokens')
+      .select('access_token, expires_at')
+      .eq('provider', 'guesty')
+      .maybeSingle();
+    if (data) {
+      const expiresAtMs = new Date(
+        (data as { expires_at: string }).expires_at
+      ).getTime();
+      if (expiresAtMs > now + FIVE_MIN) {
+        cachedToken = {
+          value: (data as { access_token: string }).access_token,
+          expiresAt: expiresAtMs,
+        };
+        return cachedToken.value;
+      }
+    }
+  } catch {
+    // Supabase unreachable — fall through to fresh OAuth.
+  }
+
+  // 3. Fresh token
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
     scope: 'open-api',
@@ -59,10 +92,27 @@ async function getAccessToken(): Promise<string> {
     throw new Error('guesty_oauth_no_token');
   }
 
-  cachedToken = {
-    value: json.access_token,
-    expiresAt: Date.now() + (json.expires_in || 86400) * 1000,
-  };
+  const ttlSec = json.expires_in || 86400;
+  const expiresAt = now + ttlSec * 1000;
+  cachedToken = { value: json.access_token, expiresAt };
+
+  // Persist for cold-start siblings
+  try {
+    const { supabaseAdmin } = await import('./supabase');
+    const sb = supabaseAdmin();
+    await sb.from('integration_tokens').upsert(
+      {
+        provider: 'guesty',
+        access_token: json.access_token,
+        expires_at: new Date(expiresAt).toISOString(),
+        refreshed_at: new Date().toISOString(),
+      },
+      { onConflict: 'provider' }
+    );
+  } catch {
+    // Not fatal — in-process cache still works.
+  }
+
   return cachedToken.value;
 }
 
