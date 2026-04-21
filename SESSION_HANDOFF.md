@@ -1,5 +1,65 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 8.1 SHIPPED — Pricing Intelligence rule under Beithady domain (commits cc9828b + a4d0849)
+
+New rule live at **https://kareemhady.vercel.app/emails/beithady/pricing**. Linked from the Beithady domain page next to Financials.
+
+### Schema (migration 0005_pricelabs.sql, applied via MCP)
+- `pricelabs_listings` — current catalog state with derived `building_code` (maps to canonical BH-26/34/73/435/OK).
+- `pricelabs_listing_snapshots` — daily time-series with `UNIQUE(listing_id, snapshot_date)`. 20+ fields including base/min/max, adr_past_30 + stly, revenue_past_30 + stly, booking_pickup, occupancy_next_7/30/60 + market_occupancy_*, recommended_base_price (numeric or null) + `rec_base_unavailable` flag, raw jsonb.
+- `pricelabs_channels` — PK `(listing_id, channel_name)` for Airbnb / Booking / rentalsUnited cross-references.
+- `pricelabs_sync_runs` — run log.
+
+### Sync worker (`src/lib/run-pricelabs-sync.ts`)
+69 listings × 400ms throttle = ~30s total. Walks catalog, fetches each listing detail, upserts row + snapshot + channels. Parses '14 %' → 14. Falls back to catalog row if detail fetch fails. Idempotent via `ON CONFLICT (listing_id, snapshot_date)`.
+
+### Routes
+- `GET /api/cron/pricelabs` — scheduled **04:35 UTC** in vercel.json (after Odoo financial phases).
+- `GET|POST /api/pricelabs/run-now` — bearer-protected manual trigger.
+
+### Building classifier iteration
+First sync misclassified 61/69 listings as BH-OK. Root cause: tags like `"BH-435-303,BH-435"` — the per-unit code came first and my single-pass classifier matched the BH-OK scatter fallback. Fixed with a two-pass scan: Pass 1 looks for an EXACT canonical tag across all comma-separated values; Pass 2 strips the suffix (BH-435-303 → BH-435); only then does the BH-OK catchall apply.
+
+### Verified building summary (today's snapshot)
+| Building | Listings | Pushing | Avg ADR 30d | Revenue 30d | STLY 30d | Occ next-30 | Mkt Occ | With Recs |
+|---|---|---|---|---|---|---|---|---|
+| BH-26 | 22 | 22 | $88.7 | $33,836 | — | 8.2% | 9.5% | 16 |
+| BH-73 | 14 | 12 | $76.5 | $24,901 | $0 | 11.0% | 8.7% | 9 |
+| BH-435 | 14 | 14 | $87.1 | $13,072 | $13,074 (flat) | 8.2% | 6.5% | 9 |
+| BH-OK | 11 | 11 | $49.4 | $7,049 | $3,645 (+93% YoY) | 8.6% | 5.7% | 10 |
+| untagged | 8 | 7 | $219.6 | $4,003 | $39,290 | 49.0% | 23.7% | 7 |
+
+BH-26 counts match Odoo's 22 units exactly. BH-435 matches 14. BH-73 at 14 vs Odoo's 29 means 15 BH-73 units still aren't registered in PriceLabs. The 8 "untagged" listings have high ADR ($219) and high occupancy (49%) — these are likely premium properties with a different tag format; worth investigating their raw tags for Phase 8.2.
+
+### Dashboard (`/emails/beithady/pricing`)
+- Top stat cards: units synced, avg ADR 30d, total revenue 30d (with YoY delta), avg occupancy next-30 vs market.
+- Per-building summary table: listings, pushing, avg base/ADR, revenue + YoY, occupancy next-30 vs market (with delta in pp), rec coverage. Clicking a row filters the listing table below.
+- Per-listing table: listing name, building code, push indicator (green dot), base, ADR 30d + YoY, revenue 30d, occupancy next-30 vs market with pp delta, rec_base_price (or "Unavail" badge).
+- Empty state shows the `run-now` curl command if no snapshots exist yet.
+
+### Domain page card
+`src/app/emails/[domain]/page.tsx` now shows Financials + Pricing Intelligence as a 2-column grid above the rules list when domain=beithady.
+
+### Cron schedule (vercel.json, 10 entries total)
+```
+04:00  /api/cron/odoo                                → Odoo companies + invoices
+04:05  /api/cron/odoo-financials?phase=metadata      → Odoo CoA + partners
+04:10  move-lines-4 (A1)
+04:15  move-lines-5 (Beithady Egypt)
+04:20  move-lines-10 (Beithady Dubai)
+04:25  analytics (plans/accounts/links)
+04:30  finalize (owner flag)
+04:35  /api/cron/pricelabs                           → PriceLabs catalog + snapshots
+06:00  /api/cron/daily (Gmail 9 AM Cairo summer)
+07:00  /api/cron/daily (Gmail 9 AM Cairo winter)
+```
+
+### Phase 8.2 backlog (not started)
+1. **Chase missing BH-73 units in PL portal** (15 of 29 not registered).
+2. **Investigate the 8 untagged listings** — probably premium properties with different tag format; extend classifier.
+3. **Gap analysis visualization**: per-listing-per-day (price vs recommended_rate) chart — requires getting `/listings/prices` populated for more listings (needs PL's ML model to mature past "Unavailable").
+4. **Cross-join to Guesty**: `pricelabs_listings.id` = Guesty `_id`. Once Guesty data is synced to Supabase, add a field showing Guesty confirmationCode volume per listing.
+
 ## ✅ PHASE 8 CONNECTION VERIFIED — PriceLabs live, rich revenue intel surfaced (commits 3f3f1b6 → a9c41ac)
 
 User added `PRICELABS_API_KEY` to Vercel; I redeployed and iterated until the API shape was fully mapped.
