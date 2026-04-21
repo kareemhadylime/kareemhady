@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   listPricelabsListings,
   getPricelabsListingPrices,
+  pricelabsFetch,
 } from '@/lib/pricelabs';
 
 // Smoke-test endpoint for the PriceLabs integration. Verifies auth + returns
@@ -49,7 +50,76 @@ export async function GET(req: NextRequest) {
   }
 
   const withPrices = req.nextUrl.searchParams.get('withPrices') === '1';
+  const probe = req.nextUrl.searchParams.get('probe') === '1';
   const started = Date.now();
+
+  // Endpoint probe: PriceLabs' v1 API paths for rate recommendations aren't
+  // publicly indexed, so this mode tries a set of candidates and reports
+  // which respond 200. Run once with ?probe=1 to discover the right path.
+  if (probe) {
+    const listings = await listPricelabsListings();
+    const first = listings[0];
+    if (!first) {
+      return NextResponse.json(
+        { ok: false, error: 'no listings to probe with' },
+        { status: 500 }
+      );
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const candidates: Array<{ method: 'GET'; path: string; query?: Record<string, string> }> = [
+      { method: 'GET', path: `/listings/${first.id}` },
+      { method: 'GET', path: `/listings/${first.id}/prices` },
+      { method: 'GET', path: `/listings/${first.id}/recommendations` },
+      { method: 'GET', path: `/listing_prices`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/listing_prices`, query: { listing_id: first.id, date_from: today, date_to: end } },
+      { method: 'GET', path: `/dailyrec_new`, query: { listing_id: first.id, date_from: today, date_to: end } },
+      { method: 'GET', path: `/dnepricing`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/pricing`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/rates`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/calendar`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/listings/prices`, query: { id: first.id } },
+      { method: 'GET', path: `/reservation_data`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/reservations`, query: { listing_id: first.id } },
+      { method: 'GET', path: `/neighborhood_data`, query: { listing_id: first.id } },
+    ];
+
+    type ProbeResult = {
+      path: string;
+      query?: Record<string, string>;
+      status: number | 'error';
+      body_sample?: string;
+      error?: string;
+    };
+    const results: ProbeResult[] = [];
+    for (const c of candidates) {
+      try {
+        const data = await pricelabsFetch<unknown>(c.path, { query: c.query, retries: 0 });
+        const sample = JSON.stringify(data).slice(0, 250);
+        results.push({ path: c.path, query: c.query, status: 200, body_sample: sample });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const m = /pricelabs_(\d{3})/.exec(msg);
+        results.push({
+          path: c.path,
+          query: c.query,
+          status: m ? Number(m[1]) : 'error',
+          error: msg.slice(0, 200),
+        });
+      }
+      // Be polite to the 60/min rate limit.
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    return NextResponse.json({
+      ok: true,
+      mode: 'probe',
+      duration_ms: Date.now() - started,
+      probed_with_listing: { id: first.id, name: first.name },
+      results,
+    });
+  }
+
   try {
     const listings = await listPricelabsListings();
 
