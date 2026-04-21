@@ -24,17 +24,14 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const env = {
-    SHOPIFY_STORE_DOMAIN: !!process.env.SHOPIFY_STORE_DOMAIN,
-    SHOPIFY_ADMIN_ACCESS_TOKEN: !!process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
-  };
-  const missing = Object.entries(env).filter(([, v]) => !v).map(([k]) => k);
-  if (missing.length > 0) {
+  // Store domain is always required. Admin token can come from either the
+  // legacy SHOPIFY_ADMIN_ACCESS_TOKEN env OR the OAuth-populated
+  // integration_tokens row — shopifyFetch resolves either automatically.
+  if (!process.env.SHOPIFY_STORE_DOMAIN) {
     return NextResponse.json(
       {
         ok: false,
-        error: `Shopify credentials missing: ${missing.join(', ')}. Generate via Shopify Admin → Apps → Develop apps → your custom app → API credentials.`,
-        env,
+        error: 'SHOPIFY_STORE_DOMAIN not set',
       },
       { status: 400 }
     );
