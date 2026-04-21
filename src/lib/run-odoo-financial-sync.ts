@@ -183,29 +183,61 @@ export async function syncOdooPartners() {
   return { ok: true, partners_synced: rows.length, duration_ms: Date.now() - started };
 }
 
-export async function syncOdooMoveLines(companyId: number) {
+export async function syncOdooMoveLines(
+  companyId: number,
+  options: { resume?: boolean; timeBudgetMs?: number } = {}
+) {
   if (!FINANCIALS_COMPANY_IDS.includes(companyId)) {
     return { ok: false, error: `company ${companyId} is out of Financials scope` };
   }
   const sb = supabaseAdmin();
   const started = Date.now();
+  // Vercel caps functions at 300s. Leave ~30s headroom to flush last batch
+  // + return cleanly. Callers can override via timeBudgetMs.
+  const budgetMs = options.timeBudgetMs ?? 260_000;
   const ctx = { allowed_company_ids: [companyId] };
-  // Cap at today — Odoo's depreciation/amortization entries are
-  // pre-generated for the full asset term (e.g. BH-26 projects through
-  // 2038). Those future rows are ~10x the historical volume and useless
-  // for period P&L reporting; exclude them.
   const today = new Date().toISOString().slice(0, 10);
-  const domain = [
+
+  // Resume-from-last-synced-id: if resume is true, start from the max id
+  // already in Supabase for this company. This lets callers invoke the
+  // endpoint repeatedly until complete=true without re-fetching rows
+  // that already landed. Odoo IDs are strictly ascending on account.move.line,
+  // so this is safe for backfill (updates to old rows require a separate
+  // refresh pass — Phase 7.4 concern).
+  let startAfterId = 0;
+  if (options.resume) {
+    const { data: maxRow } = await sb
+      .from('odoo_move_lines')
+      .select('id')
+      .eq('company_id', companyId)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (maxRow?.id) startAfterId = Number(maxRow.id);
+  }
+
+  const domain: unknown[] = [
     ['company_id', '=', companyId],
     ['parent_state', 'in', ['draft', 'posted']],
     ['date', '>=', cutoffDate()],
     ['date', '<=', today],
   ];
+  if (startAfterId > 0) {
+    domain.push(['id', '>', startAfterId]);
+  }
 
   const PAGE = 500;
   let offset = 0;
   let synced = 0;
+  let lastId = startAfterId;
+  let hitTimeBudget = false;
+
   while (true) {
+    if (Date.now() - started > budgetMs) {
+      hitTimeBudget = true;
+      break;
+    }
+
     const batch = await odooSearchRead<OdooMoveLine>(
       'account.move.line',
       domain,
@@ -269,6 +301,7 @@ export async function syncOdooMoveLines(companyId: number) {
           .from('odoo_move_lines')
           .upsert(rows.slice(i, i + 500), { onConflict: 'id' });
       }
+      lastId = rows[rows.length - 1].id;
     }
     synced += batch.length;
 
@@ -276,10 +309,16 @@ export async function syncOdooMoveLines(companyId: number) {
     offset += PAGE;
   }
 
+  const complete = !hitTimeBudget;
   return {
     ok: true,
     company_id: companyId,
     move_lines_synced: synced,
+    last_id: lastId,
+    complete,
+    resume_hint: complete
+      ? null
+      : `call again with ?phase=move-lines&company=${companyId}&resume=1`,
     duration_ms: Date.now() - started,
   };
 }

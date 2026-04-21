@@ -47,7 +47,10 @@ async function handle(req: NextRequest) {
             { status: 400 }
           );
         }
-        return NextResponse.json(await syncOdooMoveLines(companyId));
+        const resume = req.nextUrl.searchParams.get('resume') === '1';
+        return NextResponse.json(
+          await syncOdooMoveLines(companyId, { resume })
+        );
       }
       case 'finalize':
         return NextResponse.json(await finalizeOwnerFlag());
