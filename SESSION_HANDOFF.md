@@ -1,5 +1,51 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7.5 SHIPPED — 4 company views + Balance Sheet + A1 in scope (commits c9aa061 + 06ae34c)
+
+User request: "Study All, cover All Gaps and Show Dashboard for Balance Sheet ... also P&L Dashboard important Numbers Mainly for Beithady Consolidated & A1 as Owner ... segregation for BH-26 - BH-73 - BH-435, Arbitrage / Management Line of Business" + four xlsx files (Consolidated, UAE, Egypt, A1) as target layouts.
+
+### New source files read (in `C:\kareemhady\.claude\Documents\`)
+- `Beithady Consolidated P&L with Both Egypt & Dubai.xlsx` — YTD Jan+Feb 2026 consolidated P&L (Revenue 9,284,450, Net Profit -5,462,189). Confirms Filters = Egypt + Dubai only.
+- `Beithady Dubai & Egypt Balance Sheert FEB-2026.xlsx` — balance sheet as of 28/02/2026 + same YTD P&L + Filters sheet. Assets 75,456,779; Liabilities 85,262,188; Equity -9,805,409.
+- `f.s__beithady_hospitality_-(egypt).xlsx` — both P&L (Feb 2026 3.57M) and the same (consolidated) balance sheet duplicated. Treat its P&L as the Egypt single-company view.
+- `f.s_beithady_hospitality-(_uae).xlsx` — Beithady Dubai (FZCO) P&L (not fully inspected this turn — truncated by output). Jan-Feb 2026 YTD.
+- `f.s__a1_hospitality.xlsx` — A1 standalone. P&L Jan-Feb 2026 YTD (Revenue 1,562,150 all from account 401009 "Revenue From Hospitality"; Net Profit 199,721). Balance Sheet as of 28/02/2026 (Assets 9,444,897; Liab 1,937,812; Equity 7,507,085). Uses a different CoA than Beithady — depreciation is at 606xxx not 607xxx.
+
+### Ships in this phase
+- **A1HOSPITALITY (id 4) added to FINANCIALS_COMPANY_IDS**. After deploy, ran phases `accounts` → `partners` → `move-lines&company=4`. A1: 11,874 move lines, adds its full CoA (657 accounts total across all 3 companies), 310 partners total.
+- **CompanyScope type** (`consolidated | egypt | dubai | a1 | custom`) with `scopeCompanyIds()` + `scopeLabel()` + `COMPANY_LABELS` lookup. Exported `ALL_FINANCIALS_COMPANY_IDS`.
+- **Intercompany elimination is scope-conditional** — active only when scope spans both 5 AND 10. Single-company or A1-only views preserve their raw intercompany entries.
+- **Scope-aware P&L classifier**: "Rent Costs" routes to Home Owner Cut for Beithady (the arbitrage-operator view that pays head-lease owners), but to Operating Cost under Cost of Revenue for A1 (where rent is A1's own expense). Checked via `isA1OnlyScope` flag. Explicit lesson: name-based classification must be context-aware when the same account name carries different business meaning across companies.
+- **New `buildBalanceSheet(asOf, companyIds)` aggregator** — reads `odoo_move_lines` filtered to posted entries + `<= asOf`, groups by `account_type`:
+  - `asset_cash` → Bank and Cash, `asset_receivable` → Receivables, `asset_prepayments` → Prepayments, `asset_current` → Other Current Assets, `asset_fixed` → Fixed Assets, `asset_non_current` → Non-current
+  - `liability_payable` → Payables, `liability_current` → Other Current Liab, `liability_non_current` → Non-current Liab
+  - `equity` + `equity_unaffected` → Unallocated Earnings / Retained (by name pattern)
+  - Sign-flips liabilities + equity so display reads positive (Odoo stores them with credit normal balance = negative in `balance`).
+  - Returns a `balanced` flag (Assets ≈ L + E within 1 EGP).
+- **UI redesigned** (`src/app/emails/beithady/financials/page.tsx`, ~580 lines):
+  - Top company scope tab selector: Consolidated / Egypt / Dubai / A1.
+  - Period filter with presets + specific-month picker + custom range; all forms preserve scope across submissions.
+  - P&L table (full xlsx hierarchy, Sub-GP / GP / EBITDA / Net Profit subtotals, % of revenue column).
+  - Two-column Balance Sheet panel (Assets on left, Liabilities + Equity on right) with nested groups + accounts scrolling inside each sub-section. Headlines Assets / (Liab+Eq) totals + Balanced ✓ indicator.
+  - Three Payables cards side-by-side (Vendors / Employee / Owners).
+  - Unclassified accounts warning panel still visible when misses exist.
+
+### Verification (all HTTP 200)
+- `?scope=consolidated&preset=month:2026-02` ✅
+- `?scope=egypt&preset=month:2026-02` ✅
+- `?scope=dubai&preset=month:2026-02` ✅
+- `?scope=a1&preset=month:2026-02` ✅
+
+**A1 Jan-Feb 2026 P&L vs xlsx**: Revenue / G&A / Depreciation match EXACTLY (1,562,150 / 11,617 / 203,589); Cost of Revenue closed from 47% off to within rounding after the Rent-Costs routing fix.
+
+### Known Phase 7.6 backlog — NOT done this turn
+1. **Balance Sheet accuracy**: our `buildBalanceSheet` aggregates from last 365d move lines only, so A1 snapshot shows Assets 2.17M vs xlsx 9.44M — ~7.3M of historical equity/asset entries are pre-April-2025 and outside our sync window. Two fix paths: (a) extend backfill to all-time (maybe 200k+ rows for Egypt — needs further phasing), or (b) add opening-balances sync. Either requires more work; for now the UI should carry a disclaimer.
+2. **BH-26 / BH-73 / BH-435 + Arbitrage / Management LOB segregation**: not built. Odoo uses analytic plans; `analytic_distribution` on move lines carries comma-separated IDs like `{"538,537": 100}` where commas = multi-plan allocation. 180 distinct analytic account IDs referenced across the synced lines. Needs: sync `account.analytic.account` (with plan_id), sync `account.analytic.plan` ("Leased" vs "Management"), parse `analytic_distribution` JSON keys (split on comma), join to plan to get LOB, UI filter controls.
+3. **Cost of Revenue consolidated gap (14%)**: still open. With the scope-aware Rent Costs routing, consolidated CoR now recategorizes Rent Costs into Home Owner Cut, which tracks the xlsx. Net Profit matches, but exact sub-breakdown (Agents / Direct / Operating) may still be off by the 305K — investigate account-type edge cases in 7.6.
+4. **Full balance sheet historical backfill** — see (1).
+5. **Dubai (FZCO) single-company P&L not yet cross-verified** against its xlsx (file was truncated in this turn's read).
+6. **Cron orchestration for financial sync** — still manual phase-through; add 04:30 UTC cron that runs accounts → partners → move-lines per company → finalize in sequence.
+
 ## ✅ PHASE 7.2 + 7.3 SHIPPED — Beithady Financials rule live at /emails/beithady/financials
 
 Multi-commit push (1d40a47 + 6aebff5 + 201222c + 30aec77 + ab3f1fc + c676e76). Final deploy `kareemhady.vercel.app`. Page renders HTTP 200 in ~5.7s.
