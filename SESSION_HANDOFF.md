@@ -1,5 +1,64 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ STRIPE API ARRIVAL-DATE FILTER + AIRBNB LINE-ITEM MODAL (commit 1ea2c30)
+
+### User request
+User ran the Payouts rule with real data and shared screenshots:
+- Stripe API reconciliation showed "API TOTAL USD 3,288 · 1 payouts" while the hero said "5 Stripe payouts". Asked: "if it is 5 payouts for Stripe, why it is showing only 1 in API"
+- "Also need to click on line in Airbnb to see details as popup"
+
+### Issue 1: arrival_date vs created filter
+**Root cause**: `fetchStripePayoutBreakdown` in `src/lib/stripe-payouts.ts` filtered Stripe payouts by `created` timestamp (when Stripe initiated the payout). Stripe's payout notification emails trigger around `arrival_date` (when funds land at the bank), which can be 2-4 days after creation. A payout created on Mon arriving Thu shows up in Thu emails — but the API filter with a Thu-only window would miss it.
+
+**Fix**: switched `listPayoutsInRange()` to filter by `arrival_date: { gte: fromTs, lte: toTs }`. Now API range aligns with email-trigger timing.
+
+**Secondary fix**: the hero's "Stripe USD" subtitle conflated raw Gmail hits with successfully-parsed payout notifications. Now shows `${stripePayouts.length} parsed payouts · Booking.com / Expedia / Manual` when all emails parsed, or `${stripePayouts.length} parsed · ${stripeCount} Stripe emails · Booking.com / Expedia / Manual` when they differ. The hero no longer implies "5 payouts" when only 1 or 2 of those Gmail matches are actual payout notifications.
+
+### Issue 2: click-to-modal on Airbnb line items
+New client component `src/app/emails/[domain]/[ruleId]/AirbnbLineItemsTable.tsx` (`'use client'`):
+
+- Accepts `lineItems`, `bookings`, `crossMatchRunAt` as plain-data props (no functions — serializable across the server/client boundary).
+- Rebuilds the `bookingsByCode` + `bookingsByGuest` lookup maps client-side via `useMemo`. Same two-step match logic as the server: exact HM-code first, one-and-only-one guest-name fallback.
+- Each row is now a cursor-pointer button that setOpen()s the line item. Hover-rose stays.
+- Native `<dialog>` element with `useRef` + `useEffect` to call `.showModal()` / `.close()`. Free focus trap + escape-key handling + backdrop click (detected via `e.target === dialogRef.current` in the onClick handler).
+- Modal header: confirmation code mono, Refund/Type badges, "matched Guesty" emerald pill when there's a match, guest name.
+- Modal body:
+  - Full listing name (word-wrapped, NOT truncated) + Airbnb numeric listing id below
+  - 4-cell grid: Amount (rose tone when refund), Airbnb bldg (from email), Stay, Payout sent
+  - When matched: full emerald panel with Channel, Guesty bldg, Listing code (mono), Expected payout, Nights, Guesty guest, Check-in, Check-out, Guesty listing (wrap). Delta callout when |paid - expected| > $1: amber for overpaid, emerald for underpaid.
+  - When not matched: slate note explaining why ("booking rule hasn't run in range, non-Airbnb channel paid through Stripe, etc").
+- Footer: Close button + small "Click any row to see full details (cross-matched against Guesty bookings last run ...)".
+- Small `DetailCell` helper for the grid cells with label / value / optional icon / mono / wrap / tone options.
+
+`BeithadyPayoutView` server component now just forwards props:
+```tsx
+<AirbnbLineItemsTable
+  lineItems={refundables}
+  bookings={crossMatchBookings}
+  crossMatchRunAt={crossMatchRunAt}
+/>
+```
+All interactive state lives in the client file. The old `lookupBooking` usage inside `BeithadyPayoutView` for the Airbnb table is gone (still used for the Stripe txn table, which stays server-rendered — Stripe txn volume is larger and per-row interactivity isn't the same ask).
+
+### Type fix during build
+First build failed because `AirbnbLineItem.listing_airbnb_id` was required but the server-side line_items type didn't include it. Made it optional (`?: string | null`) on the client type — it's shown in the modal when present but doesn't break when missing.
+
+### Verification
+- `rm -rf .next && npm run build` clean, 14 routes, TS pass.
+- commit 1ea2c30 on main via `git push origin HEAD:main`.
+- Deployed via root `C:\kareemhady` → `kareemhady-rlgzukdai-lime-investments.vercel.app` (Ready, 51s).
+
+### What the user should see on next run
+- Stripe API reconciliation MATCHED count should go up (since arrival_date catches payouts that created-date missed).
+- Hero's "Stripe USD" subtitle now honest: shows both parsed-count and email-count when they differ.
+- Clicking any row in the Airbnb line items table opens a centered modal with the full reservation detail + Guesty match panel.
+
+### Note on why some payouts may still be email-only
+Even with arrival_date, email-only counts can remain non-zero because:
+- The rule searches `from:stripe to:payments@beithady.com` — if some Stripe emails for OTHER accounts got forwarded there, they'd count as emails but not be in this account's API.
+- The Restricted key might not have read access to an older payout if Stripe archived it (unusual).
+- Date boundaries: an arrival_date exactly on the boundary second could go either way depending on timezone rounding.
+
 ## ✅ BEITHADY PAYOUTS: ALL AMOUNTS IN USD (commit 2bdd20f)
 
 ### User request
