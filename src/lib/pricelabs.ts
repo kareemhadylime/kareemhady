@@ -145,19 +145,31 @@ export async function listPricelabsListings(): Promise<PriceLabsListing[]> {
 
 /**
  * Fetch daily prices + recommendations for a single listing. Date range is
- * inclusive. PriceLabs silently truncates > ~500 days.
+ * inclusive. PriceLabs silently truncates > ~500 days. The canonical path
+ * is `GET /listings/prices?id={listing_id}` (verified via probe 2026-04-21;
+ * /listing_prices returns 404 despite older docs).
  */
 export async function getPricelabsListingPrices(
   listingId: string,
   opts: { dateFrom?: string; dateTo?: string } = {}
 ): Promise<PriceLabsListingPricesResponse> {
-  return pricelabsFetch<PriceLabsListingPricesResponse>('/listing_prices', {
+  return pricelabsFetch<PriceLabsListingPricesResponse>('/listings/prices', {
     query: {
-      listing_id: listingId,
+      id: listingId,
       date_from: opts.dateFrom,
       date_to: opts.dateTo,
     },
   });
+}
+
+/**
+ * Fetch one listing's full detail. Includes fields that don't surface on
+ * the `/listings` catalog call (base_price, min_price, max_price, etc.).
+ */
+export async function getPricelabsListing(
+  listingId: string
+): Promise<PriceLabsListing> {
+  return pricelabsFetch<PriceLabsListing>(`/listings/${listingId}`);
 }
 
 export { pricelabsFetch };
