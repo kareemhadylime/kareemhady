@@ -1,5 +1,38 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🔄 PHASE 7.1 PLAN REVISED — Scope filter pivots from analytic-accounts to `company_id` (awaiting explore-patch go-ahead)
+
+User dropped the Odoo company-switcher screenshot — fmplus tenant is **multi-company**, which is much cleaner than analytic-account prefix scoping. Company list:
+
+- VOLTAUTO (currently selected in user's session)
+- Lime Commercial Investment
+- A1HOSPITALITY
+- **Beithady Hospitality - (EGYPT)** ← include in scope
+- **Beithady Hospitality FZCO - (Dubai)** ← include in scope
+- X Label for Tailoring Kika
+- Lime For Restaurants
+- 202993 - fm security creation new co... (truncated)
+- FMPLUS Property & Facility Managem... (truncated)
+- The Bees Art Direction for Managing ... (truncated)
+
+User confirmed: **"Chart of accounts is divided by company"** → clean multi-company separation exists natively in this Odoo tenant.
+
+### Why company_id > analytic account prefix
+- **Complete** — captures invoices/bills/partners/journals/payments that belong to Beithady, not just records that happen to be tagged with a `BH-*` analytic account
+- **Explicit** — Odoo's native multi-tenant mechanism (`allowed_company_ids` context)
+- **Handles Egypt/Dubai split** — two companies, clean EGP vs USD/AED currency zones, dashboard can split or unify
+- **Future-proof** — resilient to analytic account renames
+
+### Revised plan
+1. **Ship `?explore=1` patch to `/api/odoo/ping`** — returns all `res.company` rows (id, name, country_id tuple, currency_id tuple) + per-company posted-invoice counts. ~5 min of work. Confirms the two Beithady company IDs + shows real sync volume (vs the full 12,626).
+2. **Migration `0009_odoo.sql`** — `odoo_companies`, `odoo_analytic_accounts`, `odoo_invoices` tables all carry `company_id` + `company_name`. Unique `(odoo_id)`. Defer partners + payments to 7.2.
+3. **`src/lib/odoo.ts` refactor** — extend `odooSearchRead` to accept an optional `context` param so callers can pass `{ allowed_company_ids: [bh_egypt, bh_dubai] }`. Required for correct multi-company scoping.
+4. **`src/lib/run-odoo-sync.ts`** — mirrors `run-daily.ts`. Context-scoped to Beithady companies. Pulls posted invoices last 365 days + all analytic accounts. Upserts.
+5. **`/api/odoo/run-now`** + **cron `/api/cron/odoo`** (04:00 UTC, stagger from Gmail 06/07:00).
+
+### Status
+**Awaiting user go-ahead to ship the `?explore=1` patch.** Once we have the two company IDs, migration + sync worker lands in one shot. No code committed this turn.
+
 ## 🟡 PHASE 7.1 PLANNING — Proposed scope + migration plan, awaiting user go/no-go
 
 User said "ready for 7.1". Before writing the migration, I sent a plan + one decision to confirm.
