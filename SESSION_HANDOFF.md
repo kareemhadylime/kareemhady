@@ -1,5 +1,32 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟠 PHASE 10.1.4 — Shopify OAuth blocked: `redirect_uri and application url must have matching hosts`
+
+User clicked `/api/shopify/auth/start` → redirected to Shopify's OAuth consent page → Shopify rejected with:
+> Oauth error invalid_request: The redirect_uri and application url must have matching hosts
+
+Shopify requires the `redirect_uri` query param to share a host with the **Application URL** configured on the Dev Dashboard app. Our redirect_uri is `https://kareemhady.vercel.app/api/shopify/auth/callback`, so the app's Application URL must also be under `kareemhady.vercel.app`.
+
+### User fix (no code change needed)
+In Dev Dashboard → KIKA app → **Configuration** (or Settings → URLs):
+- **Application URL**: `https://kareemhady.vercel.app`
+- **Allowed redirection URL(s)**: `https://kareemhady.vercel.app/api/shopify/auth/callback`
+
+Save — may require creating + publishing a new app version for the config to take effect.
+
+Then re-open `/api/shopify/auth/start`.
+
+### Current state
+- `integration_tokens` table still has NO `shopify:*` row.
+- Dev Dashboard KIKA app exists with `client_id=e91d0612396dd960fa56d0c06ea7d7a9` but the Application URL isn't set to our host yet.
+- Our auth flow code is correct — confirmed via the 307 redirect response with properly-formed Shopify authorize URL.
+
+### Common Shopify OAuth errors reference (in case the next attempt surfaces another one)
+- `invalid_request: redirect_uri and application url must have matching hosts` → fix Application URL (current block)
+- `invalid_request: Invalid redirect_uri` → exact callback URL must be in allowed list; trailing slashes count
+- `invalid_client` → env `SHOPIFY_APP_CLIENT_ID` doesn't match the app whose URLs were saved
+- `App not installed` after approve → app not marked distributable; check Distribution section
+
 ## 🟢 PHASE 10.1.3 — Shopify OAuth install flow shipped (commit 5ceec3a, deployed, awaiting user install click)
 
 Legacy custom-app path fully dead on kika-swim-wear — both admin URLs the user tried just route to the Dev Dashboard upgrade prompt. Built the OAuth install flow so we can proceed without touching the legacy admin.
