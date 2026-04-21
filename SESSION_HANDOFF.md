@@ -1,5 +1,29 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 PHASE 10.1 — Shopify store handle corrected + Dev Dashboard path locked in (still blocked on token)
+
+User sent a screenshot of the KIKA store admin at **Settings → Apps → Upgrade guide → App development**, which shows Shopify redirecting all custom-app work to the new Dev Dashboard ("Build apps in Dev Dashboard" button). The legacy Path A (create custom app directly in store admin) is effectively deprecated for this tenant — Shopify now only offers Path B (Dev Dashboard).
+
+Two key corrections from earlier guidance:
+- **Actual store handle is `thekikastore`** (display name: KIKA, domain shown as `thekikastore.com` in the admin header). Earlier I assumed `shopfromkika` — that assumption is wrong; all env documentation should use `thekikastore`.
+- The user's KIKA app in the Dev Dashboard already exists (`kika-1` handle, 0 installs) from the prior screenshot. Just needs scopes + install + token.
+
+### Updated user checklist
+1. Click **Build apps in Dev Dashboard** → back to their existing KIKA app
+2. Configure **Admin API access scopes** (read-only): `read_orders`, `read_products`, `read_customers`, `read_inventory`, `read_locations`
+3. Install app on `thekikastore` store
+4. Copy the `shpat_...` Admin API access token (shown once)
+
+### Env to set
+```
+SHOPIFY_STORE_DOMAIN=thekikastore
+SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_xxxxxxxxxxxxxxxxxx
+```
+On Vercel (Production + Preview + Development) + `C:\kareemhady\.env.local`.
+
+### No code changes this turn
+Scaffold from commit 7376e95 still current. Ping endpoint at `/api/shopify/ping` ready to smoke-test once env is populated.
+
 ## 🟡 PHASE 10.1 KICKOFF — Shopify onboarding guidance sent, no code changes
 
 User shared a screenshot of the Shopify Dev Dashboard showing a custom app "KIKA" with handle `kika-1` and 0 installs. Asked where API parameters come from. Sent two paths:
