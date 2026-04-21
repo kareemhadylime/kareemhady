@@ -84,10 +84,11 @@ export async function GET(req: NextRequest) {
         }
       );
 
-      const allCompanyIds = companies.map(c => c.id);
-
-      // Per-company posted-invoice count. Pass allowed_company_ids per call
-      // so the domain's company_id filter actually sees that company's data.
+      // Per-company posted-invoice count. Pass allowed_company_ids as a
+      // single-element array per call — Odoo 16+ validates every id in the
+      // context against the API user's res.users.company_ids set, so passing
+      // companies the user can't access errors the whole call. Isolating per
+      // company lets the accessible ones succeed independently.
       const perCompany = await Promise.all(
         companies.map(async c => {
           try {
@@ -95,12 +96,12 @@ export async function GET(req: NextRequest) {
               odooSearchCount(
                 'account.move',
                 [...invoiceDomain, ['company_id', '=', c.id]],
-                { context: { allowed_company_ids: allCompanyIds } }
+                { context: { allowed_company_ids: [c.id] } }
               ),
               odooSearchCount(
                 'account.journal',
                 [['company_id', '=', c.id]],
-                { context: { allowed_company_ids: allCompanyIds } }
+                { context: { allowed_company_ids: [c.id] } }
               ),
             ]);
             return {
