@@ -6,6 +6,7 @@ import { aggregateBeithadyPayouts } from './aggregators/beithady-payout';
 import { aggregateBeithadyReviews } from './aggregators/beithady-review';
 import { aggregateBeithadyInquiries } from './aggregators/beithady-inquiry';
 import { aggregateBeithadyRequests } from './aggregators/beithady-request';
+import { fetchStripePayoutBreakdown } from '@/lib/stripe-payouts';
 
 export type RuleConditions = {
   from_contains?: string;
@@ -363,12 +364,20 @@ async function evaluatePayoutRule(args: {
   if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
 
   try {
-    const [airbnbBodies, stripeBodies] = await Promise.all([
+    const [airbnbBodies, stripeBodies, stripeApi] = await Promise.all([
       Promise.all(airbnbMatches.map(m => fetchEmailFull(token, m.id))),
       Promise.all(stripeMatches.map(m => fetchEmailFull(token, m.id))),
+      // Phase 5.8: Stripe API reconciliation. Non-fatal on failure — the
+      // helper catches missing key / network errors and returns an empty
+      // breakdown with .error populated so the UI can surface it.
+      fetchStripePayoutBreakdown(fromIso, toIso),
     ]);
 
-    const output = await aggregateBeithadyPayouts(airbnbBodies, stripeBodies);
+    const output = await aggregateBeithadyPayouts(
+      airbnbBodies,
+      stripeBodies,
+      stripeApi
+    );
 
     let markedRead = 0;
     let markErrors = 0;

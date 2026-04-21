@@ -1,5 +1,6 @@
 import { anthropic, HAIKU } from '@/lib/anthropic';
 import { classifyBuilding } from './beithady-booking';
+import type { StripeApiBreakdown } from '@/lib/stripe-payouts';
 
 export type AirbnbPayoutLineItem = {
   confirmation_code: string;
@@ -78,6 +79,15 @@ export type BeithadyPayoutAggregate = {
   stripe_payouts: Array<ParsedStripePayout & { email_date: string | null }>;
   by_month: PayoutMonthBucket[];
   by_building: PayoutBuildingBucket[];
+  // Phase 5.8: Stripe API reconciliation
+  stripe_api: StripeApiBreakdown | null;
+  stripe_api_total_aed: number;
+  reconcile_matched: number;    // payout_id present in both email set and API
+  reconcile_api_only: number;   // API-visible payouts with no matching email
+  reconcile_email_only: number; // email payouts not seen via API in range
+  stripe_api_charge_count: number;
+  stripe_api_refund_count: number;
+  stripe_api_guest_names: number; // transactions where a guest name was extractable from metadata/description
 };
 
 const AIRBNB_PAYOUT_SYSTEM = `You parse Airbnb payout-notification emails relayed through Guesty to guesty@beithady.com.
@@ -284,7 +294,8 @@ function buildingFromLineItem(li: AirbnbPayoutLineItem): string | null {
 
 export async function aggregateBeithadyPayouts(
   airbnbBodies: Array<{ subject: string; from: string; bodyText: string; receivedIso: string | null }>,
-  stripeBodies: Array<{ subject: string; from: string; bodyText: string; receivedIso: string | null }>
+  stripeBodies: Array<{ subject: string; from: string; bodyText: string; receivedIso: string | null }>,
+  stripeApi: StripeApiBreakdown | null = null
 ): Promise<BeithadyPayoutAggregate> {
   const airbnbSettled = await Promise.allSettled(
     airbnbBodies.map(b => parseAirbnbPayout(b.subject, b.bodyText))
@@ -458,6 +469,45 @@ export async function aggregateBeithadyPayouts(
     .map(b => ({ ...b, total_usd: roundMoney(b.total_usd) }))
     .sort((a, b) => b.total_usd - a.total_usd);
 
+  // Phase 5.8: reconcile Stripe API payouts against email-parsed Stripe payouts.
+  const emailPayoutIds = new Set(
+    stripePayoutsOut.map(p => p.payout_id).filter((x): x is string => !!x)
+  );
+  const apiPayoutIds = new Set(
+    (stripeApi?.api_payouts || []).map(p => p.payout_id)
+  );
+  let reconcileMatched = 0;
+  let reconcileApiOnly = 0;
+  let reconcileEmailOnly = 0;
+  for (const id of apiPayoutIds) {
+    if (emailPayoutIds.has(id)) reconcileMatched += 1;
+    else reconcileApiOnly += 1;
+  }
+  for (const id of emailPayoutIds) {
+    if (!apiPayoutIds.has(id)) reconcileEmailOnly += 1;
+  }
+
+  let stripeApiChargeCount = 0;
+  let stripeApiRefundCount = 0;
+  let stripeApiGuestNames = 0;
+  for (const p of stripeApi?.api_payouts || []) {
+    for (const t of p.transactions) {
+      if (t.type === 'charge' || t.type === 'payment') stripeApiChargeCount += 1;
+      if (
+        t.type === 'refund' ||
+        t.type === 'payment_refund' ||
+        t.type === 'payment_failure_refund'
+      )
+        stripeApiRefundCount += 1;
+      if (
+        (t.metadata && (t.metadata.guest_name || t.metadata.guestName)) ||
+        (t.description && /guest|reservation|booking/i.test(t.description))
+      ) {
+        stripeApiGuestNames += 1;
+      }
+    }
+  }
+
   return {
     airbnb_email_count: airbnbBodies.length,
     stripe_email_count: stripeBodies.length,
@@ -484,5 +534,13 @@ export async function aggregateBeithadyPayouts(
     })),
     by_month: byMonth,
     by_building: byBuilding,
+    stripe_api: stripeApi,
+    stripe_api_total_aed: stripeApi?.total_amount ?? 0,
+    reconcile_matched: reconcileMatched,
+    reconcile_api_only: reconcileApiOnly,
+    reconcile_email_only: reconcileEmailOnly,
+    stripe_api_charge_count: stripeApiChargeCount,
+    stripe_api_refund_count: stripeApiRefundCount,
+    stripe_api_guest_names: stripeApiGuestNames,
   };
 }

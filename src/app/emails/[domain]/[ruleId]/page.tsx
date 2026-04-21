@@ -1411,6 +1411,8 @@ function BeithadyPayoutView({
           </table>
         </div>
       </section>
+
+      <StripeApiBreakdownSection out={out} />
     </>
   );
 }
@@ -3771,5 +3773,328 @@ function BeithadyRequestView({
         </section>
       )}
     </>
+  );
+}
+
+type StripeTxn = {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  source_amount: number | null;
+  source_currency: string | null;
+  description: string | null;
+  statement_descriptor: string | null;
+  charge_id: string | null;
+  customer_id: string | null;
+  receipt_email: string | null;
+  metadata: Record<string, string> | null;
+  created_iso: string;
+};
+
+type StripeApiPayout = {
+  payout_id: string;
+  amount: number;
+  currency: string;
+  arrival_date_iso: string | null;
+  created_iso: string;
+  status: string;
+  destination_id: string | null;
+  destination_last4: string | null;
+  destination_bank: string | null;
+  method: string | null;
+  transaction_count: number;
+  transactions: StripeTxn[];
+  net_components_amount: number;
+  fee_components_amount: number;
+};
+
+function extractGuestFromTxn(t: StripeTxn): string | null {
+  if (t.metadata) {
+    const keys = ['guest_name', 'guestName', 'guest', 'reservation_guest'];
+    for (const k of keys) {
+      if (t.metadata[k]) return t.metadata[k];
+    }
+  }
+  if (t.description) {
+    const m = t.description.match(/(?:guest|for)\s+([A-Z][a-zA-Z'`\- ]{1,40})/);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+function extractConfirmationCodeFromTxn(t: StripeTxn): string | null {
+  const hay = [
+    t.description,
+    t.statement_descriptor,
+    ...(t.metadata ? Object.values(t.metadata) : []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const hm = hay.match(/\bHM[A-Z0-9]{8}\b/);
+  if (hm) return hm[0];
+  const bh = hay.match(/\bBH-[A-Z0-9-]+\b/);
+  if (bh) return bh[0];
+  return null;
+}
+
+function StripeApiBreakdownSection({ out }: { out: any }) {
+  const api = out?.stripe_api as {
+    api_payouts: StripeApiPayout[];
+    total_amount: number;
+    currency: string;
+    fetched_at: string;
+    error: string | null;
+  } | null;
+  const matched: number = out?.reconcile_matched ?? 0;
+  const apiOnly: number = out?.reconcile_api_only ?? 0;
+  const emailOnly: number = out?.reconcile_email_only ?? 0;
+  const chargeCount: number = out?.stripe_api_charge_count ?? 0;
+  const refundCount: number = out?.stripe_api_refund_count ?? 0;
+  const guestNames: number = out?.stripe_api_guest_names ?? 0;
+  const apiTotal: number = out?.stripe_api_total_aed ?? 0;
+
+  if (!api) {
+    return (
+      <section>
+        <SectionHeader
+          title="Stripe API reconciliation"
+          hint="Unavailable — the run wasn't performed with Stripe API access. Re-run after STRIPE_SECRET_KEY is configured."
+        />
+        <div className="ix-card p-4 bg-slate-50 text-slate-600 text-sm mt-3">
+          No API data yet. Older rule_runs from before Phase 5.8 don't have
+          this section.
+        </div>
+      </section>
+    );
+  }
+
+  if (api.error) {
+    return (
+      <section>
+        <SectionHeader
+          title="Stripe API reconciliation"
+          hint="Stripe API call failed during this run."
+        />
+        <div className="ix-card p-4 border-rose-200 bg-rose-50 text-rose-800 text-sm mt-3 flex items-start gap-2">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <div className="font-semibold">Stripe API error</div>
+            <div className="font-mono text-xs mt-1">{api.error}</div>
+            <div className="text-xs mt-2 text-rose-700/80">
+              Common causes: STRIPE_SECRET_KEY missing/invalid; restricted-key
+              missing the Payouts + Balance Transactions + Charges read scopes;
+              network failure. Fix the key and re-run.
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const apiPayouts = api.api_payouts || [];
+
+  return (
+    <section>
+      <SectionHeader
+        title="Stripe API reconciliation"
+        hint="Live data from Stripe. Each payout drilled into balance transactions so we can see which charges / refunds made up the settled AED amount. Guest name is pulled from charge metadata when Guesty / upstream set it."
+      />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+        <Stat
+          label="API total AED"
+          value={fmt(apiTotal)}
+          hint={`${apiPayouts.length} payouts · ${chargeCount} charges · ${refundCount} refunds`}
+          Icon={Wallet}
+          accent="emerald"
+        />
+        <Stat
+          label="Matched"
+          value={matched.toLocaleString()}
+          hint="Payout ID in both email + API"
+          Icon={CheckCircle2}
+          accent="emerald"
+        />
+        <Stat
+          label="API-only"
+          value={apiOnly.toLocaleString()}
+          hint="API-visible but no matching email (email may be pending / missing)"
+          Icon={AlertTriangle}
+          accent={apiOnly > 0 ? 'amber' : 'emerald'}
+        />
+        <Stat
+          label="Email-only"
+          value={emailOnly.toLocaleString()}
+          hint="Email parsed but not seen via API in range"
+          Icon={GitCompare}
+          accent={emailOnly > 0 ? 'indigo' : 'emerald'}
+        />
+      </div>
+
+      {guestNames > 0 && (
+        <div className="ix-card p-3 mt-3 text-xs bg-emerald-50 border-emerald-200 text-emerald-800">
+          <CheckCircle2 size={14} className="inline mr-1" />
+          Guest name extracted on {guestNames} of {chargeCount + refundCount}{' '}
+          transactions (from charge metadata or description).
+        </div>
+      )}
+
+      {apiPayouts.length === 0 ? (
+        <div className="ix-card p-4 bg-slate-50 text-slate-600 text-sm mt-3">
+          No Stripe API payouts in this date range.
+        </div>
+      ) : (
+        <div className="space-y-4 mt-3">
+          {apiPayouts
+            .slice()
+            .sort((a, b) => {
+              const aT = new Date(a.created_iso).getTime();
+              const bT = new Date(b.created_iso).getTime();
+              return bT - aT;
+            })
+            .map(p => (
+              <div key={p.payout_id} className="ix-card overflow-hidden">
+                <div className="px-6 py-4 bg-indigo-50/50 border-b border-indigo-100 flex items-start justify-between flex-wrap gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Banknote size={15} className="text-indigo-700 shrink-0" />
+                      <span className="font-mono text-sm font-semibold">
+                        {p.payout_id}
+                      </span>
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-white text-indigo-700 border border-indigo-200 uppercase tracking-wider">
+                        {p.status}
+                      </span>
+                      {p.method && (
+                        <span className="text-[10px] text-slate-600">
+                          {p.method}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      Created {new Date(p.created_iso).toLocaleString()}
+                      {p.arrival_date_iso
+                        ? ` · Arrives ${new Date(p.arrival_date_iso).toLocaleDateString()}`
+                        : ''}
+                      {p.destination_bank || p.destination_last4
+                        ? ` · ${p.destination_bank || ''}${p.destination_last4 ? ` ••${p.destination_last4}` : ''}`
+                        : ''}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold tabular-nums">
+                      {fmt(p.amount)}{' '}
+                      <span className="text-sm text-slate-500 font-medium">
+                        {p.currency}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {p.transaction_count} txn
+                      {p.transaction_count !== 1 ? 's' : ''} · net{' '}
+                      {fmt(p.net_components_amount)}
+                      {p.fee_components_amount
+                        ? ` · fees ${fmt(p.fee_components_amount)}`
+                        : ''}
+                    </div>
+                  </div>
+                </div>
+                {p.transactions.length === 0 ? (
+                  <div className="p-4 text-xs text-slate-500">
+                    No component transactions returned. This may indicate a
+                    manual/instant payout or a Stripe API scope issue for
+                    balance transactions.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-slate-600">
+                        <tr>
+                          <th className="text-left py-2 px-4 font-medium">Time</th>
+                          <th className="text-left px-4 font-medium">Type</th>
+                          <th className="text-right px-4 font-medium">
+                            Amount
+                          </th>
+                          <th className="text-right px-4 font-medium">
+                            Source amt
+                          </th>
+                          <th className="text-left px-4 font-medium">Guest</th>
+                          <th className="text-left px-4 font-medium">Code</th>
+                          <th className="text-left px-4 font-medium">
+                            Description
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {p.transactions.slice(0, 100).map(t => {
+                          const guest = extractGuestFromTxn(t);
+                          const code = extractConfirmationCodeFromTxn(t);
+                          return (
+                            <tr
+                              key={t.id}
+                              className="border-t border-slate-100 hover:bg-slate-50/40"
+                            >
+                              <td className="py-2 px-4 whitespace-nowrap text-xs text-slate-600">
+                                {new Date(t.created_iso).toLocaleDateString()}
+                              </td>
+                              <td className="px-4">
+                                <span
+                                  className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${
+                                    t.type === 'charge' || t.type === 'payment'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : t.type === 'refund' ||
+                                          t.type === 'payment_refund'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : t.type === 'payout_fee' ||
+                                            t.type === 'stripe_fee'
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : 'bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  {t.type}
+                                </span>
+                              </td>
+                              <td className="px-4 text-right tabular-nums font-medium">
+                                {fmt(t.amount)}
+                              </td>
+                              <td className="px-4 text-right tabular-nums text-xs text-slate-600">
+                                {t.source_amount != null
+                                  ? `${fmt(t.source_amount)} ${t.source_currency || ''}`
+                                  : '—'}
+                              </td>
+                              <td className="px-4 text-xs">{guest || '—'}</td>
+                              <td className="px-4 font-mono text-xs text-rose-700">
+                                {code || '—'}
+                              </td>
+                              <td
+                                className="px-4 max-w-[260px] truncate text-xs text-slate-700"
+                                title={
+                                  t.description || t.statement_descriptor || undefined
+                                }
+                              >
+                                {t.description || t.statement_descriptor || '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {p.transactions.length > 100 && (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="px-4 py-2 text-xs text-slate-500 italic"
+                            >
+                              +{p.transactions.length - 100} more transactions
+                              (truncated in UI)
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+    </section>
   );
 }
