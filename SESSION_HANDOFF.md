@@ -1,5 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 PHASE 8 SCAFFOLD — PriceLabs API client + smoke-test endpoint (commit 05470d2, deployed, BLOCKED on user API key)
+
+User direction: "now connect pricelabs api".
+
+### What shipped (3 files, zero-dep fetch wrapper pattern matching Guesty Phase 6 + Odoo Phase 7)
+- **`src/lib/pricelabs.ts`** (~140 lines): thin fetch client with `X-API-Key` header auth, 429/5xx retry honoring `Retry-After`, empty-body tolerance on 200 responses, 4xx throws immediately. Request-ID captured in error messages for log correlation.
+  - `listPricelabsListings()` — `GET /listings`, no pagination needed at Beithady's 91-unit scale (PL docs: full catalog in one response under ~500 listings). Robust to 3 possible response shapes: bare array, `{ listings: [] }`, `{ data: [] }`.
+  - `getPricelabsListingPrices(listingId, { dateFrom, dateTo })` — `GET /listing_prices`, per-listing per-call (serialize with ~1s spacing when looping).
+  - Typed shapes include `PriceLabsListing.pms_reference_id` (the join key to Guesty `listing._id`), `base_price` / `min_price` / `max_price`, `push_enabled`, and the late-2025 `booking_prob` / `adjusted_price` fields on price rows.
+- **`src/app/api/pricelabs/ping/route.ts`**: CRON_SECRET-bearer-protected smoke test. Returns `total_listings`, `by_pms` count breakdown (to spot how Beithady's Guesty listings surface), first-5 sample (id, name, pms, pms_reference_id, bed count, base/min/max price, push_enabled, market). `?withPrices=1` adds a 14-day rate-card sample for the first listing.
+- **`.env.example`**: `PRICELABS_API_KEY=` stub with inline comment documenting UI path (Account → Profile → API), rate limit (~60/min/key), and no-webhooks caveat.
+
+### Design notes
+- **Base URL** `https://api.pricelabs.co/v1`. Header is `X-API-Key` (NOT Bearer). Generated once per account.
+- **Pull-only integration** — PriceLabs has no webhooks as of 2026. Phase 8.1 cron should run at ~04:30 UTC (after PL's internal nightly recalc around 03:00 UTC) to capture fresh recommendations.
+- **Rate discipline**: `/listings` is 1 call; `/listing_prices` is per-listing, so a full daily refresh for 91 Beithady listings = 91 calls = well under the 60/min limit if spaced 1-2s apart (takes ~2 min).
+- **Gap analysis** is the eventual dashboard metric — for each listing-day: `gap_pct = (recommended_rate - current_price) / current_price`. Flag `> +15%` as leakage (priced above rec → empty nights) and `< -10%` as missed upside (priced below rec).
+
+### Env credential checklist (waiting on user)
+`PRICELABS_API_KEY` — generate at **Account → Profile → API** in the PriceLabs portal. Add to:
+- Vercel: Production + Preview + Development
+- Local: `C:\kareemhady\.env.local`
+
+### Typecheck + deploy
+`npx tsc --noEmit` clean. Deployed to production via `vercel --prod --yes`. Endpoint live at `https://kareemhady.vercel.app/api/pricelabs/ping` but returns 400 until env is set.
+
+### Next step (after user says "done")
+1. I run the smoke test with + without `?withPrices=1` to verify the auth, the listing catalog shape, and the rate-card output.
+2. Verify `pms_reference_id` field maps to Guesty `_id` so cross-join to `guesty_*` tables works (Phase 8.2 concern).
+3. Phase 8.1 planning: decide on Supabase schema (likely `pricelabs_listings` + `pricelabs_price_snapshots` with a daily snapshot_date partition), daily cron endpoint, and a new dashboard surface (could fit under `/emails/beithady/pricing` or as a section under the existing Financials page).
+
+### Memory note (optional — not yet saved)
+A project-memory file documenting PriceLabs API shape + rate-limit discipline would help future sessions. Defer until the connection is verified — don't commit memory for a config the user might change.
+
 ## ✅ PHASE 7.6.1 — Building dropdown cleaned to the 5 canonical buildings (commit 98f1621)
 
 User direction:
