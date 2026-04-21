@@ -1,5 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟠 PHASE 10.1.5 — Dev Dashboard hides URL-config fields; offered Partners Dashboard fallback
+
+User went to `https://admin.shopify.com/store/kika-swim-wear/apps/kika-output` looking for where to set the redirect URL — couldn't find it. The `kika-output` handle in that URL is different from the `kika-1` handle in earlier screenshots, meaning the user may have a second app already installed on the store.
+
+Key learning about Shopify Dev Dashboard (new-style): **App URL and Allowed redirection URL(s) are not on the Settings page**. They live in **Versions** — each app version carries its own full Configuration (URLs, scopes, webhooks). For apps built via Shopify CLI, this config normally lives in a `shopify.app.toml` file and gets deployed as a new version.
+
+### Two paths given to user
+**Path 1 — Dev Dashboard Versions**:
+- KIKA app → sidebar → **Versions** → click latest (or **Create new version**)
+- Fields should appear: App URL + Allowed redirection URL(s)
+- Set: `https://kareemhady.vercel.app` + `https://kareemhady.vercel.app/api/shopify/auth/callback`
+- Save + **Release this version** for the config to take effect
+
+**Path 2 — Classic Partners Dashboard (if Path 1 still hides the fields)**:
+- `https://partners.shopify.com` → Apps → Create app manually → name `kareemhady`
+- Classic UI with dedicated App URL + Redirect URL fields
+- Copy new Client ID + Secret → update Vercel env
+- Install on kika-swim-wear store
+
+Also asked user to check if the pre-existing `kika-output` app (already installed on kika-swim-wear per the URL) could be reused — save us creating yet another app.
+
+### Current state
+- `integration_tokens` still has no `shopify:*` row.
+- Env in Vercel: `SHOPIFY_APP_CLIENT_ID=e91d0612396dd960fa56d0c06ea7d7a9` (from an app whose Application URL is not kareemhady.vercel.app, hence the host-mismatch error).
+- Code side is complete and working — issue is purely Dev Dashboard configuration.
+
 ## 🟠 PHASE 10.1.4 — Shopify OAuth blocked: `redirect_uri and application url must have matching hosts`
 
 User clicked `/api/shopify/auth/start` → redirected to Shopify's OAuth consent page → Shopify rejected with:
