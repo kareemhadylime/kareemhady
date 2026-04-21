@@ -3352,105 +3352,247 @@ function BeithadyInquiryView({
         </section>
       )}
 
-      {sortedInquiries.length > 0 && (
-        <section>
-          <SectionHeader
-            title={`All inquiries (${sortedInquiries.length}) · sorted by SLA urgency`}
-            hint="Each row is one inquiry email. Red = overdue (>24h since received), amber = last 6h before SLA. The classifier's 1-sentence summary is the quick read; full question below when embedded."
-          />
-          <div className="space-y-3 mt-3">
-            {sortedInquiries.map((inq, i) => {
-              const cat = inq.classification?.category;
-              const catLabel =
-                cat && INQUIRY_CATEGORY_LABEL[cat] ? INQUIRY_CATEGORY_LABEL[cat] : null;
-              const catTint =
-                cat && INQUIRY_CATEGORY_TINT[cat]
-                  ? INQUIRY_CATEGORY_TINT[cat]
-                  : INQUIRY_CATEGORY_TINT.other;
-              const party = [
-                inq.num_adults != null ? `${inq.num_adults}a` : null,
-                inq.num_children != null ? `${inq.num_children}c` : null,
-                inq.num_infants != null ? `${inq.num_infants}i` : null,
-              ]
-                .filter(Boolean)
-                .join(' / ');
-              const needsAttention = !!inq.classification?.needs_manual_attention;
-              return (
-                <div
-                  key={i}
-                  className={`ix-card overflow-hidden ${
-                    needsAttention ? 'border-rose-200/80' : ''
-                  }`}
-                >
-                  <div className="px-5 py-3 flex items-start justify-between flex-wrap gap-3 border-b border-slate-100">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <UserCircle2 size={15} className="text-slate-400" />
-                        <span className="font-semibold">{inq.guest_name}</span>
-                        {catLabel && (
-                          <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded ${catTint}`}
+      {sortedInquiries.length > 0 &&
+        (() => {
+          // Group inquiries by normalized guest name (case + whitespace
+          // insensitive) so a single guest's repeated messages appear as one
+          // chat thread instead of N separate cards.
+          type InqItem = (typeof sortedInquiries)[number];
+          const groupMap = new Map<string, InqItem[]>();
+          const groupOrder: string[] = [];
+          const slaToneRank: Record<
+            ReturnType<typeof inquirySlaState>['tone'],
+            number
+          > = { overdue: 0, urgent: 1, soon: 2, fresh: 3, unknown: 4 };
+
+          for (const inq of sortedInquiries) {
+            const key = (inq.guest_name || 'Unknown').toLowerCase().trim();
+            if (!groupMap.has(key)) {
+              groupMap.set(key, []);
+              groupOrder.push(key);
+            }
+            groupMap.get(key)!.push(inq);
+          }
+
+          const threads = groupOrder.map(key => {
+            const items = groupMap.get(key)!;
+            // Worst SLA tone across messages in the thread.
+            let worstTone: ReturnType<typeof inquirySlaState>['tone'] = 'unknown';
+            let worstReceived: string | null = null;
+            for (const m of items) {
+              const s = inquirySlaState(m.received_iso);
+              if (slaToneRank[s.tone] < slaToneRank[worstTone]) {
+                worstTone = s.tone;
+                worstReceived = m.received_iso;
+              }
+            }
+            // Latest received (for the "last activity" timestamp in the header).
+            const latestReceived = items.reduce<string | null>((acc, m) => {
+              if (!m.received_iso) return acc;
+              if (!acc) return m.received_iso;
+              return new Date(m.received_iso) > new Date(acc) ? m.received_iso : acc;
+            }, null);
+            const needsAttention = items.some(
+              m => m.classification?.needs_manual_attention
+            );
+            const listings = Array.from(
+              new Set(items.map(m => m.listing_name).filter(Boolean))
+            ) as string[];
+            const buildings = Array.from(
+              new Set(items.map(m => m.building_code).filter(Boolean))
+            ) as string[];
+            const categories = Array.from(
+              new Set(
+                items
+                  .map(m => m.classification?.category)
+                  .filter((c): c is InquiryCategory => !!c)
+              )
+            );
+            const stayRanges = Array.from(
+              new Set(
+                items
+                  .filter(m => m.stay_start && m.stay_end)
+                  .map(m => `${m.stay_start}→${m.stay_end}`)
+              )
+            );
+            return {
+              key,
+              displayName: items[0].guest_name || 'Unknown',
+              items,
+              worstTone,
+              worstReceived,
+              latestReceived,
+              needsAttention,
+              listings,
+              buildings,
+              categories,
+              stayRanges,
+            };
+          });
+
+          threads.sort((a, b) => {
+            if (a.worstTone !== b.worstTone)
+              return slaToneRank[a.worstTone] - slaToneRank[b.worstTone];
+            if (a.needsAttention !== b.needsAttention)
+              return a.needsAttention ? -1 : 1;
+            const aT = a.latestReceived ? new Date(a.latestReceived).getTime() : 0;
+            const bT = b.latestReceived ? new Date(b.latestReceived).getTime() : 0;
+            return bT - aT;
+          });
+
+          const totalMsgs = sortedInquiries.length;
+
+          return (
+            <section>
+              <SectionHeader
+                title={`Conversations (${threads.length} guest${threads.length !== 1 ? 's' : ''} · ${totalMsgs} message${totalMsgs !== 1 ? 's' : ''}) · sorted by SLA urgency`}
+                hint="One card per guest — all their inquiry emails stacked chronologically like a chat. Header SLA = worst remaining time across the thread. Red = overdue (>24h), amber = last 6h before SLA."
+              />
+              <div className="space-y-3 mt-3">
+                {threads.map(thread => {
+                  return (
+                    <div
+                      key={thread.key}
+                      className={`ix-card overflow-hidden ${
+                        thread.needsAttention ? 'border-rose-200/80' : ''
+                      }`}
+                    >
+                      <div className="px-5 py-3 flex items-start justify-between flex-wrap gap-3 border-b border-slate-100 bg-sky-50/30">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <UserCircle2 size={15} className="text-slate-400" />
+                            <span className="font-semibold">
+                              {thread.displayName}
+                            </span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                              {thread.items.length} msg
+                              {thread.items.length !== 1 ? 's' : ''}
+                            </span>
+                            {thread.needsAttention && (
+                              <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white flex items-center gap-1">
+                                <Flag size={10} /> needs decision
+                              </span>
+                            )}
+                            {thread.buildings.map(b => (
+                              <span
+                                key={b}
+                                className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200"
+                              >
+                                {b}
+                              </span>
+                            ))}
+                            {thread.categories.map(c => (
+                              <span
+                                key={c}
+                                className={`text-[10px] px-1.5 py-0.5 rounded ${INQUIRY_CATEGORY_TINT[c] || INQUIRY_CATEGORY_TINT.other}`}
+                              >
+                                {INQUIRY_CATEGORY_LABEL[c] || c}
+                              </span>
+                            ))}
+                          </div>
+                          <div
+                            className="mt-1 text-xs text-slate-600 truncate"
+                            title={
+                              thread.listings.length > 1
+                                ? thread.listings.join(' · ')
+                                : thread.listings[0] || undefined
+                            }
                           >
-                            {catLabel}
-                          </span>
-                        )}
-                        {needsAttention && (
-                          <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white flex items-center gap-1">
-                            <Flag size={10} /> needs decision
-                          </span>
-                        )}
-                        {inq.building_code && (
-                          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                            {inq.building_code}
-                          </span>
-                        )}
+                            {thread.listings.length === 0
+                              ? 'Unknown listing'
+                              : thread.listings.length === 1
+                                ? thread.listings[0]
+                                : `${thread.listings[0]} + ${thread.listings.length - 1} more`}
+                            {thread.stayRanges.length === 1
+                              ? ` · ${thread.stayRanges[0].replace('→', ' → ')}`
+                              : thread.stayRanges.length > 1
+                                ? ` · ${thread.stayRanges.length} stay ranges`
+                                : ''}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
+                          Last{' '}
+                          {thread.latestReceived
+                            ? new Date(thread.latestReceived).toLocaleString()
+                            : '—'}
+                          <SlaBadge receivedIso={thread.worstReceived} />
+                        </div>
                       </div>
-                      <div
-                        className="mt-1 text-xs text-slate-600 truncate"
-                        title={inq.listing_name || undefined}
-                      >
-                        {inq.listing_name || 'Unknown listing'}
-                        {inq.stay_start && inq.stay_end
-                          ? ` · ${inq.stay_start} → ${inq.stay_end}`
-                          : ''}
-                        {party ? ` · ${party}` : ''}
+                      <div className="divide-y divide-slate-100">
+                        {thread.items
+                          .slice()
+                          .sort((a, b) => {
+                            // Chat order: oldest first, newest at the bottom.
+                            const aT = a.received_iso
+                              ? new Date(a.received_iso).getTime()
+                              : 0;
+                            const bT = b.received_iso
+                              ? new Date(b.received_iso).getTime()
+                              : 0;
+                            return aT - bT;
+                          })
+                          .map((inq, mi) => {
+                            const cat = inq.classification?.category;
+                            const catLabel =
+                              cat && INQUIRY_CATEGORY_LABEL[cat]
+                                ? INQUIRY_CATEGORY_LABEL[cat]
+                                : null;
+                            const catTint =
+                              cat && INQUIRY_CATEGORY_TINT[cat]
+                                ? INQUIRY_CATEGORY_TINT[cat]
+                                : INQUIRY_CATEGORY_TINT.other;
+                            const needsAttn =
+                              !!inq.classification?.needs_manual_attention;
+                            return (
+                              <div key={mi} className="px-5 py-3">
+                                <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
+                                  <span className="tabular-nums">
+                                    {inq.received_iso
+                                      ? new Date(inq.received_iso).toLocaleString()
+                                      : '—'}
+                                  </span>
+                                  {catLabel && (
+                                    <span
+                                      className={`text-[10px] px-1.5 py-0.5 rounded ${catTint}`}
+                                    >
+                                      {catLabel}
+                                    </span>
+                                  )}
+                                  {needsAttn && (
+                                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1">
+                                      <Flag size={10} /> decision
+                                    </span>
+                                  )}
+                                  <SlaBadge receivedIso={inq.received_iso} />
+                                </div>
+                                {inq.classification?.summary && (
+                                  <div className="mt-1.5 text-sm text-slate-800">
+                                    {inq.classification.summary}
+                                  </div>
+                                )}
+                                {inq.guest_question && (
+                                  <blockquote className="mt-2 border-l-4 border-sky-300 pl-4 text-sm text-slate-700 italic whitespace-pre-wrap">
+                                    {inq.guest_question}
+                                  </blockquote>
+                                )}
+                                {!inq.guest_question &&
+                                  !inq.classification?.summary && (
+                                    <div className="mt-1.5 text-xs text-slate-500">
+                                      No question text embedded — open in Gmail
+                                      for full context.
+                                    </div>
+                                  )}
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 whitespace-nowrap">
-                      {inq.received_iso
-                        ? new Date(inq.received_iso).toLocaleString()
-                        : '—'}
-                      <SlaBadge receivedIso={inq.received_iso} />
-                    </div>
-                  </div>
-                  <div className="p-5 space-y-2">
-                    {inq.classification?.summary && (
-                      <div className="text-sm text-slate-800">
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mr-2">
-                          Summary
-                        </span>
-                        {inq.classification.summary}
-                      </div>
-                    )}
-                    {inq.guest_question && (
-                      <blockquote className="border-l-4 border-sky-300 pl-4 text-sm text-slate-700 italic">
-                        {inq.guest_question}
-                      </blockquote>
-                    )}
-                    {!inq.guest_question && !inq.classification?.summary && (
-                      <div className="text-xs text-slate-500">
-                        No question text embedded in the email. Likely a
-                        &quot;wants to book&quot; availability check — open in Gmail
-                        for full context.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })()}
 
       {total === 0 && (
         <section>
