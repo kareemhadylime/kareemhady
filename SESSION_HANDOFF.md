@@ -1,5 +1,44 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ INQUIRIES VIEW: CHAT-STYLE PER-GUEST THREADS (commit b8868ea)
+
+### User request
+User shared a screenshot of `/emails/beithady/<inquiries-rule-id>` showing the "All inquiries (38)" section with four consecutive cards all from "Abdalla Binu" for the same listing and stay dates. Said:
+> "need to combine messages from Same Guest in a chat like review, no need to keep them separate, distraction"
+
+### Change
+Restructured the "All inquiries" section in `BeithadyInquiryView` to render **one card per guest** with the guest's messages stacked chronologically inside — same shape as the Phase 5.11 Guest Requests reservation-thread cards.
+
+### Implementation
+Pure render-time regroup inside `BeithadyInquiryView`. No aggregator changes, no schema changes, no backend work.
+
+- Group by normalized guest name (`.toLowerCase().trim()`).
+- Per-thread aggregates computed at render:
+  - `worstTone` — smallest SLA-tone rank across messages (`overdue < urgent < soon < fresh < unknown`). Used for the header SLA badge AND the group sort.
+  - `latestReceived` — "last activity" timestamp in the header.
+  - `needsAttention` — any message with `classification.needs_manual_attention`.
+  - `listings` — unique listing names (rendered as "Name + N more" when >1).
+  - `buildings` — unique building codes (chips rendered in header).
+  - `categories` — union of categories across the thread (chip row in header).
+  - `stayRanges` — unique check-in→check-out strings; rendered as "1 stay range" text or "N stay ranges" when multi.
+- Thread sort: worst-tone asc → needs-attention first → latest activity desc.
+- Message sort within a thread: **oldest first** (chat reading order, newest at the bottom).
+- Each inner message: timestamp, category chip, compact "decision" chip when that specific message needs one, its own `SlaBadge`, Haiku summary, verbatim guest question blockquote (Arabic preserved via `whitespace-pre-wrap`).
+- Header-level badges: guest name (first-seen casing), msg count, thread-level "needs decision" when any message is flagged.
+
+### UX notes
+- The older "Combined by guest" table earlier in the page is untouched — it's the compact scan view, the new thread cards are the detailed-read view. Some redundancy but the table remains useful for quick counting.
+- Section header renames from "All inquiries (38) · sorted by SLA urgency" to "Conversations (N guests · M messages) · sorted by SLA urgency" so the grouping is self-evident.
+- Old rule_runs render the new layout immediately — the regroup is on the stored `messages[]` array, no re-run needed.
+
+### Verification
+- `rm -rf .next && npm run build` clean, 14 routes.
+- commit b8868ea on main via `git push origin HEAD:main`.
+- Deployed via root `C:\kareemhady` → `kareemhady-rh0u09i3l-lime-investments.vercel.app` (Ready, 51s).
+
+### If the user asks for similar grouping on Guest Requests
+The Phase 5.11 Guest Requests view already groups by reservation thread (subject-normalized). Guest-level grouping on top of that is possible but would collapse multiple reservations from the same guest — ask before doing it because splitting BY RESERVATION is often desirable (a guest's current stay vs their next booking are distinct).
+
 ## ✅ BEITHADY LISTINGS CATALOG SHIPPED — authoritative property table + classifier wiring (commit 6aee045)
 
 ### User request
