@@ -318,6 +318,62 @@ export async function batchLookupReservationsByGuest(
   return out;
 }
 
+// PriceLabs pricing overlay — fetch the latest snapshot's base_price and
+// recommended_base_price for a set of listing ids. Used by the booking
+// aggregator to annotate each row with rate context from PriceLabs.
+export type PricelabsSnapshotLite = {
+  listing_id: string;
+  base: number | null;
+  recommended_base_price: number | null;
+  rec_base_unavailable: boolean;
+  occupancy_next_30: number | null;
+  market_occupancy_next_30: number | null;
+};
+
+export async function batchLookupPricelabsByListingId(
+  listingIds: Array<string | null | undefined>
+): Promise<Map<string, PricelabsSnapshotLite>> {
+  const ids = Array.from(
+    new Set(listingIds.filter((x): x is string => typeof x === 'string' && x.length > 0))
+  );
+  if (ids.length === 0) return new Map();
+  const sb = supabaseAdmin();
+  const { data: latestDateRow } = await sb
+    .from('pricelabs_listing_snapshots')
+    .select('snapshot_date')
+    .order('snapshot_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const snapDate = (latestDateRow as { snapshot_date: string } | null)?.snapshot_date;
+  if (!snapDate) return new Map();
+  const { data } = await sb
+    .from('pricelabs_listing_snapshots')
+    .select(
+      'listing_id, base, recommended_base_price, rec_base_unavailable, occupancy_next_30, market_occupancy_next_30'
+    )
+    .eq('snapshot_date', snapDate)
+    .in('listing_id', ids);
+  const map = new Map<string, PricelabsSnapshotLite>();
+  for (const r of (data as Array<{
+    listing_id: string;
+    base: number | null;
+    recommended_base_price: number | null;
+    rec_base_unavailable: boolean | null;
+    occupancy_next_30: number | null;
+    market_occupancy_next_30: number | null;
+  }> | null) || []) {
+    map.set(r.listing_id, {
+      listing_id: r.listing_id,
+      base: r.base,
+      recommended_base_price: r.recommended_base_price,
+      rec_base_unavailable: !!r.rec_base_unavailable,
+      occupancy_next_30: r.occupancy_next_30,
+      market_occupancy_next_30: r.market_occupancy_next_30,
+    });
+  }
+  return map;
+}
+
 // Batch resolve many listing nicknames → building_code in one query. Used
 // by review / inquiry / request aggregators so every row gets the canonical
 // BH-* tag even when the email carried only a friendly listing name.

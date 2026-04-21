@@ -9,12 +9,13 @@ import {
 } from './odoo';
 import { cutoffDate } from './run-odoo-sync';
 
-// Scope for financial reporting. Phase 7.5 adds A1HOSPITALITY since the
-// user wants per-company views including A1 as BH-435's owner.
+// Scope for financial reporting. Covers Beithady ecosystem (Phase 7) +
+// Kika (Phase 10 — garments + Shopify sales + B2B uniforms).
 //   4  = A1HOSPITALITY (BH-435 owner; Lime 50% stake)
 //   5  = Beithady Hospitality - (EGYPT)
+//   6  = X Label for Tailoring Kika (3 segments: IN&OUT / X-label / Kika)
 //   10 = Beithady Hospitality FZCO - (Dubai)
-export const FINANCIALS_COMPANY_IDS = [4, 5, 10];
+export const FINANCIALS_COMPANY_IDS = [4, 5, 6, 10];
 
 // "Home Owner Cut" detection. The tenant's CoA does NOT use 504xxx codes
 // as the Feb 2026 xlsx suggested — the account is named "Home Owner Cut"
