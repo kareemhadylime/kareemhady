@@ -58,7 +58,8 @@ export async function GET(req: NextRequest) {
     l => isBh73(l.nickname) || isBh73(l.title)
   );
 
-  // Classify by listing type.
+  // Classify by listing type (Guesty's listingType often absent from list
+  // projection on this tenant — fall back to nickname parsing below).
   const byType = new Map<string, number>();
   const parents: GuestyListing[] = [];
   const children: GuestyListing[] = [];
@@ -77,6 +78,47 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Virtual parent-group derived from nickname: Beithady's BH-73 naming is
+  // `BH73-<bedtype>-<subgroup>-<subnum>-<floorunit>` (e.g. BH73-3BR-SB-1-301
+  // = Sub-Building 1, 3-bedroom, floor 3 unit). Group by the first N-1 hyphen
+  // segments so all floors of the same physical multi-unit roll up.
+  const groupKey = (nick: string | undefined | null): string | null => {
+    const n = String(nick || '').trim();
+    if (!n) return null;
+    const parts = n.split('-');
+    if (parts.length <= 2) return null;
+    // Drop the last segment (unit/floor id) to get the parent key.
+    return parts.slice(0, -1).join('-');
+  };
+  type NicknameGroup = {
+    key: string;
+    children: Array<{
+      id: string;
+      nickname: string;
+      bedrooms?: number;
+      accommodates?: number;
+      in_pl: boolean;
+      active?: boolean;
+    }>;
+  };
+  const nicknameGroups = new Map<string, NicknameGroup>();
+  for (const l of guestyListings) {
+    const key = groupKey(l.nickname);
+    if (!key) continue;
+    const existing = nicknameGroups.get(key);
+    const entry = {
+      id: String(l._id),
+      nickname: l.nickname || '',
+      bedrooms: typeof l.bedrooms === 'number' ? l.bedrooms : undefined,
+      accommodates:
+        typeof l.accommodates === 'number' ? l.accommodates : undefined,
+      in_pl: false, // filled in after we have the PL id set
+      active: l.active,
+    };
+    if (existing) existing.children.push(entry);
+    else nicknameGroups.set(key, { key, children: [entry] });
+  }
+
   // 2. PriceLabs BH-73 listings from Supabase
   const sb = supabaseAdmin();
   const { data: plRows } = await sb
@@ -90,6 +132,12 @@ export async function GET(req: NextRequest) {
     push_enabled: boolean | null;
   }>) || [];
   const plIdSet = new Set(plListings.map(p => p.id));
+  // Fill PL-match flags on each nickname-grouped child now that plIdSet exists.
+  for (const grp of nicknameGroups.values()) {
+    for (const c of grp.children) {
+      c.in_pl = plIdSet.has(c.id);
+    }
+  }
 
   // 3. Match each Guesty listing against PriceLabs.
   const guestyInPL: Array<{ g: GuestyListing; in_pl: boolean; is_parent: boolean; parent_in_pl?: boolean }> = [];
@@ -172,7 +220,25 @@ export async function GET(req: NextRequest) {
       })),
     },
     tree,
+    nickname_groups: Array.from(nicknameGroups.values())
+      .map(g => ({
+        parent_key: g.key,
+        children_count: g.children.length,
+        in_pl_count: g.children.filter(c => c.in_pl).length,
+        bedrooms: g.children[0]?.bedrooms ?? null,
+        children: g.children
+          .slice()
+          .sort((a, b) => a.nickname.localeCompare(b.nickname))
+          .map(c => ({
+            nickname: c.nickname,
+            in_pl: c.in_pl,
+            bedrooms: c.bedrooms ?? null,
+            accommodates: c.accommodates ?? null,
+            active: c.active ?? null,
+          })),
+      }))
+      .sort((a, b) => a.parent_key.localeCompare(b.parent_key)),
     note:
-      'Multi-Unit Strategy: Guesty assigns a parent MTL record per physical unit + child SINGLE records for each sub-listing. PriceLabs typically manages pricing at the parent/master level.',
+      "Guesty's API projection omits listingType/masterListingId on this tenant, so we also derive parent groups from the nickname convention BH73-<bedtype>-<subgroup>-<subnum>-<floor> (parent = first N-1 segments). This shows the Multi-Unit structure even when MTL metadata isn't surfaced.",
   });
 }
