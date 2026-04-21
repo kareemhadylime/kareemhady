@@ -1,5 +1,72 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 5.10 SHIPPED — Beithady inquiries rule (Airbnb) + SLA countdown + per-guest rollup (commit c83a489)
+
+### User request
+> "start Phase 5.10"
+
+Continuation of the "do one by one" track — Reviews (5.9) shipped last turn, Inquiries this turn.
+
+### New action type: `beithady_inquiries_aggregate`
+
+Single Gmail search (conditions field is ignored, note field documents that). Engine branches early via `evaluateInquiriesRule` following the same shape as `evaluateReviewsRule`.
+
+### Files
+
+#### `src/lib/rules/aggregators/beithady-inquiry.ts` (new, 365 lines)
+- Types: `ParsedAirbnbInquiry`, `InquiryCategory` (7-way enum), `InquiryClassification`, `InquiryGuestGroup`, `StoredInquiry`, `BeithadyInquiryAggregate`.
+- `parseAirbnbInquiry` — Haiku tool_choice **auto** (non-inquiry emails dropped). Subject pattern `"Inquiry for <Listing> for <Date range>"`. Extracts guest_name, guest_question verbatim when embedded (null when just "wants to book"), listing, stay dates, party size (adults/children/infants).
+- `classifyInquiry` — second Haiku call, tool_choice=**tool**. Outputs: category (`location_info` / `amenity` / `pricing` / `booking_logistics` / `availability` / `group_question` / `other`), 12-words-max summary, `needs_manual_attention` bool (true for discount requests / pet permits / policy exceptions; false for listing-lookup questions).
+- `aggregateBeithadyInquiries`: parse+settle, classify+settle separately (one failing classify doesn't drop the parsed row). Builds by-category, by-building, by-guest maps. Guest-group sort: manual-attention first → inquiry count desc → most-recent desc.
+
+#### `src/lib/rules/engine.ts`
+- Added `'beithady_inquiries_aggregate'` to `RuleAction['type']` union.
+- Early branch after reviews branch.
+- New `evaluateInquiriesRule` at end — `subjectContains: 'Inquiry'` + `toContains: 'guesty@beithady.com'`. Standard rule_run open → fetch bodies → aggregate → mark-as-read.
+
+#### `src/app/admin/rules/_form.tsx`
+- New action-type option "Beithady inquiries aggregate (Airbnb)".
+
+#### `src/app/emails/[domain]/page.tsx`
+- Fifth icon/tint branch: `MessageCircleQuestion` (sky) for inquiries.
+- New `BeithadyInquiryMini` — 4 mini-stats: Inquiries / Unique guests / Needs attention / Emails.
+
+#### `src/app/emails/[domain]/[ruleId]/page.tsx`
+- New `isInquiries` check. View branch order: inquiries → reviews → payouts → bookings → shopify.
+- Run-history "Inquiries" column (counts from `total_inquiries`).
+- New `BeithadyInquiryView` — sky/indigo hero (4 HeroStat: Total / Unique guests / Overdue (>24h) / Needs manual decision) + overdue/urgent pill row under hero + by-category stat grid (tint per category) + by-building table + combined-by-guest table + **SLA-sorted inquiry cards** (per-email cards with guest header, category chip, manual-decision badge, building chip, listing/stay/party, received timestamp, SLA badge, Haiku summary, verbatim question blockquote when embedded).
+- Helpers: `INQUIRY_CATEGORY_LABEL` + `INQUIRY_CATEGORY_TINT` maps; `inquirySlaState(iso)` computes 24h countdown at render time (overdue / urgent (<6h) / soon (<12h) / fresh / unknown); `SlaBadge` component renders the state with Timer/AlertTriangle icon.
+
+### DB
+Seeded row id `cddbd313-fe41-40b4-9ecc-0a3c02b1e048`:
+- name: "Beithady Inquiries (Airbnb)"
+- account: kareem@limeinc.cc (`e135f97d-429c-4879-ae20-ccfc12a40f53`)
+- domain: beithady, priority 125 (between reviews 120 and future requests)
+- actions: `{ type: 'beithady_inquiries_aggregate', mark_as_read: true }`
+
+### Verification
+- Clean `.next/` + `npm run build` (14 routes, TS 9.5s).
+- `git push origin HEAD:main` → commit c83a489.
+- Pulled into `C:\kareemhady`, `vercel --prod --yes` → `kareemhady-9b0zni3aq-lime-investments.vercel.app`.
+
+### Design choice worth remembering
+SLA countdown is computed at **render time** (UI compares `received_iso` to `Date.now()`), not stored in the aggregate. Stays current between runs — viewing dashboard 4h after last run shows the correct reduced remaining time. Hero's overdue_count also re-derived at render, minor extra CPU for always-fresh numbers.
+
+### Cost sanity check
+Each inquiry: 2 Haiku calls (parse ~900 tokens, classify ~400 tokens). Volume is lower than reviews (~50/year expected). YTD run well under $0.10.
+
+### Next
+- **Phase 5.11 — `beithady_requests_aggregate`**: last of the three in user's original ask. In-stay guest requests from `RE: Reservation for...` threads. Segregate date-change / amenity-during-stay / immediate-complaint. Should cross-reference confirmation_code against Beithady Bookings rule for stay status (pre-arrival / checked-in / departed).
+- **Phase 5.8 — Stripe API reconciliation** still queued (blocked on `STRIPE_SECRET_KEY`).
+
+### Vercel project cleanup discussion (side thread this turn)
+User asked about the 8 projects showing in Vercel overview. Mapped them:
+- `kareemhady` = this InboxOps app (Personal)
+- `fmplus-beta` = FM+
+- `voltauto-pricing` + `voltdrive-brand` = Volt (two separate apps)
+- `peaceful-moser-39791b`, `exciting-ride-1a2629`, `gifted-mcclintock`, `vigorous-almeida-bec425` = orphan random-name projects, likely v0 scratch deploys
+- **`vigorous-almeida-bec425`** was the worktree's linked project — my first `vercel --prod` in Phase 5.9 went there by mistake before I realized and redeployed from root. User said they'd handle cleanup manually via Vercel UI; I offered to unlink worktree's `.vercel/project.json` but user hasn't said yes yet.
+
 ## ✅ PHASE 5.9 SHIPPED — Beithady reviews rule (Airbnb) + flagged-review action plans (commit 7907bdf)
 
 ### User request
