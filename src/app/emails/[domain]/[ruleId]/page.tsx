@@ -34,6 +34,11 @@ import {
   Timer,
   Clock,
   UserCircle2,
+  LifeBuoy,
+  Wrench,
+  CalendarRange,
+  Siren,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -93,6 +98,7 @@ export default async function RuleOutputDetailPage({
   const isPayout = actionType === 'beithady_payout_aggregate';
   const isReviews = actionType === 'beithady_reviews_aggregate';
   const isInquiries = actionType === 'beithady_inquiries_aggregate';
+  const isRequests = actionType === 'beithady_requests_aggregate';
 
   const lastRange = out?.time_range as
     | {
@@ -332,7 +338,9 @@ export default async function RuleOutputDetailPage({
               </div>
             )}
 
-            {isInquiries ? (
+            {isRequests ? (
+              <BeithadyRequestView out={out} emailsMatched={latest.input_email_count ?? 0} />
+            ) : isInquiries ? (
               <BeithadyInquiryView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : isReviews ? (
               <BeithadyReviewView out={out} emailsMatched={latest.input_email_count ?? 0} />
@@ -356,30 +364,34 @@ export default async function RuleOutputDetailPage({
                     <th className="text-left px-6 font-medium">Status</th>
                     <th className="text-right px-6 font-medium">Emails</th>
                     <th className="text-right px-6 font-medium">
-                      {isInquiries
-                        ? 'Inquiries'
-                        : isReviews
-                          ? 'Reviews'
-                          : isPayout
-                            ? 'Total AED'
-                            : isBeithady
-                              ? 'Reservations'
-                              : 'Orders'}
+                      {isRequests
+                        ? 'Messages'
+                        : isInquiries
+                          ? 'Inquiries'
+                          : isReviews
+                            ? 'Reviews'
+                            : isPayout
+                              ? 'Total AED'
+                              : isBeithady
+                                ? 'Reservations'
+                                : 'Orders'}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs?.map(r => {
                     const tr = (r.output as any)?.time_range;
-                    const count = isInquiries
-                      ? (r.output as any)?.total_inquiries
-                      : isReviews
-                        ? (r.output as any)?.total_reviews
-                        : isPayout
-                          ? Math.round(Number((r.output as any)?.total_aed) || 0)
-                          : isBeithady
-                            ? (r.output as any)?.reservation_count
-                            : (r.output as any)?.order_count;
+                    const count = isRequests
+                      ? (r.output as any)?.total_messages
+                      : isInquiries
+                        ? (r.output as any)?.total_inquiries
+                        : isReviews
+                          ? (r.output as any)?.total_reviews
+                          : isPayout
+                            ? Math.round(Number((r.output as any)?.total_aed) || 0)
+                            : isBeithady
+                              ? (r.output as any)?.reservation_count
+                              : (r.output as any)?.order_count;
                     return (
                       <tr key={r.id} className="border-t border-slate-100">
                         <td className="py-2.5 px-6 whitespace-nowrap">
@@ -3296,6 +3308,465 @@ function BeithadyInquiryView({
             </span>
             . Airbnb notifies when a guest sends a pre-booking inquiry (subject
             starts with &quot;Inquiry for ...&quot;).
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+type RequestCategory =
+  | 'date_change'
+  | 'amenity_request'
+  | 'immediate_complaint'
+  | 'refund_dispute'
+  | 'check_in_help'
+  | 'general_question'
+  | 'other';
+
+type RequestUrgency = 'immediate' | 'high' | 'normal';
+
+type StayPhase = 'pre_arrival' | 'in_stay' | 'post_stay' | 'unknown';
+
+const REQUEST_CATEGORY_LABEL: Record<RequestCategory, string> = {
+  date_change: 'Date change',
+  amenity_request: 'Amenity request',
+  immediate_complaint: 'Immediate complaint',
+  refund_dispute: 'Refund dispute',
+  check_in_help: 'Check-in help',
+  general_question: 'General question',
+  other: 'Other',
+};
+
+const REQUEST_CATEGORY_TINT: Record<RequestCategory, string> = {
+  date_change: 'bg-blue-100 text-blue-800',
+  amenity_request: 'bg-teal-100 text-teal-800',
+  immediate_complaint: 'bg-rose-100 text-rose-800',
+  refund_dispute: 'bg-amber-100 text-amber-800',
+  check_in_help: 'bg-indigo-100 text-indigo-800',
+  general_question: 'bg-slate-100 text-slate-700',
+  other: 'bg-slate-100 text-slate-700',
+};
+
+const REQUEST_CATEGORY_ICON: Record<RequestCategory, typeof CalendarRange> = {
+  date_change: CalendarRange,
+  amenity_request: Wrench,
+  immediate_complaint: Siren,
+  refund_dispute: Banknote,
+  check_in_help: DoorOpen,
+  general_question: MessageCircleQuestion,
+  other: MessageCircleQuestion,
+};
+
+function stayPhaseOf(
+  checkIn: string | null,
+  checkOut: string | null
+): StayPhase {
+  if (!checkIn || !checkOut) return 'unknown';
+  const ci = new Date(checkIn + 'T00:00:00').getTime();
+  const co = new Date(checkOut + 'T23:59:59').getTime();
+  if (Number.isNaN(ci) || Number.isNaN(co)) return 'unknown';
+  const now = Date.now();
+  if (now < ci) return 'pre_arrival';
+  if (now > co) return 'post_stay';
+  return 'in_stay';
+}
+
+function StayPhaseBadge({ phase }: { phase: StayPhase }) {
+  const map: Record<StayPhase, { label: string; cls: string }> = {
+    in_stay: {
+      label: 'In-stay',
+      cls: 'bg-rose-600 text-white',
+    },
+    pre_arrival: {
+      label: 'Pre-arrival',
+      cls: 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+    },
+    post_stay: {
+      label: 'Post-stay',
+      cls: 'bg-slate-100 text-slate-700 border border-slate-200',
+    },
+    unknown: {
+      label: 'Unknown phase',
+      cls: 'bg-slate-100 text-slate-500 border border-slate-200',
+    },
+  };
+  const { label, cls } = map[phase];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${cls}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function UrgencyBadge({ urgency }: { urgency: RequestUrgency }) {
+  const map: Record<RequestUrgency, { label: string; cls: string; Icon: typeof Siren }> =
+    {
+      immediate: {
+        label: 'Immediate',
+        cls: 'bg-rose-600 text-white',
+        Icon: Siren,
+      },
+      high: {
+        label: 'High',
+        cls: 'bg-amber-100 text-amber-800 border border-amber-200',
+        Icon: AlertTriangle,
+      },
+      normal: {
+        label: 'Normal',
+        cls: 'bg-slate-100 text-slate-700 border border-slate-200',
+        Icon: MessageCircleQuestion,
+      },
+    };
+  const { label, cls, Icon } = map[urgency];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${cls}`}
+    >
+      <Icon size={11} />
+      {label}
+    </span>
+  );
+}
+
+function BeithadyRequestView({
+  out,
+  emailsMatched,
+}: {
+  out: any;
+  emailsMatched: number;
+}) {
+  const total: number = out?.total_messages ?? 0;
+  const reservations: number = out?.unique_reservations ?? 0;
+  const immediateCount: number = out?.immediate_count ?? 0;
+  const byCategory: Array<{ key: RequestCategory; count: number }> =
+    out?.by_category || [];
+  const byReservation: Array<{
+    group_key: string;
+    guest_name: string;
+    listing_name: string | null;
+    building_code: string | null;
+    check_in_date: string | null;
+    check_out_date: string | null;
+    message_count: number;
+    categories: RequestCategory[];
+    max_urgency: RequestUrgency;
+    has_immediate_complaint: boolean;
+    latest_received_iso: string | null;
+    latest_summary: string | null;
+    latest_suggested_action: string | null;
+  }> = out?.by_reservation || [];
+  const messages: Array<{
+    guest_name: string;
+    listing_name: string | null;
+    check_in_date: string | null;
+    check_out_date: string | null;
+    num_adults: number | null;
+    num_children: number | null;
+    num_infants: number | null;
+    message_text: string | null;
+    has_image: boolean;
+    message_count_in_thread: number;
+    received_iso: string | null;
+    subject: string;
+    group_key: string;
+    building_code: string | null;
+    classification: {
+      category: RequestCategory;
+      urgency: RequestUrgency;
+      summary: string;
+      suggested_action: string;
+    } | null;
+  }> = out?.messages || [];
+
+  const messagesByGroup = new Map<string, typeof messages>();
+  for (const m of messages) {
+    const list = messagesByGroup.get(m.group_key) || [];
+    list.push(m);
+    messagesByGroup.set(m.group_key, list);
+  }
+
+  // phase counts re-derived at render time so they stay fresh between runs
+  let preCount = 0;
+  let inStayCount = 0;
+  let postCount = 0;
+  for (const g of byReservation) {
+    const phase = stayPhaseOf(g.check_in_date, g.check_out_date);
+    if (phase === 'pre_arrival') preCount++;
+    else if (phase === 'in_stay') inStayCount++;
+    else if (phase === 'post_stay') postCount++;
+  }
+
+  return (
+    <>
+      <section
+        className="relative rounded-2xl overflow-hidden border border-orange-200/60 shadow-sm"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(249,115,22,0.08) 0%, rgba(244,63,94,0.08) 45%, rgba(251,191,36,0.06) 100%)',
+        }}
+      >
+        <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-gradient-to-br from-orange-400 to-rose-400 opacity-20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-64 h-64 rounded-full bg-gradient-to-br from-rose-400 to-amber-400 opacity-15 blur-3xl pointer-events-none" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-orange-700 text-xs uppercase tracking-wider font-semibold">
+            <LifeBuoy size={14} /> Beithady · Guest requests (in-stay &amp; around)
+          </div>
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
+            <HeroStat
+              label="Messages"
+              value={total.toLocaleString()}
+              sub={`${emailsMatched.toLocaleString()} reservation-message emails`}
+              Icon={MessageSquareWarning}
+            />
+            <HeroStat
+              label="Active reservations"
+              value={reservations.toLocaleString()}
+              sub={
+                reservations > 0 && total > 0
+                  ? `${(total / reservations).toFixed(1)} avg messages / reservation`
+                  : '—'
+              }
+              Icon={BookOpen}
+            />
+            <HeroStat
+              label="Immediate"
+              value={immediateCount.toLocaleString()}
+              sub={
+                immediateCount > 0
+                  ? 'Complaints or urgent fixes during stay'
+                  : 'Nothing urgent'
+              }
+              Icon={Siren}
+            />
+            <HeroStat
+              label="Currently in-stay"
+              value={inStayCount.toLocaleString()}
+              sub={`${preCount} pre-arrival · ${postCount} post-stay (computed now)`}
+              Icon={DoorOpen}
+            />
+          </div>
+          {immediateCount > 0 && (
+            <div className="mt-5 flex flex-wrap gap-3 text-xs">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 text-white font-semibold">
+                <Siren size={12} /> {immediateCount} immediate — open in Gmail &amp; act now
+              </span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {byCategory.length > 0 && (
+        <section>
+          <SectionHeader
+            title="By category"
+            hint="What guests are asking for. Date changes = alteration proposal in Airbnb. Amenity = dispatch front desk. Immediate = drop everything."
+          />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+            {byCategory.map(c => {
+              const Icon = REQUEST_CATEGORY_ICON[c.key] || MessageCircleQuestion;
+              const tint = REQUEST_CATEGORY_TINT[c.key] || REQUEST_CATEGORY_TINT.other;
+              return (
+                <div key={c.key} className="ix-card p-4">
+                  <div
+                    className={`inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${tint}`}
+                  >
+                    <Icon size={11} />
+                    {REQUEST_CATEGORY_LABEL[c.key] || c.key}
+                  </div>
+                  <div className="mt-2 text-2xl font-bold tabular-nums">{c.count}</div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {byReservation.length > 0 && (
+        <section>
+          <SectionHeader
+            title={`Reservation threads (${byReservation.length})`}
+            hint="Combined by reservation (subject base). Sorted: immediate complaints → highest urgency → most recent. Click into each thread to see every message + suggested action."
+          />
+          <div className="space-y-4 mt-3">
+            {byReservation.map((g, gi) => {
+              const groupMessages = messagesByGroup.get(g.group_key) || [];
+              const phase = stayPhaseOf(g.check_in_date, g.check_out_date);
+              const tonedCard =
+                g.has_immediate_complaint
+                  ? 'border-rose-300 bg-rose-50/40'
+                  : phase === 'in_stay'
+                    ? 'border-orange-200 bg-orange-50/30'
+                    : '';
+              return (
+                <div
+                  key={g.group_key || gi}
+                  className={`ix-card overflow-hidden ${tonedCard}`}
+                >
+                  <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between flex-wrap gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <UserCircle2 size={16} className="text-slate-400 shrink-0" />
+                        <span className="font-semibold">{g.guest_name}</span>
+                        <StayPhaseBadge phase={phase} />
+                        <UrgencyBadge urgency={g.max_urgency} />
+                        {g.has_immediate_complaint && (
+                          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white">
+                            <Siren size={10} /> immediate complaint
+                          </span>
+                        )}
+                        {g.building_code && (
+                          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
+                            {g.building_code}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {g.message_count} msg{g.message_count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-1 text-xs text-slate-600 truncate"
+                        title={g.listing_name || undefined}
+                      >
+                        {g.listing_name || 'Unknown listing'}
+                        {g.check_in_date && g.check_out_date
+                          ? ` · ${g.check_in_date} → ${g.check_out_date}`
+                          : ''}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {g.categories.map(c => (
+                          <span
+                            key={c}
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${REQUEST_CATEGORY_TINT[c] || REQUEST_CATEGORY_TINT.other}`}
+                          >
+                            {REQUEST_CATEGORY_LABEL[c] || c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                      {g.latest_received_iso
+                        ? new Date(g.latest_received_iso).toLocaleString()
+                        : '—'}
+                    </div>
+                  </div>
+                  {g.latest_summary && (
+                    <div className="px-6 py-3 bg-slate-50/60 text-sm text-slate-800">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mr-2">
+                        Latest
+                      </span>
+                      {g.latest_summary}
+                    </div>
+                  )}
+                  {g.latest_suggested_action && (
+                    <div className="px-6 py-3 bg-emerald-50/60 border-t border-emerald-100 text-sm text-slate-800 flex items-start gap-2">
+                      <Lightbulb size={14} className="text-emerald-700 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 mr-2">
+                          Next action
+                        </span>
+                        {g.latest_suggested_action}
+                      </div>
+                    </div>
+                  )}
+                  {groupMessages.length > 0 && (
+                    <div className="divide-y divide-slate-100">
+                      {groupMessages
+                        .slice()
+                        .sort((a, b) => {
+                          const aT = a.received_iso
+                            ? new Date(a.received_iso).getTime()
+                            : 0;
+                          const bT = b.received_iso
+                            ? new Date(b.received_iso).getTime()
+                            : 0;
+                          return bT - aT;
+                        })
+                        .map((m, mi) => {
+                          const cat = m.classification?.category;
+                          const catLabel =
+                            cat && REQUEST_CATEGORY_LABEL[cat]
+                              ? REQUEST_CATEGORY_LABEL[cat]
+                              : null;
+                          const catTint =
+                            cat && REQUEST_CATEGORY_TINT[cat]
+                              ? REQUEST_CATEGORY_TINT[cat]
+                              : REQUEST_CATEGORY_TINT.other;
+                          return (
+                            <div key={mi} className="px-6 py-3">
+                              <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
+                                <span className="tabular-nums">
+                                  {m.received_iso
+                                    ? new Date(m.received_iso).toLocaleString()
+                                    : '—'}
+                                </span>
+                                {catLabel && (
+                                  <span
+                                    className={`text-[10px] px-1.5 py-0.5 rounded ${catTint}`}
+                                  >
+                                    {catLabel}
+                                  </span>
+                                )}
+                                {m.classification?.urgency && (
+                                  <UrgencyBadge urgency={m.classification.urgency} />
+                                )}
+                                {m.has_image && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                    <ImageIcon size={10} /> image
+                                  </span>
+                                )}
+                                {m.message_count_in_thread > 1 && (
+                                  <span className="text-[10px] text-slate-500">
+                                    {m.message_count_in_thread} bubbles in this email
+                                  </span>
+                                )}
+                              </div>
+                              {m.classification?.summary && (
+                                <div className="mt-1.5 text-sm text-slate-800">
+                                  {m.classification.summary}
+                                </div>
+                              )}
+                              {m.message_text && (
+                                <blockquote className="mt-2 border-l-4 border-orange-300 pl-4 text-sm text-slate-700 italic whitespace-pre-wrap">
+                                  {m.message_text}
+                                </blockquote>
+                              )}
+                              {!m.classification?.summary && !m.message_text && (
+                                <div className="mt-1.5 text-xs text-slate-500">
+                                  No text body — likely image-only. Open in Gmail for
+                                  full context.
+                                </div>
+                              )}
+                              {m.classification?.suggested_action && (
+                                <div className="mt-2 text-xs text-slate-600 flex items-start gap-1.5">
+                                  <Lightbulb size={12} className="text-emerald-700 mt-0.5 shrink-0" />
+                                  <span>{m.classification.suggested_action}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {total === 0 && (
+        <section>
+          <div className="ix-card p-6 bg-slate-50 text-slate-600 text-sm">
+            No reservation-message emails in this range. The rule searches for
+            messages{' '}
+            <span className="font-mono">
+              to:guesty@beithady.com subject:&quot;Reservation&quot;
+            </span>{' '}
+            — Airbnb routes guest replies on an existing reservation with
+            subject &quot;RE: Reservation for ...&quot;.
           </div>
         </section>
       )}
