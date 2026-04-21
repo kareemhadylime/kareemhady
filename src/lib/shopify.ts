@@ -28,14 +28,45 @@ function baseUrl(): string {
   return `https://${host}/admin/api/${API_VERSION}`;
 }
 
+// Cache resolved token per cold-start process for the store we're serving.
+let cachedToken: { value: string; shopHandle: string } | null = null;
+
+async function resolveAdminToken(): Promise<string> {
+  // Env override (legacy custom-app path) wins when set.
+  const envToken = (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '').trim();
+  if (envToken) return envToken;
+
+  // Fall back to OAuth-granted token persisted by /api/shopify/auth/callback.
+  const domain = (process.env.SHOPIFY_STORE_DOMAIN || '').trim();
+  const shopHandle = domain.includes('.')
+    ? domain.replace(/^https?:\/\//, '').replace(/\/+$/, '').replace(/\.myshopify\.com$/i, '')
+    : domain;
+  if (cachedToken && cachedToken.shopHandle === shopHandle) {
+    return cachedToken.value;
+  }
+
+  const { supabaseAdmin } = await import('./supabase');
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('integration_tokens')
+    .select('access_token')
+    .eq('provider', `shopify:${shopHandle}`)
+    .maybeSingle();
+  const token = (data as { access_token: string } | null)?.access_token;
+  if (!token) {
+    throw new Error(
+      `Shopify token missing. Set SHOPIFY_ADMIN_ACCESS_TOKEN in env, OR run the OAuth flow at /api/shopify/auth/start after setting SHOPIFY_APP_CLIENT_ID + SHOPIFY_APP_CLIENT_SECRET.`
+    );
+  }
+  cachedToken = { value: token, shopHandle };
+  return token;
+}
+
 export async function shopifyFetch<T = unknown>(
   path: string,
   opts: ShopifyFetchOpts = {}
 ): Promise<T> {
-  const token = (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '').trim();
-  if (!token) {
-    throw new Error('SHOPIFY_ADMIN_ACCESS_TOKEN must be set in env');
-  }
+  const token = await resolveAdminToken();
 
   const url = new URL(path.startsWith('http') ? path : `${baseUrl()}${path}`);
   if (opts.query) {
