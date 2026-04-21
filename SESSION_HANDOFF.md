@@ -1,5 +1,44 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 9.1 SHIPPED — All 5 Beithady email aggregators now Guesty-enriched (commit c186842)
+
+Code deployed; Guesty mirror sync still rate-limited — enrichment is a no-op until the mirror populates (gracefully handled via try/catch + dynamic import). Naturally resumes when the 04:40 UTC cron succeeds or Guesty's rate-limit window clears.
+
+### Aggregator-by-aggregator integration
+- **beithady-booking** (from Phase 9): batch-lookup by `booking_id` (Airbnb HM) → `platform_confirmation_code`. Overlays guest_name / listing_nickname / dates / nights / host_payout / currency / channel / building_code. Output: `guesty_enriched_count`.
+- **beithady-payout** (NEW this turn): batch-lookup each Airbnb line item by `confirmation_code`. Attaches authoritative `guesty_host_payout` + `guesty_nights` + `guesty_currency` as siblings (email-parsed amount preserved for reconciliation) plus overlays listing_name / check-in / check-out / guest_name / building_code.
+- **beithady-review** (NEW this turn): resolves every email `listing_name` → canonical `building_code` via Guesty mirror. Falls back to existing catalog heuristic if no match.
+- **beithady-inquiry** (NEW this turn): same building-code overlay.
+- **beithady-request** (NEW this turn): same building-code overlay.
+
+All four aggregate return types gained an optional `guesty_enriched_count: number` so dashboards can show how many rows were authoritatively validated per run.
+
+### New helpers in `src/lib/guesty-enrichment.ts`
+- `batchLookupBuildingsByListingName(names[])` — exact `.in()` match pass first (indexed), then fuzzy contains-either-direction fallback across the ~100 listing catalog. Handles both `nickname` and `title` as match keys.
+- `batchLookupReservationsByGuest(items[])` — fallback when no booking code exists in the email. Uses `ILIKE` OR-chain on guest_name, then prefers (a) listing nickname substring match, (b) check-in date proximity, (c) most recent.
+
+### Guesty OAuth rate-limit — still blocked after 10 min
+429 persisting. Likely hit an hourly/daily token ceiling during Phase 9 iteration (not just a short burst). Monitor `bzf31vm76` timed out at 22:25 with no success. No code change needed — the `integration_tokens` cache will start working the moment one OAuth succeeds. Expected natural recovery via the 04:40 UTC cron when Beithady's Guesty token endpoint unfreezes.
+
+### Resume check (next session)
+```bash
+# 1. Check if sync has run since rate-limit cleared
+curl -H "Authorization: Bearer $CRON_SECRET" -X POST https://kareemhady.vercel.app/api/guesty/run-now
+
+# 2. Inspect mirror volume
+# SELECT count(*) FROM guesty_listings;
+# SELECT count(*) FROM guesty_reservations;
+
+# 3. Verify enrichment on next booking rule run
+# (the rule_runs.output.guesty_enriched_count will be > 0 once mirror is populated)
+```
+
+### Phase 9.2 backlog (not started)
+1. **PriceLabs overlay on bookings**: attach current `base_price` and `recommended_base_price` per listing from `pricelabs_listing_snapshots` so the booking dashboard can flag rate gaps.
+2. **Dashboard badge**: surface `_guesty_matched` / `_guesty_overrides` per row with a colored pill so the user can instantly see which fields were authoritatively corrected.
+3. **Apply the `integration_tokens` cache pattern** to Odoo + PriceLabs too.
+4. **Guesty sync observability**: add a metric on the Financials / Pricing / Beithady rule pages showing "last Guesty sync N min ago · X listings · Y reservations" so any stale data is visible.
+
 ## 🟠 Monitor still running at 22:17 — Guesty 429 not cleared yet
 
 Background Monitor task `bzf31vm76` retrying `POST /api/guesty/run-now` every 90s until `ok: true`. Monitor times out after 10 minutes from 22:15:31 start (i.e. ~22:25:31). Rate-limit events so far:
