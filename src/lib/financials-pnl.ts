@@ -2,20 +2,24 @@ import { supabaseAdmin } from './supabase';
 
 // Consolidated P&L for Beithady Egypt (5) + Beithady Dubai (10). A1HOSPITALITY
 // is excluded per the Feb 2026 xlsx Filters sheet. Intercompany eliminations
-// are already handled upstream (user confirmed: "Re Read this - it already
-// eliminates the intercompany").
+// are already handled upstream (user confirmed).
 export const PNL_COMPANY_IDS = [5, 10];
 
-// Egyptian CoA prefix convention — stable taxonomy from the Feb 2026 xlsx.
-// Each top-level section has sub-sections keyed by 3-digit code prefixes.
-// Accounts whose code doesn't start with any of these prefixes fall into
-// the synthetic "Unclassified" bucket (shouldn't happen for posted moves
-// on the Beithady CoA — we still surface it so no data is silently dropped).
+// The tenant's CoA diverges between companies — same code can mean different
+// things (500103 = "Home Owner Cut" in some companies, "AGENTS COMMISION
+// Hopper" in others). We therefore group by Odoo's native `account_type`
+// taxonomy rather than by numeric code prefix, and pull out a synthetic
+// "Home Owner Cut" subgroup by NAME since it's its own major P&L section
+// in the xlsx.
+//
+// Accounts are classified via classifyAccount() below. The returned section
+// + subgroup keys drive the hierarchical rollup.
 
 export type PnlLeaf = {
   code: string;
   name: string;
-  balance: number;       // signed so revenue is positive, costs positive
+  account_type: string;
+  balance: number; // sign-normalized (revenue positive, costs positive)
 };
 
 export type PnlSubgroup = {
@@ -33,11 +37,7 @@ export type PnlSection = {
 };
 
 export type PnlReport = {
-  period: {
-    from: string;
-    to: string;
-    label: string;
-  };
+  period: { from: string; to: string; label: string };
   company_ids: number[];
   sections: {
     revenue: PnlSection;
@@ -61,133 +61,246 @@ export type PnlReport = {
   unclassified: PnlLeaf[];
 };
 
-// Each section lists its subgroup definitions (3-digit prefix → label).
-// Ordering matches the Feb 2026 xlsx presentation.
-const SECTION_DEFS = {
-  revenue: {
-    label: 'Revenue',
-    subgroups: [
-      { key: '400', label: 'Activity revenues' },
-      { key: '401', label: 'Other Revenues' },
-    ],
-    // Income accounts in Odoo carry a credit normal balance — debit minus
-    // credit is negative. We flip the sign so display values are positive.
-    flip: true,
-  },
-  cost_of_revenue: {
-    label: 'Cost Of Revenue',
-    subgroups: [
-      { key: '500', label: 'Agents Cost' },
-      { key: '501', label: 'Direct cost for reservations' },
-      { key: '502', label: 'Operating Cost' },
-    ],
-    flip: false,
-  },
-  home_owner_cut: {
-    label: 'Home Owner Cut',
-    subgroups: [{ key: '504', label: 'Home Owner Cut' }],
-    flip: false,
-  },
-  general_expenses: {
-    label: 'General Expenses',
-    subgroups: [
-      { key: '600', label: 'Back Office Salaries, Benefits' },
-      { key: '601', label: 'Office/Stores Rent & Utilities' },
-      { key: '602', label: 'Transportation Expenses' },
-      { key: '603', label: 'Legal & Financial Expenses' },
-      { key: '604', label: 'Marketing & Tender expenses' },
-      { key: '605', label: 'Other Expenses' },
-    ],
-    flip: false,
-  },
-  interest_tax_dep: {
-    label: 'INT - TAXES - DEP',
-    subgroups: [
-      { key: '606', label: 'Interest' },
-      { key: '607', label: 'Depreciation' },
-      { key: '608', label: 'Taxes' },
-    ],
-    flip: false,
-  },
-} as const;
+type SectionKey = keyof PnlReport['sections'];
 
-type SectionKey = keyof typeof SECTION_DEFS;
+// A single classify entry point. Returns the section + subgroup + label for
+// a given account, using type + name heuristics.
+function classifyAccount(
+  code: string,
+  name: string,
+  accountType: string
+): { section: SectionKey; subgroupKey: string; subgroupLabel: string; flip: boolean } | null {
+  const n = (name || '').toLowerCase();
+  const isHomeOwner = /home\s*owner|rent\s*cost/i.test(n);
+  const isInterest = /\binterest\b|partners?\s*interest|loans?\s*interest/i.test(n);
 
-type RawAggregateRow = {
-  code: string | null;
-  name: string;
-  sum_balance: number;
-  line_count: number;
+  switch (accountType) {
+    case 'income':
+      return {
+        section: 'revenue',
+        subgroupKey: 'activity',
+        subgroupLabel: 'Activity revenues',
+        flip: true, // income has a credit normal balance → flip sign for display
+      };
+    case 'income_other':
+      return {
+        section: 'revenue',
+        subgroupKey: 'other',
+        subgroupLabel: 'Other Revenues',
+        flip: true,
+      };
+    case 'expense_direct_cost': {
+      if (isHomeOwner) {
+        return {
+          section: 'home_owner_cut',
+          subgroupKey: 'home_owner_cut',
+          subgroupLabel: 'Home Owner Cut & Rent',
+          flip: false,
+        };
+      }
+      // Agents commissions live at 500xxx in Odoo
+      if (/(agents?|commis[s]?ion)/i.test(n)) {
+        return {
+          section: 'cost_of_revenue',
+          subgroupKey: 'agents',
+          subgroupLabel: 'Agents Cost',
+          flip: false,
+        };
+      }
+      // Operating-cost flavors: salaries, transport, electricity, platform
+      // subscriptions, car/charging/toll, tax compensation
+      if (
+        /(salary|salaries|transport|electricity|water|gas|platform|car|charg|toll|tax\s*comp|overtime|bonus|subscribtion|subscription|vacation|purchases|subcontract|transfer)/i.test(
+          n
+        )
+      ) {
+        return {
+          section: 'cost_of_revenue',
+          subgroupKey: 'operating',
+          subgroupLabel: 'Operating Cost',
+          flip: false,
+        };
+      }
+      // Everything else direct_cost goes into "Direct cost for reservations"
+      return {
+        section: 'cost_of_revenue',
+        subgroupKey: 'direct',
+        subgroupLabel: 'Direct cost for reservations',
+        flip: false,
+      };
+    }
+    case 'expense': {
+      if (isInterest) {
+        return {
+          section: 'interest_tax_dep',
+          subgroupKey: 'interest',
+          subgroupLabel: 'Interest',
+          flip: false,
+        };
+      }
+      if (/tax/i.test(n) && !/compensat/i.test(n)) {
+        return {
+          section: 'interest_tax_dep',
+          subgroupKey: 'taxes',
+          subgroupLabel: 'Taxes',
+          flip: false,
+        };
+      }
+      // G&A subgroup by name pattern (matches the xlsx buckets)
+      if (/(bonus|salary|salaries|basic\s*salar|outsourcing|social\s*insurance|stationary|medical|hr|bonuses)/i.test(n)) {
+        return {
+          section: 'general_expenses',
+          subgroupKey: 'back_office',
+          subgroupLabel: 'Back Office Salaries, Benefits',
+          flip: false,
+        };
+      }
+      if (/(rent.*g.*a|mobile|internet)/i.test(n)) {
+        return {
+          section: 'general_expenses',
+          subgroupKey: 'office',
+          subgroupLabel: 'Office/Stores Rent & Utilities',
+          flip: false,
+        };
+      }
+      if (/(solar|transportation|shiping|shipping)/i.test(n)) {
+        return {
+          section: 'general_expenses',
+          subgroupKey: 'transport',
+          subgroupLabel: 'Transportation Expenses',
+          flip: false,
+        };
+      }
+      if (/(bank|corporate|geidea|stripe|legal|financial)/i.test(n)) {
+        return {
+          section: 'general_expenses',
+          subgroupKey: 'legal_fin',
+          subgroupLabel: 'Legal & Financial Expenses',
+          flip: false,
+        };
+      }
+      if (/(advertis|marketing|tender)/i.test(n)) {
+        return {
+          section: 'general_expenses',
+          subgroupKey: 'marketing',
+          subgroupLabel: 'Marketing & Tender expenses',
+          flip: false,
+        };
+      }
+      // Anything else expense → Other Expenses bucket under G&A
+      return {
+        section: 'general_expenses',
+        subgroupKey: 'other',
+        subgroupLabel: 'Other Expenses',
+        flip: false,
+      };
+    }
+    case 'expense_depreciation':
+      return {
+        section: 'interest_tax_dep',
+        subgroupKey: 'depreciation',
+        subgroupLabel: 'Depreciation',
+        flip: false,
+      };
+    default:
+      return null; // balance-sheet types (asset_*, liability_*, equity_*) — skip
+  }
+}
+
+const SECTION_LABEL: Record<SectionKey, string> = {
+  revenue: 'Revenue',
+  cost_of_revenue: 'Cost Of Revenue',
+  home_owner_cut: 'Home Owner Cut & Rent',
+  general_expenses: 'General Expenses',
+  interest_tax_dep: 'INT - TAXES - DEP',
 };
 
-// Fetches aggregated line balances by account code for the given period and
-// company scope. Returns one row per account with sum(balance).
+// Desired subgroup presentation order per section. Unknown keys fall at the end.
+const SUBGROUP_ORDER: Record<SectionKey, string[]> = {
+  revenue: ['activity', 'other'],
+  cost_of_revenue: ['agents', 'direct', 'operating'],
+  home_owner_cut: ['home_owner_cut'],
+  general_expenses: [
+    'back_office',
+    'office',
+    'transport',
+    'legal_fin',
+    'marketing',
+    'other',
+  ],
+  interest_tax_dep: ['interest', 'depreciation', 'taxes'],
+};
+
+type RawAggregateRow = {
+  code: string;
+  name: string;
+  account_type: string;
+  sum_balance: number;
+};
+
 async function fetchAccountTotals(params: {
   fromDate: string;
   toDate: string;
   companyIds: number[];
 }): Promise<{ rows: RawAggregateRow[]; totalLineCount: number }> {
   const sb = supabaseAdmin();
-  // Pull all move lines in the period + JOIN accounts for code/name. This is
-  // fine while data is ~20-30k lines; if it grows we'll push the GROUP BY
-  // into Postgres via an RPC.
-  //
-  // We explicitly NOT select reconciled / analytic here — just what we need.
-  const { data, error } = await sb
-    .from('odoo_move_lines')
-    .select('balance, account_id, odoo_accounts!inner(code, name)')
-    .gte('date', params.fromDate)
-    .lte('date', params.toDate)
-    .in('company_id', params.companyIds)
-    .in('parent_state', ['draft', 'posted']);
-  if (error) throw new Error(`fetchAccountTotals: ${error.message}`);
-
-  type Row = {
-    balance: number;
-    account_id: number | null;
-    odoo_accounts: { code: string | null; name: string } | null;
-  };
-  const lines = (data as unknown as Row[]) || [];
+  // Pull all move lines in period + JOIN accounts. Supabase-js doesn't
+  // support server-side GROUP BY on FK joins, so we aggregate in-memory.
+  // Paginate to avoid the 1000-row default cap.
+  const PAGE = 1000;
+  let offset = 0;
   const byAccount = new Map<string, RawAggregateRow>();
-  for (const l of lines) {
-    if (!l.odoo_accounts) continue;
-    const code = l.odoo_accounts.code || '';
-    const name = l.odoo_accounts.name || '';
-    const key = `${code}::${name}`;
-    const existing = byAccount.get(key);
-    const bal = Number(l.balance) || 0;
-    if (existing) {
-      existing.sum_balance += bal;
-      existing.line_count += 1;
-    } else {
-      byAccount.set(key, {
-        code,
-        name,
-        sum_balance: bal,
-        line_count: 1,
-      });
+  let totalLineCount = 0;
+
+  while (true) {
+    const { data, error } = await sb
+      .from('odoo_move_lines')
+      .select(
+        'balance, odoo_accounts!inner(code, name, account_type)'
+      )
+      .gte('date', params.fromDate)
+      .lte('date', params.toDate)
+      .in('company_id', params.companyIds)
+      .in('parent_state', ['draft', 'posted'])
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`fetchAccountTotals: ${error.message}`);
+    const rows = (data as unknown as Array<{
+      balance: number;
+      odoo_accounts: { code: string | null; name: string; account_type: string | null } | null;
+    }>) || [];
+    if (rows.length === 0) break;
+    totalLineCount += rows.length;
+
+    for (const r of rows) {
+      if (!r.odoo_accounts) continue;
+      const code = r.odoo_accounts.code || '';
+      const name = r.odoo_accounts.name || '';
+      const accountType = r.odoo_accounts.account_type || '';
+      // Composite key: (code|name|type) — account records share codes across
+      // companies with DIFFERENT names (same code, different meaning), so
+      // don't collapse by code alone.
+      const key = `${code}||${name}||${accountType}`;
+      const existing = byAccount.get(key);
+      const bal = Number(r.balance) || 0;
+      if (existing) {
+        existing.sum_balance += bal;
+      } else {
+        byAccount.set(key, { code, name, account_type: accountType, sum_balance: bal });
+      }
     }
+    if (rows.length < PAGE) break;
+    offset += PAGE;
   }
+
   const rows = Array.from(byAccount.values()).sort((a, b) =>
     (a.code || '').localeCompare(b.code || '')
   );
-  return { rows, totalLineCount: lines.length };
-}
-
-function sectionOf(code: string): { section: SectionKey; prefix: string } | null {
-  for (const [sec, def] of Object.entries(SECTION_DEFS) as Array<
-    [SectionKey, (typeof SECTION_DEFS)[SectionKey]]
-  >) {
-    for (const sg of def.subgroups) {
-      if (code.startsWith(sg.key)) return { section: sec, prefix: sg.key };
-    }
-  }
-  return null;
+  return { rows, totalLineCount };
 }
 
 export async function buildPnlReport(params: {
-  fromDate: string;       // YYYY-MM-DD inclusive
-  toDate: string;         // YYYY-MM-DD inclusive
+  fromDate: string;
+  toDate: string;
   label: string;
   companyIds?: number[];
 }): Promise<PnlReport> {
@@ -198,7 +311,6 @@ export async function buildPnlReport(params: {
     companyIds,
   });
 
-  // Seed empty section structures.
   const sections: PnlReport['sections'] = {
     revenue: emptySection('revenue'),
     cost_of_revenue: emptySection('cost_of_revenue'),
@@ -210,41 +322,36 @@ export async function buildPnlReport(params: {
   const unclassified: PnlLeaf[] = [];
 
   for (const r of rows) {
-    const code = r.code || '';
-    const found = sectionOf(code);
-    const def = found ? SECTION_DEFS[found.section] : null;
-    const display = def?.flip ? -r.sum_balance : r.sum_balance;
-    if (!found || Math.abs(display) < 0.005) {
-      // Skip zero-balance noise. Zero lines appear when a journal entry
-      // splits debit+credit equally on the same account within period.
-      if (!found && Math.abs(display) >= 0.005) {
-        unclassified.push({
-          code,
-          name: r.name,
-          balance: display,
-        });
-      }
-      continue;
-    }
-    const section = sections[found.section];
-    let sg = section.subgroups.find(s => s.key === found.prefix);
+    const cls = classifyAccount(r.code, r.name, r.account_type);
+    if (!cls) continue; // balance-sheet accounts — not P&L
+    const display = cls.flip ? -r.sum_balance : r.sum_balance;
+    if (Math.abs(display) < 0.005) continue; // zero-balance noise
+
+    const section = sections[cls.section];
+    let sg = section.subgroups.find(s => s.key === cls.subgroupKey);
     if (!sg) {
-      const lbl = def!.subgroups.find(s => s.key === found.prefix)?.label || found.prefix;
-      sg = { key: found.prefix, label: lbl, total: 0, accounts: [] };
+      sg = {
+        key: cls.subgroupKey,
+        label: cls.subgroupLabel,
+        total: 0,
+        accounts: [],
+      };
       section.subgroups.push(sg);
     }
-    sg.accounts.push({ code, name: r.name, balance: display });
+    sg.accounts.push({
+      code: r.code,
+      name: r.name,
+      account_type: r.account_type,
+      balance: display,
+    });
     sg.total += display;
     section.total += display;
   }
 
-  // Sort subgroups to match SECTION_DEFS order.
-  for (const [secKey, def] of Object.entries(SECTION_DEFS) as Array<
-    [SectionKey, (typeof SECTION_DEFS)[SectionKey]]
-  >) {
-    const orderMap = new Map<string, number>(
-      def.subgroups.map((s, i) => [s.key as string, i])
-    );
+  // Sort subgroups per predefined order.
+  for (const secKey of Object.keys(sections) as SectionKey[]) {
+    const order = SUBGROUP_ORDER[secKey];
+    const orderMap = new Map<string, number>(order.map((k, i) => [k, i]));
     sections[secKey].subgroups.sort(
       (a, b) => (orderMap.get(a.key) ?? 99) - (orderMap.get(b.key) ?? 99)
     );
@@ -289,17 +396,11 @@ export async function buildPnlReport(params: {
 }
 
 function emptySection(key: SectionKey): PnlSection {
-  const def = SECTION_DEFS[key];
   return {
     key,
-    label: def.label,
+    label: SECTION_LABEL[key],
     total: 0,
-    subgroups: def.subgroups.map(sg => ({
-      key: sg.key,
-      label: sg.label,
-      total: 0,
-      accounts: [],
-    })),
+    subgroups: [],
   };
 }
 
@@ -327,26 +428,17 @@ export async function buildPayablesReport(params: {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
   const sb = supabaseAdmin();
 
-  // Pull open-AP lines (amount_residual != 0) within company scope.
-  // account_type is 'liability_payable' for standard AP accounts in Odoo.
-  // We also include any 504xxx (Home Owner Cut) lines with residual since
-  // owners may book under a different account_type.
-  const { data: payableLines, error } = await sb
-    .from('odoo_move_lines')
-    .select(
-      'partner_id, amount_residual, odoo_accounts!inner(code, account_type), odoo_partners!inner(id, name, supplier_rank, is_employee, is_owner)'
-    )
-    .in('company_id', companyIds)
-    .in('parent_state', ['draft', 'posted'])
-    .lte('date', params.asOf)
-    .not('amount_residual', 'eq', 0);
-  if (error) throw new Error(`buildPayablesReport: ${error.message}`);
-
+  // Pull open-AP lines (amount_residual != 0) within company scope. Matching
+  // by name "Home Owner Cut" and "Rent Costs" is how we detect owner lines
+  // since the tenant doesn't use 504xxx codes.
+  const PAGE = 1000;
+  let offset = 0;
   type Row = {
     partner_id: number | null;
     amount_residual: number;
     odoo_accounts: {
       code: string | null;
+      name: string | null;
       account_type: string | null;
     } | null;
     odoo_partners: {
@@ -357,22 +449,40 @@ export async function buildPayablesReport(params: {
       is_owner: boolean;
     } | null;
   };
-  const lines = ((payableLines as unknown) as Row[]) || [];
+  const allRows: Row[] = [];
+  while (true) {
+    const { data, error } = await sb
+      .from('odoo_move_lines')
+      .select(
+        'partner_id, amount_residual, odoo_accounts!inner(code, name, account_type), odoo_partners!inner(id, name, supplier_rank, is_employee, is_owner)'
+      )
+      .in('company_id', companyIds)
+      .in('parent_state', ['draft', 'posted'])
+      .lte('date', params.asOf)
+      .not('amount_residual', 'eq', 0)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`buildPayablesReport: ${error.message}`);
+    const page = (data as unknown as Row[]) || [];
+    allRows.push(...page);
+    if (page.length < PAGE) break;
+    offset += PAGE;
+  }
 
   const byKindPartner = new Map<
     string,
     PayablePartnerRow & { kind: 'vendor' | 'employee' | 'owner' }
   >();
 
-  for (const l of lines) {
+  for (const l of allRows) {
     if (!l.odoo_partners || l.partner_id == null) continue;
-    const code = l.odoo_accounts?.code || '';
+    const acctName = (l.odoo_accounts?.name || '').toLowerCase();
     const acctType = l.odoo_accounts?.account_type || '';
-    // Classify: owners take priority (any partner flagged as owner, or line
-    // hitting 504xxx); then employees; then vendors (supplier_rank > 0 or
-    // any remaining liability_payable line).
+
+    const isOwnerLine =
+      l.odoo_partners.is_owner || /home\s*owner|rent\s*cost/i.test(acctName);
+
     let kind: 'vendor' | 'employee' | 'owner' | null = null;
-    if (l.odoo_partners.is_owner || code.startsWith('504')) {
+    if (isOwnerLine) {
       kind = 'owner';
     } else if (l.odoo_partners.is_employee) {
       kind = 'employee';
@@ -436,16 +546,15 @@ export function resolveFinancePeriod(
   now: Date = new Date()
 ): FinancePeriod {
   const y = now.getUTCFullYear();
-  const m = now.getUTCMonth(); // 0-indexed
+  const m = now.getUTCMonth();
   const pad = (n: number) => String(n).padStart(2, '0');
-
   const firstOfMonth = (yy: number, mm: number) => `${yy}-${pad(mm + 1)}-01`;
   const lastOfMonth = (yy: number, mm: number) => {
-    // 0-th day of next month = last day of current month.
     const d = new Date(Date.UTC(yy, mm + 1, 0));
-    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+      d.getUTCDate()
+    )}`;
   };
-
   const makeMonth = (yy: number, mm: number, label: string): FinancePeriod => ({
     id: `month-${yy}-${pad(mm + 1)}`,
     label,
@@ -462,7 +571,6 @@ export function resolveFinancePeriod(
     };
   }
 
-  // Pattern: preset "month:2026-02" pins a specific month.
   if (preset && preset.startsWith('month:')) {
     const [yStr, mStr] = preset.slice('month:'.length).split('-');
     const yy = Number(yStr);

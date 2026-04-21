@@ -14,9 +14,11 @@ import { cutoffDate } from './run-odoo-sync';
 // sheet + user direction.
 export const FINANCIALS_COMPANY_IDS = [5, 10];
 
-// Prefix for Home Owner Cut accounts — post-sync flag flips is_owner=true
-// for any partner who has ever had a line hitting this prefix.
-const OWNER_ACCOUNT_CODE_PREFIX = '504';
+// "Home Owner Cut" detection. The tenant's CoA does NOT use 504xxx codes
+// as the Feb 2026 xlsx suggested — the account is named "Home Owner Cut"
+// (with sibling "Rent Costs") under expense_direct_cost. We match by name.
+const OWNER_NAME_PATTERN = '%home owner%';
+const OWNER_RENT_NAME_PATTERN = '%rent cost%';
 
 // Each phase targets < 200s to stay comfortably under Vercel's 300s cap.
 // The move-lines phase runs per company so neither Egypt (~12k lines) nor
@@ -326,17 +328,22 @@ export async function syncOdooMoveLines(
 export async function finalizeOwnerFlag() {
   const sb = supabaseAdmin();
   const started = Date.now();
-  // Flip is_owner=true for every partner that appears on any 504xxx line.
-  // Implemented as two round-trips because supabase-js doesn't support a
-  // single-query correlated-update.
-  const { data: ownerPartnerRows } = await sb
+  // Owner partners = anyone who appears on a move line hitting an account
+  // named "Home Owner Cut" or "Rent Costs". We match by name (not code)
+  // because the tenant's CoA has "Home Owner Cut" at 500103 in some
+  // companies and other codes entirely elsewhere — see
+  // memory/beithady_intercompany_model.md.
+  const { data: rows } = await sb
     .from('odoo_move_lines')
-    .select('partner_id, odoo_accounts!inner(code)')
+    .select('partner_id, odoo_accounts!inner(name)')
     .not('partner_id', 'is', null)
-    .like('odoo_accounts.code', `${OWNER_ACCOUNT_CODE_PREFIX}%`);
+    .or(
+      `name.ilike.${OWNER_NAME_PATTERN},name.ilike.${OWNER_RENT_NAME_PATTERN}`,
+      { foreignTable: 'odoo_accounts' }
+    );
   const ownerIds = Array.from(
     new Set(
-      (ownerPartnerRows || [])
+      (rows || [])
         .map(r => (r as { partner_id: number | null }).partner_id)
         .filter((id): id is number => typeof id === 'number')
     )
