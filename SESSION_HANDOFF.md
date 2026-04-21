@@ -1,5 +1,54 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ BEITHADY PAYOUTS: ALL AMOUNTS IN USD (commit 2bdd20f)
+
+### User request
+User shared a screenshot of the Payouts detail page showing "TOTAL PAYOUTS AED 22,462 / AIRBNB AED 10,386 / STRIPE AED 12,076" and said:
+> "why we are back to AED, All currencies should be USD"
+
+### The fix
+All Beithady Payouts displays now render in USD. Render-time conversion only — no aggregator changes, no stored-output schema changes, existing `rule_runs` display the new currency without a re-run.
+
+### The conversion
+UAE dirham is pegged to USD at **1 USD = 3.6725 AED** (fixed by the UAE Central Bank since 1997). Safe to hardcode — no FX API needed, no drift. Defined as `AED_PER_USD` constant + `aedToUsd()` / `fmtAedAsUsd()` helpers next to the existing `fmt()` helper at the top of `src/app/emails/[domain]/[ruleId]/page.tsx`.
+
+### What's sourced where
+- **Airbnb "USD"** — prefers the **native** `airbnb_total_usd` field (sum of per-reservation USD line amounts from the payout email bodies). Falls back to `airbnb_total_aed / 3.6725` when the native value is missing. Native is more accurate because Airbnb's own FX rate differs slightly from the peg in email totals.
+- **Stripe "USD"** — peg-converted from `stripe_total_aed` (AED is Stripe's settlement currency for this account). For per-transaction API breakdown rows, prefers the **native** `source_amount` when `source_currency === 'USD'` (Booking.com / Expedia charges are often USD pre-FX), otherwise peg-converts from the AED settlement amount.
+- **Total USD** — peg-converted from `total_aed` (sum of both sources' AED settlements, so the peg is applied uniformly — keeps Airbnb + Stripe comparable on the same scale).
+
+### Files changed
+`src/app/emails/[domain]/[ruleId]/page.tsx`:
+- Shared helpers: `AED_PER_USD`, `aedToUsd()`, `fmtAedAsUsd()`.
+- `BeithadyPayoutView` hero — all 4 HeroStat labels + values: Total USD / Airbnb USD (prefer native) / Stripe USD / Unique reservations count (unchanged).
+- Bank destinations — reworded to explain the peg + that both sources settle AED to the same FZCO IBAN.
+- Source split — bar widths unchanged (share math identical), labels/tooltips in USD, hint mentions peg.
+- `PayoutMonthChart` — bar labels + hover titles in USD.
+- Airbnb payouts table — "Payout AED" → "Payout USD" column with `fmtAedAsUsd(p.total_aed)`. "USD in items" unchanged (already native).
+- Stripe email-payouts table — "Amount AED" → "Amount USD".
+- `StripeApiBreakdownSection` — "API total AED" → "API total USD" stat, per-payout hero amount + net/fees in USD, transaction "Amount USD" column with the native-source-preferred logic above, all hints/copy updated.
+- Run history column "Total AED" → "Total USD" with `aedToUsd` applied to the count.
+
+`src/app/emails/[domain]/page.tsx`:
+- `BeithadyPayoutMini` — inlined `AED_PER_USD` constant + same prefer-native-then-peg logic. Labels: Total USD / Airbnb USD / Stripe USD / Payout emails.
+
+### Expected numbers (from user's screenshot)
+Was: AED 22,462 / Airbnb 10,386 / Stripe 12,076 / 2,828 USD line items (13 reservations)
+Now: **~$6,116 USD total · $2,828 Airbnb (native) · $3,289 Stripe (peg) · 13 reservations**
+
+### Verification
+- `rm -rf .next && npm run build` clean, 14 routes.
+- commit 2bdd20f on main via `git push origin HEAD:main`.
+- Deployed via root `C:\kareemhady` → `kareemhady-44qjysluy-lime-investments.vercel.app` (Ready, 48s).
+
+### Why peg-hardcoded (not a live FX API)
+- UAE's AED has been pegged to USD at 3.6725 since 1997 — zero drift.
+- Adding openexchangerates / fixer.io / any FX provider would add an API key, a dependency, and ongoing auth rotation for a value that literally doesn't change.
+- If the peg ever changes (extremely unlikely), flip one constant.
+
+### Gotcha to remember
+Aggregator `BeithadyPayoutAggregate` type still stores `*_aed` fields — they're the AED settlement amounts, which is the source of truth. The USD figures are computed at render from those. Do not rename the stored fields to `*_usd`; you'd break Phase 5.8's Stripe API reconciliation which compares amounts in AED minor units.
+
 ## ✅ REQUESTS GROUP-BY TOGGLE + COLLAPSIBLE RUN HISTORY (commit 6f34fdf)
 
 ### User request
