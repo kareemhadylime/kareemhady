@@ -54,6 +54,7 @@ import {
   type Domain,
 } from '@/lib/rules/presets';
 import { BEITHADY_BUILDINGS, classifyBuilding } from '@/lib/rules/aggregators/beithady-booking';
+import { AirbnbLineItemsTable } from './AirbnbLineItemsTable';
 
 const fmt = (n: number | string | null | undefined): string =>
   Math.round(Number(n) || 0).toLocaleString();
@@ -1215,7 +1216,11 @@ function BeithadyPayoutView({
             <HeroStat
               label="Stripe USD"
               value={fmtAedAsUsd(stripeAed)}
-              sub={`${stripeCount} payouts · Booking.com / Expedia / Manual`}
+              sub={
+                stripePayouts.length === stripeCount
+                  ? `${stripeCount} parsed payouts · Booking.com / Expedia / Manual`
+                  : `${stripePayouts.length} parsed · ${stripeCount} Stripe emails · Booking.com / Expedia / Manual`
+              }
               Icon={Wallet}
             />
             <HeroStat
@@ -1388,119 +1393,15 @@ function BeithadyPayoutView({
           title={`Airbnb line items (${refundables.length})`}
           hint={
             crossMatchBookings.length > 0
-              ? `Per-reservation breakdown. Cross-matched against ${crossMatchBookings.length} Guesty bookings${crossMatchRunAt ? ` (last run ${new Date(crossMatchRunAt).toLocaleString()})` : ''} — "Matched Bldg" is Guesty's canonical classification, "Expected (USD)" is Guesty's stored total_payout for the same reservation.`
-              : 'Per-reservation breakdown. Confirmation code matches the booking_id in the Beithady Guesty Bookings rule — run that rule for cross-rule reconciliation to populate matched columns.'
+              ? `Per-reservation breakdown. Cross-matched against ${crossMatchBookings.length} Guesty bookings${crossMatchRunAt ? ` (last run ${new Date(crossMatchRunAt).toLocaleString()})` : ''}. Click any row to see full details.`
+              : 'Per-reservation breakdown. Click any row to see full details. Run the Beithady Guesty Bookings rule to populate matched-booking columns.'
           }
         />
-        <div className="ix-card overflow-hidden mt-3">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-rose-50/60 text-rose-900">
-                <tr>
-                  <th className="text-left py-2.5 px-4 font-medium">Code</th>
-                  <th className="text-left px-4 font-medium">Guest</th>
-                  <th className="text-left px-4 font-medium">Type</th>
-                  <th className="text-left px-4 font-medium">Listing</th>
-                  <th className="text-left px-4 font-medium">Bldg</th>
-                  <th className="text-left px-4 font-medium">Matched Bldg</th>
-                  <th className="text-right px-4 font-medium">Expected (USD)</th>
-                  <th className="text-left px-4 font-medium">Stay</th>
-                  <th className="text-right px-4 font-medium">Amount (USD)</th>
-                  <th className="text-left px-4 font-medium">Payout date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {refundables.map((li, i) => {
-                  const match = lookupBooking(li.confirmation_code, li.guest_name);
-                  const expected = match?.total_payout ?? null;
-                  const diff =
-                    expected != null && !li.is_refund
-                      ? Math.round((li.amount - expected) * 100) / 100
-                      : null;
-                  return (
-                    <tr
-                      key={`${li.confirmation_code}-${i}`}
-                      className={`border-t border-slate-100 hover:bg-rose-50/30 ${
-                        match ? '' : 'opacity-95'
-                      }`}
-                    >
-                      <td className="py-2.5 px-4 font-mono text-xs text-rose-700 font-semibold">
-                        {li.confirmation_code}
-                      </td>
-                      <td className="px-4">{li.guest_name}</td>
-                      <td className="px-4 text-xs">
-                        <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                          {li.booking_type || '—'}
-                        </span>
-                      </td>
-                      <td
-                        className="px-4 max-w-[260px] truncate text-xs"
-                        title={li.listing_name || undefined}
-                      >
-                        {li.listing_name || '—'}
-                      </td>
-                      <td className="px-4 font-mono text-xs font-semibold">
-                        {li.building_code || '—'}
-                      </td>
-                      <td className="px-4 font-mono text-xs">
-                        {match ? (
-                          <span className="font-semibold text-emerald-700">
-                            {match.building_code}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 text-right tabular-nums text-xs">
-                        {expected != null ? (
-                          <span
-                            className="font-medium text-slate-700"
-                            title={
-                              diff != null
-                                ? `Δ vs paid: ${diff >= 0 ? '+' : ''}${diff.toLocaleString()} USD`
-                                : undefined
-                            }
-                          >
-                            {fmt(expected)}
-                            {diff != null && Math.abs(diff) > 1 && (
-                              <span
-                                className={`ml-1 text-[10px] ${
-                                  diff > 0 ? 'text-amber-700' : 'text-emerald-700'
-                                }`}
-                              >
-                                {diff > 0 ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 text-xs whitespace-nowrap">
-                        {li.check_in_date && li.check_out_date
-                          ? `${li.check_in_date} → ${li.check_out_date}`
-                          : '—'}
-                      </td>
-                      <td className="px-4 text-right tabular-nums font-medium">
-                        {fmt(li.amount)}
-                      </td>
-                      <td className="px-4 text-xs text-slate-500 whitespace-nowrap">
-                        {li.email_sent_date || '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!refundables.length && (
-                  <tr>
-                    <td colSpan={10} className="py-4 px-4 text-slate-500 text-center">
-                      No Airbnb line items in this range.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AirbnbLineItemsTable
+          lineItems={refundables}
+          bookings={crossMatchBookings}
+          crossMatchRunAt={crossMatchRunAt}
+        />
       </section>
 
       {refunds.length > 0 && (

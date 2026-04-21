@@ -53,9 +53,14 @@ async function listPayoutsInRange(
   fromTs: number,
   toTs: number
 ): Promise<Stripe.Payout[]> {
+  // Filter by arrival_date (when funds land at the bank) rather than
+  // `created` (when Stripe initiated the payout). Stripe's payout
+  // notification emails trigger around arrival, so this aligns the API
+  // window with the email search window and catches payouts created
+  // several days before the range start but arriving within it.
   const out: Stripe.Payout[] = [];
   for await (const payout of client.payouts.list({
-    created: { gte: fromTs, lte: toTs },
+    arrival_date: { gte: fromTs, lte: toTs },
     limit: 100,
   })) {
     out.push(payout);
