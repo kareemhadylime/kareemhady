@@ -66,10 +66,17 @@ export default async function RuleOutputDetailPage({
   searchParams,
 }: {
   params: Promise<{ domain: string; ruleId: string }>;
-  searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    preset?: string;
+    from?: string;
+    to?: string;
+    group?: string;
+  }>;
 }) {
   const { domain, ruleId } = await params;
   const sp = await searchParams;
+  const requestsGroupMode: 'guest' | 'reservation' =
+    sp?.group === 'guest' ? 'guest' : 'reservation';
 
   if (domain !== 'other' && !isDomain(domain)) notFound();
 
@@ -382,7 +389,14 @@ export default async function RuleOutputDetailPage({
             )}
 
             {isRequests ? (
-              <BeithadyRequestView out={out} emailsMatched={latest.input_email_count ?? 0} />
+              <BeithadyRequestView
+                out={out}
+                emailsMatched={latest.input_email_count ?? 0}
+                groupMode={requestsGroupMode}
+                domain={domain}
+                ruleId={ruleId}
+                searchParamsSnapshot={sp}
+              />
             ) : isInquiries ? (
               <BeithadyInquiryView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : isReviews ? (
@@ -401,9 +415,25 @@ export default async function RuleOutputDetailPage({
             )}
 
             <section className="ix-card overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100">
-                <h2 className="text-lg font-semibold">Run history</h2>
-              </div>
+              <details className="group">
+                <summary className="px-6 py-4 border-b border-transparent group-open:border-slate-100 cursor-pointer hover:bg-slate-50/60 list-none flex items-center justify-between select-none transition">
+                  <div className="flex items-center gap-2">
+                    <ChevronRight
+                      size={16}
+                      className="text-slate-400 transition-transform group-open:rotate-90"
+                    />
+                    <h2 className="text-lg font-semibold">
+                      Run history{' '}
+                      <span className="text-sm font-normal text-slate-500">
+                        ({runs?.length ?? 0})
+                      </span>
+                    </h2>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    <span className="group-open:hidden">Show</span>
+                    <span className="hidden group-open:inline">Hide</span>
+                  </span>
+                </summary>
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
@@ -462,6 +492,7 @@ export default async function RuleOutputDetailPage({
                   })}
                 </tbody>
               </table>
+              </details>
             </section>
           </>
         )}
@@ -3729,10 +3760,30 @@ function UrgencyBadge({ urgency }: { urgency: RequestUrgency }) {
 function BeithadyRequestView({
   out,
   emailsMatched,
+  groupMode,
+  domain,
+  ruleId,
+  searchParamsSnapshot,
 }: {
   out: any;
   emailsMatched: number;
+  groupMode: 'guest' | 'reservation';
+  domain: string;
+  ruleId: string;
+  searchParamsSnapshot:
+    | { preset?: string; from?: string; to?: string; group?: string }
+    | undefined;
 }) {
+  const buildGroupHref = (mode: 'guest' | 'reservation') => {
+    const qs = new URLSearchParams();
+    if (searchParamsSnapshot?.preset) qs.set('preset', searchParamsSnapshot.preset);
+    if (searchParamsSnapshot?.from) qs.set('from', searchParamsSnapshot.from);
+    if (searchParamsSnapshot?.to) qs.set('to', searchParamsSnapshot.to);
+    // Omit group param entirely for the default (reservation) to keep URL clean.
+    if (mode === 'guest') qs.set('group', 'guest');
+    const q = qs.toString();
+    return `/emails/${domain}/${ruleId}${q ? `?${q}` : ''}`;
+  };
   const total: number = out?.total_messages ?? 0;
   const reservations: number = out?.unique_reservations ?? 0;
   const immediateCount: number = out?.immediate_count ?? 0;
@@ -3881,10 +3932,40 @@ function BeithadyRequestView({
 
       {byReservation.length > 0 && (
         <section>
-          <SectionHeader
-            title={`Reservation threads (${byReservation.length})`}
-            hint="Combined by reservation (subject base). Sorted: immediate complaints → highest urgency → most recent. Click into each thread to see every message + suggested action."
-          />
+          <div className="flex items-end justify-between flex-wrap gap-3">
+            <SectionHeader
+              title={
+                groupMode === 'guest'
+                  ? `Guest threads (${buildGuestThreads(messages).length})`
+                  : `Reservation threads (${byReservation.length})`
+              }
+              hint={
+                groupMode === 'guest'
+                  ? 'One card per guest across all their reservations. Each message keeps its own listing + stay context inline.'
+                  : 'Combined by reservation (subject base). Sorted: immediate complaints → highest urgency → most recent.'
+              }
+            />
+            <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium shrink-0">
+              <Link
+                href={buildGroupHref('reservation')}
+                prefetch={false}
+                className={`px-3 py-1.5 ${groupMode === 'reservation' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              >
+                By reservation
+              </Link>
+              <Link
+                href={buildGroupHref('guest')}
+                prefetch={false}
+                className={`px-3 py-1.5 border-l border-slate-200 ${groupMode === 'guest' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              >
+                By guest
+              </Link>
+            </div>
+          </div>
+
+          {groupMode === 'guest' ? (
+            <GuestThreadsList messages={messages} />
+          ) : (
           <div className="space-y-4 mt-3">
             {byReservation.map((g, gi) => {
               const groupMessages = messagesByGroup.get(g.group_key) || [];
@@ -4049,6 +4130,7 @@ function BeithadyRequestView({
               );
             })}
           </div>
+          )}
         </section>
       )}
 
@@ -4066,6 +4148,310 @@ function BeithadyRequestView({
         </section>
       )}
     </>
+  );
+}
+
+type RequestMessage = {
+  guest_name: string;
+  listing_name: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  num_adults: number | null;
+  num_children: number | null;
+  num_infants: number | null;
+  message_text: string | null;
+  has_image: boolean;
+  message_count_in_thread: number;
+  received_iso: string | null;
+  subject: string;
+  group_key: string;
+  building_code: string | null;
+  classification: {
+    category: RequestCategory;
+    urgency: RequestUrgency;
+    summary: string;
+    suggested_action: string;
+  } | null;
+};
+
+type GuestThread = {
+  key: string;
+  displayName: string;
+  messages: RequestMessage[];
+  reservationCount: number;
+  maxUrgency: RequestUrgency;
+  hasImmediateComplaint: boolean;
+  categories: RequestCategory[];
+  buildings: string[];
+  listings: string[];
+  latestReceivedIso: string | null;
+  latestSummary: string | null;
+  latestSuggestedAction: string | null;
+};
+
+const REQUEST_URGENCY_RANK: Record<RequestUrgency, number> = {
+  immediate: 3,
+  high: 2,
+  normal: 1,
+};
+
+function buildGuestThreads(messages: RequestMessage[]): GuestThread[] {
+  const groupMap = new Map<string, RequestMessage[]>();
+  const groupOrder: string[] = [];
+  for (const m of messages) {
+    const key = (m.guest_name || 'Unknown').toLowerCase().trim();
+    if (!groupMap.has(key)) {
+      groupMap.set(key, []);
+      groupOrder.push(key);
+    }
+    groupMap.get(key)!.push(m);
+  }
+
+  const threads: GuestThread[] = groupOrder.map(key => {
+    const items = groupMap.get(key)!;
+    const reservationKeys = new Set(items.map(m => m.group_key));
+    const categories = Array.from(
+      new Set(
+        items
+          .map(m => m.classification?.category)
+          .filter((c): c is RequestCategory => !!c)
+      )
+    );
+    const buildings = Array.from(
+      new Set(items.map(m => m.building_code).filter(Boolean))
+    ) as string[];
+    const listings = Array.from(
+      new Set(items.map(m => m.listing_name).filter(Boolean))
+    ) as string[];
+    let maxUrgency: RequestUrgency = 'normal';
+    let hasImmediateComplaint = false;
+    for (const m of items) {
+      const u = m.classification?.urgency;
+      if (u && REQUEST_URGENCY_RANK[u] > REQUEST_URGENCY_RANK[maxUrgency]) {
+        maxUrgency = u;
+      }
+      if (m.classification?.category === 'immediate_complaint')
+        hasImmediateComplaint = true;
+    }
+    let latestReceivedIso: string | null = null;
+    let latestSummary: string | null = null;
+    let latestSuggestedAction: string | null = null;
+    for (const m of items) {
+      if (
+        m.received_iso &&
+        (!latestReceivedIso ||
+          new Date(m.received_iso) > new Date(latestReceivedIso))
+      ) {
+        latestReceivedIso = m.received_iso;
+        latestSummary = m.classification?.summary || latestSummary;
+        latestSuggestedAction =
+          m.classification?.suggested_action || latestSuggestedAction;
+      }
+    }
+    return {
+      key,
+      displayName: items[0].guest_name || 'Unknown',
+      messages: items,
+      reservationCount: reservationKeys.size,
+      maxUrgency,
+      hasImmediateComplaint,
+      categories,
+      buildings,
+      listings,
+      latestReceivedIso,
+      latestSummary,
+      latestSuggestedAction,
+    };
+  });
+
+  threads.sort((a, b) => {
+    if (a.hasImmediateComplaint !== b.hasImmediateComplaint)
+      return a.hasImmediateComplaint ? -1 : 1;
+    if (REQUEST_URGENCY_RANK[b.maxUrgency] !== REQUEST_URGENCY_RANK[a.maxUrgency])
+      return REQUEST_URGENCY_RANK[b.maxUrgency] - REQUEST_URGENCY_RANK[a.maxUrgency];
+    const aT = a.latestReceivedIso ? new Date(a.latestReceivedIso).getTime() : 0;
+    const bT = b.latestReceivedIso ? new Date(b.latestReceivedIso).getTime() : 0;
+    return bT - aT;
+  });
+
+  return threads;
+}
+
+function GuestThreadsList({ messages }: { messages: RequestMessage[] }) {
+  const threads = buildGuestThreads(messages);
+  return (
+    <div className="space-y-4 mt-3">
+      {threads.map(thread => {
+        const tonedCard = thread.hasImmediateComplaint
+          ? 'border-rose-300 bg-rose-50/40'
+          : '';
+        return (
+          <div
+            key={thread.key}
+            className={`ix-card overflow-hidden ${tonedCard}`}
+          >
+            <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between flex-wrap gap-3 bg-orange-50/30">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <UserCircle2 size={16} className="text-slate-400 shrink-0" />
+                  <span className="font-semibold">{thread.displayName}</span>
+                  <UrgencyBadge urgency={thread.maxUrgency} />
+                  {thread.hasImmediateComplaint && (
+                    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white">
+                      <Siren size={10} /> immediate complaint
+                    </span>
+                  )}
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                    {thread.messages.length} msg
+                    {thread.messages.length !== 1 ? 's' : ''}
+                  </span>
+                  {thread.reservationCount > 1 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                      {thread.reservationCount} reservations
+                    </span>
+                  )}
+                  {thread.buildings.map(b => (
+                    <span
+                      key={b}
+                      className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200"
+                    >
+                      {b}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {thread.categories.map(c => (
+                    <span
+                      key={c}
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${REQUEST_CATEGORY_TINT[c] || REQUEST_CATEGORY_TINT.other}`}
+                    >
+                      {REQUEST_CATEGORY_LABEL[c] || c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                Last{' '}
+                {thread.latestReceivedIso
+                  ? new Date(thread.latestReceivedIso).toLocaleString()
+                  : '—'}
+              </div>
+            </div>
+            {thread.latestSummary && (
+              <div className="px-6 py-3 bg-slate-50/60 text-sm text-slate-800">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mr-2">
+                  Latest
+                </span>
+                {thread.latestSummary}
+              </div>
+            )}
+            {thread.latestSuggestedAction && (
+              <div className="px-6 py-3 bg-emerald-50/60 border-t border-emerald-100 text-sm text-slate-800 flex items-start gap-2">
+                <Lightbulb size={14} className="text-emerald-700 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 mr-2">
+                    Next action
+                  </span>
+                  {thread.latestSuggestedAction}
+                </div>
+              </div>
+            )}
+            <div className="divide-y divide-slate-100">
+              {thread.messages
+                .slice()
+                .sort((a, b) => {
+                  // Chat order: oldest first, newest at the bottom.
+                  const aT = a.received_iso
+                    ? new Date(a.received_iso).getTime()
+                    : 0;
+                  const bT = b.received_iso
+                    ? new Date(b.received_iso).getTime()
+                    : 0;
+                  return aT - bT;
+                })
+                .map((m, mi) => {
+                  const cat = m.classification?.category;
+                  const catLabel =
+                    cat && REQUEST_CATEGORY_LABEL[cat]
+                      ? REQUEST_CATEGORY_LABEL[cat]
+                      : null;
+                  const catTint =
+                    cat && REQUEST_CATEGORY_TINT[cat]
+                      ? REQUEST_CATEGORY_TINT[cat]
+                      : REQUEST_CATEGORY_TINT.other;
+                  const phase = stayPhaseOf(m.check_in_date, m.check_out_date);
+                  return (
+                    <div key={mi} className="px-6 py-3">
+                      <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
+                        <span className="tabular-nums">
+                          {m.received_iso
+                            ? new Date(m.received_iso).toLocaleString()
+                            : '—'}
+                        </span>
+                        {catLabel && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${catTint}`}
+                          >
+                            {catLabel}
+                          </span>
+                        )}
+                        {m.classification?.urgency && (
+                          <UrgencyBadge urgency={m.classification.urgency} />
+                        )}
+                        <StayPhaseBadge phase={phase} />
+                        {m.has_image && (
+                          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                            <ImageIcon size={10} /> image
+                          </span>
+                        )}
+                        {m.message_count_in_thread > 1 && (
+                          <span className="text-[10px] text-slate-500">
+                            {m.message_count_in_thread} bubbles in this email
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="mt-1 text-[11px] text-slate-500 truncate"
+                        title={m.listing_name || undefined}
+                      >
+                        {m.listing_name || 'Unknown listing'}
+                        {m.check_in_date && m.check_out_date
+                          ? ` · ${m.check_in_date} → ${m.check_out_date}`
+                          : ''}
+                      </div>
+                      {m.classification?.summary && (
+                        <div className="mt-1.5 text-sm text-slate-800">
+                          {m.classification.summary}
+                        </div>
+                      )}
+                      {m.message_text && (
+                        <blockquote className="mt-2 border-l-4 border-orange-300 pl-4 text-sm text-slate-700 italic whitespace-pre-wrap">
+                          {m.message_text}
+                        </blockquote>
+                      )}
+                      {!m.classification?.summary && !m.message_text && (
+                        <div className="mt-1.5 text-xs text-slate-500">
+                          No text body — likely image-only. Open in Gmail for
+                          full context.
+                        </div>
+                      )}
+                      {m.classification?.suggested_action && (
+                        <div className="mt-2 text-xs text-slate-600 flex items-start gap-1.5">
+                          <Lightbulb
+                            size={12}
+                            className="text-emerald-700 mt-0.5 shrink-0"
+                          />
+                          <span>{m.classification.suggested_action}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
