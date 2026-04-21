@@ -1,5 +1,32 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟢 PHASE 10.1.3 — Shopify OAuth install flow shipped (commit 5ceec3a, deployed, awaiting user install click)
+
+Legacy custom-app path fully dead on kika-swim-wear — both admin URLs the user tried just route to the Dev Dashboard upgrade prompt. Built the OAuth install flow so we can proceed without touching the legacy admin.
+
+### Routes shipped
+- **`/api/shopify/auth/start`** (`src/app/api/shopify/auth/start/route.ts`): builds the `https://kika-swim-wear.myshopify.com/admin/oauth/authorize` URL with scopes (`read_orders`, `read_products`, `read_customers`, `read_inventory`, `read_locations`), sets a CSRF state cookie, 307-redirects. Verified live: HTTP 307 with correct Location, state cookie, scopes.
+- **`/api/shopify/auth/callback`** (`src/app/api/shopify/auth/callback/route.ts`): validates HMAC via `crypto.timingSafeEqual` (client_secret as HMAC-SHA256 key, sorted query string as message), verifies the state cookie matches, sanity-checks `shop` against `*.myshopify.com` regex, POSTs `{client_id, client_secret, code}` to `/admin/oauth/access_token`, persists the **offline** access token in `public.integration_tokens` with provider `shopify:kika-swim-wear`. Redirects to `/emails/kika?shopify=installed`.
+
+### `src/lib/shopify.ts` token resolver
+Two-tier cache with precedence:
+1. `SHOPIFY_ADMIN_ACCESS_TOKEN` env override (legacy path — kept for future stores that allow it).
+2. `integration_tokens` table keyed by `provider = 'shopify:{handle}'`. Cached per cold start.
+
+Clear error thrown when neither is set.
+
+### User config needed (awaiting completion)
+- **Vercel env set**: `SHOPIFY_STORE_DOMAIN=kika-swim-wear`, `SHOPIFY_APP_CLIENT_ID`, `SHOPIFY_APP_CLIENT_SECRET`. (Left `SHOPIFY_ADMIN_ACCESS_TOKEN` empty.)
+- **Redirect URL registered** in Dev Dashboard → KIKA app → Configuration: `https://kareemhady.vercel.app/api/shopify/auth/callback`
+- **Scopes enabled** in Dev Dashboard config.
+
+### Interesting observation
+The `client_id` that shows up in the live redirect is `e91d0612396dd960fa56d0c06ea7d7a9` — different from the `0d09d6f6e7b8eb66f2b07b9ca4b6c57c` the user's earlier screenshot showed. User may have created a second Dev Dashboard app. Doesn't matter as long as the redirect URL is registered on the one whose credentials are in env.
+
+### Current state
+- `integration_tokens` table has NO `shopify:*` row yet — user hasn't completed the install flow.
+- Next step: user opens `/api/shopify/auth/start` in browser while logged into Shopify, approves the install, lands on `/emails/kika?shopify=installed` — then token persists and we can run `/api/shopify/ping`.
+
 ## 🟠 PHASE 10.1.2 — Correct store handle is `kika-swim-wear` (third correction)
 
 User shared the admin link: `https://admin.shopify.com/store/kika-swim-wear?ui_locales=en`. The store's actual myshopify handle is **`kika-swim-wear`**, not `thekikastore` (that's the display name) and not `shopfromkika` (my original guess).
