@@ -1,5 +1,47 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7.1 SHIPPED — Odoo backfill sync live, 3,675 invoices synced to Supabase (commit 4744a74, deployed)
+
+User picked option (a): ship now with `[4, 5, 10]` scope + post-migration analytic-account probe deferred to 7.2.
+
+### What shipped (5 files, one commit)
+- **`supabase/migrations/0002_odoo.sql`** — applied directly via Supabase MCP `apply_migration` (named `phase_7_1_odoo_invoices_and_companies`). Creates:
+  - `odoo_sync_runs` — run log with `companies_synced`, `invoices_synced`, `status`, `error`
+  - `odoo_companies` — `id` (bigint PK = Odoo res.company.id), `name`, `country`, `currency`, `in_scope` bool, `last_synced_at`
+  - `odoo_invoices` — `id` (bigint PK = Odoo account.move.id), `name`, `move_type`, `state`, `company_id` FK, `partner_id` + denormalized `partner_name`, `invoice_date`, `amount_total`, `currency`, `odoo_created_at`, `odoo_updated_at`, `synced_at`
+  - Indexes on `company_id`, `invoice_date` desc, `partner_id`, `move_type`, and `odoo_sync_runs.started_at` desc
+- **`src/lib/run-odoo-sync.ts`** — mirrors `run-daily.ts` pattern. Iterates `SCOPE_COMPANY_IDS = [4, 5, 10]`. For each: upserts the company row, then paginates `account.move` at PAGE_SIZE=200 filtered by `move_type IN (out_invoice, in_invoice, out_refund, in_refund)`, `state='posted'`, `invoice_date >= today - 365d`, `company_id=X`. Passes `context: { allowed_company_ids: [X] }` per call. Upserts on `id`. Writes a single `odoo_sync_runs` row spanning the whole run.
+- **`src/app/api/odoo/run-now/route.ts`** — CRON_SECRET-protected manual trigger. Accepts both GET + POST (GET for easy curling). `maxDuration: 300`.
+- **`src/app/api/cron/odoo/route.ts`** — daily cron handler, no Cairo-time gate (unlike Gmail's 9AM gate) — whenever Vercel fires it, sync runs.
+- **`vercel.json`** — added `{ "path": "/api/cron/odoo", "schedule": "0 4 * * *" }` (04:00 UTC, staggered ahead of the 06:00/07:00 Gmail crons).
+
+### First sync results (trigger: manual, run_id `49751772-023e-43db-b9c4-bdf1660f992a`, 14.4s)
+| Company | ID | Invoices | Customer | Vendor | Refunds | Currencies | Date range |
+|---|---|---|---|---|---|---|---|
+| A1HOSPITALITY | 4 | 131 | 100 | 31 | 0 | 2 | 2025-04-21 → 2026-04-01 |
+| Beithady Egypt | 5 | 2,216 | 1,207 | 1,008 | 1 | 3 | 2025-04-21 → 2026-04-15 |
+| Beithady Dubai | 10 | 1,328 | 1,254 | 74 | 0 | 3 | 2025-11-01 → 2026-04-21 |
+
+Verified via MCP `execute_sql` aggregation. Numbers align with `?explore=1` probe expectations:
+- A1HOSPITALITY: probe showed 191 all-time → 131 within 365d window (60 older); ratio is plausible.
+- Beithady Egypt: probe 2,266 all-time → 2,216 within window + 1 refund ≈ probe (close match).
+- Beithady Dubai: probe 1,328 all-time → 1,328 within window (100% — company is < 365d old).
+
+### Observations for future phases
+- **Beithady Dubai is customer-heavy** (94% customer invoices, only 74 vendor bills) — operational costs likely routed through Egypt's books. Cross-company join essential for true Dubai P&L.
+- **Currency mix confirmed**: USD + EGP + AED across the three companies. `amount_total` is in transaction currency (per `currency_id` tuple); for revenue aggregates we'll need an FX table or exchange rates.
+- **Company currencies all stored as "EGP"** in `res.company.currency_id` — this is the base reporting currency, NOT the transaction currency.
+- **No FK on `partner_id`** intentionally — partners table deferred to 7.2. Denormalized `partner_name` keeps dashboards cheap for v1.
+
+### Existing Supabase schema surprise
+`public.rule_runs` (43 rows) and `public.app_users` (1 row) exist but aren't in `0001_init.sql` — prior session(s) added them directly via the Supabase SQL editor or an un-checked-in migration. Not related to Odoo; noted for awareness.
+
+### What's open (user's call)
+- **Phase 7.2**: analytic-account-to-invoice mapping via `account.move.line.analytic_distribution` → unlocks per-building P&L (BH-435 cross-company join across companies 4, 5, 10)
+- **Phase 7.3**: partners sync (`res.partner` with supplier_rank/customer_rank), adds vendor/cleaner directory
+- **Dashboard surface**: render Odoo data in `src/app/page.tsx` or new `/finance` route
+- **Pivot to next platform**: PriceLabs (easier, pairs with Guesty) or Green-API WhatsApp (messaging layer)
+
 ## 🟡 PHASE 7.1 SCOPE — A1HOSPITALITY added for owner-side P&L of BH-435 (awaiting portfolio mapping)
 
 ### User direction
