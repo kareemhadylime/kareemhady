@@ -89,6 +89,7 @@ export type BeithadyPayoutAggregate = {
   stripe_api_charge_count: number;
   stripe_api_refund_count: number;
   stripe_api_guest_names: number; // transactions where a guest name was extractable from metadata/description
+  guesty_enriched_count?: number;
 };
 
 const AIRBNB_PAYOUT_SYSTEM = `You parse Airbnb payout-notification emails relayed through Guesty to guesty@beithady.com.
@@ -511,6 +512,47 @@ export async function aggregateBeithadyPayouts(
     }
   }
 
+  // Guesty enrichment: overlay authoritative host_payout + listing + dates +
+  // guest name onto each Airbnb line item. Guesty wins on conflict.
+  let payoutEnrichedCount = 0;
+  try {
+    const { batchLookupGuestyReservations } = await import(
+      '@/lib/guesty-enrichment'
+    );
+    const matches = await batchLookupGuestyReservations(
+      allLineItems.map((li, idx) => ({
+        key: `${idx}`,
+        platformCode: li.confirmation_code || null,
+        guestyCode: null,
+      }))
+    );
+    for (let i = 0; i < allLineItems.length; i++) {
+      const g = matches.get(`${i}`);
+      if (!g) continue;
+      const li = allLineItems[i] as typeof allLineItems[number] & {
+        guesty_host_payout?: number | null;
+        guesty_nights?: number | null;
+        guesty_currency?: string | null;
+        _guesty_matched?: boolean;
+      };
+      // Never overwrite the email-parsed AED/USD amount (we need it for
+      // reconciliation); instead attach guesty_* variants so consumers can
+      // prefer the authoritative net-of-commission payout when displaying.
+      li.guesty_host_payout = g.host_payout;
+      li.guesty_nights = g.nights;
+      li.guesty_currency = g.currency;
+      if (g.listing_nickname) li.listing_name = g.listing_nickname;
+      if (g.check_in_date) li.check_in_date = g.check_in_date;
+      if (g.check_out_date) li.check_out_date = g.check_out_date;
+      if (g.guest_name) li.guest_name = g.guest_name;
+      if (g.building_code) li.building_code = g.building_code;
+      li._guesty_matched = true;
+      payoutEnrichedCount++;
+    }
+  } catch {
+    // Guesty mirror unavailable — skip enrichment.
+  }
+
   return {
     airbnb_email_count: airbnbBodies.length,
     stripe_email_count: stripeBodies.length,
@@ -526,6 +568,7 @@ export async function aggregateBeithadyPayouts(
     airbnb_total_usd: roundMoney(airbnbTotalUsd),
     refund_count: refundCount,
     refund_total_usd: roundMoney(refundTotalUsd),
+    guesty_enriched_count: payoutEnrichedCount,
     airbnb_payouts: airbnbPayoutsSummary,
     airbnb_line_items: allLineItems.map(li => ({
       ...li,

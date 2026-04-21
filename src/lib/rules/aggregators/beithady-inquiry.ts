@@ -65,6 +65,7 @@ export type BeithadyInquiryAggregate = {
   by_building: InquiryBuildingBucket[];
   by_guest: InquiryGuestGroup[];
   inquiries: StoredInquiry[];
+  guesty_enriched_count?: number;
 };
 
 const INQUIRY_SYSTEM = `You parse Airbnb inquiry-notification emails relayed through Guesty to guesty@beithady.com.
@@ -262,15 +263,34 @@ export async function aggregateBeithadyInquiries(
     parsed.map(p => classifyInquiry(p.parsed))
   );
   let classificationErrors = 0;
+
+  // Resolve listing_name → canonical building_code via Guesty mirror.
+  let listingNameToBuilding = new Map<string, string>();
+  let inquiryEnrichedCount = 0;
+  try {
+    const { batchLookupBuildingsByListingName } = await import(
+      '@/lib/guesty-enrichment'
+    );
+    listingNameToBuilding = await batchLookupBuildingsByListingName(
+      parsed.map(p => p.parsed.listing_name)
+    );
+  } catch {
+    // skip
+  }
+
   const inquiries: StoredInquiry[] = parsed.map((p, i) => {
     const r = classified[i];
     let cls: InquiryClassification | null = null;
     if (r.status === 'fulfilled') cls = r.value;
     else classificationErrors++;
+    const guestyBuilding = listingNameToBuilding.get(
+      String(p.parsed.listing_name || '').toLowerCase()
+    );
+    if (guestyBuilding) inquiryEnrichedCount++;
     return {
       ...p.parsed,
       received_iso: p.receivedIso,
-      building_code: buildingFromListing(p.parsed.listing_name),
+      building_code: guestyBuilding || buildingFromListing(p.parsed.listing_name),
       classification: cls,
     };
   });
@@ -364,5 +384,6 @@ export async function aggregateBeithadyInquiries(
     by_building: byBuilding,
     by_guest: byGuest,
     inquiries,
+    guesty_enriched_count: inquiryEnrichedCount,
   };
 }

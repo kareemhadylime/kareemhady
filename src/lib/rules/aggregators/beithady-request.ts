@@ -73,6 +73,7 @@ export type BeithadyRequestAggregate = {
   by_category: RequestCategoryBucket[];
   by_reservation: RequestReservationGroup[];
   messages: StoredMessage[];
+  guesty_enriched_count?: number;
 };
 
 const MESSAGE_SYSTEM = `You parse Airbnb reservation-message emails relayed through Guesty to guesty@beithady.com. These are emails where a guest WITH AN EXISTING RESERVATION has sent a message to the host.
@@ -306,17 +307,34 @@ export async function aggregateBeithadyRequests(
   );
   let classificationErrors = 0;
 
+  let listingNameToBuilding = new Map<string, string>();
+  let requestEnrichedCount = 0;
+  try {
+    const { batchLookupBuildingsByListingName } = await import(
+      '@/lib/guesty-enrichment'
+    );
+    listingNameToBuilding = await batchLookupBuildingsByListingName(
+      parsed.map(p => p.parsed.listing_name)
+    );
+  } catch {
+    // skip
+  }
+
   const messages: StoredMessage[] = parsed.map((p, i) => {
     const r = classified[i];
     let cls: RequestClassification | null = null;
     if (r.status === 'fulfilled') cls = r.value;
     else classificationErrors++;
+    const guestyBuilding = listingNameToBuilding.get(
+      String(p.parsed.listing_name || '').toLowerCase()
+    );
+    if (guestyBuilding) requestEnrichedCount++;
     return {
       ...p.parsed,
       received_iso: p.src.receivedIso,
       subject: p.src.subject,
       group_key: normalizeSubject(p.src.subject),
-      building_code: buildingFromListing(p.parsed.listing_name),
+      building_code: guestyBuilding || buildingFromListing(p.parsed.listing_name),
       classification: cls,
     };
   });
@@ -443,5 +461,6 @@ export async function aggregateBeithadyRequests(
     by_category: byCategory,
     by_reservation: byReservation,
     messages,
+    guesty_enriched_count: requestEnrichedCount,
   };
 }

@@ -67,6 +67,7 @@ export type BeithadyReviewAggregate = {
   reviews: Array<
     ParsedAirbnbReview & { email_date: string | null; building_code: string | null }
   >;
+  guesty_enriched_count?: number;
 };
 
 const REVIEW_SYSTEM = `You parse Airbnb guest-review notification emails relayed through Guesty to guesty@beithady.com.
@@ -281,6 +282,21 @@ export async function aggregateBeithadyReviews(
   const flaggedSources: Array<ParsedEntry & { building: string | null }> = [];
   const reviewsOut: BeithadyReviewAggregate['reviews'] = [];
 
+  // Resolve every listing_name → canonical building_code via the Guesty
+  // mirror first. Falls back to catalog heuristic when no Guesty hit.
+  let listingNameToBuilding = new Map<string, string>();
+  let enrichedCount = 0;
+  try {
+    const { batchLookupBuildingsByListingName } = await import(
+      '@/lib/guesty-enrichment'
+    );
+    listingNameToBuilding = await batchLookupBuildingsByListingName(
+      parsed.map(e => e.parsed.listing_name)
+    );
+  } catch {
+    // skip
+  }
+
   for (const e of parsed) {
     const p = e.parsed;
     const r = Math.max(1, Math.min(5, Math.round(p.rating)));
@@ -289,7 +305,11 @@ export async function aggregateBeithadyReviews(
     if (r < 3) lowCount += 1;
     if (r === 5) fiveStarCount += 1;
 
-    const building = buildingFromListing(p.listing_name);
+    const guestyBuilding = listingNameToBuilding.get(
+      String(p.listing_name || '').toLowerCase()
+    );
+    const building = guestyBuilding || buildingFromListing(p.listing_name);
+    if (guestyBuilding) enrichedCount++;
     reviewsOut.push({
       ...p,
       rating: r,
@@ -399,5 +419,6 @@ export async function aggregateBeithadyReviews(
     worst_building: worstBuilding,
     flagged_reviews: flagged,
     reviews: reviewsOut,
+    guesty_enriched_count: enrichedCount,
   };
 }

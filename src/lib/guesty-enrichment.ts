@@ -214,6 +214,177 @@ function toLite(
   };
 }
 
+// Batch lookup reservations by guest_name + listing_name — used by review /
+// inquiry / request aggregators where the email doesn't carry a booking code.
+// Match is case-insensitive, tolerates extra whitespace, and prefers the
+// most recent reservation when multiple hits. Returns a Map keyed on the
+// caller's opaque `key`.
+export async function batchLookupReservationsByGuest(
+  items: Array<{
+    key: string;
+    guestName?: string | null;
+    listingNickname?: string | null;
+    nearCheckin?: string | null; // YYYY-MM-DD to prefer reservations overlapping this date
+  }>
+): Promise<Map<string, GuestyReservationLite>> {
+  if (items.length === 0) return new Map();
+  const sb = supabaseAdmin();
+  const out = new Map<string, GuestyReservationLite>();
+
+  // Deduplicate guest names for the batch query
+  const names = Array.from(
+    new Set(
+      items
+        .map(i => i.guestName?.trim().toLowerCase())
+        .filter((n): n is string => !!n && n.length > 1)
+    )
+  );
+  if (names.length === 0) return out;
+
+  // Case-insensitive IN via or() with ilike patterns, capped to avoid URL overflow.
+  const chunkSize = 40;
+  const candidates: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < names.length; i += chunkSize) {
+    const chunk = names.slice(i, i + chunkSize);
+    const ors = chunk.map(n => `guest_name.ilike.${n.replace(/,/g, ' ')}`).join(',');
+    const { data } = await sb
+      .from('guesty_reservations')
+      .select(
+        `id, confirmation_code, platform_confirmation_code, status, source,
+         integration_platform, listing_id, listing_nickname, guest_name,
+         guest_email, check_in_date, check_out_date, nights, guests, currency,
+         host_payout, guest_paid, fare_accommodation, cleaning_fee,
+         guesty_listings!left(building_code)`
+      )
+      .or(ors)
+      .order('check_in_date', { ascending: false })
+      .limit(500);
+    if (Array.isArray(data)) candidates.push(...(data as Array<Record<string, unknown>>));
+  }
+
+  // Index candidates by name+listing for fast match
+  type Cand = Record<string, unknown> & {
+    guesty_listings?: { building_code?: string | null } | null;
+  };
+  const byGuest = new Map<string, Cand[]>();
+  for (const c of candidates as Cand[]) {
+    const gn = String(c.guest_name || '').trim().toLowerCase();
+    if (!gn) continue;
+    const arr = byGuest.get(gn) || [];
+    arr.push(c);
+    byGuest.set(gn, arr);
+  }
+
+  for (const i of items) {
+    const gn = i.guestName?.trim().toLowerCase();
+    if (!gn) continue;
+    const matches = byGuest.get(gn) || [];
+    if (matches.length === 0) continue;
+
+    // Prefer the match whose listing_nickname matches the email's listing_name
+    // (case-insensitive substring match in either direction).
+    let best: Cand | null = null;
+    if (i.listingNickname) {
+      const target = i.listingNickname.toLowerCase();
+      best =
+        matches.find(m => {
+          const nick = String(m.listing_nickname || '').toLowerCase();
+          return (
+            nick &&
+            (nick.includes(target) || target.includes(nick))
+          );
+        }) || null;
+    }
+    // Then prefer one whose check-in is near the hint date.
+    if (!best && i.nearCheckin) {
+      const target = new Date(i.nearCheckin).getTime();
+      if (!Number.isNaN(target)) {
+        best = matches.reduce<Cand | null>((acc, m) => {
+          const ci = m.check_in_date
+            ? new Date(String(m.check_in_date)).getTime()
+            : NaN;
+          if (Number.isNaN(ci)) return acc;
+          if (!acc) return m;
+          const prev = new Date(String(acc.check_in_date)).getTime();
+          return Math.abs(ci - target) < Math.abs(prev - target) ? m : acc;
+        }, null);
+      }
+    }
+    // Fallback: most recent.
+    if (!best) best = matches[0] || null;
+    if (best) out.set(i.key, toLite(best));
+  }
+
+  return out;
+}
+
+// Batch resolve many listing nicknames → building_code in one query. Used
+// by review / inquiry / request aggregators so every row gets the canonical
+// BH-* tag even when the email carried only a friendly listing name.
+// Match is case-insensitive; fuzzy fallback uses contains-either-direction.
+export async function batchLookupBuildingsByListingName(
+  names: Array<string | null | undefined>
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = Array.from(
+    new Set(
+      names
+        .map(n => (n ? n.trim() : ''))
+        .filter(n => n.length >= 3)
+    )
+  );
+  if (unique.length === 0) return out;
+
+  const sb = supabaseAdmin();
+  // Exact match pass first (O(1) lookups).
+  const { data: exact } = await sb
+    .from('guesty_listings')
+    .select('nickname, title, building_code')
+    .in('nickname', unique);
+  for (const row of (exact as Array<{
+    nickname: string | null;
+    title: string | null;
+    building_code: string | null;
+  }> | null) || []) {
+    if (row.nickname && row.building_code) {
+      out.set(row.nickname.toLowerCase(), row.building_code);
+    }
+    if (row.title && row.building_code) {
+      out.set(row.title.toLowerCase(), row.building_code);
+    }
+  }
+
+  // Fuzzy fallback: for names we didn't resolve, pull all listings with
+  // a building_code and substring-match. Small tenant (~100 listings) so
+  // one pull is cheap.
+  const unresolved = unique.filter(n => !out.has(n.toLowerCase()));
+  if (unresolved.length > 0) {
+    const { data: all } = await sb
+      .from('guesty_listings')
+      .select('nickname, title, building_code')
+      .not('building_code', 'is', null);
+    const catalog = (all as Array<{
+      nickname: string | null;
+      title: string | null;
+      building_code: string | null;
+    }> | null) || [];
+    for (const n of unresolved) {
+      const low = n.toLowerCase();
+      const hit = catalog.find(c => {
+        const nick = String(c.nickname || '').toLowerCase();
+        const title = String(c.title || '').toLowerCase();
+        return (
+          (nick && (nick.includes(low) || low.includes(nick))) ||
+          (title && (title.includes(low) || low.includes(title)))
+        );
+      });
+      if (hit?.building_code) out.set(low, hit.building_code);
+    }
+  }
+
+  return out;
+}
+
 // Resolve a listing nickname → building_code using the Guesty mirror.
 // Used by aggregators that want to overlay the canonical building tag when
 // email parsing produced only the listing name.
