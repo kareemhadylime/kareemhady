@@ -24,6 +24,12 @@ import {
   GitCompare,
   Plane,
   Banknote,
+  Star,
+  ThumbsUp,
+  ThumbsDown,
+  Flag,
+  MessageSquareWarning,
+  Lightbulb,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
@@ -81,6 +87,7 @@ export default async function RuleOutputDetailPage({
   const actionType = (rule.actions as any)?.type || 'shopify_order_aggregate';
   const isBeithady = actionType === 'beithady_booking_aggregate';
   const isPayout = actionType === 'beithady_payout_aggregate';
+  const isReviews = actionType === 'beithady_reviews_aggregate';
 
   const lastRange = out?.time_range as
     | {
@@ -320,7 +327,9 @@ export default async function RuleOutputDetailPage({
               </div>
             )}
 
-            {isPayout ? (
+            {isReviews ? (
+              <BeithadyReviewView out={out} emailsMatched={latest.input_email_count ?? 0} />
+            ) : isPayout ? (
               <BeithadyPayoutView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : isBeithady ? (
               <BeithadyView out={out} emailsMatched={latest.input_email_count ?? 0} />
@@ -340,18 +349,26 @@ export default async function RuleOutputDetailPage({
                     <th className="text-left px-6 font-medium">Status</th>
                     <th className="text-right px-6 font-medium">Emails</th>
                     <th className="text-right px-6 font-medium">
-                      {isPayout ? 'Total AED' : isBeithady ? 'Reservations' : 'Orders'}
+                      {isReviews
+                        ? 'Reviews'
+                        : isPayout
+                          ? 'Total AED'
+                          : isBeithady
+                            ? 'Reservations'
+                            : 'Orders'}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {runs?.map(r => {
                     const tr = (r.output as any)?.time_range;
-                    const count = isPayout
-                      ? Math.round(Number((r.output as any)?.total_aed) || 0)
-                      : isBeithady
-                        ? (r.output as any)?.reservation_count
-                        : (r.output as any)?.order_count;
+                    const count = isReviews
+                      ? (r.output as any)?.total_reviews
+                      : isPayout
+                        ? Math.round(Number((r.output as any)?.total_aed) || 0)
+                        : isBeithady
+                          ? (r.output as any)?.reservation_count
+                          : (r.output as any)?.order_count;
                     return (
                       <tr key={r.id} className="border-t border-slate-100">
                         <td className="py-2.5 px-6 whitespace-nowrap">
@@ -2284,5 +2301,534 @@ function StatusPill({ status }: { status: string }) {
     <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${cls}`}>
       {status}
     </span>
+  );
+}
+
+function StarRow({ rating }: { rating: number }) {
+  const rounded = Math.max(0, Math.min(5, Math.round(rating)));
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(i => (
+        <Star
+          key={i}
+          size={13}
+          className={
+            i <= rounded ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+function BeithadyReviewView({
+  out,
+  emailsMatched,
+}: {
+  out: any;
+  emailsMatched: number;
+}) {
+  const total: number = out?.total_reviews ?? 0;
+  const avg: number = Number(out?.avg_rating ?? 0);
+  const lowCount: number = out?.low_rating_count ?? 0;
+  const fiveStar: number = out?.five_star_count ?? 0;
+  const histogram: Record<string, number> = out?.rating_histogram || {};
+  const byBuilding: Array<{
+    key: string;
+    review_count: number;
+    avg_rating: number;
+    low_rating_count: number;
+    five_star_count: number;
+  }> = out?.by_building || [];
+  const byMonth: Array<{
+    month: string;
+    label: string;
+    count: number;
+    avg_rating: number;
+  }> = out?.by_month || [];
+  const topBuilding: {
+    key: string;
+    review_count: number;
+    avg_rating: number;
+  } | null = out?.top_building || null;
+  const worstBuilding: {
+    key: string;
+    review_count: number;
+    avg_rating: number;
+  } | null = out?.worst_building || null;
+  const flagged: Array<{
+    guest_name: string;
+    rating: number;
+    review_text: string | null;
+    listing_name: string | null;
+    stay_start: string | null;
+    stay_end: string | null;
+    email_date: string | null;
+    building_code: string | null;
+    action_plan: {
+      category: string;
+      priority: 'high' | 'medium' | 'low';
+      root_cause: string;
+      suggested_response: string;
+      internal_action: string;
+    } | null;
+  }> = out?.flagged_reviews || [];
+  const reviews: Array<{
+    guest_name: string;
+    rating: number;
+    review_text: string | null;
+    listing_name: string | null;
+    stay_start: string | null;
+    stay_end: string | null;
+    email_date: string | null;
+    building_code: string | null;
+  }> = out?.reviews || [];
+
+  const maxHist = Math.max(1, ...Object.values(histogram).map(v => Number(v) || 0));
+  const lowShare = total > 0 ? (lowCount / total) * 100 : 0;
+
+  return (
+    <>
+      <section
+        className="relative rounded-2xl overflow-hidden border border-amber-200/60 shadow-sm"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(251,191,36,0.10) 0%, rgba(249,115,22,0.06) 45%, rgba(244,63,94,0.08) 100%)',
+        }}
+      >
+        <div className="absolute -top-10 -right-10 w-64 h-64 rounded-full bg-gradient-to-br from-amber-400 to-rose-400 opacity-20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-64 h-64 rounded-full bg-gradient-to-br from-rose-400 to-orange-400 opacity-15 blur-3xl pointer-events-none" />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-amber-700 text-xs uppercase tracking-wider font-semibold">
+            <Star size={14} /> Beithady · Guest reviews
+          </div>
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
+            <HeroStat
+              label="Total reviews"
+              value={total.toLocaleString()}
+              sub={`${emailsMatched.toLocaleString()} review emails processed`}
+              Icon={Star}
+            />
+            <HeroStat
+              label="Average rating"
+              value={avg ? `${avg.toFixed(2)}⭐` : '—'}
+              sub={
+                total > 0
+                  ? `Across ${total} review${total !== 1 ? 's' : ''}`
+                  : 'No reviews yet in range'
+              }
+              Icon={TrendingUp}
+            />
+            <HeroStat
+              label="Flagged (<3⭐)"
+              value={lowCount.toLocaleString()}
+              sub={
+                total > 0
+                  ? `${lowShare.toFixed(1)}% of reviews need follow-up`
+                  : 'Nothing flagged'
+              }
+              Icon={Flag}
+            />
+            <HeroStat
+              label="5-star reviews"
+              value={fiveStar.toLocaleString()}
+              sub={
+                total > 0
+                  ? `${((fiveStar / total) * 100).toFixed(1)}% of reviews`
+                  : '—'
+              }
+              Icon={ThumbsUp}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader
+          title="Rating distribution"
+          hint="How reviews split across the 1-5 scale. Anything below 3 is flagged for follow-up."
+        />
+        <div className="ix-card p-6 mt-3 space-y-3">
+          {(['5', '4', '3', '2', '1'] as const).map(r => {
+            const count = Number(histogram[r] || 0);
+            const pct = total > 0 ? (count / total) * 100 : 0;
+            const barPct = (count / maxHist) * 100;
+            const isLow = r === '1' || r === '2';
+            const isFive = r === '5';
+            return (
+              <div key={r} className="flex items-center gap-3">
+                <div className="w-20 flex items-center gap-1 text-sm">
+                  <span className="font-semibold tabular-nums">{r}</span>
+                  <Star size={13} className="fill-amber-400 text-amber-400" />
+                </div>
+                <div className="flex-1 h-3 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${
+                      isFive
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                        : isLow
+                          ? 'bg-gradient-to-r from-rose-500 to-red-500'
+                          : 'bg-gradient-to-r from-amber-400 to-orange-400'
+                    }`}
+                    style={{ width: `${barPct}%` }}
+                  />
+                </div>
+                <div className="w-24 text-right text-xs text-slate-600 tabular-nums">
+                  {count} · {pct.toFixed(1)}%
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {(topBuilding || worstBuilding) && (
+        <section>
+          <SectionHeader
+            title="Best / worst performer"
+            hint="Requires at least 2 reviews per building to qualify. Building inferred from listing name (EDNC/New Cairo/Kattameya → BH-OK; Heliopolis/Merghany → BH-MG; otherwise UNKNOWN)."
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div className="ix-card p-5 border-emerald-200 bg-emerald-50/40">
+              <div className="flex items-center gap-2 text-emerald-700 text-xs uppercase tracking-wider font-semibold">
+                <ThumbsUp size={14} /> Best average
+              </div>
+              {topBuilding ? (
+                <>
+                  <div className="mt-2 font-mono font-bold text-xl">
+                    {topBuilding.key}
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-sm">
+                    <StarRow rating={topBuilding.avg_rating} />
+                    <span className="font-semibold tabular-nums">
+                      {topBuilding.avg_rating.toFixed(2)}
+                    </span>
+                    <span className="text-slate-500 text-xs">
+                      · {topBuilding.review_count} reviews
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-slate-500">
+                  Not enough data (need ≥2 reviews per building).
+                </div>
+              )}
+            </div>
+            <div className="ix-card p-5 border-rose-200 bg-rose-50/40">
+              <div className="flex items-center gap-2 text-rose-700 text-xs uppercase tracking-wider font-semibold">
+                <ThumbsDown size={14} /> Worst average
+              </div>
+              {worstBuilding ? (
+                <>
+                  <div className="mt-2 font-mono font-bold text-xl">
+                    {worstBuilding.key}
+                  </div>
+                  <div className="mt-1 flex items-center gap-2 text-sm">
+                    <StarRow rating={worstBuilding.avg_rating} />
+                    <span className="font-semibold tabular-nums">
+                      {worstBuilding.avg_rating.toFixed(2)}
+                    </span>
+                    <span className="text-slate-500 text-xs">
+                      · {worstBuilding.review_count} reviews
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-2 text-sm text-slate-500">
+                  Not enough data (need ≥2 reviews per building).
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {byBuilding.length > 0 && (
+        <section>
+          <SectionHeader
+            title="By building"
+            hint="Reviews grouped by inferred building. UNKNOWN rows couldn't be attributed from the listing name alone."
+          />
+          <div className="ix-card overflow-hidden mt-3">
+            <table className="w-full text-sm">
+              <thead className="bg-amber-50/60 text-amber-900">
+                <tr>
+                  <th className="text-left py-2.5 px-6 font-medium">Building</th>
+                  <th className="text-right px-6 font-medium">Reviews</th>
+                  <th className="text-left px-6 font-medium">Avg</th>
+                  <th className="text-right px-6 font-medium">Flagged (&lt;3)</th>
+                  <th className="text-right px-6 font-medium">5-star</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byBuilding.map(b => (
+                  <tr key={b.key} className="border-t border-slate-100">
+                    <td className="py-2.5 px-6 font-mono font-semibold">{b.key}</td>
+                    <td className="px-6 text-right tabular-nums">
+                      {b.review_count}
+                    </td>
+                    <td className="px-6">
+                      <div className="flex items-center gap-2">
+                        <StarRow rating={b.avg_rating} />
+                        <span className="tabular-nums text-xs">
+                          {b.avg_rating.toFixed(2)}
+                        </span>
+                      </div>
+                    </td>
+                    <td
+                      className={`px-6 text-right tabular-nums ${
+                        b.low_rating_count > 0 ? 'text-rose-700 font-semibold' : ''
+                      }`}
+                    >
+                      {b.low_rating_count}
+                    </td>
+                    <td className="px-6 text-right tabular-nums">
+                      {b.five_star_count}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {byMonth.length > 0 && (
+        <section>
+          <SectionHeader
+            title="Trend by month"
+            hint="Average rating and review volume per month (grouped by email received date)."
+          />
+          <div className="ix-card overflow-hidden mt-3">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left py-2.5 px-6 font-medium">Month</th>
+                  <th className="text-right px-6 font-medium">Reviews</th>
+                  <th className="text-left px-6 font-medium">Avg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byMonth.map(m => (
+                  <tr key={m.month} className="border-t border-slate-100">
+                    <td className="py-2.5 px-6">{m.label}</td>
+                    <td className="px-6 text-right tabular-nums">{m.count}</td>
+                    <td className="px-6">
+                      <div className="flex items-center gap-2">
+                        <StarRow rating={m.avg_rating} />
+                        <span className="tabular-nums text-xs">
+                          {m.avg_rating.toFixed(2)}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {flagged.length > 0 && (
+        <section>
+          <SectionHeader
+            title={`Flagged reviews (${flagged.length})`}
+            hint="Ratings below 3⭐. Each has a suggested public reply and an internal action. Email notifications usually don't include the guest's written text (it's still editable for 48h), so the action plan reasons from the rating + listing."
+          />
+          <div className="space-y-4 mt-3">
+            {flagged.map((f, i) => (
+              <div
+                key={i}
+                className="ix-card overflow-hidden border-rose-200/80"
+              >
+                <div className="px-6 py-4 bg-rose-50/60 border-b border-rose-100 flex items-start justify-between flex-wrap gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <MessageSquareWarning
+                        size={16}
+                        className="text-rose-700 shrink-0"
+                      />
+                      <span className="font-semibold">{f.guest_name}</span>
+                      <StarRow rating={f.rating} />
+                      <span className="text-xs text-rose-700 font-semibold tabular-nums">
+                        {f.rating}/5
+                      </span>
+                      {f.building_code && (
+                        <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200">
+                          {f.building_code}
+                        </span>
+                      )}
+                      {f.action_plan?.priority && (
+                        <span
+                          className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${
+                            f.action_plan.priority === 'high'
+                              ? 'bg-rose-600 text-white'
+                              : f.action_plan.priority === 'medium'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {f.action_plan.priority} priority
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="mt-1 text-xs text-slate-600 truncate"
+                      title={f.listing_name || undefined}
+                    >
+                      {f.listing_name || 'Unknown listing'}
+                      {f.stay_start && f.stay_end
+                        ? ` · ${f.stay_start} → ${f.stay_end}`
+                        : ''}
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                    {f.email_date
+                      ? new Date(f.email_date).toLocaleDateString()
+                      : '—'}
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  {f.review_text && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">
+                        Guest review
+                      </div>
+                      <blockquote className="border-l-4 border-rose-300 pl-4 text-sm text-slate-700 italic">
+                        {f.review_text}
+                      </blockquote>
+                    </div>
+                  )}
+                  {f.action_plan ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">
+                            Category
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 text-sm font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                            {f.action_plan.category}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 mb-1">
+                            Root cause
+                          </div>
+                          <div className="text-sm text-slate-700">
+                            {f.action_plan.root_cause}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 mb-1 flex items-center gap-1">
+                          <Lightbulb size={12} /> Suggested public reply
+                        </div>
+                        <div className="text-sm text-slate-800 bg-emerald-50/60 border border-emerald-200 rounded-lg p-3">
+                          {f.action_plan.suggested_response}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider font-semibold text-indigo-700 mb-1 flex items-center gap-1">
+                          <Flag size={12} /> Internal action
+                        </div>
+                        <div className="text-sm text-slate-800 bg-indigo-50/60 border border-indigo-200 rounded-lg p-3">
+                          {f.action_plan.internal_action}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-slate-500">
+                      Action plan could not be generated for this review (Haiku
+                      call failed). Re-run to retry.
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {reviews.length > 0 && (
+        <section>
+          <SectionHeader
+            title={`All reviews (${reviews.length})`}
+            hint="Every review in the selected range. Sortable by your email client's own filtering."
+          />
+          <div className="ix-card overflow-hidden mt-3">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left py-2.5 px-4 font-medium">Date</th>
+                  <th className="text-left px-4 font-medium">Guest</th>
+                  <th className="text-left px-4 font-medium">Rating</th>
+                  <th className="text-left px-4 font-medium">Listing</th>
+                  <th className="text-left px-4 font-medium">Bldg</th>
+                  <th className="text-left px-4 font-medium">Stay</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviews.slice(0, 200).map((r, i) => (
+                  <tr
+                    key={`${r.guest_name}-${i}`}
+                    className="border-t border-slate-100 hover:bg-slate-50/50"
+                  >
+                    <td className="py-2.5 px-4 whitespace-nowrap text-xs text-slate-600">
+                      {r.email_date
+                        ? new Date(r.email_date).toLocaleDateString()
+                        : '—'}
+                    </td>
+                    <td className="px-4">{r.guest_name}</td>
+                    <td className="px-4">
+                      <div className="flex items-center gap-1.5">
+                        <StarRow rating={r.rating} />
+                        <span
+                          className={`text-xs font-semibold tabular-nums ${
+                            r.rating < 3
+                              ? 'text-rose-700'
+                              : r.rating === 5
+                                ? 'text-emerald-700'
+                                : 'text-slate-600'
+                          }`}
+                        >
+                          {r.rating}
+                        </span>
+                      </div>
+                    </td>
+                    <td
+                      className="px-4 max-w-[260px] truncate text-xs"
+                      title={r.listing_name || undefined}
+                    >
+                      {r.listing_name || '—'}
+                    </td>
+                    <td className="px-4 font-mono text-xs">
+                      {r.building_code || '—'}
+                    </td>
+                    <td className="px-4 whitespace-nowrap text-xs text-slate-600">
+                      {r.stay_start && r.stay_end
+                        ? `${r.stay_start} → ${r.stay_end}`
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {total === 0 && (
+        <section>
+          <div className="ix-card p-6 bg-slate-50 text-slate-600 text-sm">
+            No review emails in this range. The rule searches for messages{' '}
+            <span className="font-mono">
+              to:guesty@beithady.com subject:&quot;review&quot;
+            </span>
+            . Airbnb notifies once a guest posts a review (subject like
+            &quot;Charlie left a 5-star review!&quot;).
+          </div>
+        </section>
+      )}
+    </>
   );
 }

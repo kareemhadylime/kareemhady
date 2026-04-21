@@ -115,11 +115,12 @@ export function RuleForm({
             <option value="shopify_order_aggregate">Shopify order aggregate</option>
             <option value="beithady_booking_aggregate">Beithady booking aggregate (Guesty)</option>
             <option value="beithady_payout_aggregate">Beithady payout aggregate (Airbnb + Stripe)</option>
+            <option value="beithady_reviews_aggregate">Beithady reviews aggregate (Airbnb)</option>
           </select>
         </Field>
         <Field
           label="Currency"
-          hint="EGP for KIKA · USD for Beithady bookings · AED is hardcoded for Beithady payouts."
+          hint="EGP for KIKA · USD for Beithady bookings · AED is hardcoded for Beithady payouts · ignored for Beithady reviews."
         >
           <input
             name="currency"
