@@ -1,5 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ REQUESTS GROUP-BY TOGGLE + COLLAPSIBLE RUN HISTORY (commit 6f34fdf)
+
+### User request
+> "Requests view grouped with Choice Between Guest and Reservation / Choose how to group"
+> "Run history across all domains to be button only shows up when pressed"
+
+### Guest Requests view — group-by toggle (?group=guest | reservation)
+- Added `group?: string` to the detail page `searchParams`. Resolved server-side into `requestsGroupMode: 'guest' | 'reservation'`, default `reservation` (preserves existing behavior — shareable URL, no client bundle).
+- Threaded `groupMode`, `domain`, `ruleId`, `searchParamsSnapshot` into `BeithadyRequestView`. Local `buildGroupHref(mode)` helper builds the opposite-mode URL preserving existing preset / from / to params, omits the `group` query when switching back to reservation (keeps URL clean).
+- Toggle UI: two Next.js `<Link prefetch={false}>` buttons rendered inline with the section header. Active button is indigo-filled; inactive is white with slate text. Button pair wrapped in a rounded pill border.
+
+### New guest-mode rendering
+Added two helpers at module scope (after `BeithadyRequestView`):
+- `buildGuestThreads(messages)`: groups by `guest_name.toLowerCase().trim()`, builds per-thread aggregate — `reservationCount` (unique group_keys), `maxUrgency` (via `REQUEST_URGENCY_RANK`), `hasImmediateComplaint`, `categories` (union), `buildings` (union), `listings` (union), `latestReceivedIso` + associated `latestSummary` / `latestSuggestedAction`. Sort: immediate-complaint first → max urgency desc → latest activity desc.
+- `GuestThreadsList({ messages })`: thread card per guest. Header chips: guest name, urgency badge, immediate-complaint siren badge, msg count, **N reservations** chip when > 1, building codes, category union. Latest summary + suggested-action callouts. Inner messages chat-style (oldest first), each annotated with its own listing + stay range + `StayPhaseBadge` (so the reservation context stays legible when a guest spans multiple stays). Inline classifier summary, verbatim quote (Arabic-preserving with `whitespace-pre-wrap`), per-message suggested action.
+
+Reservation-mode rendering unchanged — still driven by `byReservation` (from the aggregator's pre-built reservation groups) + `messagesByGroup` fan-out. The conditional `groupMode === 'guest' ? <GuestThreadsList .../> : (<reservation markup>)` lives inside the existing section wrapper.
+
+### Run history — collapsed by default (all rule types)
+Existing `<section>` wraps a `<details className="group">`:
+- `<summary>` styled as a full-width clickable header: chevron-right icon that rotates 90° when open (via `group-open:rotate-90`), "Run history (N)" title, and a "Show"/"Hide" label that swaps via `group-open:hidden` / `hidden group-open:inline`.
+- Default disclosure triangle hidden with `list-none`.
+- Table content lives directly inside `<details>` so native HTML handles hide/show — zero JS, no client component.
+- Applies to all five rule types (Shopify, Beithady Bookings / Payouts / Reviews / Inquiries / Requests) since the Run history section is shared across them at the detail-page layout level.
+
+### Verification
+- `rm -rf .next && npm run build` clean (14 routes).
+- commit 6f34fdf on main via `git push origin HEAD:main`.
+- Deployed via root `C:\kareemhady` → `kareemhady-d7gy3815x-lime-investments.vercel.app` (Ready, 47s).
+
+### URL for QA
+- Default (reservation): `/emails/beithady/<requests-rule-id>`
+- Guest-mode: `/emails/beithady/<requests-rule-id>?group=guest`
+
+### Why URL param over client component
+1. Matches the existing pattern of the detail page (`preset`, `from`, `to` all use searchParams).
+2. State survives refresh + is shareable (paste the ?group=guest URL in Slack and land on the right view).
+3. No client bundle growth / no extra hydration for a rarely-used toggle.
+4. Toggle involves a round-trip, which on Vercel is ~200ms — fine for this kind of pivot.
+
 ## ✅ INQUIRIES VIEW: CHAT-STYLE PER-GUEST THREADS (commit b8868ea)
 
 ### User request
