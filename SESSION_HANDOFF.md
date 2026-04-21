@@ -1,5 +1,47 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 7.0.3 — Odoo connection verified end-to-end (no code changes)
+
+User regenerated API key + updated `ODOO_API_KEY` in Vercel. Redeploy to `kareemhady-7m4fvqp4l-lime-investments.vercel.app` + ping returned HTTP 200.
+
+### Ping response (4.4s round-trip)
+- **Server**: Odoo `18.0+e` — **Enterprise edition** (not Community/Online free tier; confirms paid license)
+- **Invoices**: `posted_total: 12626` posted customer/vendor invoices (heavy volume — Odoo is source of truth for accounting)
+- **Sample invoices**:
+  - `BILL/2026/05/0001` — 15,000 EGP vendor bill to "#004 Abanoub Rent" (future-dated 2026-05-01)
+  - `INV/2026/00027` — 7,627,176.50 EGP customer invoice to T&D (large construction-scale line)
+  - `INV/4712` — 4,617 EGP to "العاصمه الاداريه للتنميه العمرانيه" (New Administrative Capital / Urban Development)
+  - `INV/2026/00776` — 40 USD to "Direct Reservations" — **hospitality revenue, USD currency** (Beithady-relevant)
+- **Partners**: Arabic-named suppliers (اوميجا للهندسه، سعودي للمقاولات، etc.) — construction/trade/clothing vendors, not hospitality
+- **Analytic accounts**: `BH-Laila Elwy` (×2, different balances — likely per-year or per-company variant), `Mall of Mansoura`, VIN-style codes like `HJ4ABBHK2TN111058`
+
+### 🚨 Critical discovery — fmplus is a multi-business Odoo tenant
+fmplus.odoo.com hosts **multiple unrelated businesses** in one Odoo instance:
+- **Beithady** (hospitality, `BH-*` analytic accounts)
+- **Construction** (مقاولات suppliers, T&D customer)
+- **Mall of Mansoura** (commercial property)
+- **Autos/vehicles** (VIN-style codes `HJ4ABBHK*`)
+
+Implication for Phase 7.1+: we **cannot** blindly import all 12,626 invoices — kareemhady app is Beithady-scoped. Need to filter by either:
+1. Analytic account name `LIKE 'BH-%'`
+2. Per-company `res.company_id` filter (need to confirm fmplus uses multi-company with a dedicated Beithady company)
+3. Journal (`account.journal`) filter if they've separated journals per business
+
+### Schema planning for Phase 7.1
+- **Listing → analytic_account join is non-trivial**: Guesty listing nicknames are unit-level (`BH73-ST-C-004`), but Odoo analytic accounts are building-level (`BH-Laila Elwy`). Need a `building_name` column or mapping table. Probably: extract building name from Guesty `listing.address.street` or a `customField`, then fuzzy-match to `BH-<name>`.
+- **Currency**: preserve original on every row (EGP + USD coexist) — do NOT normalize.
+- **Duplicate analytic accounts**: two `BH-Laila Elwy` exist — check for year/company discriminator when querying.
+
+### Memory saved
+Wrote project memory at `C:\Users\karee\.claude\projects\C--kareemhady\memory\fmplus_odoo_tenant.md` + MEMORY.md index entry so future sessions pick up the multi-business context without re-probing.
+
+### Phase 7 scaffold: COMPLETE
+- `src/lib/odoo.ts` + `src/app/api/odoo/ping/route.ts` live and working.
+- Credentials all resolved: `ODOO_URL=https://fmplus.odoo.com`, `ODOO_DB=fmplus-live-17577886`, `ODOO_USER=kareem@fmplusme.com`, `ODOO_API_KEY=<regenerated-persistent-key>`.
+
+### Next step
+Phase 7.1 — Supabase migration `0009_odoo.sql` (tables: `odoo_invoices`, `odoo_partners`, `odoo_analytic_accounts`, `odoo_sync_runs`) + scoping filter for Beithady-only, then a `odoo_invoice_sync` rule (cron + on-demand like the Guesty one). OR — user may want to kick off next platform (PriceLabs or Green-API) instead of going deep on Odoo rules. Ask first.
+
 ## ⚠️ PHASE 7.0.2 — Auth still failing after DB fix: API key regeneration needed
 
 After user updated `ODOO_DB=fmplus-live-17577886` and redeployed, the Postgres-level error went away but auth now returns:
