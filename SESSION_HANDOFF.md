@@ -1,5 +1,50 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 8.1.1 — BH-73 Multi-Unit Strategy surfaced (commits 156201b → 756103d)
+
+User flagged: "BH-73 Uses new Multi Unit Strategy where Main units has several below as parent and child - Compare with Guesty Database"
+
+### Key discovery
+The "14 vs 29" gap for BH-73 wasn't missing data — it was **PriceLabs managing at the multi-unit PARENT level**. Each parent listing in PL has a `-- N Units` suffix in its name, e.g. `BH73-3BR-SB-1 -- Luxury 3BR ... -- 5 Units`. Those N sub-units each exist as their own Guesty `SINGLE` listings with a naming convention `BH73-3BR-SB-1-001/101/201/301/401`.
+
+### BH-73 structure verified
+| PriceLabs parent | Guesty children (derived from nickname) | N |
+|---|---|---|
+| BH73-3BR-SB-1 | -001, -101, -201, -301, -401 | 5 |
+| BH73-3BR-SB-2 | -002, -102, -202, -302, -402 | 5 |
+| BH73-3BR-SB-3 | -105, -204, -305 | 3 |
+| BH73-3BR-C-4 | -203, -403 | 2 |
+| BH73-2BR-SB-5 | -107, -307 | 2 |
+| BH73-2BR-SB-6 | -103, -303 | 2 |
+| BH73-ST-C-7 | -104, -304 | 2 |
+| BH73-1BR-C-8 | -106, -306 | 2 |
+
+23 sub-units managed by 8 parents + 6 singles (BH73-2BR-SB-404, BH73-3BR-C-003, BH73-3BR-C-005, BH73-4BR-C-405, BH73-ST-C-004, BH-73-DEL01) = **29 physical units**, matching Guesty's 29 BH-73 units exactly. **100% coverage.**
+
+### Infrastructure shipped
+- **`/api/analysis/bh-73-comparison`** — debug endpoint that pulls Guesty + PriceLabs BH-73 listings, cross-references via `id === _id`, and groups Guesty rows by nickname-derived parent key (first N-1 hyphen segments). Useful when Guesty's list-projection omits `listingType`/`masterListingId` as it does on this tenant.
+- **`/api/analysis/guesty-probe`** — scratchpad that dumps one listing's full shape to diagnose missing fields. Will hit Guesty's OAuth rate limit if called repeatedly in quick succession; module-scope token cache doesn't survive Vercel cold starts.
+- **`src/lib/pricelabs-pricing.ts`**: added `unit_count` + `is_multi_unit_parent` to `PricingListingRow`; added `physical_units` + `multi_unit_parents` to `PricingBuildingSummary`. Parser: `/\b(\d+)\s*Units?\b/i` against listing name.
+- **Pricing dashboard (`/emails/beithady/pricing`)**:
+  - Top stat card: "Physical Units" (Σ unit_count) with "N listings · M MTL parents" sub-label.
+  - Per-building table: new `Phys. Units` + `MTL Parents` columns. "With Recs" column removed.
+  - Per-listing table: new `Units` column with `5×` / `2×` indigo pill badge for parents; plain "1" for singles.
+
+### Observed building counts (post-fix snapshot)
+| Building | PL Listings | Physical Units | MTL Parents | Pushing |
+|---|---|---|---|---|
+| BH-26 | 22 | 22 | 0 | 22 |
+| BH-73 | 14 | 29 (expanded via parents) | 8 | 12 |
+| BH-435 | 14 | 14 | 0 | 14 |
+| BH-OK | 11 | 11 | 0 | 11 |
+| untagged | 8 | 8 | 0 | 7 |
+
+BH-26, BH-435, BH-OK use single listings per unit (no multi-unit strategy yet). **Only BH-73 has adopted the MTL pattern.** If other buildings migrate to MTL in the future, the `Units` column will automatically reflect the change on next sync.
+
+### Known gap still open
+- **8 untagged BH-* listings** (high ADR $219 avg, high 49% occupancy) — premium properties with tag format we don't recognize. Extending `extractBuildingCode` to catch those is still pending.
+- **Guesty → Supabase sync**: we only hit Guesty on demand via the analysis endpoint. A proper `guesty_listings` table synced nightly would enable richer dashboards and avoid the OAuth rate limit on probe.
+
 ## ✅ PHASE 8.1 SHIPPED — Pricing Intelligence rule under Beithady domain (commits cc9828b + a4d0849)
 
 New rule live at **https://kareemhady.vercel.app/emails/beithady/pricing**. Linked from the Beithady domain page next to Financials.
