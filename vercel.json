@@ -2,6 +2,7 @@
   "framework": "nextjs",
   "crons": [
     { "path": "/api/cron/daily", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/daily", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/daily", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/odoo", "schedule": "0 4 * * *" }
   ]
 }
