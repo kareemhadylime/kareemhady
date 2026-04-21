@@ -100,6 +100,49 @@ export default async function RuleOutputDetailPage({
   const isInquiries = actionType === 'beithady_inquiries_aggregate';
   const isRequests = actionType === 'beithady_requests_aggregate';
 
+  // Phase 5.8 follow-up: for the Payouts view, cross-match Airbnb line items
+  // + Stripe API transactions against the latest Beithady Bookings rule run.
+  let crossMatchBookings: Array<{
+    booking_id: string;
+    channel: string;
+    listing_name: string;
+    listing_code: string;
+    guest_name: string;
+    check_in_date: string;
+    check_out_date: string;
+    nights: number;
+    total_payout: number;
+    currency: string;
+    building_code: string;
+  }> = [];
+  let crossMatchRunAt: string | null = null;
+  if (isPayout) {
+    const { data: beithadyRules } = await sb
+      .from('rules')
+      .select('id, actions')
+      .eq('domain', 'beithady');
+    const bookingsRuleId = (beithadyRules || []).find(
+      r => (r.actions as any)?.type === 'beithady_booking_aggregate'
+    )?.id as string | undefined;
+    if (bookingsRuleId) {
+      const { data: latestBookingsRun } = await sb
+        .from('rule_runs')
+        .select('output, finished_at')
+        .eq('rule_id', bookingsRuleId)
+        .eq('status', 'succeeded')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const bookings = (latestBookingsRun?.output as any)?.bookings as
+        | typeof crossMatchBookings
+        | undefined;
+      if (Array.isArray(bookings)) {
+        crossMatchBookings = bookings;
+        crossMatchRunAt = (latestBookingsRun?.finished_at as string) || null;
+      }
+    }
+  }
+
   const lastRange = out?.time_range as
     | {
         from: string;
@@ -345,7 +388,12 @@ export default async function RuleOutputDetailPage({
             ) : isReviews ? (
               <BeithadyReviewView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : isPayout ? (
-              <BeithadyPayoutView out={out} emailsMatched={latest.input_email_count ?? 0} />
+              <BeithadyPayoutView
+                out={out}
+                emailsMatched={latest.input_email_count ?? 0}
+                crossMatchBookings={crossMatchBookings}
+                crossMatchRunAt={crossMatchRunAt}
+              />
             ) : isBeithady ? (
               <BeithadyView out={out} emailsMatched={latest.input_email_count ?? 0} />
             ) : (
@@ -979,13 +1027,62 @@ function normalizeBuildingCode(b: {
   return classifyBuilding(b.building_code || '');
 }
 
+type CrossMatchBooking = {
+  booking_id: string;
+  channel: string;
+  listing_name: string;
+  listing_code: string;
+  guest_name: string;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  total_payout: number;
+  currency: string;
+  building_code: string;
+};
+
+type BookingLookup = (
+  code: string | null | undefined,
+  guestName?: string | null
+) => CrossMatchBooking | null;
+
 function BeithadyPayoutView({
   out,
   emailsMatched,
+  crossMatchBookings = [],
+  crossMatchRunAt = null,
 }: {
   out: any;
   emailsMatched: number;
+  crossMatchBookings?: CrossMatchBooking[];
+  crossMatchRunAt?: string | null;
 }) {
+  const bookingsByCode = new Map<string, CrossMatchBooking>();
+  const bookingsByGuest = new Map<string, CrossMatchBooking[]>();
+  for (const b of crossMatchBookings) {
+    if (b.booking_id) {
+      bookingsByCode.set(b.booking_id.toUpperCase().trim(), b);
+    }
+    const gKey = (b.guest_name || '').toLowerCase().trim();
+    if (gKey) {
+      const list = bookingsByGuest.get(gKey) || [];
+      list.push(b);
+      bookingsByGuest.set(gKey, list);
+    }
+  }
+  const lookupBooking: BookingLookup = (code, guestName) => {
+    if (code) {
+      const m = bookingsByCode.get(code.toUpperCase().trim());
+      if (m) return m;
+    }
+    if (guestName) {
+      const list = bookingsByGuest.get(guestName.toLowerCase().trim());
+      // Only match by guest name when exactly one booking has that name —
+      // prevents ambiguity when the same guest booked twice.
+      if (list && list.length === 1) return list[0];
+    }
+    return null;
+  };
   const totalAed: number = out?.total_aed ?? 0;
   const airbnbAed: number = out?.airbnb_total_aed ?? 0;
   const stripeAed: number = out?.stripe_total_aed ?? 0;
@@ -1249,7 +1346,11 @@ function BeithadyPayoutView({
       <section>
         <SectionHeader
           title={`Airbnb line items (${refundables.length})`}
-          hint="Per-reservation breakdown. Confirmation code matches the booking_id in the Beithady Guesty Bookings rule — use that for cross-rule reconciliation."
+          hint={
+            crossMatchBookings.length > 0
+              ? `Per-reservation breakdown. Cross-matched against ${crossMatchBookings.length} Guesty bookings${crossMatchRunAt ? ` (last run ${new Date(crossMatchRunAt).toLocaleString()})` : ''} — "Matched Bldg" is Guesty's canonical classification, "Expected (USD)" is Guesty's stored total_payout for the same reservation.`
+              : 'Per-reservation breakdown. Confirmation code matches the booking_id in the Beithady Guesty Bookings rule — run that rule for cross-rule reconciliation to populate matched columns.'
+          }
         />
         <div className="ix-card overflow-hidden mt-3">
           <div className="overflow-x-auto">
@@ -1261,51 +1362,97 @@ function BeithadyPayoutView({
                   <th className="text-left px-4 font-medium">Type</th>
                   <th className="text-left px-4 font-medium">Listing</th>
                   <th className="text-left px-4 font-medium">Bldg</th>
+                  <th className="text-left px-4 font-medium">Matched Bldg</th>
+                  <th className="text-right px-4 font-medium">Expected (USD)</th>
                   <th className="text-left px-4 font-medium">Stay</th>
                   <th className="text-right px-4 font-medium">Amount (USD)</th>
                   <th className="text-left px-4 font-medium">Payout date</th>
                 </tr>
               </thead>
               <tbody>
-                {refundables.map((li, i) => (
-                  <tr
-                    key={`${li.confirmation_code}-${i}`}
-                    className="border-t border-slate-100 hover:bg-rose-50/30"
-                  >
-                    <td className="py-2.5 px-4 font-mono text-xs text-rose-700 font-semibold">
-                      {li.confirmation_code}
-                    </td>
-                    <td className="px-4">{li.guest_name}</td>
-                    <td className="px-4 text-xs">
-                      <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                        {li.booking_type || '—'}
-                      </span>
-                    </td>
-                    <td
-                      className="px-4 max-w-[260px] truncate text-xs"
-                      title={li.listing_name || undefined}
+                {refundables.map((li, i) => {
+                  const match = lookupBooking(li.confirmation_code, li.guest_name);
+                  const expected = match?.total_payout ?? null;
+                  const diff =
+                    expected != null && !li.is_refund
+                      ? Math.round((li.amount - expected) * 100) / 100
+                      : null;
+                  return (
+                    <tr
+                      key={`${li.confirmation_code}-${i}`}
+                      className={`border-t border-slate-100 hover:bg-rose-50/30 ${
+                        match ? '' : 'opacity-95'
+                      }`}
                     >
-                      {li.listing_name || '—'}
-                    </td>
-                    <td className="px-4 font-mono text-xs font-semibold">
-                      {li.building_code || '—'}
-                    </td>
-                    <td className="px-4 text-xs whitespace-nowrap">
-                      {li.check_in_date && li.check_out_date
-                        ? `${li.check_in_date} → ${li.check_out_date}`
-                        : '—'}
-                    </td>
-                    <td className="px-4 text-right tabular-nums font-medium">
-                      {fmt(li.amount)}
-                    </td>
-                    <td className="px-4 text-xs text-slate-500 whitespace-nowrap">
-                      {li.email_sent_date || '—'}
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-2.5 px-4 font-mono text-xs text-rose-700 font-semibold">
+                        {li.confirmation_code}
+                      </td>
+                      <td className="px-4">{li.guest_name}</td>
+                      <td className="px-4 text-xs">
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {li.booking_type || '—'}
+                        </span>
+                      </td>
+                      <td
+                        className="px-4 max-w-[260px] truncate text-xs"
+                        title={li.listing_name || undefined}
+                      >
+                        {li.listing_name || '—'}
+                      </td>
+                      <td className="px-4 font-mono text-xs font-semibold">
+                        {li.building_code || '—'}
+                      </td>
+                      <td className="px-4 font-mono text-xs">
+                        {match ? (
+                          <span className="font-semibold text-emerald-700">
+                            {match.building_code}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 text-right tabular-nums text-xs">
+                        {expected != null ? (
+                          <span
+                            className="font-medium text-slate-700"
+                            title={
+                              diff != null
+                                ? `Δ vs paid: ${diff >= 0 ? '+' : ''}${diff.toLocaleString()} USD`
+                                : undefined
+                            }
+                          >
+                            {fmt(expected)}
+                            {diff != null && Math.abs(diff) > 1 && (
+                              <span
+                                className={`ml-1 text-[10px] ${
+                                  diff > 0 ? 'text-amber-700' : 'text-emerald-700'
+                                }`}
+                              >
+                                {diff > 0 ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 text-xs whitespace-nowrap">
+                        {li.check_in_date && li.check_out_date
+                          ? `${li.check_in_date} → ${li.check_out_date}`
+                          : '—'}
+                      </td>
+                      <td className="px-4 text-right tabular-nums font-medium">
+                        {fmt(li.amount)}
+                      </td>
+                      <td className="px-4 text-xs text-slate-500 whitespace-nowrap">
+                        {li.email_sent_date || '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!refundables.length && (
                   <tr>
-                    <td colSpan={8} className="py-4 px-4 text-slate-500 text-center">
+                    <td colSpan={10} className="py-4 px-4 text-slate-500 text-center">
                       No Airbnb line items in this range.
                     </td>
                   </tr>
@@ -1412,7 +1559,11 @@ function BeithadyPayoutView({
         </div>
       </section>
 
-      <StripeApiBreakdownSection out={out} />
+      <StripeApiBreakdownSection
+        out={out}
+        lookupBooking={lookupBooking}
+        crossMatchCount={crossMatchBookings.length}
+      />
     </>
   );
 }
@@ -3838,7 +3989,15 @@ function extractConfirmationCodeFromTxn(t: StripeTxn): string | null {
   return null;
 }
 
-function StripeApiBreakdownSection({ out }: { out: any }) {
+function StripeApiBreakdownSection({
+  out,
+  lookupBooking,
+  crossMatchCount = 0,
+}: {
+  out: any;
+  lookupBooking?: BookingLookup;
+  crossMatchCount?: number;
+}) {
   const api = out?.stripe_api as {
     api_payouts: StripeApiPayout[];
     total_amount: number;
@@ -3894,11 +4053,29 @@ function StripeApiBreakdownSection({ out }: { out: any }) {
 
   const apiPayouts = api.api_payouts || [];
 
+  // Compute booking-match rate across all txns (only when we have bookings data).
+  let matchedTxns = 0;
+  let totalTxns = 0;
+  if (lookupBooking && crossMatchCount > 0) {
+    for (const p of apiPayouts) {
+      for (const t of p.transactions) {
+        totalTxns++;
+        const guest = extractGuestFromTxn(t);
+        const code = extractConfirmationCodeFromTxn(t);
+        if (lookupBooking(code, guest)) matchedTxns++;
+      }
+    }
+  }
+
   return (
     <section>
       <SectionHeader
         title="Stripe API reconciliation"
-        hint="Live data from Stripe. Each payout drilled into balance transactions so we can see which charges / refunds made up the settled AED amount. Guest name is pulled from charge metadata when Guesty / upstream set it."
+        hint={
+          crossMatchCount > 0
+            ? `Live data from Stripe, cross-matched against ${crossMatchCount} Guesty bookings. "Matched Bldg" is Guesty's canonical building code; "Expected (USD)" is the booking's stored total_payout. Guest name is pulled from charge metadata / description.`
+            : 'Live data from Stripe. Each payout drilled into balance transactions so we can see which charges / refunds made up the settled AED amount. Run the Beithady Bookings rule to enable cross-matching.'
+        }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
@@ -3937,6 +4114,30 @@ function StripeApiBreakdownSection({ out }: { out: any }) {
           <CheckCircle2 size={14} className="inline mr-1" />
           Guest name extracted on {guestNames} of {chargeCount + refundCount}{' '}
           transactions (from charge metadata or description).
+        </div>
+      )}
+
+      {crossMatchCount > 0 && totalTxns > 0 && (
+        <div
+          className={`ix-card p-3 mt-3 text-xs ${
+            matchedTxns > 0
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+          }`}
+        >
+          <GitCompare size={14} className="inline mr-1" />
+          Cross-matched {matchedTxns} of {totalTxns} Stripe transactions to a
+          Guesty booking
+          {matchedTxns === 0 && (
+            <>
+              {' '}— no overlap. Stripe handles Booking.com / Expedia / Manual
+              channels, which may not carry HM-style confirmation codes in
+              metadata. If match rate stays 0%, inspect one Stripe charge's
+              metadata keys and let me know — the extractor can be tuned to
+              Guesty's actual schema.
+            </>
+          )}
+          .
         </div>
       )}
 
@@ -4020,6 +4221,12 @@ function StripeApiBreakdownSection({ out }: { out: any }) {
                           <th className="text-left px-4 font-medium">Guest</th>
                           <th className="text-left px-4 font-medium">Code</th>
                           <th className="text-left px-4 font-medium">
+                            Matched Bldg
+                          </th>
+                          <th className="text-right px-4 font-medium">
+                            Expected (USD)
+                          </th>
+                          <th className="text-left px-4 font-medium">
                             Description
                           </th>
                         </tr>
@@ -4028,6 +4235,9 @@ function StripeApiBreakdownSection({ out }: { out: any }) {
                         {p.transactions.slice(0, 100).map(t => {
                           const guest = extractGuestFromTxn(t);
                           const code = extractConfirmationCodeFromTxn(t);
+                          const match = lookupBooking
+                            ? lookupBooking(code, guest)
+                            : null;
                           return (
                             <tr
                               key={t.id}
@@ -4061,9 +4271,40 @@ function StripeApiBreakdownSection({ out }: { out: any }) {
                                   ? `${fmt(t.source_amount)} ${t.source_currency || ''}`
                                   : '—'}
                               </td>
-                              <td className="px-4 text-xs">{guest || '—'}</td>
+                              <td className="px-4 text-xs">
+                                {guest || '—'}
+                                {match && (
+                                  <span
+                                    className="ml-1 text-emerald-700"
+                                    title={`Matched Guesty booking — ${match.channel} · ${match.listing_code}`}
+                                  >
+                                    ✓
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-4 font-mono text-xs text-rose-700">
                                 {code || '—'}
+                              </td>
+                              <td className="px-4 font-mono text-xs">
+                                {match ? (
+                                  <span
+                                    className="font-semibold text-emerald-700"
+                                    title={`${match.guest_name} · ${match.check_in_date} → ${match.check_out_date} · ${match.channel}`}
+                                  >
+                                    {match.building_code}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 text-right tabular-nums text-xs">
+                                {match ? (
+                                  <span className="font-medium text-slate-700">
+                                    {fmt(match.total_payout)}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">—</span>
+                                )}
                               </td>
                               <td
                                 className="px-4 max-w-[260px] truncate text-xs text-slate-700"
@@ -4079,7 +4320,7 @@ function StripeApiBreakdownSection({ out }: { out: any }) {
                         {p.transactions.length > 100 && (
                           <tr>
                             <td
-                              colSpan={7}
+                              colSpan={9}
                               className="px-4 py-2 text-xs text-slate-500 italic"
                             >
                               +{p.transactions.length - 100} more transactions
