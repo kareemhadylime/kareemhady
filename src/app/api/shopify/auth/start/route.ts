@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 //   - SHOPIFY_APP_CLIENT_SECRET
 //   - SHOPIFY_STORE_DOMAIN (short handle, e.g. 'kika-swim-wear')
 //   - Register redirect URL in Dev Dashboard Configuration:
-//       https://kareemhady.vercel.app/api/shopify/auth/callback
+//       https://limeinc.vercel.app/api/shopify/auth/callback
 //       http://localhost:3000/api/shopify/auth/callback  (dev only)
 //
 // Usage: open /api/shopify/auth/start in a browser while logged into Shopify.
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     : `${shop}.myshopify.com`;
 
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL || 'https://kareemhady.vercel.app';
+    process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
   const redirectUri = `${appUrl.replace(/\/+$/, '')}/api/shopify/auth/callback`;
 
   // CSRF nonce — the callback will verify this matches the cookie.

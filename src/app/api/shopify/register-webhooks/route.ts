@@ -8,7 +8,7 @@ import { shopifyFetch } from '@/lib/shopify';
 // exists" error we swallow.
 //
 //   curl -H "Authorization: Bearer $CRON_SECRET" -X POST \
-//     https://kareemhady.vercel.app/api/shopify/register-webhooks
+//     https://limeinc.vercel.app/api/shopify/register-webhooks
 
 const TOPICS = [
   'orders/create',
@@ -33,7 +33,7 @@ async function handle(req: NextRequest) {
   }
 
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL || 'https://kareemhady.vercel.app';
+    process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
   const address = `${appUrl.replace(/\/+$/, '')}/api/webhooks/shopify`;
 
   // 1. List existing webhooks so we can report which ones we updated vs

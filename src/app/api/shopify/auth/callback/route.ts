@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
 
   // 6. Clear the state cookie and redirect somewhere friendly.
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL || 'https://kareemhady.vercel.app';
+    process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
   const res = NextResponse.redirect(
     `${appUrl.replace(/\/+$/, '')}/emails/kika?shopify=installed`
   );
