@@ -246,6 +246,39 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Beithady P&L: expand/collapse treatment matching the Balance Sheet (commit b6eb4c1)
+
+Applied the same native `<details>/<summary>` approach to the P&L so the operator sees just the main income-statement cascade by default and drills in only when they want leaf-level detail.
+
+### What's always visible (collapsed default state)
+```
+ACCOUNT                                        BALANCE (EGP)     % REV
+Revenue                                        61,128,219         100.0%    ▸
+Cost Of Revenue                               (45,459,066)        (74.4%)   ▸
+  ─── Sub Gross Profit                         15,669,153          25.6% ───
+Home Owner Cut & Rent                         (20,000,000)        (32.7%)   ▸
+  ─── Gross Profit                             (4,330,847)         (7.1%) ───
+General Expenses                              (10,000,000)        (16.4%)   ▸
+  ─── EBITDA                                  (14,330,847)        (23.4%) ───
+INT - TAXES - DEP                              (3,000,000)          (4.9%)  ▸
+Net Profit                                    (17,330,847)        (28.3%)
+```
+
+### Interaction
+- Click any section `▸` → reveals subgroups (Activity revenues, Agents Cost, Back Office Salaries, etc.)
+- Click a subgroup `▸` → reveals leaf accounts with code + name + balance + % of revenue
+- Subtotal bands (Sub Gross Profit / Gross Profit / EBITDA) stay flat and always visible so the income-statement cascade is readable at any drill depth
+
+### Implementation
+- **Converted from `<table>` to a `divide-y` div stack** so sections can host `<details>` blocks (table rows can't collapse cleanly without JS).
+- Column alignment preserved via `flex + w-32 + w-20` shared across the column-header, section bands, subgroup bands, leaf rows, subtotal rows, and the Net Profit footer — everything lines up visually as if it were still a table.
+- Chevron icons rotate via `group-open/pnl` and `group-open/sub` Tailwind variants — zero client JS, zero hydration overhead. Matches the Balance Sheet pattern so the two sections feel like siblings.
+- Empty sections/subgroups render non-clickable (cursor changes, no chevron) so accidental clicks don't do nothing silently.
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/beithady/financials` → 307 (healthy). Deploy `limeinc.vercel.app`.
+
 ## 🟢 Beithady Balance Sheet: Feb-2026 xlsx format with expand/collapse (commit 38f83b5)
 
 User uploaded `.claude/Documents/BeithadyBalanceSheet 28-2.xlsx` as the target format and asked for main-line-items-with-expand-collapse on the Beithady Financials (Consolidated) page. Full rewrite.
