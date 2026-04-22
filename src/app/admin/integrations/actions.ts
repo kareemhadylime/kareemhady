@@ -62,22 +62,24 @@ export async function saveCredentialsAction(formData: FormData) {
   revalidatePath('/admin/integrations');
 }
 
-// Record a test-connection result. The actual API call runs on the
-// existing /api/{provider}/ping endpoints (bearer-auth'd); this action
-// only updates the status row after the admin clicks "Test".
-export async function recordTestResultAction(formData: FormData) {
+// Run a live credential test, update last_test_* columns, revalidate the
+// page so the banner updates in-place. No redirect so the scroll position
+// stays on the card the admin was just looking at.
+export async function testCredentialAction(formData: FormData): Promise<void> {
   await requireAdmin();
   const provider = String(formData.get('provider') || '');
-  const status = String(formData.get('status') || '');
-  const error = String(formData.get('error') || '');
   if (!isProviderId(provider)) return;
+
+  const { testProvider } = await import('@/lib/integration-tests');
+  const result = await testProvider(provider);
+
   const sb = supabaseAdmin();
   await sb
     .from('integration_credentials')
     .update({
       last_tested_at: new Date().toISOString(),
-      last_test_status: status || null,
-      last_test_error: error || null,
+      last_test_status: result.ok ? 'ok' : 'error',
+      last_test_error: result.ok ? (result.detail || null) : result.error,
     })
     .eq('provider', provider);
   revalidatePath('/admin/integrations');

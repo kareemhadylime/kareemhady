@@ -8,6 +8,8 @@ import {
   Clock,
   ExternalLink,
   Download,
+  PlugZap,
+  Save,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { SetupTabs } from '@/app/admin/_components/setup-tabs';
@@ -17,7 +19,11 @@ import {
   getProviderStatus,
   type ProviderId,
 } from '@/lib/credentials';
-import { saveCredentialsAction, seedFromEnvAction } from './actions';
+import {
+  saveCredentialsAction,
+  seedFromEnvAction,
+  testCredentialAction,
+} from './actions';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
@@ -110,12 +116,24 @@ function ProviderCard({
             <Plug size={18} />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold flex items-center gap-2">
+            <h2 className="text-base font-semibold flex items-center gap-2 flex-wrap">
               {spec.label}
-              {isHealthy ? (
-                <CheckCircle2 size={14} className="text-emerald-600" />
+              {status.last_test_status === 'ok' ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                  <CheckCircle2 size={10} /> Connected
+                </span>
+              ) : status.last_test_status === 'error' ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                  <AlertTriangle size={10} /> Error
+                </span>
+              ) : isHealthy ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  Configured · not tested
+                </span>
               ) : (
-                <AlertTriangle size={14} className="text-amber-600" />
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                  <AlertTriangle size={10} /> Incomplete
+                </span>
               )}
             </h2>
             <p className="text-[11px] text-slate-500">{spec.description}</p>
@@ -132,20 +150,50 @@ function ProviderCard({
               Docs <ExternalLink size={10} />
             </a>
           )}
-          {spec.ping_path && (
-            <code className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100">
-              {spec.ping_path}
-            </code>
-          )}
           {status.last_tested_at && (
             <span className="inline-flex items-center gap-1">
               <Clock size={10} />
-              {status.last_test_status === 'ok' ? '✓' : '✗'}{' '}
-              {fmtCairoDateTime(status.last_tested_at)}
+              last tested {fmtCairoDateTime(status.last_tested_at)}
             </span>
           )}
         </div>
       </div>
+
+      {/* Result banner — prominent pass/fail surface shown above the form
+          so the operator sees last test outcome immediately. */}
+      {status.last_test_status && (
+        <div
+          className={`mx-5 mt-5 rounded-lg p-3 flex items-start gap-3 text-sm ${
+            status.last_test_status === 'ok'
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border border-rose-200 text-rose-800'
+          }`}
+        >
+          {status.last_test_status === 'ok' ? (
+            <CheckCircle2
+              size={16}
+              className="text-emerald-600 shrink-0 mt-0.5"
+            />
+          ) : (
+            <AlertTriangle
+              size={16}
+              className="text-rose-600 shrink-0 mt-0.5"
+            />
+          )}
+          <div className="min-w-0">
+            <p className="font-medium">
+              {status.last_test_status === 'ok'
+                ? 'Connected'
+                : 'Connection failed'}
+            </p>
+            {status.last_test_error && (
+              <p className="text-[11px] mt-0.5 font-mono break-all">
+                {status.last_test_error}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <form action={saveCredentialsAction} className="p-5 space-y-4">
         <input type="hidden" name="provider" value={providerId} />
@@ -197,7 +245,7 @@ function ProviderCard({
           );
         })}
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-3 flex-wrap">
           <label className="inline-flex items-center gap-2 text-xs text-slate-600">
             <input
               type="checkbox"
@@ -207,30 +255,33 @@ function ProviderCard({
             <span>Enabled</span>
           </label>
           <div className="flex items-center gap-2">
-            {spec.ping_path && (
-              <a
-                href={spec.ping_path}
-                className="text-[11px] text-slate-500 hover:text-lime-700"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Test connection →
-              </a>
-            )}
             <button
               type="submit"
-              className="px-3 py-1.5 rounded-lg bg-lime-600 text-white text-sm font-medium hover:bg-lime-700"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lime-600 text-white text-sm font-medium hover:bg-lime-700 shadow-sm"
             >
-              Save
+              <Save size={14} /> Save
             </button>
           </div>
         </div>
+      </form>
 
-        {status.last_test_error && (
-          <div className="text-[11px] text-rose-700 bg-rose-50 rounded p-2 font-mono">
-            {status.last_test_error}
-          </div>
-        )}
+      {/* Separate form for the Test action so it doesn't re-submit the
+          credential fields (which would be blank = no-op for existing values). */}
+      <form
+        action={testCredentialAction}
+        className="px-5 pb-5 pt-0 flex items-center justify-end gap-2 border-t border-slate-100 mt-0"
+      >
+        <input type="hidden" name="provider" value={providerId} />
+        <p className="text-[11px] text-slate-500 mr-auto">
+          Runs a live API call using the stored credentials. Result is saved
+          here and on the card header.
+        </p>
+        <button
+          type="submit"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-sm font-medium hover:border-lime-500 hover:text-lime-700 transition"
+        >
+          <PlugZap size={14} /> Test connection
+        </button>
       </form>
     </section>
   );
