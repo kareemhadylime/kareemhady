@@ -246,6 +246,55 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## ✅ PHASE 13 SHIPPED — Phase 12 backlog cleared: proxy.ts rename + self-service password + domain layouts + session audit (commit dee3863)
+
+Closes the four actionable items from the Phase 12 backlog. Deployment `dpl_8vDe1oA2avibJ9RWDtWTqv8nW9Ni` live on `https://limeinc.vercel.app`. Only the branding swap (blocked on hex codes + SVG logos) remains unshipped from that backlog.
+
+### 1. `middleware.ts` → `proxy.ts` (Next.js 16 deprecation)
+- File rename (git tracks as 90% similar rename) + function rename `middleware` → `proxy`. `config.matcher` unchanged.
+- Comments updated ("this middleware does NOT…" → "this proxy does NOT…") but matcher, route allow-list, and bearer-API regex patterns are byte-identical.
+- Build + deploy verified no routing behavior change — `/login` 200, gated routes still 307 to login.
+
+### 2. `/account/password` self-service password change
+- **Server action** `changePasswordAction` in `src/app/account/password/actions.ts`:
+  - Requires `getCurrentUser()` — redirects to `/login?next=/account/password` if cookie missing/expired.
+  - Validates: all-three-fields-present, new==confirm, 10-char min, new≠current, and scrypt-verify of current against stored hash.
+  - On success: hashes new password via `hashPassword()` (same scrypt format as bootstrap/login), updates `app_users.password_hash`, **deletes every other session for the user** (keeps the current token) so a leaked cookie can't outlive the rotation.
+  - Uses `redirect()` for both the success landing (`?ok=1`) and error bounces (`?err=<code>`).
+- **Page** renders 7 mapped error codes → human copy, success banner with "Other sessions have been signed out" explicit note, 3 password fields with `autoComplete` hints, and a footer disclosure about the scrypt algorithm parameters.
+- **TopNav** gains a `KeyRound` "Password" link between the username pill and sign-out button. Hides the label on mobile, keeps the icon.
+
+### 3. Domain-scoped enforcement at layout level (401 → 404 speed-up)
+- **`src/lib/auth.ts`** adds `requireDomainAccess(domain: Domain): Promise<SessionUser>`. Uses static `redirect` + `notFound` imports from `next/navigation` so TypeScript sees `never` return types correctly.
+- **Three new layouts** added — Next.js routing sends `/emails/kika/*` to `src/app/emails/kika/` (static beats `[domain]`), so static domains need their own layout:
+  - `src/app/emails/kika/layout.tsx` → hardcoded `'kika'`
+  - `src/app/emails/beithady/layout.tsx` → hardcoded `'beithady'`
+  - `src/app/emails/[domain]/layout.tsx` → reads `params.domain`, runs `isDomain()` guard before the access check (unknown slugs 404 cleanly)
+- Proxy still handles the "no cookie → /login" case; layouts handle the "cookie present but stale OR user not authorized for this domain" case.
+
+### 4. Session audit log on `/admin/users`
+- **Schema note**: `app_sessions` already has `(token, user_id, expires_at, created_at, last_seen_at, user_agent, ip)` from migration 0009, and `getCurrentUser()` already bumps `last_seen_at` on every authenticated read — so the data is already populated.
+- Added a new "Recent session activity" card below the user list. Query runs in parallel with the users + roles queries (`Promise.all`). Limit 50, ordered by `last_seen_at desc nulls-first=false`.
+- Columns: User (with green pulse dot if last-seen < 30 min, amber "expired" badge past `expires_at`), Created, Last seen, IP (monospace), User agent (truncated + title tooltip).
+- Deleted-user rows degrade gracefully — the JOIN via `usersById` map shows "[deleted user]" rather than blanking out.
+
+### Verification (post-deploy smoke)
+```
+login (expect 200):            200 ✓
+/account/password (expect 307): 307 ✓
+/admin/users (expect 307):      307 ✓
+/emails/kika (expect 307):      307 ✓
+```
+TypeScript `tsc --noEmit` clean before push.
+
+### Phase 14 backlog (carried forward from Phase 12 + Phase 13 planning)
+1. **Official Lime branding swap** — still blocked on exact hex codes + SVG logos. PDFs are image-only; need OCR or manual asset delivery.
+2. **Built-in "Test now" button in `/admin/integrations`** (Phase 12 deferred) — session-cookie-authed, records result into `last_test_*` columns.
+3. **Green-API wiring** — `/api/webhooks/green/<slug>` + outbound helper using stored `integration_credentials`.
+4. **Credential audit trail** — surface `updated_at / updated_by` timeline per provider on `/admin/integrations`.
+5. **Remove legacy env vars** from Vercel — one-shot cleanup after the seed-from-env button has been clicked and each provider verified via the upcoming Test-now button.
+6. **Signed-domain-roles cookie** — would let the proxy itself enforce domain access without the layout round-trip. Requires encoding `allowed_domains` into a JWT or HMAC'd cookie at login. Tradeoff: now 2 cookies to invalidate on rotation vs. current 1. Layouts are sufficient for now; this is an optimization.
+
 ## ✅ PHASE 10.5 SHIPPED — Abandoned checkouts + webhook delivery log + Gmail freshness pill (commit 6eb5ba3)
 
 Three items from the Phase 10.5+ backlog shipped together. Production live on `limeinc.vercel.app` (deployment `dpl_BKBnnbq31qsbF8WFgUoshiiXc9JA`).
