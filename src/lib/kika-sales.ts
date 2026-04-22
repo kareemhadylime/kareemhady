@@ -148,6 +148,7 @@ export async function buildKikaSalesReport(params: {
   let paidOrders = 0;
   let pendingOrders = 0;
   let refundedOrders = 0;
+  let nonCancelledOrders = 0;
   const customers = new Set<string>();
   const customerRevenue = new Map<
     string,
@@ -167,6 +168,7 @@ export async function buildKikaSalesReport(params: {
     if (!cancelled) {
       grossRevenue += total;
       refundTotal += numberOrNull(o.refunded_amount) || 0;
+      nonCancelledOrders += 1;
     }
     // Financial/fulfillment breakdowns still include cancelled orders so
     // operators can see the voided/cancelled bucket separately.
@@ -259,7 +261,12 @@ export async function buildKikaSalesReport(params: {
     refunded_orders: refundedOrders,
     gross_revenue: grossRevenue,
     net_revenue: grossRevenue - refundTotal,
-    avg_order_value: orders.length > 0 ? grossRevenue / orders.length : null,
+    // AOV divides non-cancelled revenue by non-cancelled order count —
+    // mixing the numerator (non-cancelled) with a different denominator
+    // (all orders including cancelled) was understating AOV. Matches the
+    // Exec Summary formula.
+    avg_order_value:
+      nonCancelledOrders > 0 ? grossRevenue / nonCancelledOrders : null,
     units_sold: unitsSold,
     unique_customers: customers.size,
   };

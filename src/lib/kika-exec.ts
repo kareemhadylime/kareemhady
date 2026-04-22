@@ -261,8 +261,12 @@ export async function buildKikaExecReport(params: {
   );
 
   // ----- Customers -----
+  // Customer metrics count only non-cancelled orders so they stay consistent
+  // with Gross Revenue and AOV (both of which exclude cancelled). A customer
+  // whose only activity in the period was a cancelled/voided order is not
+  // a realized buyer — matches the Sales Intelligence definition.
   const perCustomerOrders = new Map<string, number>();
-  for (const o of orders) {
+  for (const o of nonCancelledOrders) {
     const key = String(o.customer_id ?? o.email ?? `ord:${o.id}`);
     perCustomerOrders.set(key, (perCustomerOrders.get(key) || 0) + 1);
   }
@@ -273,7 +277,7 @@ export async function buildKikaExecReport(params: {
   let returningLifetime = 0;
   let newInPeriod = 0;
   const periodStartTs = new Date(`${params.fromDate}T00:00:00Z`).getTime();
-  for (const o of orders) {
+  for (const o of nonCancelledOrders) {
     const c = o.customer_id != null ? customerById.get(o.customer_id) : null;
     if (c && c.orders_count > 1) {
       returningLifetime++;
@@ -283,9 +287,10 @@ export async function buildKikaExecReport(params: {
       if (createdTs >= periodStartTs) newInPeriod++;
     }
   }
-  // Dedup lifetime-returning count per customer
+  // Dedup lifetime-returning count per customer. Only consider customers
+  // who actually had a realized (non-cancelled) order this period.
   const returningLifetimeSet = new Set<number>();
-  for (const o of orders) {
+  for (const o of nonCancelledOrders) {
     if (o.customer_id != null) {
       const c = customerById.get(o.customer_id);
       if (c && c.orders_count > 1) returningLifetimeSet.add(o.customer_id);
