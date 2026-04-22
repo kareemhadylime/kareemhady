@@ -33,6 +33,8 @@ import {
 } from '@/lib/financials-pnl';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
+import { SyncPills } from '@/app/_components/sync-pills';
+import { getSyncFreshness } from '@/lib/sync-freshness';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -91,7 +93,7 @@ export default async function FinancialsPage({
   const buildingCode = sp.building && sp.building !== 'all' ? sp.building : undefined;
   const lobLabel = sp.lob && sp.lob !== 'all' ? sp.lob : undefined;
 
-  const [pnl, payables, balanceSheet, latestSync, buildings, lobs] = await Promise.all([
+  const [pnl, payables, balanceSheet, latestSync, buildings, lobs, pills] = await Promise.all([
     buildPnlReport({
       fromDate: period.fromDate,
       toDate: period.toDate,
@@ -105,6 +107,7 @@ export default async function FinancialsPage({
     getLatestSync(),
     listAvailableBuildings(),
     listAvailableLobs(),
+    getSyncFreshness(['odoo', 'guesty', 'pricelabs']),
   ]);
 
   const keepParams = {
@@ -153,6 +156,7 @@ export default async function FinancialsPage({
               {scope === 'dubai' && 'Standalone — includes intercompany lines.'}
               {scope === 'a1' && 'Owner-side P&L for BH-435 (Lime 50% stake).'}
             </p>
+            <div className="mt-2"><SyncPills pills={pills} /></div>
           </div>
           <div className="text-right text-xs text-slate-500 space-y-1">
             {latestSync ? (

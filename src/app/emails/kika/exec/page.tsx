@@ -13,7 +13,9 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { SyncPills } from '@/app/_components/sync-pills';
 import { buildKikaExecReport, type KikaExecReport } from '@/lib/kika-exec';
+import { getSyncFreshness } from '@/lib/sync-freshness';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -91,11 +93,14 @@ export default async function KikaExecPage({
 }) {
   const sp = await searchParams;
   const period = resolvePeriod(sp.preset, sp.from, sp.to);
-  const r = await buildKikaExecReport({
-    fromDate: period.from,
-    toDate: period.to,
-    label: period.label,
-  });
+  const [r, pills] = await Promise.all([
+    buildKikaExecReport({
+      fromDate: period.from,
+      toDate: period.to,
+      label: period.label,
+    }),
+    getSyncFreshness(['shopify']),
+  ]);
 
   return (
     <>
@@ -108,18 +113,21 @@ export default async function KikaExecPage({
       </TopNav>
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
-        <header>
-          <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-            KIKA · Executive Summary
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Operations snapshot · {period.label}
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Orders, revenue, fulfillment, and customers for kika-swim-wear.
-            All orders are cash (COD / in-person) — so "pending" = awaiting
-            cash collection, not a failed card.
-          </p>
+        <header className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+              KIKA · Executive Summary
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Operations snapshot · {period.label}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Orders, revenue, fulfillment, and customers for kika-swim-wear.
+              All orders are cash (COD / in-person) — so "pending" = awaiting
+              cash collection, not a failed card.
+            </p>
+          </div>
+          <SyncPills pills={pills} />
         </header>
 
         <PeriodFilter activeId={period.id} fromDefault={period.from} toDefault={period.to} />

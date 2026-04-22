@@ -10,11 +10,13 @@ import {
   Zap,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { SyncPills } from '@/app/_components/sync-pills';
 import {
   buildPricingReport,
   type PricingListingRow,
   type PricingBuildingSummary,
 } from '@/lib/pricelabs-pricing';
+import { getSyncFreshness } from '@/lib/sync-freshness';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +41,10 @@ export default async function PricingPage({
   searchParams: Promise<{ building?: string; snapshot?: string }>;
 }) {
   const sp = await searchParams;
-  const report = await buildPricingReport({ snapshotDate: sp.snapshot });
+  const [report, pills] = await Promise.all([
+    buildPricingReport({ snapshotDate: sp.snapshot }),
+    getSyncFreshness(['pricelabs', 'guesty']),
+  ]);
   const buildingFilter = sp.building && sp.building !== 'all' ? sp.building : null;
 
   const filteredListings = buildingFilter
@@ -74,6 +79,7 @@ export default async function PricingPage({
               7/30/60 days. Snapshot date:{' '}
               <strong>{report.snapshot_date || '—'}</strong>.
             </p>
+            <div className="mt-2"><SyncPills pills={pills} /></div>
           </div>
           <div className="text-right text-xs text-slate-500 space-y-1">
             {report.latest_sync ? (

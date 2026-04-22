@@ -10,6 +10,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { SyncPills } from '@/app/_components/sync-pills';
 import {
   buildKikaPnlReport,
   resolveKikaPeriod,
@@ -17,6 +18,8 @@ import {
   type KikaPnlReport,
   type KikaSegment,
 } from '@/lib/kika-financials';
+import { buildKikaRevenueReconcile } from '@/lib/kika-reconcile';
+import { getSyncFreshness } from '@/lib/sync-freshness';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,12 +64,23 @@ export default async function KikaFinancialsPage({
   const preset = sp.month ? `month:${sp.month}` : sp.preset || 'last_month';
   const period = resolveKikaPeriod(preset, sp.from, sp.to);
   const segment: KikaSegment = isKikaSegment(sp.segment) ? sp.segment : 'consolidated';
-  const pnl = await buildKikaPnlReport({
-    fromDate: period.fromDate,
-    toDate: period.toDate,
-    label: period.label,
-    segment,
-  });
+  const [pnl, reconcile, pills] = await Promise.all([
+    buildKikaPnlReport({
+      fromDate: period.fromDate,
+      toDate: period.toDate,
+      label: period.label,
+      segment,
+    }),
+    // Reconciliation only makes sense for consolidated or kika segments
+    // (X-Label/In&Out don't have Shopify revenue).
+    segment === 'consolidated' || segment === 'kika'
+      ? buildKikaRevenueReconcile({
+          fromDate: period.fromDate,
+          toDate: period.toDate,
+        })
+      : Promise.resolve(null),
+    getSyncFreshness(['odoo', 'shopify']),
+  ]);
 
   return (
     <>
@@ -83,17 +97,20 @@ export default async function KikaFinancialsPage({
       </TopNav>
 
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
-        <header>
-          <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-            KIKA · Financials
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">
-            {kikaSegmentLabel(segment)}
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Odoo company <strong>X Label for Tailoring Kika</strong>. Segments
-            split by analytic account (Kika / X-Label / In &amp; Out).
-          </p>
+        <header className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+              KIKA · Financials
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {kikaSegmentLabel(segment)}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Odoo company <strong>X Label for Tailoring Kika</strong>. Segments
+              split by analytic account (Kika / X-Label / In &amp; Out).
+            </p>
+          </div>
+          <SyncPills pills={pills} />
         </header>
 
         <SegmentTabs active={segment} preset={preset} />
@@ -101,6 +118,8 @@ export default async function KikaFinancialsPage({
         <PeriodFilter activeId={period.id} segment={segment} fromDefault={period.fromDate} toDefault={period.toDate} />
 
         <PnlSection pnl={pnl} />
+
+        {reconcile && <ReconcileBlock data={reconcile} />}
 
         {pnl.unclassified.length > 0 && (
           <section className="ix-card p-4 bg-amber-50/40 border-amber-200">
@@ -366,5 +385,128 @@ function SubtotalRow({
       <td className={`px-5 py-2.5 text-right tabular-nums ${toneClass}`}>{fmtSigned(value)}</td>
       <td className={`px-5 py-2.5 text-right tabular-nums ${toneClass}`}>{pctStr}</td>
     </tr>
+  );
+}
+
+function ReconcileBlock({
+  data,
+}: {
+  data: Awaited<ReturnType<typeof import('@/lib/kika-reconcile').buildKikaRevenueReconcile>>;
+}) {
+  const fmt = (n: number | null | undefined): string =>
+    n == null || !Number.isFinite(Number(n))
+      ? '—'
+      : Math.round(Number(n)).toLocaleString('en-US');
+  const deltaSigned = data.delta.shopify_net_vs_odoo_net;
+  const deltaPct = data.delta.shopify_net_vs_odoo_net_pct;
+  const tone =
+    deltaSigned == null
+      ? 'neutral'
+      : Math.abs(deltaPct ?? 0) < 5
+        ? 'green'
+        : 'amber';
+  return (
+    <section className="ix-card p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <ShoppingBag size={16} className="text-emerald-600" />
+            Shopify ↔ Odoo revenue reconciliation
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Shopify orders vs Odoo accounts 401010/401020 (Shopify revenue
+            + returns) on company 6.
+          </p>
+        </div>
+        {deltaSigned != null && (
+          <span
+            className={`text-[11px] px-2 py-1 rounded font-medium ${
+              tone === 'green'
+                ? 'bg-emerald-50 text-emerald-700'
+                : tone === 'amber'
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-slate-100 text-slate-600'
+            }`}
+          >
+            Δ {deltaSigned >= 0 ? '+' : ''}
+            {fmt(deltaSigned)} EGP
+            {deltaPct != null ? ` (${deltaPct.toFixed(1)}%)` : ''}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border border-slate-200 rounded-lg p-3 space-y-1">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Shopify</p>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td className="py-0.5 text-slate-600">Gross revenue</td>
+                <td className="py-0.5 text-right tabular-nums font-medium">
+                  {fmt(data.shopify.gross_revenue)}
+                </td>
+              </tr>
+              <tr>
+                <td className="py-0.5 text-slate-600">− Refunds</td>
+                <td className="py-0.5 text-right tabular-nums text-rose-600">
+                  −{fmt(data.shopify.refunds)}
+                </td>
+              </tr>
+              <tr className="border-t border-slate-100">
+                <td className="py-1 font-semibold">Net</td>
+                <td className="py-1 text-right tabular-nums font-bold">
+                  {fmt(data.shopify.net_revenue)}
+                </td>
+              </tr>
+              <tr>
+                <td className="py-0.5 text-[11px] text-slate-400">of which fulfilled</td>
+                <td className="py-0.5 text-right tabular-nums text-[11px] text-slate-400">
+                  {fmt(data.shopify.fulfilled_revenue)}
+                </td>
+              </tr>
+              <tr>
+                <td className="py-0.5 text-[11px] text-slate-400">of which cancelled</td>
+                <td className="py-0.5 text-right tabular-nums text-[11px] text-slate-400">
+                  {fmt(data.shopify.cancelled_revenue)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="text-[10px] text-slate-400">{data.shopify.gross_orders} orders in period.</p>
+        </div>
+
+        <div className="border border-slate-200 rounded-lg p-3 space-y-1">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Odoo</p>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td className="py-0.5 text-slate-600">401010 Shopify revenue</td>
+                <td className="py-0.5 text-right tabular-nums font-medium">
+                  {fmt(data.odoo.revenue_401010)}
+                </td>
+              </tr>
+              <tr>
+                <td className="py-0.5 text-slate-600">401020 Shopify returns</td>
+                <td className="py-0.5 text-right tabular-nums text-rose-600">
+                  {fmt(data.odoo.returns_401020)}
+                </td>
+              </tr>
+              <tr className="border-t border-slate-100">
+                <td className="py-1 font-semibold">Net</td>
+                <td className="py-1 text-right tabular-nums font-bold">
+                  {fmt(data.odoo.net)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {data.notes.length > 0 && (
+        <ul className="text-[11px] text-slate-500 space-y-0.5 list-disc list-inside">
+          {data.notes.map((n, i) => (
+            <li key={i}>{n}</li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -11,7 +11,9 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { SyncPills } from '@/app/_components/sync-pills';
 import { buildKikaSalesReport, type KikaSalesReport } from '@/lib/kika-sales';
+import { getSyncFreshness } from '@/lib/sync-freshness';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
@@ -81,11 +83,14 @@ export default async function KikaSalesPage({
 }) {
   const sp = await searchParams;
   const period = resolvePeriod(sp.preset, sp.from, sp.to);
-  const report = await buildKikaSalesReport({
-    fromDate: period.from,
-    toDate: period.to,
-    label: period.label,
-  });
+  const [report, pills] = await Promise.all([
+    buildKikaSalesReport({
+      fromDate: period.from,
+      toDate: period.to,
+      label: period.label,
+    }),
+    getSyncFreshness(['shopify']),
+  ]);
 
   return (
     <>
@@ -109,6 +114,7 @@ export default async function KikaSalesPage({
             <p className="text-sm text-slate-500 mt-1">
               Live from the kika-swim-wear Shopify store. Totals in EGP.
             </p>
+            <div className="mt-2"><SyncPills pills={pills} /></div>
           </div>
           <div className="text-right text-xs text-slate-500 space-y-1">
             {report.latest_sync ? (
