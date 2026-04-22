@@ -246,6 +246,28 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika Exec: all percentages now against total orders (commit 69018b7)
+
+User feedback on the previous rev: "of 177 non-cancelled" is confusing jargon — **non-cancelled is by definition fulfilled + unfulfilled**, so surfacing that label adds nothing except a mental math step. All the fulfillment-related percentages are now computed and labelled against the single **total orders** denominator so the four Row-4 chips can be read together without converting bases.
+
+### New numbers (last 30 days)
+| Bucket | Count | % of 291 |
+|---|---|---|
+| Fulfilled | 155 | **53.3%** |
+| Unfulfilled | 22 | **7.6%** |
+| Cancelled / voided | 114 | **39.2%** |
+| Delivered→Refunded | 5 | 1.7% |
+| Delayed | 22 | 7.6% |
+| **Sum of Fulfilled + Unfulfilled + Cancelled** | **291** | **100.1%** ✓ (rounding) |
+
+### Changes
+- `unfulfilled_pct` denominator switched from `non_cancelled_order_count` to `orders.length`.
+- `delivered_then_refunded_pct` denominator switched from `fulfilledCount` to `orders.length`.
+- `cancelled.pct` already against total — unchanged.
+- `non_cancelled_order_count` retained in the type but no longer surfaced in the UI.
+- New helper `pct1(num, denom)` so chip % can be computed inline on the page when the builder doesn't carry a pre-computed field (used for the Delayed chip).
+- All UI labels read "of 291 orders" uniformly. Drill-down title no longer says "(non-cancelled)".
+
 ## 🟢 Kika Exec: Revenue Collected + clearer fulfilment % denominators (commit aea3838)
 
 Three ergonomic fixes based on a screenshot walkthrough:
