@@ -246,6 +246,32 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Setup module: unified tabbed admin area (commit 85dc538)
+
+`/admin` was a two-card landing page that didn't expose Users or API Setup — so "where is it?" was a fair question. Rebuilt as a proper Setup hub with a shared tab bar on every admin page.
+
+### Structure
+- **Overview** (`/admin`) — 4-card grid with descriptions: Users & Roles, API Setup, Email Accounts, Email Rules. Gated on `is_admin`.
+- **Users & Roles** (`/admin/users`) — existing user/role/domain-access management + session audit log.
+- **API Setup** (`/admin/integrations`) — existing per-provider credential forms (Odoo, Guesty, PriceLabs, Shopify, Green-API, Airbnb).
+- **Email Accounts** (`/admin/accounts`) — existing Gmail mailbox manager.
+- **Email Rules** (`/admin/rules`) — existing rule list + new/edit forms.
+
+### Shared component
+`src/app/admin/_components/setup-tabs.tsx` is the single source of truth for the tab strip. Every admin page renders `<SetupTabs activeTab="<id>" />` right under its page header — consistent navigation, no bouncing back to a landing.
+
+### TopNav shortcut
+The top-right user chip row now shows a `Cog Setup` link for admins between the username pill and the Password link — one-click jump from any subsidiary dashboard. Non-admins don't see it (conditional on `user.is_admin`).
+
+### Breadcrumbs
+Every admin page's breadcrumb trail normalized to `Home → Setup → <Tab>` (was previously a mix of "Dashboard" / "Admin"). Edit-rule pages get the extra `Rules → <name>` segment.
+
+### Verification
+All 5 routes return 307 (healthy auth redirect to /login when signed out):
+- `/admin` · `/admin/users` · `/admin/integrations` · `/admin/accounts` · `/admin/rules`
+
+`tsc --noEmit` clean. Deployed on `limeinc.vercel.app`.
+
 ## 🟢 KIKA currency hardcoded to EGP (commit 009cda7)
 
 Kika's Shopify store (kika-swim-wear) only sells in EGP. Before this change the abandoned-checkouts card on `/emails/kika/exec` read currency dynamically from Shopify raw data (could have surfaced a non-EGP string if a checkout record ever carried one). Hardcoded to `EGP` and added explicit `(EGP)` qualifiers to every money column header across the three Kika dashboards so the unit is unambiguous:
