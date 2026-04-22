@@ -2,6 +2,7 @@ import 'server-only';
 import crypto from 'node:crypto';
 import { cookies } from 'next/headers';
 import { supabaseAdmin } from './supabase';
+import { SESSION_COOKIE } from './auth-constants';
 import type { Domain } from './rules/presets';
 
 // Simple session-cookie auth. Passwords stored as scrypt hashes in
@@ -9,7 +10,7 @@ import type { Domain } from './rules/presets';
 // random token as the cookie value. No JWT — server-side lookup on every
 // request (small tenant, Supabase trip is fast).
 
-export { SESSION_COOKIE } from './auth-constants';
+export { SESSION_COOKIE };
 const SESSION_DAYS = 30;
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
