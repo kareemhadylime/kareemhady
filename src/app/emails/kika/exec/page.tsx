@@ -173,13 +173,13 @@ export default async function KikaExecPage({
           <BigStat
             label="Orders"
             value={fmt(r.totals.orders)}
-            sub={`${fmt(r.totals.units)} units`}
+            sub={`EGP ${fmt(r.totals.order_value_total)} total · ${fmt(r.totals.units)} units`}
             icon={<ShoppingBag size={18} className="text-indigo-600" />}
           />
           <BigStat
-            label="Revenue (Gross)"
-            value={fmt(r.totals.order_value_total)}
-            sub="EGP · cash orders"
+            label="Revenue Collected"
+            value={fmt(r.totals.revenue_collected)}
+            sub={`EGP · ${fmt(r.totals.revenue_collected_order_count)} paid + fulfilled orders`}
             icon={<Banknote size={18} className="text-emerald-600" />}
           />
           <BigStat
@@ -240,12 +240,16 @@ export default async function KikaExecPage({
             <MiniStat
               label="Fulfilled"
               value={fmt(r.fulfillment.fulfilled_count)}
-              sub={`${fmtPct(100 - (r.fulfillment.unfulfilled_pct ?? 0))} of orders`}
+              sub={`${fmtPct(100 - (r.fulfillment.unfulfilled_pct ?? 0))} of ${fmt(
+                r.totals.non_cancelled_order_count
+              )} non-cancelled`}
             />
             <MiniStat
               label="Unfulfilled"
               value={fmt(r.fulfillment.unfulfilled_count)}
-              sub={fmtPct(r.fulfillment.unfulfilled_pct)}
+              sub={`${fmtPct(r.fulfillment.unfulfilled_pct)} of ${fmt(
+                r.totals.non_cancelled_order_count
+              )} non-cancelled`}
               tone={r.fulfillment.unfulfilled_pct && r.fulfillment.unfulfilled_pct > 20 ? 'warn' : undefined}
             />
             <MiniStat

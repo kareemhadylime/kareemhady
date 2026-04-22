@@ -18,12 +18,20 @@ import { supabaseAdmin } from './supabase';
 export type KikaExecReport = {
   period: { from: string; to: string; label: string };
   totals: {
-    orders: number;
-    order_value_total: number;
+    orders: number;                    // total orders in period (incl. cancelled)
+    order_value_total: number;         // value of all non-cancelled orders
     order_value_avg: number | null;
     order_value_median: number | null;
     order_value_max: number | null;
     units: number;
+    // "Revenue collected" = only paid + fulfilled orders. This is the real
+    // cash-in-the-bank figure for a COD store; excludes pending collection,
+    // voided, and unfulfilled orders even if they're tagged paid.
+    revenue_collected: number;
+    revenue_collected_order_count: number;
+    // Denominator explainer so the UI can say "X% of N non-cancelled" without
+    // the user having to infer the base.
+    non_cancelled_order_count: number;
   };
   customers: {
     unique: number;
@@ -240,6 +248,18 @@ export async function buildKikaExecReport(params: {
   const orderValueTotal = totalValues.reduce((s, n) => s + n, 0);
   const unitsTotal = lines.reduce((s, li) => s + (Number(li.quantity) || 0), 0);
 
+  // Revenue "collected" = only paid AND fulfilled orders. A paid-but-unfulfilled
+  // order still has cash outstanding (rare but possible for prepay + later
+  // shipment). A fulfilled-but-pending order (cash on delivery, collected at
+  // the door) counts once Shopify flips financial_status to paid.
+  const collectedOrders = nonCancelledOrders.filter(
+    o => isFulfilled(o) && o.financial_status === 'paid'
+  );
+  const revenueCollected = collectedOrders.reduce(
+    (s, o) => s + (numberOrNull(o.total) || 0),
+    0
+  );
+
   // ----- Customers -----
   const perCustomerOrders = new Map<string, number>();
   for (const o of orders) {
@@ -379,6 +399,9 @@ export async function buildKikaExecReport(params: {
       order_value_median: median(totalValues),
       order_value_max: totalValues.length ? Math.max(...totalValues) : null,
       units: unitsTotal,
+      revenue_collected: revenueCollected,
+      revenue_collected_order_count: collectedOrders.length,
+      non_cancelled_order_count: nonCancelledOrders.length,
     },
     customers: {
       unique: uniqueCustomers,
