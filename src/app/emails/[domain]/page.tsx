@@ -15,6 +15,7 @@ import {
   Calculator,
   TrendingUp,
   Calendar,
+  Package,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
@@ -217,6 +218,30 @@ export default async function DomainRulesPage({
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Orders · revenue · AOV · top products · top customers · daily trend · kika-swim-wear
+                  </p>
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-slate-400 group-hover:text-indigo-600 transition shrink-0" />
+            </Link>
+
+            <Link
+              href="/emails/kika/inventory"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
+            >
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-sky-500 to-emerald-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-sky-50 text-sky-600">
+                  <Package size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Inventory</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-600">
+                      Catalogue
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Product list · thumbnails · SKUs · variants · stock levels · full description + gallery on click
                   </p>
                 </div>
               </div>
