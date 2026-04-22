@@ -11,15 +11,17 @@ The project is now fully live on `limeinc.vercel.app`:
   - `src/app/api/shopify/register-webhooks/route.ts` (comment + fallback)
 - Old domain `kareemhady.vercel.app` returns 404 → any stale webhooks targeting it are failing and will auto-disable within Shopify's ~48h retry window.
 
-### ⚠ Worktree-wide encoding drift (unrelated to this task, blocks future multi-line Edits)
-Discovered that ~88 files in the `claude/sad-gagarin-bbf5dd` worktree carry an unstaged LF→CRLF + UTF-8-BOM-addition + em-dash-to-mojibake drift (`—` → `â€"`) against `origin/main`. These are NOT from today's edits — confirmed by diffing a file never opened this session (`src/lib/shopify.ts`) and seeing the same pattern. My initial Edit tool calls inherited the same corruption.
+### ✅ Worktree + main-repo encoding drift — CLEARED
+Both working copies had encoding-drifted files against `origin/main` (main repo: 88 files; worktree: 4 files from initial Edit calls). Cause: some prior tool run wrote UTF-8-with-BOM + em-dash mojibake (`—` → `â€"`). Not from `core.autocrlf` — that's set to `true` at system level but the drift included BOM addition which autocrlf doesn't do.
 
-**Safe workaround used this turn**: applied URL swaps via `perl -i -pe 's{...}{...}g'` which preserves bytes exactly — no BOM added, em-dashes intact. Clean 5 insertions / 5 deletions diff committed against the main repo working copy (which wasn't drifted).
+Cleanup this turn:
+1. `git restore --worktree .` in main repo (`C:/kareemhady`) → cleared 88 files.
+2. `git restore --worktree` on the 4 tracked files in worktree → cleared.
+3. `git merge --ff-only origin/main` in worktree → fast-forwarded from `56bb47d` to `1b205e3`, picking up today's URL-swap and handoff commits.
 
-**For future sessions**: do NOT use the Edit or Write tools on files inside `.claude/worktrees/sad-gagarin-bbf5dd/` until the drift is cleared. Options:
-1. Blow away the worktree and re-create from `origin/main` (easiest; no in-flight work lost since URL swap is already committed).
-2. `git restore --worktree .` inside the worktree to discard all unstaged changes.
-3. Investigate `.gitattributes` + git config `core.autocrlf` — probably misconfigured on this machine.
+Both working trees now clean; previously-drifted files (e.g. `src/lib/shopify.ts`) confirmed byte-clean (no BOM, em-dashes intact).
+
+**Prevention**: no `.gitattributes` added — the drift wasn't from git's line-ending normalization (BOM is an encoding, not a line-ending issue). If the Edit tool on this Windows machine re-corrupts files in a future session, prefer `perl -i -pe ...` for byte-safe edits, or write changes to a temp file via `cat > <<'EOF'` heredoc then swap.
 
 ### Deferred: `?cleanup=1` extension to register-webhooks
 Offered in earlier planning. Would delete webhooks whose address host differs from the current target. Skipped this turn because adding the multi-line code block required Edit tool usage, which would have re-corrupted encoding. Three paths forward:
