@@ -1,5 +1,92 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 11 SHIPPED — Lime Investments rebrand + login gate + role-based domain access (commits fda91f3 → 54ae04e)
+
+User asked for: (1) app always opens on a login page, (2) accounts with one-or-multi domain roles, (3) full theme rebrand to "Lime Investments Dashboard" (holding company for all subsidiaries), (4) distinctive per-subsidiary themes drawn from the PDFs in `.claude/Documents/`.
+
+### Important blocker on branding
+Both "Lime Business Profile Example.pdf" (17MB) and "Lime Investments Bussiness Profile New.pdf" (60MB) are **image-only PDFs** — pypdf.extract_text() returned 0 chars across all pages. No OCR available in this environment, so specific official hex codes / logos couldn't be lifted. The theme I built uses Tailwind's lime + emerald gradient which fits the name cleanly. When the user provides exact hex / SVG logos, a single file (`src/lib/brand-theme.ts`) handles the swap.
+
+### Auth layer (`src/lib/auth.ts` + `src/lib/auth-constants.ts`)
+- scrypt(N=16384, r=8, p=1, keylen=64) password hashing. Stored format: `scrypt$N$r$p$salt_b64$key_b64`. Verify uses `timingSafeEqual`.
+- Opaque 32-byte session tokens in `app_sessions` table (not JWT — small tenant, DB trip is cheap and gives instant revocation).
+- Session cookie `lime_session` (HttpOnly, Secure in prod, SameSite=lax, 30-day expiry).
+- `getCurrentUser()` — server-side lookup joining `app_sessions` → `app_users` → `app_user_domain_roles`. Updates `last_seen_at` on every read.
+- `canAccessDomain(user, domain)` — admins always allowed; non-admins need a row in `app_user_domain_roles`.
+- **Edge-runtime gotcha**: middleware can't import `node:crypto`, so `SESSION_COOKIE` lives in `auth-constants.ts` (plain string, no deps) and both middleware + server import it from there. Build broke once on a cosmetic re-export (`export { SESSION_COOKIE } from './auth-constants'` doesn't bring the name into local scope) — fixed by doing `import + export`.
+
+### Auth routes
+- `/login` (page) — Lime gradient background, error banner, redirects to `?next=` param (sanitized to prevent open redirect).
+- `/api/auth/login` (POST) — form-data or JSON; scrypt verify; creates session; sets cookie; 303 redirect.
+- `/api/auth/logout` (GET + POST) — destroys session + clears cookie.
+- `/api/auth/bootstrap` (POST, CRON_SECRET-protected) — one-shot password setter. Only works when `password_hash` is empty OR not scrypt format. Prevents reuse as a password-reset backdoor.
+
+### Migration 0009 (applied via MCP)
+- `app_user_domain_roles` — (user_id, domain, role) composite PK. `role = 'viewer' | 'editor' | 'admin'`.
+- `app_sessions` — token text PK, user_id FK, expires_at, last_seen_at, user_agent, ip.
+
+### Middleware (`src/middleware.ts`)
+Gates every route behind `/login` except:
+- Public prefixes: `/login`, `/api/auth/`, `/api/cron/`, `/api/webhooks/`, `/api/shopify/auth/`, static files.
+- Bearer-auth'd smoke-test endpoints (via regex): `/api/*/ping`, `/api/guesty/run-now`, `/api/odoo/run-now`, `/api/odoo/sync-financials`, `/api/pricelabs/run-now`, `/api/shopify/run-now`, `/api/shopify/register-webhooks`, `/api/run-now`, `/api/analysis/*`.
+- Middleware only checks cookie presence (doesn't validate the token — edge can't use service-role Supabase). Missing cookie → redirect to `/login?next=<path>`. Real validation happens server-side in `getCurrentUser()`.
+- Next.js 16 deprecation warning seen: 'middleware' convention renamed to 'proxy'. Works but worth migrating in a future commit.
+
+### Admin console (`/admin/users`)
+Only accessible to `is_admin` users (404 otherwise). Three server actions in `actions.ts`:
+- `createUserAction` — adds a user with hashed password + role.
+- `updateUserAction` — change role.
+- `deleteUserAction` — hard delete (prevented on self).
+- `setDomainRolesAction` — checkbox grid; replaces entire domain-role set for a user in one pass (delete + insert).
+All guarded by `requireAdmin()` which throws if the caller isn't admin — even direct HTTP hits to the action bodies are safe.
+
+### Rebrand (`src/app/_components/brand.tsx`)
+- Brand pill: lime → emerald gradient with Leaf icon (was indigo/violet Inbox).
+- Wordmark: "Lime" (bold) + "Investments" (slate grey).
+- TopNav is now async and surfaces: current username, admin badge (lime pill), Sign-out form.
+- Layout metadata: title "Lime Investments Dashboard", theme-color `#65a30d`.
+
+### Home page (`src/app/page.tsx`)
+- Lime→emerald→teal gradient headline.
+- "Holding company portfolio" pulse pill.
+- When not logged in: centered Sign-in card pointing to /login.
+- When logged in with 0 domains: "No subsidiary access" message directing to `/admin/users`.
+- When logged in with domains: grid of subsidiary cards (one per accessible domain), each with its own gradient blob, tint-colored icon chip, `A Lime Investments subsidiary` parent-note tag, domain-specific description. Extra dashed "All rules" card at the end.
+
+### Distinctive per-domain themes (`src/lib/brand-theme.ts`)
+Each theme carries 9 Tailwind color classes + name/tagline/description/parentNote. One source of truth — domain cards, headers, gradient blobs all pull from here.
+| Domain | Gradient |
+|---|---|
+| LIME | lime → emerald |
+| KIKA | pink → rose |
+| BEITHADY | rose → amber |
+| FMPLUS | amber → orange |
+| VOLTAUTO | indigo → blue |
+| PERSONAL | slate |
+
+### Deployment
+- First deploy failed: edge runtime rejected `node:crypto` import. Fixed by extracting cookie constant.
+- Second deploy failed: TypeScript couldn't find SESSION_COOKIE inside auth.ts (re-export doesn't bring into local scope). Fixed with explicit import + re-export.
+- Third deploy succeeded — `next build` clean, middleware attached, login page renders.
+
+### Pending user action
+1. Bootstrap the admin password via curl (existing `admin` user had a legacy bcrypt hash incompatible with my scrypt verifier — cleared it via SQL so bootstrap can set a fresh one):
+   ```bash
+   curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+     -H "Content-Type: application/json" \
+     -d '{"username":"admin","password":"..."}' \
+     https://kareemhady.vercel.app/api/auth/bootstrap
+   ```
+2. Log in at `/login`.
+3. Optionally create per-subsidiary user accounts at `/admin/users` with checkbox-selected domain roles.
+
+### Phase 12 backlog
+1. **Proper official branding swap** — waiting on exact hex codes + logo SVGs from the Lime Investments profile PDF (current extraction failed; manual OCR or direct asset delivery needed).
+2. **Migrate `middleware.ts` → `proxy.ts`** per Next.js 16 deprecation warning.
+3. **Domain-scoped enforcement in middleware** — currently the middleware only checks cookie presence; per-domain gating happens in `getCurrentUser()` on server pages. Add a second middleware pass that 404s `/emails/<domain>/*` when the user lacks access — faster than server-side 404 after full page render.
+4. **Self-service password change page** for signed-in users.
+5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
+
 ## ✅ PHASE 10.4 SHIPPED — Shopify webhooks + Kika revenue reconciliation + sync-freshness pills (commit 4de0182)
 
 Three items from the Phase 10.4 backlog delivered together.
