@@ -5,7 +5,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Users,
-  DollarSign,
+  Banknote,
   Timer,
   AlertTriangle,
   PackageX,
@@ -13,6 +13,7 @@ import {
   RotateCcw,
   UserCheck,
   Mail,
+  Ban,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { SyncPills } from '@/app/_components/sync-pills';
@@ -152,7 +153,7 @@ export default async function KikaExecPage({
             label="Revenue (Gross)"
             value={fmt(r.totals.order_value_total)}
             sub="EGP · cash orders"
-            icon={<DollarSign size={18} className="text-emerald-600" />}
+            icon={<Banknote size={18} className="text-emerald-600" />}
           />
           <BigStat
             label="Avg Order Value"
@@ -234,8 +235,8 @@ export default async function KikaExecPage({
           </div>
         </section>
 
-        {/* Row 4: REFUNDS / DELIVERY */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Row 4: REFUNDS / UNDELIVERED / CANCELLED */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="ix-card p-5 space-y-2">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <RotateCcw size={16} className="text-rose-600" />
@@ -250,8 +251,9 @@ export default async function KikaExecPage({
               </p>
             </div>
             <p className="text-[11px] text-slate-500">
-              Refunds issued on orders that were already delivered or fulfilled. Total
-              refund amount this period: <strong>{fmt(r.refunds.refunds_amount_total)} EGP</strong>.
+              Refunds issued on orders that were already delivered or fulfilled
+              (cancelled orders excluded). Total refund amount this period:
+              {' '}<strong>{fmt(r.refunds.refunds_amount_total)} EGP</strong>.
             </p>
           </div>
 
@@ -265,12 +267,32 @@ export default async function KikaExecPage({
                 {fmt(r.fulfillment.unfulfilled_count)}
               </p>
               <p className="text-sm text-slate-500 pb-1">
-                {fmtPct(r.fulfillment.unfulfilled_pct)} of orders in period
+                {fmtPct(r.fulfillment.unfulfilled_pct)} of non-cancelled orders
               </p>
             </div>
             <p className="text-[11px] text-slate-500">
-              Orders without a successful fulfillment record. For cash-on-delivery
-              orders this is the true "not yet collected" count.
+              Orders without a successful fulfillment record AND not cancelled.
+              For COD orders this is the true "not yet collected" count.
+            </p>
+          </div>
+
+          <div className="ix-card p-5 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Ban size={16} className="text-slate-500" />
+              Cancelled / voided
+            </h3>
+            <div className="flex items-end gap-4">
+              <p className="text-3xl font-bold tabular-nums text-slate-700">
+                {fmt(r.cancelled.count)}
+              </p>
+              <p className="text-sm text-slate-500 pb-1">
+                {fmtPct(r.cancelled.pct)} of orders in period
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Orders with a cancelled_at timestamp, financial_status=voided, or
+              fulfillment_status=cancelled. Gross-order value voided this
+              period: <strong>{fmt(r.cancelled.amount_total)} EGP</strong>.
             </p>
           </div>
         </section>
@@ -332,7 +354,22 @@ export default async function KikaExecPage({
                   </thead>
                   <tbody>
                     {r.most_delayed.map(o => {
-                      const isUnfulfilled = o.fulfillment_status !== 'fulfilled';
+                      // Cancelled orders are filtered out by the builder, but
+                      // we still surface the real fulfillment status here so
+                      // "unfulfilled" vs "partial" vs "fulfilled" is accurate.
+                      const fs = o.fulfillment_status;
+                      const isFulfilledRow = fs === 'fulfilled';
+                      const isPartial = fs === 'partial' || fs === 'partially_fulfilled';
+                      const statusLabel = isFulfilledRow
+                        ? 'fulfilled'
+                        : isPartial
+                          ? 'partial'
+                          : 'unfulfilled';
+                      const pillClass = isFulfilledRow
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : isPartial
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-rose-50 text-rose-700';
                       const ageHours = o.hours_to_fulfill != null
                         ? o.hours_to_fulfill
                         : o.created_at
@@ -344,18 +381,14 @@ export default async function KikaExecPage({
                           <td className="py-1 truncate max-w-[160px]" title={o.customer_name || ''}>
                             {o.customer_name || '—'}
                           </td>
-                          <td className={`py-1 text-right tabular-nums ${isUnfulfilled ? 'text-rose-600' : ''}`}>
+                          <td className={`py-1 text-right tabular-nums ${!isFulfilledRow ? 'text-rose-600' : ''}`}>
                             {fmtHours(ageHours)}
                           </td>
                           <td className="py-1 text-[11px]">
                             <span
-                              className={`inline-block px-1.5 py-0.5 rounded font-medium ${
-                                isUnfulfilled
-                                  ? 'bg-rose-50 text-rose-700'
-                                  : 'bg-emerald-50 text-emerald-700'
-                              }`}
+                              className={`inline-block px-1.5 py-0.5 rounded font-medium ${pillClass}`}
                             >
-                              {o.fulfillment_status || 'unfulfilled'}
+                              {statusLabel}
                             </span>
                           </td>
                         </tr>

@@ -3,7 +3,7 @@ import {
   ChevronRight,
   Calendar,
   ShoppingBag,
-  DollarSign,
+  Banknote,
   Package,
   Users,
   RefreshCcw,
@@ -238,7 +238,7 @@ function TotalsBlock({ report }: { report: KikaSalesReport }) {
             ? `EGP · net ${fmt(t.net_revenue)} after refunds`
             : 'EGP'
         }
-        icon={<DollarSign size={18} className="text-emerald-600" />}
+        icon={<Banknote size={18} className="text-emerald-600" />}
       />
       <StatCard
         label="Avg Order Value"
@@ -500,7 +500,15 @@ function RecentOrdersBlock({
                   <StatusPill status={o.financial_status} />
                 </td>
                 <td className="px-3 py-1.5 text-[11px]">
-                  <StatusPill status={o.fulfillment_status || 'unfulfilled'} />
+                  <StatusPill
+                    status={
+                      o.cancelled_at ||
+                      o.financial_status === 'voided' ||
+                      o.fulfillment_status === 'cancelled'
+                        ? 'cancelled'
+                        : o.fulfillment_status || 'unfulfilled'
+                    }
+                  />
                 </td>
                 <td className="px-3 py-1.5 text-[11px] text-slate-500">
                   {o.created_at
@@ -525,7 +533,9 @@ function StatusPill({ status }: { status: string | null }) {
         ? 'bg-amber-50 text-amber-700'
         : s === 'refunded' || s === 'partially_refunded'
           ? 'bg-rose-50 text-rose-700'
-          : 'bg-slate-100 text-slate-600';
+          : s === 'cancelled' || s === 'voided'
+            ? 'bg-slate-200 text-slate-700 line-through decoration-slate-400'
+            : 'bg-slate-100 text-slate-600';
   return (
     <span
       className={`inline-block px-1.5 py-0.5 rounded capitalize text-[10px] font-medium ${color}`}

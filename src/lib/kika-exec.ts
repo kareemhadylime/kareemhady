@@ -34,7 +34,7 @@ export type KikaExecReport = {
   };
   fulfillment: {
     fulfilled_count: number;
-    unfulfilled_count: number;
+    unfulfilled_count: number;             // in-flight: not fulfilled AND not cancelled
     unfulfilled_pct: number | null;
     avg_hours_to_fulfill: number | null;
     median_hours_to_fulfill: number | null;
@@ -44,6 +44,11 @@ export type KikaExecReport = {
     delivered_then_refunded_count: number;
     delivered_then_refunded_pct: number | null;   // over fulfilled orders
     refunds_amount_total: number;
+  };
+  cancelled: {
+    count: number;
+    pct: number | null;                    // over orders in period
+    amount_total: number;                  // sum of cancelled-order totals
   };
   most_items: Array<{
     product_id: number | null;
@@ -60,6 +65,8 @@ export type KikaExecReport = {
     created_at: string | null;
     first_fulfilled_at: string | null;
     fulfillment_status: string | null;
+    financial_status: string | null;       // so UI can show voided / refunded / paid etc.
+    cancelled_at: string | null;           // excluded from most_delayed, but kept for future use
     total: number | null;
   }>;
 };
@@ -103,6 +110,7 @@ export async function buildKikaExecReport(params: {
     customer_name: string | null;
     email: string | null;
     created_at: string | null;
+    cancelled_at: string | null;
     first_fulfilled_at: string | null;
     first_delivered_at: string | null;
     hours_to_fulfill: number | null;
@@ -119,7 +127,7 @@ export async function buildKikaExecReport(params: {
     const { data, error } = await sb
       .from('shopify_orders')
       .select(
-        'id, name, customer_id, customer_name, email, created_at, first_fulfilled_at, first_delivered_at, hours_to_fulfill, financial_status, fulfillment_status, total, refunded_amount, line_item_count'
+        'id, name, customer_id, customer_name, email, created_at, cancelled_at, first_fulfilled_at, first_delivered_at, hours_to_fulfill, financial_status, fulfillment_status, total, refunded_amount, line_item_count'
       )
       .gte('created_at', `${params.fromDate}T00:00:00Z`)
       .lt('created_at', `${params.toDate}T23:59:59Z`)
@@ -183,8 +191,25 @@ export async function buildKikaExecReport(params: {
   const customerById = new Map<number, CustomerRow>();
   for (const c of customerRows) customerById.set(c.id, c);
 
+  // ----- Classification helpers (hoisted so downstream sections share them) -----
+  // Cancelled orders must be classified separately. Shopify signals
+  // cancellation via any of: cancelled_at timestamp set, financial_status
+  // in {voided, refunded} without a fulfillment, or fulfillment_status
+  // literally 'cancelled'. A truly-voided order is neither 'unfulfilled'
+  // nor 'delayed' — it's done.
+  const isCancelled = (o: OrderRow): boolean =>
+    !!o.cancelled_at ||
+    o.financial_status === 'voided' ||
+    o.fulfillment_status === 'cancelled';
+  const isFulfilled = (o: OrderRow): boolean =>
+    o.first_fulfilled_at != null || o.fulfillment_status === 'fulfilled';
+
   // ----- Totals -----
-  const totalValues = orders
+  // Revenue figures exclude cancelled orders (a cancelled COD order never
+  // collected cash, so it shouldn't inflate gross revenue). Order count
+  // still shows ALL orders placed in the period.
+  const nonCancelledOrders = orders.filter(o => !isCancelled(o));
+  const totalValues = nonCancelledOrders
     .map(o => numberOrNull(o.total))
     .filter((n): n is number => n != null);
   const orderValueTotal = totalValues.reduce((s, n) => s + n, 0);
@@ -223,11 +248,9 @@ export async function buildKikaExecReport(params: {
   }
 
   // ----- Fulfillment -----
-  const fulfilledOrders = orders.filter(
-    o => o.first_fulfilled_at != null || o.fulfillment_status === 'fulfilled'
-  );
+  const fulfilledOrders = orders.filter(o => !isCancelled(o) && isFulfilled(o));
   const unfulfilled = orders.filter(
-    o => o.first_fulfilled_at == null && o.fulfillment_status !== 'fulfilled'
+    o => !isCancelled(o) && !isFulfilled(o)
   );
   const hoursArr = fulfilledOrders
     .map(o => numberOrNull(o.hours_to_fulfill))
@@ -235,15 +258,22 @@ export async function buildKikaExecReport(params: {
 
   // ----- Refunds -----
   // "Delivered then Refunded" — orders that were fulfilled AND have a
-  // refund amount > 0. Cash orders rarely refund via gateway, so this
-  // catches the real business refunds.
+  // refund amount > 0, EXCLUDING cancelled orders (cancelled-with-refund
+  // is its own bucket, not a "delivered then refunded" case).
   const deliveredThenRefunded = orders.filter(
     o =>
-      (o.first_fulfilled_at != null || o.fulfillment_status === 'fulfilled') &&
+      !isCancelled(o) &&
+      isFulfilled(o) &&
       (numberOrNull(o.refunded_amount) || 0) > 0
   );
-  const refundsAmountTotal = orders.reduce(
-    (s, o) => s + (numberOrNull(o.refunded_amount) || 0),
+  const refundsAmountTotal = orders
+    .filter(o => !isCancelled(o))
+    .reduce((s, o) => s + (numberOrNull(o.refunded_amount) || 0), 0);
+
+  // ----- Cancelled orders -----
+  const cancelledOrders = orders.filter(isCancelled);
+  const cancelledAmountTotal = cancelledOrders.reduce(
+    (s, o) => s + (numberOrNull(o.total) || 0),
     0
   );
 
@@ -280,7 +310,9 @@ export async function buildKikaExecReport(params: {
     }));
 
   // ----- Most delayed orders -----
+  // Cancelled orders are excluded — they're not delayed, they're done.
   const most_delayed = orders
+    .filter(o => !isCancelled(o))
     .map(o => ({
       id: o.id,
       name: o.name || `#${o.id}`,
@@ -289,6 +321,8 @@ export async function buildKikaExecReport(params: {
       created_at: o.created_at,
       first_fulfilled_at: o.first_fulfilled_at,
       fulfillment_status: o.fulfillment_status,
+      financial_status: o.financial_status,
+      cancelled_at: o.cancelled_at,
       total: numberOrNull(o.total),
     }))
     .filter(o => o.hours_to_fulfill != null || o.fulfillment_status !== 'fulfilled')
@@ -331,7 +365,7 @@ export async function buildKikaExecReport(params: {
     fulfillment: {
       fulfilled_count: fulfilledCount,
       unfulfilled_count: unfulfilledCount,
-      unfulfilled_pct: pct(unfulfilledCount, orders.length),
+      unfulfilled_pct: pct(unfulfilledCount, nonCancelledOrders.length),
       avg_hours_to_fulfill: hoursArr.length
         ? hoursArr.reduce((s, h) => s + h, 0) / hoursArr.length
         : null,
@@ -345,6 +379,11 @@ export async function buildKikaExecReport(params: {
         fulfilledCount
       ),
       refunds_amount_total: refundsAmountTotal,
+    },
+    cancelled: {
+      count: cancelledOrders.length,
+      pct: pct(cancelledOrders.length, orders.length),
+      amount_total: cancelledAmountTotal,
     },
     most_items,
     most_delayed,

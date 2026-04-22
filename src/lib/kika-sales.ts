@@ -6,6 +6,7 @@ export type KikaSalesRow = {
   customer_name: string | null;
   email: string | null;
   created_at: string | null;
+  cancelled_at: string | null;
   financial_status: string | null;
   fulfillment_status: string | null;
   total: number | null;
@@ -85,6 +86,7 @@ export async function buildKikaSalesReport(params: {
     customer_id: number | null;
     customer_name: string | null;
     created_at: string | null;
+    cancelled_at: string | null;
     financial_status: string | null;
     fulfillment_status: string | null;
     currency: string | null;
@@ -98,7 +100,7 @@ export async function buildKikaSalesReport(params: {
     const { data, error } = await sb
       .from('shopify_orders')
       .select(
-        'id, name, email, customer_id, customer_name, created_at, financial_status, fulfillment_status, currency, total, subtotal, refunded_amount, line_item_count'
+        'id, name, email, customer_id, customer_name, created_at, cancelled_at, financial_status, fulfillment_status, currency, total, subtotal, refunded_amount, line_item_count'
       )
       .gte('created_at', `${params.fromDate}T00:00:00Z`)
       .lt('created_at', `${params.toDate}T23:59:59Z`)
@@ -152,22 +154,34 @@ export async function buildKikaSalesReport(params: {
     { name: string; orders: number; revenue: number; customer_id: number | null }
   >();
 
+  const isCancelledSales = (o: Order): boolean =>
+    !!o.cancelled_at ||
+    o.financial_status === 'voided' ||
+    o.fulfillment_status === 'cancelled';
+
   for (const o of orders) {
     const total = numberOrNull(o.total) || 0;
-    grossRevenue += total;
-    refundTotal += numberOrNull(o.refunded_amount) || 0;
+    const cancelled = isCancelledSales(o);
+    // Revenue & daily tallies SKIP cancelled orders — a cancelled COD
+    // never collected cash, so including it inflates the numbers.
+    if (!cancelled) {
+      grossRevenue += total;
+      refundTotal += numberOrNull(o.refunded_amount) || 0;
+    }
+    // Financial/fulfillment breakdowns still include cancelled orders so
+    // operators can see the voided/cancelled bucket separately.
     const fs = o.financial_status || 'unknown';
-    const ff = o.fulfillment_status || 'unfulfilled';
+    const ff = cancelled ? 'cancelled' : o.fulfillment_status || 'unfulfilled';
     const fin = financialCounts.get(fs) || { count: 0, revenue: 0 };
     fin.count += 1;
-    fin.revenue += total;
+    fin.revenue += cancelled ? 0 : total;
     financialCounts.set(fs, fin);
     fulfillmentCounts.set(ff, (fulfillmentCounts.get(ff) || 0) + 1);
-    if (fs === 'paid') paidOrders++;
-    else if (fs === 'pending') pendingOrders++;
+    if (!cancelled && fs === 'paid') paidOrders++;
+    else if (!cancelled && fs === 'pending') pendingOrders++;
     else if (fs === 'refunded' || fs === 'partially_refunded') refundedOrders++;
 
-    if (o.created_at) {
+    if (o.created_at && !cancelled) {
       const day = o.created_at.slice(0, 10);
       const d = dailyMap.get(day) || {
         day,
@@ -179,6 +193,8 @@ export async function buildKikaSalesReport(params: {
       d.revenue += total;
       dailyMap.set(day, d);
     }
+
+    if (cancelled) continue; // exclude from customer revenue aggregation too
 
     const custKey = String(o.customer_id ?? o.email ?? `ord:${o.id}`);
     customers.add(custKey);
@@ -270,6 +286,7 @@ export async function buildKikaSalesReport(params: {
     customer_name: o.customer_name,
     email: o.email,
     created_at: o.created_at,
+    cancelled_at: o.cancelled_at,
     financial_status: o.financial_status,
     fulfillment_status: o.fulfillment_status,
     total: numberOrNull(o.total),
