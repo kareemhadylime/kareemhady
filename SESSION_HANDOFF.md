@@ -1,5 +1,46 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 Planning: Vercel project rename `kareemhady` → `lime` (no code shipped this turn)
+
+User asked whether renaming the project URL to `lime.vercel.app` would break anything. Turn was advisory — no commits. Impact assessment captured here so the rename can be executed safely next session.
+
+### What survives a rename with zero changes
+- All DB / Supabase data + schema
+- All integration calls server-side (Odoo / PriceLabs / Guesty) — they never see the app URL
+- Internal routes and session cookies (cookies are domain-less, follow any host)
+- Vercel cron jobs — path-based, work on the new hostname
+
+### What breaks unless migrated
+1. **Shopify OAuth URLs** registered in Dev Dashboard:
+   - App URL = `https://kareemhady.vercel.app`
+   - Allowed redirect = `https://kareemhady.vercel.app/api/shopify/auth/callback`
+   - Both must be re-saved to `https://lime.vercel.app/...` + release a new app version, else `/api/shopify/auth/start` throws the same "redirect_uri and application url must have matching hosts" error we debugged earlier.
+2. **Shopify webhooks** — 7 currently registered with `kareemhady.vercel.app` target. Re-register after rename:
+   ```bash
+   curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+     https://lime.vercel.app/api/shopify/register-webhooks
+   ```
+   The existing idempotent endpoint creates 7 new subscriptions on the new host. Old ones keep firing for ~48h of retries then auto-disable.
+3. **Code fallback URLs** — 3 files hardcode `'https://kareemhady.vercel.app'` as the fallback for `NEXT_PUBLIC_APP_URL`:
+   - `src/app/api/shopify/auth/start/route.ts:51`
+   - `src/app/api/shopify/auth/callback/route.ts:153`
+   - `src/app/api/shopify/register-webhooks/route.ts:36`
+   Either update the fallback strings OR ensure `NEXT_PUBLIC_APP_URL=https://lime.vercel.app` is always set in Vercel env.
+4. **`NEXT_PUBLIC_APP_URL` env var** — update to the new domain in Production + Preview + Development.
+
+### Recommended rename sequence
+1. Vercel Settings → General → Project name → `lime`
+2. Set `NEXT_PUBLIC_APP_URL=https://lime.vercel.app` in Vercel
+3. `vercel --prod` so the new env is live
+4. Dev Dashboard → KIKA app → update App URL + Redirect URL + release version
+5. `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://lime.vercel.app/api/shopify/register-webhooks`
+6. (optional) Delete the 7 stale kareemhady.vercel.app webhooks via Shopify admin OR extend `register-webhooks` with a `?cleanup=1` flag (offered but not yet implemented)
+7. Code pass to update hardcoded fallbacks + docs (offered but not yet implemented)
+
+### Deferred items (user decides)
+- Shipping the `?cleanup=1` extension to `register-webhooks` so one call does both phases of the migration.
+- Updating the 3 hardcoded fallback strings so the rename is safe even if env var isn't set.
+
 ## ✅ PHASE 12 SHIPPED — Dynamic integration credentials, no more env-var hardcoding (commit a097510)
 
 User asked for a central place to enter every API parameter for every service (Odoo, PriceLabs, Guesty, Shopify, Green-API, Airbnb) rather than hardcoding via env vars. Built a DB-backed credential resolver + admin UI.
