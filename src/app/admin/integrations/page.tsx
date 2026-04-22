@@ -10,6 +10,7 @@ import {
   Download,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { SetupTabs } from '@/app/admin/_components/setup-tabs';
 import { getCurrentUser } from '@/lib/auth';
 import {
   CREDENTIAL_SPECS,
@@ -34,15 +35,17 @@ export default async function IntegrationsAdminPage() {
   return (
     <>
       <TopNav>
-        <Link href="/" className="ix-link">Dashboard</Link>
+        <Link href="/" className="ix-link">Home</Link>
         <ChevronRight size={14} className="text-slate-400" />
-        <span>Integrations</span>
+        <Link href="/admin" className="ix-link">Setup</Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <span>API Setup</span>
       </TopNav>
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
         <header className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-              Admin · API Setup
+              Setup · API Credentials
             </p>
             <h1 className="text-3xl font-bold tracking-tight">
               Integration Credentials
@@ -63,6 +66,8 @@ export default async function IntegrationsAdminPage() {
             </button>
           </form>
         </header>
+
+        <SetupTabs activeTab="integrations" />
 
         <div className="grid grid-cols-1 gap-5">
           {statuses.map(({ p, s }) => (

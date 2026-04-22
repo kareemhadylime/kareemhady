@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Plus, Play, Pencil, Trash2, ChevronRight } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
+import { SetupTabs } from '@/app/admin/_components/setup-tabs';
 import { deleteRule, runRuleAction } from './actions';
 import { DOMAIN_LABELS, type Domain } from '@/lib/rules/presets';
 
@@ -17,15 +18,17 @@ export default async function RulesListPage() {
   return (
     <>
       <TopNav>
-        <Link href="/admin" className="ix-link">Admin</Link>
+        <Link href="/" className="ix-link">Home</Link>
         <ChevronRight size={14} className="text-slate-400" />
-        <span>Email rules</span>
+        <Link href="/admin" className="ix-link">Setup</Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <span>Email Rules</span>
       </TopNav>
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
         <header className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-              Admin · Email rules
+              Setup · Email Rules
             </p>
             <h1 className="text-3xl font-bold tracking-tight">Rules</h1>
             <p className="text-sm text-slate-500 mt-1">
@@ -36,6 +39,8 @@ export default async function RulesListPage() {
             <Plus size={16} /> New rule
           </Link>
         </header>
+
+        <SetupTabs activeTab="rules" />
 
         <section>
           {!rules?.length ? (

@@ -14,7 +14,9 @@ export default async function NewRulePage() {
   return (
     <>
       <TopNav>
-        <Link href="/admin" className="ix-link">Admin</Link>
+        <Link href="/" className="ix-link">Home</Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <Link href="/admin" className="ix-link">Setup</Link>
         <ChevronRight size={14} className="text-slate-400" />
         <Link href="/admin/rules" className="ix-link">Rules</Link>
         <ChevronRight size={14} className="text-slate-400" />
@@ -23,7 +25,7 @@ export default async function NewRulePage() {
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-6 flex-1">
         <header>
           <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-            Admin · Email rules
+            Setup · Email Rules · New
           </p>
           <h1 className="text-3xl font-bold tracking-tight">New rule</h1>
         </header>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Mail, Plus, RefreshCw, ChevronRight } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopNav } from '@/app/_components/brand';
+import { SetupTabs } from '@/app/admin/_components/setup-tabs';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
@@ -17,15 +18,17 @@ export default async function AccountsPage() {
   return (
     <>
       <TopNav>
-        <Link href="/admin" className="ix-link">Admin</Link>
+        <Link href="/" className="ix-link">Home</Link>
         <ChevronRight size={14} className="text-slate-400" />
-        <span>Connected emails</span>
+        <Link href="/admin" className="ix-link">Setup</Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <span>Email Accounts</span>
       </TopNav>
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-10 flex-1">
         <header className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-              Admin · Connected emails
+              Setup · Email Accounts
             </p>
             <h1 className="text-3xl font-bold tracking-tight">Mailboxes</h1>
             <p className="text-sm text-slate-500 mt-1">
@@ -43,6 +46,8 @@ export default async function AccountsPage() {
             </form>
           </div>
         </header>
+
+        <SetupTabs activeTab="accounts" />
 
         <section>
           <h2 className="text-lg font-semibold mb-3">

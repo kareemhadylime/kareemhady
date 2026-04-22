@@ -8,6 +8,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { SetupTabs } from '@/app/admin/_components/setup-tabs';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { DOMAINS, DOMAIN_LABELS } from '@/lib/rules/presets';
@@ -76,7 +77,11 @@ export default async function UsersAdminPage() {
     <>
       <TopNav>
         <Link href="/" className="ix-link">
-          Dashboard
+          Home
+        </Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <Link href="/admin" className="ix-link">
+          Setup
         </Link>
         <ChevronRight size={14} className="text-slate-400" />
         <span>Users &amp; Roles</span>
@@ -84,7 +89,7 @@ export default async function UsersAdminPage() {
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
         <header>
           <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-            Admin · Users
+            Setup · Users
           </p>
           <h1 className="text-3xl font-bold tracking-tight">
             Users &amp; Domain Roles
@@ -94,6 +99,8 @@ export default async function UsersAdminPage() {
             granted below.
           </p>
         </header>
+
+        <SetupTabs activeTab="users" />
 
         <section className="ix-card p-5 space-y-4">
           <h2 className="text-sm font-semibold flex items-center gap-2">

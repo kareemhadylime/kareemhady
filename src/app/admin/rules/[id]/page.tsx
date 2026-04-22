@@ -26,7 +26,9 @@ export default async function EditRulePage({
   return (
     <>
       <TopNav>
-        <Link href="/admin" className="ix-link">Admin</Link>
+        <Link href="/" className="ix-link">Home</Link>
+        <ChevronRight size={14} className="text-slate-400" />
+        <Link href="/admin" className="ix-link">Setup</Link>
         <ChevronRight size={14} className="text-slate-400" />
         <Link href="/admin/rules" className="ix-link">Rules</Link>
         <ChevronRight size={14} className="text-slate-400" />
@@ -35,7 +37,7 @@ export default async function EditRulePage({
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-6 flex-1">
         <header>
           <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-            Admin · Email rules
+            Setup · Email Rules · Edit
           </p>
           <h1 className="text-3xl font-bold tracking-tight">Edit rule</h1>
         </header>
