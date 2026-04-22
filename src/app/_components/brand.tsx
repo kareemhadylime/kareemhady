@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Leaf, LogOut } from 'lucide-react';
+import { Leaf, LogOut, KeyRound } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 
 // Lime Investments — holding company brand. Fresh green palette reads as
@@ -46,6 +46,14 @@ export async function TopNav({ children }: { children?: React.ReactNode }) {
                   </span>
                 )}
               </span>
+              <Link
+                href="/account/password"
+                title="Change password"
+                className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 transition"
+              >
+                <KeyRound size={12} />
+                <span className="hidden sm:inline">Password</span>
+              </Link>
               <form action="/api/auth/logout" method="post">
                 <button
                   type="submit"

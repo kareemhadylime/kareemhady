@@ -10,7 +10,7 @@ import { SESSION_COOKIE } from '@/lib/auth-constants';
 //   - /api/shopify/auth/* (Shopify OAuth callback)
 //   - static assets and internal Next files
 //
-// The cookie is opaque — this middleware does NOT validate the session
+// The cookie is opaque — this proxy does NOT validate the session
 // against Supabase (edge can't do service-role queries cleanly). Actual
 // session lookup happens server-side in getCurrentUser(). Missing cookie
 // alone is enough to send users to /login.
@@ -28,7 +28,7 @@ const PUBLIC_PREFIXES = [
 ];
 
 // These API routes are bearer-auth protected via CRON_SECRET, not cookie.
-// Letting them through middleware keeps the smoke-test curl commands working.
+// Letting them through the proxy keeps the smoke-test curl commands working.
 const BEARER_API_PATTERNS = [
   /^\/api\/[^/]+\/ping$/,           // /api/guesty/ping, /api/odoo/ping, etc.
   /^\/api\/guesty\/run-now$/,
@@ -41,7 +41,7 @@ const BEARER_API_PATTERNS = [
   /^\/api\/analysis\//,
 ];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {

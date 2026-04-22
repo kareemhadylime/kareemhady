@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'node:crypto';
 import { cookies } from 'next/headers';
+import { redirect, notFound } from 'next/navigation';
 import { supabaseAdmin } from './supabase';
 import { SESSION_COOKIE } from './auth-constants';
 import type { Domain } from './rules/presets';
@@ -143,6 +144,24 @@ export function canAccessDomain(user: SessionUser | null, domain: Domain): boole
   if (!user) return false;
   if (user.is_admin) return true;
   return user.allowed_domains.includes(domain);
+}
+
+// Layout-level gate: call from src/app/emails/<domain>/layout.tsx so
+// unauthorized users 404 before the page renders. Proxy already checks
+// cookie presence, but edge can't validate sessions — so we do the real
+// check here. Returns the user so layouts can also render username/pill
+// if they want.
+export async function requireDomainAccess(domain: Domain): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) {
+    // Proxy should have caught this, but cookie could have expired mid-session.
+    // redirect() throws a NEXT_REDIRECT error — return type `never`.
+    redirect(`/login?next=/emails/${domain}`);
+  }
+  if (!canAccessDomain(user, domain)) {
+    notFound();
+  }
+  return user;
 }
 
 // ---- Login helper (used by the /api/auth/login route) ----

@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ChevronRight, UserPlus, Shield, Users as UsersIcon } from 'lucide-react';
+import {
+  ChevronRight,
+  UserPlus,
+  Shield,
+  Users as UsersIcon,
+  Activity,
+} from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
@@ -23,6 +29,14 @@ type UserRow = {
   created_at: string;
 };
 type DomainRoleRow = { user_id: string; domain: string; role: string };
+type SessionRow = {
+  user_id: string;
+  created_at: string;
+  last_seen_at: string | null;
+  expires_at: string;
+  user_agent: string | null;
+  ip: string | null;
+};
 
 export default async function UsersAdminPage() {
   const me = await getCurrentUser();
@@ -30,18 +44,32 @@ export default async function UsersAdminPage() {
   if (!me.is_admin) notFound();
 
   const sb = supabaseAdmin();
-  const { data: users } = await sb
-    .from('app_users')
-    .select('id, username, role, last_login_at, created_at')
-    .order('created_at');
-  const { data: roles } = await sb
-    .from('app_user_domain_roles')
-    .select('user_id, domain, role');
+  const [usersRes, rolesRes, sessionsRes] = await Promise.all([
+    sb
+      .from('app_users')
+      .select('id, username, role, last_login_at, created_at')
+      .order('created_at'),
+    sb.from('app_user_domain_roles').select('user_id, domain, role'),
+    // 50 most recent sessions by last_seen so we can surface "who's active".
+    sb
+      .from('app_sessions')
+      .select('user_id, created_at, last_seen_at, expires_at, user_agent, ip')
+      .order('last_seen_at', { ascending: false, nullsFirst: false })
+      .limit(50),
+  ]);
+  const users = usersRes.data;
+  const roles = rolesRes.data;
+  const sessions = sessionsRes.data;
+
   const rolesByUser = new Map<string, DomainRoleRow[]>();
   for (const r of (roles as DomainRoleRow[]) || []) {
     const arr = rolesByUser.get(r.user_id) || [];
     arr.push(r);
     rolesByUser.set(r.user_id, arr);
+  }
+  const usersById = new Map<string, UserRow>();
+  for (const u of (users as UserRow[]) || []) {
+    usersById.set(u.id, u);
   }
 
   return (
@@ -213,6 +241,89 @@ export default async function UsersAdminPage() {
               );
             })}
           </div>
+        </section>
+
+        <section className="ix-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              <Activity size={16} className="text-lime-600" />
+              Recent session activity
+            </h2>
+            <span className="text-[11px] text-slate-500">
+              last 50 by last-seen
+            </span>
+          </div>
+          {(!sessions || sessions.length === 0) ? (
+            <p className="p-5 text-sm text-slate-500">
+              No active sessions recorded yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-[10px] uppercase tracking-wide text-slate-500 bg-slate-50">
+                  <tr>
+                    <th className="text-left py-2 px-4">User</th>
+                    <th className="text-left py-2 px-4">Created</th>
+                    <th className="text-left py-2 px-4">Last seen</th>
+                    <th className="text-left py-2 px-4">IP</th>
+                    <th className="text-left py-2 px-4">User agent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(sessions as SessionRow[]).map((s, i) => {
+                    const u = usersById.get(s.user_id);
+                    const lastSeen = s.last_seen_at
+                      ? new Date(s.last_seen_at)
+                      : null;
+                    const ageMinutes = lastSeen
+                      ? (Date.now() - lastSeen.getTime()) / 60_000
+                      : null;
+                    const isActive = ageMinutes != null && ageMinutes < 30;
+                    const expired =
+                      new Date(s.expires_at).getTime() < Date.now();
+                    return (
+                      <tr
+                        key={`${s.user_id}:${i}`}
+                        className="border-t border-slate-100"
+                      >
+                        <td className="py-2 px-4 font-medium">
+                          {u?.username || (
+                            <span className="text-slate-400">
+                              [deleted user]
+                            </span>
+                          )}
+                          {isActive && !expired && (
+                            <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          )}
+                          {expired && (
+                            <span className="ml-2 text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                              expired
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-4 text-[11px] text-slate-500 tabular-nums">
+                          {new Date(s.created_at).toLocaleString('en-US')}
+                        </td>
+                        <td className="py-2 px-4 text-[11px] text-slate-500 tabular-nums">
+                          {lastSeen
+                            ? lastSeen.toLocaleString('en-US')
+                            : '—'}
+                        </td>
+                        <td className="py-2 px-4 text-[11px] text-slate-500 font-mono">
+                          {s.ip || '—'}
+                        </td>
+                        <td className="py-2 px-4 text-[11px] text-slate-500 truncate max-w-[340px]">
+                          <span title={s.user_agent || ''}>
+                            {s.user_agent || '—'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </main>
     </>
