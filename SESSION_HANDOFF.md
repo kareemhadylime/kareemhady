@@ -1,5 +1,62 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 12 SHIPPED — Dynamic integration credentials, no more env-var hardcoding (commit a097510)
+
+User asked for a central place to enter every API parameter for every service (Odoo, PriceLabs, Guesty, Shopify, Green-API, Airbnb) rather than hardcoding via env vars. Built a DB-backed credential resolver + admin UI.
+
+### Schema (migration 0010 applied via MCP)
+- `integration_credentials` — primary key = `provider`, jsonb `config`, `enabled` flag, `last_tested_at/status/error` for health surfacing, `updated_by` FK to app_users for audit.
+
+### Resolver (`src/lib/credentials.ts`)
+- **Single source of truth**: `CREDENTIAL_SPECS` object defines every provider's fields (key, label, envVar for fallback, type, required flag, placeholder, hint). The admin UI reads this same spec to render forms — adding a new field in one place is enough.
+- `getCredential(provider, key, {required})` — async lookup with 5-min per-cold-start cache; throws descriptive errors when `required=true` and both DB + env are empty.
+- `invalidateCredentials(provider?)` — clears cache after a save so warm instances pick up the new value on their next read.
+- `getProviderStatus(provider)` — returns keys-set + env-fallback-keys + last test status for the admin card; never exposes actual secret values.
+
+### Integration refactors (every module now reads via resolver)
+- **odoo.ts** — `getCreds()` async; 4 call sites updated to await.
+- **pricelabs.ts** — `pricelabsFetch` resolves `api_key` per request.
+- **guesty.ts** — `getAccessToken` resolves `client_id` + `client_secret`; keeps the 3-layer token cache (in-process → Supabase `integration_tokens` → fresh OAuth).
+- **shopify.ts** — `resolveAdminToken` + `baseUrl` are now async; handles `store_domain` + optional `admin_access_token` from DB (with env fallback) and still layers the OAuth-persisted token on top.
+- **Shopify OAuth start/callback + webhook HMAC verifier** use DB-backed `app_client_id` / `app_client_secret`.
+- **run-shopify-sync.ts** `shopDomain()` switched to resolver.
+
+### Ping endpoints cleanup
+Dropped duplicated env-presence checks from `/api/odoo/ping`, `/api/guesty/ping`, `/api/pricelabs/ping`, `/api/shopify/ping`. The resolver throws descriptive errors when fields are missing — pings just surface them, no parallel check list to maintain.
+
+### Admin UI (`/admin/integrations`, admin-only, 404 for non-admins)
+- One card per provider with health chip (✓ green when `last_test_status=ok` AND all required fields resolved, ⚠ amber otherwise), last-test timestamp, Docs link, and inline ping path.
+- Each field has a **source chip**: `DB` (green) / `ENV` (amber = using env fallback) / `UNSET` (grey) so admins see at-a-glance which fields are persisted vs relying on env vars.
+- **Password fields** masked and show `••••• (leave blank to keep current)` placeholder — admins can update one field without re-entering every secret.
+- **Per-field Clear checkbox** to explicitly remove a stored value (submits empty + ticks `clear:<key>`).
+- **Enabled toggle** per provider.
+- **Test connection** inline link opens the bearer-auth'd ping path in a new tab.
+- Error message surfaces in a rose-tinted code block when `last_test_error` is set.
+
+### Seed button (one-shot)
+Top-of-page "Seed from env vars" button runs a server action that copies every current env value into the DB for any field that isn't already set. Safe to re-run (skips fields with existing DB values). After one click, every chip flips from ENV → DB.
+
+### Coverage of user-requested providers
+| Provider | Fields | Status |
+|---|---|---|
+| Odoo | url, db, user, api_key | wired end-to-end |
+| PriceLabs | api_key | wired end-to-end |
+| Guesty | client_id, client_secret, account_id, webhook_secret | wired end-to-end |
+| Shopify | store_domain, app_client_id, app_client_secret, admin_access_token | wired end-to-end (incl. OAuth + webhook HMAC) |
+| Green-API | id_instance, api_token_instance, webhook_secret_path | stored-only; Phase 13 wiring |
+| Airbnb | client_id, client_secret, note | stored-only placeholder; data flows via Guesty |
+
+### TypeScript notes
+- Hit a silent caller-await bug in `shopify.ts` where `baseUrl()` was called 4 times as `${baseUrl()}...` without await after making the function async. Fixed with a single `replace_all` that wrapped all 4 call sites in `${await baseUrl()}`.
+- `seedFromEnvAction` initially returned results — Next.js 16 server-action typings require `Promise<void>`. Changed to void return.
+
+### Phase 13 backlog
+1. **Per-provider test-connection server action** — today the admin UI links out to `/api/{provider}/ping` which needs a bearer header; add a built-in "Test now" button that uses the session cookie to authenticate against a fresh endpoint and records the result back into `last_test_*`.
+2. **Green-API wiring** — new `/api/webhooks/green/<slug>` handler + outbound helper using the stored credentials.
+3. **Credential audit trail** — small viewer of recent `updated_at / updated_by` changes per provider.
+4. **Remove legacy env vars from Vercel** — once `Seed from env vars` has been clicked and the user has verified every provider works, delete the env vars from the Vercel project for safety.
+5. **Proxy-file rename** — Next.js 16 keeps nagging to rename `middleware.ts` → `proxy.ts`.
+
 ## ✅ PHASE 11 SHIPPED — Lime Investments rebrand + login gate + role-based domain access (commits fda91f3 → 54ae04e)
 
 User asked for: (1) app always opens on a login page, (2) accounts with one-or-multi domain roles, (3) full theme rebrand to "Lime Investments Dashboard" (holding company for all subsidiaries), (4) distinctive per-subsidiary themes drawn from the PDFs in `.claude/Documents/`.
