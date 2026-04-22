@@ -44,8 +44,9 @@ export type KikaSalesReport = {
     paid_orders: number;
     pending_orders: number;
     refunded_orders: number;
-    gross_revenue: number;
-    net_revenue: number; // gross - refunds
+    gross_revenue: number;       // paid + fulfilled only (cash actually collected)
+    potential_revenue: number;   // sum of all non-cancelled orders (includes pending COD)
+    net_revenue: number;         // gross - refunds
     avg_order_value: number | null;
     units_sold: number;
     unique_customers: number;
@@ -87,6 +88,7 @@ export async function buildKikaSalesReport(params: {
     customer_name: string | null;
     created_at: string | null;
     cancelled_at: string | null;
+    first_fulfilled_at: string | null;
     financial_status: string | null;
     fulfillment_status: string | null;
     currency: string | null;
@@ -100,7 +102,7 @@ export async function buildKikaSalesReport(params: {
     const { data, error } = await sb
       .from('shopify_orders')
       .select(
-        'id, name, email, customer_id, customer_name, created_at, cancelled_at, financial_status, fulfillment_status, currency, total, subtotal, refunded_amount, line_item_count'
+        'id, name, email, customer_id, customer_name, created_at, cancelled_at, first_fulfilled_at, financial_status, fulfillment_status, currency, total, subtotal, refunded_amount, line_item_count'
       )
       .gte('created_at', `${params.fromDate}T00:00:00Z`)
       .lt('created_at', `${params.toDate}T23:59:59Z`)
@@ -143,7 +145,14 @@ export async function buildKikaSalesReport(params: {
   const financialCounts = new Map<string, { count: number; revenue: number }>();
   const fulfillmentCounts = new Map<string, number>();
   const dailyMap = new Map<string, KikaSalesDailyBucket>();
+  // Gross Revenue = cash actually collected = paid + fulfilled orders.
+  // For a COD store, a 'pending' order is COD awaiting door-collection —
+  // it's not revenue yet. Matches the Exec Summary's Revenue Collected.
+  // potentialRevenue tracks the non-cancelled order-value superset (what
+  // would roll in if every pending order gets collected) so the operator
+  // can see the ceiling.
   let grossRevenue = 0;
+  let potentialRevenue = 0;
   let refundTotal = 0;
   let paidOrders = 0;
   let pendingOrders = 0;
@@ -163,10 +172,14 @@ export async function buildKikaSalesReport(params: {
   for (const o of orders) {
     const total = numberOrNull(o.total) || 0;
     const cancelled = isCancelledSales(o);
+    const fulfilled =
+      o.fulfillment_status === 'fulfilled' || o.first_fulfilled_at != null;
+    const collected = !cancelled && fulfilled && o.financial_status === 'paid';
     // Revenue & daily tallies SKIP cancelled orders — a cancelled COD
     // never collected cash, so including it inflates the numbers.
     if (!cancelled) {
-      grossRevenue += total;
+      potentialRevenue += total;
+      if (collected) grossRevenue += total;
       refundTotal += numberOrNull(o.refunded_amount) || 0;
       nonCancelledOrders += 1;
     }
@@ -260,13 +273,13 @@ export async function buildKikaSalesReport(params: {
     pending_orders: pendingOrders,
     refunded_orders: refundedOrders,
     gross_revenue: grossRevenue,
+    potential_revenue: potentialRevenue,
     net_revenue: grossRevenue - refundTotal,
-    // AOV divides non-cancelled revenue by non-cancelled order count —
-    // mixing the numerator (non-cancelled) with a different denominator
-    // (all orders including cancelled) was understating AOV. Matches the
-    // Exec Summary formula.
+    // AOV = potential revenue (non-cancelled order superset) ÷ non-cancelled
+    // order count. Using grossRevenue (paid+fulfilled only) in the numerator
+    // with non-cancelled-count in the denominator would understate AOV.
     avg_order_value:
-      nonCancelledOrders > 0 ? grossRevenue / nonCancelledOrders : null,
+      nonCancelledOrders > 0 ? potentialRevenue / nonCancelledOrders : null,
     units_sold: unitsSold,
     unique_customers: customers.size,
   };
@@ -329,4 +342,77 @@ export async function buildKikaSalesReport(params: {
       line_items_synced: number;
     } | null) || null,
   };
+}
+
+// -------- Per-order drill-down --------
+// Powers the order-detail modal on /emails/kika/sales. Gets the full order
+// row (all columns + raw jsonb for shipping address / notes) plus every
+// line item for that order.
+
+export type KikaOrderDetailLine = {
+  id: number;
+  product_id: number | null;
+  variant_id: number | null;
+  title: string | null;
+  name: string | null;
+  sku: string | null;
+  vendor: string | null;
+  quantity: number | null;
+  price: number | null;
+  total_discount: number | null;
+};
+
+export type KikaOrderDetail = {
+  id: number;
+  name: string | null;
+  email: string | null;
+  customer_id: number | null;
+  customer_name: string | null;
+  created_at: string | null;
+  processed_at: string | null;
+  cancelled_at: string | null;
+  first_fulfilled_at: string | null;
+  first_delivered_at: string | null;
+  hours_to_fulfill: number | null;
+  financial_status: string | null;
+  fulfillment_status: string | null;
+  currency: string | null;
+  subtotal: number | null;
+  total: number | null;
+  total_discounts: number | null;
+  total_tax: number | null;
+  total_shipping: number | null;
+  refunded_amount: number | null;
+  tags: string[] | null;
+  line_item_count: number | null;
+  raw: Record<string, unknown> | null;
+  line_items: KikaOrderDetailLine[];
+};
+
+export async function fetchKikaOrderDetail(
+  orderIdOrName: string
+): Promise<KikaOrderDetail | null> {
+  const sb = supabaseAdmin();
+  // Accept either numeric id ("7181021610156") or order-name ("#18643")
+  const asNum = Number(orderIdOrName);
+  let query = sb
+    .from('shopify_orders')
+    .select(
+      'id, name, email, customer_id, customer_name, created_at, processed_at, cancelled_at, first_fulfilled_at, first_delivered_at, hours_to_fulfill, financial_status, fulfillment_status, currency, subtotal, total, total_discounts, total_tax, total_shipping, refunded_amount, tags, line_item_count, raw'
+    );
+  if (Number.isFinite(asNum) && asNum > 0) {
+    query = query.eq('id', asNum);
+  } else {
+    query = query.eq('name', orderIdOrName.startsWith('#') ? orderIdOrName : `#${orderIdOrName}`);
+  }
+  const { data } = await query.maybeSingle();
+  if (!data) return null;
+  const o = data as KikaOrderDetail;
+
+  const { data: lines } = await sb
+    .from('shopify_line_items')
+    .select('id, product_id, variant_id, title, name, sku, vendor, quantity, price, total_discount')
+    .eq('order_id', o.id)
+    .order('id');
+  return { ...o, line_items: (lines as KikaOrderDetailLine[]) || [] };
 }
