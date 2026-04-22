@@ -100,6 +100,24 @@ export default async function DomainRulesPage({
     })
   );
 
+  // Hide rules whose output is already canonicalized by a direct-API module
+  // card on this domain. For Kika, Sales Intelligence (live Shopify API) is
+  // strictly better than the Gmail-derived 'shopify_order_aggregate' snapshot
+  // — same data, fresher, and it classifies cancelled / refunded / paid /
+  // fulfilled correctly (the email digest only matches by subject "Order").
+  const HIDDEN_RULE_ACTION_TYPES_BY_DOMAIN: Partial<Record<Domain, string[]>> = {
+    kika: ['shopify_order_aggregate'],
+  };
+  const hiddenActionTypes = new Set(
+    d && HIDDEN_RULE_ACTION_TYPES_BY_DOMAIN[d]
+      ? HIDDEN_RULE_ACTION_TYPES_BY_DOMAIN[d]
+      : []
+  );
+  const visibleRules = enriched.filter(
+    r => !hiddenActionTypes.has((r.actions as { type?: string })?.type || '')
+  );
+  const hiddenRuleCount = enriched.length - visibleRules.length;
+
   return (
     <>
       <TopNav>
@@ -265,18 +283,42 @@ export default async function DomainRulesPage({
           </div>
         )}
 
-        {!enriched.length ? (
-          <div className="ix-card p-10 text-center">
-            <p className="text-slate-500 text-sm mb-4">
-              No rules under {label} yet.
-            </p>
-            <Link href="/admin/rules/new" className="ix-btn-primary">
-              Create rule
-            </Link>
+        {hiddenRuleCount > 0 && d === 'kika' && (
+          <div className="ix-card p-3 text-[11px] text-slate-500 flex items-center gap-2 border-dashed bg-slate-50/30">
+            <ShoppingBag size={13} className="text-emerald-600" />
+            <span>
+              {hiddenRuleCount} Gmail-derived Shopify rule
+              {hiddenRuleCount === 1 ? '' : 's'} hidden below — the live{' '}
+              <Link
+                href="/emails/kika/sales"
+                className="text-emerald-700 underline hover:no-underline"
+              >
+                Sales Intelligence
+              </Link>{' '}
+              view supersedes them (same data, direct from the Shopify Admin
+              API, with accurate cancelled / refunded / fulfilled classification).
+              Rules still run on cron and are accessible via{' '}
+              <Link href="/admin/rules" className="underline hover:no-underline">
+                /admin/rules
+              </Link>.
+            </span>
           </div>
+        )}
+
+        {!visibleRules.length ? (
+          hiddenRuleCount > 0 ? null : (
+            <div className="ix-card p-10 text-center">
+              <p className="text-slate-500 text-sm mb-4">
+                No rules under {label} yet.
+              </p>
+              <Link href="/admin/rules/new" className="ix-btn-primary">
+                Create rule
+              </Link>
+            </div>
+          )
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {enriched.map(r => {
+            {visibleRules.map(r => {
               const out = r.latest_run?.output;
               const actionType = (r.actions as any)?.type || 'shopify_order_aggregate';
               const isBeithadyBooking = actionType === 'beithady_booking_aggregate';
