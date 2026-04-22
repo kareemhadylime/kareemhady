@@ -263,13 +263,17 @@ async function fetchKikaAccountTotals(params: {
 }): Promise<{ rows: RawAggregate[]; lineCount: number }> {
   const sb = supabaseAdmin();
 
-  // Resolve analytic_account_ids matching the segment (if any)
+  // Resolve analytic_account_ids matching the segment (if any).
+  //   company_ids is a Postgres bigint[] — use array containment (@>) via
+  //   Supabase's .contains() helper. The previous .in('company_ids', [[6]])
+  //   call generated a scalar IN filter that returned zero analytic rows,
+  //   so every non-consolidated segment rendered blank.
   let analyticIds: number[] | null = null;
   if (params.segment !== 'consolidated') {
     const { data: analyticRows } = await sb
       .from('odoo_analytic_accounts')
       .select('id, name')
-      .in('company_ids', [[6]]);
+      .contains('company_ids', [6]);
     const ids: number[] = [];
     for (const a of (analyticRows as Array<{ id: number; name: string }> | null) || []) {
       const seg = classifyKikaSegment(a.name);

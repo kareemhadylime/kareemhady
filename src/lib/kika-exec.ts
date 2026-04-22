@@ -65,10 +65,35 @@ export type KikaExecReport = {
     created_at: string | null;
     first_fulfilled_at: string | null;
     fulfillment_status: string | null;
-    financial_status: string | null;       // so UI can show voided / refunded / paid etc.
-    cancelled_at: string | null;           // excluded from most_delayed, but kept for future use
+    financial_status: string | null;
+    cancelled_at: string | null;
     total: number | null;
   }>;
+  // Full per-bucket order lists for the clickable drill-down. Each list is
+  // sorted descending by magnitude (value for cancelled/refunded; age for
+  // unfulfilled/delayed) so the UI can cap display at N rows without losing
+  // the important items.
+  focus_lists: {
+    cancelled: FocusOrder[];
+    unfulfilled: FocusOrder[];
+    delayed: FocusOrder[];
+    refunded: FocusOrder[];
+  };
+};
+
+export type FocusOrder = {
+  id: number;
+  name: string;
+  customer_name: string | null;
+  email: string | null;
+  created_at: string | null;
+  cancelled_at: string | null;
+  financial_status: string | null;
+  fulfillment_status: string | null;
+  total: number | null;
+  refunded_amount: number | null;
+  hours_to_fulfill: number | null;
+  age_hours: number | null;
 };
 
 function pct(num: number, denom: number): number | null {
@@ -387,5 +412,66 @@ export async function buildKikaExecReport(params: {
     },
     most_items,
     most_delayed,
+    focus_lists: {
+      cancelled: toFocusList(cancelledOrders, 'value'),
+      unfulfilled: toFocusList(unfulfilled, 'age'),
+      delayed: toFocusList(unfulfilled, 'age'),
+      refunded: toFocusList(deliveredThenRefunded, 'refund_amount'),
+    },
   };
+}
+
+// Map raw order rows into the FocusOrder shape + sort by the requested key.
+function toFocusList(
+  rows: Array<{
+    id: number;
+    name: string | null;
+    customer_name: string | null;
+    email: string | null;
+    created_at: string | null;
+    cancelled_at: string | null;
+    financial_status: string | null;
+    fulfillment_status: string | null;
+    total: number | null;
+    refunded_amount: number | null;
+    hours_to_fulfill: number | null;
+  }>,
+  sortBy: 'value' | 'age' | 'refund_amount'
+): FocusOrder[] {
+  const now = Date.now();
+  const mapped = rows.map(o => {
+    const hoursToFulfill = numberOrNull(o.hours_to_fulfill);
+    const ageHours =
+      hoursToFulfill ??
+      (o.created_at
+        ? Math.max(0, (now - new Date(o.created_at).getTime()) / 3_600_000)
+        : null);
+    return {
+      id: o.id,
+      name: o.name || `#${o.id}`,
+      customer_name: o.customer_name,
+      email: o.email,
+      created_at: o.created_at,
+      cancelled_at: o.cancelled_at,
+      financial_status: o.financial_status,
+      fulfillment_status: o.fulfillment_status,
+      total: numberOrNull(o.total),
+      refunded_amount: numberOrNull(o.refunded_amount),
+      hours_to_fulfill: hoursToFulfill,
+      age_hours:
+        ageHours != null && Number.isFinite(ageHours)
+          ? Number(ageHours.toFixed(1))
+          : null,
+    };
+  });
+  return mapped.sort((a, b) => {
+    if (sortBy === 'value') {
+      return (b.total ?? 0) - (a.total ?? 0);
+    }
+    if (sortBy === 'refund_amount') {
+      return (b.refunded_amount ?? 0) - (a.refunded_amount ?? 0);
+    }
+    // sortBy === 'age' — oldest first
+    return (b.age_hours ?? 0) - (a.age_hours ?? 0);
+  });
 }

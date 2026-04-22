@@ -90,13 +90,40 @@ const fmtHours = (h: number | null | undefined): string => {
   return `${(abs / 24).toFixed(1)} days`;
 };
 
+type Focus = 'cancelled' | 'unfulfilled' | 'delayed' | 'refunded';
+const FOCUS_IDS: Focus[] = ['cancelled', 'unfulfilled', 'delayed', 'refunded'];
+function isFocus(v: string | undefined): v is Focus {
+  return !!v && (FOCUS_IDS as string[]).includes(v);
+}
+function buildSearchString(
+  current: { preset?: string; from?: string; to?: string; focus?: string },
+  next: Partial<{ preset: string; from: string; to: string; focus: string | null }>
+): string {
+  const merged: Record<string, string> = {};
+  for (const [k, v] of Object.entries(current)) {
+    if (v) merged[k] = String(v);
+  }
+  for (const [k, v] of Object.entries(next)) {
+    if (v === null) delete merged[k];
+    else if (v !== undefined) merged[k] = String(v);
+  }
+  const qs = new URLSearchParams(merged).toString();
+  return qs ? `?${qs}` : '';
+}
+
 export default async function KikaExecPage({
   searchParams,
 }: {
-  searchParams: Promise<{ preset?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    preset?: string;
+    from?: string;
+    to?: string;
+    focus?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const period = resolvePeriod(sp.preset, sp.from, sp.to);
+  const activeFocus: Focus | null = isFocus(sp.focus) ? sp.focus : null;
   const [r, abandoned, pills] = await Promise.all([
     buildKikaExecReport({
       fromDate: period.from,
@@ -235,67 +262,75 @@ export default async function KikaExecPage({
           </div>
         </section>
 
-        {/* Row 4: REFUNDS / UNDELIVERED / CANCELLED */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="ix-card p-5 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <RotateCcw size={16} className="text-rose-600" />
-              Delivered then refunded
-            </h3>
-            <div className="flex items-end gap-4">
-              <p className="text-3xl font-bold tabular-nums text-rose-700">
-                {fmt(r.refunds.delivered_then_refunded_count)}
-              </p>
-              <p className="text-sm text-slate-500 pb-1">
-                {fmtPct(r.refunds.delivered_then_refunded_pct)} of fulfilled orders
-              </p>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Refunds issued on orders that were already delivered or fulfilled
-              (cancelled orders excluded). Total refund amount this period:
-              {' '}<strong>{fmt(r.refunds.refunds_amount_total)} EGP</strong>.
-            </p>
-          </div>
-
-          <div className="ix-card p-5 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <PackageX size={16} className="text-amber-600" />
-              Undelivered orders
-            </h3>
-            <div className="flex items-end gap-4">
-              <p className="text-3xl font-bold tabular-nums text-amber-700">
-                {fmt(r.fulfillment.unfulfilled_count)}
-              </p>
-              <p className="text-sm text-slate-500 pb-1">
-                {fmtPct(r.fulfillment.unfulfilled_pct)} of non-cancelled orders
-              </p>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Orders without a successful fulfillment record AND not cancelled.
-              For COD orders this is the true "not yet collected" count.
-            </p>
-          </div>
-
-          <div className="ix-card p-5 space-y-2">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Ban size={16} className="text-slate-500" />
-              Cancelled / voided
-            </h3>
-            <div className="flex items-end gap-4">
-              <p className="text-3xl font-bold tabular-nums text-slate-700">
-                {fmt(r.cancelled.count)}
-              </p>
-              <p className="text-sm text-slate-500 pb-1">
-                {fmtPct(r.cancelled.pct)} of orders in period
-              </p>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              Orders with a cancelled_at timestamp, financial_status=voided, or
-              fulfillment_status=cancelled. Gross-order value voided this
-              period: <strong>{fmt(r.cancelled.amount_total)} EGP</strong>.
-            </p>
-          </div>
+        {/* Row 4: CLICKABLE ORDER-STATE CHIPS — each opens a drill-down list below */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <ClickableStateCard
+            id="unfulfilled"
+            active={activeFocus === 'unfulfilled'}
+            icon={<PackageX size={16} />}
+            iconTone="text-amber-600"
+            accent="amber"
+            label="Undelivered"
+            count={r.fulfillment.unfulfilled_count}
+            pct={r.fulfillment.unfulfilled_pct}
+            pctLabel="of non-cancelled"
+            href={buildSearchString(sp, {
+              focus: activeFocus === 'unfulfilled' ? null : 'unfulfilled',
+            })}
+          />
+          <ClickableStateCard
+            id="delayed"
+            active={activeFocus === 'delayed'}
+            icon={<AlertTriangle size={16} />}
+            iconTone="text-rose-600"
+            accent="rose"
+            label="Delayed"
+            count={r.focus_lists.delayed.length}
+            pct={null}
+            pctLabel="sorted by age desc"
+            href={buildSearchString(sp, {
+              focus: activeFocus === 'delayed' ? null : 'delayed',
+            })}
+          />
+          <ClickableStateCard
+            id="refunded"
+            active={activeFocus === 'refunded'}
+            icon={<RotateCcw size={16} />}
+            iconTone="text-rose-700"
+            accent="rose"
+            label="Delivered→refunded"
+            count={r.refunds.delivered_then_refunded_count}
+            pct={r.refunds.delivered_then_refunded_pct}
+            pctLabel="of fulfilled"
+            href={buildSearchString(sp, {
+              focus: activeFocus === 'refunded' ? null : 'refunded',
+            })}
+          />
+          <ClickableStateCard
+            id="cancelled"
+            active={activeFocus === 'cancelled'}
+            icon={<Ban size={16} />}
+            iconTone="text-slate-500"
+            accent="slate"
+            label="Cancelled / voided"
+            count={r.cancelled.count}
+            pct={r.cancelled.pct}
+            pctLabel="of orders"
+            href={buildSearchString(sp, {
+              focus: activeFocus === 'cancelled' ? null : 'cancelled',
+            })}
+          />
         </section>
+
+        {activeFocus && (
+          <FocusDrilldown
+            focus={activeFocus}
+            orders={r.focus_lists[activeFocus]}
+            totalRefund={r.refunds.refunds_amount_total}
+            totalCancelledAmount={r.cancelled.amount_total}
+            closeHref={buildSearchString(sp, { focus: null })}
+          />
+        )}
 
         {/* Row 5: MOST ITEMS + MOST DELAYED */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -630,5 +665,248 @@ function MiniStat({
       <p className={`text-2xl font-bold tabular-nums ${valueClass}`}>{value}</p>
       <p className="text-[11px] text-slate-500">{sub}</p>
     </div>
+  );
+}
+
+// Clickable state-summary card — toggles the ?focus= query param so the
+// drill-down table below renders (or closes) for that bucket. Rendered
+// via a plain <Link> so selection is bookmarkable + server-rendered.
+function ClickableStateCard({
+  id,
+  active,
+  icon,
+  iconTone,
+  accent,
+  label,
+  count,
+  pct,
+  pctLabel,
+  href,
+}: {
+  id: Focus;
+  active: boolean;
+  icon: React.ReactNode;
+  iconTone: string;
+  accent: 'amber' | 'rose' | 'slate';
+  label: string;
+  count: number;
+  pct: number | null;
+  pctLabel: string;
+  href: string;
+}) {
+  const activeRing =
+    accent === 'amber'
+      ? 'ring-amber-400'
+      : accent === 'rose'
+        ? 'ring-rose-400'
+        : 'ring-slate-400';
+  const valueTone =
+    accent === 'amber'
+      ? 'text-amber-700'
+      : accent === 'rose'
+        ? 'text-rose-700'
+        : 'text-slate-700';
+  return (
+    <Link
+      href={href || '#'}
+      scroll={false}
+      aria-pressed={active}
+      className={`ix-card p-5 space-y-2 transition text-left hover:shadow-md hover:-translate-y-0.5 ${
+        active ? `ring-2 ${activeRing} shadow-sm` : ''
+      }`}
+    >
+      <h3 className="text-xs font-semibold flex items-center gap-2 text-slate-700 uppercase tracking-wide">
+        <span className={iconTone}>{icon}</span>
+        <span>{label}</span>
+      </h3>
+      <div className="flex items-end gap-2">
+        <p className={`text-3xl font-bold tabular-nums ${valueTone}`}>
+          {count.toLocaleString('en-US')}
+        </p>
+        {pct != null && (
+          <p className="text-xs text-slate-500 pb-1 tabular-nums">
+            {pct.toFixed(1)}% {pctLabel}
+          </p>
+        )}
+        {pct == null && (
+          <p className="text-xs text-slate-500 pb-1">{pctLabel}</p>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-400">
+        {active ? 'Click to close ·' : 'Click for drill-down ·'} id={id}
+      </p>
+    </Link>
+  );
+}
+
+function FocusDrilldown({
+  focus,
+  orders,
+  totalRefund,
+  totalCancelledAmount,
+  closeHref,
+}: {
+  focus: Focus;
+  orders: import('@/lib/kika-exec').FocusOrder[];
+  totalRefund: number;
+  totalCancelledAmount: number;
+  closeHref: string;
+}) {
+  const FOCUS_META: Record<
+    Focus,
+    { title: string; tone: string; extraSummary?: string }
+  > = {
+    cancelled: {
+      title: 'Cancelled / voided orders',
+      tone: 'text-slate-700',
+      extraSummary: `${totalCancelledAmount.toLocaleString('en-US', {
+        maximumFractionDigits: 0,
+      })} EGP in voided value`,
+    },
+    unfulfilled: {
+      title: 'Undelivered orders',
+      tone: 'text-amber-700',
+    },
+    delayed: {
+      title: 'Delayed orders (non-cancelled, sorted by age)',
+      tone: 'text-rose-700',
+    },
+    refunded: {
+      title: 'Delivered then refunded',
+      tone: 'text-rose-700',
+      extraSummary: `${totalRefund.toLocaleString('en-US', {
+        maximumFractionDigits: 0,
+      })} EGP refund amount`,
+    },
+  };
+  const meta = FOCUS_META[focus];
+  const showRefund = focus === 'refunded';
+  const showCancelledAt = focus === 'cancelled';
+  return (
+    <section className="ix-card overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className={`text-sm font-semibold ${meta.tone}`}>{meta.title}</h3>
+          <p className="text-[11px] text-slate-500">
+            {orders.length.toLocaleString('en-US')} order
+            {orders.length === 1 ? '' : 's'}
+            {meta.extraSummary ? ` · ${meta.extraSummary}` : ''}
+          </p>
+        </div>
+        <Link
+          href={closeHref || '#'}
+          scroll={false}
+          className="text-[11px] text-slate-500 hover:text-slate-800 inline-flex items-center gap-1 border border-slate-200 rounded-full px-2.5 py-1 hover:bg-slate-50"
+        >
+          Close ×
+        </Link>
+      </div>
+      {orders.length === 0 ? (
+        <p className="p-5 text-sm text-slate-500">
+          No orders in this bucket for the selected period.
+        </p>
+      ) : (
+        <div className="overflow-x-auto max-h-[560px]">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="text-left px-4 py-2">Order</th>
+                <th className="text-left px-4 py-2">Customer / email</th>
+                <th className="text-left px-4 py-2">Created</th>
+                {showCancelledAt && (
+                  <th className="text-left px-4 py-2">Cancelled</th>
+                )}
+                <th className="text-right px-4 py-2">
+                  {focus === 'delayed' || focus === 'unfulfilled'
+                    ? 'Age'
+                    : 'Total (EGP)'}
+                </th>
+                {showRefund && (
+                  <th className="text-right px-4 py-2">Refund (EGP)</th>
+                )}
+                <th className="text-left px-4 py-2">Financial</th>
+                <th className="text-left px-4 py-2">Fulfillment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map(o => (
+                <tr key={o.id} className="border-t border-slate-100">
+                  <td className="px-4 py-1.5 font-medium">{o.name}</td>
+                  <td className="px-4 py-1.5 truncate max-w-[220px]">
+                    <div className="truncate" title={o.customer_name || ''}>
+                      {o.customer_name || o.email || '—'}
+                    </div>
+                    {o.customer_name && o.email && (
+                      <div className="truncate text-[11px] text-slate-500">
+                        {o.email}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-1.5 text-[11px] text-slate-500 tabular-nums">
+                    {o.created_at
+                      ? new Date(o.created_at).toLocaleDateString('en-US')
+                      : '—'}
+                  </td>
+                  {showCancelledAt && (
+                    <td className="px-4 py-1.5 text-[11px] text-slate-500 tabular-nums">
+                      {o.cancelled_at
+                        ? new Date(o.cancelled_at).toLocaleDateString('en-US')
+                        : '—'}
+                    </td>
+                  )}
+                  <td className="px-4 py-1.5 text-right tabular-nums">
+                    {focus === 'delayed' || focus === 'unfulfilled'
+                      ? fmtHours(o.age_hours)
+                      : o.total != null
+                        ? fmt(o.total)
+                        : '—'}
+                  </td>
+                  {showRefund && (
+                    <td className="px-4 py-1.5 text-right tabular-nums text-rose-600">
+                      {o.refunded_amount != null ? fmt(o.refunded_amount) : '—'}
+                    </td>
+                  )}
+                  <td className="px-4 py-1.5 text-[11px]">
+                    <StatusPill status={o.financial_status} />
+                  </td>
+                  <td className="px-4 py-1.5 text-[11px]">
+                    <StatusPill
+                      status={
+                        o.cancelled_at ||
+                        o.financial_status === 'voided' ||
+                        o.fulfillment_status === 'cancelled'
+                          ? 'cancelled'
+                          : o.fulfillment_status || 'unfulfilled'
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StatusPill({ status }: { status: string | null }) {
+  const s = (status || '').toLowerCase();
+  const color =
+    s === 'paid' || s === 'fulfilled'
+      ? 'bg-emerald-50 text-emerald-700'
+      : s === 'pending'
+        ? 'bg-amber-50 text-amber-700'
+        : s === 'refunded' || s === 'partially_refunded'
+          ? 'bg-rose-50 text-rose-700'
+          : s === 'cancelled' || s === 'voided'
+            ? 'bg-slate-200 text-slate-700 line-through decoration-slate-400'
+            : 'bg-slate-100 text-slate-600';
+  return (
+    <span
+      className={`inline-block px-1.5 py-0.5 rounded capitalize text-[10px] font-medium ${color}`}
+    >
+      {(status || 'unknown').replace(/_/g, ' ')}
+    </span>
   );
 }
