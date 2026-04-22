@@ -1,5 +1,59 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 10.3 SHIPPED — Exec dashboard + product/customer master + fulfillment timing (commit 04567e5)
+
+User asked for an easy-reading Kika Shopify dashboard showing: order count, order values, most items ordered, returning customers, time to fulfill, most delayed orders, delivered-then-refunded count+%, undelivered count+%. All orders are cash (COD) — so "pending" financial_status means awaiting cash collection, not a failed gateway. Also requested: Phase 10.3+ backlog (product + customer master sync).
+
+### Schema (migration 0008 applied via MCP)
+- `shopify_orders` extended: `first_fulfilled_at`, `first_delivered_at`, `hours_to_fulfill` columns. **Backfilled in the migration itself via a single UPDATE that parses the existing `raw->'fulfillments'` jsonb** — no re-sync required for these 3 columns to populate. 1,410 orders now have `hours_to_fulfill`, 706 have a delivery timestamp.
+- `shopify_products`: full product master (title, vendor, product_type, status, handle, tags, total_inventory from sum(variants[].inventory_quantity), variant_count).
+- `shopify_customers`: lifetime master for returning-customer analytics (email, name, phone, orders_count, total_spent, state, last_order_id, created_at).
+- `shopify_sync_runs` extended with `products_synced` + `customers_synced` counters.
+
+### Sync worker (`src/lib/run-shopify-sync.ts`)
+Now has 4-phase flow: products → customers → orders → line items. All paginated via Link-header cursor generators (`iterateShopifyProducts`, `iterateShopifyCustomers`, `iterateShopifyOrders`) with 500ms spacing (Shopify 2 req/sec bucket). On each order, extracts `first_fulfilled_at` + `first_delivered_at` from `fulfillments[]` and computes `hours_to_fulfill` at ingest time so the exec aggregator doesn't re-parse jsonb per query.
+
+### Manual re-run results
+- Sync triggered at 22:40ish → completed products (549) + customers (7,713) + orders backfill before the curl HTTP client timed out (Vercel function kept going). Data landed in DB.
+- Customer master stats: **7,713 total · 1,356 lifetime repeat buyers (17.6% repeat rate)**.
+- Fulfillment timing: avg **109.2 hrs (4.6 days)** · median **71.8 hrs (3 days)** · p90 **259.5 hrs (10.8 days)**. The median suggests most orders ship within 3 days but the tail is long.
+
+### Executive aggregator (`src/lib/kika-exec.ts`)
+`buildKikaExecReport({fromDate, toDate})` returns one object with every metric the operator asked for:
+- **totals**: orders, order_value_total, order_value_avg, order_value_median, order_value_max, units
+- **customers**: unique, returning_in_period (>1 order this period), returning_lifetime (customers whose Shopify `orders_count > 1`), returning_rate_lifetime_pct, new_in_period (customer created_at ≥ period start)
+- **fulfillment**: fulfilled_count, unfulfilled_count, unfulfilled_pct, avg/median/p90 hours_to_fulfill
+- **refunds**: delivered_then_refunded_count (fulfilled AND refunded_amount > 0) + pct of fulfilled orders + total refund amount
+- **most_items**: product-level units+orders+revenue, top 15 by units
+- **most_delayed**: top 15 orders sorted by age; unfulfilled orders use (now − created_at) as the delay metric, fulfilled use their hours_to_fulfill. Delayed-unfulfilled highlighted in red.
+
+All JS — no per-query RPC roundtrips.
+
+### Dashboard page (`/emails/kika/exec`)
+- Period filter: last 7d / last 30d / this month / last month / this year + custom date range.
+- Row 1 big stats: Orders · Gross Revenue · AOV (with median+max in sub) · Customers (with orders/customer ratio).
+- Row 2: Returning customers (returning-this-period, lifetime-repeat with %, new-in-period).
+- Row 3: Fulfillment (fulfilled count, unfulfilled with %, avg hours, p90 hours) — auto-formats hours vs days past 48h; turns amber when unfulfilled% > 20%.
+- Row 4: Two side-by-side cards — Delivered then refunded (count + % of fulfilled + total refund amount) and Undelivered (count + % with cash-context note).
+- Row 5: Most items ordered (units/orders/revenue) + Most delayed orders (with red pills for unfulfilled).
+- Header explains cash-order context so "pending" isn't misread as failed payment.
+
+### Domain page update
+Kika domain index (`/emails/kika`) now carries 3 cards: **Executive Summary** (full-width, amber/rose accent) + **Financials** + **Sales Intelligence** side-by-side.
+
+### Verification
+- `/emails/kika/exec?preset=last_30d` → HTTP 200 ✅
+- `/emails/kika/exec?preset=ytd` → HTTP 200 ✅
+- All metrics surfaced as requested.
+
+### Phase 10.4 backlog (not done this turn)
+1. **Webhooks for real-time order updates** (`/api/webhooks/shopify`) — order.create, order.updated, order.fulfilled, order.cancelled. Upsert-by-id handler; ~60 min.
+2. **Cross-join Shopify revenue to Odoo Kika segment P&L** — add a reconciliation card on the Kika Financials page showing "Shopify orders revenue (gross) vs Odoo 401010 Shopify revenue" with delta.
+3. **Abandoned checkout tracking** (Shopify `/checkouts.json`) — recoverable lost revenue.
+4. **Inventory alerts** (Shopify `/inventory_levels.json` + a threshold) — low-stock warning table.
+5. **Product-level revenue in Exec dashboard** already exposed via `most_items`; a drill-down to a product-detail page (variants, stock, 30d velocity) would be the next UX lift.
+6. **Sync-freshness pills** on Beithady Financials / Pricing / Kika Sales+Exec pages — at a glance "stale 2 days ago" warnings.
+
 ## ✅ PHASE 10.2 SHIPPED — Kika Shopify mirror + Sales Intelligence dashboard (commits 72d79a6 + 73284d6)
 
 ### Install flow completed
