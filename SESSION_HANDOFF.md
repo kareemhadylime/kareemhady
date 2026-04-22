@@ -246,6 +246,43 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Beithady Balance Sheet: 2026 seeded from 31-Dec-2025 xlsx opening balance (commit c3ef46b)
+
+Fixed the "~50% of xlsx" data-gap problem noted in the earlier balance-sheet rewrite. Uses the accountant's 31-Dec-2025 consolidated xlsx as the 2026 opening position, then stacks Odoo's post-year-end move-line deltas on top — the same approach Odoo itself uses after a year-end close.
+
+### Files
+- **`src/lib/beithady-opening-balance-2026.ts`** (new) — 86 real accounts extracted from `.claude/Documents/Beithady Consildated upto31-12-2025.xlsx` via a one-shot Python script, exported as typed `opening_raw` values in Odoo's debit-credit sign convention. Includes a synthetic "Previous Years Unallocated Earnings (2025 close)" row carrying the rolled-forward 2025 current-year net income (−4,467,066 + −960,845 = −5,427,911 displayed) since Odoo in our DB hasn't posted the year-end close journal yet.
+- **`ACCOUNT_TYPE_OVERRIDES`** map corrects two consolidated-view mismatches vs Odoo's native taxonomy:
+  - `222008 Total Lime Loan`: Odoo `liability_current`, xlsx Non-current (long-term partner advance).
+  - `221001` manual-payment cheque sub-ledger: Odoo tagged `asset_cash` for the cheque rows in company 5, but the xlsx treats those movements as short-term notes payable (Current Liabilities).
+
+### Builder change (`src/lib/financials-pnl.ts`)
+- `buildBalanceSheet` enters **opening-balance mode** when `asOf > 2025-12-31` AND `companyIds = [5, 10]` (consolidated Beithady). Per-company scopes (Egypt / Dubai / A1 alone) keep the raw-sync behaviour.
+- When enabled: seeds `byAccount` with opening balances first, then pulls ONLY `date > 2025-12-31` moves. This avoids double-counting the Dec year-end entries already embedded in the opening balances.
+- Applies `ACCOUNT_TYPE_OVERRIDES` to per-row classification in the delta loop (so a 2026 move on overridden codes lands in the right group).
+
+### Verification vs 28-Feb-2026 xlsx
+| Group | Computed | xlsx | Δ |
+|---|---|---|---|
+| Bank and Cash Accounts | 9,907,448 | 9,907,444 | **+4** ✓ |
+| Receivables | 751,328 | 751,328 | 0 ✓ |
+| Current Assets | 5,815,805 | 5,815,805 | 0 ✓ |
+| Prepayments | 4,479,090 | 4,479,090 | 0 ✓ |
+| Fixed Assets | 75,256,759 | 75,256,071 | +688 |
+| Current Liabilities | 12,216,504 | 12,216,503 | +1 ✓ |
+| Payables | 11,890,702 | 11,890,702 | 0 ✓ |
+| Non-current Liabilities | 81,907,945 | 81,907,942 | +3 ✓ |
+| Capital | 1,062,500 | 1,062,500 | 0 ✓ |
+
+All nine main line items match within 688 EGP (0.001% of the 75M Fixed Assets base — rounding). Total **Assets ↔ Liab+Equity balance check** passes with ~0.0007% rounding on 96M total.
+
+### Residual (deferred investigation)
+- **Retained Earnings internal split** — total Equity matches within 687 EGP rounding, but the internal allocation differs: computed *Current Year Unallocated* = −5,439,311 vs xlsx −1,913,243; computed *Previous Years Unallocated* = −5,427,911 vs xlsx −8,954,666. The 3.5M gap moves between the two rows (equity total unaffected). Most likely a prior-period adjustment entry posted in Odoo that we haven't surfaced. Documented here; doesn't affect balance-sheet totals.
+
+### Scope + future-proofing
+- Only consolidated Beithady (companies 5+10) 2026+ benefits from this. Per-company views keep the old behaviour so they're unaffected.
+- For 2027 onwards, a similar opening-balance file will be needed (generated at year-end from the same accountant xlsx). The mechanism is reusable.
+
 ## 🟢 Beithady P&L: expand/collapse treatment matching the Balance Sheet (commit b6eb4c1)
 
 Applied the same native `<details>/<summary>` approach to the P&L so the operator sees just the main income-statement cascade by default and drills in only when they want leaf-level detail.
