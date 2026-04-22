@@ -286,18 +286,13 @@ async function fetchKikaAccountTotals(params: {
     }
   }
 
-  // Use the RPC pnl_aggregated when we have analytic filter (reuses the
-  // same machinery the Beithady dashboard uses). For consolidated we do
-  // the GROUP BY in JS since the RPC needs a specific analytic filter.
+  // Segment mode: join odoo_move_lines through odoo_move_line_analytics.
+  // Weight each move-line by its analytic-distribution percentage so that
+  // a 50/50 split between kika and xlabel contributes only half its
+  // balance to each segment — otherwise every segment double-counts the
+  // full balance and segments no longer sum to consolidated. Verified in
+  // SQL: weighted SUM(kika) + SUM(xlabel) + SUM(inout) ≈ consolidated.
   if (analyticIds && analyticIds.length > 0) {
-    // The pnl_aggregated RPC accepts a building_code or lob_label TEXT
-    // filter, not arbitrary analytic ids. Call directly by joining through
-    // odoo_move_line_analytics here instead.
-    type Row = {
-      balance: number;
-      account_id: number | null;
-      odoo_accounts: { code: string | null; name: string; account_type: string | null } | null;
-    };
     const byAccount = new Map<string, RawAggregate>();
     let lineCount = 0;
     const PAGE = 1000;
@@ -306,7 +301,7 @@ async function fetchKikaAccountTotals(params: {
       const { data, error } = await sb
         .from('odoo_move_line_analytics')
         .select(
-          'move_line_id, odoo_move_lines!inner(balance, date, company_id, parent_state, odoo_accounts!inner(code, name, account_type))'
+          'move_line_id, percentage, odoo_move_lines!inner(balance, date, company_id, parent_state, odoo_accounts!inner(code, name, account_type))'
         )
         .in('analytic_account_id', analyticIds)
         .gte('odoo_move_lines.date', params.fromDate)
@@ -316,6 +311,7 @@ async function fetchKikaAccountTotals(params: {
         .range(offset, offset + PAGE - 1);
       if (error) throw new Error(`fetchKikaAccountTotals: ${error.message}`);
       const rows = (data as unknown as Array<{
+        percentage: number | string | null;
         odoo_move_lines: {
           balance: number;
           odoo_accounts: { code: string | null; name: string; account_type: string | null } | null;
@@ -330,10 +326,15 @@ async function fetchKikaAccountTotals(params: {
         const name = acc.name || '';
         const accountType = acc.account_type || '';
         const key = `${code}||${name}||${accountType}`;
+        const rawBal = Number(ml.balance) || 0;
+        const pct = Number(r.percentage);
+        // If percentage is missing (shouldn't happen for real rows) fall
+        // back to 100% so the row isn't silently dropped.
+        const share = Number.isFinite(pct) && pct > 0 ? pct / 100 : 1;
+        const weighted = rawBal * share;
         const existing = byAccount.get(key);
-        const bal = Number(ml.balance) || 0;
-        if (existing) existing.sum_balance += bal;
-        else byAccount.set(key, { code, name, account_type: accountType, sum_balance: bal });
+        if (existing) existing.sum_balance += weighted;
+        else byAccount.set(key, { code, name, account_type: accountType, sum_balance: weighted });
       }
       lineCount += rows.length;
       if (rows.length < PAGE) break;
