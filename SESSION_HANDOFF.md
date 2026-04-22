@@ -246,6 +246,39 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika P&L matched to f.s_x_label_for_tailoring_kika xlsx (commit 35ed238)
+
+Reconciled March 2026 line-by-line against `.claude/Documents/f.s_x_label_for_tailoring_kika (1).xlsx`.
+
+### Classifier fix: 502xxx depreciation → Cost of Operation
+The xlsx presents `502120 Depreciation Equipment` inside **Cost of Revenue → Cost of Operation** (it's a direct cost of production, not a below-EBITDA line). Our classifier sent every `expense_depreciation` row to INT-TAX-DEP regardless of code, which inflated the Depreciation line and understated Cost of Operation. Updated `classifyKikaAccount`: in the `expense_depreciation` branch, codes starting with `502` now route to `cost_of_revenue/cost_of_operation`; only `606xxx` (office/IT) depreciation stays under INT-TAX-DEP.
+
+### Reconciliation — March 2026 by segment
+| Segment | Revenue | Cost of Rev | G&A | INT-TAX-DEP | Net Profit | Match |
+|---|---|---|---|---|---|---|
+| **IN & OUT** xlsx | 0 | 436.50 | 194.80 | 0 | **-631.30** | — |
+| **IN & OUT** app | 0 | 436.50 | 194.80 | 0 | **-631.30** | ✓ exact |
+| **X-Label** xlsx | 363,510 | 274,728.19 | 108,768.40 | 867.54 | **-20,854.13** | — |
+| **X-Label** app | 363,510 | 274,728.19 | 108,768.37 | 867.54 | **-20,854.10** | ✓ within 0.03 EGP |
+| **Kika** xlsx | 362,346.84 | 143,299.07 | 231,611.43 | 0 | **-12,563.66** | — |
+| **Kika** app | 362,346.84 | 143,299.07 | 231,611.47 | 116.67 | **-12,680.37** | off by 116.67 ⚠ |
+
+### Known Kika delta: 116.67
+The only residual gap is on Kika. Drilldown:
+```
+code 606370  Depreciation Tools   balance 116.67   date 2026-03-31
+name:        "mannequin For Kika: Depreciation"
+Odoo tag:    analytic_account_id = 745 (kika) @ 100%
+xlsx Kika column: blank
+xlsx Consolidated: 216.67  (= 100 X-Label + 116.67 untagged)
+```
+Odoo says the mannequin belongs to Kika 100% (the line description even confirms it). The xlsx classifies it as untagged, only surfacing it in the consolidated column. Our app reflects the **live Odoo tag**, so the 116.67 shows under Kika — this is more current than the xlsx which appears to be a snapshot from before the tagging was completed. Kika Net Profit in the app = -12,680.37 vs xlsx -12,563.66 — a -116.71 delta attributable entirely to this one line.
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/kika/financials?segment=*` → 307 healthy.
+- Consolidated total unchanged: -34,166 (xlsx -34,165.76) ✓
+
 ## 🟢 Kika P&L: segment totals now reconcile to Consolidated (commit e47471a)
 
 User reported: Consolidated March-2026 = **-34K** but Kika = -32K, X-Label = -40K. Any two of those already over-shoot the Consolidated total, which is accounting-impossible.
