@@ -246,6 +246,47 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## ✅ PHASE 10.5 SHIPPED — Abandoned checkouts + webhook delivery log + Gmail freshness pill (commit 6eb5ba3)
+
+Three items from the Phase 10.5+ backlog shipped together. Production live on `limeinc.vercel.app` (deployment `dpl_BKBnnbq31qsbF8WFgUoshiiXc9JA`).
+
+### 1. Abandoned checkout tracking — recoverable revenue
+- **Migration 0011** adds `public.shopify_abandoned_checkouts` (id bigint PK, email/phone/customer_name, currency, total/subtotal/tax/discounts, line_items jsonb + line_items_count, abandoned_checkout_url recovery link, created_at / updated_at / completed_at, raw jsonb, synced_at). Partial index `idx_shopify_abandoned_open` on `(created_at desc) where completed_at is null` for the hot "still-open" path.
+- **`src/lib/shopify.ts`** gains `ShopifyAbandonedCheckout` type + `iterateShopifyAbandonedCheckouts({status, createdAtMin, createdAtMax, pageSize})` async generator (Link-header cursor, 500ms spacing to respect Shopify's 2 req/sec bucket).
+- **`src/lib/run-shopify-sync.ts`** gains a 4th phase after products/customers/orders. Shopify's `/checkouts.json` retains ~30 days; each run re-pulls the full window so completions graduate open rows via the unique-id upsert.
+- **Kika Exec dashboard** (`/emails/kika/exec`) gets a new Row 6: a small card with open-cart count + completed-in-period + **recovery rate %**, recoverable revenue, avg cart value, emailable count (carts with capturable email) and a wide "Top open carts by value" table (15 rows, sorted by total_price desc) with Shopify-generated **one-click recovery URLs**. Operator can literally click a link and Shopify resumes the shopper's checkout.
+- **Aggregator** `src/lib/kika-abandoned-checkouts.ts` exports `buildKikaAbandonedReport({fromDate, toDate, label})`. Splits rows by `completed_at IS NULL` (abandoned) vs NOT NULL (completed), computes recovery rate, recoverable revenue, and emailable %.
+- **Sync-runs counter** extended: `abandoned_checkouts_synced int default 0`. Surfaces in the return payload of `runShopifySync`.
+
+### 2. Webhook delivery log
+- **Migration 0011** adds `public.shopify_webhook_events` (id uuid default gen_random_uuid, received_at, topic, shop_domain, shopify_webhook_id text for X-Shopify-Webhook-Id dedup, status text, duration_ms, error text, payload_size, order_id bigint for orders/* topics). Partial index on non-processed status for fast "show me recent failures" queries.
+- **`/api/webhooks/shopify/route.ts`** instrumented with a `logEvent()` helper. Every inbound POST logs one row — success path (`status='processed'`) records order_id; failure paths record `hmac_failed` / `hmac_decode_failed` / `invalid_json` / `config_missing` / `unknown_topic` / `error` with `duration_ms` and `payload_size`. Log insert is try/catch-swallowed so a DB hiccup never blocks the 2xx Shopify retries on.
+- **No admin surface** yet — the table is queryable directly; a viewer on `/admin/integrations` is Phase 10.6 backlog.
+
+### 3. Gmail freshness pill on root Emails page
+- **`src/lib/sync-freshness.ts`** extended: `SPECS` object gains `gmail: { table: 'runs', ... }` entry. Gmail ingestion writes to the Phase-1 `public.runs` table (migration 0001) — it already has `finished_at` + `status='succeeded'` columns so no schema change needed.
+- **`/emails` root page** now imports `SyncPills` + `getSyncFreshness(['gmail'])` and renders the pill in the header flex row. Completes the freshness-pill coverage first shipped in Phase 10.4 across Beithady / Kika dashboards.
+
+### Verification
+- `tsc --noEmit` clean before deploy.
+- Post-deploy smoke tests:
+  - `/emails/kika/exec` → 307 (redirects to /login; middleware routing intact)
+  - `/emails` → 307
+  - `/api/webhooks/shopify` GET → 405 (POST-only handler intact)
+- Direct SQL validation through Supabase MCP: both new tables queryable, new column `abandoned_checkouts_synced` present on `shopify_sync_runs`.
+- Kicked off a fresh Shopify sync (`/api/shopify/run-now`, CRON_SECRET-auth) immediately after deploy — run id `67448df4-731c-48df-a582-ddf8aa74cbd2` captured the first abandoned-checkout backfill using the new code path.
+
+### Known tool-safety workaround (still relevant)
+Earlier in this session we cleared worktree-wide encoding drift (BOM + em-dash mojibake) across main repo (88 files) and the `claude/sad-gagarin-bbf5dd` worktree (4 files). Edit/Write now work cleanly again — all Phase 10.5 files written this turn have no BOM and correct UTF-8. If the drift ever reappears, fall back to `perl -i -pe` for byte-safe edits.
+
+### Phase 10.6 backlog (not done this turn)
+1. **Webhook delivery log admin viewer** — small table on `/admin/integrations` showing last 50 events with status chips, filter by topic/status/timestamp. Also a "retry" button for stuck `error` rows.
+2. **Inventory alerts** (`/inventory_levels.json` sync + low-stock threshold table) — was in the 10.5 backlog; deferred.
+3. **Product drill-down page** — click a product in "Most items" → variants, stock, 30d velocity, refund rate. Exec dashboard currently exposes product-level revenue in `most_items` but no drill path.
+4. **Abandoned-checkout email recovery flow** — pipe open carts with emails into an outbound flow (Gmail send via existing googleapis client, or a Klaviyo handoff later).
+5. **`?phase=abandoned_only`** flag on `/api/shopify/run-now` so the user can re-pull just checkouts without a full 3-min products+customers+orders backfill.
+6. **Sync-freshness pill on Kika's abandoned card** — show when the checkouts mirror was last refreshed (the existing `shopify` pill already covers this but a per-source pill on the card itself would be more discoverable).
+
 ## ✅ PHASE 10.4 SHIPPED — Shopify webhooks + Kika revenue reconciliation + sync-freshness pills (commit 4de0182)
 
 Three items from the Phase 10.4 backlog delivered together.
