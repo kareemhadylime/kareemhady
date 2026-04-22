@@ -215,6 +215,19 @@ function classifyKikaAccount(
       };
     }
     case 'expense_depreciation':
+      // Manufacturing-equipment depreciation (502xxx) belongs to Cost of
+      // Operation — it's a direct cost of production, not a below-EBITDA
+      // item. Office/IT-equipment depreciation (606xxx) stays as a standalone
+      // INT-TAX-DEP line. Matches the f.s_x_label_for_tailoring_kika xlsx
+      // presentation where 502120 sits inside Cost of Revenue.
+      if (c.startsWith('502')) {
+        return {
+          section: 'cost_of_revenue',
+          subgroupKey: 'cost_of_operation',
+          subgroupLabel: 'Cost of Operation',
+          flip: false,
+        };
+      }
       return {
         section: 'interest_tax_dep',
         subgroupKey: 'depreciation',
