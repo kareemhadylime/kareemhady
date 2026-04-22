@@ -246,6 +246,61 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Beithady Balance Sheet: Feb-2026 xlsx format with expand/collapse (commit 38f83b5)
+
+User uploaded `.claude/Documents/BeithadyBalanceSheet 28-2.xlsx` as the target format and asked for main-line-items-with-expand-collapse on the Beithady Financials (Consolidated) page. Full rewrite.
+
+### Format match to the xlsx
+Vertical single-column layout:
+```
+ASSETS                              96,209,738
+  Bank and Cash Accounts             9,907,443  [expand]
+  Receivables                          751,328  [expand]
+  Current Assets                     5,815,805  [expand]
+  Prepayments                        4,479,090  [expand]
+  Fixed Assets                      75,256,071  [expand]
+
+LIABILITIES                        106,015,147
+  Current Liabilities               12,216,503  [expand]
+  Payables                          11,890,702  [expand]
+  Non-current Liabilities           81,907,942  [expand]
+
+EQUITY                              (9,805,409)
+  Capital                            1,062,500  [expand]
+  Retained Earnings                (10,867,909) [expand]   <- derived
+    Current Year Unallocated Earnings (1,913,243)
+    Previous Years Unallocated Earnings (8,954,666)
+
+LIABILITIES + EQUITY                96,209,738
+```
+
+### Builder changes (`src/lib/financials-pnl.ts`)
+- `BalanceSheetReport` flattened: `assets/liabilities/equity: { total, groups[] }` in xlsx display order. Empty groups filtered out.
+- Classifier renames: `asset_current` → **Current Assets** (was "Other Current Assets"), `liability_current` → **Current Liabilities** (was "Other Current Liabilities"), `equity + name matches /capital/i` → **Capital**.
+- New synthetic **Retained Earnings** group: two derived rows populated by a second pass over `odoo_move_lines`:
+  - *Current Year Unallocated Earnings* = sign-flipped sum of income+expense types (`income, income_other, expense, expense_direct_cost, expense_depreciation`) from Jan-1-of-asOf-year through asOf. This is net income for the current fiscal year.
+  - *Previous Years Unallocated Earnings* = sign-flipped balance of `equity_unaffected` accounts (Odoo's prior-year retained-earnings carry-forward).
+- Signs: assets stay debit-positive; liabilities + equity (incl. synthetic retained earnings) flipped to display positive, matching the xlsx presentation.
+
+### Renderer (`src/app/emails/beithady/financials/page.tsx`)
+- Single vertical card, three top sections + footer line `LIABILITIES + EQUITY`.
+- Native `<details>/<summary>` for expand/collapse — **zero client-side JS** needed, no hydration cost.
+- Top sections (ASSETS / LIABILITIES / EQUITY) start **open**; inner groups start **closed** so the main line items are visible at a glance.
+- Chevron icon rotates via CSS `group-open:rotate-90` (tailwind-native sibling-state utilities).
+- "Derived" pill appears next to the Retained Earnings group label to flag it as a rollup (not a real chart-of-accounts node).
+- Account rows show code (mono, grey) + name + balance; all amounts in EGP.
+- Same balance-check banner at the top: ✓ Balanced / ⚠ Unbalanced by X.
+
+### ⚠ Known data gap: 365-day sync window
+Direct-SQL cross-check shows the computed totals are ~50% of the xlsx values (e.g. Fixed Assets 47.8M vs xlsx 75.3M; Bank-and-Cash -10.7M raw because not cumulative from inception). The balance sheet is *cumulative* — all entries from inception up to asOf — but the Odoo sync only covers the last 365 days. This is a documented pre-existing limitation (`buildBalanceSheet` comment line ~726). The UI will show internally-balanced numbers, but they won't match the xlsx until a full historical backfill is done.
+
+**Fix (deferred, needs its own pass)**: extend `run-odoo-financial-sync.ts` to support a `?fullHistory=1` mode that removes the 365-day filter on `odoo_move_lines` backfill, then re-run once. The delta then flows into this view unchanged.
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/beithady/financials` → 307 (auth redirect, route live).
+- Deployment active on `limeinc.vercel.app`.
+
 ## 🟢 API Setup: Green-API mirrors console fields + working Test button (commit e2a70cb)
 
 Two asks in one turn — Green-API field names should match the Green-API console (so copy-paste from the instance panel works), and the Test Connection action needs to actually probe each API instead of opening a bearer-gated endpoint in a new tab.
