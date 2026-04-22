@@ -83,6 +83,8 @@ const fmt1 = (n: number | null | undefined): string =>
   n == null || !Number.isFinite(Number(n)) ? '—' : Number(n).toFixed(1);
 const fmtPct = (n: number | null | undefined): string =>
   n == null ? '—' : `${Number(n).toFixed(1)}%`;
+const pct1 = (num: number, denom: number | null | undefined): number | null =>
+  !denom ? null : (num / denom) * 100;
 const fmtHours = (h: number | null | undefined): string => {
   if (h == null || !Number.isFinite(Number(h))) return '—';
   const abs = Number(h);
@@ -240,16 +242,16 @@ export default async function KikaExecPage({
             <MiniStat
               label="Fulfilled"
               value={fmt(r.fulfillment.fulfilled_count)}
-              sub={`${fmtPct(100 - (r.fulfillment.unfulfilled_pct ?? 0))} of ${fmt(
-                r.totals.non_cancelled_order_count
-              )} non-cancelled`}
+              sub={`${fmtPct(
+                pct1(r.fulfillment.fulfilled_count, r.totals.orders)
+              )} of ${fmt(r.totals.orders)} orders`}
             />
             <MiniStat
               label="Unfulfilled"
               value={fmt(r.fulfillment.unfulfilled_count)}
               sub={`${fmtPct(r.fulfillment.unfulfilled_pct)} of ${fmt(
-                r.totals.non_cancelled_order_count
-              )} non-cancelled`}
+                r.totals.orders
+              )} orders`}
               tone={r.fulfillment.unfulfilled_pct && r.fulfillment.unfulfilled_pct > 20 ? 'warn' : undefined}
             />
             <MiniStat
@@ -266,7 +268,10 @@ export default async function KikaExecPage({
           </div>
         </section>
 
-        {/* Row 4: CLICKABLE ORDER-STATE CHIPS — each opens a drill-down list below */}
+        {/* Row 4: CLICKABLE ORDER-STATE CHIPS — each opens a drill-down list
+            below. All percentages are relative to total orders in the period
+            so the four chips plus the implied 'Fulfilled / Other' always sum
+            cleanly against the Orders total. */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <ClickableStateCard
             id="unfulfilled"
@@ -277,7 +282,7 @@ export default async function KikaExecPage({
             label="Undelivered"
             count={r.fulfillment.unfulfilled_count}
             pct={r.fulfillment.unfulfilled_pct}
-            pctLabel="of non-cancelled"
+            pctLabel={`of ${fmt(r.totals.orders)} orders`}
             href={buildSearchString(sp, {
               focus: activeFocus === 'unfulfilled' ? null : 'unfulfilled',
             })}
@@ -290,8 +295,8 @@ export default async function KikaExecPage({
             accent="rose"
             label="Delayed"
             count={r.focus_lists.delayed.length}
-            pct={null}
-            pctLabel="sorted by age desc"
+            pct={pct1(r.focus_lists.delayed.length, r.totals.orders)}
+            pctLabel={`of ${fmt(r.totals.orders)} orders`}
             href={buildSearchString(sp, {
               focus: activeFocus === 'delayed' ? null : 'delayed',
             })}
@@ -305,7 +310,7 @@ export default async function KikaExecPage({
             label="Delivered→refunded"
             count={r.refunds.delivered_then_refunded_count}
             pct={r.refunds.delivered_then_refunded_pct}
-            pctLabel="of fulfilled"
+            pctLabel={`of ${fmt(r.totals.orders)} orders`}
             href={buildSearchString(sp, {
               focus: activeFocus === 'refunded' ? null : 'refunded',
             })}
@@ -319,7 +324,7 @@ export default async function KikaExecPage({
             label="Cancelled / voided"
             count={r.cancelled.count}
             pct={r.cancelled.pct}
-            pctLabel="of orders"
+            pctLabel={`of ${fmt(r.totals.orders)} orders`}
             href={buildSearchString(sp, {
               focus: activeFocus === 'cancelled' ? null : 'cancelled',
             })}
@@ -772,7 +777,7 @@ function FocusDrilldown({
       tone: 'text-amber-700',
     },
     delayed: {
-      title: 'Delayed orders (non-cancelled, sorted by age)',
+      title: 'Delayed orders (sorted by age)',
       tone: 'text-rose-700',
     },
     refunded: {

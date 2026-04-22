@@ -413,7 +413,7 @@ export async function buildKikaExecReport(params: {
     fulfillment: {
       fulfilled_count: fulfilledCount,
       unfulfilled_count: unfulfilledCount,
-      unfulfilled_pct: pct(unfulfilledCount, nonCancelledOrders.length),
+      unfulfilled_pct: pct(unfulfilledCount, orders.length),
       avg_hours_to_fulfill: hoursArr.length
         ? hoursArr.reduce((s, h) => s + h, 0) / hoursArr.length
         : null,
@@ -424,7 +424,7 @@ export async function buildKikaExecReport(params: {
       delivered_then_refunded_count: deliveredThenRefunded.length,
       delivered_then_refunded_pct: pct(
         deliveredThenRefunded.length,
-        fulfilledCount
+        orders.length
       ),
       refunds_amount_total: refundsAmountTotal,
     },
