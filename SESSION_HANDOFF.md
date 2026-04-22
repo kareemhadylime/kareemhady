@@ -246,6 +246,38 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika Exec: Revenue Collected + clearer fulfilment % denominators (commit aea3838)
+
+Three ergonomic fixes based on a screenshot walkthrough:
+
+### 1. Revenue (Gross) → Revenue Collected (paid + fulfilled only)
+For a COD store, the real "cash in the bank" number excludes pending-collection and unfulfilled orders. The card now shows ONLY orders with `financial_status=paid AND (first_fulfilled_at OR fulfillment_status=fulfilled)`. Sub displays the underlying count so the math is auditable.
+
+Last-30-day verification: **109 paid+fulfilled orders = EGP 437,397 collected**, vs the old gross-value 780,670 which included cancelled + pending + unfulfilled.
+
+### 2. Orders card — total value in the sub
+Sub changed from "451 units" to "EGP 780,670 total · 451 units". Makes it obvious the Orders card is the superset and Revenue Collected is the subset.
+
+### 3. Fulfilled / Unfulfilled percentage labels — show the real denominator
+Old: "155 Fulfilled · 87.6% of orders"
+New: "155 Fulfilled · 87.6% of 177 non-cancelled"
+
+The percentage denominator has always been `non_cancelled_order_count` (since cancelled orders aren't waiting to be fulfilled), but the label previously implied it was total orders. 155 / 291 = 53%, 155 / 177 = 87.6% — the latter is the genuine fulfillment rate and the label now says so.
+
+### Builder changes (`src/lib/kika-exec.ts`)
+- `totals` gains three new fields: `revenue_collected`, `revenue_collected_order_count`, `non_cancelled_order_count`.
+- Collected-revenue uses the existing `isCancelled` + `isFulfilled` helpers plus `financial_status === 'paid'`, keeping classification consistent with the drill-down chips.
+
+### Verification (SQL)
+```
+Total orders:       291
+Non-cancelled:      177
+Fulfilled:          155   (87.6% of 177) ✓
+Paid + fulfilled:   109   (collected revenue)
+Non-cancelled value:    780,670 EGP
+Collected revenue:      437,397 EGP
+```
+
 ## 🟢 Kika P&L matched to f.s_x_label_for_tailoring_kika xlsx (commit 35ed238)
 
 Reconciled March 2026 line-by-line against `.claude/Documents/f.s_x_label_for_tailoring_kika (1).xlsx`.
