@@ -246,6 +246,38 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 API Setup: Green-API mirrors console fields + working Test button (commit e2a70cb)
+
+Two asks in one turn — Green-API field names should match the Green-API console (so copy-paste from the instance panel works), and the Test Connection action needs to actually probe each API instead of opening a bearer-gated endpoint in a new tab.
+
+### Green-API field rename
+Fields now mirror the console exactly: `apiUrl`, `mediaUrl`, `idInstance`, `apiTokenInstance`, plus our internal `webhook_path_slug`. Existing row was migrated via MCP SQL — the user had stored the apiUrl under `webhook_secret_path` as a workaround since that field didn't exist before. The update copied the stray URL to the correct `apiUrl` + `mediaUrl` keys and renamed the old snake_case keys to the camelCase that the Green-API console uses.
+
+### Test connection — live probe with result persistence
+**`src/lib/integration-tests.ts`** — per-provider `testProvider(providerId)` function. Each implementation does the smallest credentialed call that would fail loudly if any field is wrong:
+
+| Provider | Probe | Detail returned on success |
+|---|---|---|
+| Odoo | `odooVersion` + `account.move` posted count | `Odoo 18.0 · 4665 posted invoices` |
+| PriceLabs | `GET /v1/listings` | `Reached /v1/listings (69 listings visible)` |
+| Guesty | OAuth exchange + `GET /v1/listings?limit=1` | `Authenticated · 90 listings in scope` |
+| Shopify | `getShopifyShop` | `KIKA · EGP · Shopify Professional` |
+| Green-API | `GET /waInstance{id}/getStateInstance/{token}` | `stateInstance=authorized` |
+| Airbnb | — | no-op (data flows via Guesty) |
+
+Green-API distinguishes 'credentials wrong' (HTTP 401/404) from 'credentials right but WhatsApp session not authorized' (HTTP 200 but `stateInstance: notAuthorized/blocked/sleepMode`) by surfacing the `stateInstance` verbatim.
+
+**`testCredentialAction`** server action replaces the old `recordTestResultAction`. Runs the probe, writes `last_tested_at / last_test_status ('ok'|'error') / last_test_error` (or detail message) in one atomic DB update, then `revalidatePath('/admin/integrations')` so the banner re-renders in-place.
+
+### UI
+- Card header chip now shows four distinct states: **Connected** (green), **Error** (red), **Configured · not tested** (slate), **Incomplete** (amber).
+- Prominent pass/fail banner above the form with the detail/error message in monospace.
+- The old "Test connection →" external link (which required a bearer header no admin has on hand) is gone — replaced with a real `<button>Test connection` that submits a separate form so it doesn't disturb the credential fields.
+- `Save` button restyled with a Save icon to match the Users-page buttons we fixed earlier today.
+
+### End-to-end verification
+`curl https://7107.api.greenapi.com/waInstance7107596045/getStateInstance/...` → `{"stateInstance":"authorized"}` — confirms the stored creds reach Green-API and the WhatsApp session is live. Clicking Test connection on the Green-API card will display the green Connected banner with detail `stateInstance=authorized`.
+
 ## 🟢 Users page: Save / Delete buttons restyled (commit c3310be)
 
 Reported after the Setup screenshot: "where is save button after amend?" The three per-user row actions — Save role, Save domains, Delete — were `<button type="submit">` elements styled as plain inline text, so they didn't look clickable. Restyled as proper pill buttons:
