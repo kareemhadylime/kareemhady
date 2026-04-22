@@ -246,6 +246,47 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 KIKA landing: hide Gmail-derived Shopify rule card (commit dba0fdd)
+
+### The duplication
+Two cards on the Kika domain landing were answering the same business question from different ingestion layers:
+| Card | Source | Window | Numbers observed |
+|---|---|---|---|
+| **Sales Intelligence** | Live Shopify Admin API | 30 days | 291 orders · 780K EGP |
+| **KIKA Shopify Orders** (Gmail rule) | Scraped from emails with subject `Order` | 24h | 74 orders · 365K EGP |
+
+The Gmail-rule card predates the direct Shopify API integration we shipped in Phase 10.2. It doesn't know about cancelled/voided classification, fulfillment state, or Shopify's fulfillment timestamps — those were all added to the Sales/Exec dashboards via earlier fixes. Keeping it on the landing just confused which number was canonical.
+
+### Fix
+Added a `HIDDEN_RULE_ACTION_TYPES_BY_DOMAIN` map in `/emails/[domain]/page.tsx`:
+```ts
+{ kika: ['shopify_order_aggregate'] }
+```
+The domain landing now filters rules with those action types out of the rules grid. A compact banner appears above the grid pointing to Sales Intelligence and `/admin/rules` for the raw Gmail-derived snapshot.
+
+### Unchanged behaviour
+- Rule itself still runs on the 9 AM Cairo cron (`rule_runs` rows keep accruing).
+- Still visible + runnable via `/admin/rules` and its own `/emails/kika/<ruleId>` detail page.
+- Other domains (Beithady, etc.) untouched — they don't have competing direct-API modules.
+
+### Sales Intelligence: reviewed, no changes needed
+Sales already received the prior round of classifier fixes (cancelled orders excluded from gross revenue / daily trend / customer aggregates; fulfillment pill shows `cancelled` for voided; EGP hardcoded on every money column and header). Daily trend, Top Customers, and the 15-row Recent Orders table remain as the Sales-specific views that don't overlap with Exec.
+
+### Overlap map (Sales vs Exec, documented)
+| Metric | Sales | Exec |
+|---|---|---|
+| Orders / Revenue / AOV / Customers | ✓ (Gross view) | ✓ (Revenue Collected = paid+fulfilled) |
+| Top Products | ✓ | ✓ ("Most items") |
+| Daily Trend | ✓ | — |
+| Top Customers | ✓ | — |
+| Recent Orders (15) | ✓ | — |
+| Fulfillment stats / delays | — | ✓ |
+| Cancelled / Refunded chips | — | ✓ |
+| Abandoned checkouts | — | ✓ |
+| Returning-customer analysis | — | ✓ |
+
+Exec = at-a-glance + operational drilldowns. Sales = deeper retail/customer trend + order-feed. Both kept, overlap acceptable because they answer different stakeholder questions.
+
 ## 🟢 Kika Exec: all percentages now against total orders (commit 69018b7)
 
 User feedback on the previous rev: "of 177 non-cancelled" is confusing jargon — **non-cancelled is by definition fulfilled + unfulfilled**, so surfacing that label adds nothing except a mental math step. All the fulfillment-related percentages are now computed and labelled against the single **total orders** denominator so the four Row-4 chips can be read together without converting bases.
