@@ -246,6 +246,43 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika: clickable order-state drill-downs + P&L segment zero bug (commit 9fbb7a2)
+
+Two unrelated fixes shipped together.
+
+### 1. Clickable drill-down chips on `/emails/kika/exec`
+Row 4 of the exec dashboard is now a 4-card clickable filter row instead of a 3-card info panel:
+
+| Chip | Shows |
+|---|---|
+| **Undelivered** | all non-cancelled orders not yet fulfilled |
+| **Delayed** | same set, sorted by age desc (replaces the old 15-row cap) |
+| **Delivered → Refunded** | fulfilled + refund amount > 0 (cancelled excluded) |
+| **Cancelled / voided** | cancelled_at OR financial_status=voided OR fulfillment_status=cancelled |
+
+Each chip is a Link that toggles `?focus=<bucket>` — bookmarkable, server-rendered, no client JS. Active chip gets a tonal ring + "Click to close" hint.
+
+When focus is set, a **FocusDrilldown** panel renders below with a scrollable sticky-header table. Columns adapt by bucket:
+- Cancelled surfaces the cancellation timestamp column
+- Refunded surfaces the refund-amount column
+- Delayed / Unfulfilled swap "Total" for "Age" (the relevant metric)
+- All buckets show Order · Customer · Created · Financial · Fulfillment status (with the corrected cancelled pill)
+
+**Builder change**: `KikaExecReport` now exposes `focus_lists: { cancelled, unfulfilled, delayed, refunded }` populated from the same classification the top-line counters use — so the list is guaranteed consistent with its metric pill. A new `FocusOrder` type carries `id / name / customer / email / dates / status / total / refund / age` per row.
+
+### 2. Kika P&L segment filter was returning zero for every non-consolidated segment
+Root cause: `fetchKikaAccountTotals` used `.in('company_ids', [[6]])` on a bigint[] column. PostgREST serialized it as a scalar IN filter that matched zero rows. Zero analytic accounts → zero move-lines → empty P&L for X-label, In & Out, and Kika segments.
+
+Swapped to `.contains('company_ids', [6])` which emits the `@>` array-containment operator. Now matches the three Kika analytic accounts (IN&OUT TRANSACTIONS, kika, X-label). Verified via SQL against the underlying `odoo_move_line_analytics` join:
+- IN&OUT: 546 move-lines in March 2026
+- kika: 677 move-lines
+- X-label: 318 move-lines
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/kika/exec` and `/emails/kika/exec?focus=cancelled` both → 307 healthy.
+- `/emails/kika/financials?segment=xlabel` → 307 healthy (segment query now returns data).
+
 ## 🟢 KIKA: cancelled orders no longer mis-tagged as unfulfilled + $ icon retired (commit f765a18)
 
 Two issues reported on /emails/kika/exec and /emails/kika/sales:
