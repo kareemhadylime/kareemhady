@@ -6,6 +6,8 @@ import {
   Shield,
   Users as UsersIcon,
   Activity,
+  Save,
+  Trash2,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { SetupTabs } from '@/app/admin/_components/setup-tabs';
@@ -178,13 +180,16 @@ export default async function UsersAdminPage() {
                           : 'never signed in'}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <form action={updateUserAction}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <form
+                        action={updateUserAction}
+                        className="flex items-center gap-2"
+                      >
                         <input type="hidden" name="id" value={u.id} />
                         <select
                           name="role"
                           defaultValue={u.role}
-                          className="ix-input text-xs py-1"
+                          className="ix-input text-xs py-1.5"
                         >
                           <option value="admin">admin</option>
                           <option value="editor">editor</option>
@@ -192,9 +197,9 @@ export default async function UsersAdminPage() {
                         </select>
                         <button
                           type="submit"
-                          className="ml-2 text-[11px] text-slate-600 hover:text-lime-700"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lime-600 text-white text-xs font-medium hover:bg-lime-700 transition shadow-sm"
                         >
-                          Save role
+                          <Save size={12} /> Save role
                         </button>
                       </form>
                       {u.id !== me.id && (
@@ -202,9 +207,9 @@ export default async function UsersAdminPage() {
                           <input type="hidden" name="id" value={u.id} />
                           <button
                             type="submit"
-                            className="text-[11px] text-rose-600 hover:text-rose-800"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-600 text-xs font-medium hover:bg-rose-50 hover:border-rose-300 transition"
                           >
-                            Delete
+                            <Trash2 size={12} /> Delete
                           </button>
                         </form>
                       )}
@@ -236,12 +241,14 @@ export default async function UsersAdminPage() {
                           </label>
                         ))}
                       </div>
-                      <button
-                        type="submit"
-                        className="text-[11px] text-lime-700 hover:text-lime-900 font-medium"
-                      >
-                        Save domains
-                      </button>
+                      <div className="pt-1">
+                        <button
+                          type="submit"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lime-600 text-white text-xs font-medium hover:bg-lime-700 transition shadow-sm"
+                        >
+                          <Save size={12} /> Save domains
+                        </button>
+                      </div>
                     </form>
                   )}
                 </div>
