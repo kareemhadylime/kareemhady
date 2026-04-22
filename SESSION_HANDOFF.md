@@ -1,5 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## 🟡 Rename in-progress: project renamed to `lime`, domain alias still `kareemhady.vercel.app`
+
+User renamed the Vercel project internal slug to `lime` but the production domain alias stayed as `kareemhady.vercel.app`. These are decoupled in Vercel — renaming the project name does NOT acquire a matching `{name}.vercel.app` subdomain. Domains are managed separately under the Domains section of the project overview.
+
+Confirmed via screenshot:
+- Project name (top-left): `lime` ✅
+- Deployment: `lime-2mxs2iurz-lime-investments.vercel.app` (owned by team `lime-investments`)
+- Domains: only `kareemhady.vercel.app` attached
+
+### Action needed to complete the URL migration
+1. Project Overview → Domains → **`+`** → try adding a new subdomain. `lime.vercel.app` is likely already claimed by someone else; fallback options to try in order: `lime-investments.vercel.app`, `lime-dashboard.vercel.app`, `limehq.vercel.app`.
+2. Once Vercel accepts a new domain, update env `NEXT_PUBLIC_APP_URL` accordingly, redeploy, update Shopify Dev Dashboard app URL + redirect, re-run the webhook registration endpoint (see earlier handoff entry for the full 7-step sequence).
+3. Either remove `kareemhady.vercel.app` from Domains or keep both aliases — all routes respond on whichever host is attached, so keeping both is zero-cost.
+
+### PowerShell gotcha recorded
+`curl -sS -X POST` fails in PowerShell because `curl` aliases to `Invoke-WebRequest` which uses different flags and no backslash line-continuation. Use either:
+- `curl.exe -sS -X POST -H "..." <URL>` (all one line, uses the real curl binary shipped with Windows 10+)
+- `Invoke-RestMethod -Method Post -Uri '<URL>' -Headers @{ Authorization = 'Bearer ...' }`
+
+Also: the user tried `https://lime.vercel.app/api/shopify/register-webhooks` while the domain wasn't attached → 404 NOT_FOUND from Vercel. Expected — the project had been renamed internally but `lime.vercel.app` is a different subdomain that would need to be explicitly added (and is probably taken anyway).
+
+### Alternative — skip the rename entirely
+The project's internal name doesn't appear anywhere publicly. The only thing the end-user ever sees is the domain. If `kareemhady.vercel.app` isn't actively bothering anyone, leaving it as the domain alias is the simplest path and avoids:
+- Shopify Dev Dashboard re-configuration
+- Webhook re-registration
+- Env var update
+- Redeploy cycle
+
 ## 🟡 Planning: Vercel project rename `kareemhady` → `lime` (no code shipped this turn)
 
 User asked whether renaming the project URL to `lime.vercel.app` would break anything. Turn was advisory — no commits. Impact assessment captured here so the rename can be executed safely next session.
