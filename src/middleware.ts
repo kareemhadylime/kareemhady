@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE } from '@/lib/auth';
+import { SESSION_COOKIE } from '@/lib/auth-constants';
 
 // Gate every route behind /login except:
 //   - /login page + its POST action

@@ -9,7 +9,7 @@ import type { Domain } from './rules/presets';
 // random token as the cookie value. No JWT — server-side lookup on every
 // request (small tenant, Supabase trip is fast).
 
-export const SESSION_COOKIE = 'lime_session';
+export { SESSION_COOKIE } from './auth-constants';
 const SESSION_DAYS = 30;
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
