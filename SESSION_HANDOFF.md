@@ -246,6 +246,44 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 KIKA: cancelled orders no longer mis-tagged as unfulfilled + $ icon retired (commit f765a18)
+
+Two issues reported on /emails/kika/exec and /emails/kika/sales:
+
+### 1. `$` icon still appearing next to Gross Revenue
+Both pages imported `DollarSign` from lucide — swapped for `Banknote` so no dollar glyph renders on a store that only transacts in EGP.
+
+### 2. Cancelled orders being swept into the "unfulfilled / delayed" bucket
+Example: order **#18643** (cancelled_at `2026-03-27`, financial_status `voided`) was rendering in **Most Delayed Orders** as "27.9 days unfulfilled". Filters only checked `fulfillment_status !== 'fulfilled'` which doesn't cover cancelled rows (their fulfillment_status is typically `null` once voided).
+
+### New classification helper (consistent across exec + sales)
+```ts
+const isCancelled = (o) =>
+  !!o.cancelled_at ||
+  o.financial_status === 'voided' ||
+  o.fulfillment_status === 'cancelled';
+```
+
+### Impact measured on the last-30-day window (26-03-23 → 26-04-22)
+- **114 orders** are actually cancelled (out of 291 total).
+- **42 of those 114** were previously showing in the "unfulfilled" bucket — now correctly excluded.
+- **EGP 505,520** of cancelled-order value was inflating Gross Revenue — now excluded.
+
+### Builder-level changes
+- **`kika-exec.ts`**: added `cancelled_at` to the query + OrderRow. Hoisted `isCancelled` / `isFulfilled` helpers. Revenue totals (`totalValues`, `orderValueTotal`), fulfilled/unfulfilled counts, `most_delayed`, `deliveredThenRefunded`, and `refundsAmountTotal` all skip cancelled rows. `unfulfilled_pct` denominator switched to `nonCancelledOrders.length` for a true "still awaiting delivery" reading. New report field `cancelled: { count, pct, amount_total }`. `most_delayed` rows carry `financial_status` + `cancelled_at` for future-proofing.
+- **`kika-sales.ts`**: added `cancelled_at` to query + Order + KikaSalesRow. `grossRevenue`, `refundTotal`, daily trend buckets, paid/pending counters, and customer-revenue aggregation all skip cancelled. The `by_financial_status` / `by_fulfillment_status` maps still surface cancelled as their own bucket (renamed to `cancelled` in the latter when applicable). Recent-orders rows carry `cancelled_at`.
+
+### UI-level changes
+- **Exec page Row 4** grew from 2 cards → 3 cards: Delivered-then-refunded · Undelivered · **Cancelled / voided** (count · % of orders · total voided value in EGP).
+- **Delayed-orders table status pill** now shows the correct three-way state (`fulfilled` / `partial` / `unfulfilled`) with proper colors (emerald / amber / rose) instead of defaulting to "unfulfilled" for every non-fulfilled row.
+- **Sales page recent-orders fulfillment pill**: prefers `cancelled` when any of the three signals are present. Cancelled pill uses slate + line-through so voided orders read at a glance.
+- **Sales page StatusPill**: gained a `cancelled` / `voided` case with slate background + strikethrough.
+
+### Verification
+- Direct SQL post-deploy: `#18643` now correctly classified as CANCELLED (excluded from most_delayed).
+- `/emails/kika/exec` + `/emails/kika/sales` → 307 healthy.
+- `tsc --noEmit` clean pre-push.
+
 ## 🟢 Beithady Balance Sheet: 2026 seeded from 31-Dec-2025 xlsx opening balance (commit c3ef46b)
 
 Fixed the "~50% of xlsx" data-gap problem noted in the earlier balance-sheet rewrite. Uses the accountant's 31-Dec-2025 consolidated xlsx as the 2026 opening position, then stacks Odoo's post-year-end move-line deltas on top — the same approach Odoo itself uses after a year-end close.
