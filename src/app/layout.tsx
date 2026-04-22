@@ -13,8 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'InboxOps',
-  description: 'Daily email digest and rule-driven inbox aggregation.',
+  title: 'Lime Investments Dashboard',
+  description:
+    'Portfolio operations cockpit for Lime Investments — consolidated view across Beithady, Kika, FMPLUS, VoltAuto subsidiaries.',
+  themeColor: '#65a30d',
 };
 
 export default function RootLayout({
