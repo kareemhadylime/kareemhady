@@ -246,6 +246,33 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika Inventory tab (commit 9b88ccb)
+
+New `/emails/kika/inventory` route — product catalogue view + clickable product-detail modal. Added as the 4th card on the Kika landing grid (Executive Summary / Financials / Sales Intelligence / **Inventory**).
+
+### Data source
+Existing `shopify_products` mirror — the sync worker persists the full Shopify REST payload in `raw` jsonb, so per-variant SKUs, image galleries, and body_html descriptions are all queryable without extra API calls.
+
+### `src/lib/kika-inventory.ts`
+- **`listKikaProducts({ search, status, limit })`** — returns per-product rows with derived fields: `primary_sku` (first non-empty variant SKU), `sku_count`, `primary_image_url` (`raw.image.src` or first of `raw.images[]`), `image_count`. Sorted by `total_inventory desc`. Accepts an ILIKE search across title / handle / product_type.
+- **`fetchKikaProductDetail(idOrHandle)`** — full detail: images with alt + dimensions, variants with option1/2/3 + barcode + price + compare_at_price + inventory_qty, body_html, storefront URL (`https://thekikastore.com/products/<handle>`), and a Shopify admin deep-link.
+
+### `/emails/kika/inventory/page.tsx`
+- **Filter bar**: search input + Active / All-statuses toggle
+- **Product list table**: thumbnail | Name + product_type + vendor | Short name (= handle) | Primary SKU (+ "N more" if multi-variant) | In stock (rose if 0, amber if <5) | Variants | Status pill
+- **Click any row** → `?product=<id>` in URL → server renders a modal overlay with:
+  - Header: status chip, handle, type/vendor + Storefront + Shopify admin deep-links
+  - Horizontal image gallery (click image → full-size in new tab)
+  - Variants table: Variant + options | SKU | Barcode | Price (with strike-through compare_at) | In stock
+  - Description rendered from `body_html`
+  - Inventory total + meta (ID, tags, created / updated / published dates)
+- Modal is fully server-rendered; close via × or backdrop click (same `?focus=` pattern as Sales + Exec drilldowns).
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/kika/inventory` and `/emails/kika/inventory?product=6756487823532` both 307 (healthy auth redirect).
+- Inventory card wired in the Kika landing grid, Package icon + sky accent so it doesn't clash with the existing Exec (amber), Financials (violet), Sales (emerald) accents.
+
 ## 🟢 Sales Intelligence: Revenue Collected + clickable order modal + status %s
 
 Three fixes on /emails/kika/sales:
