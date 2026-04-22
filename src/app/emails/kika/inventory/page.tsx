@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import {
   ChevronRight,
-  Package,
   Search,
   ImageOff,
   ExternalLink,
@@ -15,6 +14,7 @@ import {
   type KikaProductRow,
   type KikaProductDetail,
 } from '@/lib/kika-inventory';
+import { InventoryTabs } from './_components/inventory-tabs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -81,6 +81,8 @@ export default async function KikaInventoryPage({
             <div className="mt-2"><SyncPills pills={pills} /></div>
           </div>
         </header>
+
+        <InventoryTabs active="products" />
 
         {/* Filter bar */}
         <section className="ix-card p-4 flex items-center gap-3 flex-wrap">
