@@ -1,5 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-21)
 
+## ✅ PHASE 10.4 SHIPPED — Shopify webhooks + Kika revenue reconciliation + sync-freshness pills (commit 4de0182)
+
+Three items from the Phase 10.4 backlog delivered together.
+
+### 1. Shopify webhooks — real-time order updates
+- `/api/webhooks/shopify` — single topic-dispatching POST endpoint. Dispatches by `X-Shopify-Topic` header; handles `orders/create`, `orders/updated`, `orders/fulfilled`, `orders/partially_fulfilled`, `orders/cancelled`, `orders/paid`, `refunds/create`. Unknown topics get a 2xx accept-and-ignore so Shopify doesn't retry them.
+- HMAC-SHA256 verification against `SHOPIFY_APP_CLIENT_SECRET` using `crypto.timingSafeEqual` on the raw body buffer (never JSON-parse before verification).
+- `/api/shopify/register-webhooks` — idempotent admin endpoint. Lists existing webhooks, creates missing ones, swallows the `422 has already been taken` error as an 'exists' result so re-running is safe.
+- `src/lib/shopify-order-mapper.ts` — shared order→row + lineItem→row mapper used by **both** the bulk sync worker and the webhook handler. Eliminates drift between bulk and incremental ingestion paths (same columns produced from either source).
+
+**Registered 7 webhooks** on first call — all now firing into the local mirror.
+
+### 2. Kika revenue reconciliation card
+- `src/lib/kika-reconcile.ts` — `buildKikaRevenueReconcile({fromDate, toDate})` computes:
+  - Shopify side: gross_orders, gross_revenue, refunds, net_revenue, fulfilled_revenue, cancelled_revenue
+  - Odoo side: 401010 (Shopify revenue) + 401020 (Shopify returns) balances on company 6, sign-flipped
+  - Delta: shopify_net − odoo_net with % variance
+- Rendered as a new card on the Kika Financials page, visible only for `segment = consolidated` or `segment = kika` (X-Label and In & Out have no Shopify revenue). Delta pill colors: green if |pct| < 5%, amber otherwise. Surfaces notes for common drift sources (missing 401010/401020 entries, cancelled orders likely excluded from Odoo).
+
+### 3. Sync-freshness pills (visible on every dashboard)
+- `src/lib/sync-freshness.ts` — `getSyncFreshness(['odoo','guesty','pricelabs','shopify'])` reads the latest `succeeded` row from each integration's `*_sync_runs` table. Thresholds: `< 26h` = fresh (green), `< 50h` = stale (amber), ≥ 50h = very_stale (rose), no row = never (slate).
+- `src/app/_components/sync-pills.tsx` — inline pill strip with `RefreshCcw` (fresh) or `AlertTriangle` (stale) icon. Tooltip shows the exact last_synced_at ISO.
+- Wired into 5 dashboards with appropriate source subsets:
+  - **Beithady Financials** → Odoo + Guesty + PriceLabs
+  - **Beithady Pricing** → PriceLabs + Guesty
+  - **Kika Financials** → Odoo + Shopify
+  - **Kika Sales** → Shopify
+  - **Kika Exec** → Shopify
+
+### Verification
+- `/api/shopify/register-webhooks` → 7 created, 0 errors.
+- All 5 dashboards smoke-tested → HTTP 200.
+
+### Phase 10.5+ backlog (not done this turn)
+1. **Abandoned checkout tracking** (`shopify_abandoned_checkouts` table + sync + dashboard section) — recoverable lost revenue.
+2. **Inventory alerts** — `/inventory_levels.json` sync + low-stock threshold table on the Kika Exec page.
+3. **Product drill-down page** — click a product in Most Items → variants, stock, 30d velocity, refund rate.
+4. **Webhook delivery log** — add a `shopify_webhook_events` table that records every inbound event so failed deliveries are auditable.
+5. **Extend freshness pills** to include Gmail ingestion (from `runs` table) on the root Emails page.
+
 ## ✅ PHASE 10.3 SHIPPED — Exec dashboard + product/customer master + fulfillment timing (commit 04567e5)
 
 User asked for an easy-reading Kika Shopify dashboard showing: order count, order values, most items ordered, returning customers, time to fulfill, most delayed orders, delivered-then-refunded count+%, undelivered count+%. All orders are cash (COD) — so "pending" financial_status means awaiting cash collection, not a failed gateway. Also requested: Phase 10.3+ backlog (product + customer master sync).
