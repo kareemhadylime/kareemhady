@@ -1,6 +1,37 @@
-# Kareemhady — Session Handoff (2026-04-21)
+# Kareemhady — Session Handoff (2026-04-22)
 
-## 🟡 Rename in-progress: project renamed to `lime`, domain alias still `kareemhady.vercel.app`
+## ✅ URL rename migration — effectively complete (commit 495aedb)
+
+The project is now fully live on `limeinc.vercel.app`:
+- Production alias: `https://limeinc.vercel.app` (deployment `dpl_AheCaymuGQqW6im9AFEvMMBUE6zz`)
+- 7 Shopify webhooks registered and healthy on the new host (verified via idempotent POST → `created:0, exists:7`)
+- 3 hardcoded fallbacks swapped to the new host (commit `495aedb`):
+  - `src/app/api/shopify/auth/start/route.ts` (redirect URL comment + fallback)
+  - `src/app/api/shopify/auth/callback/route.ts` (fallback)
+  - `src/app/api/shopify/register-webhooks/route.ts` (comment + fallback)
+- Old domain `kareemhady.vercel.app` returns 404 → any stale webhooks targeting it are failing and will auto-disable within Shopify's ~48h retry window.
+
+### ⚠ Worktree-wide encoding drift (unrelated to this task, blocks future multi-line Edits)
+Discovered that ~88 files in the `claude/sad-gagarin-bbf5dd` worktree carry an unstaged LF→CRLF + UTF-8-BOM-addition + em-dash-to-mojibake drift (`—` → `â€"`) against `origin/main`. These are NOT from today's edits — confirmed by diffing a file never opened this session (`src/lib/shopify.ts`) and seeing the same pattern. My initial Edit tool calls inherited the same corruption.
+
+**Safe workaround used this turn**: applied URL swaps via `perl -i -pe 's{...}{...}g'` which preserves bytes exactly — no BOM added, em-dashes intact. Clean 5 insertions / 5 deletions diff committed against the main repo working copy (which wasn't drifted).
+
+**For future sessions**: do NOT use the Edit or Write tools on files inside `.claude/worktrees/sad-gagarin-bbf5dd/` until the drift is cleared. Options:
+1. Blow away the worktree and re-create from `origin/main` (easiest; no in-flight work lost since URL swap is already committed).
+2. `git restore --worktree .` inside the worktree to discard all unstaged changes.
+3. Investigate `.gitattributes` + git config `core.autocrlf` — probably misconfigured on this machine.
+
+### Deferred: `?cleanup=1` extension to register-webhooks
+Offered in earlier planning. Would delete webhooks whose address host differs from the current target. Skipped this turn because adding the multi-line code block required Edit tool usage, which would have re-corrupted encoding. Three paths forward:
+1. Clear worktree drift first, then Edit normally.
+2. Craft the insert as a unified-diff patch file and `git apply`.
+3. Skip entirely — stale webhooks auto-disable within 48h; user can also delete manually in Shopify admin → Settings → Notifications → Webhooks.
+
+### Optional remaining manual tasks
+- **Shopify Dev Dashboard → KIKA app**: confirm App URL + Redirect URL are updated to `https://limeinc.vercel.app/...`. Without this, fresh OAuth installs on new shops would fail with "redirect_uri mismatch".
+- (Optional) Delete any webhook listings in Shopify admin pointing at `kareemhady.vercel.app` if you don't want the ~48h retry window.
+
+## 🟡 Stale (pre-rename) — Rename in-progress: project renamed to `lime`, domain alias still `kareemhady.vercel.app`
 
 User renamed the Vercel project internal slug to `lime` but the production domain alias stayed as `kareemhady.vercel.app`. These are decoupled in Vercel — renaming the project name does NOT acquire a matching `{name}.vercel.app` subdomain. Domains are managed separately under the Domains section of the project overview.
 
