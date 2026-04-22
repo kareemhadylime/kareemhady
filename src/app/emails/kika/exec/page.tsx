@@ -3,6 +3,7 @@ import {
   ChevronRight,
   Calendar,
   ShoppingBag,
+  ShoppingCart,
   Users,
   DollarSign,
   Timer,
@@ -11,10 +12,12 @@ import {
   Package,
   RotateCcw,
   UserCheck,
+  Mail,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { SyncPills } from '@/app/_components/sync-pills';
 import { buildKikaExecReport, type KikaExecReport } from '@/lib/kika-exec';
+import { buildKikaAbandonedReport } from '@/lib/kika-abandoned-checkouts';
 import { getSyncFreshness } from '@/lib/sync-freshness';
 
 export const dynamic = 'force-dynamic';
@@ -93,8 +96,13 @@ export default async function KikaExecPage({
 }) {
   const sp = await searchParams;
   const period = resolvePeriod(sp.preset, sp.from, sp.to);
-  const [r, pills] = await Promise.all([
+  const [r, abandoned, pills] = await Promise.all([
     buildKikaExecReport({
+      fromDate: period.from,
+      toDate: period.to,
+      label: period.label,
+    }),
+    buildKikaAbandonedReport({
       fromDate: period.from,
       toDate: period.to,
       label: period.label,
@@ -360,10 +368,133 @@ export default async function KikaExecPage({
           </div>
         </section>
 
+        {/* Row 6: ABANDONED CHECKOUTS — recoverable revenue + emailable carts */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="ix-card p-5 space-y-2 lg:col-span-1">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <ShoppingCart size={16} className="text-amber-600" />
+              Abandoned checkouts
+            </h3>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums">
+                {fmt(abandoned.totals.abandoned_in_period)}
+              </span>
+              <span className="text-xs text-slate-500">still open</span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {fmt(abandoned.totals.completed_in_period)} completed into orders
+              this period
+              {abandoned.totals.recovery_rate_pct != null && (
+                <>
+                  {' '}· recovery rate{' '}
+                  <span className="font-semibold">
+                    {abandoned.totals.recovery_rate_pct}%
+                  </span>
+                </>
+              )}
+            </p>
+            <div className="border-t border-slate-100 pt-2 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  Recoverable revenue
+                </span>
+                <span className="text-lg font-semibold tabular-nums">
+                  {abandoned.totals.currency
+                    ? `${abandoned.totals.currency} `
+                    : ''}
+                  {fmt(abandoned.totals.recoverable_revenue)}
+                </span>
+              </div>
+              {abandoned.totals.avg_cart_value != null && (
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Avg cart {fmt(abandoned.totals.avg_cart_value)}
+                </p>
+              )}
+            </div>
+            <div className="border-t border-slate-100 pt-2 mt-2 flex items-center gap-2">
+              <Mail size={13} className="text-slate-400" />
+              <span className="text-[11px] text-slate-500">
+                {fmt(abandoned.with_email_count)} emailable
+                {abandoned.with_email_pct != null && (
+                  <> ({abandoned.with_email_pct}%)</>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="ix-card p-5 space-y-3 lg:col-span-2">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <ShoppingCart size={16} className="text-amber-600" />
+              Top open carts by value
+            </h3>
+            {abandoned.top_abandoned.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No open abandoned carts in period.
+              </p>
+            ) : (
+              <div className="overflow-y-auto max-h-[360px]">
+                <table className="w-full text-sm">
+                  <thead className="text-[10px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="text-left py-1">Customer / email</th>
+                      <th className="text-right py-1">Items</th>
+                      <th className="text-right py-1">Value</th>
+                      <th className="text-right py-1">Age</th>
+                      <th className="text-left py-1">Recover</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {abandoned.top_abandoned.map(a => (
+                      <tr key={a.id} className="border-t border-slate-100">
+                        <td className="py-1 truncate max-w-[220px]">
+                          <div className="truncate font-medium">
+                            {a.customer_name || a.email || '—'}
+                          </div>
+                          {a.customer_name && a.email && (
+                            <div className="truncate text-[11px] text-slate-500">
+                              {a.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-1 text-right tabular-nums text-slate-500">
+                          {a.line_items_count ?? '—'}
+                        </td>
+                        <td className="py-1 text-right tabular-nums font-medium">
+                          {a.total_price != null ? fmt(a.total_price) : '—'}
+                        </td>
+                        <td className="py-1 text-right tabular-nums text-slate-500">
+                          {fmtHours(a.age_hours)}
+                        </td>
+                        <td className="py-1">
+                          {a.abandoned_checkout_url ? (
+                            <a
+                              href={a.abandoned_checkout_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-amber-700 hover:underline text-[11px]"
+                            >
+                              link ↗
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">
+                              —
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+
         <footer className="text-[11px] text-slate-400 border-t border-slate-200 pt-4">
           {r.totals.orders} orders · {r.totals.units} units aggregated. Period
           {' '}{period.from} → {period.to}. Fulfillment times parsed from
           Shopify fulfillments[].created_at. Cash-only payment model.
+          Abandoned-checkout window is Shopify's retention policy (~30 days).
         </footer>
       </main>
     </>

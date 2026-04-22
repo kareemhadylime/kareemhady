@@ -20,10 +20,56 @@ import type { ShopifyOrder, ShopifyOrderLineItem } from '@/lib/shopify';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
+// Fire-and-forget logger. Intentionally does NOT await the insert from the
+// request path — webhook response time matters more than log durability,
+// and Shopify will retry if we don't 2xx within ~5s. The admin observability
+// surface for failed deliveries is the shopify_webhook_events table.
+async function logEvent(
+  row: {
+    topic: string | null;
+    shop_domain: string | null;
+    shopify_webhook_id: string | null;
+    status:
+      | 'processed'
+      | 'skipped'
+      | 'error'
+      | 'hmac_failed'
+      | 'hmac_decode_failed'
+      | 'invalid_json'
+      | 'unknown_topic'
+      | 'config_missing';
+    duration_ms: number;
+    error?: string | null;
+    payload_size: number | null;
+    order_id?: number | null;
+  }
+) {
+  try {
+    const sb = supabaseAdmin();
+    await sb.from('shopify_webhook_events').insert(row);
+  } catch {
+    // swallow — DB outage shouldn't block webhook 2xx
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const started = Date.now();
+  const topic = req.headers.get('x-shopify-topic') || '';
+  const shop = req.headers.get('x-shopify-shop-domain') || '';
+  const webhookId = req.headers.get('x-shopify-webhook-id') || '';
+
   const { getCredential } = await import('@/lib/credentials');
   const secret = await getCredential('shopify', 'app_client_secret');
   if (!secret) {
+    await logEvent({
+      topic: topic || null,
+      shop_domain: shop || null,
+      shopify_webhook_id: webhookId || null,
+      status: 'config_missing',
+      duration_ms: Date.now() - started,
+      payload_size: null,
+      error: 'shopify.app_client_secret not configured',
+    });
     return NextResponse.json(
       { ok: false, error: 'shopify.app_client_secret not configured' },
       { status: 500 }
@@ -33,8 +79,6 @@ export async function POST(req: NextRequest) {
   // Read raw body for HMAC verification. Must NOT parse JSON first.
   const raw = await req.text();
   const receivedHmac = req.headers.get('x-shopify-hmac-sha256') || '';
-  const topic = req.headers.get('x-shopify-topic') || '';
-  const shop = req.headers.get('x-shopify-shop-domain') || '';
 
   const expected = crypto
     .createHmac('sha256', secret)
@@ -45,12 +89,30 @@ export async function POST(req: NextRequest) {
     const a = Buffer.from(receivedHmac, 'base64');
     const b = Buffer.from(expected, 'base64');
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      await logEvent({
+        topic: topic || null,
+        shop_domain: shop || null,
+        shopify_webhook_id: webhookId || null,
+        status: 'hmac_failed',
+        duration_ms: Date.now() - started,
+        payload_size: raw.length,
+        error: 'hmac_mismatch',
+      });
       return NextResponse.json(
         { ok: false, error: 'hmac_mismatch' },
         { status: 401 }
       );
     }
   } catch {
+    await logEvent({
+      topic: topic || null,
+      shop_domain: shop || null,
+      shopify_webhook_id: webhookId || null,
+      status: 'hmac_decode_failed',
+      duration_ms: Date.now() - started,
+      payload_size: raw.length,
+      error: 'hmac_decode_failed',
+    });
     return NextResponse.json(
       { ok: false, error: 'hmac_decode_failed' },
       { status: 401 }
@@ -61,6 +123,15 @@ export async function POST(req: NextRequest) {
   try {
     payload = JSON.parse(raw) as Record<string, unknown>;
   } catch {
+    await logEvent({
+      topic: topic || null,
+      shop_domain: shop || null,
+      shopify_webhook_id: webhookId || null,
+      status: 'invalid_json',
+      duration_ms: Date.now() - started,
+      payload_size: raw.length,
+      error: 'invalid_json',
+    });
     return NextResponse.json(
       { ok: false, error: 'invalid_json' },
       { status: 400 }
@@ -91,6 +162,15 @@ export async function POST(req: NextRequest) {
             .from('shopify_line_items')
             .upsert(lineRows, { onConflict: 'id' });
         }
+        await logEvent({
+          topic,
+          shop_domain: shop || null,
+          shopify_webhook_id: webhookId || null,
+          status: 'processed',
+          duration_ms: Date.now() - started,
+          payload_size: raw.length,
+          order_id: order.id,
+        });
         return NextResponse.json({ ok: true, topic, id: order.id });
       }
 
@@ -105,6 +185,15 @@ export async function POST(req: NextRequest) {
           transactions?: Array<{ amount?: string; kind?: string }>;
         };
         if (!refund.order_id) {
+          await logEvent({
+            topic,
+            shop_domain: shop || null,
+            shopify_webhook_id: webhookId || null,
+            status: 'skipped',
+            duration_ms: Date.now() - started,
+            payload_size: raw.length,
+            error: 'no_order_id',
+          });
           return NextResponse.json({ ok: false, error: 'no_order_id' }, { status: 400 });
         }
         const refundAmount = (refund.transactions || [])
@@ -125,6 +214,15 @@ export async function POST(req: NextRequest) {
           .from('shopify_orders')
           .update({ refunded_amount: prev + refundAmount })
           .eq('id', refund.order_id);
+        await logEvent({
+          topic,
+          shop_domain: shop || null,
+          shopify_webhook_id: webhookId || null,
+          status: 'processed',
+          duration_ms: Date.now() - started,
+          payload_size: raw.length,
+          order_id: refund.order_id,
+        });
         return NextResponse.json({
           ok: true,
           topic,
@@ -135,10 +233,27 @@ export async function POST(req: NextRequest) {
 
       default:
         // Accept-and-ignore so Shopify doesn't retry unknown topics.
+        await logEvent({
+          topic,
+          shop_domain: shop || null,
+          shopify_webhook_id: webhookId || null,
+          status: 'unknown_topic',
+          duration_ms: Date.now() - started,
+          payload_size: raw.length,
+        });
         return NextResponse.json({ ok: true, topic, ignored: true });
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    await logEvent({
+      topic,
+      shop_domain: shop || null,
+      shopify_webhook_id: webhookId || null,
+      status: 'error',
+      duration_ms: Date.now() - started,
+      payload_size: raw.length,
+      error: msg.slice(0, 500),
+    });
     return NextResponse.json(
       { ok: false, topic, error: msg },
       { status: 500 }

@@ -3,10 +3,12 @@ import {
   iterateShopifyOrders,
   iterateShopifyProducts,
   iterateShopifyCustomers,
+  iterateShopifyAbandonedCheckouts,
   type ShopifyOrder,
   type ShopifyOrderLineItem,
   type ShopifyProduct,
   type ShopifyCustomer,
+  type ShopifyAbandonedCheckout,
 } from './shopify';
 
 // Shopify order mirror sync. Pulls orders in the backfill window plus any
@@ -50,6 +52,7 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
   let lineItemsSynced = 0;
   let productsSynced = 0;
   let customersSynced = 0;
+  let abandonedCheckoutsSynced = 0;
 
   try {
     // Products master — small catalog, sync first so orders can reference.
@@ -225,6 +228,62 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
       lineItemsSynced += lineRows.length;
     }
 
+    // Abandoned checkouts — Shopify only retains ~30 days so we re-pull the
+    // full open+closed window each run. A closed row means the checkout got
+    // completed into an order (we keep the record for funnel analysis); an
+    // open row is still recoverable revenue.
+    for await (const batch of iterateShopifyAbandonedCheckouts({
+      status: 'any',
+      pageSize: 250,
+    })) {
+      if (batch.length === 0) continue;
+      const rows = batch.map((c: ShopifyAbandonedCheckout) => {
+        const customer = c.customer || null;
+        const customerName = customer
+          ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() ||
+            customer.email ||
+            null
+          : null;
+        const lineItems = Array.isArray(c.line_items) ? c.line_items : [];
+        const compactLineItems = lineItems.map(li => ({
+          title: li.title || null,
+          quantity: li.quantity ?? null,
+          price: li.price ?? null,
+          product_id: li.product_id ?? null,
+          variant_id: li.variant_id ?? null,
+          sku: li.sku ?? null,
+        }));
+        return {
+          id: c.id,
+          shop_domain: domain,
+          token: c.token || c.cart_token || null,
+          email: c.email || null,
+          phone: c.phone || null,
+          customer_id: customer?.id ?? null,
+          customer_name: customerName,
+          currency: c.currency || null,
+          total_price: toNumber(c.total_price),
+          subtotal_price: toNumber(c.subtotal_price),
+          total_tax: toNumber(c.total_tax),
+          total_discounts: toNumber(c.total_discounts),
+          line_items_count: lineItems.length,
+          line_items: compactLineItems,
+          abandoned_checkout_url: c.abandoned_checkout_url || null,
+          created_at: toTs(c.created_at),
+          updated_at: toTs(c.updated_at),
+          completed_at: toTs(c.completed_at),
+          raw: (c as unknown) as Record<string, unknown>,
+          synced_at: new Date().toISOString(),
+        };
+      });
+      for (let i = 0; i < rows.length; i += 100) {
+        await sb
+          .from('shopify_abandoned_checkouts')
+          .upsert(rows.slice(i, i + 100), { onConflict: 'id' });
+      }
+      abandonedCheckoutsSynced += rows.length;
+    }
+
     await sb
       .from('shopify_sync_runs')
       .update({
@@ -234,6 +293,7 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
         line_items_synced: lineItemsSynced,
         products_synced: productsSynced,
         customers_synced: customersSynced,
+        abandoned_checkouts_synced: abandonedCheckoutsSynced,
       })
       .eq('id', runId);
 
@@ -244,6 +304,7 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
       line_items_synced: lineItemsSynced,
       products_synced: productsSynced,
       customers_synced: customersSynced,
+      abandoned_checkouts_synced: abandonedCheckoutsSynced,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -257,6 +318,7 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
         line_items_synced: lineItemsSynced,
         products_synced: productsSynced,
         customers_synced: customersSynced,
+        abandoned_checkouts_synced: abandonedCheckoutsSynced,
       })
       .eq('id', runId);
     return { ok: false, error: msg };

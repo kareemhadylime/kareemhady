@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { ArrowUpRight, Layers } from 'lucide-react';
 import { TopNav } from '../_components/brand';
 import { DomainIcon } from '../_components/domain-icon';
+import { SyncPills } from '../_components/sync-pills';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDate } from '@/lib/fmt-date';
+import { getSyncFreshness } from '@/lib/sync-freshness';
 import {
   DOMAINS,
   DOMAIN_LABELS,
@@ -35,6 +37,8 @@ const ACCENT_CLASSES: Record<DomainAccent, { grad: string; text: string; bg: str
 
 export default async function EmailsHome() {
   const sb = supabaseAdmin();
+
+  const pills = await getSyncFreshness(['gmail']);
 
   const { data: rules } = await sb.from('rules').select('id, domain');
 
@@ -102,14 +106,17 @@ export default async function EmailsHome() {
         <Link href="/" className="ix-link">Home</Link>
       </TopNav>
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
-        <header>
-          <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
-            Emails · Reports &amp; outputs
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">Pick a domain</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Each domain holds its own set of rule dashboards.
-          </p>
+        <header className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+              Emails · Reports &amp; outputs
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">Pick a domain</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Each domain holds its own set of rule dashboards.
+            </p>
+          </div>
+          <SyncPills pills={pills} />
         </header>
 
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

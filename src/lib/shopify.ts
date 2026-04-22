@@ -346,3 +346,77 @@ export async function countShopifyOrders(params: {
   });
   return res?.count ?? 0;
 }
+
+// Abandoned checkout = a cart/checkout session that was created but never
+// converted to an order. Shopify exposes these at /checkouts.json (not
+// /abandoned_checkouts.json — that one was deprecated). Rows where
+// completed_at is non-null graduated into real orders; rows with
+// completed_at=null are still abandoned.
+export type ShopifyAbandonedLineItem = {
+  product_id?: number | null;
+  variant_id?: number | null;
+  title?: string;
+  quantity?: number;
+  price?: string;
+  sku?: string | null;
+};
+
+export type ShopifyAbandonedCheckout = {
+  id: number;
+  token?: string;
+  cart_token?: string;
+  email?: string | null;
+  phone?: string | null;
+  currency?: string;
+  total_price?: string;
+  subtotal_price?: string;
+  total_tax?: string;
+  total_discounts?: string;
+  line_items?: ShopifyAbandonedLineItem[];
+  customer?: {
+    id?: number;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+  } | null;
+  abandoned_checkout_url?: string;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string | null;
+};
+
+// Paginated abandoned checkouts via Link header. Shopify defaults to the
+// last 30 days; pass createdAtMin to narrow further (useful for a 7-day
+// recovery window). status='open' only = still abandoned.
+export async function* iterateShopifyAbandonedCheckouts(params: {
+  status?: 'open' | 'closed' | 'any';
+  createdAtMin?: string;
+  createdAtMax?: string;
+  pageSize?: number;
+} = {}): AsyncGenerator<ShopifyAbandonedCheckout[]> {
+  const token = await resolveAdminToken();
+  const url = new URL(`${await baseUrl()}/checkouts.json`);
+  url.searchParams.set('status', params.status || 'any');
+  if (params.createdAtMin) url.searchParams.set('created_at_min', params.createdAtMin);
+  if (params.createdAtMax) url.searchParams.set('created_at_max', params.createdAtMax);
+  url.searchParams.set('limit', String(params.pageSize || 250));
+  let next: string | null = url.toString();
+  while (next) {
+    const res = await fetch(next, {
+      method: 'GET',
+      headers: { 'X-Shopify-Access-Token': token, Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(
+        `shopify_${res.status}: GET checkouts — ${text.slice(0, 300)}`
+      );
+    }
+    const json = (await res.json()) as { checkouts?: ShopifyAbandonedCheckout[] };
+    yield json.checkouts || [];
+    const link = res.headers.get('link') || '';
+    const nextMatch = /<([^>]+)>;\s*rel="next"/.exec(link);
+    next = nextMatch ? nextMatch[1] : null;
+    await new Promise(r => setTimeout(r, 500));
+  }
+}

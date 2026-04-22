@@ -28,6 +28,8 @@ const SPECS: Record<string, TableSpec> = {
   guesty: { source: 'Guesty', table: 'guesty_sync_runs', statusCol: 'status', succeededValue: 'succeeded' },
   pricelabs: { source: 'PriceLabs', table: 'pricelabs_sync_runs', statusCol: 'status', succeededValue: 'succeeded' },
   shopify: { source: 'Shopify', table: 'shopify_sync_runs', statusCol: 'status', succeededValue: 'succeeded' },
+  // Gmail ingestion logs to `runs` (Phase-1 InboxOps, migration 0001).
+  gmail: { source: 'Gmail', table: 'runs', statusCol: 'status', succeededValue: 'succeeded' },
 };
 
 export async function getSyncFreshness(
