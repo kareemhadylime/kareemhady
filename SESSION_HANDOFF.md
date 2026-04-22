@@ -246,6 +246,30 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika P&L: segment totals now reconcile to Consolidated (commit e47471a)
+
+User reported: Consolidated March-2026 = **-34K** but Kika = -32K, X-Label = -40K. Any two of those already over-shoot the Consolidated total, which is accounting-impossible.
+
+### Root cause
+The segment query joined `odoo_move_lines` through `odoo_move_line_analytics` but summed the **full `ml.balance`** for every linked row, ignoring the `percentage` column. A shared expense split 50% Kika / 50% X-Label was being counted in full against BOTH segments.
+
+### Fix
+Added `percentage` to the select + weighted each row by `balance × percentage / 100` before summing into `byAccount`. Income accounts in this tenant are always tagged 100% to a single segment, so revenue totals are unaffected; only shared expenses get distributed.
+
+### Verification (SQL, March 2026)
+| Segment | Unweighted (old) | Weighted (new) |
+|---|---|---|
+| Kika | -32,147 | **-12,680** |
+| X-Label | -40,321 | **-20,854** |
+| In & Out | -631 | **-631** |
+| **Sum of segments** | **-73,099** | **-34,165** |
+| Consolidated (unchanged) | -34,166 | -34,166 |
+
+Gap closed from ~-39K down to 1 EGP (rounding). Segments now reconcile to Consolidated as they should.
+
+### Residual
+- **149 P&L move-lines in March had no analytic tag at all** (33% of 456 lines). Those land in Consolidated but not in any segment by design — and they reconcile fine with the weighting fix because the sum of segment percentages for a tagged line is always ≤ 100%, so the unassigned portion is implicitly "Consolidated-only". If the operator needs an "Untagged" bucket surfaced explicitly, that's a future enhancement.
+
 ## 🟢 Kika: clickable order-state drill-downs + P&L segment zero bug (commit 9fbb7a2)
 
 Two unrelated fixes shipped together.
