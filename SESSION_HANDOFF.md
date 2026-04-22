@@ -246,6 +246,38 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Sales Intelligence: Revenue Collected + clickable order modal + status %s
+
+Three fixes on /emails/kika/sales:
+
+### 1. Gross Revenue was wrong → Revenue Collected
+Old "Gross Revenue" summed every non-cancelled order total: 784,347 EGP. That included **324,471 EGP of pending COD** that hasn't actually been collected, so it materially overstated revenue for a cash business.
+
+New:
+- `gross_revenue` = paid + fulfilled only = **437,397 EGP** (matches Exec's Revenue Collected).
+- `potential_revenue` = non-cancelled superset (the ceiling if every pending order gets collected) — shown in the sub as "pot'l X".
+- AOV denominator corrected: `potential_revenue / nonCancelledOrders` (no more mixing paid-only numerator with total-orders denominator).
+
+### 2. Status breakdowns now show % columns
+Both tables (Financial status, Fulfillment) gained a '% of N' column with the denominator in the header so the base is unambiguous. Financial table reads "Status / Count / % of 292 / Revenue (EGP)"; Fulfillment reads "Status / Count / % of 291".
+
+### 3. Recent orders → clickable modal with full Shopify order details
+Each row is now a `<Link>` that adds `?order=<id>` to the URL. When set, the server fetches the order + all its line items via a new `fetchKikaOrderDetail` helper and renders an `OrderDetailModal` overlay with:
+- Status pills (financial + fulfillment, cancelled/voided treated correctly)
+- Customer name · email · phone (pulled from `raw`)
+- Shipping + billing address (from `raw.shipping_address` / `billing_address`)
+- Line items table: product · SKU · qty · price · discount
+- Totals breakdown: subtotal · discount · shipping · tax · total · refund
+- Meta: order ID, currency, tags, fulfill-time hours
+- Customer note
+
+Fully server-rendered — no client JS, bookmarkable URL, closes via the × button or backdrop click (both are `<Link>`s that drop the `order` param).
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/kika/sales` and `/emails/kika/sales?order=7181021610156` both 307 (healthy auth redirect).
+- Sales page now answers the same Revenue-Collected question as Exec, shows the breakdown superset for context (pending / partial-refunded), and supports drill-down into any individual order.
+
 ## 🟢 Kika: Sales & Exec reconciled to same numbers (commit 576d351)
 
 User flagged: same 30-day window, different top-line numbers on the two Kika dashboards:
