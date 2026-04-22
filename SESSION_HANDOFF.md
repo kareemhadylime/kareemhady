@@ -246,6 +246,15 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Users page: Save / Delete buttons restyled (commit c3310be)
+
+Reported after the Setup screenshot: "where is save button after amend?" The three per-user row actions — Save role, Save domains, Delete — were `<button type="submit">` elements styled as plain inline text, so they didn't look clickable. Restyled as proper pill buttons:
+- **Save role** — filled lime pill with Save icon, sits inline next to the role dropdown.
+- **Save domains** — same style, moved to its own container below the domain checkbox grid.
+- **Delete** — outlined rose pill with Trash2 icon, next to Save role.
+
+No behavior change; visual only. Rules and Integrations pages already used proper buttons (ix-btn-primary), so no other admin surface needed the fix.
+
 ## 🟢 Setup module: unified tabbed admin area (commit 85dc538)
 
 `/admin` was a two-card landing page that didn't expose Users or API Setup — so "where is it?" was a fair question. Rebuilt as a proper Setup hub with a shared tab bar on every admin page.
