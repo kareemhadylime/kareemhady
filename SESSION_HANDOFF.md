@@ -246,6 +246,50 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 KIKA Inventory: Raw Materials catalogue + tab switcher (commit f7f59e4)
+
+Companion to the existing finished-products Inventory — tracks every input that goes into a garment. Designed so a future `product_bom` table can join `shopify_products.id` ↔ `raw_materials.id` with qty × unit_cost for per-product costing.
+
+### Schema (migration 0012 — applied via MCP)
+`public.raw_materials`:
+```
+id uuid pk, domain text, code text, name text, category text, subcategory text,
+color text, unit text, unit_cost numeric, currency text default 'EGP',
+qty_on_hand numeric, qty_min numeric, supplier text, supplier_sku text,
+image_url text, description text, tags text[], active boolean,
+created_at/updated_at, created_by/updated_by FK app_users
+```
+Indexes: domain, (domain,category), (domain,code), (domain,name), partial low-stock index. `trg_raw_materials_updated_at` trigger keeps `updated_at` fresh on every update.
+
+### Canonical apparel-manufacturing categories (11 buckets)
+`fabric · trim · zipper · button · thread · elastic · label · packaging · padding · decorative · misc` — each with a default unit and example subcategories (fabric → knit/woven/mesh/lace/lining/interlining; trim → snap/hook_and_eye/velcro/buckle/slider/drawstring; zipper → closed_end/open_end/invisible/metal/plastic; etc.). Units covered: m / yd / cm / kg / g / pc / sheet / pkg / box / roll / reel.
+
+### `/emails/kika/inventory/raw-materials` page
+- **Tab switcher** at the top (Finished products | Raw materials) — shared `InventoryTabs` component rendered on both inventory pages
+- **4 summary chips**: Active SKUs · Low-stock count · Stock value (EGP) · Category breakdown
+- **Filter bar**: search (name / code / supplier / color / subcategory) + 11 category chips + "Low stock only" toggle
+- **Collapsible "Add material" form** (editors + admins only) — 13 fields covering code, category, subcategory, color, unit, unit_cost, qty_on_hand, qty_min, supplier, supplier_sku, image_url, description
+- **Catalogue table**: thumbnail · Name (+ subcategory / color sub) · Code · Category pill · Stock (rose at 0, amber below min) · Unit cost · Value · Supplier
+- **Row click** → `?material=<id>` server-rendered modal with:
+  - Image preview · 4 metric lines (on-hand / reorder min / unit cost / stock value)
+  - Inline **+ Stock in / − Stock out** buttons (adjustStockAction server action writes qty_on_hand atomically)
+  - Collapsible **Edit form** for every field + active toggle
+  - **Delete** button
+
+### Auth
+All mutations go through `requireKikaEditor()` which checks `canAccessDomain(me, 'kika') && me.role !== 'viewer'`. Viewers can browse the catalogue but can't add / edit / delete / adjust stock.
+
+### Tab switcher on Finished Products
+`/emails/kika/inventory` also gained the `InventoryTabs` header so the two catalogues feel like one module. Sky accent used on the switcher to match Inventory's colour in the Kika landing.
+
+### Verification
+- `tsc --noEmit` clean.
+- `/emails/kika/inventory` and `/emails/kika/inventory/raw-materials` both return 307 (auth redirect, page renders).
+- Migration 0012 applied; table + indexes + trigger created.
+
+### Next up (documented, not built)
+- `product_bom` table joining finished products to raw materials with qty → auto-computed cost-per-product, margin vs sell price.
+
 ## 🟢 Kika Inventory tab (commit 9b88ccb)
 
 New `/emails/kika/inventory` route — product catalogue view + clickable product-detail modal. Added as the 4th card on the Kika landing grid (Executive Summary / Financials / Sales Intelligence / **Inventory**).
