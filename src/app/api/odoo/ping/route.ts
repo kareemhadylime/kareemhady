@@ -39,25 +39,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const env = {
-    ODOO_URL: !!process.env.ODOO_URL,
-    ODOO_DB: !!process.env.ODOO_DB,
-    ODOO_USER: !!process.env.ODOO_USER,
-    ODOO_API_KEY: !!process.env.ODOO_API_KEY,
-  };
-  const missing = Object.entries(env)
-    .filter(([, v]) => !v)
-    .map(([k]) => k);
-  if (missing.length > 0) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: `Odoo credentials missing: ${missing.join(', ')}`,
-        env,
-      },
-      { status: 400 }
-    );
-  }
+  // Credential presence check happens lazily in the Odoo client — it
+  // throws a descriptive error if anything is missing. The ping just
+  // surfaces that error instead of duplicating the field list here.
 
   const started = Date.now();
   const explore = req.nextUrl.searchParams.get('explore') === '1';

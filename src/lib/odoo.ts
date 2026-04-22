@@ -19,16 +19,12 @@ type OdooCreds = {
   apiKey: string;
 };
 
-function getCreds(): OdooCreds {
-  const url = process.env.ODOO_URL;
-  const db = process.env.ODOO_DB;
-  const user = process.env.ODOO_USER;
-  const apiKey = process.env.ODOO_API_KEY;
-  if (!url || !db || !user || !apiKey) {
-    throw new Error(
-      'ODOO_URL, ODOO_DB, ODOO_USER, ODOO_API_KEY must all be set in env'
-    );
-  }
+async function getCreds(): Promise<OdooCreds> {
+  const { getCredential } = await import('./credentials');
+  const url = await getCredential('odoo', 'url', { required: true });
+  const db = await getCredential('odoo', 'db', { required: true });
+  const user = await getCredential('odoo', 'user', { required: true });
+  const apiKey = await getCredential('odoo', 'api_key', { required: true });
   // Strip trailing /odoo web-client path if present — JSON-RPC lives at /jsonrpc
   // on the root URL. Also drop any trailing slash.
   const base = url.replace(/\/+$/, '').replace(/\/odoo$/, '');
@@ -89,7 +85,7 @@ async function jsonRpc<T>(
 }
 
 async function authenticate(): Promise<number> {
-  const { url, db, user, apiKey } = getCreds();
+  const { url, db, user, apiKey } = await getCreds();
   // Cache key includes user+key so a credential rotation invalidates cleanly.
   const userKey = `${user}:${apiKey}`;
   if (cachedUid && cachedUid.userKey === userKey) {
@@ -117,7 +113,7 @@ export async function odooExecute<T = unknown>(
   args: unknown[] = [],
   kwargs: Record<string, unknown> = {}
 ): Promise<T> {
-  const { url, db, apiKey } = getCreds();
+  const { url, db, apiKey } = await getCreds();
   const uid = await authenticate();
   return jsonRpc<T>(url, 'object', 'execute_kw', [
     db,
@@ -173,7 +169,7 @@ export async function odooVersion(): Promise<{
   server_serie: string;
   protocol_version: number;
 }> {
-  const { url } = getCreds();
+  const { url } = await getCreds();
   return jsonRpc(url, 'common', 'version', []);
 }
 

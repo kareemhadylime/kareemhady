@@ -27,24 +27,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const hasClientId = !!process.env.GUESTY_CLIENT_ID;
-  const hasClientSecret = !!process.env.GUESTY_CLIENT_SECRET;
-  const hasAccountId = !!process.env.GUESTY_ACCOUNT_ID;
-  if (!hasClientId || !hasClientSecret) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          'Guesty credentials missing — set GUESTY_CLIENT_ID and GUESTY_CLIENT_SECRET. GUESTY_ACCOUNT_ID is optional and will be auto-detected from the API response on first successful call.',
-        env: {
-          GUESTY_CLIENT_ID: hasClientId,
-          GUESTY_CLIENT_SECRET: hasClientSecret,
-          GUESTY_ACCOUNT_ID: hasAccountId,
-        },
-      },
-      { status: 400 }
-    );
-  }
+  // Credential presence handled by the Guesty client's resolver. The
+  // account_id field is optional and auto-detected on first successful
+  // API call.
 
   const started = Date.now();
   try {
@@ -62,23 +47,23 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Auto-detect accountId from first record — lets the user skip the
-    // GUESTY_ACCOUNT_ID env var during bootstrap. Guesty stamps accountId
-    // on most documents.
+    // account_id credential during bootstrap. Guesty stamps accountId on
+    // most documents.
     const detectedAccountId =
       ((listingsRes.results || [])[0] as { accountId?: string } | undefined)?.accountId ||
       ((reservationsRes.results || [])[0] as { accountId?: string } | undefined)?.accountId ||
       null;
 
+    const { getCredential } = await import('@/lib/credentials');
+    const configuredAccountId = await getCredential('guesty', 'account_id');
+
     return NextResponse.json({
       ok: true,
       duration_ms: Date.now() - started,
-      account_id:
-        process.env.GUESTY_ACCOUNT_ID ||
-        detectedAccountId ||
-        null,
+      account_id: configuredAccountId || detectedAccountId || null,
       detected_account_id: detectedAccountId,
-      account_id_source: process.env.GUESTY_ACCOUNT_ID
-        ? 'env'
+      account_id_source: configuredAccountId
+        ? 'config'
         : detectedAccountId
           ? 'auto-detected from API response'
           : 'not found',

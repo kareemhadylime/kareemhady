@@ -17,12 +17,13 @@ type ShopifyFetchOpts = {
   retries?: number;
 };
 
-function baseUrl(): string {
-  const domain = (process.env.SHOPIFY_STORE_DOMAIN || '').trim();
-  if (!domain) {
-    throw new Error('SHOPIFY_STORE_DOMAIN must be set in env');
-  }
-  // Accept "shopfromkika" or "shopfromkika.myshopify.com" or full URL.
+async function resolveShopDomain(): Promise<string> {
+  const { getCredential } = await import('./credentials');
+  return (await getCredential('shopify', 'store_domain', { required: true })).trim();
+}
+
+async function baseUrl(): Promise<string> {
+  const domain = await resolveShopDomain();
   let host = domain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
   if (!host.includes('.')) host = `${host}.myshopify.com`;
   return `https://${host}/admin/api/${API_VERSION}`;
@@ -32,12 +33,14 @@ function baseUrl(): string {
 let cachedToken: { value: string; shopHandle: string } | null = null;
 
 async function resolveAdminToken(): Promise<string> {
-  // Env override (legacy custom-app path) wins when set.
-  const envToken = (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '').trim();
+  const { getCredential } = await import('./credentials');
+  // Legacy admin token wins when set — usable on stores that still allow
+  // the custom-app path.
+  const envToken = (await getCredential('shopify', 'admin_access_token')).trim();
   if (envToken) return envToken;
 
   // Fall back to OAuth-granted token persisted by /api/shopify/auth/callback.
-  const domain = (process.env.SHOPIFY_STORE_DOMAIN || '').trim();
+  const domain = await resolveShopDomain();
   const shopHandle = domain.includes('.')
     ? domain.replace(/^https?:\/\//, '').replace(/\/+$/, '').replace(/\.myshopify\.com$/i, '')
     : domain;
@@ -68,7 +71,7 @@ export async function shopifyFetch<T = unknown>(
 ): Promise<T> {
   const token = await resolveAdminToken();
 
-  const url = new URL(path.startsWith('http') ? path : `${baseUrl()}${path}`);
+  const url = new URL(path.startsWith('http') ? path : `${await baseUrl()}${path}`);
   if (opts.query) {
     for (const [k, v] of Object.entries(opts.query)) {
       if (v != null) url.searchParams.set(k, String(v));
@@ -244,7 +247,7 @@ export async function* iterateShopifyOrders(params: {
   pageSize?: number;
 } = {}): AsyncGenerator<ShopifyOrder[]> {
   const token = await resolveAdminToken();
-  const url = new URL(`${baseUrl()}/orders.json`);
+  const url = new URL(`${await baseUrl()}/orders.json`);
   url.searchParams.set('status', params.status || 'any');
   if (params.createdAtMin) url.searchParams.set('created_at_min', params.createdAtMin);
   if (params.createdAtMax) url.searchParams.set('created_at_max', params.createdAtMax);
@@ -280,7 +283,7 @@ export async function* iterateShopifyProducts(params: {
   pageSize?: number;
 } = {}): AsyncGenerator<ShopifyProduct[]> {
   const token = await resolveAdminToken();
-  const url = new URL(`${baseUrl()}/products.json`);
+  const url = new URL(`${await baseUrl()}/products.json`);
   url.searchParams.set('limit', String(params.pageSize || 250));
   let next: string | null = url.toString();
   while (next) {
@@ -306,7 +309,7 @@ export async function* iterateShopifyCustomers(params: {
   pageSize?: number;
 } = {}): AsyncGenerator<ShopifyCustomer[]> {
   const token = await resolveAdminToken();
-  const url = new URL(`${baseUrl()}/customers.json`);
+  const url = new URL(`${await baseUrl()}/customers.json`);
   url.searchParams.set('limit', String(params.pageSize || 250));
   let next: string | null = url.toString();
   while (next) {

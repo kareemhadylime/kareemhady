@@ -21,10 +21,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.SHOPIFY_APP_CLIENT_SECRET;
+  const { getCredential } = await import('@/lib/credentials');
+  const secret = await getCredential('shopify', 'app_client_secret');
   if (!secret) {
     return NextResponse.json(
-      { ok: false, error: 'SHOPIFY_APP_CLIENT_SECRET not configured' },
+      { ok: false, error: 'shopify.app_client_secret not configured' },
       { status: 500 }
     );
   }

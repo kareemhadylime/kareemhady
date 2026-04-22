@@ -20,10 +20,8 @@ async function pricelabsFetch<T = unknown>(
   path: string,
   opts: PriceLabsFetchOpts = {}
 ): Promise<T> {
-  const key = process.env.PRICELABS_API_KEY;
-  if (!key) {
-    throw new Error('PRICELABS_API_KEY must be set in env');
-  }
+  const { getCredential } = await import('./credentials');
+  const key = await getCredential('pricelabs', 'api_key', { required: true });
 
   const url = new URL(path.startsWith('http') ? path : `${API_BASE}${path}`);
   if (opts.query) {

@@ -17,13 +17,9 @@ const API_BASE = 'https://open-api.guesty.com/v1';
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
-  const clientId = process.env.GUESTY_CLIENT_ID;
-  const clientSecret = process.env.GUESTY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'GUESTY_CLIENT_ID and GUESTY_CLIENT_SECRET must be set in env'
-    );
-  }
+  const { getCredential } = await import('./credentials');
+  const clientId = await getCredential('guesty', 'client_id', { required: true });
+  const clientSecret = await getCredential('guesty', 'client_secret', { required: true });
 
   const now = Date.now();
   const FIVE_MIN = 5 * 60 * 1000;

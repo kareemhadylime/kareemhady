@@ -32,16 +32,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  if (!process.env.PRICELABS_API_KEY) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          'PriceLabs credentials missing — set PRICELABS_API_KEY (Account → Profile → API).',
-      },
-      { status: 400 }
-    );
-  }
+  // Presence handled by the PriceLabs client's resolver.
 
   const started = Date.now();
   try {

@@ -29,14 +29,15 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const clientId = process.env.SHOPIFY_APP_CLIENT_ID;
-  const clientSecret = process.env.SHOPIFY_APP_CLIENT_SECRET;
+  const { getCredential } = await import('@/lib/credentials');
+  const clientId = await getCredential('shopify', 'app_client_id');
+  const clientSecret = await getCredential('shopify', 'app_client_secret');
   if (!clientId || !clientSecret) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          'SHOPIFY_APP_CLIENT_ID and SHOPIFY_APP_CLIENT_SECRET must be set',
+          'shopify.app_client_id and shopify.app_client_secret must be set — configure via /admin/integrations',
       },
       { status: 500 }
     );

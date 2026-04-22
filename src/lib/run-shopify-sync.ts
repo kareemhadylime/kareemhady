@@ -22,8 +22,9 @@ function toNumber(v: unknown): number | null {
 function toTs(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
-function shopDomain(): string {
-  const raw = (process.env.SHOPIFY_STORE_DOMAIN || '').trim();
+async function shopDomain(): Promise<string> {
+  const { getCredential } = await import('./credentials');
+  const raw = (await getCredential('shopify', 'store_domain', { required: true })).trim();
   return raw.includes('.') ? raw : `${raw}.myshopify.com`;
 }
 
@@ -40,7 +41,7 @@ export async function runShopifySync(trigger: 'cron' | 'manual') {
   }
   const runId = (run as { id: string }).id;
 
-  const domain = shopDomain();
+  const domain = await shopDomain();
   const cutoff = new Date(
     Date.now() - BACKFILL_DAYS * 24 * 3600 * 1000
   ).toISOString();

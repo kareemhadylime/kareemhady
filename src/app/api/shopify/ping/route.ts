@@ -27,15 +27,7 @@ export async function GET(req: NextRequest) {
   // Store domain is always required. Admin token can come from either the
   // legacy SHOPIFY_ADMIN_ACCESS_TOKEN env OR the OAuth-populated
   // integration_tokens row — shopifyFetch resolves either automatically.
-  if (!process.env.SHOPIFY_STORE_DOMAIN) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'SHOPIFY_STORE_DOMAIN not set',
-      },
-      { status: 400 }
-    );
-  }
+  // Presence handled by the Shopify client's resolver.
 
   const started = Date.now();
   try {

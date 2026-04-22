@@ -27,17 +27,18 @@ const SCOPES = [
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const clientId = process.env.SHOPIFY_APP_CLIENT_ID;
-  const shop = process.env.SHOPIFY_STORE_DOMAIN;
+  const { getCredential } = await import('@/lib/credentials');
+  const clientId = await getCredential('shopify', 'app_client_id');
+  const shop = await getCredential('shopify', 'store_domain');
   if (!clientId) {
     return NextResponse.json(
-      { ok: false, error: 'SHOPIFY_APP_CLIENT_ID not configured' },
+      { ok: false, error: 'shopify.app_client_id not configured — set via /admin/integrations' },
       { status: 500 }
     );
   }
   if (!shop) {
     return NextResponse.json(
-      { ok: false, error: 'SHOPIFY_STORE_DOMAIN not configured' },
+      { ok: false, error: 'shopify.store_domain not configured' },
       { status: 500 }
     );
   }
