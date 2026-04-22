@@ -157,7 +157,7 @@ export default async function KikaExecPage({
           <BigStat
             label="Avg Order Value"
             value={fmt(r.totals.order_value_avg)}
-            sub={`median ${fmt(r.totals.order_value_median)} · max ${fmt(r.totals.order_value_max)}`}
+            sub={`EGP · median ${fmt(r.totals.order_value_median)} · max ${fmt(r.totals.order_value_max)}`}
             icon={<Package size={18} className="text-amber-600" />}
           />
           <BigStat
@@ -292,7 +292,7 @@ export default async function KikaExecPage({
                       <th className="text-left py-1">Product</th>
                       <th className="text-right py-1">Units</th>
                       <th className="text-right py-1">Orders</th>
-                      <th className="text-right py-1">Revenue</th>
+                      <th className="text-right py-1">Revenue (EGP)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -399,15 +399,12 @@ export default async function KikaExecPage({
                   Recoverable revenue
                 </span>
                 <span className="text-lg font-semibold tabular-nums">
-                  {abandoned.totals.currency
-                    ? `${abandoned.totals.currency} `
-                    : ''}
-                  {fmt(abandoned.totals.recoverable_revenue)}
+                  EGP {fmt(abandoned.totals.recoverable_revenue)}
                 </span>
               </div>
               {abandoned.totals.avg_cart_value != null && (
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Avg cart {fmt(abandoned.totals.avg_cart_value)}
+                  Avg cart EGP {fmt(abandoned.totals.avg_cart_value)}
                 </p>
               )}
             </div>
@@ -438,7 +435,7 @@ export default async function KikaExecPage({
                     <tr>
                       <th className="text-left py-1">Customer / email</th>
                       <th className="text-right py-1">Items</th>
-                      <th className="text-right py-1">Value</th>
+                      <th className="text-right py-1">Value (EGP)</th>
                       <th className="text-right py-1">Age</th>
                       <th className="text-left py-1">Recover</th>
                     </tr>

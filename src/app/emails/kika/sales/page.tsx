@@ -235,7 +235,7 @@ function TotalsBlock({ report }: { report: KikaSalesReport }) {
         value={fmt(t.gross_revenue)}
         sub={
           t.net_revenue !== t.gross_revenue
-            ? `net ${fmt(t.net_revenue)} after refunds`
+            ? `EGP · net ${fmt(t.net_revenue)} after refunds`
             : 'EGP'
         }
         icon={<DollarSign size={18} className="text-emerald-600" />}
@@ -243,7 +243,7 @@ function TotalsBlock({ report }: { report: KikaSalesReport }) {
       <StatCard
         label="Avg Order Value"
         value={fmt(t.avg_order_value)}
-        sub={`${fmt(t.units_sold)} units sold`}
+        sub={`EGP · ${fmt(t.units_sold)} units sold`}
         icon={<Package size={18} className="text-amber-600" />}
       />
       <StatCard
@@ -310,7 +310,7 @@ function DailyTrendBlock({
               <th className="text-left py-1">Day</th>
               <th className="text-right py-1">Orders</th>
               <th className="text-right py-1">Units</th>
-              <th className="text-right py-1">Revenue</th>
+              <th className="text-right py-1">Revenue (EGP)</th>
               <th className="text-left py-1 pl-4 w-1/2">Trend</th>
             </tr>
           </thead>
@@ -358,7 +358,7 @@ function TopProductsCard({
                 <th className="text-left">Product</th>
                 <th className="text-right">Units</th>
                 <th className="text-right">Orders</th>
-                <th className="text-right">Revenue</th>
+                <th className="text-right">Revenue (EGP)</th>
               </tr>
             </thead>
             <tbody>
@@ -400,7 +400,7 @@ function TopCustomersCard({
               <tr>
                 <th className="text-left">Customer</th>
                 <th className="text-right">Orders</th>
-                <th className="text-right">Revenue</th>
+                <th className="text-right">Revenue (EGP)</th>
               </tr>
             </thead>
             <tbody>
@@ -477,7 +477,7 @@ function RecentOrdersBlock({
               <th className="text-left px-3 py-2">Order</th>
               <th className="text-left px-3 py-2">Customer</th>
               <th className="text-right px-3 py-2">Items</th>
-              <th className="text-right px-3 py-2">Total</th>
+              <th className="text-right px-3 py-2">Total (EGP)</th>
               <th className="text-left px-3 py-2">Status</th>
               <th className="text-left px-3 py-2">Fulfillment</th>
               <th className="text-left px-3 py-2">Created</th>

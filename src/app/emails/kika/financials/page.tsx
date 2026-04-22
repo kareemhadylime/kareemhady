@@ -278,7 +278,7 @@ function PnlSection({ pnl }: { pnl: KikaPnlReport }) {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-slate-500">Net Profit</p>
+          <p className="text-xs text-slate-500">Net Profit (EGP)</p>
           <p className={`text-2xl font-bold tabular-nums ${t.net_profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
             {fmtSigned(t.net_profit)}
           </p>
@@ -291,7 +291,7 @@ function PnlSection({ pnl }: { pnl: KikaPnlReport }) {
             <tr>
               <th className="text-left px-5 py-2 w-20">Code</th>
               <th className="text-left px-5 py-2">Account</th>
-              <th className="text-right px-5 py-2 w-32">Balance</th>
+              <th className="text-right px-5 py-2 w-32">Balance (EGP)</th>
               <th className="text-right px-5 py-2 w-20">% Rev</th>
             </tr>
           </thead>
@@ -436,7 +436,7 @@ function ReconcileBlock({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="border border-slate-200 rounded-lg p-3 space-y-1">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Shopify</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Shopify (EGP)</p>
           <table className="w-full text-sm">
             <tbody>
               <tr>
@@ -475,7 +475,7 @@ function ReconcileBlock({
         </div>
 
         <div className="border border-slate-200 rounded-lg p-3 space-y-1">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Odoo</p>
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Odoo (EGP)</p>
           <table className="w-full text-sm">
             <tbody>
               <tr>
