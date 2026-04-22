@@ -246,6 +246,40 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 Kika: Sales & Exec reconciled to same numbers (commit 576d351)
+
+User flagged: same 30-day window, different top-line numbers on the two Kika dashboards:
+| Metric | Sales | Exec |
+|---|---|---|
+| Orders | 292 | 292 ✓ |
+| Gross Revenue / Revenue Collected | 784,347 | 437,397 (different on purpose — Gross vs Collected) |
+| **Unique Customers** | **176** | **261** ❌ |
+| **Avg Order Value** | **2,686** | **4,406** ❌ |
+
+### Root causes
+1. **Customer count** — Exec's loop iterated `orders` (all, including cancelled) and counted 261 unique keys. Sales iterated only non-cancelled and counted 176. Both pages already exclude cancelled from revenue totals, so customer denominator was inconsistent with the numerator.
+2. **AOV denominator mismatch** — Sales divided `grossRevenue (non-cancelled, 784,347)` by `orders.length (292 total)` = 2,686. Exec divided by `nonCancelledOrders.length (178)` = 4,406. Mixing numerator and denominator definitions.
+
+### Fix
+- **Exec** (`kika-exec.ts`): `perCustomerOrders`, `returningInPeriod`, `returningLifetimeSet`, and `newInPeriod` loops now iterate `nonCancelledOrders` instead of `orders`. Unique customers drops from 261 → 176.
+- **Sales** (`kika-sales.ts`): added a `nonCancelledOrders` counter in the totals loop; `avg_order_value` now divides by that count. AOV rises from 2,686 → 4,406.
+
+### Verified via SQL (last 30 days)
+```
+total_orders:                    292
+non_cancelled_orders:            178
+unique_customers_non_cancelled:  176
+aov_over_noncancelled:         4,406
+```
+Both dashboards now surface the same 176 / 4,406 for the matching period.
+
+### Note on Gross Revenue vs Revenue Collected
+The ~350K gap between the two Revenue cards is INTENTIONAL:
+- Sales: Gross Revenue = all non-cancelled order totals (784,347)
+- Exec: Revenue Collected = only paid + fulfilled orders (437,397 from 109 orders)
+
+They answer different questions (top-line order value vs realised cash). Both are now computed from the same base set.
+
 ## 🟢 KIKA landing: hide Gmail-derived Shopify rule card (commit dba0fdd)
 
 ### The duplication
