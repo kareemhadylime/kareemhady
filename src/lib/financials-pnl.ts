@@ -1,4 +1,9 @@
 import { supabaseAdmin } from './supabase';
+import {
+  BEITHADY_OPENING_BALANCES_2026,
+  OPENING_BALANCE_DATE,
+  ACCOUNT_TYPE_OVERRIDES,
+} from './beithady-opening-balance-2026';
 
 // Default scope = Consolidated Beithady (Egypt 5 + Dubai 10).
 // Callers can override via opts.companyIds for per-company views:
@@ -719,11 +724,23 @@ export async function buildBalanceSheet(params: {
   const companyIds = params.companyIds || PNL_COMPANY_IDS;
   const sb = supabaseAdmin();
 
-  // Balance sheet is cumulative — ALL entries from inception up to asOf.
-  // We only have last-365d data synced, but for current snapshots that's
-  // usually enough unless closing entries exist earlier. For true cumulative
-  // balance we'd need a full backfill. For now: sum our synced lines as
-  // cumulative + annotate as "based on 365d window".
+  // --- Opening-balance mode ---
+  // When building a 2026+ consolidated Beithady balance sheet, the raw
+  // odoo_move_lines table only has the last ~365 days synced — not the
+  // full cumulative history an accurate balance sheet requires. To avoid
+  // half-height numbers, we seed from the 31-Dec-2025 consolidated xlsx
+  // (with 2025 year-end close applied) and sum ONLY the 2026+ movements
+  // on top. For per-company scopes (Egypt / Dubai / A1 alone) or older
+  // asOf dates we fall back to the raw-sum approach.
+  const useOpeningBalance =
+    params.asOf > OPENING_BALANCE_DATE &&
+    companyIds.length === 2 &&
+    companyIds.includes(5) &&
+    companyIds.includes(10);
+  // Move-line query window. With the seed in place we only need deltas
+  // after 2025-12-31; otherwise cumulative from the earliest synced date.
+  const movesFromDate = useOpeningBalance ? OPENING_BALANCE_DATE : null;
+
   const PAGE = 1000;
   let offset = 0;
   type Row = {
@@ -740,14 +757,29 @@ export async function buildBalanceSheet(params: {
     { code: string; name: string; account_type: string; sum: number }
   >();
 
+  // Seed opening balances first so later Odoo deltas stack on top of them.
+  if (useOpeningBalance) {
+    for (const op of BEITHADY_OPENING_BALANCES_2026) {
+      const key = `${op.code}||${op.name}||${op.account_type}`;
+      byAccount.set(key, {
+        code: op.code,
+        name: op.name,
+        account_type: op.account_type,
+        sum: op.opening_raw,
+      });
+    }
+  }
+
   while (true) {
-    const { data, error } = await sb
+    const q = sb
       .from('odoo_move_lines')
       .select('balance, odoo_accounts!inner(code, name, account_type)')
       .lte('date', params.asOf)
       .in('company_id', companyIds)
-      .eq('parent_state', 'posted') // Posted only for balance sheet — draft shouldn't move equity
+      .eq('parent_state', 'posted')
       .range(offset, offset + PAGE - 1);
+    if (movesFromDate) q.gt('date', movesFromDate);
+    const { data, error } = await q;
     if (error) throw new Error(`buildBalanceSheet: ${error.message}`);
     const rows = (data as unknown as Row[]) || [];
     if (rows.length === 0) break;
@@ -756,7 +788,15 @@ export async function buildBalanceSheet(params: {
       if (!r.odoo_accounts) continue;
       const code = r.odoo_accounts.code || '';
       const name = r.odoo_accounts.name || '';
-      const accountType = r.odoo_accounts.account_type || '';
+      const rawAccountType = r.odoo_accounts.account_type || '';
+      // Apply consolidated-view overrides (e.g. 222008 Total Lime Loan is
+      // tagged `liability_current` in Odoo but the xlsx classifies it as
+      // Non-current). Only overrides when we're in opening-balance mode so
+      // per-company views keep the raw Odoo classification.
+      const accountType =
+        useOpeningBalance && ACCOUNT_TYPE_OVERRIDES[code]
+          ? ACCOUNT_TYPE_OVERRIDES[code]
+          : rawAccountType;
       const key = `${code}||${name}||${accountType}`;
       const existing = byAccount.get(key);
       const bal = Number(r.balance) || 0;
