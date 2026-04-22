@@ -611,6 +611,25 @@ export async function buildPayablesReport(params: {
 }
 
 // -------- Balance Sheet ----------
+//
+// Structure mirrors the Feb-2026 Beithady xlsx template:
+//   ASSETS
+//     Bank and Cash Accounts
+//     Receivables
+//     Current Assets
+//     Prepayments
+//     Fixed Assets
+//   LIABILITIES
+//     Current Liabilities
+//     Payables
+//     Non-current Liabilities
+//   EQUITY
+//     Capital
+//     Retained Earnings
+//       Current Year Unallocated Earnings   (derived from current-FY P&L)
+//       Previous Years Unallocated Earnings (equity_unaffected balance)
+//
+// Each group keeps its leaf accounts so the UI can expand/collapse them.
 
 export type BalanceSheetLeaf = {
   code: string;
@@ -624,6 +643,7 @@ export type BalanceSheetGroup = {
   label: string;
   total: number;
   accounts: BalanceSheetLeaf[];
+  synthetic?: boolean;        // true for derived groups (e.g. Retained Earnings rollup)
 };
 
 export type BalanceSheetReport = {
@@ -631,33 +651,18 @@ export type BalanceSheetReport = {
   company_ids: number[];
   assets: {
     total: number;
-    current: {
-      total: number;
-      bank_and_cash: BalanceSheetGroup;
-      receivables: BalanceSheetGroup;
-      prepayments: BalanceSheetGroup;
-      other_current: BalanceSheetGroup;
-    };
-    fixed: BalanceSheetGroup;
-    non_current: BalanceSheetGroup;
+    groups: BalanceSheetGroup[];     // in xlsx order
   };
   liabilities: {
     total: number;
-    current: {
-      total: number;
-      payables: BalanceSheetGroup;
-      other_current: BalanceSheetGroup;
-    };
-    non_current: BalanceSheetGroup;
+    groups: BalanceSheetGroup[];
   };
   equity: {
     total: number;
-    unallocated_earnings: BalanceSheetGroup;
-    retained_earnings: BalanceSheetGroup;
-    other: BalanceSheetGroup;
+    groups: BalanceSheetGroup[];
   };
   liabilities_plus_equity: number;
-  balanced: boolean; // assets == liab+eq within 1 EGP
+  balanced: boolean;
 };
 
 function classifyBalanceSheet(
@@ -673,44 +678,35 @@ function classifyBalanceSheet(
     case 'asset_prepayments':
       return { section: 'assets', group: 'prepayments', label: 'Prepayments' };
     case 'asset_current':
-      return { section: 'assets', group: 'other_current', label: 'Other Current Assets' };
+      return { section: 'assets', group: 'current_assets', label: 'Current Assets' };
     case 'asset_fixed':
-      return { section: 'assets', group: 'fixed', label: 'Fixed Assets' };
+      return { section: 'assets', group: 'fixed_assets', label: 'Fixed Assets' };
     case 'asset_non_current':
-      return { section: 'assets', group: 'non_current', label: 'Non-current Assets' };
+      return { section: 'assets', group: 'non_current_assets', label: 'Non-current Assets' };
     case 'liability_payable':
-      return {
-        section: 'liabilities',
-        group: 'payables',
-        label: 'Payables',
-      };
+      return { section: 'liabilities', group: 'payables', label: 'Payables' };
     case 'liability_current':
-      return {
-        section: 'liabilities',
-        group: 'other_current',
-        label: 'Other Current Liabilities',
-      };
+      return { section: 'liabilities', group: 'current_liabilities', label: 'Current Liabilities' };
     case 'liability_non_current':
       return {
         section: 'liabilities',
-        group: 'non_current',
+        group: 'non_current_liabilities',
         label: 'Non-current Liabilities',
       };
     case 'equity':
-      if (/retain/i.test(n)) {
-        return { section: 'equity', group: 'retained_earnings', label: 'Retained Earnings' };
+      // Real equity accounts. Anything that looks like capital goes to the
+      // Capital group; everything else (owner contributions, drawings, etc.)
+      // stacks under a generic "Other Equity" group. Retained-earnings is a
+      // separate synthetic group populated from P&L + equity_unaffected.
+      if (/capital|share\s*capital/i.test(n)) {
+        return { section: 'equity', group: 'capital', label: 'Capital' };
       }
-      return {
-        section: 'equity',
-        group: 'unallocated_earnings',
-        label: 'Unallocated Earnings',
-      };
+      return { section: 'equity', group: 'other_equity', label: 'Other Equity' };
     case 'equity_unaffected':
-      return {
-        section: 'equity',
-        group: 'unallocated_earnings',
-        label: 'Unallocated Earnings',
-      };
+      // Prior-year carry-forward. We sweep this into the synthetic
+      // "Previous Years Unallocated Earnings" row during build, so here we
+      // just mark it for that handling (group='retained_prev').
+      return { section: 'equity', group: 'retained_prev', label: 'Previous Years Unallocated Earnings' };
     default:
       return null;
   }
@@ -771,47 +767,74 @@ export async function buildBalanceSheet(params: {
     offset += PAGE;
   }
 
-  // Seed empty structure
-  const mkGroup = (key: string, label: string): BalanceSheetGroup => ({
-    key,
-    label,
-    total: 0,
-    accounts: [],
-  });
+  // Also pull current-fiscal-year P&L activity so we can populate the
+  // synthetic "Current Year Unallocated Earnings" row. Fiscal year runs
+  // from Jan 1 of the asOf year through asOf.
+  const fyStart = `${params.asOf.slice(0, 4)}-01-01`;
+  let currentYearNet = 0; // debit - credit of all P&L accounts this FY
+  {
+    const PAGE2 = 1000;
+    let offset2 = 0;
+    type RowFy = {
+      balance: number;
+      odoo_accounts: { account_type: string | null } | null;
+    };
+    const pnlTypes = new Set([
+      'income',
+      'income_other',
+      'expense',
+      'expense_direct_cost',
+      'expense_depreciation',
+    ]);
+    while (true) {
+      const { data, error } = await sb
+        .from('odoo_move_lines')
+        .select('balance, odoo_accounts!inner(account_type)')
+        .gte('date', fyStart)
+        .lte('date', params.asOf)
+        .in('company_id', companyIds)
+        .eq('parent_state', 'posted')
+        .range(offset2, offset2 + PAGE2 - 1);
+      if (error) throw new Error(`buildBalanceSheet fy: ${error.message}`);
+      const rows = (data as unknown as RowFy[]) || [];
+      if (rows.length === 0) break;
+      for (const r of rows) {
+        const at = r.odoo_accounts?.account_type || '';
+        if (!pnlTypes.has(at)) continue;
+        currentYearNet += Number(r.balance) || 0;
+      }
+      if (rows.length < PAGE2) break;
+      offset2 += PAGE2;
+    }
+  }
 
-  const report: BalanceSheetReport = {
-    as_of: params.asOf,
-    company_ids: companyIds,
-    assets: {
-      total: 0,
-      current: {
-        total: 0,
-        bank_and_cash: mkGroup('bank_and_cash', 'Bank and Cash Accounts'),
-        receivables: mkGroup('receivables', 'Receivables'),
-        prepayments: mkGroup('prepayments', 'Prepayments'),
-        other_current: mkGroup('other_current', 'Other Current Assets'),
-      },
-      fixed: mkGroup('fixed', 'Fixed Assets'),
-      non_current: mkGroup('non_current', 'Non-current Assets'),
-    },
-    liabilities: {
-      total: 0,
-      current: {
-        total: 0,
-        payables: mkGroup('payables', 'Payables'),
-        other_current: mkGroup('other_current', 'Other Current Liabilities'),
-      },
-      non_current: mkGroup('non_current', 'Non-current Liabilities'),
-    },
-    equity: {
-      total: 0,
-      unallocated_earnings: mkGroup('unallocated_earnings', 'Unallocated Earnings'),
-      retained_earnings: mkGroup('retained_earnings', 'Retained Earnings'),
-      other: mkGroup('other', 'Other Equity'),
-    },
-    liabilities_plus_equity: 0,
-    balanced: false,
+  // Seed empty groups in xlsx display order.
+  const mkGroup = (
+    key: string,
+    label: string,
+    synthetic = false
+  ): BalanceSheetGroup => ({ key, label, total: 0, accounts: [], synthetic });
+
+  const assetGroups: Record<string, BalanceSheetGroup> = {
+    bank_and_cash: mkGroup('bank_and_cash', 'Bank and Cash Accounts'),
+    receivables: mkGroup('receivables', 'Receivables'),
+    current_assets: mkGroup('current_assets', 'Current Assets'),
+    prepayments: mkGroup('prepayments', 'Prepayments'),
+    fixed_assets: mkGroup('fixed_assets', 'Fixed Assets'),
+    non_current_assets: mkGroup('non_current_assets', 'Non-current Assets'),
   };
+  const liabilityGroups: Record<string, BalanceSheetGroup> = {
+    current_liabilities: mkGroup('current_liabilities', 'Current Liabilities'),
+    payables: mkGroup('payables', 'Payables'),
+    non_current_liabilities: mkGroup(
+      'non_current_liabilities',
+      'Non-current Liabilities'
+    ),
+  };
+  const capitalGroup = mkGroup('capital', 'Capital');
+  const otherEquityGroup = mkGroup('other_equity', 'Other Equity');
+  // Collect equity_unaffected balance for the Previous-Years synthetic row.
+  let previousYearsRaw = 0;
 
   for (const acc of byAccount.values()) {
     if (Math.abs(acc.sum) < 0.005) continue;
@@ -823,96 +846,125 @@ export async function buildBalanceSheet(params: {
       account_type: acc.account_type,
       balance: acc.sum,
     };
-
     if (cls.section === 'assets') {
-      if (cls.group === 'fixed') {
-        report.assets.fixed.accounts.push(leaf);
-        report.assets.fixed.total += leaf.balance;
-      } else if (cls.group === 'non_current') {
-        report.assets.non_current.accounts.push(leaf);
-        report.assets.non_current.total += leaf.balance;
-      } else {
-        const grp = report.assets.current[
-          cls.group as 'bank_and_cash' | 'receivables' | 'prepayments' | 'other_current'
-        ];
-        grp.accounts.push(leaf);
-        grp.total += leaf.balance;
-        report.assets.current.total += leaf.balance;
+      const g = assetGroups[cls.group];
+      if (g) {
+        g.accounts.push(leaf);
+        g.total += leaf.balance;
       }
-      report.assets.total += leaf.balance;
     } else if (cls.section === 'liabilities') {
-      if (cls.group === 'non_current') {
-        report.liabilities.non_current.accounts.push(leaf);
-        report.liabilities.non_current.total += leaf.balance;
-      } else {
-        const grp = report.liabilities.current[
-          cls.group as 'payables' | 'other_current'
-        ];
-        grp.accounts.push(leaf);
-        grp.total += leaf.balance;
-        report.liabilities.current.total += leaf.balance;
+      const g = liabilityGroups[cls.group];
+      if (g) {
+        g.accounts.push(leaf);
+        g.total += leaf.balance;
       }
-      // Liabilities carry a credit normal balance — flip to show as positive totals
-      report.liabilities.total += leaf.balance;
     } else if (cls.section === 'equity') {
-      const grp = report.equity[
-        cls.group as 'unallocated_earnings' | 'retained_earnings' | 'other'
-      ];
-      grp.accounts.push(leaf);
-      grp.total += leaf.balance;
-      report.equity.total += leaf.balance;
+      if (cls.group === 'capital') {
+        capitalGroup.accounts.push(leaf);
+        capitalGroup.total += leaf.balance;
+      } else if (cls.group === 'retained_prev') {
+        previousYearsRaw += leaf.balance;
+      } else {
+        otherEquityGroup.accounts.push(leaf);
+        otherEquityGroup.total += leaf.balance;
+      }
     }
   }
 
-  // Liabilities + Equity SHOULD be credit-normal; Assets are debit-normal.
-  // Odoo's `balance` = debit - credit. So L + E will be NEGATIVE in raw sum
-  // while A is POSITIVE. For display we flip signs on L + E so totals read
-  // positive, matching the xlsx format.
-  report.liabilities.total = -report.liabilities.total;
-  report.liabilities.current.total = -report.liabilities.current.total;
-  report.liabilities.current.payables.total = -report.liabilities.current.payables.total;
-  report.liabilities.current.other_current.total = -report.liabilities.current.other_current.total;
-  report.liabilities.non_current.total = -report.liabilities.non_current.total;
-  for (const g of [
-    report.liabilities.current.payables,
-    report.liabilities.current.other_current,
-    report.liabilities.non_current,
-  ]) {
+  // Build synthetic Retained Earnings group.
+  // Sign convention: assets are debit-normal (positive), liabilities + equity
+  // are credit-normal so raw balance is negative. The xlsx surfaces L+E as
+  // negative totals when they net against positive assets — we FLIP equity
+  // (and liabilities below) so the displayed totals read positive.
+  //   current_year display  = -currentYearNet  (debit_sum - credit_sum flipped)
+  //   previous_years display = -previousYearsRaw
+  const currentYearDisplay = -currentYearNet;
+  const previousYearsDisplay = -previousYearsRaw;
+  const retainedEarningsGroup = mkGroup(
+    'retained_earnings',
+    'Retained Earnings',
+    true
+  );
+  retainedEarningsGroup.accounts = [
+    {
+      code: '',
+      name: 'Current Year Unallocated Earnings',
+      account_type: 'derived',
+      balance: currentYearDisplay,
+    },
+    {
+      code: '',
+      name: 'Previous Years Unallocated Earnings',
+      account_type: 'derived',
+      balance: previousYearsDisplay,
+    },
+  ];
+  retainedEarningsGroup.total = currentYearDisplay + previousYearsDisplay;
+
+  // Flip liabilities so group totals read positive.
+  for (const g of Object.values(liabilityGroups)) {
+    g.total = -g.total;
     g.accounts = g.accounts.map(a => ({ ...a, balance: -a.balance }));
   }
+  // Flip real-equity groups too (retained earnings already built in display space).
+  capitalGroup.total = -capitalGroup.total;
+  capitalGroup.accounts = capitalGroup.accounts.map(a => ({
+    ...a,
+    balance: -a.balance,
+  }));
+  otherEquityGroup.total = -otherEquityGroup.total;
+  otherEquityGroup.accounts = otherEquityGroup.accounts.map(a => ({
+    ...a,
+    balance: -a.balance,
+  }));
 
-  report.equity.total = -report.equity.total;
-  report.equity.unallocated_earnings.total = -report.equity.unallocated_earnings.total;
-  report.equity.retained_earnings.total = -report.equity.retained_earnings.total;
-  report.equity.other.total = -report.equity.other.total;
-  for (const g of [
-    report.equity.unallocated_earnings,
-    report.equity.retained_earnings,
-    report.equity.other,
-  ]) {
-    g.accounts = g.accounts.map(a => ({ ...a, balance: -a.balance }));
-  }
-
-  report.liabilities_plus_equity = report.liabilities.total + report.equity.total;
-  report.balanced =
-    Math.abs(report.assets.total - report.liabilities_plus_equity) < 1;
-
-  // Sort each group's accounts by balance desc
+  // Sort leaf rows inside each group by magnitude desc (the xlsx is by code,
+  // but magnitude-desc reads better in an interactive UI — still matches the
+  // xlsx top-to-bottom feel because top-magnitude accounts dominate).
   const sortGroup = (g: BalanceSheetGroup) => {
     g.accounts.sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
   };
-  sortGroup(report.assets.current.bank_and_cash);
-  sortGroup(report.assets.current.receivables);
-  sortGroup(report.assets.current.prepayments);
-  sortGroup(report.assets.current.other_current);
-  sortGroup(report.assets.fixed);
-  sortGroup(report.assets.non_current);
-  sortGroup(report.liabilities.current.payables);
-  sortGroup(report.liabilities.current.other_current);
-  sortGroup(report.liabilities.non_current);
-  sortGroup(report.equity.unallocated_earnings);
-  sortGroup(report.equity.retained_earnings);
-  sortGroup(report.equity.other);
+  Object.values(assetGroups).forEach(sortGroup);
+  Object.values(liabilityGroups).forEach(sortGroup);
+  sortGroup(capitalGroup);
+  sortGroup(otherEquityGroup);
+  // Don't sort retainedEarningsGroup — fixed order: Current Year then Previous.
+
+  // Assemble in xlsx display order. Empty groups are kept so the header
+  // remains but collapses naturally (0 total, no leaves).
+  const assetsOrdered = [
+    assetGroups.bank_and_cash,
+    assetGroups.receivables,
+    assetGroups.current_assets,
+    assetGroups.prepayments,
+    assetGroups.fixed_assets,
+    assetGroups.non_current_assets,
+  ].filter(g => g.accounts.length > 0 || Math.abs(g.total) > 0.005);
+  const liabilitiesOrdered = [
+    liabilityGroups.current_liabilities,
+    liabilityGroups.payables,
+    liabilityGroups.non_current_liabilities,
+  ].filter(g => g.accounts.length > 0 || Math.abs(g.total) > 0.005);
+  const equityOrdered = [
+    capitalGroup,
+    retainedEarningsGroup,
+    otherEquityGroup,
+  ].filter(g => g.accounts.length > 0 || Math.abs(g.total) > 0.005);
+
+  const assetsTotal = assetsOrdered.reduce((s, g) => s + g.total, 0);
+  const liabilitiesTotal = liabilitiesOrdered.reduce((s, g) => s + g.total, 0);
+  const equityTotal = equityOrdered.reduce((s, g) => s + g.total, 0);
+
+  const report: BalanceSheetReport = {
+    as_of: params.asOf,
+    company_ids: companyIds,
+    assets: { total: assetsTotal, groups: assetsOrdered },
+    liabilities: { total: liabilitiesTotal, groups: liabilitiesOrdered },
+    equity: { total: equityTotal, groups: equityOrdered },
+    liabilities_plus_equity: liabilitiesTotal + equityTotal,
+    balanced:
+      Math.abs(assetsTotal - (liabilitiesTotal + equityTotal)) < 1,
+  };
 
   return report;
 }

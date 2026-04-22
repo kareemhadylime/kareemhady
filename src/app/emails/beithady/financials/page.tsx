@@ -619,144 +619,177 @@ function SubtotalRow({
   );
 }
 
+// Balance Sheet renderer — mirrors the Feb-2026 xlsx template:
+//   ASSETS / LIABILITIES / EQUITY / LIABILITIES + EQUITY
+// Each section is a <details> that starts OPEN; each group inside it is a
+// <details> that starts CLOSED so the operator sees the high-level line
+// items first and only expands the groups they want to drill into. All
+// native — no client-side React, no JS hydration needed.
 function BalanceSheetSection({ bs }: { bs: BalanceSheetReport }) {
+  const delta = bs.assets.total - bs.liabilities_plus_equity;
   return (
     <section className="ix-card overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Landmark size={18} className="text-indigo-600" />
             Balance Sheet · as of {bs.as_of}
           </h2>
           <p className="text-xs text-slate-500">
-            Posted entries only.{' '}
+            Posted entries only · all amounts in EGP ·{' '}
             {bs.balanced ? (
               <span className="text-emerald-600 font-medium">✓ Balanced</span>
             ) : (
               <span className="text-amber-600 font-medium">
-                ⚠ Unbalanced by {fmt(Math.abs(bs.assets.total - bs.liabilities_plus_equity))}
+                ⚠ Unbalanced by {fmt(Math.abs(delta))}
               </span>
             )}
           </p>
         </div>
         <div className="flex gap-6 text-right">
           <StatBlock label="Assets" value={bs.assets.total} tone="indigo" />
-          <StatBlock label="Liab + Equity" value={bs.liabilities_plus_equity} tone="slate" />
+          <StatBlock
+            label="Liab + Equity"
+            value={bs.liabilities_plus_equity}
+            tone="slate"
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-        {/* ASSETS */}
-        <div className="p-5 space-y-4">
-          <h3 className="text-sm font-bold text-indigo-700 uppercase tracking-wide">
-            Assets · {fmt(bs.assets.total)}
-          </h3>
-          <BalanceGroup label="Current Assets" total={bs.assets.current.total}>
-            <BalanceSubgroup group={bs.assets.current.bank_and_cash} />
-            <BalanceSubgroup group={bs.assets.current.receivables} />
-            <BalanceSubgroup group={bs.assets.current.prepayments} />
-            <BalanceSubgroup group={bs.assets.current.other_current} />
-          </BalanceGroup>
-          <BalanceGroup label="Fixed Assets" total={bs.assets.fixed.total}>
-            <BalanceSubgroup group={bs.assets.fixed} suppressLabel />
-          </BalanceGroup>
-          {bs.assets.non_current.total !== 0 && (
-            <BalanceGroup label="Non-current Assets" total={bs.assets.non_current.total}>
-              <BalanceSubgroup group={bs.assets.non_current} suppressLabel />
-            </BalanceGroup>
-          )}
-        </div>
-
-        {/* LIABILITIES + EQUITY */}
-        <div className="p-5 space-y-4">
-          <h3 className="text-sm font-bold text-rose-700 uppercase tracking-wide">
-            Liabilities · {fmt(bs.liabilities.total)}
-          </h3>
-          <BalanceGroup label="Current Liabilities" total={bs.liabilities.current.total}>
-            <BalanceSubgroup group={bs.liabilities.current.payables} />
-            <BalanceSubgroup group={bs.liabilities.current.other_current} />
-          </BalanceGroup>
-          {bs.liabilities.non_current.total !== 0 && (
-            <BalanceGroup label="Non-current Liabilities" total={bs.liabilities.non_current.total}>
-              <BalanceSubgroup group={bs.liabilities.non_current} suppressLabel />
-            </BalanceGroup>
-          )}
-
-          <h3 className="text-sm font-bold text-amber-700 uppercase tracking-wide pt-4 border-t border-slate-200">
-            Equity · {fmt(bs.equity.total)}
-          </h3>
-          <BalanceSubgroup group={bs.equity.unallocated_earnings} />
-          <BalanceSubgroup group={bs.equity.retained_earnings} />
-          {bs.equity.other.total !== 0 && <BalanceSubgroup group={bs.equity.other} />}
+      <div className="divide-y divide-slate-100">
+        <BalanceTopSection
+          label="ASSETS"
+          total={bs.assets.total}
+          tone="indigo"
+          groups={bs.assets.groups}
+        />
+        <BalanceTopSection
+          label="LIABILITIES"
+          total={bs.liabilities.total}
+          tone="rose"
+          groups={bs.liabilities.groups}
+        />
+        <BalanceTopSection
+          label="EQUITY"
+          total={bs.equity.total}
+          tone="amber"
+          groups={bs.equity.groups}
+        />
+        <div className="px-5 py-3 flex items-center justify-between text-sm font-bold text-slate-800 bg-slate-50">
+          <span>LIABILITIES + EQUITY</span>
+          <span className="tabular-nums">{fmt(bs.liabilities_plus_equity)}</span>
         </div>
       </div>
     </section>
   );
 }
 
-function BalanceGroup({
+function BalanceTopSection({
   label,
   total,
-  children,
+  tone,
+  groups,
 }: {
   label: string;
   total: number;
-  children: React.ReactNode;
+  tone: 'indigo' | 'rose' | 'amber';
+  groups: BalanceSheetGroup[];
 }) {
+  const toneClass =
+    tone === 'indigo'
+      ? 'text-indigo-700'
+      : tone === 'rose'
+        ? 'text-rose-700'
+        : 'text-amber-700';
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between text-sm font-semibold text-slate-800 border-b border-slate-100 pb-1">
-        <span>{label}</span>
+    <details open className="group">
+      <summary
+        className={`list-none cursor-pointer select-none px-5 py-3 flex items-center justify-between text-sm font-bold uppercase tracking-wide ${toneClass} hover:bg-slate-50 transition`}
+      >
+        <span className="inline-flex items-center gap-2">
+          <svg
+            className="w-3.5 h-3.5 transition-transform group-open:rotate-90 text-slate-400"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M6.22 4.22a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 01-1.06-1.06L10.94 10 6.22 5.28a.75.75 0 010-1.06z"
+              clipRule="evenodd"
+            />
+          </svg>
+          {label}
+        </span>
         <span className="tabular-nums">{fmt(total)}</span>
+      </summary>
+      <div className="pb-2">
+        {groups.length === 0 ? (
+          <p className="px-5 pb-3 text-xs text-slate-400">No balances.</p>
+        ) : (
+          groups.map(g => <BalanceGroupCollapsible key={g.key} group={g} />)
+        )}
       </div>
-      <div className="space-y-3 pl-2">{children}</div>
-    </div>
+    </details>
   );
 }
 
-function BalanceSubgroup({
-  group,
-  suppressLabel = false,
-}: {
-  group: BalanceSheetGroup;
-  suppressLabel?: boolean;
-}) {
-  if (group.total === 0 && group.accounts.length === 0) return null;
+function BalanceGroupCollapsible({ group }: { group: BalanceSheetGroup }) {
+  const hasRows = group.accounts.length > 0;
   return (
-    <div className="space-y-1">
-      {!suppressLabel && (
-        <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
-          <span>{group.label}</span>
-          <span className="tabular-nums">{fmt(group.total)}</span>
-        </div>
-      )}
-      <div className="max-h-32 overflow-y-auto">
-        <table className="w-full text-[11px]">
+    <details className="group/sub border-t border-slate-100">
+      <summary
+        className={`list-none ${
+          hasRows ? 'cursor-pointer' : 'cursor-default'
+        } select-none pl-10 pr-5 py-2 flex items-center justify-between text-sm font-medium text-slate-800 hover:bg-slate-50/60 transition`}
+      >
+        <span className="inline-flex items-center gap-2">
+          {hasRows && (
+            <svg
+              className="w-3 h-3 transition-transform group-open/sub:rotate-90 text-slate-400"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M6.22 4.22a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 01-1.06-1.06L10.94 10 6.22 5.28a.75.75 0 010-1.06z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
+          {group.label}
+          {group.synthetic && (
+            <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+              derived
+            </span>
+          )}
+        </span>
+        <span className="tabular-nums">{fmt(group.total)}</span>
+      </summary>
+      {hasRows && (
+        <table className="w-full text-[12px]">
           <tbody>
-            {group.accounts.slice(0, 25).map((a, i) => (
-              <tr key={`${a.code}:${a.name}:${i}`} className="text-slate-500">
-                <td className="py-0.5 truncate max-w-[240px]" title={a.name}>
-                  <span className="font-mono text-[10px] text-slate-400 mr-1">
-                    {a.code || '—'}
-                  </span>
+            {group.accounts.map((a, i) => (
+              <tr
+                key={`${group.key}:${a.code}:${a.name}:${i}`}
+                className="text-slate-600 border-t border-slate-50"
+              >
+                <td className="pl-[4.5rem] pr-2 py-1 truncate max-w-[380px]" title={a.name}>
+                  {a.code && (
+                    <span className="font-mono text-[10px] text-slate-400 mr-2">
+                      {a.code}
+                    </span>
+                  )}
                   {a.name}
                 </td>
-                <td className="py-0.5 text-right tabular-nums">
+                <td className="pr-5 py-1 text-right tabular-nums">
                   {fmt(a.balance)}
                 </td>
               </tr>
             ))}
-            {group.accounts.length > 25 && (
-              <tr>
-                <td colSpan={2} className="py-1 text-center text-slate-400 text-[10px]">
-                  …and {group.accounts.length - 25} more.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
-      </div>
-    </div>
+      )}
+    </details>
   );
 }
 
