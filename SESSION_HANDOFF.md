@@ -246,6 +246,16 @@ Each theme carries 9 Tailwind color classes + name/tagline/description/parentNot
 4. **Self-service password change page** for signed-in users.
 5. **Audit log** — surface `app_sessions` recent activity per user in `/admin/users`.
 
+## 🟢 KIKA currency hardcoded to EGP (commit 009cda7)
+
+Kika's Shopify store (kika-swim-wear) only sells in EGP. Before this change the abandoned-checkouts card on `/emails/kika/exec` read currency dynamically from Shopify raw data (could have surfaced a non-EGP string if a checkout record ever carried one). Hardcoded to `EGP` and added explicit `(EGP)` qualifiers to every money column header across the three Kika dashboards so the unit is unambiguous:
+
+- **Exec** — Revenue (Gross) and AOV sub now carry `EGP`; "Most items" Revenue header and "Top open carts" Value header both say `(EGP)`; recoverable-revenue card hardcodes `EGP {fmt(...)}`; avg cart shows `Avg cart EGP {fmt(...)}`.
+- **Sales** — Gross Revenue and AOV BigStat subs always show `EGP`; daily breakdown Revenue header, top products Revenue header, top customers Revenue header, and recent orders Total header all now `(EGP)`.
+- **Financials** — P&L Balance header `(EGP)`, Net Profit label `(EGP)`, and both Shopify / Odoo sub-cards in the reconciliation header carry `(EGP)`.
+
+The underlying `kika-abandoned-checkouts.ts` builder still fetches and returns `currency` from the DB for forward compatibility, but the UI no longer reads it — so a stray non-EGP Shopify record couldn't mis-label the total.
+
 ## ✅ PHASE 13 SHIPPED — Phase 12 backlog cleared: proxy.ts rename + self-service password + domain layouts + session audit (commit dee3863)
 
 Closes the four actionable items from the Phase 12 backlog. Deployment `dpl_8vDe1oA2avibJ9RWDtWTqv8nW9Ni` live on `https://limeinc.vercel.app`. Only the branding swap (blocked on hex codes + SVG logos) remains unshipped from that backlog.
