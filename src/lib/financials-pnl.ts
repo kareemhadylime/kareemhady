@@ -1111,7 +1111,7 @@ export function resolveFinancePeriod(
   switch (preset) {
     case 'last_month': {
       const d = new Date(Date.UTC(y, m - 1, 1));
-      return makeMonth(
+      const base = makeMonth(
         d.getUTCFullYear(),
         d.getUTCMonth(),
         d.toLocaleDateString('en-US', {
@@ -1120,6 +1120,9 @@ export function resolveFinancePeriod(
           timeZone: 'UTC',
         })
       );
+      // Preserve the user-chosen preset id so the tab highlights — the
+      // calendar-month id is only for the `month:YYYY-MM` dropdown case.
+      return { ...base, id: 'last_month' };
     }
     case 'this_year':
       return {
@@ -1155,7 +1158,19 @@ export function resolveFinancePeriod(
         toDate: lastOfMonth(qy, qm + 2),
       };
     }
-    case 'this_month':
+    case 'this_month': {
+      const d = new Date(Date.UTC(y, m, 1));
+      const base = makeMonth(
+        y,
+        m,
+        d.toLocaleDateString('en-US', {
+          month: 'long',
+          year: 'numeric',
+          timeZone: 'UTC',
+        })
+      );
+      return { ...base, id: 'this_month' };
+    }
     default: {
       const d = new Date(Date.UTC(y, m, 1));
       return makeMonth(

@@ -35,6 +35,11 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { SyncPills } from '@/app/_components/sync-pills';
 import { getSyncFreshness } from '@/lib/sync-freshness';
+import {
+  PeriodPresetLink,
+  PeriodSubmitForm,
+  PeriodSubmitButton,
+} from './_components/PeriodControls';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -477,27 +482,22 @@ function PeriodFilter({
           ]
             .filter(Boolean)
             .join('&');
-          const href = `?${qs}`;
-          const active = activeId === p.id;
           return (
-            <Link
+            <PeriodPresetLink
               key={p.id}
-              href={href}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                active
-                  ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {p.label}
-            </Link>
+              href={`?${qs}`}
+              label={p.label}
+              active={activeId === p.id}
+            />
           );
         })}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <form className="flex gap-2 items-end" action="" method="get">
+        <PeriodSubmitForm className="flex gap-2 items-end">
           <input type="hidden" name="scope" value={scope} />
+          {buildingCode && <input type="hidden" name="building" value={buildingCode} />}
+          {lobLabel && <input type="hidden" name="lob" value={lobLabel} />}
           <label className="space-y-1">
             <span className="block text-xs font-medium text-slate-700">Specific month</span>
             <select
@@ -513,17 +513,14 @@ function PeriodFilter({
               ))}
             </select>
           </label>
-          <button
-            type="submit"
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-          >
-            Go
-          </button>
-        </form>
+          <PeriodSubmitButton label="Go" />
+        </PeriodSubmitForm>
 
-        <form className="flex items-end gap-2" action="" method="get">
+        <PeriodSubmitForm className="flex items-end gap-2">
           <input type="hidden" name="scope" value={scope} />
           <input type="hidden" name="preset" value="custom" />
+          {buildingCode && <input type="hidden" name="building" value={buildingCode} />}
+          {lobLabel && <input type="hidden" name="lob" value={lobLabel} />}
           <label className="space-y-1">
             <span className="block text-xs font-medium text-slate-700">From</span>
             <input
@@ -542,13 +539,8 @@ function PeriodFilter({
               className="ix-input w-[160px]"
             />
           </label>
-          <button
-            type="submit"
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-          >
-            Apply
-          </button>
-        </form>
+          <PeriodSubmitButton label="Apply" />
+        </PeriodSubmitForm>
       </div>
     </section>
   );
