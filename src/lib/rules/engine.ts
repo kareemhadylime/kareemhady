@@ -3,9 +3,9 @@ import { fetchEmailFull, markMessagesAsRead, searchMessages } from '@/lib/gmail'
 import { aggregateShopifyOrders } from './aggregators/shopify-order';
 import { aggregateBeithadyBookingsFromApi } from './aggregators/beithady-booking-api';
 import { aggregateBeithadyReviewsFromApi } from './aggregators/beithady-review-api';
-import { aggregateBeithadyPayouts } from './aggregators/beithady-payout';
-import { aggregateBeithadyInquiries } from './aggregators/beithady-inquiry';
-import { aggregateBeithadyRequests } from './aggregators/beithady-request';
+import { aggregateBeithadyPayoutsFromApi } from './aggregators/beithady-payout-api';
+import { aggregateBeithadyInquiriesFromApi } from './aggregators/beithady-inquiry-api';
+import { aggregateBeithadyRequestsFromApi } from './aggregators/beithady-request-api';
 import { fetchStripePayoutBreakdown } from '@/lib/stripe-payouts';
 
 export type RuleConditions = {
@@ -92,16 +92,9 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
     });
   }
 
-  // Remaining rules still parse Gmail — require a connected account.
-  if (!account?.oauth_refresh_token_encrypted) {
-    throw new Error('account_or_token_missing — rule must be bound to a connected account for Phase 4');
-  }
-
   if (action.type === 'beithady_payout_aggregate') {
-    return evaluatePayoutRule({
+    return evaluatePayoutRuleFromApi({
       ruleId,
-      account,
-      action,
       fromIso,
       toIso,
       timeRange: timeRangeMeta,
@@ -109,39 +102,26 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
   }
 
   if (action.type === 'beithady_inquiries_aggregate') {
-    return evaluateInquiriesRule({
+    return evaluateInquiriesRuleFromApi({
       ruleId,
-      account,
-      action,
       fromIso,
       toIso,
-      timeRange: {
-        from: fromIso,
-        to: toIso,
-        label: range?.label,
-        preset_id: range?.presetId,
-        clamped_to_year_start: clampedToYearStart || undefined,
-        requested_from: clampedToYearStart ? requestedFromIso : undefined,
-      },
+      timeRange: timeRangeMeta,
     });
   }
 
   if (action.type === 'beithady_requests_aggregate') {
-    return evaluateRequestsRule({
+    return evaluateRequestsRuleFromApi({
       ruleId,
-      account,
-      action,
       fromIso,
       toIso,
-      timeRange: {
-        from: fromIso,
-        to: toIso,
-        label: range?.label,
-        preset_id: range?.presetId,
-        clamped_to_year_start: clampedToYearStart || undefined,
-        requested_from: clampedToYearStart ? requestedFromIso : undefined,
-      },
+      timeRange: timeRangeMeta,
     });
+  }
+
+  // Remaining rules still parse Gmail — require a connected account.
+  if (!account?.oauth_refresh_token_encrypted) {
+    throw new Error('account_or_token_missing — rule must be bound to a connected account for Phase 4');
   }
 
   const matches = await searchMessages(account.oauth_refresh_token_encrypted, {
@@ -254,87 +234,35 @@ export async function evaluateRule(ruleId: string, range?: EvalRange) {
   }
 }
 
-async function evaluatePayoutRule(args: {
+// API-based payout evaluator. Reads guesty_reservations.host_payout in the
+// range (filtered to confirmed+ stays) + Stripe REST API for the
+// reconciliation view. Replaces the email-parsing path that read Airbnb
+// payout emails + Stripe deposit emails.
+async function evaluatePayoutRuleFromApi(args: {
   ruleId: string;
-  account: { oauth_refresh_token_encrypted: string };
-  action: RuleAction;
   fromIso: string;
   toIso: string;
   timeRange: Record<string, unknown>;
 }) {
-  const { ruleId, account, action, fromIso, toIso, timeRange } = args;
+  const { ruleId, fromIso, toIso, timeRange } = args;
   const sb = supabaseAdmin();
-  const token = account.oauth_refresh_token_encrypted;
-
-  const [airbnbMatches, stripeMatches] = await Promise.all([
-    searchMessages(token, {
-      subjectContains: 'payout',
-      toContains: 'guesty@beithady.com',
-      afterIso: fromIso,
-      beforeIso: toIso,
-      maxResults: 500,
-    }),
-    searchMessages(token, {
-      fromContains: 'stripe',
-      toContains: 'payments@beithady.com',
-      afterIso: fromIso,
-      beforeIso: toIso,
-      maxResults: 500,
-    }),
-  ]);
-
-  const totalEmails = airbnbMatches.length + stripeMatches.length;
 
   const { data: run, error: runErr } = await sb
     .from('rule_runs')
-    .insert({ rule_id: ruleId, input_email_count: totalEmails, status: 'running' })
+    .insert({ rule_id: ruleId, input_email_count: 0, status: 'running' })
     .select()
     .single();
   if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
 
   try {
-    const [airbnbBodies, stripeBodies, stripeApi] = await Promise.all([
-      Promise.all(airbnbMatches.map(m => fetchEmailFull(token, m.id))),
-      Promise.all(stripeMatches.map(m => fetchEmailFull(token, m.id))),
-      // Phase 5.8: Stripe API reconciliation. Non-fatal on failure — the
-      // helper catches missing key / network errors and returns an empty
-      // breakdown with .error populated so the UI can surface it.
-      fetchStripePayoutBreakdown(fromIso, toIso),
-    ]);
-
-    const output = await aggregateBeithadyPayouts(
-      airbnbBodies,
-      stripeBodies,
+    // Stripe breakdown is non-fatal — missing key returns { error } and
+    // downstream aggregator handles null.
+    const stripeApi = await fetchStripePayoutBreakdown(fromIso, toIso);
+    const output = await aggregateBeithadyPayoutsFromApi(
+      fromIso,
+      toIso,
       stripeApi
     );
-
-    let markedRead = 0;
-    let markErrors = 0;
-    let markErrorReason: string | undefined;
-    let markedReadStripe = 0;
-    let markErrorsStripe = 0;
-    if (action.mark_as_read) {
-      if (airbnbMatches.length > 0) {
-        const r = await markMessagesAsRead(token, airbnbMatches.map(m => m.id));
-        markedRead = r.marked;
-        markErrors = r.errors.length;
-        if (r.errors[0] && !markErrorReason) {
-          const e0 = r.errors[0];
-          const colon = e0.indexOf(': ');
-          markErrorReason = (colon >= 0 ? e0.slice(colon + 2) : e0).slice(0, 300);
-        }
-      }
-      if (stripeMatches.length > 0) {
-        const r = await markMessagesAsRead(token, stripeMatches.map(m => m.id));
-        markedReadStripe = r.marked;
-        markErrorsStripe = r.errors.length;
-        if (r.errors[0] && !markErrorReason) {
-          const e0 = r.errors[0];
-          const colon = e0.indexOf(': ');
-          markErrorReason = (colon >= 0 ? e0.slice(colon + 2) : e0).slice(0, 300);
-        }
-      }
-    }
 
     await sb
       .from('rule_runs')
@@ -343,19 +271,113 @@ async function evaluatePayoutRule(args: {
         status: 'succeeded',
         output: {
           ...output,
-          marked_read: markedRead,
-          mark_errors: markErrors,
-          marked_read_stripe: markedReadStripe,
-          mark_errors_stripe: markErrorsStripe,
-          mark_error_reason: markErrorReason,
-          airbnb_email_matched: airbnbMatches.length,
-          stripe_email_matched: stripeMatches.length,
+          marked_read: 0,
+          mark_errors: 0,
+          source: 'guesty-api',
           time_range: timeRange,
         },
       })
       .eq('id', run.id);
+    return { ok: true, run_id: run.id, input_email_count: 0 };
+  } catch (e: any) {
+    await sb
+      .from('rule_runs')
+      .update({
+        finished_at: new Date().toISOString(),
+        status: 'failed',
+        error: String(e?.message || e),
+      })
+      .eq('id', run.id);
+    throw e;
+  }
+}
 
-    return { ok: true, run_id: run.id, input_email_count: totalEmails };
+// API-based inquiries evaluator. Reads guesty_conversations where
+// reservation_status='inquiry' (pre-booking questions). Replaces email
+// parsing of Airbnb "Inquiry for X" notifications.
+async function evaluateInquiriesRuleFromApi(args: {
+  ruleId: string;
+  fromIso: string;
+  toIso: string;
+  timeRange: Record<string, unknown>;
+}) {
+  const { ruleId, fromIso, toIso, timeRange } = args;
+  const sb = supabaseAdmin();
+
+  const { data: run, error: runErr } = await sb
+    .from('rule_runs')
+    .insert({ rule_id: ruleId, input_email_count: 0, status: 'running' })
+    .select()
+    .single();
+  if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
+
+  try {
+    const output = await aggregateBeithadyInquiriesFromApi(fromIso, toIso);
+    await sb
+      .from('rule_runs')
+      .update({
+        finished_at: new Date().toISOString(),
+        status: 'succeeded',
+        output: {
+          ...output,
+          marked_read: 0,
+          mark_errors: 0,
+          source: 'guesty-api',
+          time_range: timeRange,
+        },
+      })
+      .eq('id', run.id);
+    return { ok: true, run_id: run.id, input_email_count: 0 };
+  } catch (e: any) {
+    await sb
+      .from('rule_runs')
+      .update({
+        finished_at: new Date().toISOString(),
+        status: 'failed',
+        error: String(e?.message || e),
+      })
+      .eq('id', run.id);
+    throw e;
+  }
+}
+
+// API-based guest-request evaluator. Reads guesty_conversations where
+// reservation_status in (confirmed,checked_in,checked_out) and the guest
+// messaged inside the range. Replaces email parsing of "RE: Reservation..."
+// threads.
+async function evaluateRequestsRuleFromApi(args: {
+  ruleId: string;
+  fromIso: string;
+  toIso: string;
+  timeRange: Record<string, unknown>;
+}) {
+  const { ruleId, fromIso, toIso, timeRange } = args;
+  const sb = supabaseAdmin();
+
+  const { data: run, error: runErr } = await sb
+    .from('rule_runs')
+    .insert({ rule_id: ruleId, input_email_count: 0, status: 'running' })
+    .select()
+    .single();
+  if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
+
+  try {
+    const output = await aggregateBeithadyRequestsFromApi(fromIso, toIso);
+    await sb
+      .from('rule_runs')
+      .update({
+        finished_at: new Date().toISOString(),
+        status: 'succeeded',
+        output: {
+          ...output,
+          marked_read: 0,
+          mark_errors: 0,
+          source: 'guesty-api',
+          time_range: timeRange,
+        },
+      })
+      .eq('id', run.id);
+    return { ok: true, run_id: run.id, input_email_count: 0 };
   } catch (e: any) {
     await sb
       .from('rule_runs')
@@ -469,164 +491,3 @@ async function evaluateReviewsRuleFromApi(args: {
   }
 }
 
-async function evaluateRequestsRule(args: {
-  ruleId: string;
-  account: { oauth_refresh_token_encrypted: string };
-  action: RuleAction;
-  fromIso: string;
-  toIso: string;
-  timeRange: Record<string, unknown>;
-}) {
-  const { ruleId, account, action, fromIso, toIso, timeRange } = args;
-  const sb = supabaseAdmin();
-  const token = account.oauth_refresh_token_encrypted;
-
-  // Guest reservation messages arrive with subject "RE: Reservation for ...".
-  // Single-token subject filter + to-address keeps the search tight; the
-  // Haiku parser drops non-message variants (cancellations, outbound
-  // alterations) via tool_choice=auto.
-  const matches = await searchMessages(token, {
-    subjectContains: 'Reservation',
-    toContains: 'guesty@beithady.com',
-    afterIso: fromIso,
-    beforeIso: toIso,
-    maxResults: 500,
-  });
-
-  const { data: run, error: runErr } = await sb
-    .from('rule_runs')
-    .insert({ rule_id: ruleId, input_email_count: matches.length, status: 'running' })
-    .select()
-    .single();
-  if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
-
-  try {
-    const bodies = await Promise.all(
-      matches.map(m => fetchEmailFull(token, m.id))
-    );
-
-    const output = await aggregateBeithadyRequests(bodies);
-
-    let markedRead = 0;
-    let markErrors = 0;
-    let markErrorReason: string | undefined;
-    if (action.mark_as_read && matches.length > 0) {
-      const r = await markMessagesAsRead(token, matches.map(m => m.id));
-      markedRead = r.marked;
-      markErrors = r.errors.length;
-      if (r.errors[0]) {
-        const e0 = r.errors[0];
-        const colon = e0.indexOf(': ');
-        markErrorReason = (colon >= 0 ? e0.slice(colon + 2) : e0).slice(0, 300);
-      }
-    }
-
-    await sb
-      .from('rule_runs')
-      .update({
-        finished_at: new Date().toISOString(),
-        status: 'succeeded',
-        output: {
-          ...output,
-          marked_read: markedRead,
-          mark_errors: markErrors,
-          mark_error_reason: markErrorReason,
-          time_range: timeRange,
-        },
-      })
-      .eq('id', run.id);
-
-    return { ok: true, run_id: run.id, input_email_count: matches.length };
-  } catch (e: any) {
-    await sb
-      .from('rule_runs')
-      .update({
-        finished_at: new Date().toISOString(),
-        status: 'failed',
-        error: String(e?.message || e),
-      })
-      .eq('id', run.id);
-    throw e;
-  }
-}
-
-async function evaluateInquiriesRule(args: {
-  ruleId: string;
-  account: { oauth_refresh_token_encrypted: string };
-  action: RuleAction;
-  fromIso: string;
-  toIso: string;
-  timeRange: Record<string, unknown>;
-}) {
-  const { ruleId, account, action, fromIso, toIso, timeRange } = args;
-  const sb = supabaseAdmin();
-  const token = account.oauth_refresh_token_encrypted;
-
-  // Airbnb inquiry subjects all start with "Inquiry for ..." and arrive at
-  // guesty@beithady.com via the Guesty relay. Tokens "Inquiry" + to-address
-  // are narrow enough to skip secondary filtering; the parser still drops
-  // non-inquiry noise via tool_choice=auto.
-  const matches = await searchMessages(token, {
-    subjectContains: 'Inquiry',
-    toContains: 'guesty@beithady.com',
-    afterIso: fromIso,
-    beforeIso: toIso,
-    maxResults: 500,
-  });
-
-  const { data: run, error: runErr } = await sb
-    .from('rule_runs')
-    .insert({ rule_id: ruleId, input_email_count: matches.length, status: 'running' })
-    .select()
-    .single();
-  if (runErr || !run) throw new Error(`failed_to_open_run: ${runErr?.message}`);
-
-  try {
-    const bodies = await Promise.all(
-      matches.map(m => fetchEmailFull(token, m.id))
-    );
-
-    const output = await aggregateBeithadyInquiries(bodies);
-
-    let markedRead = 0;
-    let markErrors = 0;
-    let markErrorReason: string | undefined;
-    if (action.mark_as_read && matches.length > 0) {
-      const r = await markMessagesAsRead(token, matches.map(m => m.id));
-      markedRead = r.marked;
-      markErrors = r.errors.length;
-      if (r.errors[0]) {
-        const e0 = r.errors[0];
-        const colon = e0.indexOf(': ');
-        markErrorReason = (colon >= 0 ? e0.slice(colon + 2) : e0).slice(0, 300);
-      }
-    }
-
-    await sb
-      .from('rule_runs')
-      .update({
-        finished_at: new Date().toISOString(),
-        status: 'succeeded',
-        output: {
-          ...output,
-          marked_read: markedRead,
-          mark_errors: markErrors,
-          mark_error_reason: markErrorReason,
-          time_range: timeRange,
-        },
-      })
-      .eq('id', run.id);
-
-    return { ok: true, run_id: run.id, input_email_count: matches.length };
-  } catch (e: any) {
-    await sb
-      .from('rule_runs')
-      .update({
-        finished_at: new Date().toISOString(),
-        status: 'failed',
-        error: String(e?.message || e),
-      })
-      .eq('id', run.id);
-    throw e;
-  }
-}

@@ -1,5 +1,88 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Phase 3 complete — payouts + inquiries + requests migrated to Guesty API
+
+All 5 Beithady rules now run on Guesty APIs. No email parsing anywhere in the Beithady domain.
+
+### Round-3 probe result (2026-04-23)
+
+`/v1/communication/conversations` is actually fully accessible — earlier probe was wrong because I was parsing the envelope wrong. Real response shape:
+
+```
+{ status: 200, data: { count, countUnread, cursor: { after, before }, conversations: [...] } }
+```
+
+Tenant has **6,618 conversations, 100 unread**. Pagination is cursor-based (param name: `cursorAfter`, NOT `after` — the cursor value in the response is keyed `after` but the request param is different). Per-conversation message posts live at `/v1/communication/conversations/{id}/posts` — full body + sender type.
+
+**Field param quirks** (verified this turn):
+- Space-separated, NOT comma-separated
+- `meta` explicit in fields = 500 error, but it always returns by default
+- `guest` + `reservation` are aliases that populate `meta.guest` + `meta.reservations`
+- `internal` in fields = 500 error
+- Working field set: `priority accountId createdAt modifiedAt state lastMessageFrom guest reservation`
+- Default fields (no param): `_id assignee priority meta accountId createdAt state`
+
+### What shipped this turn
+
+**New tables:**
+- `supabase/migrations/0014_guesty_conversations.sql` — denormalized conversation mirror. Each row includes the primary reservation's status/source/checkIn/checkOut + listing nickname/title/building. Indexed on created/modified/last_message_nonuser_at, reservation_status, reservation_source, state (status+read), listing_building_code, listing_id. `reservation_id` / `listing_id` are plain text columns with NO FK — conversations can reference reservations outside our 365d mirror window. Also `alter table guesty_sync_runs add column conversations_synced int`. **Applied to production Supabase.**
+
+**New aggregators:**
+- `src/lib/rules/aggregators/beithady-payout-api.ts` — reads `guesty_reservations.host_payout` filtered to `status in (confirmed, checked_in, checked_out)` and `check_in_date` in the rule's date range. Combined with Stripe REST API breakdown for reconciliation. Semantic shift from email path: "expected earnings by check-in date" vs. old "Airbnb bank-settlement events". USD-primary with AED conversion at the UAE Central Bank peg (3.6725). Line items generated per-reservation so the existing page's line-item table still renders.
+- `src/lib/rules/aggregators/beithady-inquiry-api.ts` — reads `guesty_conversations` where `reservation_status='inquiry'` and either conversation was created OR guest's last message falls in the range. Counts + unique guests + manual-attention flag (`last_message_nonuser_at > last_message_user_at`). `by_category` left empty — that requires message body classification via Claude which needs the posts sync (deferred to Phase 3b).
+- `src/lib/rules/aggregators/beithady-request-api.ts` — reads `guesty_conversations` where `reservation_status in (confirmed,checked_in,checked_out)` AND `last_message_nonuser_at` in range. Same structure as inquiries — counts, unique reservations, immediate flag, by-reservation grouping. `by_category` also empty pending Phase 3b.
+
+**Modified files:**
+- `src/lib/guesty.ts` — added `GuestyConversation` type + `GuestyConversationsResponse` + `listGuestyConversations()` with `cursorAfter` pagination. Default fields constant `DEFAULT_CONV_FIELDS` encodes the working field set. Response envelope is unwrapped (`.data` → flat) so callers don't care.
+- `src/lib/run-guesty-sync.ts` — Phase 5 (conversations) added to the daily cron. Cursor-paginated with an early-exit when two full pages of already-seen-and-unchanged rows come through, so nightly runs don't re-fetch the full 6,618 after the first backfill. Normalization via new `normalizeConversationRow()` helper (denormalizes first reservation, extracts building from tags or nickname).
+- `src/lib/rules/engine.ts` — routed all 3 remaining Beithady action types (`beithady_payout_aggregate`, `beithady_inquiries_aggregate`, `beithady_requests_aggregate`) to new `evaluate*RuleFromApi()` functions. All 5 Beithady evaluators now skip the Gmail-account-token check. Email-based `evaluatePayoutRule` / `evaluateInquiriesRule` / `evaluateRequestsRule` deleted. Only remaining email path: `shopify_order_aggregate`.
+
+**Probe + backfill scripts (not committed, live in `C:\kareemhady\`):**
+- `probe-guesty-3.mjs` — exhaustive messaging-endpoint probe (discovered the `.data.conversations` envelope + `cursorAfter` param + field quirks)
+- `sync-guesty-conversations.mjs` — one-off cursor-paginated backfill. **Ran this turn — 6,618 conversations synced successfully.**
+
+### Production data verification
+
+MTD simulation on live Supabase (2026-04-01 → 2026-04-23):
+- **Payouts**: 127 confirmed reservations, $48,369 expected USD total
+- **Inquiries**: 114 pre-booking conversations (Airbnb2)
+- **Requests**: 154 in-stay / confirmed-reservation conversations with a guest message in the window
+
+Breakdown by status across all 6,618 synced conversations:
+- 2,896 inquiry (airbnb2) — 2,577 unique guests
+- 2,210 confirmed (airbnb2) — 1,936 unique guests
+- 705 confirmed (manual/direct) — 705 unique guests
+- 160 confirmed (Booking.com) — 156 unique guests
+- 583 canceled (across channels)
+- Minor: website (19), Capital One (5), Expedia (1), Hotels.com (1), declined airbnb2 (4), closed airbnb2 (32)
+
+"Manual attention" = `last_message_nonuser_at > last_message_user_at`:
+- Inquiries: 597 guests waiting for a host response
+- Confirmed conversations: 995 guests waiting
+
+### Deferred to Phase 3b
+
+Per-message body sync + Claude classification of messages by category. Without this:
+- Inquiry aggregator's `by_category[]` is empty (can't sort by location_info / amenity / pricing / etc)
+- Request aggregator's `by_category[]` is empty (can't flag immediate_complaint / date_change / etc)
+- `classification` field on each message/inquiry is null
+- `action_plan` suggestions per request aren't generated
+
+To unblock: sync `GET /v1/communication/conversations/{id}/posts` into a `guesty_conversation_posts` table, re-run Claude classification over the plainTextBody field. Rough scale: 6,618 conversations × ~3 posts avg = ~20k posts to sync. Estimated ~5 hours for a full backfill at API rate limits. Future turn.
+
+### State of the email→API migration
+
+| Rule | Source | Status |
+|---|---|---|
+| `beithady_booking_aggregate` | `guesty_reservations` | ✅ API (Phase 1) |
+| `beithady_reviews_aggregate` | `guesty_reviews` | ✅ API (Phase 2) |
+| `beithady_payout_aggregate` | `guesty_reservations.host_payout` + Stripe REST | ✅ API (Phase 3) |
+| `beithady_inquiries_aggregate` | `guesty_conversations` | ✅ API (Phase 3) — by_category deferred |
+| `beithady_requests_aggregate` | `guesty_conversations` | ✅ API (Phase 3) — by_category deferred |
+| `shopify_order_aggregate` | Gmail emails | Still email-based (not Beithady) |
+
+The old email-parsing aggregator files (`beithady-payout.ts`, `beithady-inquiry.ts`, `beithady-request.ts`, `beithady-review.ts`, `beithady-booking.ts`) are kept in the repo because they export shared types + helper utilities (`classifyBuilding`, `BeithadyAggregateOutput`, etc.) that both the API aggregators and the dashboard page import. The actual parsing functions inside them are now dead code and can be deleted in a follow-up cleanup pass.
+
 ## ✅ Rule output page — loading indicator on "Run with this range"
 
 Added a client-side pending state for the Time range form on `/emails/[domain]/[ruleId]`. When any of the preset buttons or the custom "Run with this range" button is clicked, the button now:

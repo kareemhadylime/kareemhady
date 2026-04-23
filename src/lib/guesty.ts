@@ -312,6 +312,110 @@ export type GuestyReview = {
   [k: string]: unknown;
 };
 
+// Guesty messaging conversation (from /v1/communication/conversations).
+// Schema confirmed by probe 2026-04-23. Shape differs from /listings +
+// /reservations: response is wrapped in `{ status, data: { conversations,
+// count, countUnread, cursor } }`, and pagination is cursor-based (no
+// skip). Each conversation embeds its primary guest and reservation.
+export type GuestyConversation = {
+  _id: string;
+  accountId?: string;
+  priority?: number;
+  assignee?: { _id?: string | null };
+  state?: {
+    read?: boolean;
+    status?: string; // 'OPEN' | 'CLOSED'
+  };
+  lastMessageFrom?: {
+    user?: string;      // ISO
+    nonUser?: string;   // ISO
+    whatsappDetails?: unknown[];
+  };
+  internal?: {
+    language?: string;
+  };
+  meta?: {
+    integration?: { platform?: string };
+    guest?: {
+      _id?: string;
+      fullName?: string;
+      email?: string;
+      phone?: string;
+      isReturning?: boolean;
+      contactType?: string;
+    };
+    reservations?: Array<{
+      _id?: string;
+      confirmationCode?: string;
+      source?: string;
+      checkIn?: string;
+      checkOut?: string;
+      status?: string;
+      listing?: {
+        _id?: string;
+        title?: string;
+        nickname?: string;
+        tags?: string[];
+      };
+    }>;
+  };
+  createdAt?: string;
+  modifiedAt?: string;
+  [k: string]: unknown;
+};
+
+export type GuestyConversationsResponse = {
+  count: number;
+  countUnread: number;
+  cursor: { after?: string; before?: string };
+  limit?: number;
+  conversations: GuestyConversation[];
+};
+
+// GET /v1/communication/conversations — cursor-paginated. Supported query
+// params (probed 2026-04-23): `limit`, `fields` (SPACE-separated, not comma),
+// `cursorAfter` (pagination). NOT supported: skip, status, filters,
+// updatedAt, archived, includeEvents, or the bare `after` param.
+//
+// `fields` default set is "guest reservation status assignee priority
+// createdAt" — that OMITS `lastMessageFrom` and `modifiedAt`, which we
+// need for inquiry/request aggregation. We always pass our own fields
+// string that re-adds those plus the defaults.
+// Field param quirks (all verified 2026-04-23):
+//   - space-separated, NOT comma-separated
+//   - `meta` explicit breaks with 500, but `guest` + `reservation` are
+//     aliases that populate meta.guest + meta.reservations
+//   - `meta.guest` / `meta.reservations` (with dot) also works
+//   - `internal` breaks with 500
+// This field set yields: _id, lastMessageFrom, priority, meta.reservations,
+// meta.guest, accountId, state, modifiedAt, createdAt
+const DEFAULT_CONV_FIELDS =
+  'priority accountId createdAt modifiedAt state lastMessageFrom guest reservation';
+
+export async function listGuestyConversations(params: {
+  limit?: number;
+  after?: string;
+  fields?: string;
+} = {}): Promise<GuestyConversationsResponse> {
+  const query: Record<string, string | number | undefined> = {
+    limit: params.limit ?? 25,
+    cursorAfter: params.after,
+    fields: params.fields ?? DEFAULT_CONV_FIELDS,
+  };
+  const raw = await guestyFetch<{
+    status?: number;
+    data?: GuestyConversationsResponse;
+  } | GuestyConversationsResponse>(
+    '/communication/conversations',
+    { query }
+  );
+  // Response is nested under `.data` — flatten for callers.
+  if (raw && typeof raw === 'object' && 'data' in raw && (raw as { data?: unknown }).data) {
+    return (raw as { data: GuestyConversationsResponse }).data;
+  }
+  return raw as GuestyConversationsResponse;
+}
+
 // /reviews returns `{ data: [...], limit, skip }` instead of the `results`
 // envelope the other list endpoints use. Normalize to `results` so callers
 // don't care.

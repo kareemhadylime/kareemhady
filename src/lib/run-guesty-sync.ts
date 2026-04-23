@@ -3,9 +3,11 @@ import {
   listGuestyListings,
   listGuestyReservations,
   listGuestyReviews,
+  listGuestyConversations,
   type GuestyListing,
   type GuestyReservation,
   type GuestyReview,
+  type GuestyConversation,
 } from './guesty';
 
 // Full Guesty mirror. Pulls:
@@ -157,6 +159,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
   let listingsSynced = 0;
   let reservationsSynced = 0;
   let reviewsSynced = 0;
+  let conversationsSynced = 0;
 
   try {
     // 1. Listings — small set (~100 for Beithady), fetch in one go then page
@@ -333,6 +336,71 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       revOffset += REV_PAGE;
     }
 
+    // 5. Conversations — cursor-paginated (no skip, no filter). We pull
+    // newest-first and stop once we've seen conversations already synced
+    // AND unchanged (modifiedAt <= our mirror's modified_at_guesty). On
+    // first-run / long-staleness, that means a full backfill of all 6k+
+    // conversations. On nightly runs, early-exits after a few pages.
+    {
+      // Build a lookup of ids we've already synced recently so we can
+      // short-circuit. Cheap: ~6k rows.
+      const { data: existing } = await sb
+        .from('guesty_conversations')
+        .select('id, modified_at_guesty');
+      const seen = new Map<string, string | null>();
+      for (const row of (existing as Array<{
+        id: string;
+        modified_at_guesty: string | null;
+      }> | null) || []) {
+        seen.set(row.id, row.modified_at_guesty);
+      }
+
+      let after: string | undefined = undefined;
+      let unchangedStreak = 0;
+      const CONV_PAGE = 50;
+      // Safety cap — full tenant is ~6,618 as of 2026-04-23; cap at
+      // 15,000 to avoid runaway if Guesty returns an endless cursor.
+      for (let loop = 0; loop < 300; loop++) {
+        const batch = await listGuestyConversations({
+          limit: CONV_PAGE,
+          after,
+        });
+        const convs = batch.conversations || [];
+        if (convs.length === 0) break;
+
+        const rows = convs.map((c: GuestyConversation) =>
+          normalizeConversationRow(c)
+        );
+
+        for (let i = 0; i < rows.length; i += 200) {
+          await sb
+            .from('guesty_conversations')
+            .upsert(rows.slice(i, i + 200), { onConflict: 'id' });
+        }
+        conversationsSynced += convs.length;
+
+        // Count how many rows in this page were already up-to-date.
+        let pageUnchanged = 0;
+        for (const r of rows) {
+          const prev = seen.get(r.id as string);
+          const curr = r.modified_at_guesty as string | null;
+          if (prev && curr && prev >= curr) pageUnchanged += 1;
+        }
+        if (pageUnchanged === rows.length) {
+          unchangedStreak += 1;
+        } else {
+          unchangedStreak = 0;
+        }
+        // Two full pages of unchanged rows → safe to assume older pages
+        // are also unchanged. Exit.
+        if (unchangedStreak >= 2) break;
+
+        after = batch.cursor?.after;
+        if (!after) break;
+        if (conversationsSynced >= 15000) break;
+      }
+    }
+
     await sb
       .from('guesty_sync_runs')
       .update({
@@ -341,6 +409,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         listings_synced: listingsSynced,
         reservations_synced: reservationsSynced,
         reviews_synced: reviewsSynced,
+        conversations_synced: conversationsSynced,
       })
       .eq('id', runId);
 
@@ -350,6 +419,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       listings_synced: listingsSynced,
       reservations_synced: reservationsSynced,
       reviews_synced: reviewsSynced,
+      conversations_synced: conversationsSynced,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -362,8 +432,81 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         listings_synced: listingsSynced,
         reservations_synced: reservationsSynced,
         reviews_synced: reviewsSynced,
+        conversations_synced: conversationsSynced,
       })
       .eq('id', runId);
     return { ok: false, error: msg };
   }
+}
+
+function extractBuildingFromTags(tags: string[] | undefined): string | null {
+  if (!Array.isArray(tags)) return null;
+  for (const t of tags) {
+    const m = String(t || '')
+      .toUpperCase()
+      .match(/^BH-?([A-Z0-9]+)$/);
+    if (m) return `BH-${m[1]}`;
+  }
+  return null;
+}
+
+// Flatten one /communication/conversations row into our mirror schema.
+// Denormalizes the first reservation (most conversations only have one).
+function normalizeConversationRow(
+  c: GuestyConversation
+): Record<string, unknown> {
+  const state = c.state || {};
+  const lastFrom = c.lastMessageFrom || {};
+  const guest = c.meta?.guest || {};
+  const primary = c.meta?.reservations?.[0] || {};
+  const listing = primary.listing || {};
+
+  const listingBuilding =
+    extractBuildingFromTags(listing.tags) ||
+    extractBuildingCode(
+      typeof listing.nickname === 'string' ? listing.nickname : null
+    );
+
+  return {
+    id: String(c._id),
+    account_id: typeof c.accountId === 'string' ? c.accountId : null,
+    priority: typeof c.priority === 'number' ? c.priority : null,
+    state_status: typeof state.status === 'string' ? state.status : null,
+    state_read: typeof state.read === 'boolean' ? state.read : null,
+    assignee_id:
+      typeof c.assignee?._id === 'string' ? c.assignee._id : null,
+    last_message_user_at: toTs(lastFrom.user),
+    last_message_nonuser_at: toTs(lastFrom.nonUser),
+    guest_id: typeof guest._id === 'string' ? guest._id : null,
+    guest_full_name:
+      typeof guest.fullName === 'string' ? guest.fullName : null,
+    guest_email: typeof guest.email === 'string' ? guest.email : null,
+    guest_phone: typeof guest.phone === 'string' ? guest.phone : null,
+    guest_is_returning:
+      typeof guest.isReturning === 'boolean' ? guest.isReturning : null,
+    guest_contact_type:
+      typeof guest.contactType === 'string' ? guest.contactType : null,
+    reservation_id:
+      typeof primary._id === 'string' ? primary._id : null,
+    reservation_source:
+      typeof primary.source === 'string' ? primary.source : null,
+    reservation_status:
+      typeof primary.status === 'string' ? primary.status : null,
+    reservation_confirmation_code:
+      typeof primary.confirmationCode === 'string'
+        ? primary.confirmationCode
+        : null,
+    reservation_check_in: toTs(primary.checkIn),
+    reservation_check_out: toTs(primary.checkOut),
+    listing_id: typeof listing._id === 'string' ? listing._id : null,
+    listing_nickname:
+      typeof listing.nickname === 'string' ? listing.nickname : null,
+    listing_title: typeof listing.title === 'string' ? listing.title : null,
+    listing_building_code: listingBuilding,
+    listing_tags: Array.isArray(listing.tags) ? listing.tags : [],
+    created_at_guesty: toTs(c.createdAt),
+    modified_at_guesty: toTs(c.modifiedAt),
+    raw: (c as unknown) as Record<string, unknown>,
+    synced_at: new Date().toISOString(),
+  };
 }
