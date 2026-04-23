@@ -1,3 +1,20 @@
+# Kareemhady — Session Handoff (2026-04-23)
+
+## ✅ Rule output page — loading indicator on "Run with this range"
+
+Added a client-side pending state for the Time range form on `/emails/[domain]/[ruleId]`. When any of the preset buttons or the custom "Run with this range" button is clicked, the button now:
+- Swaps its label to "Running…"
+- Shows a `Loader2` spinner
+- Disables itself (prevents double-submit)
+- Disables the From/To date inputs (custom form only)
+
+Implementation:
+- New client component `src/app/emails/[domain]/[ruleId]/RunRuleButtons.tsx` exports `PresetSubmitButton` and `RangeFormFields`. Both use React 19's `useFormStatus()` to read the pending state of their parent `<form action={runRuleAction}>`.
+- `page.tsx` replaced the inline `<button>` + `<input type="date">` markup with these client components. `Play` icon import removed from the page (now lives in the client component).
+- The server action (`runRuleAction`) and the surrounding `<form>` stay on the server; only the submit button + fields are client components.
+
+No other behavior changed — still single-submit, still navigates back after the action completes.
+
 # Kareemhady — Session Handoff (2026-04-22)
 
 ## ✅ URL rename migration — effectively complete (commit 495aedb)

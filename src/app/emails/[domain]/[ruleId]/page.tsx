@@ -6,7 +6,6 @@ import {
   Wallet,
   Package,
   Mail,
-  Play,
   CheckCircle2,
   XCircle,
   Calendar,
@@ -55,6 +54,7 @@ import {
 } from '@/lib/rules/presets';
 import { BEITHADY_BUILDINGS, classifyBuilding } from '@/lib/rules/aggregators/beithady-booking';
 import { AirbnbLineItemsTable } from './AirbnbLineItemsTable';
+import { PresetSubmitButton, RangeFormFields } from './RunRuleButtons';
 import { fmtCairoDate, fmtCairoDateTime } from '@/lib/fmt-date';
 
 const fmt = (n: number | string | null | undefined): string =>
@@ -261,16 +261,10 @@ export default async function RuleOutputDetailPage({
               <form key={p.id} action={runRuleAction}>
                 <input type="hidden" name="id" value={ruleId} />
                 <input type="hidden" name="preset" value={p.id} />
-                <button
-                  type="submit"
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                    activePreset === p.id
-                      ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {p.label}
-                </button>
+                <PresetSubmitButton
+                  label={p.label}
+                  active={activePreset === p.id}
+                />
               </form>
             ))}
           </div>
@@ -278,29 +272,11 @@ export default async function RuleOutputDetailPage({
           <form action={runRuleAction} className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="id" value={ruleId} />
             <input type="hidden" name="preset" value="custom" />
-            <label className="space-y-1">
-              <span className="block text-xs font-medium text-slate-700">From</span>
-              <input
-                type="date"
-                name="from"
-                defaultValue={fromDefault}
-                min={yearStartStr}
-                className="ix-input w-[160px]"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="block text-xs font-medium text-slate-700">To</span>
-              <input
-                type="date"
-                name="to"
-                defaultValue={toDefault}
-                min={yearStartStr}
-                className="ix-input w-[160px]"
-              />
-            </label>
-            <button type="submit" className="ix-btn-primary">
-              <Play size={16} /> Run with this range
-            </button>
+            <RangeFormFields
+              fromDefault={fromDefault}
+              toDefault={toDefault}
+              yearStartStr={yearStartStr}
+            />
           </form>
         </section>
 
