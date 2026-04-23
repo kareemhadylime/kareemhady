@@ -55,6 +55,27 @@ const COMPANY_TABS: Array<{ id: CompanyScope; label: string; short: string }> = 
   { id: 'a1', label: 'A1HOSPITALITY', short: 'A1' },
 ];
 
+// Sub-tabs that let the operator drill by analytic account in one click.
+// Building tabs set `?building=BH-XX`; LOB tabs set `?lob=<lob_label>`.
+// The two dimensions are mutually exclusive in the URL — picking a building
+// clears `lob`, picking a LOB clears `building`, and "All" clears both.
+// LOB labels map to Odoo's plan-derived `lob_label` column ('Arbitrage'
+// and 'Management') — display names are the business-facing aliases.
+const ANALYTIC_TABS: Array<{
+  id: string;
+  label: string;
+  building?: string;
+  lob?: string;
+}> = [
+  { id: 'all', label: 'All' },
+  { id: 'bh26', label: 'BH-26', building: 'BH-26' },
+  { id: 'bh73', label: 'BH-73', building: 'BH-73' },
+  { id: 'bh435', label: 'BH-435', building: 'BH-435' },
+  { id: 'bhok', label: 'BH-OK · One Kattameya', building: 'BH-OK' },
+  { id: 'leased', label: 'Leased Properties', lob: 'Arbitrage' },
+  { id: 'management', label: 'Management Properties', lob: 'Management' },
+];
+
 const fmt = (n: number | null | undefined): string => {
   const v = Number(n) || 0;
   return Math.round(v).toLocaleString('en-US');
@@ -115,8 +136,14 @@ export default async function FinancialsPage({
     from: sp.from,
     to: sp.to,
     month: sp.month,
+    building: buildingCode,
+    lob: lobLabel,
   };
-  const buildHref = (overrides: Partial<typeof keepParams & { scope: CompanyScope }>) => {
+  const buildHref = (
+    overrides: Partial<
+      typeof keepParams & { scope: CompanyScope }
+    > = {}
+  ) => {
     const merged = { ...keepParams, scope, ...overrides };
     const qs = Object.entries(merged)
       .filter(([, v]) => v != null && v !== '')
@@ -178,6 +205,12 @@ export default async function FinancialsPage({
         </header>
 
         <CompanyTabs activeScope={scope} buildHref={buildHref} />
+
+        <AnalyticTabs
+          activeBuilding={buildingCode}
+          activeLob={lobLabel}
+          buildHref={buildHref}
+        />
 
         <PeriodFilter
           activeId={period.id}
@@ -243,6 +276,65 @@ function CompanyTabs({
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                 active
                   ? 'bg-rose-600 text-white shadow-sm hover:bg-rose-700'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function AnalyticTabs({
+  activeBuilding,
+  activeLob,
+  buildHref,
+}: {
+  activeBuilding?: string;
+  activeLob?: string;
+  buildHref: (
+    overrides?: Partial<{
+      scope: CompanyScope;
+      building: string | undefined;
+      lob: string | undefined;
+    }>
+  ) => string;
+}) {
+  const activeId = activeBuilding
+    ? `building:${activeBuilding}`
+    : activeLob
+      ? `lob:${activeLob}`
+      : 'all';
+  return (
+    <section className="ix-card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Briefcase size={16} className="text-emerald-600" />
+        <h2 className="text-sm font-semibold">Analytic Account</h2>
+        <span className="text-[11px] text-slate-500">
+          quick-select a building or line of business
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {ANALYTIC_TABS.map(t => {
+          const id = t.building
+            ? `building:${t.building}`
+            : t.lob
+              ? `lob:${t.lob}`
+              : 'all';
+          const active = activeId === id;
+          return (
+            <Link
+              key={t.id}
+              href={buildHref({
+                building: t.building,
+                lob: t.lob,
+              })}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                active
+                  ? 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700'
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
