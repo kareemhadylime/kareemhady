@@ -63,8 +63,30 @@ function PayablesModal(props: Props & { onClose: () => void }) {
     { a030: 0, a3060: 0, a60: 0 }
   );
 
+  // Set the document title right before printing so Chrome/Edge/Safari
+  // use it as the default PDF filename (they derive "Save as" from
+  // document.title by default). Restore immediately so the page header
+  // stays unchanged.
   function onPrint() {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const monthName = now.toLocaleString('en-US', { month: 'long' });
+    const year = now.getFullYear();
+    const kindWord = kind === 'vendor' ? 'Vendor' : 'Owner';
+    const niceName = `Beithady_${kindWord}_Payable_${day}_${monthName}_${year}`;
+    const originalTitle = document.title;
+    document.title = niceName;
+    // Restore after the print dialog closes. `afterprint` fires on both
+    // Save-as-PDF and cancel.
+    const restore = () => {
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restore);
+    };
+    window.addEventListener('afterprint', restore);
     window.print();
+    // Safety net — if afterprint doesn't fire (rare, some browsers),
+    // restore after a short delay.
+    setTimeout(restore, 2000);
   }
 
   function onEmail() {
@@ -243,14 +265,45 @@ function PayablesModal(props: Props & { onClose: () => void }) {
           }
           /* Let all table rows render — in-modal we have overflow:auto
              with a max-height that would clip rows when printing. */
-          #payables-print-root .overflow-y-auto {
+          #payables-print-root .overflow-y-auto,
+          #payables-print-root .overflow-hidden {
             overflow: visible !important;
             max-height: none !important;
+            display: block !important;
           }
-          /* Preserve the dark footer row background on paper */
+          /* Sticky positioning confuses page-break logic — the thead
+             stayed pinned and overlapped body rows on pages 2+, which
+             is what made the PDF look garbled. Force both thead/tfoot
+             to static positioning; thead then repeats automatically
+             at the top of each printed page via
+             display:table-header-group (the browser default). */
+          #payables-print-root thead,
+          #payables-print-root tfoot {
+            position: static !important;
+          }
+          #payables-print-root thead {
+            display: table-header-group !important;
+          }
+          #payables-print-root tfoot {
+            display: table-row-group !important;
+          }
+          /* Don't split a vendor row across two pages */
+          #payables-print-root tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          /* Preserve header tint + dark TOTAL row background on paper */
+          #payables-print-root thead tr,
           #payables-print-root tfoot tr {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Chrome/Edge header + footer + date/url annotations default
+             on. Users can still disable them from "More settings", but
+             start clean so the PDF looks like a report. */
+          @page {
+            margin: 12mm 10mm;
+            size: auto;
           }
         }
       `}</style>
