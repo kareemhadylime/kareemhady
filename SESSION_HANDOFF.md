@@ -15,6 +15,51 @@ Implementation:
 
 No other behavior changed — still single-submit, still navigates back after the action completes.
 
+## 🟡 Beithady domain — migrate off email parsing onto APIs (planning only, no code shipped)
+
+User directive: "don't use Emails to extract any info in all Beithady Domain, use APIs from Guesty, Airbnb, PriceLabs, Odoo as appropriate."
+
+### Current-state inventory (mapped this turn, not shipped)
+
+**Beithady rule aggregators (all email-parsing via Claude Haiku):**
+- `src/lib/rules/aggregators/beithady-booking.ts` — `beithady_booking_aggregate` — Guesty booking notification emails + Airbnb confirmation emails, with cross-reconciliation
+- `src/lib/rules/aggregators/beithady-payout.ts` — `beithady_payout_aggregate` — Airbnb payout emails + Stripe emails + Stripe REST API
+- `src/lib/rules/aggregators/beithady-inquiry.ts` — `beithady_inquiries_aggregate` — Airbnb pre-booking question emails
+- `src/lib/rules/aggregators/beithady-request.ts` — `beithady_requests_aggregate` — Guesty in-stay guest message emails
+- `src/lib/rules/aggregators/beithady-review.ts` — `beithady_reviews_aggregate` — Guesty post-stay review emails
+
+**Already pure-API (no change needed):**
+- `/emails/beithady/financials` → Odoo JSON-RPC via `src/lib/odoo.ts` + daily sync `src/lib/run-odoo-financial-sync.ts` + queries `odoo_move_lines`/`odoo_partners`/`odoo_companies`
+- `/emails/beithady/pricing` → PriceLabs REST via `src/lib/pricelabs.ts` + daily sync `src/lib/run-pricelabs-sync.ts` + queries `pricelabs_listings`/`pricelabs_listing_prices_snapshots`
+
+**Guesty client (`src/lib/guesty.ts`):** Today only calls `/oauth2/token`, `/v1/listings`, `/v1/reservations`. Has OAuth token caching in `integration_tokens` table. Daily cron `run-guesty-sync.ts` syncs listings + 365d reservations into `guesty_listings` / `guesty_reservations` tables. `src/lib/guesty-enrichment.ts` overlays this data on email-parsed bookings. **Never called:** `/v1/reviews`, `/v1/conversations`, `/v1/messages`, `/v1/payouts` — need to probe endpoint access on our PRO tier before rewriting the other 4 aggregators.
+
+**Airbnb:** No direct client code exists, and Airbnb does not expose a public partner API for hosts (only through channel managers like Guesty). So "Airbnb" in this directive really means "Airbnb reservations/payouts surfaced through Guesty." Airbnb↔Guesty reconciliation that the current booking aggregator does (confirmation code matching) disappears once we treat Guesty as ground truth.
+
+### Proposed 3-phase migration (awaiting user sign-off)
+
+**Phase 1 — Booking aggregate (zero risk, known-working API):**
+- Rewrite `beithady-booking.ts` to query `guesty_reservations` table (already synced daily) instead of parsing emails via Claude
+- Preserve the existing `BeithadyAggregateOutput` shape so `/emails/beithady/[ruleId]` page renders unchanged (drop the email-only fields: `airbnb_confirmations_parsed`, `missing_from_guesty`, `guesty_not_in_airbnb`, `parse_errors`, `parse_failures`)
+- Filter by `source = 'airbnb' | 'booking.com' | 'direct'` and date range; aggregate by channel, building code, bedrooms, listing; compute same averages
+
+**Phase 2 — Probe route for uncertain endpoints:**
+- Build `src/app/api/guesty/probe/route.ts` that calls `/v1/reviews`, `/v1/conversations`, `/v1/messages`, `/v1/payouts` with a 1-result query and reports status/shape
+- Confirms access on our PRO tier before committing to rewrite work
+
+**Phase 3 — Rewrite remaining 4 aggregators (next turn, after probe):**
+- `beithady-review.ts` → `/v1/reviews` + daily sync into `guesty_reviews` table
+- `beithady-inquiry.ts` + `beithady-request.ts` → `/v1/conversations` + `/v1/messages`, classify inquiry vs in-stay-message by reservation state, split into two aggregator functions
+- `beithady-payout.ts` → `/v1/payouts` if available; otherwise Stripe API + Guesty reservation amounts as ground truth
+- Deprecate email parsing: disable the 5 email-filter rules in the `rules` table (don't delete — let user toggle back if API goes dark); keep aggregator files but mark `@deprecated`
+
+### Where this was left
+
+User asked: "Shall I proceed with phase 1 + 2 now?" — reply pending. **Do not start rewriting aggregators until user confirms the sequence.** If user says yes:
+1. Start with `src/lib/rules/aggregators/beithady-booking-api.ts` (new file) to avoid breaking the existing email path during transition
+2. Wire it behind a feature flag or a second rule-engine branch keyed on a `data_source: 'api' | 'email'` field in the rule's `actions` jsonb
+3. Migrate the Beithady booking rule row to `data_source: 'api'`, run once, compare output to the last email-based run, then delete the email path if numbers match
+
 # Kareemhady — Session Handoff (2026-04-22)
 
 ## ✅ URL rename migration — effectively complete (commit 495aedb)
