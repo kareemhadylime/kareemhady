@@ -392,6 +392,70 @@ export type GuestyConversationsResponse = {
 const DEFAULT_CONV_FIELDS =
   'priority accountId createdAt modifiedAt state lastMessageFrom guest reservation';
 
+// A single message/event inside a conversation thread. `module.type` tells
+// you the channel (email / sms / whatsapp / log). `sentBy` is the sender
+// role — 'host', 'guest', or 'log' (system events). Guest messages have
+// `from.type === 'guest'`. Host/automated messages have `isAutomatic: true`
+// when they come from Guesty's template engine.
+export type GuestyConversationPost = {
+  _id: string;
+  conversationId?: string;
+  createdAt?: string;
+  body?: string;           // HTML
+  plainTextBody?: string;
+  status?: string;
+  sentBy?: 'host' | 'guest' | 'log' | string;
+  isAutomatic?: boolean;
+  isFromMigration?: boolean;
+  attachments?: unknown[];
+  from?: {
+    type?: 'employee' | 'guest' | string;
+    fullName?: string;
+  };
+  module?: {
+    type?: 'email' | 'sms' | 'whatsapp' | 'log' | string;
+    subject?: string;
+    from?: string;
+    to?: string[];
+    reservationId?: string;
+    toNumber?: string;
+    fromNumber?: string;
+  };
+  [k: string]: unknown;
+};
+
+export type GuestyConversationPostsResponse = {
+  posts: GuestyConversationPost[];
+  count: number;
+  limit?: number;
+  sort?: string;
+  cursor: { after?: string; before?: string };
+};
+
+// GET /v1/communication/conversations/{id}/posts — returns messages in
+// reverse-chronological order by default. Response is wrapped in
+// `{ status, data }` like the conversations list.
+export async function listGuestyConversationPosts(
+  conversationId: string,
+  params: { limit?: number; after?: string } = {}
+): Promise<GuestyConversationPostsResponse> {
+  const query: Record<string, string | number | undefined> = {
+    limit: params.limit ?? 50,
+    cursorAfter: params.after,
+  };
+  const raw = await guestyFetch<{
+    status?: number;
+    data?: GuestyConversationPostsResponse;
+  } | GuestyConversationPostsResponse>(
+    `/communication/conversations/${conversationId}/posts`,
+    { query }
+  );
+  if (raw && typeof raw === 'object' && 'data' in raw && (raw as { data?: unknown }).data) {
+    return (raw as { data: GuestyConversationPostsResponse }).data;
+  }
+  return raw as GuestyConversationPostsResponse;
+}
+
 export async function listGuestyConversations(params: {
   limit?: number;
   after?: string;

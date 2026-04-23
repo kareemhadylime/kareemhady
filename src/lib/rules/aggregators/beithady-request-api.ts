@@ -19,6 +19,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import type {
   BeithadyRequestAggregate,
+  RequestCategoryBucket,
   RequestReservationGroup,
   RequestCategory,
   RequestUrgency,
@@ -44,7 +45,24 @@ type ConversationRow = {
   listing_building_code: string | null;
   created_at_guesty: string | null;
   modified_at_guesty: string | null;
+  latest_guest_post_text: string | null;
+  classification: {
+    kind?: string;
+    category?: RequestCategory;
+    urgency?: RequestUrgency;
+    summary?: string;
+    suggested_action?: string;
+  } | null;
 };
+
+const URGENCY_RANK: Record<RequestUrgency, number> = {
+  normal: 0,
+  high: 1,
+  immediate: 2,
+};
+function maxUrgency(a: RequestUrgency, b: RequestUrgency): RequestUrgency {
+  return URGENCY_RANK[a] >= URGENCY_RANK[b] ? a : b;
+}
 
 export async function aggregateBeithadyRequestsFromApi(
   fromIso: string,
@@ -65,7 +83,8 @@ export async function aggregateBeithadyRequestsFromApi(
          reservation_source, reservation_status,
          reservation_confirmation_code, reservation_check_in,
          reservation_check_out, listing_id, listing_nickname, listing_title,
-         listing_building_code, created_at_guesty, modified_at_guesty`
+         listing_building_code, created_at_guesty, modified_at_guesty,
+         latest_guest_post_text, classification`
       )
       .in('reservation_status', ['confirmed', 'checked_in', 'checked_out'])
       .gte('last_message_nonuser_at', fromIso)
@@ -81,15 +100,31 @@ export async function aggregateBeithadyRequestsFromApi(
   const uniqueReservations = new Set<string>();
   const groups = new Map<
     string,
-    RequestReservationGroup
+    RequestReservationGroup & { categoriesSet: Set<RequestCategory> }
   >();
+  const categoryMap = new Map<RequestCategory, number>();
   let immediateCount = 0;
+  let classifiedCount = 0;
   const messages: BeithadyRequestAggregate['messages'] = [];
 
   for (const r of rows) {
     const groupKey =
       r.reservation_confirmation_code || r.reservation_id || r.id;
     uniqueReservations.add(groupKey);
+
+    const classif = r.classification;
+    const category: RequestCategory | null =
+      classif?.kind === 'request' && classif.category
+        ? (classif.category as RequestCategory)
+        : null;
+    const urgency: RequestUrgency =
+      classif?.kind === 'request' && classif.urgency
+        ? (classif.urgency as RequestUrgency)
+        : 'normal';
+    if (category) {
+      categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+      classifiedCount += 1;
+    }
 
     const guestLast = r.last_message_nonuser_at
       ? new Date(r.last_message_nonuser_at).getTime()
@@ -98,7 +133,13 @@ export async function aggregateBeithadyRequestsFromApi(
       ? new Date(r.last_message_user_at).getTime()
       : 0;
     const awaiting = guestLast > hostLast;
-    if (awaiting) immediateCount += 1;
+    if (urgency === 'immediate' || category === 'immediate_complaint') {
+      immediateCount += 1;
+    } else if (awaiting && !category) {
+      // Guest waiting with no classification yet — still counts toward
+      // manual-attention surface area.
+      immediateCount += 1;
+    }
 
     const guestName = r.guest_full_name || 'Guest';
     const listingName = r.listing_title || r.listing_nickname || null;
@@ -116,14 +157,21 @@ export async function aggregateBeithadyRequestsFromApi(
       num_adults: null,
       num_children: null,
       num_infants: null,
-      message_text: null, // requires posts sync
+      message_text: r.latest_guest_post_text,
       has_image: false,
       message_count_in_thread: 1,
       received_iso: r.last_message_nonuser_at,
       subject: `Re: Reservation ${r.reservation_confirmation_code || groupKey}`,
       group_key: groupKey,
       building_code: building,
-      classification: null,
+      classification: category
+        ? {
+            category,
+            urgency,
+            summary: String(classif?.summary || ''),
+            suggested_action: String(classif?.suggested_action || ''),
+          }
+        : null,
     });
 
     const existing = groups.get(groupKey);
@@ -135,6 +183,14 @@ export async function aggregateBeithadyRequestsFromApi(
           r.last_message_nonuser_at > existing.latest_received_iso)
       ) {
         existing.latest_received_iso = r.last_message_nonuser_at;
+        existing.latest_summary = classif?.summary || existing.latest_summary;
+        existing.latest_suggested_action =
+          classif?.suggested_action || existing.latest_suggested_action;
+      }
+      if (category) existing.categoriesSet.add(category);
+      existing.max_urgency = maxUrgency(existing.max_urgency, urgency);
+      if (category === 'immediate_complaint' || urgency === 'immediate') {
+        existing.has_immediate_complaint = true;
       }
     } else {
       groups.set(groupKey, {
@@ -150,22 +206,34 @@ export async function aggregateBeithadyRequestsFromApi(
           : null,
         message_count: 1,
         categories: [] as RequestCategory[],
-        max_urgency: (awaiting ? 'high' : 'normal') as RequestUrgency,
-        has_immediate_complaint: false,
+        categoriesSet: new Set(category ? [category] : []),
+        max_urgency: urgency,
+        has_immediate_complaint:
+          category === 'immediate_complaint' || urgency === 'immediate',
         latest_received_iso: r.last_message_nonuser_at,
-        latest_summary: null,
-        latest_suggested_action: null,
+        latest_summary: classif?.summary || null,
+        latest_suggested_action: classif?.suggested_action || null,
       });
     }
   }
 
-  const byReservation: RequestReservationGroup[] = Array.from(groups.values()).sort(
-    (a, b) => {
+  const byReservation: RequestReservationGroup[] = Array.from(groups.values())
+    .map(g => {
+      const { categoriesSet, ...rest } = g;
+      return {
+        ...rest,
+        categories: Array.from(categoriesSet),
+      };
+    })
+    .sort((a, b) => {
       const ab = a.latest_received_iso || '';
       const bb = b.latest_received_iso || '';
       return bb.localeCompare(ab);
-    }
-  );
+    });
+
+  const byCategory: RequestCategoryBucket[] = Array.from(categoryMap.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => b.count - a.count);
 
   return {
     email_count: 0,
@@ -174,8 +242,8 @@ export async function aggregateBeithadyRequestsFromApi(
     total_messages: rows.length,
     unique_reservations: uniqueReservations.size,
     immediate_count: immediateCount,
-    classification_errors: 0,
-    by_category: [], // pending posts sync
+    classification_errors: rows.length - classifiedCount,
+    by_category: byCategory,
     by_reservation: byReservation,
     messages,
     guesty_enriched_count: rows.length,

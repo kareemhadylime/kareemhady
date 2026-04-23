@@ -1,5 +1,69 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Phase 3B complete — message bodies + Claude category/urgency classification
+
+Extends Phase 3 so `by_category[]` on the inquiry and request aggregators is populated from real Claude Haiku classifications of per-message guest text, not left empty.
+
+### What shipped
+
+**New migration** `supabase/migrations/0015_guesty_conversation_classification.sql` (applied to production):
+- Columns added to `guesty_conversations`: `first_guest_post_text`, `first_guest_post_at`, `latest_guest_post_text`, `latest_guest_post_at`, `guest_post_count`, `host_post_count`, `posts_synced_at`, `classification` (jsonb), `classification_input_hash` (SHA-256 of input text — re-classify only on changes), `classified_at`
+- Indexes on `latest_guest_post_at`, `classified_at`, `classification->>'category'`, `classification->>'kind'`, `classification->>'urgency'`
+- `guesty_sync_runs` gets two more counters: `conversation_posts_fetched`, `conversations_classified`
+
+**New client + helpers:**
+- `src/lib/guesty.ts` — added `GuestyConversationPost` type + `listGuestyConversationPosts(convId, { limit, after })`. Response shape is `{ status, data: { posts, count, limit, sort, cursor } }` — unwrapped. Each post has `body` (plain text for airbnb2/sms/whatsapp, HTML for email), `plainTextBody` (stripped, only present for email), `from.type`, `sentBy`, `isAutomatic`, `module.type`.
+- `src/lib/rules/classify-conversation.ts` — two Haiku-backed classifiers: `classifyInquiry()` returns the same `InquiryClassification` the email aggregator produced (category + summary + needs_manual_attention); `classifyRequest()` returns `RequestClassification` (category + urgency + summary + suggested_action). Prompts lifted from the email aggregators with message-text-focused rewrites.
+
+**Daily sync extended** (`src/lib/run-guesty-sync.ts`, Phase 6 step):
+- After conversations sync, fetches posts for up to 500 Beithady conversations modified in the last 2 days
+- `extractGuestPosts()` partitions into guest+host sides, picking first+latest real guest messages (skips `module.type='log'` and `isAutomatic=true`)
+- `postBodyText()` prefers `plainTextBody`, falls back to HTML-stripped `body` for email posts or raw `body` for airbnb2/sms/whatsapp
+- Classification skipped when input hash matches the previously stored `classification_input_hash` (so daily cron doesn't re-classify unchanged messages)
+- Classifier errors are non-fatal — leaves prior classification intact, retries next sync
+
+**Aggregators updated:**
+- `src/lib/rules/aggregators/beithady-inquiry-api.ts` — reads `first_guest_post_text` + `classification` columns. Populates `by_category[]`, per-guest category lists, and `inquiries[].guest_question` from the stored text. `manual_attention_count` now combines classifier-flagged rows with the "guest awaiting response" heuristic.
+- `src/lib/rules/aggregators/beithady-request-api.ts` — reads `latest_guest_post_text` + `classification`. `by_category[]` populated. `immediate_count` now driven by classifier urgency + category. Per-reservation groups aggregate `max_urgency` via a `URGENCY_RANK` comparator (`normal < high < immediate`), summarize from the latest classified message.
+
+### Backfill (2026 scope)
+
+One-off backfill script at `C:\kareemhady\sync-guesty-classify.mjs`:
+- Loads all Beithady-relevant conversations (inquiry / confirmed / checked_in / checked_out) with `created_at_guesty >= 2026-01-01` OR `last_message_nonuser_at >= 2026-01-01`
+- ~1,313 conversations in scope for 2026 (subset of the 5,995 full 2026+2025 set)
+- Concurrency 5 against both Guesty `/posts` and Anthropic `/v1/messages`, ~50-60 convs/min
+- Uses cached production Guesty token from `integration_tokens` table (avoids OAuth rate-limit we hit earlier this session)
+- Uses direct fetch to Anthropic API (no SDK dep), model `claude-haiku-4-5-20251001`
+
+**Backfill snags hit this turn:**
+1. First run extracted `plainTextBody` only — but airbnb2/sms/whatsapp channels put plain text in `body`, not `plainTextBody`. Led to 595 conversations synced with `guest_post_count=0`. Fix: added `postBodyText()` helper that prefers `plainTextBody`, falls back to HTML-stripped `body` for email or raw `body` for other channels. Re-running overwrote the bad rows.
+2. Response shape had changed from first probe — posts now wrapped under `.data.posts` with `count`/`cursor`. Same pattern as conversations list.
+
+**Backfill left running in background** (task id `b3ygto8il`) when this turn ended. At time of commit: 643 posts synced, 121 conversations classified. ETA ~15 more min for the full 1,313. 2025 is deferred — nightly cron catches new/modified conversations only.
+
+### Verification — classifications visible in production Supabase
+
+Sample distribution from 121 classified-so-far:
+
+Inquiries (55 classified):
+- group_question 15, other 14, amenity 11, booking_logistics 11, availability 7, location_info 5, pricing 4
+
+Requests (36 classified, 17 non-normal urgency):
+- general_question 15, other 11, date_change 5+2, check_in_help 3 (immediate) + 2 (high) + 2 (normal), immediate_complaint 1+1, refund_dispute 1
+
+Categories map cleanly to the existing page UI — no changes needed on the /emails/beithady/[ruleId] page render.
+
+### Things the user will notice
+
+- After merge + deploy + next nightly cron, clicking "Run with this range" on Beithady Inquiries (Airbnb) or Beithady Guest Requests will now show populated `by_category[]` tables, per-guest category chips, per-reservation urgency badges.
+- Conversations with `isAutomatic=true` host messages but no guest content (auto check-in reminders, review-request templates) correctly show `guest_post_count=0` and don't get classified — they'd have been noise in the email-based path anyway since there was never a guest message to parse.
+- "Manual attention" counts now include both classifier-flagged rows AND guest-awaiting-response rows (was only latter in Phase 3).
+
+### Deferred
+
+- 2025 backfill (4,682 conversations). Nightly cron catches recent modifications but won't touch historical 2025 data. Re-run the backfill script with the `2026-01-01` threshold lowered to `2025-01-01` when convenient.
+- Full posts archive in a `guesty_conversation_posts` table. Only the first + latest guest message per conversation is stored on `guesty_conversations` — full thread history is still re-fetchable from Guesty but isn't mirrored. Future work if the UI wants to show full message history.
+
 ## ✅ Phase 3 complete — payouts + inquiries + requests migrated to Guesty API
 
 All 5 Beithady rules now run on Guesty APIs. No email parsing anywhere in the Beithady domain.

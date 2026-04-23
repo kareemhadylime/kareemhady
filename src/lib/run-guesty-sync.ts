@@ -1,14 +1,21 @@
+import { createHash } from 'node:crypto';
 import { supabaseAdmin } from './supabase';
 import {
   listGuestyListings,
   listGuestyReservations,
   listGuestyReviews,
   listGuestyConversations,
+  listGuestyConversationPosts,
   type GuestyListing,
   type GuestyReservation,
   type GuestyReview,
   type GuestyConversation,
+  type GuestyConversationPost,
 } from './guesty';
+import {
+  classifyInquiry,
+  classifyRequest,
+} from './rules/classify-conversation';
 
 // Full Guesty mirror. Pulls:
 //  1) All listings (with listingType + masterListingId for the Multi-Unit
@@ -160,6 +167,8 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
   let reservationsSynced = 0;
   let reviewsSynced = 0;
   let conversationsSynced = 0;
+  let conversationPostsFetched = 0;
+  let conversationsClassified = 0;
 
   try {
     // 1. Listings — small set (~100 for Beithady), fetch in one go then page
@@ -401,6 +410,125 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       }
     }
 
+    // 6. Posts + classification for recently-modified conversations.
+    // Nightly window: conversations modified in the last 2 days AND in
+    // Beithady-relevant statuses. Full backfill of history is handled by
+    // a one-off script (sync-guesty-classify.mjs) — this loop catches
+    // daily changes so the aggregators stay fresh.
+    {
+      const since = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+      const { data: targets } = await sb
+        .from('guesty_conversations')
+        .select(
+          `id, reservation_status, reservation_check_in,
+           reservation_check_out, listing_title, listing_nickname,
+           classification_input_hash`
+        )
+        .in('reservation_status', [
+          'inquiry',
+          'confirmed',
+          'checked_in',
+          'checked_out',
+        ])
+        .or(
+          `modified_at_guesty.gte.${since},last_message_nonuser_at.gte.${since}`
+        )
+        .limit(500);
+
+      const rowsToProcess =
+        (targets as Array<{
+          id: string;
+          reservation_status: string | null;
+          reservation_check_in: string | null;
+          reservation_check_out: string | null;
+          listing_title: string | null;
+          listing_nickname: string | null;
+          classification_input_hash: string | null;
+        }> | null) || [];
+
+      // Process sequentially — keeps Anthropic + Guesty call rates low.
+      // Daily window is small enough that sequential is fine.
+      for (const t of rowsToProcess) {
+        try {
+          const postsRes = await listGuestyConversationPosts(t.id, {
+            limit: 50,
+          });
+          conversationPostsFetched += postsRes.posts?.length || 0;
+
+          const { latest, first, guestCount, hostCount } = extractGuestPosts(
+            postsRes.posts || []
+          );
+
+          const latestText = latest ? postBodyText(latest).slice(0, 4000) : null;
+          const firstText = first ? postBodyText(first).slice(0, 4000) : null;
+
+          let classification: Record<string, unknown> | null = null;
+          let classifiedAt: string | null = null;
+          let inputHash: string | null = null;
+
+          if (latestText) {
+            const isInquiry = t.reservation_status === 'inquiry';
+            const textToClassify = isInquiry ? firstText || latestText : latestText;
+            inputHash = createHash('sha256')
+              .update(`${t.reservation_status}::${textToClassify}`)
+              .digest('hex');
+            if (inputHash !== t.classification_input_hash) {
+              try {
+                if (isInquiry) {
+                  const out = await classifyInquiry({
+                    text: textToClassify,
+                    listingName: t.listing_title || t.listing_nickname,
+                    stayStart: t.reservation_check_in?.slice(0, 10),
+                    stayEnd: t.reservation_check_out?.slice(0, 10),
+                  });
+                  if (out) {
+                    classification = { kind: 'inquiry', ...out };
+                    classifiedAt = new Date().toISOString();
+                    conversationsClassified += 1;
+                  }
+                } else {
+                  const out = await classifyRequest({
+                    text: textToClassify,
+                    listingName: t.listing_title || t.listing_nickname,
+                    checkIn: t.reservation_check_in,
+                    checkOut: t.reservation_check_out,
+                  });
+                  if (out) {
+                    classification = { kind: 'request', ...out };
+                    classifiedAt = new Date().toISOString();
+                    conversationsClassified += 1;
+                  }
+                }
+              } catch {
+                // classification errors are non-fatal — leave prior
+                // classification intact; next sync will retry.
+              }
+            }
+          }
+
+          await sb
+            .from('guesty_conversations')
+            .update({
+              first_guest_post_text: firstText,
+              first_guest_post_at: first ? first.createdAt : null,
+              latest_guest_post_text: latestText,
+              latest_guest_post_at: latest ? latest.createdAt : null,
+              guest_post_count: guestCount,
+              host_post_count: hostCount,
+              posts_synced_at: new Date().toISOString(),
+              ...(classification && {
+                classification,
+                classification_input_hash: inputHash,
+                classified_at: classifiedAt,
+              }),
+            })
+            .eq('id', t.id);
+        } catch {
+          // Per-conversation errors shouldn't abort the whole sync.
+        }
+      }
+    }
+
     await sb
       .from('guesty_sync_runs')
       .update({
@@ -410,6 +538,8 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         reservations_synced: reservationsSynced,
         reviews_synced: reviewsSynced,
         conversations_synced: conversationsSynced,
+        conversation_posts_fetched: conversationPostsFetched,
+        conversations_classified: conversationsClassified,
       })
       .eq('id', runId);
 
@@ -420,6 +550,8 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       reservations_synced: reservationsSynced,
       reviews_synced: reviewsSynced,
       conversations_synced: conversationsSynced,
+      conversation_posts_fetched: conversationPostsFetched,
+      conversations_classified: conversationsClassified,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -433,10 +565,78 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         reservations_synced: reservationsSynced,
         reviews_synced: reviewsSynced,
         conversations_synced: conversationsSynced,
+        conversation_posts_fetched: conversationPostsFetched,
+        conversations_classified: conversationsClassified,
       })
       .eq('id', runId);
     return { ok: false, error: msg };
   }
+}
+
+// Strip HTML tags + decode basic entities for email-channel message
+// bodies. Good enough for classification — never shown raw to users.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Extract the readable text out of a post. airbnb2 / sms / whatsapp
+// channels put plain text in `body`; email posts put HTML in `body` and
+// a stripped copy in `plainTextBody`.
+function postBodyText(p: GuestyConversationPost): string {
+  if (typeof p.plainTextBody === 'string' && p.plainTextBody.trim()) {
+    return p.plainTextBody.trim();
+  }
+  if (typeof p.body === 'string' && p.body.trim()) {
+    const mt = p.module?.type;
+    if (mt === 'email' || /<[a-zA-Z][^>]*>/.test(p.body)) {
+      return htmlToText(p.body);
+    }
+    return p.body.trim();
+  }
+  return '';
+}
+
+// Partition a posts response (newest-first) into guest + host sides and
+// return the first/latest real guest message (skipping log events and
+// automated templates).
+function extractGuestPosts(posts: GuestyConversationPost[]): {
+  guestCount: number;
+  hostCount: number;
+  latest: GuestyConversationPost | null;
+  first: GuestyConversationPost | null;
+} {
+  const guest = posts.filter(p => {
+    const sentBy = p.sentBy;
+    const fromType = p.from?.type;
+    const moduleType = p.module?.type;
+    if (moduleType === 'log') return false;
+    if (p.isAutomatic === true) return false;
+    const isGuest = sentBy === 'guest' || fromType === 'guest';
+    if (!isGuest) return false;
+    return postBodyText(p).length > 0;
+  });
+  const host = posts.filter(p => {
+    const sentBy = p.sentBy;
+    const fromType = p.from?.type;
+    return sentBy === 'host' || fromType === 'employee';
+  });
+  return {
+    guestCount: guest.length,
+    hostCount: host.length,
+    latest: guest[0] || null,
+    first: guest[guest.length - 1] || null,
+  };
 }
 
 function extractBuildingFromTags(tags: string[] | undefined): string | null {

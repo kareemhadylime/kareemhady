@@ -20,6 +20,7 @@ import type {
   BeithadyInquiryAggregate,
   InquiryBuildingBucket,
   InquiryCategory,
+  InquiryCategoryBucket,
   InquiryGuestGroup,
 } from './beithady-inquiry';
 
@@ -42,6 +43,13 @@ type ConversationRow = {
   listing_building_code: string | null;
   created_at_guesty: string | null;
   modified_at_guesty: string | null;
+  first_guest_post_text: string | null;
+  classification: {
+    kind?: string;
+    category?: InquiryCategory;
+    summary?: string;
+    needs_manual_attention?: boolean;
+  } | null;
 };
 
 export async function aggregateBeithadyInquiriesFromApi(
@@ -64,7 +72,8 @@ export async function aggregateBeithadyInquiriesFromApi(
          last_message_nonuser_at, guest_id, guest_full_name, reservation_id,
          reservation_source, reservation_status, reservation_check_in,
          reservation_check_out, listing_id, listing_nickname, listing_title,
-         listing_building_code, created_at_guesty, modified_at_guesty`
+         listing_building_code, created_at_guesty, modified_at_guesty,
+         first_guest_post_text, classification`
       )
       .eq('reservation_status', 'inquiry')
       .or(
@@ -80,17 +89,20 @@ export async function aggregateBeithadyInquiriesFromApi(
 
   const uniqueGuests = new Set<string>();
   const buildingMap = new Map<string, number>();
+  const categoryMap = new Map<InquiryCategory, number>();
   const guestGroups = new Map<
     string,
     {
       guest_name: string;
       inquiry_count: number;
       latest_received_iso: string | null;
+      categories: Set<InquiryCategory>;
       listings: Set<string>;
       has_manual_attention: boolean;
     }
   >();
   let manualAttentionCount = 0;
+  let classifiedCount = 0;
   const inquiries: BeithadyInquiryAggregate['inquiries'] = [];
 
   for (const r of rows) {
@@ -101,9 +113,20 @@ export async function aggregateBeithadyInquiriesFromApi(
     const building = r.listing_building_code || 'UNKNOWN';
     buildingMap.set(building, (buildingMap.get(building) || 0) + 1);
 
-    // "Manual attention" = guest's last message is newer than host's (or
-    // host hasn't replied at all). For inquiries this flags pre-booking
-    // leads we owe a response to.
+    // Classification from Phase 3B (stored on conversation row).
+    const classif = r.classification;
+    const category: InquiryCategory | null =
+      classif?.kind === 'inquiry' && classif.category
+        ? (classif.category as InquiryCategory)
+        : null;
+    if (category) {
+      categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+      classifiedCount += 1;
+    }
+
+    // "Manual attention" = classifier flagged it, OR guest's last message
+    // is newer than host's (awaiting a response). For inquiries this flags
+    // pre-booking leads we owe a response to.
     const guestLast = r.last_message_nonuser_at
       ? new Date(r.last_message_nonuser_at).getTime()
       : 0;
@@ -111,14 +134,16 @@ export async function aggregateBeithadyInquiriesFromApi(
       ? new Date(r.last_message_user_at).getTime()
       : 0;
     const awaiting = guestLast > hostLast;
-    if (awaiting) manualAttentionCount += 1;
+    const classifierFlagged = classif?.needs_manual_attention === true;
+    const needsAttention = classifierFlagged || awaiting;
+    if (needsAttention) manualAttentionCount += 1;
 
     const receivedIso =
       r.last_message_nonuser_at || r.created_at_guesty || null;
 
     inquiries.push({
       guest_name: guestName,
-      guest_question: null, // requires post sync
+      guest_question: r.first_guest_post_text,
       listing_name: r.listing_title || r.listing_nickname || null,
       stay_start: r.reservation_check_in
         ? r.reservation_check_in.slice(0, 10)
@@ -131,7 +156,13 @@ export async function aggregateBeithadyInquiriesFromApi(
       num_infants: null,
       received_iso: receivedIso,
       building_code: building === 'UNKNOWN' ? null : building,
-      classification: null,
+      classification: category
+        ? {
+            category,
+            summary: String(classif?.summary || ''),
+            needs_manual_attention: Boolean(classif?.needs_manual_attention),
+          }
+        : null,
     });
 
     // Guest grouping — one row per unique guest with aggregated stats.
@@ -145,14 +176,16 @@ export async function aggregateBeithadyInquiriesFromApi(
         g.latest_received_iso = receivedIso;
       }
       if (r.listing_nickname) g.listings.add(r.listing_nickname);
-      g.has_manual_attention = g.has_manual_attention || awaiting;
+      if (category) g.categories.add(category);
+      g.has_manual_attention = g.has_manual_attention || needsAttention;
     } else {
       guestGroups.set(guestKey, {
         guest_name: guestName,
         inquiry_count: 1,
         latest_received_iso: receivedIso,
+        categories: new Set(category ? [category] : []),
         listings: new Set(r.listing_nickname ? [r.listing_nickname] : []),
-        has_manual_attention: awaiting,
+        has_manual_attention: needsAttention,
       });
     }
   }
@@ -166,11 +199,15 @@ export async function aggregateBeithadyInquiriesFromApi(
       guest_name: g.guest_name,
       inquiry_count: g.inquiry_count,
       latest_received_iso: g.latest_received_iso,
-      categories: [] as InquiryCategory[], // pending posts sync
+      categories: Array.from(g.categories),
       listings: Array.from(g.listings),
       has_manual_attention: g.has_manual_attention,
     }))
     .sort((a, b) => b.inquiry_count - a.inquiry_count);
+
+  const byCategory: InquiryCategoryBucket[] = Array.from(categoryMap.entries())
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => b.count - a.count);
 
   return {
     email_count: 0,
@@ -179,8 +216,8 @@ export async function aggregateBeithadyInquiriesFromApi(
     total_inquiries: rows.length,
     unique_guests: uniqueGuests.size,
     manual_attention_count: manualAttentionCount,
-    classification_errors: 0,
-    by_category: [], // pending posts sync
+    classification_errors: rows.length - classifiedCount,
+    by_category: byCategory,
     by_building: byBuilding,
     by_guest: byGuest,
     inquiries,
