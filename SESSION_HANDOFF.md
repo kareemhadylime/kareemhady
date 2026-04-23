@@ -1,4 +1,47 @@
-# Kareemhady — Session Handoff (2026-04-23)
+# Kareemhady — Session Handoff (2026-04-24)
+
+## ✅ Pricing dashboard: period filters + clickable buildings with sortable unit modal
+
+Commit `85f3522` deployed as `lime-bvsjiosns-lime-investments.vercel.app`. Three things on `/emails/beithady/pricing`:
+
+### 1. Period filters
+
+PriceLabs stores three fixed forward-occupancy horizons per snapshot (7/30/60 days) and a single historical "past 30d" rollup. So "period" maps to two orthogonal controls:
+- **Forward horizon** (7 / 30 / 60 days) — which occupancy + market + delta columns the page surfaces
+- **Snapshot date** — which PriceLabs nightly snapshot to view
+
+Data layer ([pricelabs-pricing.ts](src/lib/pricelabs-pricing.ts)):
+- `PricingBuildingSummary` extended with `avg_occupancy_next_{7,30,60}` + `avg_market_occupancy_next_{7,30,60}` + `occupancy_delta_{7,30,60}` — all 3 horizons pre-computed server-side so the UI can swap without refetch
+- `PricingReport.totals` extended the same way
+- New `PricingReport.available_snapshot_dates: string[]` — last ~30 distinct snapshot dates, newest-first, from `pricelabs_listing_snapshots`
+- New `PricingHorizon = 7 | 30 | 60` type
+
+UI ([_components/PricingControls.tsx](src/app/emails/beithady/pricing/_components/PricingControls.tsx)):
+- `PricingHorizonTab` — rose-600 active tab, uses Next.js 16 `useLinkStatus()` for click-loading spinner
+- `SnapshotDateLink` — compact slate-styled pills for quick shortcuts
+- Page-level `PeriodControlsSection` renders horizon tabs plus snapshot shortcuts (Latest / Yesterday / 1 week ago / 30 days ago) + a dropdown-with-Go form fallback for any older date
+
+Past-30d ADR/Revenue/YoY columns are unchanged — PriceLabs only provides those as 30-day rollups, so they don't vary with horizon.
+
+### 2. Per-building summary + listings tables follow the chosen horizon
+
+- Building summary's "Occ next-X" + "vs Market" columns pick from the chosen horizon; header label updates accordingly
+- Listing table's "Occ Nd / Mkt / Δ" follow the same horizon
+- Both tables were previously hardcoded to 30d — now driven by the `?horizon=` query param
+
+### 3. Clickable buildings → sortable unit modal
+
+- `_components/BuildingBreakdown.tsx` is now a client component (replaces the server-rendered one that was inlined in page.tsx). Every `<tr>` has an onClick handler that opens the modal for that building.
+- `_components/BuildingDetailModal.tsx` — full-screen modal with every per-unit metric in columns: Listing · Units · Push · Base · ADR 30d · ADR YoY · Rev 30d · Rev YoY · Occ Nd · Market · Δ pp · Rec Base.
+- **Sortable column headers** — clicking any header cycles sort. `ArrowUp` / `ArrowDown` / `ArrowUpDown` icons show current state. Nulls sort last via a shared `cmp()` comparator. Default sort: `revenue_past_30` desc.
+- Per-row annotations: unit-count badge (e.g. "3×" for a 3-unit MTL parent), channel list under the listing name (Airbnb / Booking.com / ...).
+
+### Wiring changes in [pricing/page.tsx](src/app/emails/beithady/pricing/page.tsx)
+
+- New `?horizon=` search param parsed via `parseHorizon()` (defaults to 30). Existing `?snapshot=` kept.
+- Removed the inlined server-side `BuildingBreakdown` function — superseded by the client component import.
+- `TotalsBlock` extended to accept `{ horizon, occ }` props so the top-right Occupancy StatCard label + value reflect the chosen horizon.
+- `ListingTable` extended with a `horizon` prop and a per-row `pick()` helper that returns the right occupancy/market/delta trio.
 
 ## ✅ Payables print: iframe-isolation rewrite (third + final fix for the print path)
 
