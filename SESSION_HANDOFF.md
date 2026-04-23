@@ -1,5 +1,40 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Payables print: iframe-isolation rewrite (third + final fix for the print path)
+
+Commit `30121c1` (deployment `lime-2s0t72dcj-lime-investments.vercel.app`). The garbled-pages issue resurfaced even after the previous fixes.
+
+### Why the last attempt wasn't enough
+
+The earlier round set `#payables-print-root { position: absolute !important; inset: 0 !important }` inside `@media print` to pull the modal full-bleed onto paper, combined with the visibility-hidden trick. But **absolutely-positioned elements can't break across printed pages** — Chrome renders the whole block on page 1 and keeps drawing the same block on pages 2-4 with slight offsets. That's what produced the user's screenshots where "Vendors Payables", the modal header, the column header, and the first data rows all landed on top of each other on pages 2 and 3.
+
+The visibility-hidden approach also has a known limitation: hidden elements still occupy layout space, so the paginator decides page breaks based on the full hidden document — the visible subtree (our modal) can land at weird offsets mid-page.
+
+### What's in place now
+
+Print no longer touches the Next.js layout tree at all. In [PayablesDetailModal.tsx](src/app/emails/beithady/financials/_components/PayablesDetailModal.tsx):
+
+- New `buildPrintHtml()` helper emits a standalone `<!DOCTYPE html>` document with its own `<style>` block — no Tailwind, no flex, no sticky. Just a plain `<table>` with inline print CSS (`thead { display: table-header-group }`, `tr { page-break-inside: avoid }`, `tfoot { display: table-row-group }`, `@page { margin: 12mm 10mm }`, striped rows via `:nth-child(even)` with `print-color-adjust: exact`, dark TOTAL footer with explicit color-adjust).
+- `onPrint()` creates an off-screen iframe (`position: fixed; width: 0; height: 0; border: 0`), writes the HTML into `iframe.contentDocument`, waits for `onload`, focuses the iframe window, calls `contentWindow.print()`, then removes the iframe after a 1s cleanup delay.
+- Filename: `<title>Beithady_${Vendor|Owner}_Payable_DD_MonthName_YYYY</title>` is embedded inside the iframe HTML. Chrome/Edge/Safari use iframe title as the Save-as-PDF default filename when you print an iframe window. No more `document.title` mutation on the outer page.
+- Removed the `<style jsx global>` `@media print` block from the modal — no longer needed; the iframe is a completely isolated document.
+
+### On-screen behavior unchanged
+
+The in-page modal still has the sticky thead, sticky dark TOTAL footer, and scrollable body — that UX is good and wasn't the problem. Only the print path was rewritten.
+
+### Why an iframe is the right answer for print
+
+- Completely isolated from the host page's CSS cascade, positioning, and layout tree
+- Browser handles pagination natively for a plain document (no absolute positioning, no sticky, no flex containers in the print path)
+- iframe `<title>` maps directly to the Save-as-PDF default filename
+- Hidden + off-screen means zero visual side effects during normal navigation
+
+Previous commits on the print path that built up to this (can be referenced if we regress):
+- `e213566` — blank preview fix (switched display:none → visibility:hidden)
+- `bc037fc` — sticky kill + table-header-group + PDF filename via document.title
+- `30121c1` — **current**: iframe isolation, supersedes both
+
 ## ✅ Payables modal: fix garbled multi-page PDF + nice filename
 
 Commit `bc037fc` (deployment `lime-iirco3t0z-lime-investments.vercel.app`). Two issues on the print path:
