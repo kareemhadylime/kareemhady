@@ -19,6 +19,183 @@ type Props = {
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
+function esc(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Build a standalone HTML document for the print window. Lives in its
+// own iframe so page-break logic isn't fighting the Next.js layout tree
+// or any sticky/absolute positioning the on-screen modal uses.
+function buildPrintHtml(args: {
+  title: string;
+  subtitle: string;
+  partners: PayablePartnerRow[];
+  total: number;
+  docTitle: string;
+}): string {
+  const rows = args.partners
+    .map(p => {
+      return `<tr>
+        <td class="name">${esc(p.partner_name)}</td>
+        <td class="num">${fmt(p.aged_0_30)}</td>
+        <td class="num">${fmt(p.aged_30_60)}</td>
+        <td class="num">${fmt(p.aged_over_60)}</td>
+        <td class="num total">${fmt(p.amount)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const totals = args.partners.reduce(
+    (acc, p) => ({
+      a030: acc.a030 + p.aged_0_30,
+      a3060: acc.a3060 + p.aged_30_60,
+      a60: acc.a60 + p.aged_over_60,
+    }),
+    { a030: 0, a3060: 0, a60: 0 }
+  );
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${esc(args.docTitle)}</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #0f172a;
+    background: #ffffff;
+  }
+  @page {
+    size: auto;
+    margin: 12mm 10mm;
+  }
+  .header {
+    padding: 0 0 14px;
+    border-bottom: 2px solid #0f172a;
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .header .sub {
+    font-size: 12px;
+    color: #64748b;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+  }
+  thead {
+    /* Repeats on every page */
+    display: table-header-group;
+  }
+  tfoot {
+    /* Prints once at the very end, doesn't repeat */
+    display: table-row-group;
+  }
+  thead th {
+    background: #f1f5f9;
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 1px solid #cbd5e1;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  thead th.num {
+    text-align: right;
+  }
+  tbody tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  tbody tr:nth-child(even) td {
+    background: #f8fafc;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+  td.name {
+    max-width: 0;
+    word-wrap: break-word;
+  }
+  td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  td.total {
+    font-weight: 600;
+    color: #0f172a;
+  }
+  tfoot td {
+    background: #0f172a;
+    color: #f8fafc;
+    font-weight: 700;
+    padding: 10px;
+    border: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  tfoot td.total {
+    font-size: 12.5px;
+    color: #ffffff;
+  }
+  .footer-note {
+    margin-top: 12px;
+    font-size: 10px;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>${esc(args.title)}</h1>
+    <div class="sub">${esc(args.subtitle)} · ${args.partners.length} partners · totals in EGP</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th class="num">Aged 0–30</th>
+        <th class="num">Aged 30–60</th>
+        <th class="num">Over 60</th>
+        <th class="num">Total</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td>TOTAL (${args.partners.length} partners)</td>
+        <td class="num">${fmt(totals.a030)}</td>
+        <td class="num">${fmt(totals.a3060)}</td>
+        <td class="num">${fmt(totals.a60)}</td>
+        <td class="num total">${fmt(args.total)}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="footer-note">Aging computed from line posting date vs. as-of date. EGP.</p>
+</body>
+</html>`;
+}
+
 export function PayablesDetailButton(props: Props) {
   const [open, setOpen] = useState(false);
   return (
@@ -63,10 +240,11 @@ function PayablesModal(props: Props & { onClose: () => void }) {
     { a030: 0, a3060: 0, a60: 0 }
   );
 
-  // Set the document title right before printing so Chrome/Edge/Safari
-  // use it as the default PDF filename (they derive "Save as" from
-  // document.title by default). Restore immediately so the page header
-  // stays unchanged.
+  // Render the report into a hidden iframe and print *that* — completely
+  // isolated from the Next.js layout tree, so no sticky/absolute
+  // positioning on the outer page can bleed into the pagination. The
+  // iframe's <title> becomes the default PDF "Save as" filename in
+  // Chrome/Edge/Safari, so we embed our desired name there too.
   function onPrint() {
     const now = new Date();
     const day = String(now.getDate()).padStart(2, '0');
@@ -74,19 +252,54 @@ function PayablesModal(props: Props & { onClose: () => void }) {
     const year = now.getFullYear();
     const kindWord = kind === 'vendor' ? 'Vendor' : 'Owner';
     const niceName = `Beithady_${kindWord}_Payable_${day}_${monthName}_${year}`;
-    const originalTitle = document.title;
-    document.title = niceName;
-    // Restore after the print dialog closes. `afterprint` fires on both
-    // Save-as-PDF and cancel.
-    const restore = () => {
-      document.title = originalTitle;
-      window.removeEventListener('afterprint', restore);
+    const html = buildPrintHtml({
+      title,
+      subtitle,
+      partners,
+      total,
+      docTitle: niceName,
+    });
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 1000);
     };
-    window.addEventListener('afterprint', restore);
-    window.print();
-    // Safety net — if afterprint doesn't fire (rare, some browsers),
-    // restore after a short delay.
-    setTimeout(restore, 2000);
+
+    iframe.onload = () => {
+      try {
+        const win = iframe.contentWindow;
+        if (!win) {
+          cleanup();
+          return;
+        }
+        // Chrome/Edge sometimes need focus on the iframe window before
+        // print() will target it.
+        win.focus();
+        win.print();
+      } finally {
+        cleanup();
+      }
+    };
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) {
+      cleanup();
+      return;
+    }
+    doc.open();
+    doc.write(html);
+    doc.close();
   }
 
   function onEmail() {
@@ -112,18 +325,15 @@ function PayablesModal(props: Props & { onClose: () => void }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        id="payables-print-root"
-        className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
-      >
-        <header className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-200 print:border-slate-400">
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <header className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-200">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{title}</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               {subtitle} · {partners.length} partners · totals in EGP
             </p>
           </div>
-          <div className="flex items-center gap-2 print:hidden">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onPrint}
@@ -160,7 +370,7 @@ function PayablesModal(props: Props & { onClose: () => void }) {
 
         {emailResult && (
           <div
-            className={`mx-6 mt-3 p-3 rounded-lg text-sm flex items-start gap-2 print:hidden ${
+            className={`mx-6 mt-3 p-3 rounded-lg text-sm flex items-start gap-2 ${
               emailResult.ok
                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                 : 'bg-rose-50 text-rose-800 border border-rose-200'
@@ -184,9 +394,9 @@ function PayablesModal(props: Props & { onClose: () => void }) {
           </div>
         )}
 
-        <div className="overflow-y-auto flex-1 print:overflow-visible">
+        <div className="overflow-y-auto flex-1">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 print:bg-white">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Name</th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Aged 0–30</th>
@@ -199,7 +409,7 @@ function PayablesModal(props: Props & { onClose: () => void }) {
               {partners.map(p => (
                 <tr
                   key={p.partner_id}
-                  className="border-b border-slate-100 hover:bg-slate-50 print:hover:bg-white"
+                  className="border-b border-slate-100 hover:bg-slate-50"
                 >
                   <td className="px-4 py-2">{p.partner_name}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-slate-700">
@@ -217,7 +427,7 @@ function PayablesModal(props: Props & { onClose: () => void }) {
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-slate-900 text-white sticky bottom-0 print:static">
+            <tfoot className="bg-slate-900 text-white sticky bottom-0">
               <tr>
                 <td className="px-4 py-2.5 font-semibold">TOTAL</td>
                 <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{fmt(totals.a030)}</td>
@@ -229,84 +439,10 @@ function PayablesModal(props: Props & { onClose: () => void }) {
           </table>
         </div>
 
-        <footer className="px-6 py-3 text-xs text-slate-500 border-t border-slate-200 print:border-slate-400">
+        <footer className="px-6 py-3 text-xs text-slate-500 border-t border-slate-200">
           Aging computed from line posting date vs. as-of date ({asOf}). EGP.
         </footer>
       </div>
-
-      {/* Classic print-only-this-element trick: hide everything with
-          `visibility: hidden`, then re-show the print root and its
-          children. Works regardless of how deep the modal is nested
-          in the Next.js layout tree (which defeats display:none
-          approaches since parents get hidden too). */}
-      <style jsx global>{`
-        @media print {
-          html,
-          body {
-            background: #ffffff !important;
-            margin: 0 !important;
-          }
-          body * {
-            visibility: hidden !important;
-          }
-          #payables-print-root,
-          #payables-print-root * {
-            visibility: visible !important;
-          }
-          #payables-print-root {
-            position: absolute !important;
-            inset: 0 !important;
-            width: 100% !important;
-            max-width: none !important;
-            max-height: none !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            overflow: visible !important;
-          }
-          /* Let all table rows render — in-modal we have overflow:auto
-             with a max-height that would clip rows when printing. */
-          #payables-print-root .overflow-y-auto,
-          #payables-print-root .overflow-hidden {
-            overflow: visible !important;
-            max-height: none !important;
-            display: block !important;
-          }
-          /* Sticky positioning confuses page-break logic — the thead
-             stayed pinned and overlapped body rows on pages 2+, which
-             is what made the PDF look garbled. Force both thead/tfoot
-             to static positioning; thead then repeats automatically
-             at the top of each printed page via
-             display:table-header-group (the browser default). */
-          #payables-print-root thead,
-          #payables-print-root tfoot {
-            position: static !important;
-          }
-          #payables-print-root thead {
-            display: table-header-group !important;
-          }
-          #payables-print-root tfoot {
-            display: table-row-group !important;
-          }
-          /* Don't split a vendor row across two pages */
-          #payables-print-root tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          /* Preserve header tint + dark TOTAL row background on paper */
-          #payables-print-root thead tr,
-          #payables-print-root tfoot tr {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          /* Chrome/Edge header + footer + date/url annotations default
-             on. Users can still disable them from "More settings", but
-             start clean so the PDF looks like a report. */
-          @page {
-            margin: 12mm 10mm;
-            size: auto;
-          }
-        }
-      `}</style>
     </div>
   );
 }
