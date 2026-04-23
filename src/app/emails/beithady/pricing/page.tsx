@@ -8,16 +8,19 @@ import {
   DollarSign,
   BarChart3,
   Zap,
+  CalendarDays,
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { SyncPills } from '@/app/_components/sync-pills';
 import {
   buildPricingReport,
   type PricingListingRow,
-  type PricingBuildingSummary,
+  type PricingHorizon,
 } from '@/lib/pricelabs-pricing';
 import { getSyncFreshness } from '@/lib/sync-freshness';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
+import { BuildingBreakdown } from './_components/BuildingBreakdown';
+import { PricingHorizonTab, SnapshotDateLink } from './_components/PricingControls';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -35,12 +38,19 @@ const fmtPct = (n: number | null | undefined): string => {
   return `${Number(n).toFixed(1)}%`;
 };
 
+function parseHorizon(s: string | undefined): PricingHorizon {
+  if (s === '7') return 7;
+  if (s === '60') return 60;
+  return 30;
+}
+
 export default async function PricingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ building?: string; snapshot?: string }>;
+  searchParams: Promise<{ building?: string; snapshot?: string; horizon?: string }>;
 }) {
   const sp = await searchParams;
+  const horizon: PricingHorizon = parseHorizon(sp.horizon);
   const [report, pills] = await Promise.all([
     buildPricingReport({ snapshotDate: sp.snapshot }),
     getSyncFreshness(['pricelabs', 'guesty']),
@@ -50,6 +60,23 @@ export default async function PricingPage({
   const filteredListings = buildingFilter
     ? report.listings.filter(r => r.building_code === buildingFilter)
     : report.listings;
+
+  // Pick the right occupancy pair based on horizon for the top StatCard.
+  const occFromTotals =
+    horizon === 7
+      ? {
+          occ: report.totals.avg_occupancy_next_7,
+          mkt: report.totals.avg_market_occupancy_next_7,
+        }
+      : horizon === 60
+        ? {
+            occ: report.totals.avg_occupancy_next_60,
+            mkt: report.totals.avg_market_occupancy_next_60,
+          }
+        : {
+            occ: report.totals.avg_occupancy_next_30,
+            mkt: report.totals.avg_market_occupancy_next_30,
+          };
 
   return (
     <>
@@ -106,14 +133,26 @@ export default async function PricingPage({
           <EmptyState />
         ) : (
           <>
-            <TotalsBlock report={report} />
+            <PeriodControlsSection
+              horizon={horizon}
+              snapshotDate={report.snapshot_date}
+              availableSnapshotDates={report.available_snapshot_dates}
+              buildingFilter={buildingFilter}
+            />
+
+            <TotalsBlock report={report} horizon={horizon} occ={occFromTotals} />
 
             <BuildingBreakdown
               buildings={report.by_building}
-              activeBuilding={buildingFilter}
+              listings={report.listings}
+              horizon={horizon}
             />
 
-            <ListingTable rows={filteredListings} activeBuilding={buildingFilter} />
+            <ListingTable
+              rows={filteredListings}
+              activeBuilding={buildingFilter}
+              horizon={horizon}
+            />
           </>
         )}
 
@@ -129,8 +168,12 @@ export default async function PricingPage({
 
 function TotalsBlock({
   report,
+  horizon,
+  occ,
 }: {
   report: Awaited<ReturnType<typeof buildPricingReport>>;
+  horizon: PricingHorizon;
+  occ: { occ: number | null; mkt: number | null };
 }) {
   const t = report.totals;
   const physicalUnits = report.listings.reduce((s, r) => s + r.unit_count, 0);
@@ -167,12 +210,10 @@ function TotalsBlock({
         }
       />
       <StatCard
-        label="Occupancy (next 30d)"
-        value={fmtPct(t.avg_occupancy_next_30)}
+        label={`Occupancy (next ${horizon}d)`}
+        value={fmtPct(occ.occ)}
         sub={
-          t.avg_market_occupancy_next_30 != null
-            ? `market ${fmtPct(t.avg_market_occupancy_next_30)}`
-            : 'no market baseline'
+          occ.mkt != null ? `market ${fmtPct(occ.mkt)}` : 'no market baseline'
         }
         icon={<Zap size={18} className="text-rose-600" />}
       />
@@ -180,131 +221,161 @@ function TotalsBlock({
   );
 }
 
-function BuildingBreakdown({
-  buildings,
-  activeBuilding,
+function PeriodControlsSection({
+  horizon,
+  snapshotDate,
+  availableSnapshotDates,
+  buildingFilter,
 }: {
-  buildings: PricingBuildingSummary[];
-  activeBuilding: string | null;
+  horizon: PricingHorizon;
+  snapshotDate: string;
+  availableSnapshotDates: string[];
+  buildingFilter: string | null;
 }) {
+  const buildHref = (overrides: {
+    horizon?: PricingHorizon;
+    snapshot?: string;
+  }): string => {
+    const params = new URLSearchParams();
+    const h = overrides.horizon ?? horizon;
+    if (h !== 30) params.set('horizon', String(h));
+    const snap = 'snapshot' in overrides ? overrides.snapshot : snapshotDate;
+    if (snap && snap !== availableSnapshotDates[0]) {
+      params.set('snapshot', snap);
+    }
+    if (buildingFilter) params.set('building', buildingFilter);
+    const qs = params.toString();
+    return qs ? `?${qs}` : '?';
+  };
+
+  // Short-list the snapshots the user is likely to pick: today (latest),
+  // yesterday, 7 days ago, 30 days ago — anything actually present in the
+  // available dates list. Extra dates reachable via the full dropdown.
+  const topDates = availableSnapshotDates.slice(0, 1);
+  const yesterday = availableSnapshotDates.find((_, i) => i === 1);
+  const weekAgo = availableSnapshotDates.find((_, i) => i === 7);
+  const monthAgo = availableSnapshotDates.find((_, i) => i === 29);
+  const shortcutDates: Array<{ value: string; label: string }> = [
+    ...topDates.map(d => ({ value: d, label: 'Latest' })),
+    ...(yesterday ? [{ value: yesterday, label: 'Yesterday' }] : []),
+    ...(weekAgo ? [{ value: weekAgo, label: '1 week ago' }] : []),
+    ...(monthAgo ? [{ value: monthAgo, label: '30 days ago' }] : []),
+  ];
+
   return (
-    <section className="ix-card p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Building2 size={16} className="text-rose-600" />
-          Per-building summary
-        </h2>
-        {activeBuilding && (
-          <Link
-            href="?"
-            className="text-[11px] text-slate-500 hover:text-slate-800"
-          >
-            Clear filter
-          </Link>
-        )}
+    <section className="ix-card p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <CalendarDays size={16} className="text-rose-600" />
+        <h2 className="text-sm font-semibold">Period</h2>
+        <span className="text-[11px] text-slate-500">
+          forward horizon · snapshot date
+        </span>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-[11px] uppercase tracking-wide text-slate-500 bg-slate-50">
-            <tr>
-              <th className="text-left px-3 py-2">Building</th>
-              <th className="text-right px-3 py-2" title="PriceLabs items (parents + singles)">Listings</th>
-              <th className="text-right px-3 py-2" title="Σ physical units (multi-unit parents expanded)">Phys. Units</th>
-              <th className="text-right px-3 py-2" title="Multi-unit parent listings (manage N sub-units each)">MTL Parents</th>
-              <th className="text-right px-3 py-2">Pushing</th>
-              <th className="text-right px-3 py-2">Avg Base</th>
-              <th className="text-right px-3 py-2">Avg ADR (30d)</th>
-              <th className="text-right px-3 py-2">Revenue (30d)</th>
-              <th className="text-right px-3 py-2">YoY</th>
-              <th className="text-right px-3 py-2">Occ next-30</th>
-              <th className="text-right px-3 py-2">vs Market</th>
-            </tr>
-          </thead>
-          <tbody>
-            {buildings.map(b => {
-              const isActive = activeBuilding === b.building_code;
-              return (
-                <tr
-                  key={b.building_code}
-                  className={`border-t border-slate-100 ${
-                    isActive ? 'bg-rose-50/40' : 'hover:bg-slate-50/60'
-                  }`}
-                >
-                  <td className="px-3 py-2 font-medium">
-                    <Link
-                      href={`?building=${encodeURIComponent(b.building_code)}`}
-                      className="hover:text-rose-700"
-                    >
-                      {b.building_code}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {b.listings}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums font-semibold">
-                    {b.physical_units}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
-                    {b.multi_unit_parents}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
-                    {b.units_pushing}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmt(b.avg_base)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmt(b.avg_adr_past_30)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmt(b.total_revenue_past_30)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      b.revenue_yoy_pct == null
-                        ? 'text-slate-400'
-                        : b.revenue_yoy_pct >= 0
-                          ? 'text-emerald-600'
-                          : 'text-rose-600'
-                    }`}
-                  >
-                    {b.revenue_yoy_pct == null
-                      ? '—'
-                      : `${b.revenue_yoy_pct >= 0 ? '+' : ''}${fmt1(b.revenue_yoy_pct)}%`}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {fmtPct(b.avg_occupancy_next_30)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      b.occupancy_delta_30 == null
-                        ? 'text-slate-400'
-                        : b.occupancy_delta_30 >= 0
-                          ? 'text-emerald-600'
-                          : 'text-rose-600'
-                    }`}
-                  >
-                    {b.occupancy_delta_30 == null
-                      ? '—'
-                      : `${b.occupancy_delta_30 >= 0 ? '+' : ''}${fmt1(b.occupancy_delta_30)} pp`}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+
+      <div className="space-y-3">
+        <div>
+          <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+            Forward horizon
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {([7, 30, 60] as const).map(h => (
+              <PricingHorizonTab
+                key={h}
+                href={buildHref({ horizon: h })}
+                label={`Next ${h} days`}
+                active={horizon === h}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+            Snapshot date ·{' '}
+            <span className="normal-case text-slate-700 font-semibold">
+              {snapshotDate}
+            </span>
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {shortcutDates.map(d => (
+              <SnapshotDateLink
+                key={d.value}
+                href={buildHref({ snapshot: d.value })}
+                label={`${d.label} · ${d.value}`}
+                active={snapshotDate === d.value}
+              />
+            ))}
+            <form className="flex items-center gap-2" action="" method="get">
+              {horizon !== 30 && (
+                <input type="hidden" name="horizon" value={String(horizon)} />
+              )}
+              {buildingFilter && (
+                <input type="hidden" name="building" value={buildingFilter} />
+              )}
+              <select
+                name="snapshot"
+                defaultValue={snapshotDate}
+                className="ix-input text-xs w-[160px] py-1"
+              >
+                {availableSnapshotDates.map(d => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="px-2.5 py-1 rounded text-xs font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
+              >
+                Go
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
+// BuildingBreakdown lives in _components/BuildingBreakdown.tsx (client) so
+// rows can open a per-building modal. Imported at the top of this file.
+
 function ListingTable({
   rows,
   activeBuilding,
+  horizon,
 }: {
   rows: PricingListingRow[];
   activeBuilding: string | null;
+  horizon: PricingHorizon;
 }) {
+  const pick = (r: PricingListingRow) => {
+    if (horizon === 7) {
+      return {
+        occ: r.occupancy_next_7,
+        mkt: r.market_occupancy_next_7,
+        delta:
+          r.occupancy_next_7 != null && r.market_occupancy_next_7 != null
+            ? r.occupancy_next_7 - r.market_occupancy_next_7
+            : null,
+      };
+    }
+    if (horizon === 60) {
+      return {
+        occ: r.occupancy_next_60,
+        mkt: r.market_occupancy_next_60,
+        delta:
+          r.occupancy_next_60 != null && r.market_occupancy_next_60 != null
+            ? r.occupancy_next_60 - r.market_occupancy_next_60
+            : null,
+      };
+    }
+    return {
+      occ: r.occupancy_next_30,
+      mkt: r.market_occupancy_next_30,
+      delta: r.occupancy_30_delta,
+    };
+  };
   return (
     <section className="ix-card overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-100">
@@ -325,14 +396,16 @@ function ListingTable({
               <th className="text-right px-3 py-2">ADR 30d</th>
               <th className="text-right px-3 py-2">YoY</th>
               <th className="text-right px-3 py-2">Rev 30d</th>
-              <th className="text-right px-3 py-2">Occ 30d</th>
+              <th className="text-right px-3 py-2">Occ {horizon}d</th>
               <th className="text-right px-3 py-2">Mkt</th>
               <th className="text-right px-3 py-2">Δ</th>
               <th className="text-right px-3 py-2">Rec Base</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {rows.map(r => {
+              const { occ, mkt, delta } = pick(r);
+              return (
               <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                 <td className="px-3 py-1.5 truncate max-w-[240px]" title={r.name}>
                   {r.name}
@@ -378,23 +451,23 @@ function ListingTable({
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums">{fmt(r.revenue_past_30)}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums">
-                  {fmtPct(r.occupancy_next_30)}
+                  {fmtPct(occ)}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">
-                  {fmtPct(r.market_occupancy_next_30)}
+                  {fmtPct(mkt)}
                 </td>
                 <td
                   className={`px-3 py-1.5 text-right tabular-nums text-[11px] ${
-                    r.occupancy_30_delta == null
+                    delta == null
                       ? 'text-slate-400'
-                      : r.occupancy_30_delta >= 0
+                      : delta >= 0
                         ? 'text-emerald-600'
                         : 'text-rose-600'
                   }`}
                 >
-                  {r.occupancy_30_delta == null
+                  {delta == null
                     ? '—'
-                    : `${r.occupancy_30_delta >= 0 ? '+' : ''}${fmt1(r.occupancy_30_delta)}`}
+                    : `${delta >= 0 ? '+' : ''}${fmt1(delta)}`}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums">
                   {r.rec_base_unavailable ? (
@@ -404,7 +477,8 @@ function ListingTable({
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

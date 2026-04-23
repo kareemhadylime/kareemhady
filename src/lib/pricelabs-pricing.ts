@@ -46,11 +46,21 @@ export type PricingBuildingSummary = {
   total_revenue_past_30: number | null;
   total_stly_revenue_past_30: number | null;
   revenue_yoy_pct: number | null;
+  // All three horizons pre-computed so the UI can swap between them
+  // without re-hitting the server when the user changes horizon tabs.
+  avg_occupancy_next_7: number | null;
+  avg_market_occupancy_next_7: number | null;
+  occupancy_delta_7: number | null;
   avg_occupancy_next_30: number | null;
   avg_market_occupancy_next_30: number | null;
   occupancy_delta_30: number | null;
+  avg_occupancy_next_60: number | null;
+  avg_market_occupancy_next_60: number | null;
+  occupancy_delta_60: number | null;
   with_recs: number;
 };
+
+export type PricingHorizon = 7 | 30 | 60;
 
 export type PricingReport = {
   snapshot_date: string;
@@ -62,11 +72,16 @@ export type PricingReport = {
     total_revenue_past_30: number | null;
     total_stly_revenue_past_30: number | null;
     revenue_yoy_pct: number | null;
+    avg_occupancy_next_7: number | null;
+    avg_market_occupancy_next_7: number | null;
     avg_occupancy_next_30: number | null;
     avg_market_occupancy_next_30: number | null;
+    avg_occupancy_next_60: number | null;
+    avg_market_occupancy_next_60: number | null;
   };
   by_building: PricingBuildingSummary[];
   listings: PricingListingRow[];
+  available_snapshot_dates: string[];   // last ~30 dates, newest-first, for the date picker
   latest_sync: {
     finished_at: string | null;
     listings_synced: number;
@@ -119,11 +134,16 @@ export async function buildPricingReport(
         total_revenue_past_30: null,
         total_stly_revenue_past_30: null,
         revenue_yoy_pct: null,
+        avg_occupancy_next_7: null,
+        avg_market_occupancy_next_7: null,
         avg_occupancy_next_30: null,
         avg_market_occupancy_next_30: null,
+        avg_occupancy_next_60: null,
+        avg_market_occupancy_next_60: null,
       },
       by_building: [],
       listings: [],
+      available_snapshot_dates: [],
       latest_sync: await fetchLatestSync(),
     };
   }
@@ -238,8 +258,12 @@ export async function buildPricingReport(
     total_revenue_past_30: totRev,
     total_stly_revenue_past_30: totStlyRev,
     revenue_yoy_pct: yoyPct(totRev, totStlyRev),
+    avg_occupancy_next_7: avg(rows.map(r => r.occupancy_next_7)),
+    avg_market_occupancy_next_7: avg(rows.map(r => r.market_occupancy_next_7)),
     avg_occupancy_next_30: avg(rows.map(r => r.occupancy_next_30)),
     avg_market_occupancy_next_30: avg(rows.map(r => r.market_occupancy_next_30)),
+    avg_occupancy_next_60: avg(rows.map(r => r.occupancy_next_60)),
+    avg_market_occupancy_next_60: avg(rows.map(r => r.market_occupancy_next_60)),
   };
 
   // Building summaries
@@ -254,8 +278,12 @@ export async function buildPricingReport(
     .map(([building_code, items]) => {
       const bRev = sumNonNull(items.map(i => i.revenue_past_30));
       const bStly = sumNonNull(items.map(i => i.stly_revenue_past_30));
+      const occ7 = avg(items.map(i => i.occupancy_next_7));
+      const mktOcc7 = avg(items.map(i => i.market_occupancy_next_7));
       const occ30 = avg(items.map(i => i.occupancy_next_30));
       const mktOcc30 = avg(items.map(i => i.market_occupancy_next_30));
+      const occ60 = avg(items.map(i => i.occupancy_next_60));
+      const mktOcc60 = avg(items.map(i => i.market_occupancy_next_60));
       const physicalUnits = items.reduce((s, i) => s + i.unit_count, 0);
       const parents = items.filter(i => i.is_multi_unit_parent).length;
       return {
@@ -269,10 +297,17 @@ export async function buildPricingReport(
         total_revenue_past_30: bRev,
         total_stly_revenue_past_30: bStly,
         revenue_yoy_pct: yoyPct(bRev, bStly),
+        avg_occupancy_next_7: occ7,
+        avg_market_occupancy_next_7: mktOcc7,
+        occupancy_delta_7: occ7 != null && mktOcc7 != null ? occ7 - mktOcc7 : null,
         avg_occupancy_next_30: occ30,
         avg_market_occupancy_next_30: mktOcc30,
         occupancy_delta_30:
           occ30 != null && mktOcc30 != null ? occ30 - mktOcc30 : null,
+        avg_occupancy_next_60: occ60,
+        avg_market_occupancy_next_60: mktOcc60,
+        occupancy_delta_60:
+          occ60 != null && mktOcc60 != null ? occ60 - mktOcc60 : null,
         with_recs: items.filter(
           i => i.recommended_base_price != null && !i.rec_base_unavailable
         ).length,
@@ -289,6 +324,23 @@ export async function buildPricingReport(
       );
     });
 
+  // Recent snapshot dates (newest-first, last ~30) for the date picker.
+  // One query, cheap — deduplicated via a distinct select.
+  const { data: snapDateRows } = await sb
+    .from('pricelabs_listing_snapshots')
+    .select('snapshot_date')
+    .order('snapshot_date', { ascending: false })
+    .limit(500);
+  const seenDates = new Set<string>();
+  const available_snapshot_dates: string[] = [];
+  for (const r of (snapDateRows as Array<{ snapshot_date: string }> | null) || []) {
+    if (!seenDates.has(r.snapshot_date)) {
+      seenDates.add(r.snapshot_date);
+      available_snapshot_dates.push(r.snapshot_date);
+      if (available_snapshot_dates.length >= 30) break;
+    }
+  }
+
   return {
     snapshot_date: snapshotDate,
     total_listings: rows.length,
@@ -297,6 +349,7 @@ export async function buildPricingReport(
     totals,
     by_building,
     listings: rows,
+    available_snapshot_dates,
     latest_sync: await fetchLatestSync(),
   };
 }
