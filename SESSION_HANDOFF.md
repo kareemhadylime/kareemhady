@@ -60,6 +60,37 @@ User asked: "Shall I proceed with phase 1 + 2 now?" — reply pending. **Do not 
 2. Wire it behind a feature flag or a second rule-engine branch keyed on a `data_source: 'api' | 'email'` field in the rule's `actions` jsonb
 3. Migrate the Beithady booking rule row to `data_source: 'api'`, run once, compare output to the last email-based run, then delete the email path if numbers match
 
+### Guesty API probe results (2026-04-23, this turn)
+
+User asked "Are you able to get Full Reviews Data through Guesty" before committing to Phase 2. Answered via a one-off probe script `C:\kareemhady\probe-guesty.mjs` (main-repo root, reads creds from `.env.local`, uses built-in Node `fetch`, no deps). Probed 9 endpoints with `limit=1`:
+
+| Endpoint | Status | Notes |
+|---|---|---|
+| `/v1/reviews` | ✅ 200 | Rich data — see below |
+| `/v1/guests-reviews` | ❌ 404 | Wrong slug |
+| `/v1/reviews-multi-calendar` | ❌ 400 | Needs `reviewId` param, not a list endpoint |
+| `/v1/conversations` | ❌ 404 | Wrong slug |
+| `/v1/communication/conversations` | ✅ 200 | Reachable but empty — needs filter param to confirm message/inquiry access |
+| `/v1/messages` | ❌ 404 | Wrong slug |
+| `/v1/payouts` | ❌ 404 | Not on our PRO tier |
+| `/v1/charges` | ❌ 404 | Wrong slug |
+| `/v1/reservations/reviews` | ❌ 400 | `/reservations/{id}/reviews` pattern, not list |
+
+**`/v1/reviews` — confirmed accessible and returns richer data than the email parser:**
+- `_id`, `externalReviewId`, `channelId` (e.g. `airbnb2`), `listingId`, `externalListingId`, `reservationId`, `externalReservationId` (Airbnb HM code), `guestId`
+- `createdAt`, `createdAtGuesty`, `updatedAt`, `updatedAtGuesty`
+- `rawReview` — full Airbnb payload: `overall_rating` (1–5), `public_review` text, `reviewer_role` ("guest" vs "host"), `submitted`, `hidden`, `category_ratings[]` with per-category score + tag codes (`GUEST_REVIEW_HOST_POSITIVE_SPOTLESS_FURNITURE_AND_LINENS` etc.). Categories seen: cleanliness, accuracy, checkin, communication (location + value presumably also)
+- `reviewReplies[]` — host replies
+
+**Implications for migration plan:**
+- **Reviews aggregator is safe to rewrite onto `/v1/reviews`** — gets everything email parsing got, plus category-level breakdowns and structured Airbnb tag codes (which the email parser can't produce).
+- **Payouts aggregator fallback needed** — no `/v1/payouts` endpoint. Two options: (a) aggregate `reservation.money.hostPayout` from `/v1/reservations` (already synced into `guesty_reservations`), (b) keep Stripe API reconciliation we already have for actual bank-settlement timing. Recommend (a) for "expected payout" numbers and (b) for "settlement received" numbers.
+- **Conversations/messages still unconfirmed** — `/v1/communication/conversations` returned 200 but no records with `limit=1`. Next probe should try `?filters={}` or a listingId filter to see if messages are readable at all on our tier. If not, inquiry + request aggregators may need to stay on email parsing (or Guesty webhooks — separate investigation).
+
+User reply on "probe conversations with a real listing filter" — pending.
+
+Probe script is left in place at `C:\kareemhady\probe-guesty.mjs` (outside worktree, not committed — it's a throwaway). Re-run anytime with `cd /c/kareemhady && node probe-guesty.mjs`.
+
 # Kareemhady — Session Handoff (2026-04-22)
 
 ## ✅ URL rename migration — effectively complete (commit 495aedb)
