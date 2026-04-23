@@ -1,5 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Payables modal: fix garbled multi-page PDF + nice filename
+
+Commit `bc037fc` (deployment `lime-iirco3t0z-lime-investments.vercel.app`). Two issues on the print path:
+
+### 1. Garbled pages 2+ (the 4-page PDF the user saved had overlapping rows after page 1)
+
+Root cause: the modal's `<thead>` is `sticky top-0` and `<tfoot>` is `sticky bottom-0` to keep header/TOTAL visible while the user scrolls the in-modal table. During print, Chrome honored sticky — the header + dark TOTAL row stayed pinned to the paper viewport and overlapped body rows on pages 2–4.
+
+Fix in the `@media print` block of [PayablesDetailModal.tsx](src/app/emails/beithady/financials/_components/PayablesDetailModal.tsx):
+- `position: static !important` on thead + tfoot (undo sticky)
+- `display: table-header-group` on thead → browser auto-repeats it atop every page
+- `display: table-row-group` on tfoot → TOTAL row prints once at the very end, not pinned everywhere
+- `page-break-inside: avoid` on `<tr>` so rows don't split across pages
+- Expanded the overflow overrides to cover `.overflow-y-auto` AND `.overflow-hidden` wrappers that were clipping content outside the modal's scrollable region
+- `@page { margin: 12mm 10mm }` for clean paper margins
+
+### 2. PDF filename was "Lime Investments Dashboard.pdf"
+
+Browsers default Save-as-PDF to `document.title` (= the tab title "Lime Investments Dashboard"). Fix: in the `onPrint` handler, swap `document.title` to `Beithady_${Vendor|Owner}_Payable_${DD}_${MonthName}_${YYYY}` right before `window.print()`, restore on the `afterprint` event with a 2s `setTimeout` safety net for browsers that don't fire it. No visible tab-title flash during normal use.
+
+Example filenames now:
+- `Beithady_Vendor_Payable_23_April_2026.pdf`
+- `Beithady_Owner_Payable_23_April_2026.pdf`
+
+Test PDF that showed the issue is at `C:\kareemhady\.claude\Documents\Lime Investments Dashboard.pdf` (4 pages, 375 KB) — for reference if another symptom surfaces.
+
 ## ✅ Payables modal: blank print preview fix
 
 Commit `e213566` (deployment `lime-hgvpjnjw1-lime-investments.vercel.app`). User clicked "Print / PDF" on the payables modal, got a blank page in Chrome's print preview.
