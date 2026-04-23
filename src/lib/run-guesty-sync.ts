@@ -2,8 +2,10 @@ import { supabaseAdmin } from './supabase';
 import {
   listGuestyListings,
   listGuestyReservations,
+  listGuestyReviews,
   type GuestyListing,
   type GuestyReservation,
+  type GuestyReview,
 } from './guesty';
 
 // Full Guesty mirror. Pulls:
@@ -19,6 +21,99 @@ const LISTINGS_FIELDS =
   '_id nickname title active listingType masterListingId bedrooms accommodates propertyType accountId address tags customFields';
 const RESERVATION_FIELDS =
   '_id confirmationCode status source listingId accountId guest.fullName guest.email guest.phone checkInDateLocalized checkOutDateLocalized nightsCount guestsCount money.hostPayout money.guestPaid money.fareAccommodation money.cleaningFee money.currency integration.platform integration.confirmationCode createdAt updatedAt';
+
+// Normalize a Guesty /reviews row into our guesty_reviews schema. Each
+// channel ships a different `rawReview` shape:
+//   airbnb2      → rawReview.overall_rating (1-5), rawReview.public_review,
+//                  rawReview.category_ratings[] with tag codes
+//   bookingCom   → rawReview.scoring.review_score (0-10, halved to match
+//                  Airbnb scale), rawReview.content, scoring.{clean,staff,
+//                  value,comfort,location,facilities} per-category 0-10
+function normalizeReviewRow(rv: GuestyReview): Record<string, unknown> {
+  const raw = (rv.rawReview || {}) as Record<string, unknown>;
+  const channel = typeof rv.channelId === 'string' ? rv.channelId : null;
+  const lowerChannel = String(channel || '').toLowerCase();
+
+  let overallRating: number | null = null;
+  let publicReview: string | null = null;
+  let reviewerRole: string | null =
+    typeof raw.reviewer_role === 'string' ? (raw.reviewer_role as string) : null;
+  let categoryRatings: unknown = null;
+
+  if (lowerChannel.startsWith('airbnb')) {
+    overallRating =
+      typeof raw.overall_rating === 'number' ? (raw.overall_rating as number) : null;
+    publicReview =
+      typeof raw.public_review === 'string' ? (raw.public_review as string) : null;
+    categoryRatings = Array.isArray(raw.category_ratings)
+      ? raw.category_ratings
+      : null;
+  } else if (lowerChannel.startsWith('booking')) {
+    const scoring = (raw.scoring || {}) as Record<string, number | undefined>;
+    const score = scoring.review_score;
+    overallRating = typeof score === 'number' ? Math.round(score / 2) : null;
+    publicReview = typeof raw.content === 'string' ? (raw.content as string) : null;
+    reviewerRole = reviewerRole || 'guest';
+    const KEYS = ['clean', 'staff', 'value', 'comfort', 'location', 'facilities'];
+    const out: Array<{
+      category: string;
+      rating: number;
+      review_category_tags: string[];
+    }> = [];
+    for (const k of KEYS) {
+      const v = scoring[k];
+      if (typeof v === 'number') {
+        out.push({ category: k, rating: Math.round(v / 2), review_category_tags: [] });
+      }
+    }
+    categoryRatings = out.length > 0 ? out : null;
+  } else {
+    // Unknown channel — best-effort.
+    overallRating =
+      typeof raw.overall_rating === 'number' ? (raw.overall_rating as number) : null;
+    publicReview =
+      typeof raw.public_review === 'string'
+        ? (raw.public_review as string)
+        : typeof raw.content === 'string'
+          ? (raw.content as string)
+          : null;
+    categoryRatings = Array.isArray(raw.category_ratings)
+      ? raw.category_ratings
+      : null;
+  }
+
+  return {
+    id: String(rv._id),
+    account_id: typeof rv.accountId === 'string' ? rv.accountId : null,
+    external_review_id:
+      typeof rv.externalReviewId === 'string' ? rv.externalReviewId : null,
+    channel_id: channel,
+    external_listing_id:
+      typeof rv.externalListingId === 'string' ? rv.externalListingId : null,
+    external_reservation_id:
+      typeof rv.externalReservationId === 'string'
+        ? rv.externalReservationId
+        : null,
+    listing_id: typeof rv.listingId === 'string' ? rv.listingId : null,
+    reservation_id:
+      typeof rv.reservationId === 'string' ? rv.reservationId : null,
+    guest_id: typeof rv.guestId === 'string' ? rv.guestId : null,
+    reviewer_role: reviewerRole,
+    overall_rating: overallRating,
+    public_review: publicReview,
+    category_ratings: categoryRatings,
+    review_replies: Array.isArray(rv.reviewReplies) ? rv.reviewReplies : null,
+    submitted: typeof raw.submitted === 'boolean' ? (raw.submitted as boolean) : null,
+    hidden: typeof raw.hidden === 'boolean' ? (raw.hidden as boolean) : null,
+    created_at_guesty: toTs(rv.createdAtGuesty) || toTs(rv.createdAt),
+    created_at_source:
+      toTs(raw.created_at as unknown) ||
+      toTs(raw.created_timestamp as unknown),
+    updated_at_guesty: toTs(rv.updatedAtGuesty) || toTs(rv.updatedAt),
+    raw: (rv as unknown) as Record<string, unknown>,
+    synced_at: new Date().toISOString(),
+  };
+}
 
 function extractBuildingCode(nickname: string | null | undefined): string | null {
   if (!nickname) return null;
@@ -61,6 +156,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
 
   let listingsSynced = 0;
   let reservationsSynced = 0;
+  let reviewsSynced = 0;
 
   try {
     // 1. Listings — small set (~100 for Beithady), fetch in one go then page
@@ -206,6 +302,37 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       // ignore
     }
 
+    // 4. Reviews — full list pull. Guesty's /reviews endpoint does NOT
+    // support `filters` or `sort` (probed 2026-04-23), so we paginate the
+    // full set every run. Tenant has ~800 reviews today; scales to ~10k
+    // before we need an incremental strategy. Upsert by id. The response
+    // shape is inconsistent across channels (airbnb2 vs bookingCom) — we
+    // normalize into a common schema here so the aggregator doesn't need
+    // per-channel branches.
+    let revOffset = 0;
+    const REV_PAGE = 100;
+    while (revOffset < 100000) {
+      const batch = await listGuestyReviews({
+        limit: REV_PAGE,
+        skip: revOffset,
+      });
+      const results = batch.results || [];
+      if (results.length === 0) break;
+
+      const rows = results.map((rv: GuestyReview) =>
+        normalizeReviewRow(rv)
+      );
+
+      for (let i = 0; i < rows.length; i += 200) {
+        await sb
+          .from('guesty_reviews')
+          .upsert(rows.slice(i, i + 200), { onConflict: 'id' });
+      }
+      reviewsSynced += results.length;
+      if (results.length < REV_PAGE) break;
+      revOffset += REV_PAGE;
+    }
+
     await sb
       .from('guesty_sync_runs')
       .update({
@@ -213,6 +340,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         status: 'succeeded',
         listings_synced: listingsSynced,
         reservations_synced: reservationsSynced,
+        reviews_synced: reviewsSynced,
       })
       .eq('id', runId);
 
@@ -221,6 +349,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       run_id: runId,
       listings_synced: listingsSynced,
       reservations_synced: reservationsSynced,
+      reviews_synced: reviewsSynced,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -232,6 +361,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         error: msg,
         listings_synced: listingsSynced,
         reservations_synced: reservationsSynced,
+        reviews_synced: reviewsSynced,
       })
       .eq('id', runId);
     return { ok: false, error: msg };

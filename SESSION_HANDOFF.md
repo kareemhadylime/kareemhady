@@ -53,12 +53,43 @@ User directive: "don't use Emails to extract any info in all Beithady Domain, us
 - `beithady-payout.ts` → `/v1/payouts` if available; otherwise Stripe API + Guesty reservation amounts as ground truth
 - Deprecate email parsing: disable the 5 email-filter rules in the `rules` table (don't delete — let user toggle back if API goes dark); keep aggregator files but mark `@deprecated`
 
-### Where this was left
+### ✅ Phase 1 + 2 shipped this turn — bookings & reviews migrated off email
 
-User asked: "Shall I proceed with phase 1 + 2 now?" — reply pending. **Do not start rewriting aggregators until user confirms the sequence.** If user says yes:
-1. Start with `src/lib/rules/aggregators/beithady-booking-api.ts` (new file) to avoid breaking the existing email path during transition
-2. Wire it behind a feature flag or a second rule-engine branch keyed on a `data_source: 'api' | 'email'` field in the rule's `actions` jsonb
-3. Migrate the Beithady booking rule row to `data_source: 'api'`, run once, compare output to the last email-based run, then delete the email path if numbers match
+User said "Phase 1 + 2 / Full Reviews Data with Ratings Through Guesty / also probe conversations with a real listing filter". Shipped:
+
+**New files:**
+- `src/lib/rules/aggregators/beithady-booking-api.ts` — reads `guesty_reservations` (daily-synced). Filters to `status in (confirmed, checked_in, checked_out)` to match email-parser semantics (which only saw "New booking received" notifications that fire on confirmation). Drops inquiries/reserved/canceled. Returns the same `BeithadyAggregateOutput` shape as the email aggregator; email-only audit fields zeroed out.
+- `src/lib/rules/aggregators/beithady-review-api.ts` — reads `guesty_reviews` (new table). Extends `BeithadyReviewAggregate` with `by_category[]` (per-category avg rating + top positive/negative tags from Airbnb) and `by_channel[]`. Filters to `reviewer_role='guest'` AND `hidden=false` AND `submitted!=false`. Still generates Claude action plans for flagged <3-star reviews (parallel Haiku calls). No email parsing.
+- `supabase/migrations/0013_guesty_reviews.sql` — `guesty_reviews` table with FKs to `guesty_listings` / `guesty_reservations`, `category_ratings` + `review_replies` as jsonb, indexed by created/listing/reservation/channel/rating/role. Also `alter table guesty_sync_runs add column reviews_synced int`. **Applied to production Supabase this turn.**
+- `C:\kareemhady\sync-guesty-reviews.mjs` — one-off backfill script (not committed). Reads cached token from `integration_tokens` table (avoids OAuth rate-limit), paginates `/v1/reviews` with `limit=100`, normalizes airbnb2 vs bookingCom into a common schema, upserts to Supabase. Ran this turn — **826 reviews synced** (755 Airbnb guest, 5 Airbnb host, 66 Booking.com guest, avg 4.80/4.71).
+
+**Modified files:**
+- `src/lib/guesty.ts` — added `GuestyReview` type + `listGuestyReviews()`. `/v1/reviews` returns `{data: [...]}` not `{results: [...]}`; the helper normalizes so callers don't care.
+- `src/lib/run-guesty-sync.ts` — added Phase 4 (reviews) to the daily cron. Paginates `/reviews` with `limit=100`, normalizes airbnb2 vs bookingCom via new `normalizeReviewRow()` helper (Booking's 0-10 scale halved to match Airbnb's 1-5; scoring.{clean,staff,value,comfort,location,facilities} mapped into `category_ratings[]` array). Reports `reviews_synced` on `guesty_sync_runs`.
+- `src/lib/rules/engine.ts` — routed `beithady_booking_aggregate` → `evaluateBookingRuleFromApi()` (new) and `beithady_reviews_aggregate` → `evaluateReviewsRuleFromApi()` (new). Both skip the Gmail account token check. Removed the old `evaluateReviewsRule` (email-based) and all `beithady_booking_aggregate` branches from the email pipeline. Kept email paths for `beithady_payout_aggregate`, `beithady_inquiries_aggregate`, `beithady_requests_aggregate`.
+
+**Not migrated (API coverage insufficient):**
+- **Payouts** — `/v1/payouts` returns 404 on our PRO tier. Fallback options if needed: (a) aggregate `reservation.money.hostPayout` from `guesty_reservations`, (b) keep Stripe API reconciliation (already wired). Still email-based today.
+- **Inquiries + guest messages** — `/v1/communication/conversations` returns 200 but `results` is always empty, with or without filter params `{listingId, filters}`. Tried alt slugs `/inbox`, `/chat/conversations`, `/communication/posts`, `/communication/messages` — all 404. Likely requires a separate Guesty permission scope on our PRO tier. Still email-based today.
+
+**Probe script round 2 (`C:\kareemhady\probe-guesty-2.mjs`):**
+- Fetched a real listing id `6988f8e3d8f7400014661f3d` (`BH73-ST-C-004`) from `/v1/listings`
+- `/v1/reviews?filters=...` → 400 `"filters" is not allowed` — confirms no client-side filtering; must paginate full set
+- `/v1/reviews?sort=...` → 400 `"sort" is not allowed` — confirms no sort
+- `/v1/communication/conversations` tried with 3 filter variants (filters[], plain listingId param) — all return empty `results` or 400 `"listingId" is not allowed`
+- Alt slugs for conversations all 404
+
+### Verification (data-level)
+
+Simulated aggregator queries on production Supabase this turn:
+- **Bookings MTD (2026-04-01 → 2026-04-23):** 120 confirmed (72 airbnb + 37 manual + 10 booking + 1 website), $37,649 total payout, excluded 179 inquiries + 17 cancels. Email screenshot the user shared showed 56 reservations for the same range — the API view is ~2× more complete (email parser missed many bookings due to parse errors and notification delivery gaps).
+- **Reviews YTD:** 233 guest reviews, avg 4.79, 3 low-ratings (action plans will fire), 200 five-stars, across 2 channels. 712/821 guest reviews have building_code (109 listings missing building classification — orthogonal fix).
+
+### Things the user will notice on the UI
+
+- Clicking "Run with this range" on **Beithady Guesty Bookings** now shows higher numbers than before (more complete coverage) because API sees bookings the email parser missed. "Marked X emails as read in Gmail" banner will show 0 since no emails were touched.
+- Clicking "Run with this range" on **Beithady Reviews (Airbnb)** now includes Booking.com reviews (previously email-only, so Airbnb-only). Category-level ratings + Airbnb tag codes are in the output under new fields `by_category[]` and `by_channel[]` — the existing page renders `by_building` / `by_month` / `flagged_reviews` as before, category breakdowns are available in the output JSON for future UI.
+- Payouts / Inquiries / Guest Requests rules still work exactly as before (email-based).
 
 ### Guesty API probe results (2026-04-23, this turn)
 

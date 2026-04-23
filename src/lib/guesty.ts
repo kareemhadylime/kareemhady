@@ -270,4 +270,72 @@ export async function listGuestyListings(params: {
   });
 }
 
+// Guesty review — raw shape straight from /v1/reviews. Channel-specific
+// details live in `rawReview`; the top-level fields are Guesty's envelope.
+// Probed 2026-04-23: `/reviews` only supports `limit` + `skip` — no filter,
+// no sort, so we page through the full list.
+export type GuestyReview = {
+  _id: string;
+  accountId?: string;
+  externalReviewId?: string;
+  channelId?: string;              // 'airbnb2' | ...
+  externalListingId?: string;
+  externalReservationId?: string;
+  guestId?: string;
+  listingId?: string;
+  reservationId?: string;
+  createdAt?: string;              // Guesty's record createdAt (UTC)
+  createdAtGuesty?: string;
+  updatedAt?: string;
+  updatedAtGuesty?: string;
+  reviewReplies?: unknown[];
+  rawReview?: {
+    id?: string;
+    reviewer_role?: 'guest' | 'host' | string;
+    reviewer_id?: string;
+    reviewee_role?: string;
+    reviewee_id?: string;
+    listing_id?: string;
+    reservation_confirmation_code?: string;
+    hidden?: boolean;
+    submitted?: boolean;
+    overall_rating?: number;
+    public_review?: string;
+    created_at?: string;
+    category_ratings?: Array<{
+      category?: string;
+      rating?: number;
+      review_category_tags?: string[];
+    }>;
+    [k: string]: unknown;
+  };
+  [k: string]: unknown;
+};
+
+// /reviews returns `{ data: [...], limit, skip }` instead of the `results`
+// envelope the other list endpoints use. Normalize to `results` so callers
+// don't care.
+export async function listGuestyReviews(params: {
+  limit?: number;
+  skip?: number;
+} = {}): Promise<GuestyListResponse<GuestyReview>> {
+  const query: Record<string, string | number | undefined> = {
+    limit: params.limit ?? 25,
+    skip: params.skip ?? 0,
+  };
+  const raw = await guestyFetch<{
+    data?: GuestyReview[];
+    results?: GuestyReview[];
+    limit?: number;
+    skip?: number;
+    count?: number;
+  }>('/reviews', { query });
+  return {
+    results: raw.data ?? raw.results ?? [],
+    count: raw.count,
+    limit: raw.limit,
+    skip: raw.skip,
+  };
+}
+
 export { guestyFetch, getAccessToken };
