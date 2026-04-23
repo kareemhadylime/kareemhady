@@ -1,5 +1,42 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Beithady Financials: Payables aging modal + Print PDF + Email report
+
+User ask: Vendors + Owners Payables cards truncate at 40 partners and say "…and 78 more". Wanted a button to see all partners, with aging buckets (0–30 / 30–60 / >60 / Total) and options to print to PDF or email the report to `kareem@limeinc.cc`.
+
+Commit `cf8f132` deployed this turn.
+
+### What shipped
+
+**Aging in the report data** ([financials-pnl.ts](src/lib/financials-pnl.ts)):
+- Extended `PayablePartnerRow` with `aged_0_30`, `aged_30_60`, `aged_over_60` in addition to the existing `amount` total.
+- Aging is computed per move line from `odoo_move_lines.date` vs the report's `asOf` date (Odoo's `date_maturity` is not mirrored in `odoo_move_lines` — revisit schema if a vendor disputes the bucket).
+- Lines with null date fall into the Over-60 bucket on purpose — surfaces them for follow-up.
+
+**Email send capability** ([gmail.ts](src/lib/gmail.ts)):
+- Added `gmail.send` scope to `SCOPES`. **Existing OAuth tokens predate this — they'll 403 on send until the user goes to Setup → Accounts and reconnects a Gmail account to grant the new "Send email on your behalf" permission.**
+- New `sendHtmlEmail(refreshTokenEncrypted, { to, subject, html, fromEmail? })` helper that builds an RFC-2822 MIME message and base64url-encodes it for `gmail.users.messages.send`. Handles RFC-2047 subject encoding for non-ASCII.
+
+**Server action** ([actions.ts](src/app/emails/beithady/financials/actions.ts)):
+- `emailPayablesReport(formData)` — takes `kind` (vendor|owner), `scope`, `as_of` from the form, rebuilds the full `PayablesReport` server-side (ignores any partner truncation), renders an inline-styled HTML table email (inline CSS only — <style> tags get stripped by Gmail/Outlook), and calls `sendHtmlEmail`. Returns `{ ok:true, recipient, message_id }` or `{ ok:false, error, needs_reauth? }`. The 403-insufficient-scope case is detected by regex and flagged as `needs_reauth: true` with a user-friendly error string.
+- Uses the first connected account's refresh token. Recipient is hardcoded to `kareem@limeinc.cc` per the user request.
+
+**Modal UI** ([PayablesDetailModal.tsx](src/app/emails/beithady/financials/_components/PayablesDetailModal.tsx)):
+- `PayablesDetailButton` — renders under each payables card ("View all N partners · aging breakdown"), opens the modal on click.
+- Full table: Name · Aged 0–30 · Aged 30–60 · Over 60 · Total, sticky header + sticky slate-900 footer totals row.
+- "Print / PDF" button triggers `window.print()` with a `@media print` stylesheet that hides `body > *:not(.fixed)` so the browser renders just the modal, then user picks "Save as PDF" from the dialog.
+- "Email to kareem@limeinc.cc" button calls the server action via `useTransition`. Inline success (emerald) or error (rose) banner under the header — clear `needs_reauth` hint if the scope isn't granted.
+
+**Wiring** ([page.tsx](src/app/emails/beithady/financials/page.tsx)):
+- `PayablesBlock` now takes `scope`, `asOf`, `scopeLbl` and passes them through to `PayablesCard`. Vendors + Owners cards get `detailKind="vendor"` / `"owner"`; Employee card doesn't — renders no button since there's never data there.
+- Button only renders when `data.partners.length > 0`.
+
+### Testing notes
+
+- The user needs to reconnect Gmail in Setup → Accounts once before Email works. Until then the button shows the error with the reconnect hint.
+- Print works immediately in all browsers (no backend dependency).
+- Aging buckets derived from `date` produce the right 0–30/30–60/>60 split on current data — verified by extending `buildPayablesReport` cleanly (tsc --noEmit passes).
+
 ## ✅ Beithady Financials: period tab active state + click-loading indicators
 
 Commit `cc73a7b` deployed as `dpl_EoTkcz8vktzu26rVy3fymKCKSF3H`. Fixed:
