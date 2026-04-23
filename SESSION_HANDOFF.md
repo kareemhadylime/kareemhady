@@ -1,5 +1,30 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Payables modal: blank print preview fix
+
+Commit `e213566` (deployment `lime-hgvpjnjw1-lime-investments.vercel.app`). User clicked "Print / PDF" on the payables modal, got a blank page in Chrome's print preview.
+
+### Root cause
+
+The first `@media print` stylesheet used `body > *:not(.fixed) { display: none !important }`. In Next.js 16 App Router the modal isn't a direct child of `<body>` — the tree is wrapped in `<div id="__next">` and RSC boundaries — so that selector matched the outermost wrapper, `display:none`'d it, and the whole modal disappeared along with the rest of the page.
+
+### Fix
+
+Switched to the classic "print only this element" trick in [PayablesDetailModal.tsx](src/app/emails/beithady/financials/_components/PayablesDetailModal.tsx):
+
+```css
+@media print {
+  body * { visibility: hidden !important; }
+  #payables-print-root,
+  #payables-print-root * { visibility: visible !important; }
+  #payables-print-root { position: absolute !important; inset: 0 !important; ... }
+  #payables-print-root .overflow-y-auto { overflow: visible !important; max-height: none !important; }
+  #payables-print-root tfoot tr { -webkit-print-color-adjust: exact; }
+}
+```
+
+`visibility` propagates through DOM nesting differently than `display` — hiding every element and re-showing a specific subtree works regardless of how many wrappers sit above it. Also overrode the modal's `max-h-[90vh]` and `overflow-y-auto` during print so every partner row renders (the screen-only scrollable modal was clipping to ~90vh). Forced `-webkit-print-color-adjust: exact` on the TOTAL footer row so the slate-900 background prints correctly.
+
 ## ✅ Beithady Financials: Payables aging modal + Print PDF + Email report
 
 User ask: Vendors + Owners Payables cards truncate at 40 partners and say "…and 78 more". Wanted a button to see all partners, with aging buckets (0–30 / 30–60 / >60 / Total) and options to print to PDF or email the report to `kareem@limeinc.cc`.
