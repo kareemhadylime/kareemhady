@@ -269,6 +269,33 @@ User reply on "probe conversations with a real listing filter" — pending.
 
 Probe script is left in place at `C:\kareemhady\probe-guesty.mjs` (outside worktree, not committed — it's a throwaway). Re-run anytime with `cd /c/kareemhady && node probe-guesty.mjs`.
 
+## ✅ Beithady Financials: Analytic Account sub-tabs (commit f7227fd)
+
+Added a second-level tab row on `/emails/beithady/financials` under the
+Scope tabs. One-click drill-down by analytic account:
+- All · BH-26 · BH-73 · BH-435 · BH-OK (One Kattameya)
+- Leased Properties (maps to Odoo `lob_label='Arbitrage'`)
+- Management Properties (maps to Odoo `lob_label='Management'`)
+
+Implementation notes:
+- Building tabs and LOB tabs are mutually exclusive in the URL — picking
+  one clears the other, "All" clears both.
+- `buildHref` now includes `building` + `lob` in `keepParams` so
+  drill-down context survives Scope switches.
+- `CompanyTabs` still uses the narrower `Partial<{ scope }>` callback
+  signature; `AnalyticTabs` uses the wider `{ scope, building, lob }`
+  signature. Both point at the same `buildHref`.
+- Existing dropdown Segregation form (`AnalyticFilter`) stays as the
+  fine-grained fallback (covers all buildings incl. BH-34 and any future
+  LOB values).
+- DB confirmed shape: building_code in {BH-26, BH-34, BH-73, BH-435, BH-OK};
+  lob_label in {Arbitrage, Management}. BH-34 has only 2 accounts, so not
+  on the quick-tab row — reachable via the dropdown.
+
+Deployed: `dpl_8QjoomWr6yjE4wVR5UhPQ182kZhV` → production.
+
+---
+
 # Kareemhady — Session Handoff (2026-04-22)
 
 ## ✅ URL rename migration — effectively complete (commit 495aedb)
