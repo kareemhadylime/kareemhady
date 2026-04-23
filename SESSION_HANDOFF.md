@@ -1,5 +1,13 @@
 # Kareemhady — Session Handoff (2026-04-23)
 
+## ✅ Beithady Financials: period tab active state + click-loading indicators
+
+Commit `cc73a7b` deployed as `dpl_EoTkcz8vktzu26rVy3fymKCKSF3H`. Fixed:
+
+1. `resolveFinancePeriod` was rewriting `this_month` / `last_month` preset ids to `month-YYYY-MM` (for the specific-month dropdown restore). That broke tab active state — `activeId === p.id` never matched those two. Fix: preserve the original preset id on the returned period; dropdown still works because the `month:YYYY-MM` dropdown path's id pattern is unchanged.
+2. New [_components/PeriodControls.tsx](src/app/emails/beithady/financials/_components/PeriodControls.tsx) client module: `PeriodPresetLink` uses Next.js 16 `useLinkStatus()` to show spinner on preset tab click; `PeriodSubmitForm` + `PeriodSubmitButton` track form-submit pending state via React context for the Go + Apply buttons.
+3. Side fix: Go + Apply forms now preserve `building` + `lob` via hidden inputs — previously dropped the analytic filter on submit.
+
 ## ✅ Merge + deploy — Phases 1 / 2 / 3 / 3B now live in production
 
 User noticed the /emails/beithady/[ruleId] page still showed "Marked 24 email(s) as read in Gmail" + "24 booking emails · 21 unique guests" despite all the API migration work. Root cause: all 6 worktree commits (loading indicator + Phases 1/2/3/3B) were on `claude/infallible-hypatia-e74bf4` and never merged/deployed. Production was still running the old email-parsing code.

@@ -490,6 +490,12 @@ export type PayablePartnerRow = {
   partner_name: string;
   amount: number;
   line_count: number;
+  // Aging buckets computed from each line's posting date vs. the report
+  // as_of date. `date_maturity` isn't mirrored in `odoo_move_lines` so we
+  // use `date` as a proxy — good enough for payables triage.
+  aged_0_30: number;
+  aged_30_60: number;
+  aged_over_60: number;
 };
 
 export type PayablesReport = {
@@ -520,6 +526,7 @@ export async function buildPayablesReport(params: {
   type Row = {
     partner_id: number | null;
     amount_residual: number;
+    date: string | null;
     odoo_accounts: {
       code: string | null;
       name: string | null;
@@ -538,7 +545,7 @@ export async function buildPayablesReport(params: {
     const { data, error } = await sb
       .from('odoo_move_lines')
       .select(
-        'partner_id, amount_residual, odoo_accounts!inner(code, name, account_type), odoo_partners!inner(id, name, supplier_rank, is_employee, is_owner)'
+        'partner_id, amount_residual, date, odoo_accounts!inner(code, name, account_type), odoo_partners!inner(id, name, supplier_rank, is_employee, is_owner)'
       )
       .in('company_id', companyIds)
       .in('parent_state', ['draft', 'posted'])
@@ -556,6 +563,9 @@ export async function buildPayablesReport(params: {
     string,
     PayablePartnerRow & { kind: 'vendor' | 'employee' | 'owner' }
   >();
+
+  const asOfMs = new Date(params.asOf + 'T00:00:00Z').getTime();
+  const DAY_MS = 24 * 3600 * 1000;
 
   for (const l of allRows) {
     if (!l.odoo_partners || l.partner_id == null) continue;
@@ -579,12 +589,28 @@ export async function buildPayablesReport(params: {
     }
     if (!kind) continue;
 
+    // Age this line. Positive `days` means the line is that many days old
+    // relative to as_of. We put unknown-date lines in the oldest bucket so
+    // they surface for follow-up.
+    const amt = Number(l.amount_residual) || 0;
+    const lineMs = l.date ? new Date(l.date + 'T00:00:00Z').getTime() : NaN;
+    const days = Number.isFinite(lineMs)
+      ? Math.max(0, Math.floor((asOfMs - lineMs) / DAY_MS))
+      : 9999;
+    const ageBuckets = {
+      aged_0_30: days <= 30 ? amt : 0,
+      aged_30_60: days > 30 && days <= 60 ? amt : 0,
+      aged_over_60: days > 60 ? amt : 0,
+    };
+
     const key = `${kind}:${l.partner_id}`;
     const existing = byKindPartner.get(key);
-    const amt = Number(l.amount_residual) || 0;
     if (existing) {
       existing.amount += amt;
       existing.line_count += 1;
+      existing.aged_0_30 += ageBuckets.aged_0_30;
+      existing.aged_30_60 += ageBuckets.aged_30_60;
+      existing.aged_over_60 += ageBuckets.aged_over_60;
     } else {
       byKindPartner.set(key, {
         kind,
@@ -592,6 +618,7 @@ export async function buildPayablesReport(params: {
         partner_name: l.odoo_partners.name || `Partner ${l.partner_id}`,
         amount: amt,
         line_count: 1,
+        ...ageBuckets,
       });
     }
   }

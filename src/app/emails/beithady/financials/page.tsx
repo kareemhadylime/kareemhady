@@ -40,6 +40,7 @@ import {
   PeriodSubmitForm,
   PeriodSubmitButton,
 } from './_components/PeriodControls';
+import { PayablesDetailButton } from './_components/PayablesDetailModal';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -244,7 +245,12 @@ export default async function FinancialsPage({
 
         <BalanceSheetSection bs={balanceSheet} />
 
-        <PayablesBlock payables={payables} />
+        <PayablesBlock
+          payables={payables}
+          scope={scope}
+          asOf={period.toDate}
+          scopeLbl={scopeLabel(scope)}
+        />
 
         {pnl.unclassified.length > 0 && <UnclassifiedPanel pnl={pnl} />}
 
@@ -1008,7 +1014,17 @@ function StatBlock({
   );
 }
 
-function PayablesBlock({ payables }: { payables: PayablesReport }) {
+function PayablesBlock({
+  payables,
+  scope,
+  asOf,
+  scopeLbl,
+}: {
+  payables: PayablesReport;
+  scope: CompanyScope;
+  asOf: string;
+  scopeLbl: string;
+}) {
   return (
     <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <PayablesCard
@@ -1016,18 +1032,29 @@ function PayablesBlock({ payables }: { payables: PayablesReport }) {
         icon={<Wrench size={16} className="text-amber-600" />}
         accent="amber"
         data={payables.vendors}
+        detailKind="vendor"
+        scope={scope}
+        asOf={asOf}
+        scopeLbl={scopeLbl}
       />
       <PayablesCard
         title="Employee Payables"
         icon={<Users size={16} className="text-indigo-600" />}
         accent="indigo"
         data={payables.employees}
+        scope={scope}
+        asOf={asOf}
+        scopeLbl={scopeLbl}
       />
       <PayablesCard
         title="Owners Payables"
         icon={<HomeIcon size={16} className="text-rose-600" />}
         accent="rose"
         data={payables.owners}
+        detailKind="owner"
+        scope={scope}
+        asOf={asOf}
+        scopeLbl={scopeLbl}
       />
     </section>
   );
@@ -1038,11 +1065,19 @@ function PayablesCard({
   icon,
   accent,
   data,
+  detailKind,
+  scope,
+  asOf,
+  scopeLbl,
 }: {
   title: string;
   icon: React.ReactNode;
   accent: 'amber' | 'indigo' | 'rose';
   data: { total: number; partners: PayablePartnerRow[] };
+  detailKind?: 'vendor' | 'owner';
+  scope: CompanyScope;
+  asOf: string;
+  scopeLbl: string;
 }) {
   const tint =
     accent === 'amber'
@@ -1086,6 +1121,17 @@ function PayablesCard({
             </tbody>
           </table>
         </div>
+      )}
+      {detailKind && data.partners.length > 0 && (
+        <PayablesDetailButton
+          kind={detailKind}
+          title={title}
+          subtitle={`${scopeLbl} · as of ${asOf}`}
+          partners={data.partners}
+          total={data.total}
+          scope={scope}
+          asOf={asOf}
+        />
       )}
     </div>
   );

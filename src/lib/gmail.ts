@@ -4,6 +4,10 @@ import { decrypt } from './crypto';
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.modify',
+  // Phase: payables email reports. New OAuth flows will grant send; old
+  // tokens without this scope throw 403 on sendMessage — the action
+  // surfaces that to the UI so the user can reconnect.
+  'https://www.googleapis.com/auth/gmail.send',
 ];
 
 export function getOAuthClient(redirectUri?: string) {
@@ -206,6 +210,46 @@ export async function markMessagesAsRead(
     }
   }
   return { marked, errors };
+}
+
+// RFC-2822-compliant HTML email send via Gmail API. Requires the
+// gmail.send scope on the authorizing account. Callers catch the 403
+// "insufficient scopes" error and surface a re-auth hint to the user.
+export async function sendHtmlEmail(
+  refreshTokenEncrypted: string,
+  params: { to: string; subject: string; html: string; fromEmail?: string }
+): Promise<{ id: string | null | undefined }> {
+  const gmail = await getGmailClientFromRefresh(refreshTokenEncrypted);
+  const from = params.fromEmail || 'me';
+  // Build the MIME message. base64url encoding per Gmail API spec.
+  const mime = [
+    `From: ${from}`,
+    `To: ${params.to}`,
+    `Subject: ${encodeHeader(params.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    params.html,
+  ].join('\r\n');
+  const raw = Buffer.from(mime, 'utf-8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  const res = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw },
+  });
+  return { id: res.data.id };
+}
+
+// Encode non-ASCII subjects per RFC-2047 so Gmail renders them correctly.
+function encodeHeader(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(s)) return s;
+  const b64 = Buffer.from(s, 'utf-8').toString('base64');
+  return `=?UTF-8?B?${b64}?=`;
 }
 
 export async function fetchEmailFull(
