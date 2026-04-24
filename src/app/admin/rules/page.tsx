@@ -120,6 +120,7 @@ function DomainBadge({ d }: { d: Domain }) {
     fmplus: 'bg-amber-100 text-amber-700',
     voltauto: 'bg-indigo-100 text-indigo-700',
     beithady: 'bg-rose-100 text-rose-700',
+    'boat-rental': 'bg-cyan-100 text-cyan-700',
   };
   return (
     <span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${palette[d]}`}>

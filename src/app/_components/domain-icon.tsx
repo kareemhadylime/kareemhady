@@ -1,4 +1,4 @@
-import { User, ShoppingBag, Citrus, Building2, Zap, Home, Layers } from 'lucide-react';
+import { User, ShoppingBag, Citrus, Building2, Zap, Home, Layers, Ship } from 'lucide-react';
 import type { Domain } from '@/lib/rules/presets';
 
 const ICONS = {
@@ -8,6 +8,7 @@ const ICONS = {
   fmplus: Building2,
   voltauto: Zap,
   beithady: Home,
+  'boat-rental': Ship,
 } as const;
 
 export function DomainIcon({

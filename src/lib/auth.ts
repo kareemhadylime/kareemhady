@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import { supabaseAdmin } from './supabase';
 import { SESSION_COOKIE } from './auth-constants';
-import type { Domain } from './rules/presets';
+import { DOMAINS, type Domain } from './rules/presets';
 
 // Simple session-cookie auth. Passwords stored as scrypt hashes in
 // app_users.password_hash. Sessions live in app_sessions with an opaque
@@ -126,9 +126,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       .eq('user_id', u.id);
     allowed = ((dr as Array<{ domain: string }> | null) || [])
       .map(r => r.domain)
-      .filter((d): d is Domain =>
-        ['personal', 'kika', 'lime', 'fmplus', 'voltauto', 'beithady'].includes(d)
-      );
+      .filter((d): d is Domain => (DOMAINS as readonly string[]).includes(d));
   }
 
   return {

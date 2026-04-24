@@ -16,12 +16,15 @@ import {
   TrendingUp,
   Calendar,
   Package,
+  Ship,
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { TopNav } from '@/app/_components/brand';
 import { DomainIcon } from '@/app/_components/domain-icon';
 import { runRuleAction } from '@/app/admin/rules/actions';
+import { getCurrentUser } from '@/lib/auth';
+import { hasBoatRole } from '@/lib/boat-rental/auth';
 import {
   DOMAINS,
   DOMAIN_LABELS,
@@ -42,6 +45,7 @@ const ACCENT_TINTS: Record<DomainAccent, string> = {
   amber: 'bg-amber-50 text-amber-600',
   indigo: 'bg-indigo-50 text-indigo-600',
   rose: 'bg-rose-50 text-rose-600',
+  cyan: 'bg-cyan-50 text-cyan-600',
 };
 
 type RuleRow = {
@@ -76,6 +80,11 @@ export default async function DomainRulesPage({
     : DOMAIN_DESCRIPTIONS[d!];
   const accent: DomainAccent = isOther ? 'slate' : DOMAIN_ACCENTS[d!];
   const tint = ACCENT_TINTS[accent];
+
+  // Personal domain hosts the Boat Rental Admin entry tile, gated by the
+  // boat-rental admin sub-role. Resolve once at render.
+  const currentUser = d === 'personal' ? await getCurrentUser() : null;
+  const showBoatRentalAdminTile = currentUser ? await hasBoatRole(currentUser, 'admin') : false;
 
   const sb = supabaseAdmin();
 
@@ -148,6 +157,34 @@ export default async function DomainRulesPage({
             <ListChecks size={16} /> New rule
           </Link>
         </header>
+
+        {d === 'personal' && showBoatRentalAdminTile && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Link
+              href="/emails/boat-rental/admin"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden col-span-full"
+            >
+              <div className="absolute -top-6 -right-6 w-40 h-40 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-cyan-50 text-cyan-600">
+                  <Ship size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Boat Rental — Admin</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700">
+                      Module
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Boat inventory · pricing · seasons · destinations · brokers &amp; owners · all bookings · WhatsApp log
+                  </p>
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-slate-400 group-hover:text-cyan-600 transition shrink-0" />
+            </Link>
+          </div>
+        )}
 
         {d === 'kika' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

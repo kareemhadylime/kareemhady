@@ -1,4 +1,113 @@
-# Kareemhady — Session Handoff (2026-04-24)
+# Kareemhady — Session Handoff (2026-04-25)
+
+## 🧭 Boat Rental Module — Workflow Phase delivered, awaiting sign-off (no code yet)
+
+User answered all 16 clarifying questions (below) and I delivered the full Workflow Phase doc covering: locked assumptions, state machine, user journeys, DB schema (migration 0016_boat_rental.sql drafted but NOT written to disk), REST API surface, UI wireframes, WhatsApp templates (EN + AR), integration points, edge cases, v2 scope cuts. Posed 6 final review questions before coding.
+
+**Status: awaiting user sign-off on workflow. Do not write migrations or routes until they confirm or course-correct.**
+
+### User's locked answers
+
+| # | Answer |
+|---|---|
+| Q1 Payment semantics | **Prices = net to owner = amount broker transfers post-trip. Broker markup invisible to system. No commission tracking.** |
+| Q2 Broker lockdown | Yes — fully walled off from other domains |
+| Q3 Owner login path | Yes — same /login, role-aware landing |
+| Q4 Multiple brokers | Yes |
+| Q5 Commission tracking | No |
+| Q6 Granularity | Full-day only, 1 booking/boat/day |
+| Q7 Capacity enforcement | Yes |
+| Q8 Client contract upload | No |
+| Q9 2h hold strict | Yes (doesn't reset) |
+| Q10 Seasons | Named date ranges |
+| Q11 WhatsApp provider | **Green API** (green-api.com — session-based unofficial) |
+| Q12 Cancellation w/ payment | Yes — admin refund flag, no auto-refund |
+| Q13 Skipper login | No — notify-only |
+| Q14 Owner mark-paid = broker→owner transfer received | Yes |
+| Q15 Language | English UI, **Arabic WhatsApp to skipper only** |
+| Q16 Canceler | Broker (not a separate end-customer) |
+
+### Workflow doc highlights
+
+**State machine:**
+`held (2h) → confirmed (client paid) → details_filled (day-before form) → paid_to_owner (receipt uploaded OR owner marks paid)`
+Terminals: `expired`, `cancelled`. Cancel allowed in `{held, confirmed}` AND `≥72h from booking date in Cairo tz`. `refund_pending` flag raised on confirmed+cancel.
+
+**Schema (schema=`boat_rental`):** `user_roles`, `owners`, `boats`, `boat_images`, `pricing`, `seasons`, `destinations`, `reservations`, `bookings` (1:1 with reservation, day-before details), `payments`, `audit_log`, `notifications`. Partial unique index on `(boat_id, booking_date) WHERE status IN live-statuses` prevents double-booking.
+
+**Role gating:** new dedicated table `boat_rental.user_roles(user_id, role)` rather than polluting `app_user_domain_roles`. New helper `requireBoatRole()` mirrors existing `requireDomainAccess()` pattern.
+
+**API surface:** ~25 REST endpoints split across `/api/boat-rental/{admin|broker|owner}/*` + one cron `/api/cron/boat-rental/expire-holds` (every 15min).
+
+**Pricing resolution:** per-date → season-holiday (if date ∈ any season range) → weekend (Fri/Sat) → weekday. Price snapshotted on reservation so later edits don't retro-change history.
+
+**WhatsApp:** Green API POST to `https://api.green-api.com/waInstance{id}/sendMessage/{token}` with `{chatId: "201...@c.us", message}`. Templates drafted for: booking confirmed, trip details filed, payment received, cancelled (all EN to broker+owner). Arabic template for skipper on `details_filled` only. `notifications` table tracks send status; failures don't block state transitions.
+
+**New env vars required:** `GREEN_API_INSTANCE_ID`, `GREEN_API_TOKEN`.
+
+**New Vercel cron entry needed** in `vercel.json` at `*/15 * * * *` for hold expiry.
+
+**Supabase Storage:** private bucket `boat-rental` with `boats/{boat_id}/` and `receipts/{reservation_id}/` folders, signed URLs 1h expiry.
+
+### 6 final review questions posed to user
+
+1. State machine — can `paid_to_owner` be reached via EITHER broker receipt OR owner mark-paid? (Currently yes in draft)
+2. 72h cancellation — measured from start of booking day in Cairo TZ? Or from trip ready time (requires details_filled)?
+3. Green API credentials — already set up, or build with graceful no-op when env missing?
+4. Invite flow — token email → first-visit password setup? OK?
+5. Refund flag — purely informational, no automated action?
+6. Broker-only user on `/emails/personal` — hide everything except the Boat Rental Broker tile?
+
+### When user signs off
+
+Build order: migration 0016 → `boat_rental` schema → API route handlers → UI (admin first, then broker, then owner) → WhatsApp worker → cron. Per auto-deploy rule: `git add . && git commit && git push origin main && vercel --prod` after each coherent chunk.
+
+**Do not start writing migrations or routes until user explicitly answers the 6 review questions OR says "approved, start coding".**
+
+### Codebase context gathered (via Explore agent)
+
+- App has evolved past the CLAUDE.md "Gmail digest Phase 1" description. It's now a multi-domain portfolio app with `personal`, `kika`, `lime`, `fmplus`, `voltauto`, `beithady` domains defined in [src/lib/rules/presets.ts](src/lib/rules/presets.ts:1).
+- Auth: scrypt passwords + opaque session tokens in `app_sessions` table. No Google OAuth in active use. See [src/lib/auth.ts](src/lib/auth.ts:9-186).
+- Access control: `app_user_domain_roles` table (not in repo migrations, lives in DB) with `admin | editor | viewer` per domain. Gated at layout level via `requireDomainAccess(domain)` in [src/app/emails/[domain]/layout.tsx](src/app/emails/[domain]/layout.tsx:2-18).
+- Routes follow `/emails/{domain}/*`. Admin at `/admin/*`.
+- UI: Lucide icons, Tailwind with Lime palette, `ix-card` class, shared components in `src/app/_components/` (`ModuleCard`, `SetupTabs`, `TopNav`).
+- **No existing precedent** for file uploads, multi-role-within-domain gating, WhatsApp notifications, or calendar/booking UI — all of those will be new patterns.
+
+### Plan delivered to user
+
+**Roles:** Boat Rental Admin (1 user), Broker (N users, fully walled off), Owner (N users, boat-scoped), Skipper (notify-only, no login).
+
+**Admin tabs (9):** Dashboard · Boats (with multi-image upload) · Pricing (3-tier) · Seasons/Holidays · Destinations · Users · All Bookings · Reports · Audit Log
+
+**Broker tabs (6):** My Bookings · Check Availability · Active Reservations (2h countdown) · Enter Trip Details · Payment Confirmation · Cancel
+
+**Owner tabs (3):** My Boats · Calendar · Booking Detail (with mark-paid + cancel)
+
+**Reservation state machine:** `held` (2h) → `confirmed` → `details_filled` → `completed` → `payment_confirmed`. Terminals: `expired`, `cancelled`.
+
+**Pricing resolution:** season-holiday > weekend (Fri/Sat) > weekday. Price snapshotted on reservation so later edits don't retro-affect history.
+
+**Proposed schema** (new `boat_rental` schema in Supabase): `boats`, `boat_images`, `boat_owners`, `destinations`, `seasons`, `pricing`, `reservations`, `bookings`, `payments`, `audit_log`, `notifications`. Double-booking guarded by partial unique index on `(boat_id, booking_date) WHERE status IN (held, confirmed, details_filled, completed)`.
+
+**Integration strategy:** new domain key `boat-rental` added to `DOMAINS`, extend `app_user_domain_roles` with a sub-role column (`admin | broker | owner`), new `requireBoatRole()` helper.
+
+### 16 clarifying questions posed to user (must answer before workflow phase)
+
+Biggest unknown is **Q1 — payment semantics**: is the post-trip transfer the broker→owner settlement (commission kept by broker, rest wired to owner) or confirmation that client's original payment cleared? Whole data model pivots on this.
+
+Other key questions: broker role lockdown (assumed yes), owner login path (assumed same `/login`), one-booking-per-boat-per-day vs time slots (assumed full-day), seasons as date ranges vs specific dates, WhatsApp v1 = `wa.me` click-to-send links vs Meta Cloud API upfront, cancellation-with-payment refund flow, skipper login (assumed no), language (EN vs AR/EN), 2h hold strictness, capacity enforcement, client contract upload.
+
+### 15 proposed improvements beyond spec
+
+Audit log · price snapshot · seasons table · capacity enforcement · **broker commission %** (not in spec, critical for owner settlement math) · boat status field · soft deletes · calendar views · **Vercel cron for reservation auto-expiry** · double-booking unique index · admin manual booking entry · mobile-first PWA · reporting dashboard · **email invite flow with token** for brokers/owners · per-booking skipper override.
+
+### Next turn resumption
+
+User needs to answer the 16 questions OR approve assumptions. Then produce **Workflow Phase** doc: user journeys, API contracts, UI wireframes in ASCII, DB migration draft, WhatsApp message templates, edge cases. Send for review. Only after user confirms → write code.
+
+**Do not start writing migrations or routes until user explicitly approves workflow phase.**
+
+---
 
 ## ✅ Pricing dashboard: period filters + clickable buildings with sortable unit modal
 

@@ -1,4 +1,4 @@
-export const DOMAINS = ['personal', 'kika', 'lime', 'fmplus', 'voltauto', 'beithady'] as const;
+export const DOMAINS = ['personal', 'kika', 'lime', 'fmplus', 'voltauto', 'beithady', 'boat-rental'] as const;
 
 export type Domain = (typeof DOMAINS)[number];
 
@@ -9,6 +9,7 @@ export const DOMAIN_LABELS: Record<Domain, string> = {
   fmplus: 'FMPLUS',
   voltauto: 'VOLTAUTO',
   beithady: 'BEITHADY',
+  'boat-rental': 'Boat Rental',
 };
 
 export const DOMAIN_DESCRIPTIONS: Record<Domain, string> = {
@@ -18,9 +19,10 @@ export const DOMAIN_DESCRIPTIONS: Record<Domain, string> = {
   fmplus: 'FMPlus business operations.',
   voltauto: 'VoltAuto pricing and inventory feeds.',
   beithady: 'Beithady property and tenant updates.',
+  'boat-rental': 'Boat rental bookings, reservations, and WhatsApp notifications.',
 };
 
-export type DomainAccent = 'slate' | 'violet' | 'emerald' | 'amber' | 'indigo' | 'rose';
+export type DomainAccent = 'slate' | 'violet' | 'emerald' | 'amber' | 'indigo' | 'rose' | 'cyan';
 
 export const DOMAIN_ACCENTS: Record<Domain, DomainAccent> = {
   personal: 'slate',
@@ -29,6 +31,7 @@ export const DOMAIN_ACCENTS: Record<Domain, DomainAccent> = {
   fmplus: 'amber',
   voltauto: 'indigo',
   beithady: 'rose',
+  'boat-rental': 'cyan',
 };
 
 export const DOMAIN_ICON_NAMES: Record<Domain, string> = {
@@ -38,6 +41,7 @@ export const DOMAIN_ICON_NAMES: Record<Domain, string> = {
   fmplus: 'Building2',
   voltauto: 'Zap',
   beithady: 'Home',
+  'boat-rental': 'Ship',
 };
 
 export function isDomain(s: string | null | undefined): s is Domain {

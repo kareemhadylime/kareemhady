@@ -152,6 +152,24 @@ export const DOMAIN_THEMES: Record<Domain, DomainTheme> = {
       ring: 'ring-rose-500',
     },
   },
+  'boat-rental': {
+    name: 'Boat Rental',
+    tagline: 'Boat bookings & broker portal.',
+    description:
+      'Personal-domain sub-app: boat inventory, broker-driven reservations with 2-hour holds, owner portal with WhatsApp notifications.',
+    parentNote: 'Under Personal Domain',
+    accent: {
+      solid: 'bg-cyan-600',
+      solidHover: 'bg-cyan-700',
+      tint: 'bg-cyan-50',
+      tintText: 'text-cyan-700',
+      border: 'border-cyan-200',
+      text: 'text-cyan-700',
+      gradientFrom: 'from-cyan-500',
+      gradientTo: 'to-teal-500',
+      ring: 'ring-cyan-500',
+    },
+  },
 };
 
 export function getDomainTheme(d: Domain | null | undefined): DomainTheme {

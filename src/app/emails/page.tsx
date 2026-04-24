@@ -33,6 +33,7 @@ const ACCENT_CLASSES: Record<DomainAccent, { grad: string; text: string; bg: str
   amber: { grad: 'from-amber-500 to-amber-700', text: 'text-amber-600', bg: 'bg-amber-50' },
   indigo: { grad: 'from-indigo-500 to-indigo-700', text: 'text-indigo-600', bg: 'bg-indigo-50' },
   rose: { grad: 'from-rose-500 to-rose-700', text: 'text-rose-600', bg: 'bg-rose-50' },
+  cyan: { grad: 'from-cyan-500 to-cyan-700', text: 'text-cyan-600', bg: 'bg-cyan-50' },
 };
 
 export default async function EmailsHome() {
