@@ -1,5 +1,80 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Boat Rental Module — Phase 1 foundation shipped (commit `e046ade`)
+
+User signed off workflow phase with all 6 final answers + a new Notes-field feature. Foundation built + deployed. **Pages are placeholders** — phase 2 fills in real forms/flows.
+
+### Deployed
+- Commit `e046ade` pushed to `main` via `git push origin HEAD:main` (worktree branch is `claude/suspicious-mirzakhani-b822bc`, one commit ahead of main with no divergence — clean fast-forward).
+- Manual `vercel --prod` deployed a worktree-scoped Vercel project at `suspicious-mirzakhani-b822bc-d5syep2g4-lime-investments.vercel.app` (the `.vercel/project.json` inside the worktree pins a separate project). GitHub integration should have separately triggered the canonical `lime-investments` production deploy via the push to main.
+
+### Migration 0016 applied (via MCP)
+12 tables created in `public` with `boat_rental_*` prefix. Storage bucket `boat-rental` (private) also created. All empty, RLS disabled (matches rest of schema).
+
+Tables: `boat_rental_owners`, `boat_rental_boats`, `boat_rental_boat_images`, `boat_rental_pricing`, `boat_rental_seasons`, `boat_rental_destinations`, `boat_rental_reservations`, `boat_rental_bookings`, `boat_rental_payments`, `boat_rental_audit_log`, `boat_rental_notifications`, `boat_rental_user_roles`.
+
+Key constraint: **partial unique index** `boat_rental_reservations_active_slot_uk` on `(boat_id, booking_date) WHERE status in ('held','confirmed','details_filled','paid_to_owner')` — prevents double-booking across all live statuses.
+
+### Architecture decisions locked
+- **Schema convention:** `public.boat_rental_*` prefix (not a dedicated `boat_rental` schema) to match existing `odoo_*/guesty_*/shopify_*` and keep Supabase JS client ergonomic.
+- **Role gating:** dedicated `boat_rental_user_roles(user_id, role, owner_id?)` table, separate from `app_user_domain_roles`. `requireBoatRole(role, nextPath)` helper in [src/lib/boat-rental/auth.ts](src/lib/boat-rental/auth.ts) gates admin/broker/owner sub-trees. Access to the `boat-rental` domain is still needed (via `app_user_domain_roles`) — role gate is on top of that.
+- **Green API:** reuses existing `integration_credentials` table with provider='green'. The spec already had `apiUrl`, `mediaUrl`, `idInstance`, `apiTokenInstance`, `webhook_path_slug` fields. New shared utility at [src/lib/whatsapp/green-api.ts](src/lib/whatsapp/green-api.ts) exports `sendWhatsApp({to, message})` — reusable by Beithady guest messaging when ready.
+- **Notifications:** hardcoded templates in [src/lib/boat-rental/notifications.ts](src/lib/boat-rental/notifications.ts). EN for broker/owner, AR only for skipper on `trip_details`. Notes field appended to relevant templates when non-empty. `enqueueNotification()` writes pending row; `flushPendingForReservation()` fires all best-effort inline via Green-API.
+- **Pricing:** [src/lib/boat-rental/pricing.ts](src/lib/boat-rental/pricing.ts). `resolvePricingTier(date)` → season > weekend (Fri/Sat) > weekday. `isWithinCancellationWindow(bookingDate)` uses Intl TZ math to compute Cairo midnight minus 72h. Price snapshot on reservation creation = decoupled from future edits.
+- **Routing:** `/emails/boat-rental` with own layout (domain gate) + role-aware landing that redirects to `/admin`, `/broker`, or `/owner`. Each sub-tree has own layout (role gate) + tab nav. Broker+owner users with only boat-rental access will auto-land in their portal via the redirect.
+- **Personal domain tile:** [src/app/emails/[domain]/page.tsx](src/app/emails/[domain]/page.tsx) renders a "Boat Rental — Admin" card when `d === 'personal'` AND `hasBoatRole(user, 'admin')`. Brokers/owners never reach /emails/personal (no domain access).
+
+### Files touched
+**New directories:**
+- `src/lib/boat-rental/` → `auth.ts`, `notifications.ts`, `pricing.ts`
+- `src/lib/whatsapp/` → `green-api.ts`
+- `src/app/emails/boat-rental/` → full route tree (layout + landing + admin/broker/owner sub-trees with all tab placeholders)
+- `src/app/api/cron/boat-rental/expire-holds/` → cron endpoint (every 15min, flips stale `held` rows to `expired` with audit log)
+
+**Modified:**
+- `src/lib/rules/presets.ts` — `boat-rental` added to DOMAINS, DOMAIN_LABELS, DOMAIN_DESCRIPTIONS, DOMAIN_ACCENTS (cyan), DOMAIN_ICON_NAMES (Ship). Also added `cyan` to `DomainAccent` union.
+- `src/lib/auth.ts` — `allowed_domains` filter now uses canonical `DOMAINS` constant (was hardcoded whitelist).
+- `src/lib/brand-theme.ts` — added `boat-rental` theme entry with cyan palette + parentNote="Under Personal Domain".
+- `src/app/_components/domain-icon.tsx` — added Ship icon mapping.
+- `src/app/emails/page.tsx` — added `cyan` entry to ACCENT_CLASSES record.
+- `src/app/emails/[domain]/page.tsx` — added `cyan` to ACCENT_TINTS, new Ship import, new `d === 'personal' && showBoatRentalAdminTile` block (tile links to `/emails/boat-rental/admin`).
+- `src/app/admin/rules/page.tsx` — added `'boat-rental'` to the domain palette (required by TS because DOMAINS now includes it).
+- `vercel.json` — added cron `/api/cron/boat-rental/expire-holds` at `*/15 * * * *`.
+
+### User setup required before real use
+1. Configure Green-API credentials at `/admin/integrations` (provider='green') — set `apiUrl`, `mediaUrl`, `idInstance`, `apiTokenInstance`.
+2. Create a user at `/admin/users` for each broker + each owner (username + temp password).
+3. Grant each user `boat-rental` domain access at `/admin/users`.
+4. Insert rows into `boat_rental_user_roles` to assign broker/owner sub-role. **No UI for this yet** — phase 2 Users tab will do it. For now, manual SQL:
+   ```sql
+   insert into boat_rental_user_roles (user_id, role) values ('<uuid>', 'broker');
+   insert into boat_rental_user_roles (user_id, role, owner_id) values ('<uuid>', 'owner', '<owner_uuid>');
+   ```
+
+### Phase 2 scope (next turn)
+1. **Admin — Boats CRUD:** form + image upload to Supabase Storage `boat-rental/boats/{boat_id}/` with signed URLs.
+2. **Admin — Pricing editor:** per-boat 3-row form (weekday/weekend/season EGP).
+3. **Admin — Seasons + Destinations:** simple list + form.
+4. **Admin — Users tab:** invite broker/owner (create `app_users` + grant domain access + set `boat_rental_user_roles` in one transaction).
+5. **Broker — Availability check:** pick boat + date → resolve price → show Available/Booked → Reserve button creates `held` row.
+6. **Broker — Holds list:** countdown display, Notes field, Mark Client Paid button fires WhatsApp.
+7. **Broker — Trip Details form:** day-before, guest-count cap enforcement, destinations dropdown, fires WhatsApp (EN to broker+owner, AR to skipper).
+8. **Broker — Payment Confirmation:** amount + receipt upload → `paid_to_owner` + WhatsApp to owner.
+9. **Owner — Calendar + Booking Detail modal** with mark-paid + cancel buttons.
+10. **Admin All Bookings:** filters + force-cancel action.
+
+### Review questions delivered in workflow phase (all now answered)
+All 16 original + 6 workflow-review questions answered. Key answers locked:
+- Prices = net to owner. Broker margin invisible. No commission tracking.
+- Cancellation: Cairo midnight minus 72h.
+- Green API credentials live in shared integration_credentials.
+- Admin sets temp password; users change at /account/password post-login.
+- Refund flag is informational only.
+- Broker/owner users fully walled off from other domains.
+- Notes field captured at confirm-payment, included in WhatsApp templates.
+
+---
+
 ## 🧭 Boat Rental Module — Workflow Phase delivered, awaiting sign-off (no code yet)
 
 User answered all 16 clarifying questions (below) and I delivered the full Workflow Phase doc covering: locked assumptions, state machine, user journeys, DB schema (migration 0016_boat_rental.sql drafted but NOT written to disk), REST API surface, UI wireframes, WhatsApp templates (EN + AR), integration points, edge cases, v2 scope cuts. Posed 6 final review questions before coding.

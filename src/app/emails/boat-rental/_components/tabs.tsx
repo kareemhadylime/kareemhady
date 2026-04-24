@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   LayoutDashboard, Ship, Tag, CalendarRange, MapPin, Users, Bell, ListOrdered, History,
-  Search, Clock, Receipt, Calendar,
+  Search, Clock, Receipt, Calendar, User2,
 } from 'lucide-react';
 
 // Tab groups per role. Kept as plain data so the active tab can be
@@ -15,6 +15,7 @@ export type TabItem = {
 
 export const ADMIN_TABS: TabItem[] = [
   { href: '/emails/boat-rental/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/emails/boat-rental/admin/owners', label: 'Owners', icon: User2 },
   { href: '/emails/boat-rental/admin/boats', label: 'Boats', icon: Ship },
   { href: '/emails/boat-rental/admin/pricing', label: 'Pricing', icon: Tag },
   { href: '/emails/boat-rental/admin/seasons', label: 'Seasons', icon: CalendarRange },
