@@ -1,5 +1,63 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Print tab nav closes itself + Expired Holds disabled UX
+
+Two fixes shipped:
+
+### 1. Print/PDF tab nav closes itself + drives opener tab
+
+User: "after pressing on the download page and when pressing back or menu, existing page should close and the menu page appear". Previously the print tab's nav buttons were `<Link>` elements that just navigated within the lingering print tab — leaving the user with two tabs and no clear path back.
+
+- **[pdf-link.tsx](src/app/emails/boat-rental/_components/catalogue/pdf-link.tsx):** Switched to `window.open(href, '_blank')` from a click handler so the opened tab keeps a `window.opener` reference (anchor `target="_blank"` defaults to noopener in modern browsers, which broke this). Removed the explicit `rel="noreferrer"`. Pop-up-blocker fallback navigates self.
+- **[print-nav-bar.tsx](src/app/emails/boat-rental/print/[id]/print-nav-bar.tsx):** Replaced `<Link>` with `<button onClick={navigateOpenerAndClose}>`. Helper sets `window.opener.location.href` + focuses opener + calls `window.close()`. 50ms fallback navigates self if `window.close()` was blocked (e.g. tab opened directly via URL paste, no script-opener relationship).
+
+### 2. Expired holds: disabled UX + 6h auto-hide
+
+User: "When Hold Expires — Mark Client Paid / Reserve Now / Release should be NOT clickable with message 'Hold Expired'. Expired should disappear from screen after 6 hrs from expiry."
+
+**[broker/holds/page.tsx](src/app/emails/boat-rental/broker/holds/page.tsx):** Query relaxed from `status='held'` only to `status in ('held', 'expired')` AND `held_until >= sixHoursAgo`. Constant `STALE_DISPLAY_WINDOW_MS = 6h`.
+
+Per-row computed `isExpired` flag (true if `status === 'expired'` OR `held_until <= now` even while still `status='held'` — covers the gap until the 15-min cron runs). When expired:
+- Card border + bg muted to slate, opacity-75, boat name strike-through
+- Pill flips from amber "held" to red "Hold Expired" with AlertTriangle icon
+- "Expires in" countdown replaced with "Expired" text in rose-600
+- Inline rose info banner: "This hold expired and is no longer actionable… auto-hides 6 hours after expiry."
+- All three action buttons (Mark client paid / Reserve now / Release hold) get `disabled` attribute + `opacity-60 cursor-not-allowed pointer-events-none`
+- Notes textarea also disabled
+
+Type check + production build pass. Deployed.
+
+---
+
+## 🟡 PLANNING — AI photo categorization for Catalogue + PDF — awaiting user sign-off
+
+User: "Always choose photos on PDF with AI to get Best Photos Shown — Priority to Full Boat Pictures - Seating - Interiors - Bathroom...". Same logic to drive the catalogue grid preview.
+
+**Grounded checks:** `@anthropic-ai/sdk` already in deps, helper at [src/lib/anthropic.ts](src/lib/anthropic.ts) exposes `anthropic()` client + `HAIKU = 'claude-haiku-4-5-20251001'` constant. Vision-capable, ~$0.001 per photo. `ANTHROPIC_API_KEY` listed in `.env.example` (assumed populated in Vercel env).
+
+**Plan delivered (no code yet):**
+- New `boat_rental_boat_images.category` text column with check constraint (`full_boat` | `seating` | `interior` | `bathroom` | `other`)
+- Auto-classify on upload via Haiku 4.5 vision call
+- Backfill button on admin boat detail page for existing untagged photos
+- Server helper `pickShowcasePhotos(images, count)` returns photos in priority slots: 1 full_boat (hero) + 1 seating + 1 interior + 1 bathroom + 1 filler
+- Used by: catalogue grid (1 preview), catalogue detail (5 visible + lightbox shows all), PDF (5)
+- Manual override dropdown on each photo in admin gallery
+
+**4 questions sent to user:**
+1. Category set — confirm 5 categories (full_boat / seating / interior / bathroom / other), or split bedroom out?
+2. Auto-classify trigger — on every upload (default a), button-only (b), or both (default c)?
+3. Existing photos backfill — per-boat button (default a), silent on-load (b), or global tool (c)?
+4. Photo selection algorithm — strict slots ABACX (default a), pure priority sort (b), or hero+4 mix (c)? + confirm catalogue grid preview = best full_boat with fallback.
+
+**Risk areas:**
+- ANTHROPIC_API_KEY must be set in Vercel env (haven't verified — may need to confirm with user)
+- Haiku 4.5 cost ~$0.001/photo × ~50 boats × 10 photos = ~$0.50 backfill (cheap, fine)
+- Upload latency: +1-2s per photo for the vision call — mitigate by running async and not blocking the upload response (photo gets 'other' default until tag returns)
+
+**Next step when user replies:** if "go on defaults" or specific overrides, build sequentially: migration → vision classifier → upload-time hook → backfill button → smart picker → wire into catalogue grid + detail + PDF. ETA ~25 min code + deploy.
+
+---
+
 ## ✅ Print page nav bar (Back / Main Menu / Print again)
 
 User reported the PDF print page (opened in a new tab) had no way to navigate back after the print dialog was dismissed — they were stuck on the spec sheet view.

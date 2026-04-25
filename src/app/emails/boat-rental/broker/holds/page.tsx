@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, X, Ship, Zap } from 'lucide-react';
+import { Clock, CheckCircle2, X, Ship, Zap, AlertTriangle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { TabNav, BROKER_TABS } from '../../_components/tabs';
@@ -7,8 +7,14 @@ import { confirmPaymentAction, cancelHoldAction, convertHoldToReserveAction } fr
 
 export const dynamic = 'force-dynamic';
 
+// Recently-expired holds linger on this page for 6h after held_until so
+// the broker can see what just dropped — but the action buttons are
+// disabled and the row is visually muted. Past 6h they vanish.
+const STALE_DISPLAY_WINDOW_MS = 6 * 60 * 60 * 1000;
+
 type HoldRow = {
   id: string;
+  status: 'held' | 'expired';
   booking_date: string;
   price_egp_snapshot: string | number;
   pricing_tier_snapshot: string;
@@ -20,18 +26,24 @@ type HoldRow = {
 export default async function BrokerHolds() {
   const me = await getCurrentUser();
   const sb = supabaseAdmin();
+  const sixHoursAgoIso = new Date(Date.now() - STALE_DISPLAY_WINDOW_MS).toISOString();
+  // Include both 'held' and 'expired' so the just-flipped ones still
+  // appear briefly. We also catch held rows where held_until has
+  // technically passed but the expire-holds cron hasn't run yet.
   const { data } = await sb
     .from('boat_rental_reservations')
     .select(
       `
-      id, booking_date, price_egp_snapshot, pricing_tier_snapshot, held_until, notes,
+      id, status, booking_date, price_egp_snapshot, pricing_tier_snapshot, held_until, notes,
       boat:boat_rental_boats ( name, owner:boat_rental_owners ( name ) )
     `
     )
     .eq('broker_id', me!.id)
-    .eq('status', 'held')
+    .in('status', ['held', 'expired'])
+    .gte('held_until', sixHoursAgoIso)
     .order('held_until', { ascending: true });
   const holds = ((data as unknown) as HoldRow[] | null) || [];
+  const nowMs = Date.now();
 
   return (
     <>
@@ -50,78 +62,125 @@ export default async function BrokerHolds() {
             No active holds. Go check availability to reserve a boat.
           </div>
         )}
-        {holds.map(h => (
-          <div key={h.id} className="ix-card p-5 border-amber-200 bg-amber-50/30">
-            <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Clock size={16} className="text-amber-600" />
-                  <h3 className="font-semibold">{h.boat?.name || '(boat)'}</h3>
-                  <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                    held
+        {holds.map(h => {
+          const heldUntilMs = h.held_until ? new Date(h.held_until).getTime() : 0;
+          const isExpired = h.status === 'expired' || (heldUntilMs > 0 && heldUntilMs <= nowMs);
+          const cardCls = isExpired
+            ? 'ix-card p-5 border-slate-300 dark:border-slate-700 bg-slate-100/60 dark:bg-slate-900/50 opacity-75'
+            : 'ix-card p-5 border-amber-200 bg-amber-50/30';
+          const disabledBtnCls = 'opacity-60 cursor-not-allowed pointer-events-none';
+
+          return (
+            <div key={h.id} className={cardCls}>
+              <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Clock size={16} className={isExpired ? 'text-slate-400' : 'text-amber-600'} />
+                    <h3 className={`font-semibold ${isExpired ? 'text-slate-500 dark:text-slate-400 line-through' : ''}`}>
+                      {h.boat?.name || '(boat)'}
+                    </h3>
+                    {isExpired ? (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800 inline-flex items-center gap-1">
+                        <AlertTriangle size={10} /> Hold expired
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                        held
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-sm mt-1 ${isExpired ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600'}`}>
+                    {h.booking_date} · EGP {Number(h.price_egp_snapshot).toLocaleString()} ({h.pricing_tier_snapshot})
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">Owner · {h.boat?.owner?.name || '—'}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {isExpired ? 'Status' : 'Expires in'}
+                  </div>
+                  {isExpired ? (
+                    <div className="text-sm font-semibold text-rose-600">Expired</div>
+                  ) : h.held_until ? (
+                    <div className="text-xl">
+                      <HoldCountdown until={h.held_until} />
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400">—</div>
+                  )}
+                </div>
+              </div>
+
+              {isExpired && (
+                <div className="mb-4 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-3 text-sm text-rose-800 dark:text-rose-200 inline-flex items-start gap-2">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>
+                    This hold expired and is no longer actionable. The slot is free for other brokers. This card auto-hides 6 hours after expiry.
                   </span>
                 </div>
-                <p className="text-sm text-slate-600 mt-1">
-                  {h.booking_date} · EGP {Number(h.price_egp_snapshot).toLocaleString()} ({h.pricing_tier_snapshot})
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">Owner · {h.boat?.owner?.name || '—'}</p>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Expires in</div>
-                {h.held_until ? (
-                  <div className="text-xl">
-                    <HoldCountdown until={h.held_until} />
-                  </div>
-                ) : (
-                  <div className="text-xs text-slate-400">—</div>
-                )}
-              </div>
-            </div>
+              )}
 
-            <form action={confirmPaymentAction} className="space-y-3">
-              <input type="hidden" name="id" value={h.id} />
-              <label className="text-sm block">
-                <span className="text-slate-600 dark:text-slate-300 text-xs">
-                  Special trip requirements (optional — goes out on the confirmation WhatsApp and again on day-before)
-                </span>
-                <textarea
-                  name="notes"
-                  rows={2}
-                  defaultValue={h.notes || ''}
-                  placeholder="e.g. extra coolers, specific music setup, pickup location detail"
-                  className="ix-input mt-1"
-                />
-              </label>
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <button type="submit" className="ix-btn-primary">
-                  <CheckCircle2 size={14} /> Mark client paid & confirm booking
-                </button>
-              </div>
-            </form>
-
-            {/* Action buttons row: Reserve now (shortcut) + Release hold */}
-            <div className="mt-4 pt-4 border-t border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 flex-wrap">
-              <form action={convertHoldToReserveAction}>
+              <form action={confirmPaymentAction} className="space-y-3">
                 <input type="hidden" name="id" value={h.id} />
-                <input type="hidden" name="notes" value={h.notes || ''} />
-                <button
-                  type="submit"
-                  className="ix-btn-secondary border-cyan-300 dark:border-cyan-700 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-950"
-                  title="Convert this hold directly to a confirmed reservation (same as Mark Client Paid but one click)."
-                >
-                  <Zap size={14} /> Reserve now (skip &quot;client paid&quot;)
-                </button>
+                <label className="text-sm block">
+                  <span className="text-slate-600 dark:text-slate-300 text-xs">
+                    Special trip requirements (optional — goes out on the confirmation WhatsApp and again on day-before)
+                  </span>
+                  <textarea
+                    name="notes"
+                    rows={2}
+                    defaultValue={h.notes || ''}
+                    placeholder="e.g. extra coolers, specific music setup, pickup location detail"
+                    className="ix-input mt-1"
+                    disabled={isExpired}
+                  />
+                </label>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={isExpired}
+                    className={`ix-btn-primary ${isExpired ? disabledBtnCls : ''}`}
+                  >
+                    <CheckCircle2 size={14} /> Mark client paid & confirm booking
+                  </button>
+                </div>
               </form>
 
-              <form action={cancelHoldAction}>
-                <input type="hidden" name="id" value={h.id} />
-                <button type="submit" className="ix-btn-danger">
-                  <X size={14} /> Release hold
-                </button>
-              </form>
+              {/* Action buttons row: Reserve now (shortcut) + Release hold */}
+              <div className="mt-4 pt-4 border-t border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 flex-wrap">
+                <form action={convertHoldToReserveAction}>
+                  <input type="hidden" name="id" value={h.id} />
+                  <input type="hidden" name="notes" value={h.notes || ''} />
+                  <button
+                    type="submit"
+                    disabled={isExpired}
+                    className={
+                      'ix-btn-secondary border-cyan-300 dark:border-cyan-700 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-950 ' +
+                      (isExpired ? disabledBtnCls : '')
+                    }
+                    title={
+                      isExpired
+                        ? 'Hold expired — no longer available'
+                        : 'Convert this hold directly to a confirmed reservation (same as Mark Client Paid but one click).'
+                    }
+                  >
+                    <Zap size={14} /> Reserve now (skip &quot;client paid&quot;)
+                  </button>
+                </form>
+
+                <form action={cancelHoldAction}>
+                  <input type="hidden" name="id" value={h.id} />
+                  <button
+                    type="submit"
+                    disabled={isExpired}
+                    className={`ix-btn-danger ${isExpired ? disabledBtnCls : ''}`}
+                  >
+                    <X size={14} /> Release hold
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
     </>
   );
