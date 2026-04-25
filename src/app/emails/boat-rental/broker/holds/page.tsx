@@ -99,28 +99,27 @@ export default async function BrokerHolds() {
               </div>
             </form>
 
-            {/* Quick shortcut: skip Mark Client Paid and go straight to confirmed */}
-            <form action={convertHoldToReserveAction} className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
-              <input type="hidden" name="id" value={h.id} />
-              <input type="hidden" name="notes" value={h.notes || ''} />
-              <button
-                type="submit"
-                className="text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-900 inline-flex items-center gap-1"
-                title="Convert this hold directly to a confirmed reservation (same as Mark Client Paid but one click)."
-              >
-                <Zap size={12} /> Reserve now (skip "client paid" step)
-              </button>
-            </form>
+            {/* Action buttons row: Reserve now (shortcut) + Release hold */}
+            <div className="mt-4 pt-4 border-t border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 flex-wrap">
+              <form action={convertHoldToReserveAction}>
+                <input type="hidden" name="id" value={h.id} />
+                <input type="hidden" name="notes" value={h.notes || ''} />
+                <button
+                  type="submit"
+                  className="ix-btn-secondary border-cyan-300 dark:border-cyan-700 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-950"
+                  title="Convert this hold directly to a confirmed reservation (same as Mark Client Paid but one click)."
+                >
+                  <Zap size={14} /> Reserve now (skip &quot;client paid&quot;)
+                </button>
+              </form>
 
-            <form action={cancelHoldAction} className="mt-3 flex justify-end">
-              <input type="hidden" name="id" value={h.id} />
-              <button
-                type="submit"
-                className="text-xs text-slate-500 hover:text-rose-700 inline-flex items-center gap-1"
-              >
-                <X size={12} /> Release hold
-              </button>
-            </form>
+              <form action={cancelHoldAction}>
+                <input type="hidden" name="id" value={h.id} />
+                <button type="submit" className="ix-btn-danger">
+                  <X size={14} /> Release hold
+                </button>
+              </form>
+            </div>
           </div>
         ))}
       </section>

@@ -98,18 +98,20 @@ export default async function Home() {
               );
             })}
 
-            <Link
-              href="/emails"
-              className="group ix-card p-5 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 hover:border-lime-500 hover:bg-lime-50/30 transition text-center"
-            >
-              <Mail size={28} className="text-slate-400 group-hover:text-lime-600 transition" />
-              <span className="text-sm font-semibold text-slate-700">
-                All rules
-              </span>
-              <span className="text-[11px] text-slate-500">
-                Flat view of every rule output across subsidiaries
-              </span>
-            </Link>
+            {user.is_admin && (
+              <Link
+                href="/emails"
+                className="group ix-card p-5 border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 hover:border-lime-500 hover:bg-lime-50/30 transition text-center"
+              >
+                <Mail size={28} className="text-slate-400 group-hover:text-lime-600 transition" />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  All rules
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Flat view of every rule output across subsidiaries
+                </span>
+              </Link>
+            )}
           </section>
         )}
 

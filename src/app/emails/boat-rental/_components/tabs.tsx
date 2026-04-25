@@ -44,11 +44,11 @@ export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: st
     <nav
       aria-label="Section navigation"
       className="
-        -mx-4 px-4 sm:-mx-6 sm:px-6 mb-4
-        flex gap-2
-        overflow-x-auto sm:overflow-visible sm:flex-wrap
-        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+        -mx-4 px-4 sm:-mx-6 sm:px-6 mb-6
+        grid sm:grid-flow-col sm:auto-cols-fr gap-3
+        sm:overflow-visible
       "
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
     >
       {tabs.map(t => {
         const active = t.href === currentPath || (t.href !== tabs[0].href && currentPath.startsWith(t.href));
@@ -59,14 +59,14 @@ export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: st
             href={t.href}
             aria-current={active ? 'page' : undefined}
             className={
-              'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium whitespace-nowrap transition shrink-0 ' +
+              'group flex flex-col items-center justify-center gap-2 py-4 px-3 rounded-xl border-2 text-sm font-semibold text-center transition ' +
               (active
-                ? 'bg-cyan-600 text-white border-cyan-600 shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400/40 hover:bg-cyan-700'
-                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400 dark:hover:border-cyan-600 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50/60 dark:hover:bg-cyan-950/40 hover:shadow-sm')
+                ? 'bg-cyan-600 text-white border-cyan-600 shadow-md shadow-cyan-500/30 hover:bg-cyan-700'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400 dark:hover:border-cyan-600 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50/40 dark:hover:bg-cyan-950/30 hover:shadow-md hover:-translate-y-0.5')
             }
           >
-            <Icon size={15} strokeWidth={2.2} />
-            {t.label}
+            <Icon size={20} strokeWidth={2.2} />
+            <span className="leading-tight">{t.label}</span>
           </Link>
         );
       })}
