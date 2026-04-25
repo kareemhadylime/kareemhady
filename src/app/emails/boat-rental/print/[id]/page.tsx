@@ -6,6 +6,7 @@ import { getBoatRoles, getOwnedOwnerIds, type BoatRole } from '@/lib/boat-rental
 import { signedImageUrls, signedImageUrl } from '@/lib/boat-rental/storage';
 import { partitionFeatures } from '@/lib/boat-rental/features';
 import { PrintTrigger } from './print-trigger';
+import { PrintNavBar } from './print-nav-bar';
 
 // One-page A4 spec sheet for a single boat. Linked from the Catalogue
 // detail page via PdfLink (opens in new tab, auto-fires window.print()
@@ -113,9 +114,21 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
   });
   const hullLabel = boat.hull === 'wood' ? 'Wood Hull' : boat.hull === 'fiberglass' ? 'Fiber Glass Hull' : null;
 
+  // Role-aware nav targets so each user lands back in their own
+  // portal. Admin wins if the viewer holds it; broker beats owner
+  // when both are set (broker portal is the more action-dense home).
+  const portalRoot = isAdmin
+    ? '/emails/boat-rental/admin'
+    : isBroker
+      ? '/emails/boat-rental/broker'
+      : '/emails/boat-rental/owner';
+  const catalogueHref = `${portalRoot}/inventory`;
+  const menuHref = portalRoot;
+
   return (
     <>
       <PrintTrigger />
+      <PrintNavBar catalogueHref={catalogueHref} menuHref={menuHref} />
       {/* On-screen wrapper centers the A4 page on grey backdrop; print
           rules in globals.css strip backdrop and force exact A4. */}
       <div className="min-h-screen bg-slate-200 dark:bg-slate-900 py-6 print:bg-white print:py-0">

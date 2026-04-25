@@ -1,5 +1,17 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Print page nav bar (Back / Main Menu / Print again)
+
+User reported the PDF print page (opened in a new tab) had no way to navigate back after the print dialog was dismissed — they were stuck on the spec sheet view.
+
+**[print-nav-bar.tsx](src/app/emails/boat-rental/print/[id]/print-nav-bar.tsx) (client):** sticky dark bar at top of the page with "Back to Catalogue", "Main Menu", and "Print / Save PDF" buttons. The whole bar is `print:hidden` so it never bleeds onto the actual PDF.
+
+**[print/[id]/page.tsx](src/app/emails/boat-rental/print/[id]/page.tsx):** Derives `portalRoot` from viewer's roles (admin → admin portal; broker beats owner if both held), then computes `catalogueHref` and `menuHref` so each user lands back in their own area instead of a generic landing.
+
+Type check passes. Deployed.
+
+---
+
 ## ✅ PDF marketing polish + boat hull + description
 
 User: PDF was "empty" (mostly because the boat's predefined-feature pills were never picked → only the legacy free-text features_md showed). Added two new boat fields (hull, description) and redesigned the PDF for marketing impact. User explicitly wanted: bigger feature fonts, separated/show-up styling, marketing-grade.
