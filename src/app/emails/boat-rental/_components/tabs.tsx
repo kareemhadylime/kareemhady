@@ -40,7 +40,15 @@ export const OWNER_TABS: TabItem[] = [
 
 export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: string }) {
   return (
-    <nav className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 pb-2">
+    <nav
+      aria-label="Section navigation"
+      className="
+        -mx-4 px-4 sm:-mx-6 sm:px-6 mb-4
+        flex gap-2
+        overflow-x-auto sm:overflow-visible sm:flex-wrap
+        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+      "
+    >
       {tabs.map(t => {
         const active = t.href === currentPath || (t.href !== tabs[0].href && currentPath.startsWith(t.href));
         const Icon = t.icon;
@@ -50,13 +58,13 @@ export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: st
             href={t.href}
             aria-current={active ? 'page' : undefined}
             className={
-              'inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-sm font-medium whitespace-nowrap transition shrink-0 ' +
+              'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium whitespace-nowrap transition shrink-0 ' +
               (active
-                ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm hover:bg-cyan-700'
-                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-300 dark:hover:border-cyan-700 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/30')
+                ? 'bg-cyan-600 text-white border-cyan-600 shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400/40 hover:bg-cyan-700'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-400 dark:hover:border-cyan-600 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50/60 dark:hover:bg-cyan-950/40 hover:shadow-sm')
             }
           >
-            <Icon size={14} strokeWidth={2.2} />
+            <Icon size={15} strokeWidth={2.2} />
             {t.label}
           </Link>
         );
