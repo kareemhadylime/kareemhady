@@ -1,5 +1,17 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Portal switcher dropdown clipping fix
+
+User reported "Owner doesn't show up" when opening the breadcrumb dropdown. Verified via SQL that kareemhady DOES hold both roles (`app_role=admin`, `boat_rental_user_roles.role=owner` linked to owner d29008a2…). Data was correct.
+
+Root cause: the existing TopNav breadcrumb wrapper at [src/app/_components/brand.tsx](src/app/_components/brand.tsx) line 43 used `truncate` (which sets `overflow: hidden`) on the inner div containing the breadcrumb children. The PortalSwitcher's absolute-positioned dropdown menu was being clipped — only the trigger button was visible; the menu rendered behind/beneath the clip rect.
+
+Fix: removed `truncate` from the breadcrumb wrapper. The trail is always short (3 segments) so no ellipsis is needed. Comment added explaining why.
+
+Type check passes. Deploying.
+
+---
+
 ## ✅ Multi-role portal switcher (full feature)
 
 User confirmed W1-W3 ("Confirmed", "switcher only shows roles the user actually holds", "Approve") and pointed out the existing ADMIN pill in the header didn't switch anything → built the breadcrumb-dropdown switcher.

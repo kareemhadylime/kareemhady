@@ -37,10 +37,14 @@ export async function TopNav({ children }: { children?: React.ReactNode }) {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Brand />
-          {/* Breadcrumb children — stay visible at all sizes but truncate. */}
+          {/* Breadcrumb children — stay visible at all sizes. Avoid
+              `truncate` here because that sets overflow:hidden and
+              clips popover-style children like the PortalSwitcher
+              dropdown. The trail is always short (3 segments), no
+              ellipsis needed. */}
           {children && (
             <nav className="text-sm text-slate-600 dark:text-slate-300 hidden sm:flex items-center gap-3 min-w-0">
-              <div className="flex items-center gap-3 min-w-0 truncate">{children}</div>
+              <div className="flex items-center gap-3 min-w-0">{children}</div>
             </nav>
           )}
         </div>
