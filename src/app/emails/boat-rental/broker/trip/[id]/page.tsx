@@ -24,6 +24,8 @@ type Res = {
         trip_ready_time: string;
         destination_id: string;
         extra_notes: string | null;
+        skipper_collects_cash: boolean | null;
+        skipper_instructions: string | null;
       }
     | null;
 };
@@ -38,7 +40,7 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
       `
       id, status, broker_id, booking_date, price_egp_snapshot, notes,
       boat:boat_rental_boats ( name, capacity_guests, skipper_name, owner:boat_rental_owners ( name ) ),
-      booking:boat_rental_bookings ( client_name, client_phone, guest_count, trip_ready_time, destination_id, extra_notes )
+      booking:boat_rental_bookings ( client_name, client_phone, guest_count, trip_ready_time, destination_id, extra_notes, skipper_collects_cash, skipper_instructions )
     `
     )
     .eq('id', id)
@@ -149,9 +151,48 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
               placeholder="Anything to add on top of the earlier confirmation notes."
             />
           </label>
+
+          {/* Skipper-collects-cash option (broker can toggle until trip happens). */}
+          <fieldset className="md:col-span-2 mt-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/30 p-4">
+            <legend className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200 px-1">
+              Payment collection
+            </legend>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="skipper_collects_cash"
+                value="1"
+                defaultChecked={!!r.booking?.skipper_collects_cash}
+                className="mt-1 h-4 w-4 accent-amber-500"
+              />
+              <span className="text-sm">
+                <span className="font-semibold text-amber-900 dark:text-amber-100">
+                  Skipper will collect EGP {Number(r.price_egp_snapshot).toLocaleString()} cash from client before boarding
+                </span>
+                <span className="block text-xs text-amber-800/80 dark:text-amber-200/70 mt-0.5">
+                  Moves payment responsibility to the skipper &amp; owner. Owner gets cash on the dock — no broker
+                  transfer required. Payment Confirmation will mark this trip as &ldquo;collected on board&rdquo; once the
+                  booking date passes.
+                </span>
+              </span>
+            </label>
+            <label className="text-sm block mt-3">
+              <span className="text-slate-600 dark:text-slate-300 text-xs">
+                Instructions to skipper (optional — included in the Arabic WhatsApp)
+              </span>
+              <textarea
+                name="skipper_instructions"
+                rows={2}
+                defaultValue={r.booking?.skipper_instructions || ''}
+                className="ix-input mt-1"
+                placeholder="e.g. Client will pay in 1000 EGP notes; bring change. Pickup at the dock gate at 9:45."
+              />
+            </label>
+          </fieldset>
+
           <div className="md:col-span-2 flex items-center justify-between flex-wrap gap-3">
             <p className="text-xs text-slate-500">
-              Submitting will send a WhatsApp confirmation to the owner (English) and the skipper (Arabic).
+              Submitting will send a WhatsApp confirmation to the owner &amp; broker (English) and the skipper (Arabic).
             </p>
             <button type="submit" className="ix-btn-primary">
               <Send size={14} /> Submit & notify skipper

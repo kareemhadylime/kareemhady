@@ -1,5 +1,28 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Trip Details: Skipper-collects-cash flag (full pipeline)
+
+User asked to add a Trip Details option that hands payment responsibility to the skipper + owner (cash collected on board), with the collection amount propagating to WhatsApp confirmations for skipper, owner, and broker. Payment Confirmation page should reflect "no broker action needed" for these trips, and the broker can revert later via Trip Details.
+
+**Migration ([0019_skipper_cash_collection.sql](supabase/migrations/0019_skipper_cash_collection.sql), applied via MCP):**
+- `boat_rental_bookings.skipper_collects_cash` boolean default false + `skipper_instructions` text
+- `app_users.whatsapp` text (E.164 without '+'; nullable; broker-WhatsApp routing reads this)
+- `boat_rental_payments.recorded_by` made nullable + role check extended to include `'system'` (so the cron can synthesize payment rows)
+
+**Trip Details form ([src/app/emails/boat-rental/broker/trip/[id]/page.tsx](src/app/emails/boat-rental/broker/trip/[id]/page.tsx)):** Added an amber "Payment collection" fieldset with a checkbox showing the live amount ("Skipper will collect EGP X cash from client before boarding") + "Instructions to skipper" textarea. Broker can edit and save anytime while reservation is in `confirmed`/`details_filled`, including unchecking later — the pending-payment list updates immediately on revalidate.
+
+**Action ([fillTripDetailsAction in src/app/emails/boat-rental/broker/actions.ts](src/app/emails/boat-rental/broker/actions.ts)):** Reads the new fields, persists to bookings, audit-logs the flag, and now fans out 3 WhatsApp copies of `trip_details`: owner (EN), skipper (AR), and broker (EN, only if `app_users.whatsapp` is set — silently skipped otherwise so we don't 400 on Green-API).
+
+**Templates ([src/lib/boat-rental/notifications.ts](src/lib/boat-rental/notifications.ts)):** `renderTripDetailsEn` and `renderTripDetailsAr` got a `skipperCollectsCash` branch — EN appends `💵 PAYMENT: Skipper collects EGP X cash from client before boarding. No broker transfer needed.` and AR appends `💵 تنبيه دفع: الرجاء تحصيل ... نقداً من العميل قبل ركوب المركب وتسليمها للمالك.` plus optional skipper instructions. Also added `clientPhone` to both renders so skipper has the contact.
+
+**Payment Confirmation ([src/app/emails/boat-rental/broker/payments/page.tsx](src/app/emails/boat-rental/broker/payments/page.tsx)):** Skipper-cash rows render as a non-clickable amber info card with `<HandCoins>` "Skipper collects on board" pill + "Auto-marks paid the day after the trip. To revert, edit Trip Details." footer + an "Edit trip details →" link back to the form. The Step 2 selector also guards against opening the upload form for these rows.
+
+**Cron ([src/app/api/cron/boat-rental/auto-close-skipper-cash/route.ts](src/app/api/cron/boat-rental/auto-close-skipper-cash/route.ts), schedule `30 1 * * *` in vercel.json):** Daily ~03:30 Cairo. Joins `boat_rental_bookings` (where `skipper_collects_cash = true`) → `boat_rental_reservations` (where `booking_date < cairoTodayStr()` AND `status in (confirmed, details_filled)`), filters out any that already have a payment row, then for each: inserts a `boat_rental_payments` row with `method='skipper_cash'`, `recorded_by_role='system'`, `recorded_by=null`, flips the reservation to `paid_to_owner`, and audit-logs as `auto_close_skipper_cash`. Idempotent (unique payment index + status re-check).
+
+**Brokers won't receive their copy until** `app_users.whatsapp` is populated for them (no admin UI yet — set via SQL or future admin page).
+
+---
+
 ## ✅ Payments: pending list sorted ascending by booking date
 
 User: "Re Organize Reservations by Date." Pending list was `order booking_date desc` so the most distant future trip showed first (2026-05-03 above 2026-04-26). Flipped to ascending in [src/app/emails/boat-rental/broker/payments/page.tsx:51](src/app/emails/boat-rental/broker/payments/page.tsx:51) so past/overdue trips bubble up first, then today, then upcoming trips by soonest. "Recent transfers" stays desc (recent = first).

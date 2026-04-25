@@ -30,6 +30,7 @@ export type NotifContext = {
   amountEgp?: number;
   brokerName?: string;
   clientName?: string;
+  clientPhone?: string;
   guestCount?: number;
   tripReadyTime?: string;       // 'HH:MM'
   destination?: string;
@@ -40,6 +41,9 @@ export type NotifContext = {
   cancelledByName?: string;
   cancelReason?: string;        // for cancellation_requested + cancellation_resolved + owner_block_confirmed (block reason)
   expiresAt?: string;           // for hold_warning
+  // trip_details cash-collection branch
+  skipperCollectsCash?: boolean;
+  skipperInstructions?: string | null;
 };
 
 function fmtEgp(n?: number): string {
@@ -69,33 +73,47 @@ function renderBookingConfirmed(ctx: NotifContext): string {
 }
 
 function renderTripDetailsEn(ctx: NotifContext): string {
+  const cashLine = ctx.skipperCollectsCash
+    ? `\n💵 PAYMENT: Skipper collects ${fmtEgp(ctx.amountEgp)} cash from client before boarding. No broker transfer needed.`
+    : '';
+  const instrLine = ctx.skipperCollectsCash && ctx.skipperInstructions?.trim()
+    ? `\nSkipper instructions: ${ctx.skipperInstructions.trim()}`
+    : '';
   return [
     'TRIP DETAILS FILED 📋',
     `Boat: ${ctx.boatName}`,
     `Date: ${ctx.bookingDate}`,
     ctx.clientName ? `Client: ${ctx.clientName}${ctx.guestCount ? ` (${ctx.guestCount} guests)` : ''}` : null,
+    ctx.clientPhone ? `Client phone: ${ctx.clientPhone}` : null,
     ctx.tripReadyTime ? `Ready: ${ctx.tripReadyTime}` : null,
     ctx.destination ? `Destination: ${ctx.destination}` : null,
     ctx.skipperName ? `Skipper: ${ctx.skipperName}` : null,
     `Ref: #${ctx.shortRef}`,
   ]
     .filter(Boolean)
-    .join('\n') + notesLine(ctx.notes, 'en');
+    .join('\n') + cashLine + instrLine + notesLine(ctx.notes, 'en');
 }
 
 function renderTripDetailsAr(ctx: NotifContext): string {
+  const cashLine = ctx.skipperCollectsCash
+    ? `\n💵 تنبيه دفع: الرجاء تحصيل ${fmtEgp(ctx.amountEgp)} نقداً من العميل قبل ركوب المركب وتسليمها للمالك.`
+    : '';
+  const instrLine = ctx.skipperCollectsCash && ctx.skipperInstructions?.trim()
+    ? `\nتعليمات إضافية: ${ctx.skipperInstructions.trim()}`
+    : '';
   return [
     '🚤 رحلة جديدة',
     `المركب: ${ctx.boatName}`,
     `التاريخ: ${ctx.bookingDate}`,
     ctx.tripReadyTime ? `موعد الاستعداد: ${ctx.tripReadyTime}` : null,
     ctx.clientName ? `العميل: ${ctx.clientName}` : null,
+    ctx.clientPhone ? `هاتف العميل: ${ctx.clientPhone}` : null,
     ctx.guestCount !== undefined ? `عدد الضيوف: ${ctx.guestCount}` : null,
     ctx.destination ? `الوجهة: ${ctx.destination}` : null,
     'الرجاء التأكد من جاهزية المركب.',
   ]
     .filter(Boolean)
-    .join('\n') + notesLine(ctx.notes, 'ar');
+    .join('\n') + cashLine + instrLine + notesLine(ctx.notes, 'ar');
 }
 
 function renderPaymentReceived(ctx: NotifContext): string {

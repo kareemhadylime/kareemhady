@@ -14,6 +14,7 @@
     { "path": "/api/cron/guesty", "schedule": "40 4 * * *" },
     { "path": "/api/cron/shopify", "schedule": "45 4 * * *" },
     { "path": "/api/cron/boat-rental/expire-holds", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/boat-rental/hold-warnings", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/boat-rental/hold-warnings", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/boat-rental/auto-close-skipper-cash", "schedule": "30 1 * * *" }
   ]
 }

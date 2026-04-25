@@ -169,7 +169,10 @@ export async function cancelHoldAction(formData: FormData): Promise<void> {
 }
 
 // Broker fills trip details (day-before). Capacity enforced, WhatsApp fires
-// (EN → broker/owner, AR → skipper).
+// (EN → broker/owner, AR → skipper). Broker can also flag
+// "skipper collects cash on boarding" — when set, no broker transfer is
+// expected; the auto-close-skipper-cash cron flips the reservation to
+// paid_to_owner the day after the trip.
 export async function fillTripDetailsAction(formData: FormData): Promise<void> {
   const me = await requireBoatRoleOrThrow('broker');
   const id = s(formData.get('id'));
@@ -179,6 +182,8 @@ export async function fillTripDetailsAction(formData: FormData): Promise<void> {
   const tripReadyTime = s(formData.get('trip_ready_time'));
   const destinationId = s(formData.get('destination_id'));
   const extraNotes = sOrNull(formData.get('extra_notes'));
+  const skipperCollectsCash = !!formData.get('skipper_collects_cash');
+  const skipperInstructions = sOrNull(formData.get('skipper_instructions'));
   if (!id || !clientName || !clientPhone || !guestCount || !tripReadyTime || !destinationId) {
     throw new Error('invalid_input');
   }
@@ -211,6 +216,8 @@ export async function fillTripDetailsAction(formData: FormData): Promise<void> {
     trip_ready_time: tripReadyTime,
     destination_id: destinationId,
     extra_notes: extraNotes,
+    skipper_collects_cash: skipperCollectsCash,
+    skipper_instructions: skipperInstructions,
     submitted_at: new Date().toISOString(),
     submitted_by: me.id,
   };
@@ -232,7 +239,7 @@ export async function fillTripDetailsAction(formData: FormData): Promise<void> {
     action: 'fill_details',
     fromStatus: r.status,
     toStatus: 'details_filled',
-    payload: { guest_count: guestCount },
+    payload: { guest_count: guestCount, skipper_collects_cash: skipperCollectsCash },
   });
 
   // Enqueue WhatsApp notifications.
@@ -244,20 +251,32 @@ export async function fillTripDetailsAction(formData: FormData): Promise<void> {
     .maybeSingle();
   const destinationName = (destRow as { name: string } | null)?.name || '';
 
+  // Look up broker's whatsapp for the broker copy of trip_details.
+  const { data: brokerWa } = await sb
+    .from('app_users')
+    .select('whatsapp')
+    .eq('id', me.id)
+    .maybeSingle();
+  const brokerWhatsapp = (brokerWa as { whatsapp: string | null } | null)?.whatsapp || '';
+
   if (ctx) {
     const enCtx = {
       boatName: ctx.boat.name,
       bookingDate: ctx.bookingDate,
       amountEgp: ctx.priceEgp,
       clientName,
+      clientPhone,
       guestCount,
       tripReadyTime,
       destination: destinationName,
       skipperName: ctx.boat.skipper_name,
       shortRef: shortRef(id),
       notes: ctx.notes, // reservation-level notes from confirm-payment step
+      skipperCollectsCash,
+      skipperInstructions,
+      brokerName: ctx.broker?.username || 'Broker',
     };
-    // Owner in EN (broker + owner both need it; broker already sees it in UI).
+    // Owner in EN.
     await enqueueNotification({
       reservationId: id,
       to: { userId: ctx.boat.owner.user_id, phone: ctx.boat.owner.whatsapp, role: 'owner' },
@@ -265,6 +284,16 @@ export async function fillTripDetailsAction(formData: FormData): Promise<void> {
       language: 'en',
       context: enCtx,
     });
+    // Broker in EN — only if their whatsapp is populated on app_users.
+    if (brokerWhatsapp) {
+      await enqueueNotification({
+        reservationId: id,
+        to: { userId: me.id, phone: brokerWhatsapp, role: 'broker' },
+        templateKey: 'trip_details',
+        language: 'en',
+        context: enCtx,
+      });
+    }
     // Skipper in Arabic — notify-only, no login.
     await enqueueNotification({
       reservationId: id,
@@ -277,6 +306,7 @@ export async function fillTripDetailsAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath('/emails/boat-rental/broker');
+  revalidatePath('/emails/boat-rental/broker/payments');
 }
 
 // Broker uploads transfer receipt → paid_to_owner.

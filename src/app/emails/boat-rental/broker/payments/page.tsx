@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Receipt, Upload, ChevronRight, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Receipt, Upload, ChevronRight, ArrowLeft, AlertTriangle, HandCoins } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { cairoTodayStr } from '@/lib/boat-rental/pricing';
@@ -15,7 +15,7 @@ type Row = {
   status: string;
   price_egp_snapshot: string | number;
   boat: { name: string; owner: { name: string } | null } | null;
-  booking: { client_name: string } | null;
+  booking: { client_name: string; skipper_collects_cash: boolean | null } | null;
   payment: { amount_egp: string | number; paid_at: string; receipt_path: string | null } | null;
 };
 
@@ -42,7 +42,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
       `
       id, booking_date, status, price_egp_snapshot,
       boat:boat_rental_boats ( name, owner:boat_rental_owners ( name ) ),
-      booking:boat_rental_bookings ( client_name ),
+      booking:boat_rental_bookings ( client_name, skipper_collects_cash ),
       payment:boat_rental_payments ( amount_egp, paid_at, receipt_path )
     `
     )
@@ -59,7 +59,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
       `
       id, booking_date, status, price_egp_snapshot,
       boat:boat_rental_boats ( name, owner:boat_rental_owners ( name ) ),
-      booking:boat_rental_bookings ( client_name ),
+      booking:boat_rental_bookings ( client_name, skipper_collects_cash ),
       payment:boat_rental_payments ( amount_egp, paid_at, receipt_path )
     `
     )
@@ -70,8 +70,11 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
   const done = ((doneRes.data as unknown) as Row[] | null) || [];
   const doneReceiptUrls = await signedImageUrls(done.map(r => r.payment?.receipt_path || null));
 
-  // If a specific id is in the URL, render Step 2.
-  const selected = selectedId ? pending.find(r => r.id === selectedId) : undefined;
+  // If a specific id is in the URL, render Step 2 — but never for a
+  // skipper-cash trip; the broker has nothing to upload there.
+  const selected = selectedId
+    ? pending.find(r => r.id === selectedId && !r.booking?.skipper_collects_cash)
+    : undefined;
 
   return (
     <>
@@ -107,6 +110,57 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
                 {pending.map(r => {
                   const isFuture = r.booking_date > today;
                   const isToday = r.booking_date === today;
+                  const skipperCash = !!r.booking?.skipper_collects_cash;
+
+                  // Skipper-cash row: non-clickable info card, no broker action expected.
+                  if (skipperCash) {
+                    return (
+                      <div
+                        key={r.id}
+                        className="ix-card p-5 border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/30"
+                      >
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold">{r.boat?.name || '(boat)'}</h3>
+                              <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1">
+                                <HandCoins size={10} /> Skipper collects on board
+                              </span>
+                              {isFuture && (
+                                <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                  Trip not yet happened
+                                </span>
+                              )}
+                              {isToday && (
+                                <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                                  Today
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
+                              {r.booking_date} · Owner · {r.boat?.owner?.name || '—'}
+                              {r.booking?.client_name ? ` · Client · ${r.booking.client_name}` : ''}
+                            </p>
+                            <p className="text-xs text-amber-900 dark:text-amber-200 mt-1">
+                              Skipper collects{' '}
+                              <span className="font-bold">EGP {Number(r.price_egp_snapshot).toLocaleString()}</span>{' '}
+                              cash from client at boarding · No broker transfer needed.
+                            </p>
+                            <p className="text-[11px] text-amber-800/80 dark:text-amber-200/70 mt-1">
+                              Auto-marks paid the day after the trip. To revert, edit Trip Details.
+                            </p>
+                          </div>
+                          <Link
+                            href={`/emails/boat-rental/broker/trip/${r.id}`}
+                            className="text-xs text-amber-800 dark:text-amber-200 hover:underline inline-flex items-center gap-1"
+                          >
+                            Edit trip details <ChevronRight size={12} />
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <Link
                       key={r.id}
