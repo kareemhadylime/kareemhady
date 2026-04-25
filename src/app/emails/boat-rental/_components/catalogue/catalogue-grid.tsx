@@ -65,13 +65,16 @@ export async function CatalogueGrid({ scope, basePath, tabs, currentPath }: Prop
   const { data: boatsRaw } = await query;
   const boats = ((boatsRaw as unknown) as Boat[] | null) || [];
 
-  // First photo per boat for the card preview.
+  // Best preview photo per boat: prefer the admin-flagged primary,
+  // otherwise the first by sort_order. We sort is_primary desc first
+  // so the primary (if any) lands at the top of each boat's group.
   const { data: imgRaw } = await sb
     .from('boat_rental_boat_images')
-    .select('boat_id, storage_path, sort_order')
+    .select('boat_id, storage_path, sort_order, is_primary')
     .in('boat_id', boats.map(b => b.id))
+    .order('is_primary', { ascending: false })
     .order('sort_order');
-  const imgRows = ((imgRaw as unknown) as Array<{ boat_id: string; storage_path: string }> | null) || [];
+  const imgRows = ((imgRaw as unknown) as Array<{ boat_id: string; storage_path: string; is_primary: boolean }> | null) || [];
 
   const firstByBoat = new Map<string, string>();
   for (const r of imgRows) if (!firstByBoat.has(r.boat_id)) firstByBoat.set(r.boat_id, r.storage_path);

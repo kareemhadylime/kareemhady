@@ -115,6 +115,34 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
 // /api/boat-rental/admin/boat-image/sign + /attach. Kept the helper export
 // commented for reference only.
 
+// Sets a single photo as the boat's main/primary image. Used by the
+// catalogue grid preview, catalogue-detail hero, and PDF hero. The
+// uniqueness invariant (one primary per boat) is enforced by the
+// partial unique index in migration 0023; we still clear-then-set
+// here so the index never fires a 23505.
+export async function setPrimaryBoatImageAction(formData: FormData): Promise<void> {
+  await requireBoatAdmin();
+  const id = s(formData.get('id'));
+  const boatId = s(formData.get('boat_id'));
+  if (!id || !boatId) return;
+  const sb = supabaseAdmin();
+  // Clear any existing primary on this boat, then set the new one.
+  await sb
+    .from('boat_rental_boat_images')
+    .update({ is_primary: false })
+    .eq('boat_id', boatId)
+    .eq('is_primary', true);
+  await sb
+    .from('boat_rental_boat_images')
+    .update({ is_primary: true })
+    .eq('id', id);
+  revalidatePath(`/emails/boat-rental/admin/boats/${boatId}`);
+  revalidatePath('/emails/boat-rental/admin/boats');
+  revalidatePath('/emails/boat-rental/broker/inventory');
+  revalidatePath('/emails/boat-rental/owner/inventory');
+  revalidatePath('/emails/boat-rental/admin/inventory');
+}
+
 export async function deleteBoatImageAction(formData: FormData): Promise<void> {
   await requireBoatAdmin();
   const id = s(formData.get('id'));

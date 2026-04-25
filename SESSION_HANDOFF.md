@@ -1,5 +1,32 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Boat photos: admin-picked "Main" override (catalogue + PDF hero)
+
+User: "Main Pictures choosen is a Bad one — Also Here??". The catalogue grid was picking the first photo by `sort_order`, which often surfaced poor representative images (close-up cushion shots, etc). Same problem on catalogue-detail hero and PDF hero.
+
+This is a quick manual override — the AI-categorization plan stays queued (still awaiting user replies on Q1-Q4) and will layer on top of this later.
+
+**Migration ([0023_boat_image_primary.sql](supabase/migrations/0023_boat_image_primary.sql), applied via MCP):**
+- `boat_rental_boat_images.is_primary boolean not null default false`
+- Partial unique index `where is_primary = true` enforces at most one primary per boat
+
+**Action ([admin/boats/actions.ts](src/app/emails/boat-rental/admin/boats/actions.ts)):** New `setPrimaryBoatImageAction`. Clears any existing primary on the boat, then sets the chosen one — two-step to dodge the unique-index 23505. Revalidates all three inventory paths plus admin boats.
+
+**Admin boat detail UI ([admin/boats/[id]/page.tsx](src/app/emails/boat-rental/admin/boats/[id]/page.tsx)):**
+- Photo grid query reordered to put `is_primary` first
+- Primary photo gets a 2px amber ring + amber "MAIN" star pill in the top-left
+- Non-primary photos show a star button on hover (next to the existing remove X) — click to set as main
+- Header note: "Star a photo to set it as the catalogue + PDF main image. Without a starred pick, the first uploaded photo is used."
+
+**All three display surfaces wired:**
+- [catalogue-grid.tsx](src/app/emails/boat-rental/_components/catalogue/catalogue-grid.tsx) — orders by `is_primary desc, sort_order` so first photo per boat = primary if set
+- [catalogue-detail.tsx](src/app/emails/boat-rental/_components/catalogue/catalogue-detail.tsx) — same; hero is primary if set
+- [print/[id]/page.tsx](src/app/emails/boat-rental/print/[id]/page.tsx) — same; PDF hero matches
+
+Type check + production build pass. Deployed.
+
+---
+
 ## ✅ Print tab nav closes itself + Expired Holds disabled UX
 
 Two fixes shipped:

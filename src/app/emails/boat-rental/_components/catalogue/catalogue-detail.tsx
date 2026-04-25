@@ -55,12 +55,15 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
   if (scope.kind === 'active-only' && boat.status !== 'active') notFound();
   if (scope.kind === 'own-only' && !scope.ownerIds.includes(boat.owner_id)) notFound();
 
+  // Hero is the admin-flagged primary if set, else first by sort_order.
+  // is_primary desc puts the starred photo first for everyone.
   const { data: imgRaw } = await sb
     .from('boat_rental_boat_images')
-    .select('id, storage_path, sort_order')
+    .select('id, storage_path, sort_order, is_primary')
     .eq('boat_id', boatId)
+    .order('is_primary', { ascending: false })
     .order('sort_order');
-  const images = ((imgRaw as unknown) as Array<{ id: string; storage_path: string; sort_order: number }> | null) || [];
+  const images = ((imgRaw as unknown) as Array<{ id: string; storage_path: string; sort_order: number; is_primary: boolean }> | null) || [];
   const urls = await signedImageUrls(images.map(i => i.storage_path));
   const photos = urls
     .map((u, i) => (u ? { url: u, alt: `${boat.name} photo ${i + 1}` } : null))

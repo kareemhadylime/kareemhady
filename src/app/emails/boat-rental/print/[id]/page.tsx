@@ -94,11 +94,13 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
     if (!isBroker && !isOwner) notFound();
   }
 
-  // First 5 photos (hero + up to 4 thumbs).
+  // First 5 photos (hero + up to 4 thumbs). Admin-starred primary
+  // wins as hero if set; rest by sort_order.
   const { data: imgRaw } = await sb
     .from('boat_rental_boat_images')
-    .select('storage_path, sort_order')
+    .select('storage_path, sort_order, is_primary')
     .eq('boat_id', id)
+    .order('is_primary', { ascending: false })
     .order('sort_order')
     .limit(5);
   const imgRows = ((imgRaw as unknown) as Array<{ storage_path: string }> | null) || [];
