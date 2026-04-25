@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Lightbox bug fix + thumbnail strip
+
+User reported lightbox arrows not clickable + appeared "stuck between photos 6 and 10". Root cause: the wrapping div around the `<img>` was `w-full h-full max-w-[95vw] max-h-[90vh]` — rendered AFTER the absolute-positioned arrow buttons in DOM order with no z-index, so it intercepted clicks at the arrow positions. The "+N more" tile opens index 5 (photo 6), and broken arrows kept the user there.
+
+**Fix in [photo-gallery.tsx](src/app/emails/boat-rental/_components/catalogue/photo-gallery.tsx):**
+- Removed the wrapping div around `<img>`. Image now sits in an `absolute inset-0 flex items-center justify-center pointer-events-none` container — only the `<img>` itself has `pointer-events-auto` and stops propagation. Empty area around the image lets clicks fall through to the dialog backdrop = close.
+- All controls (X, counter, prev/next arrows, thumbnail strip) explicitly `z-20` so they're guaranteed above the image layer.
+- Arrows: added `top-1/2 -translate-y-1/2` for true vertical centering, bumped hover/active opacity for better feedback, added `cursor-pointer`.
+- Bumped backdrop opacity (`bg-white/15` → `/30` on hover, `/40` on active) so the buttons feel responsive.
+
+**Bonus: thumbnail strip at bottom of lightbox** — horizontally scrollable row of 48-56px thumbnails with the active one ring-cyan + scale-105. Lets users jump to any photo directly without arrowing through. Added inline maxHeight on the image to leave room for the strip (140px vs 80px without arrows/strip).
+
+Type check passes. Deployed.
+
+---
+
 ## ✅ Boat features: predefined pill picker + Catalogue rendering
 
 User: pill-select instead of free-text features on the boat form, with two categories (Always Included × 12, On Demand · Chargeable × 3) plus existing free-text textarea preserved as "Other features". User said "Go on" all 7 defaults from the clarifying-questions reply.

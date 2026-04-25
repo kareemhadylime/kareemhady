@@ -118,7 +118,7 @@ function Lightbox({
       role="dialog"
       aria-modal="true"
       aria-label={current.alt}
-      className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center"
+      className="fixed inset-0 z-[100] bg-black/90"
       onClick={onClose}
       onTouchStart={e => {
         touchStartX.current = e.touches[0].clientX;
@@ -133,6 +133,7 @@ function Lightbox({
         touchStartX.current = null;
       }}
     >
+      {/* Close button (top right) */}
       <button
         type="button"
         aria-label="Close"
@@ -140,15 +141,17 @@ function Lightbox({
           e.stopPropagation();
           onClose();
         }}
-        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+        className="absolute z-20 top-4 right-4 p-2 rounded-full bg-white/15 hover:bg-white/25 text-white transition"
       >
         <X size={20} />
       </button>
 
-      <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-semibold">
+      {/* Photo counter (top left) */}
+      <div className="absolute z-20 top-4 left-4 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-semibold">
         {index + 1} / {photos.length}
       </div>
 
+      {/* Prev/Next nav arrows (vertically centered) */}
       {photos.length > 1 && (
         <>
           <button
@@ -158,7 +161,7 @@ function Lightbox({
               e.stopPropagation();
               prev();
             }}
-            className="absolute left-2 sm:left-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+            className="absolute z-20 left-2 sm:left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white transition cursor-pointer"
           >
             <ChevronLeft size={28} />
           </button>
@@ -169,25 +172,63 @@ function Lightbox({
               e.stopPropagation();
               next();
             }}
-            className="absolute right-2 sm:right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition"
+            className="absolute z-20 right-2 sm:right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-white transition cursor-pointer"
           >
             <ChevronRight size={28} />
           </button>
         </>
       )}
 
-      <div
-        className="relative w-full h-full max-w-[95vw] max-h-[90vh] flex items-center justify-center p-4"
-        onClick={e => e.stopPropagation()}
-      >
+      {/* Image — centered via flex; only the image itself stops backdrop
+          clicks (the surrounding flex area lets clicks fall through to
+          the dialog onClick = close). z-0 keeps it below the controls. */}
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-16 pointer-events-none">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={current.url}
           alt={current.alt}
-          className="max-w-full max-h-full object-contain select-none"
+          onClick={e => e.stopPropagation()}
+          className="max-w-full max-h-full object-contain select-none pointer-events-auto"
+          style={{ maxHeight: photos.length > 1 ? 'calc(100vh - 140px)' : 'calc(100vh - 80px)' }}
           draggable={false}
         />
       </div>
+
+      {/* Thumbnail strip at the bottom — direct jump to any photo */}
+      {photos.length > 1 && (
+        <div
+          className="absolute z-20 bottom-3 left-1/2 -translate-x-1/2 max-w-[95vw] overflow-x-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex gap-1.5 px-2 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm">
+            {photos.map((p, i) => (
+              <button
+                key={p.url}
+                type="button"
+                aria-label={`Go to photo ${i + 1}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  setIndex(i);
+                }}
+                className={
+                  'relative w-12 h-12 sm:w-14 sm:h-14 rounded overflow-hidden shrink-0 transition ' +
+                  (i === index
+                    ? 'ring-2 ring-cyan-400 opacity-100 scale-105'
+                    : 'opacity-60 hover:opacity-100')
+                }
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.url}
+                  alt=""
+                  className="w-full h-full object-cover select-none"
+                  draggable={false}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
