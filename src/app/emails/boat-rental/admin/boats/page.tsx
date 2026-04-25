@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
 import { BackToAdminMenu } from '../_components/back-to-menu';
 import { createBoatAction } from './actions';
+import { FeaturePicker } from './_components/feature-picker';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,9 +101,22 @@ export default async function BoatsAdmin() {
               <span className="text-slate-600 text-xs">Skipper WhatsApp * (digits only)</span>
               <input name="skipper_whatsapp" type="tel" inputMode="tel" required placeholder="201234567890" className="ix-input mt-1" />
             </label>
+            <div className="md:col-span-2">
+              <span className="text-slate-600 dark:text-slate-300 text-xs block mb-2">
+                Features (pick all that apply)
+              </span>
+              <FeaturePicker />
+            </div>
             <label className="text-sm md:col-span-2">
-              <span className="text-slate-600 text-xs">Features</span>
-              <textarea name="features_md" rows={3} placeholder="Sun deck · shower · sound system · snorkel gear" className="ix-input mt-1" />
+              <span className="text-slate-600 dark:text-slate-300 text-xs">
+                Other features (free text — anything not in the list above)
+              </span>
+              <textarea
+                name="features_md"
+                rows={2}
+                placeholder="e.g. Sound system · sun shade · custom bar setup"
+                className="ix-input mt-1"
+              />
             </label>
             <div className="md:col-span-2 flex items-center justify-between gap-3 flex-wrap">
               <button type="submit" className="ix-btn-primary"><Plus size={14} /> Create boat</button>

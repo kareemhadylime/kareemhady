@@ -1,5 +1,27 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Boat features: predefined pill picker + Catalogue rendering
+
+User: pill-select instead of free-text features on the boat form, with two categories (Always Included × 12, On Demand · Chargeable × 3) plus existing free-text textarea preserved as "Other features". User said "Go on" all 7 defaults from the clarifying-questions reply.
+
+**Migration ([0021_boat_features_array.sql](supabase/migrations/0021_boat_features_array.sql), applied via MCP):** `boat_rental_boats.features text[] not null default '{}'`. Existing `features_md` repurposed as "Other / free text", no auto-migration.
+
+**Registry ([src/lib/boat-rental/features.ts](src/lib/boat-rental/features.ts)):** Single source of truth — 12 always-included codes + 3 on-demand. Helpers: `partitionFeatures(codes)` returns `{ always, onDemand, unknown }` in registry order (not selection order, for stable display); `isValidFeatureCode` for server-side allowlist scrubbing. Adding/removing a feature is a code change, no DB migration. Renaming labels is fine; codes stay stable once stored.
+
+**FeaturePicker client component ([admin/boats/_components/feature-picker.tsx](src/app/emails/boat-rental/admin/boats/_components/feature-picker.tsx)):** Two grouped fieldsets — cyan "Always Included" with cyan-fill selected pills + check icon, amber "On Demand · Chargeable" with `$` icon and "Available on request" footnote. Selected codes mirror into hidden `<input name="features">` elements so the parent server-action form picks them up via `formData.getAll('features')` — no extra wiring.
+
+**Forms ([admin/boats/page.tsx](src/app/emails/boat-rental/admin/boats/page.tsx) + [[id]/page.tsx](src/app/emails/boat-rental/admin/boats/[id]/page.tsx)):** FeaturePicker swapped in above the existing free-text "Other features" textarea. Edit form passes `defaultSelected={boat.features || []}`.
+
+**Actions ([admin/boats/actions.ts](src/app/emails/boat-rental/admin/boats/actions.ts)):** New `readFeatures(formData)` helper — `formData.getAll('features')`, dedupes, drops anything failing `isValidFeatureCode` (defends against tampered submissions). Both `createBoatAction` and `updateBoatAction` now persist `features`. Update revalidates all three inventory paths so brokers/owners/admins see edits immediately.
+
+**Catalogue detail render ([_components/catalogue/catalogue-detail.tsx](src/app/emails/boat-rental/_components/catalogue/catalogue-detail.tsx)):** Features rendered as 2-col grid — cyan "Always Included" with check icons (sm:grid-cols-2 internal layout), amber "On Demand · Available on request" with `$` icons. Free-text `features_md` rendered separately under "Other features".
+
+**Print/PDF render ([print/[id]/page.tsx](src/app/emails/boat-rental/print/[id]/page.tsx)):** Same two-column structure, condensed to fit A4 — `text-[11px]` rows, tighter `gap-y-1` lists. Always group is internal 2-col grid (12 features fit nicely), on-demand stays single column on the right (only 3 items).
+
+**Type check + production build pass.**
+
+---
+
 ## ✅ Boat Catalogue tab (all 3 portals) + per-broker logo + A4 PDF spec sheet
 
 User answered all 6 Workflow questions ("logo broker only", "admin overrides only — no self-serve", "3+2 mobile wrap", "no-logo PDF shows boat name big", "WhatsApp share OOS", "auto-fit on upload — no server processing"). Built end-to-end and shipped.

@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Users, Ship } from 'lucide-react';
+import { ChevronLeft, Users, Ship, Check, DollarSign } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrls } from '@/lib/boat-rental/storage';
+import { partitionFeatures } from '@/lib/boat-rental/features';
 import { TabNav, type TabItem } from '../tabs';
 import { CataloguePhotoGallery } from './photo-gallery';
 import { PdfLink } from './pdf-link';
@@ -17,6 +18,7 @@ type Boat = {
   name: string;
   size: string | null;
   features_md: string | null;
+  features: string[] | null;
   capacity_guests: number;
   status: 'active' | 'maintenance' | 'inactive';
   owner_id: string;
@@ -40,11 +42,12 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, features_md, capacity_guests, status, owner_id')
+    .select('id, name, size, features_md, features, capacity_guests, status, owner_id')
     .eq('id', boatId)
     .maybeSingle();
   const boat = boatRow as Boat | null;
   if (!boat) notFound();
+  const { always, onDemand } = partitionFeatures(boat.features || []);
 
   // Scope guard — never trust the route param.
   if (scope.kind === 'active-only' && boat.status !== 'active') notFound();
@@ -104,10 +107,45 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
           </div>
         )}
 
+        {(always.length > 0 || onDemand.length > 0) && (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {always.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-cyan-700 dark:text-cyan-300 uppercase tracking-wide mb-3">
+                  Always Included
+                </h2>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-3">
+                  {always.map(f => (
+                    <li key={f.code} className="text-sm text-slate-700 dark:text-slate-200 inline-flex items-center gap-2">
+                      <Check size={14} className="text-cyan-600 dark:text-cyan-400 shrink-0" />
+                      {f.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {onDemand.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-3 inline-flex items-center gap-1">
+                  <DollarSign size={13} /> On Demand · Available on request
+                </h2>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-3">
+                  {onDemand.map(f => (
+                    <li key={f.code} className="text-sm text-slate-700 dark:text-slate-200 inline-flex items-center gap-2">
+                      <DollarSign size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      {f.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {boat.features_md && (
           <div className="mt-6">
             <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
-              Features
+              Other features
             </h2>
             <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed">
               {boat.features_md}

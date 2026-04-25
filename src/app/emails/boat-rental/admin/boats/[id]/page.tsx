@@ -10,6 +10,7 @@ import {
   deleteBoatAction,
 } from '../actions';
 import { BoatImageUploader } from '../_components/image-uploader';
+import { FeaturePicker } from '../_components/feature-picker';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ type BoatWithOwner = {
   name: string;
   size: string | null;
   features_md: string | null;
+  features: string[] | null;
   capacity_guests: number;
   owner_id: string;
   skipper_name: string;
@@ -30,7 +32,7 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, features_md, capacity_guests, owner_id, skipper_name, skipper_whatsapp, status')
+    .select('id, name, size, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp, status')
     .eq('id', id)
     .maybeSingle();
   const boat = boatRow as BoatWithOwner | null;
@@ -99,9 +101,23 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
             <span className="text-slate-600 text-xs">Skipper WhatsApp *</span>
             <input name="skipper_whatsapp" type="tel" inputMode="tel" required defaultValue={boat.skipper_whatsapp} className="ix-input mt-1" />
           </label>
+          <div className="md:col-span-2">
+            <span className="text-slate-600 dark:text-slate-300 text-xs block mb-2">
+              Features (pick all that apply)
+            </span>
+            <FeaturePicker defaultSelected={boat.features || []} />
+          </div>
           <label className="text-sm md:col-span-2">
-            <span className="text-slate-600 text-xs">Features</span>
-            <textarea name="features_md" rows={3} defaultValue={boat.features_md || ''} className="ix-input mt-1" />
+            <span className="text-slate-600 dark:text-slate-300 text-xs">
+              Other features (free text — anything not in the list above)
+            </span>
+            <textarea
+              name="features_md"
+              rows={2}
+              defaultValue={boat.features_md || ''}
+              placeholder="e.g. Sound system · sun shade · custom bar setup"
+              className="ix-input mt-1"
+            />
           </label>
           <div className="md:col-span-2 flex items-center justify-between">
             <button type="submit" className="ix-btn-primary"><Save size={14} /> Save changes</button>

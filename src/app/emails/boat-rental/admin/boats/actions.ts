@@ -4,6 +4,16 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBoatAdmin, s, sOrNull, nOrNull, normPhone } from '@/lib/boat-rental/server-helpers';
+import { isValidFeatureCode } from '@/lib/boat-rental/features';
+
+// Pull every 'features' value from the form, dedupe, and drop anything
+// that's not in the predefined registry. Defends against tampered
+// submissions while letting us add/remove features in code without
+// breaking saved boats.
+function readFeatures(formData: FormData): string[] {
+  const raw = formData.getAll('features').map(v => String(v));
+  return Array.from(new Set(raw)).filter(isValidFeatureCode);
+}
 
 // Image uploads no longer flow through Server Actions because Vercel
 // caps Server Action request bodies at ~4.5MB and multi-image submits
@@ -19,6 +29,7 @@ export async function createBoatAction(formData: FormData): Promise<void> {
   const name = s(formData.get('name'));
   const size = sOrNull(formData.get('size'));
   const features_md = sOrNull(formData.get('features_md'));
+  const features = readFeatures(formData);
   const capacity_guests = nOrNull(formData.get('capacity_guests'));
   const owner_id = s(formData.get('owner_id'));
   const skipper_name = s(formData.get('skipper_name'));
@@ -29,7 +40,7 @@ export async function createBoatAction(formData: FormData): Promise<void> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from('boat_rental_boats')
-    .insert({ name, size, features_md, capacity_guests, owner_id, skipper_name, skipper_whatsapp })
+    .insert({ name, size, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp })
     .select('id')
     .single();
   if (error || !data) throw new Error(error?.message || 'create_failed');
@@ -48,6 +59,7 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
   const name = s(formData.get('name'));
   const size = sOrNull(formData.get('size'));
   const features_md = sOrNull(formData.get('features_md'));
+  const features = readFeatures(formData);
   const capacity_guests = nOrNull(formData.get('capacity_guests'));
   const owner_id = s(formData.get('owner_id'));
   const skipper_name = s(formData.get('skipper_name'));
@@ -72,6 +84,7 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
       name,
       size,
       features_md,
+      features,
       capacity_guests,
       owner_id,
       skipper_name,
@@ -82,6 +95,9 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
     .eq('id', id);
   revalidatePath(`/emails/boat-rental/admin/boats/${id}`);
   revalidatePath('/emails/boat-rental/admin/boats');
+  revalidatePath('/emails/boat-rental/broker/inventory');
+  revalidatePath('/emails/boat-rental/owner/inventory');
+  revalidatePath('/emails/boat-rental/admin/inventory');
 }
 
 // uploadBoatImagesAction was removed — replaced by client-direct upload via

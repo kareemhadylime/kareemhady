@@ -1,9 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
-import { Users, Phone } from 'lucide-react';
+import { Users, Phone, Check, DollarSign } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getBoatRoles, getOwnedOwnerIds, type BoatRole } from '@/lib/boat-rental/auth';
 import { signedImageUrls, signedImageUrl } from '@/lib/boat-rental/storage';
+import { partitionFeatures } from '@/lib/boat-rental/features';
 import { PrintTrigger } from './print-trigger';
 
 // One-page A4 spec sheet for a single boat. Linked from the Catalogue
@@ -25,6 +26,7 @@ type Boat = {
   name: string;
   size: string | null;
   features_md: string | null;
+  features: string[] | null;
   capacity_guests: number;
   status: 'active' | 'maintenance' | 'inactive';
   owner_id: string;
@@ -66,11 +68,12 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, features_md, capacity_guests, status, owner_id')
+    .select('id, name, size, features_md, features, capacity_guests, status, owner_id')
     .eq('id', id)
     .maybeSingle();
   const boat = boatRow as Boat | null;
   if (!boat) notFound();
+  const { always, onDemand } = partitionFeatures(boat.features || []);
 
   // Scope check — match the catalogue rules for whichever role is
   // viewing. Admins see all; brokers only active; owners only own.
@@ -218,13 +221,49 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
             </div>
           </section>
 
-          {/* Features */}
+          {/* Predefined features — two grouped lists */}
+          {(always.length > 0 || onDemand.length > 0) && (
+            <section className="mt-6 grid grid-cols-2 gap-5">
+              {always.length > 0 && (
+                <div>
+                  <h2 className="text-[10px] uppercase tracking-wide text-cyan-700 font-semibold mb-1.5">
+                    Always Included
+                  </h2>
+                  <ul className="grid grid-cols-2 gap-y-1 gap-x-2">
+                    {always.map(f => (
+                      <li key={f.code} className="text-[11px] text-slate-800 inline-flex items-center gap-1.5 leading-snug">
+                        <Check size={11} className="text-cyan-600 shrink-0" />
+                        {f.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {onDemand.length > 0 && (
+                <div>
+                  <h2 className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold mb-1.5 inline-flex items-center gap-1">
+                    <DollarSign size={10} /> On Demand · Available on request
+                  </h2>
+                  <ul className="grid grid-cols-1 gap-y-1">
+                    {onDemand.map(f => (
+                      <li key={f.code} className="text-[11px] text-slate-800 inline-flex items-center gap-1.5 leading-snug">
+                        <DollarSign size={10} className="text-amber-600 shrink-0" />
+                        {f.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Other (free-text) features */}
           {boat.features_md && (
-            <section className="mt-6">
-              <h2 className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-2">
-                Features
+            <section className="mt-5">
+              <h2 className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">
+                Other features
               </h2>
-              <p className="text-sm text-slate-800 whitespace-pre-line leading-relaxed">
+              <p className="text-[11px] text-slate-800 whitespace-pre-line leading-snug">
                 {boat.features_md}
               </p>
             </section>
