@@ -13,6 +13,7 @@
     { "path": "/api/cron/pricelabs", "schedule": "35 4 * * *" },
     { "path": "/api/cron/guesty", "schedule": "40 4 * * *" },
     { "path": "/api/cron/shopify", "schedule": "45 4 * * *" },
-    { "path": "/api/cron/boat-rental/expire-holds", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/boat-rental/expire-holds", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/boat-rental/hold-warnings", "schedule": "*/5 * * * *" }
   ]
 }

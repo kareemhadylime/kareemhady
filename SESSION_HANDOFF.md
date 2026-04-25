@@ -1,5 +1,290 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## 🧭 Reservation flow redesign + Owner Block Dates — Plan Phase delivered (no code yet)
+
+User asked to redesign the reservation entry flow plus add an owner-side capability to block dates for personal use. Following the protocol: plan → 16 clarifying questions + 12 improvements → wait for 95% confidence → workflow phase → wait for sign-off → code. **No commits, no schema changes this turn.**
+
+### Proposed flow change (current vs. requested)
+
+**Today:** broker hits Availability → single "Reserve" button → creates `held` (2h) → broker later clicks "Mark Client Paid" → `confirmed` + WhatsApp.
+
+**Proposed:** Inquire screen shows price + availability + **3 actions**:
+- **Hold (2h)** — same as today's reserve (creates `held`, auto-expires)
+- **Reserve now** — new path: skips `held`, creates `confirmed` directly + fires WhatsApp immediately
+- **Cancel/Back** — leaves the inquiry with no record
+
+The existing Mark Client Paid flow stays for the Hold path (held → confirmed). State machine stays the same; the new front door just lets brokers commit directly.
+
+### Owner Block Dates (new capability)
+
+- New `boat_rental_owner_blocks (boat_id, blocked_date, reason, blocked_by, created_at)` table with unique on `(boat_id, blocked_date)`.
+- Availability resolver joins **both** reservations AND owner_blocks — a date is unavailable if either has a row.
+- Owner UI: inline on the existing calendar (click empty day → popover → "Block this day" with optional reason), or separate `/owner/blocks` page (TBD via Q9).
+- Cannot block a date with a live reservation; show inline conflict alert (improvement #5).
+
+### New / changed pages summary
+
+**Broker:** `/broker/availability` repurposed as Inquire-with-3-buttons. `/broker` landing redesigned as a Reservations dashboard with state-aware action buttons. `/broker/holds`, `/broker/payments`, `/broker/trip/[id]` unchanged.
+
+**Owner:** `/owner` landing keeps My Boats tiles + adds reservations dashboard view. `/owner/calendar` gets a "blocked" colour + click-to-block UX. New `/owner/reservations` (consolidated list with action buttons). New `/owner/blocks` if not inlined on calendar.
+
+**Bottom nav:** Broker bottom-nav stays 4 tabs (Reservations · Inquire · Holds · Pay). Owner grows to 3 (My Boats · Calendar · Reservations).
+
+### 16 clarifying questions posed
+
+Key ones: Reserve = direct-to-confirmed yes/no (Q1) · Notes capture timing on Reserve action (Q2) · Owner block reason free-text vs. typed list (Q3) · Multi-date range blocks vs. single days (Q4) · Block conflict with confirmed booking — reject or allow with override (Q5) · Inquiry logging table yes/no (Q6) · Tab naming "My Bookings" vs. "Reservations" (Q7) · Owner reservations dashboard read-only or actionable (Q8) · Owner blocks UI inline on calendar vs. separate page (Q9) · Hold→Reserve direct conversion shortcut (Q10) · Hold expiry T-30min warning push (Q11) · Pricing strip vs. single-day price on inquiry (Q12) · 72h rule applies to held? (Q13) · Migration handling of existing held reservations (Q14) · Admin notification when owner blocks (Q15) · Owner Blocks bottom-nav icon (Q16).
+
+### 12 improvements proposed
+
+(1) Inquiry logging for funnel analytics. (2) Hold expiry T-30min WhatsApp warning. (3) Owner block reason as typed list. (4) Multi-date / range block. (5) Conflict-aware blocking with inline alert. (6) Pipeline metrics widget on admin dashboard. (7) Notes prompt at Reserve-now action. (8) Cancellation reason dropdown. (9) Owner blocks visible to brokers as "Owner-reserved" not generic "Unavailable". (10) Admin override to force-add reservation on owner-blocked date (audit-logged). (11) Inline calendar-cell block toggle (popover UX). (12) Recurring blocks (every Tuesday in June) — flagged as v2.
+
+### Schema changes preview
+
+```sql
+create table public.boat_rental_owner_blocks (
+  id uuid primary key default gen_random_uuid(),
+  boat_id uuid not null references boat_rental_boats(id) on delete cascade,
+  blocked_date date not null,
+  reason text,
+  blocked_by uuid not null references app_users(id),
+  created_at timestamptz not null default now()
+);
+create unique index boat_rental_owner_blocks_uk on boat_rental_owner_blocks (boat_id, blocked_date);
+
+-- Optional (improvement #1):
+create table public.boat_rental_inquiries ( id, boat_id, booking_date, broker_id, outcome enum, price_egp, tier, created_at );
+```
+
+### Next turn resumption
+
+User answers the 16 questions OR accepts my assumptions + picks which improvements to include. Then I produce the **Workflow Phase** doc: UI mocks for inquiry-3-buttons / broker reservations dashboard / owner reservations + blocks, server action signatures (createReservationDirectAction, addOwnerBlockAction, removeOwnerBlockAction, updated reserveHoldAction, etc.), migration 0018 SQL, updated availability resolver, edge cases, build-order plan.
+
+**Do not start writing migrations or routes until user explicitly answers the 16 questions or approves defaults.**
+
+---
+
+## ✅ Admin: Setup sub-launcher consolidates Owners/Boats/Pricing/Seasons/Destinations/Users (commit `da5335c`)
+
+User asked to fold the six configuration sections under one entry box. Top admin launcher dropped from 10 tiles to 5; a new sub-launcher at `/admin/setup` hosts the six configuration tiles.
+
+**Navigation hierarchy:**
+```
+/admin                          [Dashboard | Setup | All Bookings | Notifications | Audit Log]
+  └── /admin/setup              [Owners | Boats | Pricing | Seasons | Destinations | Users]
+        └── individual section pages (existing routes unchanged)
+```
+
+**Files:**
+- New [src/app/emails/boat-rental/admin/setup/page.tsx](src/app/emails/boat-rental/admin/setup/page.tsx) — 6-tile sub-launcher with violet/cyan/emerald/amber/indigo/pink accents matching the original. Has its own `<BackToAdminMenu />` returning to `/admin`.
+- [admin/page.tsx](src/app/emails/boat-rental/admin/page.tsx) — SECTIONS array shrunk; new `Setup` tile uses Settings icon + violet accent + tagline `Owners · Boats · Pricing · Seasons · Destinations · Users — fleet and access configuration.`
+- [admin/_components/back-to-menu.tsx](src/app/emails/boat-rental/admin/_components/back-to-menu.tsx) — `BackToAdminMenu` now accepts optional `href` + `label` props (defaults preserved).
+- 6 setup sub-pages (`owners`, `boats`, `pricing`, `seasons`, `destinations`, `users`) — each `<BackToAdminMenu />` overridden with `href="/emails/boat-rental/admin/setup"` and `label="Back to setup"` so they return to the sub-launcher instead of skipping to top.
+
+Routes unchanged — existing direct links / bookmarks / dashboard quick-links to `/admin/owners`, `/admin/pricing`, etc. still work.
+
+Admin role gate (`requireBoatRole('admin')` in admin layout) covers the whole tree including the new `/admin/setup` page.
+
+Deployed at `suspicious-mirzakhani-b822bc-ibzszb0ya-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Pricing: lock-after-save view/edit toggle per boat (commit `5e662ec`)
+
+User asked for prices to be "shielded from edit till you press Edit" + confirmation that pricing is per-boat. (It already is — schema is `boat_rental_pricing(boat_id, tier, amount_egp)` with unique on `(boat_id, tier)`.) Added a view/edit toggle so saved prices are locked by default.
+
+**New client component:** [pricing/_components/pricing-row.tsx](src/app/emails/boat-rental/admin/pricing/_components/pricing-row.tsx)
+- `useState<'view' | 'edit'>` initialized based on whether all three tiers are set
+- `useTransition` wraps the existing `upsertPricingAction` server action so we can flip back to view mode after a successful submit
+- `useToast` + `hapticSuccess`/`hapticError` give feedback
+- View mode renders three `<PricePill>` blocks (label + bold EGP value) plus an "Edit prices" button. Missing tier displays `—` in amber so admins spot incomplete pricing.
+- Edit mode renders the three number inputs (with `inputMode="numeric"`, `required`), Save (primary cyan with "Saving…" pending state), Cancel (ghost — only shown if all three are already set, since new boats need to commit first). Card gets `ring-1 ring-cyan-300/40` + an "editing" pill so it's obvious which row is unlocked.
+- Inputs `disabled={pending}` to prevent double-submit.
+
+**Page refactor:** [pricing/page.tsx](src/app/emails/boat-rental/admin/pricing/page.tsx) becomes a thin server wrapper — fetches `boats` + `boat_rental_pricing` once, computes a `{weekday, weekend, season}` object per boat (numeric or null), passes to `<PricingRow boat prices />` for each. `priceFor()` helper now returns `number | null` instead of stringy default. Header copy updated to mention "Prices stay locked once saved; press Edit prices on a row to change them."
+
+Server action `upsertPricingAction` unchanged — it still accepts the same FormData shape (boat_id, amount_weekday, amount_weekend, amount_season).
+
+Deployed at `suspicious-mirzakhani-b822bc-pnirykmge-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Boat photos: direct-to-Supabase via signed URLs (commit `3d06fc5`)
+
+User reported "This page couldn't load" when saving a new boat with photos. Vercel runtime logs confirmed: two POST 400s with "Body exceeded" — Server Action body limit (~4.5MB on Vercel) was being blown by multi-image submits at 5MB each.
+
+**Architectural fix — bypass Server Actions for photo uploads entirely:**
+- New endpoint [POST /api/boat-rental/admin/boat-image/sign](src/app/api/boat-rental/admin/boat-image/sign/route.ts): admin-only, validates boat exists + mime in {jpg,png,webp} + size ≤ 5MB + image-count < 10, returns `{signedUrl, path, token}` from `supabase.storage.createSignedUploadUrl()`.
+- New endpoint [POST /api/boat-rental/admin/boat-image/attach](src/app/api/boat-rental/admin/boat-image/attach/route.ts): validates path starts with `boats/{boatId}/`, confirms the object exists via `storage.list()`, inserts `boat_rental_boat_images` row, revalidates detail page.
+- New client component [BoatImageUploader](src/app/emails/boat-rental/admin/boats/_components/image-uploader.tsx): file picker with `capture="environment"`, sequential loop (sign → PUT directly to Supabase signedUrl → attach). Each file independent. Toast + haptic + progress UI.
+- [createBoatAction](src/app/emails/boat-rental/admin/boats/actions.ts): stripped image handling. Boats are created text-only → redirect to detail page where uploader lives.
+- `uploadBoatImagesAction`: removed (dead code, replaced by /sign + /attach).
+- Boats list create form: removed images input + added hint pointing to detail page.
+- Boats/[id] detail page: replaced server-action upload form with `<BoatImageUploader boatId slotsLeft />`.
+- [next.config.ts](next.config.ts): added `experimental.serverActions.bodySizeLimit: '12mb'` for the receipt-upload server action which still goes through Vercel (single file, fits).
+
+**Why the right fix (not just bumping bodySizeLimit):** Vercel function payload is hard-capped around 4.5MB regardless of Next config. Bumping bodySizeLimit alone wouldn't help. Direct-to-Supabase is the canonical multi-image pattern.
+
+**Diagnosis path:** confirmed via Vercel runtime logs MCP — fetched logs filtered by 400 status + "Body exceeded" full-text search → two matching POSTs to /admin/boats. No 500s, no Supabase errors. Hypothesis verified before refactor.
+
+Deployed at `suspicious-mirzakhani-b822bc-61k4318zd-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Dark-mode contrast + remove admin TabNav (commit `609b1ce`)
+
+User reported dark-mode font colors confusing + asked to remove tabs from admin section pages (drill-down via launcher only).
+
+**Dark mode contrast fix (one-line global, applies everywhere):**
+- [src/app/globals.css](src/app/globals.css):
+  - `.dark .text-slate-600 { color: rgb(203 213 225); }` (slate-300) — form labels become readable
+  - `.dark .text-slate-500 { color: rgb(148 163 184); }` (slate-400) — descriptions become readable
+  - `.ix-input::placeholder { color: rgb(148 163 184); }` + `.dark` variant with `opacity: 0.85`
+- Fixes propagate to **every form across the module** without per-component edits.
+
+**Admin TabNav removed:**
+- New [admin/_components/back-to-menu.tsx](src/app/emails/boat-rental/admin/_components/back-to-menu.tsx) — `BackToAdminMenu` chevron-left link to `/emails/boat-rental/admin` (the launcher).
+- Removed `TabNav` + `ADMIN_TABS` imports from all 11 admin section pages: `dashboard`, `owners`, `boats` (list + detail), `pricing`, `seasons`, `destinations`, `users`, `bookings`, `notifications`, `audit`. Replaced with `<BackToAdminMenu />` at top.
+- Broker + owner pages **keep TabNav** (no launcher to return to).
+- Navigation: admin landing = launcher grid → click box → section page (no tabs) → "Back to admin menu" → click next box. Drill-down pattern.
+
+Deployed at `suspicious-mirzakhani-b822bc-e5pf1mrnb-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Admin launcher grid (commit `367484b`)
+
+User clarified: "First Screen to show side by side Box Type Buttons, Press Dashboard to see Details, Press Owners to see details and so on." Refactored admin landing into a launcher grid.
+
+**Routing change:**
+- `/emails/boat-rental/admin` (page.tsx) → **launcher grid** of 10 large box buttons (one per section)
+- `/emails/boat-rental/admin/dashboard` (new) → moved former dashboard content (KPIs, lite mode, alerts, leaderboards, today/tomorrow trips, etc.)
+- Section pages (owners, boats, pricing, seasons, destinations, users, bookings, notifications, audit) unchanged
+- All section pages keep `TabNav` at top so users hop between sections without returning to the launcher
+- TopNav "Boat Rental" breadcrumb still points to `/admin` = back to menu
+
+**Files changed:**
+- [src/app/emails/boat-rental/admin/page.tsx](src/app/emails/boat-rental/admin/page.tsx) — new launcher grid component. SECTIONS array with 10 entries (href, title, description, icon, accent palette key). ACCENT_CLASSES record maps each accent to full Tailwind classes (must be literal at build time). Each tile: rounded-2xl card, accent-colored icon container, title + description, decorative corner gradient glow, hover effects (lift + colored shadow + arrow translate). Grid: 1/2/3 cols at sm/md/lg.
+- [src/app/emails/boat-rental/admin/dashboard/page.tsx](src/app/emails/boat-rental/admin/dashboard/page.tsx) — dashboard content moved here verbatim, only changes were `import { TabNav, ADMIN_TABS } from '../../_components/tabs'` (one extra `..`) and `currentPath="/emails/boat-rental/admin/dashboard"`.
+- [src/app/emails/boat-rental/_components/tabs.tsx](src/app/emails/boat-rental/_components/tabs.tsx) — Dashboard tab href bumped from `/admin` to `/admin/dashboard`.
+
+**Section accent palette:**
+Dashboard=cyan, Owners=violet, Boats=cyan, Pricing=emerald, Seasons=amber, Destinations=indigo, Users=pink, All Bookings=blue, Notifications=rose, Audit Log=slate.
+
+Deployed at `suspicious-mirzakhani-b822bc-o0l0ajliq-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ TabNav polish — wrap on desktop, hide scrollbar, stronger active state (commit `701b4be`)
+
+User flagged that the box-button tabs were showing a horizontal scrollbar on desktop and asked for "well formatted Style". 1 file changed.
+
+- [src/app/emails/boat-rental/_components/tabs.tsx](src/app/emails/boat-rental/_components/tabs.tsx)
+  - Container: `flex gap-2 overflow-x-auto sm:overflow-visible sm:flex-wrap` — desktop wraps to multiple rows (admin's 10 tabs land on 2 rows cleanly), mobile keeps single-row swipe-scroll
+  - Scrollbar hidden via `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden` so the rough native scrollbar isn't visible
+  - Active tab styling beefed up: `shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400/40` for a sharper pressed-button cue
+  - Inactive hover: `hover:shadow-sm hover:border-cyan-400` for tactile affordance
+  - Larger button proportions: `gap-2 px-4 py-2.5 rounded-xl` (was `gap-1.5 px-3.5 rounded-lg`), icon 15px (was 14)
+  - `mb-4` on the nav container for cleaner separation from page content
+
+Deployed at `suspicious-mirzakhani-b822bc-muugnf9hm-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Tabs styled as box buttons + prominent Boat Rental CTA (commit `c22ad93`)
+
+User requested all tabs in "box button form" + the same treatment for the main Boat Rental access tile on `/emails/personal`. 2 files changed.
+
+- [src/app/emails/boat-rental/_components/tabs.tsx](src/app/emails/boat-rental/_components/tabs.tsx) — `TabNav` now renders rounded rectangles with `border + bg`, active state = `bg-cyan-600 text-white border-cyan-600 shadow-sm`, inactive = white card with cyan hover. py-2.5 keeps tap target ≥44px. Container `gap-2 overflow-x-auto pb-2` (no more bottom border).
+- [src/app/emails/[domain]/page.tsx](src/app/emails/[domain]/page.tsx) — Personal domain's Boat Rental Admin tile upgraded from outlined card to full cyan→teal gradient CTA card (white text, frosted-glass icon box, frosted arrow button, two decorative blur accents). Reads as the primary entry point.
+
+Deployed at `suspicious-mirzakhani-b822bc-m58j54e7j-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Mobile-Aware App — shipped (commit `f2ce51f`)
+
+User answered all 22 plan + 3 workflow questions. **One big commit per request.** 48 files changed, 2,661 insertions. Pushed to `main`, deployed to `suspicious-mirzakhani-b822bc-3d1yzxf2y-lime-investments.vercel.app`. Migration 0017 already applied via MCP earlier in turn.
+
+### Foundation (app-wide)
+- `<meta viewport>` with `viewportFit=cover` + iOS safe-area utilities (`.safe-pt`, `.safe-pb`, `.pb-safe-bottom-nav`, `.min-tap`)
+- [src/lib/use-media-query.ts](src/lib/use-media-query.ts) — `useMediaQuery`, `useIsMobile`, `useIsNarrow`, `usePrefersReducedMotion`. SSR-safe (returns undefined first render).
+- [src/lib/haptics.ts](src/lib/haptics.ts) — `hapticTap`/`hapticSuccess`/`hapticError`/`hapticConfirm`. Guards `navigator.vibrate` + `prefers-reduced-motion`.
+- [src/app/_components/theme-provider.tsx](src/app/_components/theme-provider.tsx) — light/dark/system, persisted in `localStorage.theme`. Tailwind v4 `@custom-variant dark (&:where(.dark, .dark *))` in globals.css. Inline `THEME_INIT_SCRIPT` in `<head>` prevents FOUC.
+- [src/app/_components/theme-toggle.tsx](src/app/_components/theme-toggle.tsx) — tri-state cycle button.
+- [src/app/_components/toast.tsx](src/app/_components/toast.tsx) — provider + `useToast()`. Top-center mobile / bottom-right desktop. Auto-dismiss + close button.
+- [src/app/_components/bottom-sheet.tsx](src/app/_components/bottom-sheet.tsx) — slide-up <sm / centered modal ≥sm with drag handle, ESC, scroll-lock, optional sticky footer. (Primitive available; not yet consumed — kept for future bottom-sheet detail flows.)
+- [src/app/_components/connection-status.tsx](src/app/_components/connection-status.tsx) — fixed pill, hidden online.
+- [src/app/_components/install-prompt.tsx](src/app/_components/install-prompt.tsx) — second-visit, dismissible. `beforeinstallprompt` for Chromium, iOS Safari instruction tip fallback.
+- [src/app/_components/sw-register.tsx](src/app/_components/sw-register.tsx) — registers SW only in production after `load`.
+- [src/app/_components/mobile-menu.tsx](src/app/_components/mobile-menu.tsx) — slide-in right drawer for hamburger menu (<md).
+- `globals.css` updated: dark-mode CSS variable overrides, dark gradient body, safe-area utilities, button heights bumped to 44px.
+
+### PWA infrastructure (whole app at `/`)
+- [public/manifest.webmanifest](public/manifest.webmanifest) — name "Lime Boat Rental", `start_url=/emails/boat-rental`, scope `/`, theme #0891b2 / background #0e7490, 3 icon entries (any/maskable/favicon all SVG), 3 shortcuts.
+- [public/sw.js](public/sw.js) — `CACHE_VERSION=v1`. Network-first HTML w/ offline.html fallback. Cache-first `/_next/static/*` + `/icons/*` + `/manifest.webmanifest`. Skips `/api/*` always. Cross-origin (Supabase Storage signed URLs) untouched. `skipWaiting()` + `clients.claim()`. Background Sync tag `mark-paid-queue` calls `drainMarkPaidQueue()` which reads from IDB store `lime-mark-paid-queue.queue` and POSTs to `/api/boat-rental/owner/mark-paid-replay`. 409 (dedup) and 200 both clear the queue entry.
+- [public/offline.html](public/offline.html) — standalone fallback, dark-mode aware via `prefers-color-scheme`, retry button.
+- [next.config.ts](next.config.ts) — `Cache-Control: no-cache, must-revalidate` + `Service-Worker-Allowed: /` on `/sw.js`. `Content-Type: application/manifest+json` on `/manifest.webmanifest`.
+- Service worker is **disabled in development** to avoid stale-worker pain.
+
+### App icon
+Hand-crafted SVG (no sharp dependency, browsers rasterize cleanly):
+- [public/icons/icon.svg](public/icons/icon.svg) — cyan→teal gradient, rounded square (22% radius), light anchor watermark (`stroke-opacity 0.16`) behind a white boat (hull trapezoid + cabin with two windows + mast + pennant), two layered wake curves at 92% / 62% opacity.
+- [public/icons/icon-maskable.svg](public/icons/icon-maskable.svg) — same artwork inset to 80% safe zone for adaptive masks.
+- [public/icons/favicon.svg](public/icons/favicon.svg) — simplified (drops anchor + cabin windows + second wake), readable at 16×16.
+
+### Boat Rental mobile UI
+- TopNav redesign: theme toggle visible all sizes, desktop controls hidden `<md`, hamburger drawer with username/Setup/Password/theme grid/Sign-out on `<md`. Breadcrumb children moved to second row on `<sm`.
+- [_components/bottom-nav.tsx](src/app/emails/boat-rental/_components/bottom-nav.tsx) — `BrokerBottomNav` (4 tabs: Bookings/Find/Holds/Pay) + `OwnerBottomNav` (2: Boats/Calendar). Active state cyan bar above icon. `<md` only. Layouts add `pb-safe-bottom-nav md:pb-8` to clear it.
+- [_components/click-to-contact.tsx](src/app/emails/boat-rental/_components/click-to-contact.tsx) — phone display + tap-to-call (`tel:`) + tap-to-WhatsApp (`wa.me/`) icons. Owner booking detail uses it on client phone with pre-filled WA text.
+- [_components/sticky-cta.tsx](src/app/emails/boat-rental/_components/sticky-cta.tsx) — `StickyCta` (sits above bottom nav at 72px+safe) and `StickyCtaBare` (admin pages without bottom nav). Primitive available; integration into individual pages can come incrementally.
+- Admin All Bookings + Audit Log: dual rendering — `hidden md:block` table + `md:hidden` card list. Card variant stacks status pills, actions in pt-2 footer.
+- [owner/calendar/_components/week-list.tsx](src/app/emails/boat-rental/owner/calendar/_components/week-list.tsx) — vertical 14-day list starting today, color-coded status pill, tap row → booking detail. Calendar page renders WeekList `<sm` and month grid `≥sm` from a single SQL query covering both ranges.
+- Lite-mode dashboard: `?lite=1` URL param toggle (link in header). Skips 3 parallel queries (top boats / top brokers / recent activity audit). KPIs + alerts + today/tomorrow trips + active holds preserved.
+- Camera capture + inputMode pass:
+  - Receipt input (broker/payments): `capture="environment"` + mobile hint
+  - Boat image inputs (admin/boats new + edit): `capture="environment"`
+  - All phone fields: `type="tel"` + `inputMode="tel"`
+  - All EGP/numeric fields: `inputMode="numeric"`
+
+### Offline Mark-Paid queue (the most complex piece)
+
+**Schema:** Migration 0017 added `boat_rental_payments.idempotency_key uuid` + partial unique index on it (where not null). Pre-existing rows safely have NULL keys.
+
+**Client (broker layout / owner layout mounts both):**
+- [src/lib/offline/idb.ts](src/lib/offline/idb.ts) — Tiny wrapper around IndexedDB. Two databases: `lime-app` (store `bookings`) and `lime-mark-paid-queue` (store `queue`). The latter name matches what `public/sw.js` opens for background sync.
+- [src/lib/offline/booking-cache.ts](src/lib/offline/booking-cache.ts) — `cacheBookings()`/`readCachedBookings(role)` with 7-day TTL.
+- [src/lib/offline/mark-paid-queue.ts](src/lib/offline/mark-paid-queue.ts) — `enqueueMarkPaid()`, `flushQueueForeground()`, `dropQueued()`. Auto-registers Background Sync if available; ignores if not (iOS).
+- [owner/_components/mark-paid-form.tsx](src/app/emails/boat-rental/owner/_components/mark-paid-form.tsx) — replaces the inline server-action form. Always POSTs to `/api/boat-rental/owner/mark-paid-replay`. On `navigator.onLine === false` or fetch failure, enqueues + toasts "Saved. Will send when back online". On success, toast + haptic + `router.refresh()`.
+- [_components/offline-sync.tsx](src/app/emails/boat-rental/_components/offline-sync.tsx) — `OfflineFlushOnOnline` mounted in broker + owner layouts. Drains queue on mount and on every `online` event. Toast surfaces N pending actions synced.
+
+**Server:**
+- [src/app/api/boat-rental/owner/mark-paid-replay/route.ts](src/app/api/boat-rental/owner/mark-paid-replay/route.ts) — POST. Validates UUIDv4 shape on `id`, requires `owner` role, scopes by `getOwnedOwnerIds(me)`, validates reservation status ∈ `{confirmed, details_filled}`. Idempotency check (returns 409 if key already exists). Inserts payment with `idempotency_key`, flips reservation to `paid_to_owner`, audit log, fires owner WhatsApp confirmation. Race-safe: if a parallel insert lands first, the partial unique index trips and we return 409 too.
+
+**Behavior:**
+- Online click → instant: toast success, page refresh
+- Offline click → toast info: "Offline — saved. Will send when back online"
+- Reconnect (Background Sync supported, e.g. Android Chrome) → SW fires sync event, drains queue, dedup if user retried
+- Reconnect (iOS Safari, no Background Sync) → `OfflineFlushOnOnline` `online` event handler drains queue in foreground, toast confirms
+
+### Skeleton loaders
+[admin/loading.tsx](src/app/emails/boat-rental/admin/loading.tsx), [broker/loading.tsx](src/app/emails/boat-rental/broker/loading.tsx), [owner/loading.tsx](src/app/emails/boat-rental/owner/loading.tsx) — match each page's layout shape with `animate-pulse` placeholders during streaming.
+
+### Known follow-ups (not blocking)
+- BottomSheet primitive is available but not yet consumed by any page (would suit booking-detail-as-modal pattern). Kept for V2 polish.
+- StickyCta is available but not yet wired into individual pages (Holds, Trip Details) — page CTAs remain inline. Could be added incrementally without risk.
+- Click-to-Contact integrated only into owner booking detail. Could spread to admin All Bookings (broker phone), broker landing (owner phone), boats list (skipper phone) — each is a one-line change.
+- App-icon visual polish: hand-coded SVG. If the user wants a more polished/photographic look later, can swap via `banana` skill.
+- iOS apple-touch-icon uses SVG — Safari ≥14 supports this; older iOS falls back to a screenshot. PNG variant could be generated later if needed.
+- Worktree-scoped Vercel project at `suspicious-mirzakhani-b822bc-*`. Canonical `lime-investments` deploy comes via GitHub `main` integration push.
+
+### To test
+- Phone: Chrome → install via Add to Home Screen menu → confirm icon, splash, standalone window
+- Phone: airplane mode on → tap Mark Paid → toast "Saved. Will send…" → airplane off → toast "Synced 1 pending action"
+- DevTools mobile emulation 360px → confirm bottom nav, hamburger menu, week-list calendar, card-list bookings table
+- `/emails/boat-rental/admin?lite=1` → confirm leaderboards + activity feed are absent
+
+---
+
 ## 📱 Mobile-Aware App — Workflow Phase delivered, 3 final questions out (no code yet)
 
 User answered all 22 plan-phase questions. Workflow Phase doc delivered covering: 3-layer architecture, file map, component contracts, PWA manifest schema, service worker strategy, offline read + Mark-Paid background sync, TopNav redesign, bottom nav, page-by-page audit checklist, breakpoint conventions, edge cases, migration 0017 (idempotency_key column), build order, app icon proposals.

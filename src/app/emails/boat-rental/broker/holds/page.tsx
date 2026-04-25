@@ -1,9 +1,9 @@
-import { Clock, CheckCircle2, X, Ship } from 'lucide-react';
+import { Clock, CheckCircle2, X, Ship, Zap } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { TabNav, BROKER_TABS } from '../../_components/tabs';
 import { HoldCountdown } from '../_components/countdown';
-import { confirmPaymentAction, cancelHoldAction } from '../actions';
+import { confirmPaymentAction, cancelHoldAction, convertHoldToReserveAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +81,7 @@ export default async function BrokerHolds() {
             <form action={confirmPaymentAction} className="space-y-3">
               <input type="hidden" name="id" value={h.id} />
               <label className="text-sm block">
-                <span className="text-slate-600 text-xs">
+                <span className="text-slate-600 dark:text-slate-300 text-xs">
                   Special trip requirements (optional — goes out on the confirmation WhatsApp and again on day-before)
                 </span>
                 <textarea
@@ -97,6 +97,19 @@ export default async function BrokerHolds() {
                   <CheckCircle2 size={14} /> Mark client paid & confirm booking
                 </button>
               </div>
+            </form>
+
+            {/* Quick shortcut: skip Mark Client Paid and go straight to confirmed */}
+            <form action={convertHoldToReserveAction} className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
+              <input type="hidden" name="id" value={h.id} />
+              <input type="hidden" name="notes" value={h.notes || ''} />
+              <button
+                type="submit"
+                className="text-xs text-cyan-700 dark:text-cyan-300 hover:text-cyan-900 inline-flex items-center gap-1"
+                title="Convert this hold directly to a confirmed reservation (same as Mark Client Paid but one click)."
+              >
+                <Zap size={12} /> Reserve now (skip "client paid" step)
+              </button>
             </form>
 
             <form action={cancelHoldAction} className="mt-3 flex justify-end">

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  ListOrdered, Search, Clock, Receipt, Ship, Calendar,
+  ListOrdered, Search, Clock, Receipt, Ship, Calendar, Lock,
 } from 'lucide-react';
 
 // Sticky bottom navigation for broker + owner on mobile (<md).
@@ -22,8 +22,9 @@ const BROKER_BOTTOM_TABS: Item[] = [
 ];
 
 const OWNER_BOTTOM_TABS: Item[] = [
-  { href: '/emails/boat-rental/owner', label: 'My Boats', icon: Ship },
-  { href: '/emails/boat-rental/owner/calendar', label: 'Calendar', icon: Calendar },
+  { href: '/emails/boat-rental/owner', label: 'Boats', icon: Ship },
+  { href: '/emails/boat-rental/owner/calendar', label: 'Calendar', icon: Lock },
+  { href: '/emails/boat-rental/owner/reservations', label: 'Bookings', icon: ListOrdered },
 ];
 
 function BottomNavBar({ tabs }: { tabs: Item[] }) {

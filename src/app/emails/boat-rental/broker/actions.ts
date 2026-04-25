@@ -13,6 +13,7 @@ import {
   shortRef,
 } from '@/lib/boat-rental/server-helpers';
 import { isWithinCancellationWindow } from '@/lib/boat-rental/pricing';
+import { checkAvailability } from '@/lib/boat-rental/availability';
 import { enqueueNotification, flushPendingForReservation } from '@/lib/boat-rental/notifications';
 
 // Shared helper: gather recipients + context for notifications tied to a reservation.
@@ -367,10 +368,13 @@ export async function uploadReceiptAction(formData: FormData): Promise<void> {
   revalidatePath('/emails/boat-rental/broker');
 }
 
-// Broker cancels a confirmed (not yet details_filled) reservation — 72h rule applies.
+// Broker cancels a held reservation OR a >=72h-out confirmed reservation
+// outright. Within-72h confirmed cancellations are routed to
+// requestCancellationAction so the owner has to approve.
 export async function cancelReservationBrokerAction(formData: FormData): Promise<void> {
   const me = await requireBoatRoleOrThrow('broker');
   const id = s(formData.get('id'));
+  const reason = sOrNull(formData.get('reason'));
   if (!id) return;
   const sb = supabaseAdmin();
   const { data: row } = await sb
@@ -380,12 +384,16 @@ export async function cancelReservationBrokerAction(formData: FormData): Promise
     .maybeSingle();
   const r = row as { id: string; status: string; broker_id: string; booking_date: string } | null;
   if (!r || r.broker_id !== me.id) throw new Error('forbidden');
-  if (!['held', 'confirmed'].includes(r.status)) throw new Error('bad_status');
-  if (r.status === 'confirmed' && !isWithinCancellationWindow(r.booking_date)) {
-    throw new Error('cancellation_window_closed');
+  if (!['held', 'confirmed', 'details_filled'].includes(r.status)) throw new Error('bad_status');
+
+  // Held = always disposable by broker. Confirmed/details_filled outside
+  // 72h cancels outright; within 72h goes through the approval workflow.
+  const within72 = !isWithinCancellationWindow(r.booking_date);
+  if (r.status !== 'held' && within72) {
+    throw new Error('within_72h_use_request_endpoint');
   }
 
-  const refundPending = r.status === 'confirmed';
+  const refundPending = ['confirmed', 'details_filled'].includes(r.status);
   await sb
     .from('boat_rental_reservations')
     .update({
@@ -393,7 +401,7 @@ export async function cancelReservationBrokerAction(formData: FormData): Promise
       cancelled_at: new Date().toISOString(),
       cancelled_by: me.id,
       cancelled_by_role: 'broker',
-      cancel_reason: 'broker_cancelled',
+      cancel_reason: reason || 'broker_cancelled',
       refund_pending: refundPending,
       held_until: null,
       updated_at: new Date().toISOString(),
@@ -407,27 +415,249 @@ export async function cancelReservationBrokerAction(formData: FormData): Promise
     action: 'cancel',
     fromStatus: r.status,
     toStatus: 'cancelled',
-    payload: { refund_pending: refundPending },
+    payload: { refund_pending: refundPending, reason },
   });
 
-  // Notify owner.
+  // Notify owner (skip for plain held releases — they had no commitment).
+  if (r.status !== 'held') {
+    const ctx = await getReservationContext(id);
+    if (ctx) {
+      await enqueueNotification({
+        reservationId: id,
+        to: { userId: ctx.boat.owner.user_id, phone: ctx.boat.owner.whatsapp, role: 'owner' },
+        templateKey: 'cancelled',
+        language: 'en',
+        context: {
+          boatName: ctx.boat.name,
+          bookingDate: ctx.bookingDate,
+          shortRef: shortRef(id),
+          cancelledByRole: 'broker',
+          cancelledByName: me.username,
+        },
+      });
+      await flushPendingForReservation(id);
+    }
+  }
+
+  revalidatePath('/emails/boat-rental/broker');
+}
+
+// Broker requests a within-72h cancellation. Reservation stays as-is;
+// owner must approve before status flips to 'cancelled'. Notifies owner.
+export async function requestCancellationAction(formData: FormData): Promise<void> {
+  const me = await requireBoatRoleOrThrow('broker');
+  const id = s(formData.get('id'));
+  const reason = s(formData.get('reason'));
+  if (!id || !reason) throw new Error('invalid_input');
+
+  const sb = supabaseAdmin();
+  const { data: row } = await sb
+    .from('boat_rental_reservations')
+    .select('id, status, broker_id, booking_date, cancellation_requested_at')
+    .eq('id', id)
+    .maybeSingle();
+  const r = row as {
+    id: string;
+    status: string;
+    broker_id: string;
+    booking_date: string;
+    cancellation_requested_at: string | null;
+  } | null;
+  if (!r || r.broker_id !== me.id) throw new Error('forbidden');
+  if (!['confirmed', 'details_filled'].includes(r.status)) throw new Error('bad_status');
+  if (r.cancellation_requested_at) throw new Error('already_requested');
+
+  await sb
+    .from('boat_rental_reservations')
+    .update({
+      cancellation_requested_at: new Date().toISOString(),
+      cancellation_requested_by: me.id,
+      cancellation_request_reason: reason,
+      cancellation_request_role: 'broker',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  await logAudit({
+    reservationId: id,
+    actorUserId: me.id,
+    actorRole: 'broker',
+    action: 'request_cancellation',
+    payload: { reason, within_72h: true },
+  });
+
   const ctx = await getReservationContext(id);
   if (ctx) {
     await enqueueNotification({
       reservationId: id,
       to: { userId: ctx.boat.owner.user_id, phone: ctx.boat.owner.whatsapp, role: 'owner' },
-      templateKey: 'cancelled',
+      templateKey: 'cancellation_requested',
       language: 'en',
       context: {
         boatName: ctx.boat.name,
         bookingDate: ctx.bookingDate,
         shortRef: shortRef(id),
-        cancelledByRole: 'broker',
-        cancelledByName: me.username,
+        brokerName: me.username,
+        cancelReason: reason,
       },
     });
     await flushPendingForReservation(id);
   }
 
   revalidatePath('/emails/boat-rental/broker');
+}
+
+// Inquiry → direct Reserve. Skips 'held'; creates 'confirmed' immediately
+// + fires WhatsApp. Optional notes captured here (also editable later on
+// trip-details form).
+export async function reserveDirectAction(formData: FormData): Promise<void> {
+  const me = await requireBoatRoleOrThrow('broker');
+  const boatId = s(formData.get('boat_id'));
+  const bookingDate = s(formData.get('booking_date'));
+  const notes = sOrNull(formData.get('notes'));
+  if (!boatId || !/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) throw new Error('invalid_input');
+
+  const sb = supabaseAdmin();
+  const av = await checkAvailability(boatId, bookingDate);
+  if (av.kind !== 'available') {
+    if (av.kind === 'blocked') throw new Error('date_blocked_by_owner');
+    if (av.kind === 'booked') throw new Error('slot_taken');
+    if (av.kind === 'no_price') throw new Error('no_price_for_date');
+    throw new Error('unavailable');
+  }
+
+  const { data: created, error } = await sb
+    .from('boat_rental_reservations')
+    .insert({
+      boat_id: boatId,
+      booking_date: bookingDate,
+      broker_id: me.id,
+      status: 'confirmed',
+      held_until: null,
+      price_egp_snapshot: av.amountEgp,
+      pricing_tier_snapshot: av.tier,
+      notes,
+    })
+    .select('id')
+    .single();
+  if (error || !created) throw new Error(error?.message || 'reserve_failed');
+  const resId = (created as { id: string }).id;
+
+  await logAudit({
+    reservationId: resId,
+    actorUserId: me.id,
+    actorRole: 'broker',
+    action: 'reserve_direct',
+    toStatus: 'confirmed',
+    payload: { boat_id: boatId, booking_date: bookingDate, price_egp: av.amountEgp, tier: av.tier },
+  });
+
+  await sb.from('boat_rental_inquiries').insert({
+    boat_id: boatId,
+    booking_date: bookingDate,
+    broker_id: me.id,
+    outcome: 'reserved',
+    price_egp: av.amountEgp,
+    tier: av.tier,
+  });
+
+  // Notifications (same template as the Mark-Client-Paid path).
+  const ctx = await getReservationContext(resId);
+  if (ctx) {
+    const ctxBase = {
+      boatName: ctx.boat.name,
+      bookingDate: ctx.bookingDate,
+      amountEgp: ctx.priceEgp,
+      brokerName: ctx.broker?.username || 'Broker',
+      shortRef: shortRef(resId),
+      notes: ctx.notes,
+    };
+    await enqueueNotification({
+      reservationId: resId,
+      to: { userId: ctx.boat.owner.user_id, phone: ctx.boat.owner.whatsapp, role: 'owner' },
+      templateKey: 'booking_confirmed',
+      language: 'en',
+      context: ctxBase,
+    });
+    await flushPendingForReservation(resId);
+  }
+
+  revalidatePath('/emails/boat-rental/broker');
+  redirect('/emails/boat-rental/broker');
+}
+
+// Hold → Reserve direct conversion. Same end state as Mark Client Paid
+// but exposed on the Holds list as a one-click shortcut for repeat
+// clients where the broker has already taken payment.
+export async function convertHoldToReserveAction(formData: FormData): Promise<void> {
+  const me = await requireBoatRoleOrThrow('broker');
+  const id = s(formData.get('id'));
+  const notes = sOrNull(formData.get('notes'));
+  if (!id) throw new Error('invalid_input');
+
+  const sb = supabaseAdmin();
+  const { data: row } = await sb
+    .from('boat_rental_reservations')
+    .select('id, status, broker_id, held_until, boat_id, booking_date')
+    .eq('id', id)
+    .maybeSingle();
+  const r = row as {
+    id: string; status: string; broker_id: string; held_until: string | null;
+    boat_id: string; booking_date: string;
+  } | null;
+  if (!r) throw new Error('not_found');
+  if (r.broker_id !== me.id) throw new Error('forbidden');
+  if (r.status !== 'held') throw new Error('bad_status');
+  if (r.held_until && new Date(r.held_until).getTime() < Date.now()) throw new Error('hold_expired');
+
+  await sb
+    .from('boat_rental_reservations')
+    .update({
+      status: 'confirmed',
+      held_until: null,
+      notes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  await logAudit({
+    reservationId: id,
+    actorUserId: me.id,
+    actorRole: 'broker',
+    action: 'hold_to_reserve',
+    fromStatus: 'held',
+    toStatus: 'confirmed',
+    payload: { notes_present: !!notes },
+  });
+
+  // Update inquiry log: the original hold inquiry is now reserved.
+  await sb
+    .from('boat_rental_inquiries')
+    .update({ outcome: 'reserved' })
+    .eq('boat_id', r.boat_id)
+    .eq('booking_date', r.booking_date)
+    .eq('broker_id', me.id)
+    .eq('outcome', 'held');
+
+  const ctx = await getReservationContext(id);
+  if (ctx) {
+    await enqueueNotification({
+      reservationId: id,
+      to: { userId: ctx.boat.owner.user_id, phone: ctx.boat.owner.whatsapp, role: 'owner' },
+      templateKey: 'booking_confirmed',
+      language: 'en',
+      context: {
+        boatName: ctx.boat.name,
+        bookingDate: ctx.bookingDate,
+        amountEgp: ctx.priceEgp,
+        brokerName: ctx.broker?.username || 'Broker',
+        shortRef: shortRef(id),
+        notes: ctx.notes,
+      },
+    });
+    await flushPendingForReservation(id);
+  }
+
+  revalidatePath('/emails/boat-rental/broker');
+  redirect('/emails/boat-rental/broker');
 }

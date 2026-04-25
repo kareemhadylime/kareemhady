@@ -36,6 +36,7 @@ export const BROKER_TABS: TabItem[] = [
 export const OWNER_TABS: TabItem[] = [
   { href: '/emails/boat-rental/owner', label: 'My Boats', icon: Ship },
   { href: '/emails/boat-rental/owner/calendar', label: 'Calendar', icon: Calendar },
+  { href: '/emails/boat-rental/owner/reservations', label: 'Reservations', icon: ListOrdered },
 ];
 
 export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: string }) {

@@ -11,14 +11,22 @@ import { sendWhatsApp } from '../whatsapp/green-api';
 // Templates are hardcoded here (not DB) because they're tightly coupled
 // to the state machine and we want them versioned with the code.
 
-export type TemplateKey = 'booking_confirmed' | 'trip_details' | 'payment_received' | 'cancelled';
+export type TemplateKey =
+  | 'booking_confirmed'
+  | 'trip_details'
+  | 'payment_received'
+  | 'cancelled'
+  | 'cancellation_requested'    // broker asked owner to approve a within-72h cancel
+  | 'cancellation_resolved'     // owner approved/rejected the request
+  | 'owner_block_confirmed'     // owner blocked dates for personal use — confirms back to owner
+  | 'hold_warning';             // T-30min before a 2h hold expires
 export type Recipient = { userId?: string | null; phone: string; role: 'admin' | 'broker' | 'owner' | 'skipper' };
 
 // Context used to render any template. Fields that don't apply to a
 // specific template are ignored.
 export type NotifContext = {
   boatName: string;
-  bookingDate: string;          // 'YYYY-MM-DD' for EN, formatted same for AR
+  bookingDate: string;          // 'YYYY-MM-DD' for EN; for owner_block_confirmed this can be a "FROM → TO" range string
   amountEgp?: number;
   brokerName?: string;
   clientName?: string;
@@ -30,6 +38,8 @@ export type NotifContext = {
   notes?: string | null;
   cancelledByRole?: 'admin' | 'broker' | 'owner';
   cancelledByName?: string;
+  cancelReason?: string;        // for cancellation_requested + cancellation_resolved + owner_block_confirmed (block reason)
+  expiresAt?: string;           // for hold_warning
 };
 
 function fmtEgp(n?: number): string {
@@ -109,6 +119,53 @@ function renderCancelled(ctx: NotifContext): string {
   ].join('\n');
 }
 
+function renderCancellationRequested(ctx: NotifContext): string {
+  return [
+    'CANCELLATION REQUESTED ⚠️',
+    `Boat: ${ctx.boatName}  ·  Date: ${ctx.bookingDate}`,
+    `Broker: ${ctx.brokerName || '—'}`,
+    ctx.cancelReason ? `Reason: ${ctx.cancelReason}` : null,
+    'This is within 72 hours of the booking — your approval is required.',
+    `Open the app to approve or reject. Ref: #${ctx.shortRef}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function renderCancellationResolved(ctx: NotifContext): string {
+  const isApproved = ctx.cancelReason === 'approved';
+  return [
+    isApproved ? 'CANCELLATION APPROVED ❌' : 'CANCELLATION REJECTED ✅',
+    `Boat: ${ctx.boatName}  ·  Date: ${ctx.bookingDate}`,
+    isApproved
+      ? 'The owner approved your cancellation request. The reservation has been cancelled.'
+      : 'The owner declined the cancellation. The reservation stands.',
+    `Ref: #${ctx.shortRef}`,
+  ].join('\n');
+}
+
+function renderOwnerBlockConfirmed(ctx: NotifContext): string {
+  return [
+    'DATE BLOCKED 🔒',
+    `Boat: ${ctx.boatName}`,
+    `Date(s): ${ctx.bookingDate}`,
+    ctx.cancelReason ? `Reason: ${ctx.cancelReason.replace(/_/g, ' ')}` : null,
+    'Brokers will see this date as unavailable. You can remove the block from your calendar at any time before another reservation is made.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function renderHoldWarning(ctx: NotifContext): string {
+  return [
+    '⏱ HOLD EXPIRING SOON',
+    `Boat: ${ctx.boatName}  ·  Date: ${ctx.bookingDate}`,
+    `Your hold expires ${ctx.expiresAt || 'soon'}.`,
+    'Confirm the booking now to keep the slot, or release it to free the date for others.',
+    `Ref: #${ctx.shortRef}`,
+  ].join('\n');
+}
+
 export function renderTemplate(
   key: TemplateKey,
   lang: 'en' | 'ar',
@@ -118,13 +175,17 @@ export function renderTemplate(
   if (key === 'trip_details') return lang === 'ar' ? renderTripDetailsAr(ctx) : renderTripDetailsEn(ctx);
   if (key === 'payment_received') return renderPaymentReceived(ctx);
   if (key === 'cancelled') return renderCancelled(ctx);
+  if (key === 'cancellation_requested') return renderCancellationRequested(ctx);
+  if (key === 'cancellation_resolved') return renderCancellationResolved(ctx);
+  if (key === 'owner_block_confirmed') return renderOwnerBlockConfirmed(ctx);
+  if (key === 'hold_warning') return renderHoldWarning(ctx);
   return '';
 }
 
 // ---- Enqueue + send ----
 
 export async function enqueueNotification(args: {
-  reservationId: string;
+  reservationId: string | null;          // null for non-reservation notifications (owner_block_confirmed)
   to: Recipient;
   templateKey: TemplateKey;
   language: 'en' | 'ar';

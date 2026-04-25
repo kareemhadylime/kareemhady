@@ -4,12 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBoatRoleOrThrow, s, logAudit } from '@/lib/boat-rental/server-helpers';
-import { priceForBoatOnDate } from '@/lib/boat-rental/pricing';
+import { checkAvailability } from '@/lib/boat-rental/availability';
 
 // Creates a 2-hour hold on the selected boat/date. The partial unique
-// index on boat_rental_reservations (boat_id, booking_date) WHERE
-// status in (...) enforces single-active-reservation-per-slot at the
-// DB level — we still race-check first for a nicer error message.
+// index on boat_rental_reservations enforces single-active-reservation-
+// per-slot at the DB level; we use the shared availability checker
+// (which also rejects owner-blocked dates) for the friendly error path
+// + to capture an inquiry log row.
 
 const HOLD_MINUTES = 120;
 
@@ -25,28 +26,13 @@ export async function reserveHoldAction(formData: FormData): Promise<void> {
 
   const sb = supabaseAdmin();
 
-  // Must exist + active.
-  const { data: boatRow } = await sb
-    .from('boat_rental_boats')
-    .select('id, status')
-    .eq('id', boatId)
-    .maybeSingle();
-  const boat = boatRow as { id: string; status: string } | null;
-  if (!boat || boat.status !== 'active') throw new Error('boat_unavailable');
-
-  // Not already held/booked on that date.
-  const { data: existing } = await sb
-    .from('boat_rental_reservations')
-    .select('id, status')
-    .eq('boat_id', boatId)
-    .eq('booking_date', bookingDate)
-    .in('status', ['held', 'confirmed', 'details_filled', 'paid_to_owner'])
-    .maybeSingle();
-  if (existing) throw new Error('slot_taken');
-
-  // Snapshot price.
-  const price = await priceForBoatOnDate(boatId, bookingDate);
-  if (!price) throw new Error('no_price_for_date');
+  const av = await checkAvailability(boatId, bookingDate);
+  if (av.kind !== 'available') {
+    if (av.kind === 'blocked') throw new Error('date_blocked_by_owner');
+    if (av.kind === 'booked') throw new Error('slot_taken');
+    if (av.kind === 'no_price') throw new Error('no_price_for_date');
+    throw new Error('unavailable');
+  }
 
   const heldUntil = new Date(Date.now() + HOLD_MINUTES * 60 * 1000).toISOString();
   const { data: created, error } = await sb
@@ -57,8 +43,8 @@ export async function reserveHoldAction(formData: FormData): Promise<void> {
       broker_id: me.id,
       status: 'held',
       held_until: heldUntil,
-      price_egp_snapshot: price.amountEgp,
-      pricing_tier_snapshot: price.tier,
+      price_egp_snapshot: av.amountEgp,
+      pricing_tier_snapshot: av.tier,
     })
     .select('id')
     .single();
@@ -71,7 +57,16 @@ export async function reserveHoldAction(formData: FormData): Promise<void> {
     actorRole: 'broker',
     action: 'create_hold',
     toStatus: 'held',
-    payload: { boat_id: boatId, booking_date: bookingDate, price_egp: price.amountEgp, tier: price.tier },
+    payload: { boat_id: boatId, booking_date: bookingDate, price_egp: av.amountEgp, tier: av.tier },
+  });
+
+  await sb.from('boat_rental_inquiries').insert({
+    boat_id: boatId,
+    booking_date: bookingDate,
+    broker_id: me.id,
+    outcome: 'held',
+    price_egp: av.amountEgp,
+    tier: av.tier,
   });
 
   revalidatePath('/emails/boat-rental/broker');
