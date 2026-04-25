@@ -1,4 +1,4 @@
-import { UserPlus, KeyRound, UserMinus } from 'lucide-react';
+import { UserPlus, KeyRound, UserMinus, MessageCircle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BackToAdminMenu } from '../_components/back-to-menu';
 import {
@@ -6,12 +6,13 @@ import {
   inviteOwnerAction,
   resetPasswordAction,
   removeBoatRoleAction,
+  updateUserWhatsappAction,
 } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 type RoleRow = { user_id: string; role: 'admin' | 'broker' | 'owner'; owner_id: string | null };
-type UserRow = { id: string; username: string; last_login_at: string | null };
+type UserRow = { id: string; username: string; last_login_at: string | null; whatsapp: string | null };
 type OwnerLite = { id: string; name: string };
 
 export default async function UsersAdmin() {
@@ -25,7 +26,7 @@ export default async function UsersAdmin() {
 
   const userIds = [...new Set(roles.map(r => r.user_id))];
   const usersRes = userIds.length
-    ? await sb.from('app_users').select('id, username, last_login_at').in('id', userIds)
+    ? await sb.from('app_users').select('id, username, last_login_at, whatsapp').in('id', userIds)
     : { data: [] };
   const users = ((usersRes.data as unknown) as UserRow[] | null) || [];
   const userMap = new Map(users.map(u => [u.id, u]));
@@ -64,6 +65,21 @@ export default async function UsersAdmin() {
               <span className="text-slate-600 text-xs">Temporary password (8+ chars)</span>
               <input name="password" required minLength={8} className="ix-input mt-1" />
             </label>
+            <label className="text-sm block">
+              <span className="text-slate-600 text-xs">
+                WhatsApp number (optional, E.164 — e.g. <code>201234567890</code>)
+              </span>
+              <input
+                name="whatsapp"
+                type="tel"
+                inputMode="tel"
+                placeholder="201234567890"
+                className="ix-input mt-1"
+              />
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block">
+                Required for broker to receive trip-detail WhatsApp confirmations.
+              </span>
+            </label>
             <button type="submit" className="ix-btn-primary"><UserPlus size={14} /> Create broker</button>
           </form>
         </div>
@@ -96,6 +112,21 @@ export default async function UsersAdmin() {
                 <span className="text-slate-600 text-xs">Temporary password</span>
                 <input name="password" required minLength={8} className="ix-input mt-1" />
               </label>
+              <label className="text-sm block">
+                <span className="text-slate-600 text-xs">
+                  WhatsApp number (optional, E.164 — e.g. <code>201234567890</code>)
+                </span>
+                <input
+                  name="whatsapp"
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="201234567890"
+                  className="ix-input mt-1"
+                />
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block">
+                  Personal WhatsApp for the user (separate from the owner record&apos;s contact number).
+                </span>
+              </label>
               <button type="submit" className="ix-btn-primary"><UserPlus size={14} /> Create owner</button>
             </form>
           )}
@@ -113,11 +144,19 @@ export default async function UsersAdmin() {
               if (!u) return null;
               return (
                 <div key={uid} className="ix-card p-5">
-                  <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                     <div>
                       <div className="font-semibold">{u.username}</div>
                       <div className="text-xs text-slate-500">
                         {u.last_login_at ? `Last login ${new Date(u.last_login_at).toLocaleString()}` : 'Never logged in'}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 inline-flex items-center gap-1">
+                        <MessageCircle size={11} />
+                        {u.whatsapp ? (
+                          <span className="font-mono text-slate-700 dark:text-slate-300">{u.whatsapp}</span>
+                        ) : (
+                          <span className="italic text-amber-600 dark:text-amber-400">No WhatsApp set</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1">
@@ -141,7 +180,21 @@ export default async function UsersAdmin() {
                       })}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                    <form action={updateUserWhatsappAction} className="flex items-center gap-2">
+                      <input type="hidden" name="user_id" value={uid} />
+                      <input
+                        name="whatsapp"
+                        type="tel"
+                        inputMode="tel"
+                        defaultValue={u.whatsapp || ''}
+                        placeholder="WhatsApp (e.g. 201234567890)"
+                        className="ix-input text-xs flex-1"
+                      />
+                      <button type="submit" className="ix-btn-secondary text-xs">
+                        <MessageCircle size={12} /> Save WhatsApp
+                      </button>
+                    </form>
                     <form action={resetPasswordAction} className="flex items-center gap-2">
                       <input type="hidden" name="user_id" value={uid} />
                       <input
@@ -149,12 +202,14 @@ export default async function UsersAdmin() {
                         type="text"
                         minLength={8}
                         placeholder="New password (8+)"
-                        className="ix-input text-xs"
+                        className="ix-input text-xs flex-1"
                       />
                       <button type="submit" className="ix-btn-secondary text-xs">
                         <KeyRound size={12} /> Reset password
                       </button>
                     </form>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
                     {userRoles.map(r => (
                       <form key={r.role} action={removeBoatRoleAction}>
                         <input type="hidden" name="user_id" value={uid} />

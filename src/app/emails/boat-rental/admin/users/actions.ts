@@ -9,9 +9,23 @@ import { requireBoatAdmin, s, sOrNull } from '@/lib/boat-rental/server-helpers';
 // /admin/users create flow). Passwords are set by admin directly; users
 // change theirs at /account/password after first login.
 
+// Normalize a WhatsApp number to Green-API's E.164-without-plus shape
+// (digits only, 8–15 chars). Strips spaces, dashes, and leading '+'.
+// Returns null for blank input; returns the string 'invalid' for input
+// that has digits but doesn't meet the length range so the caller can
+// distinguish "leave unchanged" from "user typed garbage".
+function normalizeWhatsapp(raw: string): string | null | 'invalid' {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 15) return 'invalid';
+  return digits;
+}
+
 async function upsertUserWithRole(args: {
   username: string;
   password: string;
+  whatsapp: string | null;
   role: 'broker' | 'owner';
   ownerId: string | null;
 }): Promise<{ userId: string; created: boolean } | { error: string }> {
@@ -28,6 +42,11 @@ async function upsertUserWithRole(args: {
   let created = false;
   if (existing) {
     userId = (existing as { id: string }).id;
+    // If admin re-invited an existing username and provided a whatsapp,
+    // update it. Don't wipe an existing whatsapp by passing null.
+    if (args.whatsapp) {
+      await sb.from('app_users').update({ whatsapp: args.whatsapp }).eq('id', userId);
+    }
   } else {
     if (args.password.length < 8) return { error: 'password_too_short' };
     const { data, error } = await sb
@@ -36,6 +55,7 @@ async function upsertUserWithRole(args: {
         username: args.username,
         password_hash: hashPassword(args.password),
         role: 'viewer', // app-level role stays at viewer; sub-role is in boat_rental_user_roles
+        whatsapp: args.whatsapp,
       })
       .select('id')
       .single();
@@ -64,8 +84,10 @@ export async function inviteBrokerAction(formData: FormData) {
   await requireBoatAdmin();
   const username = s(formData.get('username')).toLowerCase();
   const password = s(formData.get('password'));
+  const wa = normalizeWhatsapp(s(formData.get('whatsapp')));
+  if (wa === 'invalid') throw new Error('whatsapp_invalid');
   if (!username || password.length < 8) return;
-  await upsertUserWithRole({ username, password, role: 'broker', ownerId: null });
+  await upsertUserWithRole({ username, password, whatsapp: wa, role: 'broker', ownerId: null });
   revalidatePath('/emails/boat-rental/admin/users');
 }
 
@@ -74,8 +96,10 @@ export async function inviteOwnerAction(formData: FormData) {
   const username = s(formData.get('username')).toLowerCase();
   const password = s(formData.get('password'));
   const ownerId = sOrNull(formData.get('owner_id'));
+  const wa = normalizeWhatsapp(s(formData.get('whatsapp')));
+  if (wa === 'invalid') throw new Error('whatsapp_invalid');
   if (!username || password.length < 8 || !ownerId) return;
-  const result = await upsertUserWithRole({ username, password, role: 'owner', ownerId });
+  const result = await upsertUserWithRole({ username, password, whatsapp: wa, role: 'owner', ownerId });
   if ('userId' in result) {
     // Link the owner record back to the user for convenience.
     const sb = supabaseAdmin();
@@ -84,6 +108,19 @@ export async function inviteOwnerAction(formData: FormData) {
       .update({ user_id: result.userId, updated_at: new Date().toISOString() })
       .eq('id', ownerId);
   }
+  revalidatePath('/emails/boat-rental/admin/users');
+}
+
+// Update just the WhatsApp number on an existing user. Empty input
+// clears the column (so admins can fix typos by re-saving blank).
+export async function updateUserWhatsappAction(formData: FormData) {
+  await requireBoatAdmin();
+  const userId = s(formData.get('user_id'));
+  const wa = normalizeWhatsapp(s(formData.get('whatsapp')));
+  if (!userId) return;
+  if (wa === 'invalid') throw new Error('whatsapp_invalid');
+  const sb = supabaseAdmin();
+  await sb.from('app_users').update({ whatsapp: wa }).eq('id', userId);
   revalidatePath('/emails/boat-rental/admin/users');
 }
 

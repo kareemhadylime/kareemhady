@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Admin Users: WhatsApp on invite + per-user edit
+
+User: "Need to be able to edit Broker/user, Also no Field to enter Whatsapp Number?" Filled the gap left by the previous skipper-cash work (which depended on `app_users.whatsapp` but had no UI to set it).
+
+**[src/app/emails/boat-rental/admin/users/page.tsx](src/app/emails/boat-rental/admin/users/page.tsx):**
+- Both Invite Broker + Invite Owner forms got a `whatsapp` input (optional, type=tel, placeholder `201234567890`) with helper text. Broker version notes it's required for trip-detail WhatsApp routing.
+- Existing user cards now display the current WhatsApp value (mono font) or italic amber "No WhatsApp set" if empty.
+- Each card got an inline `updateUserWhatsappAction` form (defaultValue prefilled) next to the existing reset-password form, in a 2-column grid.
+
+**[src/app/emails/boat-rental/admin/users/actions.ts](src/app/emails/boat-rental/admin/users/actions.ts):**
+- New `normalizeWhatsapp()` helper: strips non-digits, accepts blank → `null`, rejects 8–15 char range with literal `'invalid'` sentinel so callers can throw rather than silently store garbage.
+- `inviteBrokerAction` / `inviteOwnerAction` now read + normalize + persist `whatsapp` on `app_users`. For re-invites of existing usernames, a non-blank whatsapp updates; a blank input does NOT wipe an existing value (avoids accidental erasure).
+- New `updateUserWhatsappAction` for the per-user inline form. Blank input DOES clear (so admins can fix typos by re-saving blank).
+
+---
+
 ## ✅ Trip Details: Skipper-collects-cash flag (full pipeline)
 
 User asked to add a Trip Details option that hands payment responsibility to the skipper + owner (cash collected on board), with the collection amount propagating to WhatsApp confirmations for skipper, owner, and broker. Payment Confirmation page should reflect "no broker action needed" for these trips, and the broker can revert later via Trip Details.
