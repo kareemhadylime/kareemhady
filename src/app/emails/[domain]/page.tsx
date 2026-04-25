@@ -162,26 +162,31 @@ export default async function DomainRulesPage({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Link
               href="/emails/boat-rental/admin"
-              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden col-span-full"
+              className="group relative col-span-full overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 hover:from-cyan-600 hover:to-teal-700 shadow-md hover:shadow-xl transition-all p-6 flex items-center justify-between gap-4"
             >
-              <div className="absolute -top-6 -right-6 w-40 h-40 rounded-full bg-gradient-to-br from-cyan-500 to-teal-500 opacity-[0.08] blur-2xl pointer-events-none" />
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-cyan-50 text-cyan-600">
-                  <Ship size={24} strokeWidth={2.2} />
+              {/* Decorative accents */}
+              <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full bg-white/15 blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-12 -left-8 w-40 h-40 rounded-full bg-cyan-300/25 blur-2xl pointer-events-none" />
+
+              <div className="relative flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-xl inline-flex items-center justify-center bg-white/20 backdrop-blur ring-1 ring-white/30 text-white shrink-0">
+                  <Ship size={28} strokeWidth={2.2} />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">Boat Rental — Admin</h3>
-                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-lg text-white">Boat Rental — Admin</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-white/25 text-white backdrop-blur">
                       Module
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-sm text-cyan-50/90 mt-1">
                     Boat inventory · pricing · seasons · destinations · brokers &amp; owners · all bookings · WhatsApp log
                   </p>
                 </div>
               </div>
-              <ArrowRight size={18} className="text-slate-400 group-hover:text-cyan-600 transition shrink-0" />
+              <div className="relative shrink-0 w-10 h-10 rounded-full bg-white/20 backdrop-blur ring-1 ring-white/30 inline-flex items-center justify-center text-white group-hover:bg-white/30 group-hover:translate-x-0.5 transition">
+                <ArrowRight size={18} />
+              </div>
             </Link>
           </div>
         )}

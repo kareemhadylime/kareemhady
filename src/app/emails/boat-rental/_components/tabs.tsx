@@ -40,7 +40,7 @@ export const OWNER_TABS: TabItem[] = [
 
 export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: string }) {
   return (
-    <nav className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 -mx-6 px-6 pb-0">
+    <nav className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 pb-2">
       {tabs.map(t => {
         const active = t.href === currentPath || (t.href !== tabs[0].href && currentPath.startsWith(t.href));
         const Icon = t.icon;
@@ -48,11 +48,12 @@ export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: st
           <Link
             key={t.href}
             href={t.href}
+            aria-current={active ? 'page' : undefined}
             className={
-              'inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition ' +
+              'inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-sm font-medium whitespace-nowrap transition shrink-0 ' +
               (active
-                ? 'border-cyan-600 text-cyan-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800')
+                ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm hover:bg-cyan-700'
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-cyan-300 dark:hover:border-cyan-700 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/30')
             }
           >
             <Icon size={14} strokeWidth={2.2} />
