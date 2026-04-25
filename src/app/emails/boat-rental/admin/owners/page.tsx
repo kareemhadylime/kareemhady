@@ -26,7 +26,7 @@ export default async function OwnersAdmin() {
 
   return (
     <>
-      <BackToAdminMenu />
+      <BackToAdminMenu href="/emails/boat-rental/admin/setup" label="Back to setup" />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Owners</h1>
         <p className="text-sm text-slate-500 mt-1">Boat owners — receive payment notifications after every trip.</p>
