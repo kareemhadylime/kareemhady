@@ -1,5 +1,102 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Multi-role portal switcher (full feature)
+
+User confirmed W1-W3 ("Confirmed", "switcher only shows roles the user actually holds", "Approve") and pointed out the existing ADMIN pill in the header didn't switch anything → built the breadcrumb-dropdown switcher.
+
+**[src/lib/boat-rental/portal-routing.ts](src/lib/boat-rental/portal-routing.ts):** Server-only helpers — `LAST_PORTAL_COOKIE` constant, `getAvailableBoatPortals(user)` (filters PORTAL_ENTRIES to roles the user actually has), `portalHrefFor(key)`, `getActingAsOwnerName(user)` (returns owner name if viewer also holds admin/broker; null otherwise to suppress banner for owner-only users).
+
+**[src/proxy.ts](src/proxy.ts) (NOT a new middleware.ts):** Next.js 16 renamed middleware → proxy. First build attempt FAILED because I created a new `src/middleware.ts` and the existing `src/proxy.ts` already gates all routes. Rolled the cookie-stamp into the existing `proxy()` function via `maybeStampLastPortal(req, res)` — only fires on `/emails/boat-rental/{admin,broker,owner}/*`, only writes when cookie value differs from current portal (avoids re-writing on every same-portal click). Cookie config: httpOnly, secure on https, SameSite=lax, 1-year max-age (per W1).
+
+**[src/app/api/auth/login/route.ts](src/app/api/auth/login/route.ts):** Extended post-login redirect to consult cookie. Logic:
+- Explicit `next` deep link → respected (login-then-deep-link still works)
+- `next === '/'` (default) AND cookie set → call `landingFromLastPortalCookie(userId, cookieValue)` which checks if the user still holds the role (admin can be implicit via `app_users.role='admin'`, others need a `boat_rental_user_roles` row). Redirect there if valid.
+- Else fall through to `/`.
+
+**[src/app/emails/boat-rental/_components/portal-switcher.tsx](src/app/emails/boat-rental/_components/portal-switcher.tsx) (client):** Breadcrumb-tail dropdown. Click the current portal label → menu shows all available portals with role icons (Shield/Briefcase/Sailboat) + accent colors (cyan/violet/emerald). Active item gets a check + accent fill. Closes on Esc or outside click. Single-role users get a plain non-interactive label (no menu chrome).
+
+**[src/app/emails/boat-rental/{admin,broker,owner}/layout.tsx](src/app/emails/boat-rental):** All three layouts now compute `getAvailableBoatPortals(me)` and pass it + their `current` to `<PortalSwitcher>` in the breadcrumb tail. Replaces the old static `<span>Admin</span>` etc.
+
+**[src/app/emails/boat-rental/_components/acting-as-banner.tsx](src/app/emails/boat-rental/_components/acting-as-banner.tsx) (server):** Slate banner at top of every owner page, only renders when viewer also holds admin or broker AND has an owner record name. Copy: "👁 Viewing as Owner: **{name}** · You also hold the **Admin** role · [Switch to Admin →]" (W3 approved). Wired into owner layout.
+
+**Critical fix during build:** Next.js 16 enforces `proxy.ts` only — having both `middleware.ts` and `proxy.ts` is a build error. Removed the new middleware.ts and merged its logic into the existing proxy.ts.
+
+Type check + production build pass. Deployed.
+
+---
+
+## ✅ All Bookings sortable date + Owners inline login provisioning
+
+User answered all 4 Plan-phase questions and approved S3:
+- **Q1:** Last-used cookie drives login redirect (first login = admin)
+- **Q2:** Switcher lives **inside the breadcrumb** — clicking the last segment ("Admin") opens the dropdown (NOT a separate header pill)
+- **Q3:** Show whichever roles the user actually has, no special combo logic
+- **Q4:** Multi-tab freedom (no role locking)
+- **S1, S2: declined.** **S3: approved** — show "Viewing as Owner: {name}" banner when admin/broker is browsing the owner portal
+
+**Workflow phase delivered.** ~7 new files + ~5 modified.
+
+**New files:**
+- `src/lib/boat-rental/portal-routing.ts` — `getAvailableBoatPortals(user)` + `LAST_PORTAL_COOKIE` constant
+- `src/middleware.ts` (new or extend) — regex match `/emails/boat-rental/{admin,broker,owner}/*` → write cookie on response
+- `src/app/emails/boat-rental/_components/portal-switcher.tsx` (client) — breadcrumb-dropdown trigger
+- `src/app/emails/boat-rental/_components/breadcrumb.tsx` (server) — shared trail renderer that slots PortalSwitcher into the last segment
+- `src/app/emails/boat-rental/_components/acting-as-banner.tsx` (server) — "Viewing as Owner: {name}" strip
+
+**Modified:**
+- `src/lib/boat-rental/auth.ts` — extend post-login redirect to consult cookie before default priority
+- `src/app/emails/boat-rental/{admin,broker,owner}/layout.tsx` — render new breadcrumb + (owner only) the ActingAsBanner
+- Existing top header (location TBD by exploration) — replace static breadcrumb with new component
+
+**Build order:** explore (find existing breadcrumb + login redirect) → helpers → middleware cookie write → login redirect cookie read → PortalSwitcher + Breadcrumb → wire into 3 layouts → ActingAsBanner → type check + ship.
+
+**Workflow questions sent (W1-W3, all defaults proposed):**
+- W1: cookie config — `path=/`, 1-year max-age, `SameSite=Lax`, httpOnly true (server-side only need)
+- W2: switcher already filters to roles the user has → no orphan navigation possible. Confirm.
+- W3: ActingAsBanner exact copy — "👁 Viewing as Owner: **{name}** · You also hold the **Admin** role · [Switch to Admin →]"
+
+**Risks flagged:**
+- Cookie write timing in Next.js 16 — server components can't set cookies, must use middleware
+- Breadcrumb component location not yet known — likely in app shell, will find pre-code
+- ActingAsBanner needs a small `boat_rental_owners` lookup by viewer's owner role's `owner_id`
+
+**Next step:** When user replies with W1-W3 (or "go"), code immediately. ETA ~25 min code + deploy.
+
+---
+
+## ✅ All Bookings sortable date + Owners inline login provisioning
+
+User holds both `admin` and `owner` roles in `boat_rental_user_roles` (Kareem AbdelHady is wired as both). Current login flow auto-routes admin > broker > owner so admins never see they have other portals available. User wants a way to switch between portals.
+
+**Diagnosis:** Pure UX problem, not permissions. Each portal already gates on `hasBoatRole(user, role)` — no "acting as" concept needed. Multi-role users CAN visit any portal they have a role for; they just don't know how to find them from the admin landing page.
+
+**Plan sent to user (4 decision points + 3 bonus suggestions):**
+
+Core design:
+- New `<PortalSwitcher>` component in the top header (between username and Setup) — small dropdown showing current portal + clickable list of others. Hidden when user has only one role.
+- Login redirect keeps existing priority logic (admin > broker > owner) but wrapped in a `lastPortal` cookie check so subsequent logins land where you last were.
+- Each portal landing page gets a small "You also have access to: [X] [Y]" strip as backup discoverability.
+- No DB changes. No new tables. No "active role" state machine — switcher is just a navigation shortcut.
+
+**Q1 (login flow):** (a) default admin + switcher / (b) chooser page every login / (c) **last-used cookie, first time goes admin** ← my pick
+**Q2 (switcher placement):** (a) **header, between username and Setup** ← my pick / (b) breadcrumb dropdown / (c) sidebar
+**Q3 (broker+owner combos):** show **all roles user actually has** ← my pick (no artificial limits)
+**Q4 (acting-as locking):** **keep multi-tab freedom, no locking** ← my pick (simpler model)
+
+**Bonus suggestions:**
+- S1: Render role badges on username pill (`kareemhady [ADMIN] [OWNER]`)
+- S2: Direct "Open Owner Portal" shortcut on admin landing page for multi-role admins
+- S3: "Viewing as Owner: {name}" banner when admin is browsing their own owner data
+
+**Next step:** When user replies with Q1-Q4 + S1/S2/S3 picks (or "go on defaults"), send the Workflow phase (component contract, file list, build order) for sign-off, then code. Existing files this will touch:
+- `src/lib/boat-rental/auth.ts` — extend with cookie-aware redirect helper
+- `src/app/login/...` — wire the cookie write
+- `src/app/emails/boat-rental/_components/` — new portal-switcher.tsx (client)
+- `src/app/emails/boat-rental/admin/page.tsx` + `broker/page.tsx` + `owner/page.tsx` — bonus discovery strips
+- The existing top header (location TBD by exploration)
+
+---
+
 ## ✅ All Bookings sortable date + Owners inline login provisioning
 
 Two fixes shipped:
