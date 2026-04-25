@@ -1,5 +1,11 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Payments: pending list sorted ascending by booking date
+
+User: "Re Organize Reservations by Date." Pending list was `order booking_date desc` so the most distant future trip showed first (2026-05-03 above 2026-04-26). Flipped to ascending in [src/app/emails/boat-rental/broker/payments/page.tsx:51](src/app/emails/boat-rental/broker/payments/page.tsx:51) so past/overdue trips bubble up first, then today, then upcoming trips by soonest. "Recent transfers" stays desc (recent = first).
+
+---
+
 ## ✅ Inquire: Hold button visibility fix
 
 User said "Hold Button is Greyed Out as if it is not Clickable …Make it clear to press to hold." On the Inquire result panel, the "Place 2-hour hold" button used `ix-btn-secondary` (white/transparent + thin slate border), which read as disabled against the dark Hold card. Replaced with a solid amber-500 fill (matching the Hold card's amber theme) — bg-amber-500 / hover:bg-amber-600 / active:bg-amber-700, white semibold text, shadow-sm — so it clearly looks clickable while staying visually distinct from the indigo "Reserve & confirm" primary at [src/app/emails/boat-rental/broker/availability/page.tsx:197](src/app/emails/boat-rental/broker/availability/page.tsx:197).

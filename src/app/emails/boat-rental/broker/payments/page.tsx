@@ -34,8 +34,8 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
 
   // Pending: any confirmed/details_filled reservation that hasn't been paid yet.
   // We don't filter on date — broker may upload payment any time, though the
-  // typical workflow is post-trip. Past trips sort first; future trips show
-  // with a visual hint that the trip hasn't happened yet.
+  // typical workflow is post-trip. Sorted ascending so past/overdue trips
+  // bubble to the top, then today, then upcoming trips by soonest date.
   const pendingRes = await sb
     .from('boat_rental_reservations')
     .select(
@@ -48,7 +48,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
     )
     .eq('broker_id', me!.id)
     .in('status', ['confirmed', 'details_filled'])
-    .order('booking_date', { ascending: false });
+    .order('booking_date', { ascending: true });
   const pendingRaw = ((pendingRes.data as unknown) as Row[] | null) || [];
   // Filter out any that already have a payment (paid_to_owner status).
   const pending = pendingRaw.filter(r => !r.payment);
