@@ -1,5 +1,35 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ All Bookings sortable date + Owners inline login provisioning
+
+Two fixes shipped:
+
+### 1. All Bookings — sortable date column
+
+User: "Sort by Date". Default was hard-coded `desc`. Now `?sort=asc|desc` via URL, default `asc` so today + upcoming surface first. Date column header in the desktop table is a clickable Link with up/down arrow indicator that flips the sort while preserving all other filters (status / boat / from / to). Mobile gets a small "Date ↑ (oldest first)" link above the card list. Built `flipSortHref` from `URLSearchParams` so bookmarks/sharing keep their state.
+
+### 2. Owners admin — inline login provisioning + reset
+
+User: "How can owners login? No Username - No Password". Owners admin had no path to create app_users credentials — admin had to bounce to /admin/users → "Invite Owner" → pick from dropdown. Now done in-place.
+
+**[admin/owners/actions.ts](src/app/emails/boat-rental/admin/owners/actions.ts):** New `provisionOwnerLogin({ ownerId, username, password })` helper — creates app_users row, ensures `app_user_domain_roles` boat-rental access, upserts `boat_rental_user_roles` with `role='owner'` + the owner_id link, then patches `boat_rental_owners.user_id`. Mirrors the logic in /admin/users/actions.ts but specialized for the owner case (kept inline to avoid cross-importing server-action modules).
+
+- `createOwnerAction` extended to accept optional `login_username` + `login_password` form fields. If both filled, provisions the login as part of the same submit.
+- New `setupOwnerLoginAction(owner_id, username, password)` — provisions login for an existing owner without one.
+- New `resetOwnerLoginPasswordAction(user_id, new_password)` — resets password + wipes `app_sessions` so the owner is forced to re-auth.
+
+**[admin/owners/page.tsx](src/app/emails/boat-rental/admin/owners/page.tsx):**
+- Page now also fetches usernames for any owner with a `user_id` (small `IN (...)` query against `app_users`) so the username can be displayed inline.
+- "Add owner" form gets an emerald "Owner login (optional)" fieldset with username + password inputs. Either both filled (login created) or both blank (login skipped — admin can add later).
+- Each existing owner card gets an inline panel under the main form:
+  - **No login yet** → emerald "Set up login" form with username + password + "Create login" button.
+  - **Login exists** → slate panel showing the existing username + a "Reset password" inline form that wipes sessions on submit.
+- Status text in the owner card footer flips from "No login yet" (amber) to "Login: {username}" (emerald) once provisioned.
+
+Type check passes. Deployed.
+
+---
+
 ## ✅ Photo controls always-visible (no hover required)
 
 User: "No Sorting Arrows - No Starring". The reorder ↑/↓ and the star (set-as-main) buttons were `opacity-0 group-hover:opacity-100` on the image overlay — invisible without hover, completely broken on touch devices, and the user couldn't find them.

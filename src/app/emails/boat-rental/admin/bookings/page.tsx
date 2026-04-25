@@ -1,4 +1,5 @@
-import { Filter, AlertTriangle, XCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Filter, AlertTriangle, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BackToAdminMenu } from '../_components/back-to-menu';
 import { adminForceCancelAction, clearRefundFlagAction } from './actions';
@@ -10,6 +11,7 @@ type SearchParams = Promise<{
   boat_id?: string;
   from?: string;
   to?: string;
+  sort?: string;
 }>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,6 +20,12 @@ type Row = any;
 export default async function AllBookingsAdmin({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const sb = supabaseAdmin();
+
+  // Default sort: ascending so today/upcoming surface first; click the
+  // Date header to toggle to descending (recent-first) for backlog
+  // review. URL-driven so bookmarks/sharing keep their sort.
+  const sortDir: 'asc' | 'desc' = sp.sort === 'desc' ? 'desc' : 'asc';
+  const ascending = sortDir === 'asc';
 
   let q = sb
     .from('boat_rental_reservations')
@@ -30,7 +38,7 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
       payment:boat_rental_payments ( amount_egp, paid_at, recorded_by_role )
     `
     )
-    .order('booking_date', { ascending: false })
+    .order('booking_date', { ascending })
     .limit(200);
 
   if (sp.status) q = q.eq('status', sp.status);
@@ -48,6 +56,15 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
   const boats = ((boatsRaw as unknown) as Array<{ id: string; name: string }> | null) || [];
 
   const refundCount = rows.filter(r => r.refund_pending).length;
+
+  // Build a URL preserving current filters but flipping the sort.
+  const params = new URLSearchParams();
+  if (sp.status) params.set('status', sp.status);
+  if (sp.boat_id) params.set('boat_id', sp.boat_id);
+  if (sp.from) params.set('from', sp.from);
+  if (sp.to) params.set('to', sp.to);
+  params.set('sort', ascending ? 'desc' : 'asc');
+  const flipSortHref = `?${params.toString()}`;
 
   return (
     <>
@@ -98,6 +115,17 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
 
       {/* Mobile: card list */}
       <section className="mt-6 md:hidden space-y-2">
+        <div className="flex items-center justify-end mb-1">
+          <Link
+            href={flipSortHref}
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-cyan-700 inline-flex items-center gap-1"
+          >
+            Date {ascending ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+            <span className="text-[10px] text-slate-400">
+              ({ascending ? 'oldest first' : 'newest first'})
+            </span>
+          </Link>
+        </div>
         {rows.length === 0 && (
           <div className="ix-card p-6 text-sm text-slate-500 text-center">No reservations match.</div>
         )}
@@ -167,7 +195,15 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
-                <th className="text-left px-4 py-2">Date</th>
+                <th className="text-left px-4 py-2">
+                  <Link
+                    href={flipSortHref}
+                    className="inline-flex items-center gap-1 hover:text-cyan-700 dark:hover:text-cyan-300 transition"
+                    title={`Sort ${ascending ? 'newest first' : 'oldest first'}`}
+                  >
+                    Date {ascending ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                  </Link>
+                </th>
                 <th className="text-left px-4 py-2">Boat</th>
                 <th className="text-left px-4 py-2">Owner</th>
                 <th className="text-left px-4 py-2">Broker</th>
