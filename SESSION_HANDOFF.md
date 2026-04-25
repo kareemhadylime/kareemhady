@@ -1,5 +1,11 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Inquire: Hold button visibility fix
+
+User said "Hold Button is Greyed Out as if it is not Clickable …Make it clear to press to hold." On the Inquire result panel, the "Place 2-hour hold" button used `ix-btn-secondary` (white/transparent + thin slate border), which read as disabled against the dark Hold card. Replaced with a solid amber-500 fill (matching the Hold card's amber theme) — bg-amber-500 / hover:bg-amber-600 / active:bg-amber-700, white semibold text, shadow-sm — so it clearly looks clickable while staying visually distinct from the indigo "Reserve & confirm" primary at [src/app/emails/boat-rental/broker/availability/page.tsx:197](src/app/emails/boat-rental/broker/availability/page.tsx:197).
+
+---
+
 ## ✅ Payment Confirmation: show all confirmed reservations regardless of date (commit `e96f5b3`)
 
 User reported "no reservations awaiting payment, reservations not propagating?" — they had a confirmed Malaya II reservation for 2026-05-03 (future) and expected it on the Payment page.

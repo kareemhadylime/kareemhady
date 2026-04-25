@@ -194,7 +194,10 @@ export default async function BrokerInquiry({ searchParams }: { searchParams: Se
                   <p className="text-xs text-slate-600 dark:text-slate-300 mb-3">
                     Boat is locked for 2 hours while you talk to the client. Hold auto-releases if you don&apos;t confirm.
                   </p>
-                  <button type="submit" className="ix-btn-secondary w-full justify-center">
+                  <button
+                    type="submit"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-semibold shadow-sm transition min-h-[44px]"
+                  >
                     <Clock size={14} /> Place 2-hour hold
                   </button>
                 </form>
