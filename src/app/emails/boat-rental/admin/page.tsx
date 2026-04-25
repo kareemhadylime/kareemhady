@@ -9,7 +9,7 @@ import { TabNav, ADMIN_TABS } from '../_components/tabs';
 
 export const dynamic = 'force-dynamic';
 
-type SearchParams = Promise<{ from?: string; to?: string; preset?: string }>;
+type SearchParams = Promise<{ from?: string; to?: string; preset?: string; lite?: string }>;
 
 function dateFromPreset(preset: string, today: string): { from: string; to: string; label: string } {
   const [y, m, d] = today.split('-').map(Number);
@@ -45,6 +45,7 @@ function fmtEgp(n: number): string {
 export default async function BoatRentalAdminDashboard({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const today = cairoTodayStr();
+  const lite = sp.lite === '1';
   const tomorrow = (() => {
     const [y, m, d] = today.split('-').map(Number);
     const t = new Date(Date.UTC(y, m - 1, d + 1));
@@ -138,33 +139,39 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
       .gte('booking_date', range.from)
       .lte('booking_date', range.to),
     // Top boats: aggregate price snapshot of completed bookings in range.
-    sb
-      .from('boat_rental_reservations')
-      .select(
-        `
-        boat_id, price_egp_snapshot,
-        boat:boat_rental_boats ( name )
-      `
-      )
-      .eq('status', 'paid_to_owner')
-      .gte('booking_date', range.from)
-      .lte('booking_date', range.to),
-    sb
-      .from('boat_rental_reservations')
-      .select(
-        `
-        broker_id, price_egp_snapshot,
-        broker:app_users!boat_rental_reservations_broker_id_fkey ( username )
-      `
-      )
-      .in('status', ['confirmed', 'details_filled', 'paid_to_owner'])
-      .gte('booking_date', range.from)
-      .lte('booking_date', range.to),
-    sb
-      .from('boat_rental_audit_log')
-      .select('id, action, from_status, to_status, created_at, actor_role, reservation_id')
-      .order('created_at', { ascending: false })
-      .limit(8),
+    lite
+      ? Promise.resolve({ data: [] })
+      : sb
+          .from('boat_rental_reservations')
+          .select(
+            `
+            boat_id, price_egp_snapshot,
+            boat:boat_rental_boats ( name )
+          `
+          )
+          .eq('status', 'paid_to_owner')
+          .gte('booking_date', range.from)
+          .lte('booking_date', range.to),
+    lite
+      ? Promise.resolve({ data: [] })
+      : sb
+          .from('boat_rental_reservations')
+          .select(
+            `
+            broker_id, price_egp_snapshot,
+            broker:app_users!boat_rental_reservations_broker_id_fkey ( username )
+          `
+          )
+          .in('status', ['confirmed', 'details_filled', 'paid_to_owner'])
+          .gte('booking_date', range.from)
+          .lte('booking_date', range.to),
+    lite
+      ? Promise.resolve({ data: [] })
+      : sb
+          .from('boat_rental_audit_log')
+          .select('id, action, from_status, to_status, created_at, actor_role, reservation_id')
+          .order('created_at', { ascending: false })
+          .limit(8),
     sb
       .from('boat_rental_notifications')
       .select('id', { count: 'exact', head: true })
@@ -237,13 +244,26 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
   return (
     <>
       <header className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-cyan-50 text-cyan-600">
+        <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-cyan-50 dark:bg-cyan-950 text-cyan-600 dark:text-cyan-300 shrink-0">
           <Ship size={24} strokeWidth={2.2} />
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">Personal · Boat Rental</p>
-          <h1 className="text-3xl font-bold tracking-tight">Admin</h1>
-          <p className="text-sm text-slate-500 mt-1">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 font-medium">Personal · Boat Rental</p>
+            <Link
+              href={lite ? '?' : '?lite=1'}
+              className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border transition ${
+                lite
+                  ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-amber-300'
+              }`}
+              title={lite ? 'Lite mode on — leaderboards skipped. Click to disable.' : 'Toggle lite mode (skips heavy queries — useful on slow connections)'}
+            >
+              {lite ? 'Lite mode ON' : 'Lite mode'}
+            </Link>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Admin</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Today is {today} (Cairo). Range: <strong>{range.label}</strong> ({range.from} → {range.to}).
           </p>
         </div>
@@ -391,7 +411,8 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
         </section>
       )}
 
-      {/* Leaderboards */}
+      {/* Leaderboards (skipped in lite mode) */}
+      {!lite && (
       <section className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="ix-card p-5">
           <h2 className="font-semibold mb-3 flex items-center gap-2">
@@ -432,9 +453,11 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
           )}
         </div>
       </section>
+      )}
 
       {/* Recent activity + quick links */}
       <section className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {!lite && (
         <div className="ix-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold flex items-center gap-2"><History size={16} className="text-slate-600" /> Recent activity</h2>
@@ -457,6 +480,7 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
             </div>
           )}
         </div>
+        )}
         <div className="ix-card p-5">
           <h2 className="font-semibold mb-3">Quick actions</h2>
           <div className="grid grid-cols-2 gap-2">

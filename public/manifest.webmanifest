@@ -1,0 +1,56 @@
+{
+  "name": "Lime Boat Rental",
+  "short_name": "Boat Rental",
+  "description": "Boat rental bookings, broker portal, and owner dashboard for Lime.",
+  "start_url": "/emails/boat-rental",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0891b2",
+  "background_color": "#0e7490",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/favicon.svg",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Check Availability",
+      "short_name": "Availability",
+      "description": "Find a boat for a specific date",
+      "url": "/emails/boat-rental/broker/availability",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "My Holds",
+      "short_name": "Holds",
+      "description": "Active 2-hour reservations awaiting confirmation",
+      "url": "/emails/boat-rental/broker/holds",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "My Bookings",
+      "short_name": "Bookings",
+      "description": "Upcoming and past trips",
+      "url": "/emails/boat-rental/broker",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
+  "categories": ["business", "productivity"]
+}

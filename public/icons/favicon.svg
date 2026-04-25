@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Boat Rental">
+  <!--
+    Favicon variant — simplified silhouette readable at 16×16. Drops the
+    anchor watermark, cabin windows, and the second wake curve which
+    pixel-mush at small sizes. Keeps the boat + single wake.
+  -->
+  <defs>
+    <linearGradient id="bg64" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="url(#bg64)"/>
+
+  <!-- Boat -->
+  <g fill="#ffffff">
+    <!-- Hull -->
+    <path d="M 12 32 L 52 32 L 46 42 L 18 42 Z"/>
+    <!-- Cabin -->
+    <rect x="24" y="24" width="16" height="8" rx="1.5"/>
+    <!-- Mast -->
+    <rect x="31" y="14" width="2" height="10" rx="0.5"/>
+    <!-- Pennant -->
+    <path d="M 33 16 L 41 19 L 33 22 Z"/>
+  </g>
+  <!-- Single wake line -->
+  <path d="M 10 50 Q 32 56 54 50" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

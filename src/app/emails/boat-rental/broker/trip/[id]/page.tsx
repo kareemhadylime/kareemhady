@@ -93,6 +93,8 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
             <span className="text-slate-600 text-xs">Client phone *</span>
             <input
               name="client_phone"
+              type="tel"
+              inputMode="tel"
               required
               defaultValue={r.booking?.client_phone || ''}
               className="ix-input mt-1"
@@ -105,6 +107,7 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
             <input
               name="guest_count"
               type="number"
+              inputMode="numeric"
               min="1"
               max={r.boat?.capacity_guests || 50}
               required

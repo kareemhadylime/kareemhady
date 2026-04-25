@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Tailwind v4: enable class-based dark mode so `.dark` on <html> flips
+   the dark: variants. We toggle the class via the ThemeProvider. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-bg: #f8fafc;
   --color-surface: #ffffff;
@@ -16,6 +20,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Dark theme tokens — applied via .dark class on <html>. */
+.dark {
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-border: #334155;
+  --color-foreground: #e2e8f0;
+  --color-muted: #94a3b8;
+  --color-primary-soft: #1e1b4b;
+}
+
 html, body {
   background: var(--color-bg);
   color: var(--color-foreground);
@@ -30,26 +44,57 @@ body {
   font-family: var(--font-sans), Inter, system-ui, sans-serif;
 }
 
+.dark body {
+  background-image:
+    radial-gradient(1200px 600px at 10% -10%, rgba(139, 92, 246, 0.18), transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, rgba(79, 70, 229, 0.14), transparent 60%),
+    linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+}
+
+/* iOS notch / home-indicator safe-area helpers. Combine with
+   viewport-fit=cover in the meta tag. */
+@layer utilities {
+  .safe-pt { padding-top: env(safe-area-inset-top); }
+  .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-pl { padding-left: env(safe-area-inset-left); }
+  .safe-pr { padding-right: env(safe-area-inset-right); }
+  .safe-mt { margin-top: env(safe-area-inset-top); }
+  .safe-mb { margin-bottom: env(safe-area-inset-bottom); }
+  .pb-safe-bottom-nav {
+    /* Mobile pages need bottom padding so content isn't hidden under the
+       bottom nav bar (~64px high) plus iOS safe inset. */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  .min-tap {
+    /* Apple HIG / Material Design recommended minimum touch target. */
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 @layer components {
   .ix-card {
-    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+    @apply bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm;
   }
   .ix-btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium shadow-sm hover:bg-indigo-700 transition;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-medium shadow-sm hover:bg-indigo-700 active:bg-indigo-800 transition;
+    min-height: 44px;
   }
   .ix-btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition;
+    min-height: 44px;
   }
   .ix-btn-danger {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 text-sm hover:bg-rose-50 transition;
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm hover:bg-rose-50 dark:hover:bg-rose-950 transition;
   }
   .ix-btn-ghost {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition;
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition;
   }
   .ix-input {
-    @apply w-full border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition;
+    @apply w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition;
+    min-height: 44px;
   }
   .ix-link {
-    @apply text-indigo-600 hover:text-indigo-700 hover:underline;
+    @apply text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline;
   }
 }

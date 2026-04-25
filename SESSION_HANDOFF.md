@@ -1,5 +1,176 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## 📱 Mobile-Aware App — Workflow Phase delivered, 3 final questions out (no code yet)
+
+User answered all 22 plan-phase questions. Workflow Phase doc delivered covering: 3-layer architecture, file map, component contracts, PWA manifest schema, service worker strategy, offline read + Mark-Paid background sync, TopNav redesign, bottom nav, page-by-page audit checklist, breakpoint conventions, edge cases, migration 0017 (idempotency_key column), build order, app icon proposals.
+
+**Status: awaiting answers to 3 final questions before coding.**
+
+### User's 22 locked answers
+
+| Q | Answer |
+|---|---|
+| Q1 Priority | Brokers + Owners |
+| Q2 PWA install | Yes |
+| Q3 Offline read 30 bookings | Yes |
+| Q4 Bottom nav | Yes (broker 4 / owner 2 / admin keeps top) |
+| Q5 Calendar mobile | Week-list <sm, month grid ≥sm |
+| Q6 Camera capture | Yes |
+| Q7 Push notifications | **Defer to V2** |
+| Q8 Haptics | Yes (subtle) |
+| Q9 App icon | Boat-Rental-specific, "thoughtful design" requested |
+| Q10 Scope | Foundation app-wide; mobile UI scoped to Boat Rental; full Lime V2 later |
+| Q11 Browser targets | iOS Safari ≥14, Android Chrome ≥100 |
+| Q12 Domain | Vercel for now → `boat.limeinc.cc` future (manifest start_url updates then) |
+| Q13 Offline Mark-Paid queue | **Yes** — background sync + IndexedDB |
+| Q14 Offline hold creation | No |
+| Q15 Geolocation destinations | No |
+| Q16 Biometric login | No |
+| Q17 Dark mode | Yes — user toggle (light/dark/system) |
+| Q18 Lite mode | Yes — `?lite=1` strips heavy queries on dashboard |
+| Q19 Skeleton loaders | Yes — via `loading.tsx` per-route |
+| Q20 Bottom sheet | Yes |
+| Q21 Stale-while-revalidate | Yes |
+| Q22 SMS fallback | No |
+
+### Architecture (3 layers)
+
+1. **Foundation (app-wide):** viewport meta, safe-area CSS, useMediaQuery hook, theme toggle (dark mode), PWA manifest, service worker, skeleton loaders, bottom sheet primitive, toast primitive, haptics helper, install prompt.
+2. **Boat Rental mobile UI (scoped):** mobile TopNav with hamburger drawer, bottom nav for broker (4 icons) + owner (2 icons), week-list calendar, table→card responsive switches (admin bookings + audit), sticky bottom CTAs, camera capture, click-to-contact phone components, lite-mode dashboard.
+3. **Offline + sync (isolated):** IndexedDB cache of next 30 bookings per role, background-sync queue for Mark-Paid actions, stale-while-revalidate, connection-status indicator. iOS Safari fallback: foreground queue drain on visit (no true background sync).
+
+### App icon proposal
+
+**Concept A (recommended): Geometric Anchor** — cyan-to-teal gradient square, white anchor mark (3 strokes), iOS auto-mask radius. Best legibility 16px→512px.
+Alternatives: B Boat Wake, C Letter Mark "B" with wave curl. Generated via `banana` skill at coding time. Sizes needed: 192, 512, 512-maskable, 180 (apple-touch), 32, 16.
+
+### File map
+
+**New (foundation):** `lib/use-media-query.ts`, `lib/haptics.ts`, `_components/{theme-toggle,bottom-sheet,toast,install-prompt,connection-status,sw-register,mobile-nav,dark-mode-script}.tsx`, `public/manifest.webmanifest`, `public/sw.js`, `public/offline.html`, `public/icons/*.png`, `app/loading.tsx` + per-route skeletons.
+
+**New (Boat Rental):** `boat-rental/_components/{bottom-nav,click-to-contact,sticky-cta}.tsx`, `owner/calendar/_components/week-list.tsx`, `admin/bookings/_components/booking-card.tsx`, `admin/_components/dashboard-lite.tsx`.
+
+**New (offline):** `lib/offline/{idb,booking-cache,mark-paid-queue}.ts`, `api/boat-rental/owner/mark-paid-replay/route.ts`, `owner/_components/offline-banner.tsx`.
+
+**Modified:** `app/layout.tsx`, `_components/brand.tsx` (TopNav), broker + owner layouts, calendar page, admin bookings + audit pages, payments page (camera capture), boats pages (sticky save + camera), holds + trip pages (sticky CTAs + haptics), booking-detail page, `tailwind.config.ts` (dark mode + size audit), `next.config.js` (SW headers), ~15 form fields across module (inputMode attributes).
+
+### DB migration 0017 (single column)
+
+```sql
+alter table public.boat_rental_payments add column if not exists idempotency_key uuid unique;
+```
+
+For dedup of background-sync replays. No other schema changes needed.
+
+### Service worker strategy
+
+Single inspectable `public/sw.js` (no Workbox dep). Network-first for HTML pages (offline fallback to `/offline.html`), cache-first for `/_next/static/*` + `/icons/*` + `/manifest.webmanifest`, never cache `/api/*` or auth-bound HTML, dev-mode disabled. Background Sync tag `mark-paid-queue` triggers replay through `/api/boat-rental/owner/mark-paid-replay`.
+
+### Build order (15 chunks, naturally phased)
+
+Foundation primitives → PWA manifest+icons → SW → TopNav redesign → bottom nav → sticky CTAs+haptics+click-to-contact → camera+44px+inputMode → tables→cards → week-list calendar → lite dashboard → migration 0017 → IndexedDB cache + offline read → Mark-Paid queue + replay endpoint + sync → stale-while-revalidate → mobile QA pass.
+
+Recommended phasing: 3 commits (foundation+PWA · mobile UI · offline) for independent rollback safety.
+
+### 3 final review questions posed
+
+1. **Icon concept**: A (Geometric Anchor — recommended), B (Boat Wake), or C (Letter Mark)?
+2. **Phasing**: one big commit or three (foundation+PWA → mobile UI → offline)?
+3. **SW scope**: register at `/` (whole app, easier now) or scoped to `/emails/boat-rental` (cleaner future migration to `boat.limeinc.cc`)?
+
+### Next turn resumption
+
+User answers the 3 final questions or accepts defaults (A · 3 commits · `/` scope). Then start coding in the documented build order. Migration 0017 needs to be applied via Supabase MCP before deployment. PWA icons generated via `banana` skill at coding time.
+
+**Do not start writing the SW, manifest, components, or migration until user explicitly approves.**
+
+---
+
+## 📱 Mobile-Aware App — Plan Phase delivered, awaiting answers (no code yet)
+
+User asked for the app to detect mobile and readjust to suit. Following the same protocol as Boat Rental: plan → questions/improvements → wait for 95% → workflow phase → wait for 95% → coding. **No code, no commits this turn.**
+
+### Approach recommended
+**A2: Responsive Tailwind audit + targeted client components for layout-changing patterns** (e.g., bottom nav, week-list calendar). Avoids the maintenance cost of A3 (server UA detection + duplicate React trees) while allowing genuinely different mobile layouts where it matters.
+
+### Proposed scope
+1. **Foundation** — viewport meta tag verification, safe-area helpers for iOS notch, `useMediaQuery` hook
+2. **PWA conversion** — `manifest.webmanifest`, service worker (network-first HTML, static asset cache, offline fallback), Add-to-Home-Screen prompt, app icons
+3. **TopNav redesign** — collapse Setup/Password/Sign-out into hamburger on mobile, compact brand
+4. **Bottom nav bar** — sticky 4-icon nav for broker portal + 2-icon for owner; hidden on desktop; admin keeps top tabs (mostly desktop user)
+5. **Tables → cards on mobile** — All Bookings, Audit Log restructure at <md breakpoint
+6. **Calendar** — keep month grid ≥sm, switch to week-list view <sm
+7. **Sticky CTAs** — Save changes / Mark Client Paid / Mark Paid Manually / Cancel pinned at bottom on mobile
+8. **Touch + input** — min 44×44px tap targets, `inputMode` hints on phone/numeric fields, native camera-capture on receipt upload
+9. **Click-to-action** — extend click-to-call/WhatsApp throughout (already on owner booking detail's client phone)
+10. **Niceties** — vibration on state transitions, pull-to-refresh on broker/owner lists, toast feedback
+
+### 12 clarifying questions posed
+Priority user (brokers > owners > admin), PWA install, offline read of upcoming bookings, bottom nav vs top tabs, calendar mobile layout choice, native camera capture for receipts, push notifications scope, haptic feedback, app icon (Lime leaf vs Ship), scope (boat-rental only vs whole app), browser support targets, custom PWA domain.
+
+### 10 proposed improvements beyond ask
+Offline Mark-Paid queue (background sync), biometric login (WebAuthn passkeys), dark mode, reduced-data dashboard mode, skeleton loaders via Next.js `loading.tsx`, bottom sheet primitive, stale-while-revalidate caching, geolocation-aware destination picker, dark mode pass, SMS fallback link.
+
+### Next turn resumption
+User answers the 12 questions OR approves assumptions + selects which improvements to include. Then produce **Workflow Phase** doc covering: detailed component changes, file-level diffs, PWA manifest schema, service worker strategy, page-by-page audit checklist, breakpoint conventions, edge cases. Send for review. Only after 95% confidence → write code.
+
+**Do not start writing mobile components, manifest, or service worker until user explicitly approves the workflow phase.**
+
+---
+
+## ✅ Boat Rental Module — Phase 2 shipped (commit `54ca427`)
+
+End-to-end admin/broker/owner flows live. Build passed, pushed to `main`, deployed (`suspicious-mirzakhani-b822bc-c7dxej3dd-lime-investments.vercel.app` worktree-scoped + GitHub integration auto-deploys main to canonical Lime project).
+
+**35 files changed, 4604 insertions.** Module is functionally complete.
+
+### Admin (`/emails/boat-rental/admin/*`)
+- **Dashboard** with date filters (Today/Last7/Last30/MTD/YTD/custom, Cairo-aware), KPIs (revenue · avg booking value · active boats · cancel rate), alerts (refunds pending · failed WhatsApp · missing trip details tomorrow), today/tomorrow trip lists, active holds, top boats by revenue, top brokers, recent activity, quick links
+- **Owners** — CRUD + soft-archive
+- **Destinations** — toggle active + soft-disable
+- **Seasons** — date ranges with names
+- **Boats** — capacity, owner, skipper, status, multi-image upload (Supabase Storage `boat-rental` bucket, 5MB × 10 max, JPG/PNG/WEBP). Per-boat detail at `/admin/boats/[id]`.
+- **Pricing** — upsert 3 tiers per boat
+- **Users** — invite broker/owner with single action (creates `app_users` + `app_user_domain_roles(boat-rental, viewer)` + `boat_rental_user_roles`)
+- **All Bookings** — filter by status/boat/date range + force-cancel + clear-refund actions
+- **Notifications log** — render preview + retry failed
+- **Audit log** — read-only history
+
+### Broker (`/emails/boat-rental/broker/*`)
+- **Availability** check + Reserve (creates 2-hour hold, race-safe via partial unique index, snapshots price+tier)
+- **Holds** list with live `HH:MM:SS` countdown client component (`broker/_components/countdown.tsx`), color thresholds amber<30min/rose<15min, **Notes field** captured at confirm-payment + Mark Client Paid (fires WhatsApp to owner)
+- **My Bookings** — upcoming/past split with "Trip tomorrow" badge prompting details entry
+- **Trip Details** at `/broker/trip/[id]` — capacity check, destinations dropdown, prior reservation notes shown above. Fires EN WhatsApp to owner + AR WhatsApp to skipper.
+- **Payment Confirmation** — list of post-trip reservations awaiting transfer, upload receipt + amount → `paid_to_owner` + WhatsApp owner
+- **Cancel** with 72h Cairo TZ check (broker can cancel held anytime; confirmed only ≥72h)
+
+### Owner (`/emails/boat-rental/owner/*`)
+- **My Boats** — image preview tiles, next trip, MTD revenue per boat
+- **Calendar** — month grid color-coded (held=amber, confirmed=blue, details_filled=cyan, paid=emerald, cancelled=rose, expired=slate), today highlighted, ±month navigation
+- **Booking detail** at `/owner/booking/[id]` — full broker/client/trip/payment view, click-to-call/WhatsApp on client phone, **Mark Paid Manually** form (no receipt required, for direct transfers), Cancel button when ≥72h
+
+### Infrastructure additions
+- [src/lib/boat-rental/server-helpers.ts](src/lib/boat-rental/server-helpers.ts) — `requireBoatAdmin()`, `requireBoatRoleOrThrow()`, `logAudit()`, FormData parsers (`s`, `sOrNull`, `nOrNull`), `shortRef()` for WhatsApp templates, `normPhone()` for Green-API chatId format
+- [src/lib/boat-rental/storage.ts](src/lib/boat-rental/storage.ts) — `signedImageUrl()` / `signedImageUrls()` with 1h TTL for Supabase Storage signed URLs
+- All state transitions: `enqueueNotification()` writes pending row → `flushPendingForReservation()` fires Green-API inline best-effort. Failures logged on the `boat_rental_notifications` row, never block the state change.
+
+### Setup checklist for first real use
+1. `/admin/integrations` → set Green-API creds (`apiUrl`, `mediaUrl`, `idInstance`, `apiTokenInstance`) + toggle enabled
+2. `/emails/boat-rental/admin/owners` → add owner records (name + WhatsApp digits-only with country code, e.g. `201234567890`)
+3. `/emails/boat-rental/admin/boats` → create boats with skipper info + images
+4. `/emails/boat-rental/admin/pricing` → set 3 tiers per boat (net-to-owner EGP)
+5. `/emails/boat-rental/admin/seasons` → add holiday ranges
+6. `/emails/boat-rental/admin/destinations` → add trip destinations
+7. `/emails/boat-rental/admin/users` → invite brokers + owners (link owner-users to their owner records)
+8. Brokers/owners log in via standard `/login`, change password at `/account/password`
+
+### Known follow-ups (not blocking)
+- Broker phone in Reservation context isn't currently tracked separately from `app_users.username`; broker WhatsApp notifications presently use empty phone (notification rows exist for audit but skip send). To enable broker direct WhatsApp, add `phone` to `app_users` or a dedicated `broker_whatsapp` field.
+- Worktree-scoped Vercel project deploys as `suspicious-mirzakhani-b822bc-*`. Canonical `lime-investments` deploy comes via GitHub `main` push integration.
+- All `next/image` references use `unoptimized` — Supabase signed URLs aren't compatible with Next image optimization. Acceptable for boat-rental use case.
+
+---
+
 ## ✅ Boat Rental Module — Phase 1 foundation shipped (commit `e046ade`)
 
 User signed off workflow phase with all 6 final answers + a new Notes-field feature. Foundation built + deployed. **Pages are placeholders** — phase 2 fills in real forms/flows.

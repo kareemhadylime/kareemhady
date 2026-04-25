@@ -94,6 +94,7 @@ export default async function BrokerPayments() {
                     <input
                       name="amount_egp"
                       type="number"
+                      inputMode="numeric"
                       min="0"
                       step="1"
                       required
@@ -116,9 +117,13 @@ export default async function BrokerPayments() {
                       name="receipt"
                       type="file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"
+                      capture="environment"
                       required
                       className="ix-input mt-1 cursor-pointer"
                     />
+                    <span className="block text-[10px] text-slate-400 mt-1">
+                      On mobile this opens the camera by default — tap the file picker for gallery/PDF.
+                    </span>
                   </label>
                   <label className="text-sm md:col-span-3">
                     <span className="text-slate-600 text-xs">Note</span>

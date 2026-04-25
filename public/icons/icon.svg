@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Lime Boat Rental">
+  <!--
+    Boat Rental app icon.
+    - Cyan-to-teal gradient background, rounded square (iOS auto-mask radius 22.4%)
+    - Light anchor watermark for maritime depth (white, low opacity)
+    - White boat silhouette: hull + cabin + small mast-flag
+    - Two layered wake curves at the bottom
+    Designed by hand to read crisply from 16px favicon up to 512px install icon.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="512" height="512" rx="115" ry="115" fill="url(#bg)"/>
+
+  <!-- Light anchor watermark (behind the boat) -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-linecap="round" stroke-linejoin="round" stroke-width="14">
+    <!-- Anchor ring -->
+    <circle cx="256" cy="155" r="22" fill="none"/>
+    <!-- Vertical shaft -->
+    <line x1="256" y1="178" x2="256" y2="370"/>
+    <!-- Crossbar -->
+    <line x1="206" y1="208" x2="306" y2="208"/>
+    <!-- Bottom hooks (semicircle ending in upward flukes) -->
+    <path d="M 184 348 Q 256 410 328 348"/>
+    <path d="M 184 348 L 168 332"/>
+    <path d="M 328 348 L 344 332"/>
+  </g>
+
+  <!-- Boat silhouette -->
+  <g fill="#ffffff">
+    <!-- Mast + flag (small triangle pennant) -->
+    <rect x="252" y="148" width="6" height="80" rx="2"/>
+    <path d="M 258 152 L 296 168 L 258 184 Z"/>
+
+    <!-- Cabin / superstructure -->
+    <rect x="206" y="222" width="100" height="38" rx="6"/>
+    <!-- Cabin window detail (small darker square) -->
+    <rect x="222" y="232" width="20" height="18" rx="2" fill="#0e7490"/>
+    <rect x="270" y="232" width="20" height="18" rx="2" fill="#0e7490"/>
+
+    <!-- Hull (trapezoid that narrows toward the bottom) -->
+    <path d="M 110 260 L 402 260 L 360 312 L 152 312 Z"/>
+  </g>
+
+  <!-- Wake (two layered curves) -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="14">
+    <path d="M 86 358 Q 256 396 426 358" stroke-opacity="0.92"/>
+    <path d="M 130 408 Q 256 444 382 408" stroke-opacity="0.62"/>
+  </g>
+</svg>

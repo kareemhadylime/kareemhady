@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
 import { cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { TabNav, OWNER_TABS } from '../../_components/tabs';
+import { WeekList } from './_components/week-list';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,16 +78,28 @@ export default async function OwnerCalendar({ searchParams }: { searchParams: Se
   const grid = buildMonthGrid(monthYm);
 
   let rows: DayRow[] = [];
+  let weekRows: DayRow[] = [];
   if (selectedBoat) {
     const monthStart = monthYm + '-01';
     const monthEnd = addMonths(monthYm, 1) + '-01';
+    // Range that covers both the month grid AND today+14 for the week-list
+    // view, fetched in a single query to avoid a round trip per breakpoint.
+    const weekEnd = (() => {
+      const [y, m, d] = today.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d + 14));
+      return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+    })();
+    const minStart = monthStart < today ? monthStart : today;
+    const maxEnd = monthEnd > weekEnd ? monthEnd : weekEnd;
     const resvRes = await sb
       .from('boat_rental_reservations')
       .select('id, booking_date, status, price_egp_snapshot')
       .eq('boat_id', selectedBoat)
-      .gte('booking_date', monthStart)
-      .lt('booking_date', monthEnd);
-    rows = ((resvRes.data as unknown) as DayRow[] | null) || [];
+      .gte('booking_date', minStart)
+      .lt('booking_date', maxEnd);
+    const all = ((resvRes.data as unknown) as DayRow[] | null) || [];
+    rows = all.filter(r => r.booking_date >= monthStart && r.booking_date < monthEnd);
+    weekRows = all.filter(r => r.booking_date >= today && r.booking_date < weekEnd);
   }
   const byDate = new Map<string, DayRow>();
   for (const r of rows) {
@@ -108,10 +121,10 @@ export default async function OwnerCalendar({ searchParams }: { searchParams: Se
       </header>
       <TabNav tabs={OWNER_TABS} currentPath="/emails/boat-rental/owner/calendar" />
 
-      <section className="mt-8 ix-card p-6">
+      <section className="mt-8 ix-card p-4 sm:p-6">
         <form method="get" className="flex items-end gap-3 flex-wrap mb-5">
-          <label className="text-sm">
-            <span className="text-slate-600 text-xs">Boat</span>
+          <label className="text-sm flex-1">
+            <span className="text-slate-600 dark:text-slate-400 text-xs">Boat</span>
             <select name="boat_id" defaultValue={selectedBoat} className="ix-input mt-1">
               {boats.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
@@ -120,6 +133,16 @@ export default async function OwnerCalendar({ searchParams }: { searchParams: Se
           <button type="submit" className="ix-btn-secondary">Apply</button>
         </form>
 
+        {/* Mobile (<sm): week-list view */}
+        <div className="sm:hidden">
+          <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+            Next 14 days
+          </h2>
+          <WeekList rows={weekRows} from={today} />
+        </div>
+
+        {/* Desktop (≥sm): month grid */}
+        <div className="hidden sm:block">
         <div className="flex items-center justify-between mb-4">
           <Link
             href={`?boat_id=${selectedBoat}&month=${prevMonth}`}
@@ -177,13 +200,14 @@ export default async function OwnerCalendar({ searchParams }: { searchParams: Se
           })}
         </div>
 
-        <div className="mt-6 text-xs text-slate-500 flex flex-wrap gap-3">
-          <Legend color="bg-amber-100 border-amber-300" label="Held" />
-          <Legend color="bg-blue-100 border-blue-300" label="Confirmed" />
-          <Legend color="bg-cyan-100 border-cyan-300" label="Details filled" />
-          <Legend color="bg-emerald-100 border-emerald-300" label="Paid" />
-          <Legend color="bg-rose-100 border-rose-300" label="Cancelled" />
-          <Legend color="bg-slate-100 border-slate-300" label="Expired" />
+        <div className="mt-6 text-xs text-slate-500 dark:text-slate-400 flex flex-wrap gap-3">
+          <Legend color="bg-amber-100 dark:bg-amber-950 border-amber-300" label="Held" />
+          <Legend color="bg-blue-100 dark:bg-blue-950 border-blue-300" label="Confirmed" />
+          <Legend color="bg-cyan-100 dark:bg-cyan-950 border-cyan-300" label="Details filled" />
+          <Legend color="bg-emerald-100 dark:bg-emerald-950 border-emerald-300" label="Paid" />
+          <Legend color="bg-rose-100 dark:bg-rose-950 border-rose-300" label="Cancelled" />
+          <Legend color="bg-slate-100 dark:bg-slate-800 border-slate-300" label="Expired" />
+        </div>
         </div>
       </section>
     </>

@@ -96,10 +96,76 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
         </form>
       </section>
 
-      <section className="mt-6 ix-card overflow-hidden">
+      {/* Mobile: card list */}
+      <section className="mt-6 md:hidden space-y-2">
+        {rows.length === 0 && (
+          <div className="ix-card p-6 text-sm text-slate-500 text-center">No reservations match.</div>
+        )}
+        {rows.map(r => {
+          const cancellable = ['held', 'confirmed', 'details_filled'].includes(r.status);
+          return (
+            <div key={r.id} className="ix-card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{r.boat?.name || '—'}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{r.booking_date}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-bold tabular-nums">
+                    EGP {Number(r.price_egp_snapshot).toLocaleString()}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1 justify-end">
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                      {r.status}
+                    </span>
+                    {r.refund_pending && (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                        refund
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                <div>Owner · {r.boat?.owner?.name || '—'}</div>
+                <div>Broker · {r.broker?.username || '—'}</div>
+                {r.booking?.client_name && (
+                  <div>Client · {r.booking.client_name} ({r.booking.guest_count})</div>
+                )}
+              </div>
+              {(r.refund_pending || cancellable) && (
+                <div className="mt-3 flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800">
+                  {r.refund_pending && (
+                    <form action={clearRefundFlagAction}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <button type="submit" className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline">
+                        Clear refund
+                      </button>
+                    </form>
+                  )}
+                  {cancellable && (
+                    <form action={adminForceCancelAction}>
+                      <input type="hidden" name="id" value={r.id} />
+                      <button
+                        type="submit"
+                        className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-800 inline-flex items-center gap-1"
+                      >
+                        <XCircle size={12} /> Force-cancel
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </section>
+
+      {/* Desktop: table */}
+      <section className="mt-6 ix-card overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="text-left px-4 py-2">Date</th>
                 <th className="text-left px-4 py-2">Boat</th>
@@ -120,7 +186,7 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
               {rows.map(r => {
                 const cancellable = ['held', 'confirmed', 'details_filled'].includes(r.status);
                 return (
-                  <tr key={r.id} className="border-b border-slate-100">
+                  <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800">
                     <td className="px-4 py-2 whitespace-nowrap">{r.booking_date}</td>
                     <td className="px-4 py-2">{r.boat?.name || '—'}</td>
                     <td className="px-4 py-2">{r.boat?.owner?.name || '—'}</td>
@@ -132,11 +198,11 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
                       {Number(r.price_egp_snapshot).toLocaleString()}
                     </td>
                     <td className="px-4 py-2">
-                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
                         {r.status}
                       </span>
                       {r.refund_pending && (
-                        <span className="ml-1 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">
+                        <span className="ml-1 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
                           refund
                         </span>
                       )}

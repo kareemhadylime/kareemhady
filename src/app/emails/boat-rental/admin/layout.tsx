@@ -18,7 +18,7 @@ export default async function BoatRentalAdminLayout({
         <ChevronRight size={14} className="text-slate-400" />
         <span>Admin</span>
       </TopNav>
-      <main className="max-w-6xl mx-auto px-6 py-8 flex-1">{children}</main>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1">{children}</main>
     </>
   );
 }

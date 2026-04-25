@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, CheckCircle2, XCircle, Phone, MessageCircle } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, XCircle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
 import { isWithinCancellationWindow } from '@/lib/boat-rental/pricing';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
-import { markPaidManuallyAction, cancelReservationOwnerAction } from '../../actions';
+import { ClickToContact } from '../../../_components/click-to-contact';
+import { MarkPaidForm } from '../../_components/mark-paid-form';
+import { cancelReservationOwnerAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,25 +86,12 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div>
                 <div className="text-xs text-slate-500">Client</div>
-                <div className="flex items-center gap-2">
-                  {r.booking.client_name}
-                  <a
-                    href={`tel:${r.booking.client_phone}`}
-                    title="Call"
-                    className="text-slate-500 hover:text-slate-900"
-                  >
-                    <Phone size={12} />
-                  </a>
-                  <a
-                    href={`https://wa.me/${r.booking.client_phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="WhatsApp"
-                    className="text-emerald-600 hover:text-emerald-800"
-                  >
-                    <MessageCircle size={12} />
-                  </a>
-                </div>
+                <div className="font-medium">{r.booking.client_name}</div>
+                <ClickToContact
+                  phone={r.booking.client_phone}
+                  whatsappText={`Hi ${r.booking.client_name}, regarding your boat trip on ${r.booking_date}.`}
+                  className="mt-1"
+                />
               </div>
               <div>
                 <div className="text-xs text-slate-500">Guests</div>
@@ -151,40 +140,8 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
           <p className="text-xs text-emerald-900/80 mb-3">
             Use this if you&apos;ve received the transfer directly from the broker (cash, Instapay, etc.) and they haven&apos;t uploaded a receipt.
           </p>
-          <form action={markPaidManuallyAction} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input type="hidden" name="id" value={r.id} />
-            <label className="text-sm">
-              <span className="text-slate-600 text-xs">Amount received (EGP) *</span>
-              <input
-                name="amount_egp"
-                type="number"
-                min="0"
-                step="1"
-                required
-                defaultValue={Number(r.price_egp_snapshot)}
-                className="ix-input mt-1"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="text-slate-600 text-xs">Method</span>
-              <select name="method" className="ix-input mt-1" defaultValue="manual_override">
-                <option value="manual_override">Manual override</option>
-                <option value="bank_transfer">Bank transfer</option>
-                <option value="instapay">Instapay</option>
-                <option value="cash">Cash</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="text-slate-600 text-xs">Note</span>
-              <input name="note" className="ix-input mt-1" />
-            </label>
-            <div className="md:col-span-3">
-              <button type="submit" className="ix-btn-primary">
-                <CheckCircle2 size={14} /> Confirm received
-              </button>
-            </div>
-          </form>
+          <MarkPaidForm reservationId={r.id} defaultAmount={Number(r.price_egp_snapshot)} />
+          {/* Falls back to a server action when we want admin override path */}
         </section>
       )}
 

@@ -91,7 +91,7 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">Guest capacity *</span>
-            <input name="capacity_guests" type="number" min="1" max="50" required defaultValue={boat.capacity_guests} className="ix-input mt-1" />
+            <input name="capacity_guests" type="number" inputMode="numeric" min="1" max="50" required defaultValue={boat.capacity_guests} className="ix-input mt-1" />
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">Skipper name *</span>
@@ -99,7 +99,7 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">Skipper WhatsApp *</span>
-            <input name="skipper_whatsapp" required defaultValue={boat.skipper_whatsapp} className="ix-input mt-1" />
+            <input name="skipper_whatsapp" type="tel" inputMode="tel" required defaultValue={boat.skipper_whatsapp} className="ix-input mt-1" />
           </label>
           <label className="text-sm md:col-span-2">
             <span className="text-slate-600 text-xs">Features</span>
@@ -136,11 +136,11 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
           </div>
         )}
         {images.length < 10 && (
-          <form action={uploadBoatImagesAction} className="flex items-end gap-3">
+          <form action={uploadBoatImagesAction} className="flex items-end gap-3 flex-wrap">
             <input type="hidden" name="boat_id" value={boat.id} />
-            <label className="text-sm flex-1">
+            <label className="text-sm flex-1 min-w-[200px]">
               <span className="text-slate-600 text-xs">Add photos (JPG/PNG/WEBP, 5MB max each)</span>
-              <input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple required className="ix-input mt-1 cursor-pointer" />
+              <input name="images" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple required className="ix-input mt-1 cursor-pointer" />
             </label>
             <button type="submit" className="ix-btn-secondary"><Upload size={14} /> Upload</button>
           </form>

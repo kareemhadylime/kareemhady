@@ -43,7 +43,7 @@ export default async function OwnersAdmin() {
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">WhatsApp * (digits only, with country code)</span>
-            <input name="whatsapp" required placeholder="201234567890" className="ix-input mt-1" />
+            <input name="whatsapp" type="tel" inputMode="tel" required placeholder="201234567890" className="ix-input mt-1" />
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">Email</span>

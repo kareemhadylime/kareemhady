@@ -90,7 +90,7 @@ export default async function BoatsAdmin() {
             </label>
             <label className="text-sm">
               <span className="text-slate-600 text-xs">Guest capacity *</span>
-              <input name="capacity_guests" type="number" min="1" max="50" required className="ix-input mt-1" />
+              <input name="capacity_guests" type="number" inputMode="numeric" min="1" max="50" required className="ix-input mt-1" />
             </label>
             <label className="text-sm">
               <span className="text-slate-600 text-xs">Skipper name *</span>
@@ -98,7 +98,7 @@ export default async function BoatsAdmin() {
             </label>
             <label className="text-sm">
               <span className="text-slate-600 text-xs">Skipper WhatsApp * (digits only)</span>
-              <input name="skipper_whatsapp" required placeholder="201234567890" className="ix-input mt-1" />
+              <input name="skipper_whatsapp" type="tel" inputMode="tel" required placeholder="201234567890" className="ix-input mt-1" />
             </label>
             <label className="text-sm md:col-span-2">
               <span className="text-slate-600 text-xs">Features</span>
@@ -106,7 +106,7 @@ export default async function BoatsAdmin() {
             </label>
             <label className="text-sm md:col-span-2">
               <span className="text-slate-600 text-xs">Images (optional — up to 10, 5MB each, JPG/PNG/WEBP)</span>
-              <input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple className="ix-input mt-1 cursor-pointer" />
+              <input name="images" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple className="ix-input mt-1 cursor-pointer" />
             </label>
             <div className="md:col-span-2">
               <button type="submit" className="ix-btn-primary"><Plus size={14} /> Create boat</button>

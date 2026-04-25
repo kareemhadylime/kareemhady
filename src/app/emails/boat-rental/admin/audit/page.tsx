@@ -42,10 +42,47 @@ export default async function AuditLog() {
       </header>
       <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/audit" />
 
-      <section className="mt-8 ix-card overflow-hidden">
+      {/* Mobile: card list */}
+      <section className="mt-8 md:hidden space-y-2">
+        {rows.length === 0 && (
+          <div className="ix-card p-6 text-sm text-slate-500 text-center">
+            <History size={20} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+            No audit entries yet.
+          </div>
+        )}
+        {rows.map(r => (
+          <div key={r.id} className="ix-card p-3 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <code className="font-mono font-semibold text-slate-900 dark:text-slate-100">{r.action}</code>
+              <span className="text-slate-400">{new Date(r.created_at).toLocaleString()}</span>
+            </div>
+            <div className="mt-1 text-slate-600 dark:text-slate-300">
+              {r.from_status || '—'} → {r.to_status || '—'}
+              <span className="ml-2 text-slate-400">
+                {r.actor_user_id ? (userMap.get(r.actor_user_id) || r.actor_user_id.slice(0, 6)) : '—'}
+                {r.actor_role && ` (${r.actor_role})`}
+              </span>
+            </div>
+            {r.reservation_id && (
+              <div className="mt-1 font-mono text-slate-400">res #{r.reservation_id.slice(0, 8)}</div>
+            )}
+            {r.payload && (
+              <details className="mt-1">
+                <summary className="text-[10px] text-slate-500 cursor-pointer">Payload</summary>
+                <code className="block mt-1 text-[10px] text-slate-500 break-all">
+                  {JSON.stringify(r.payload)}
+                </code>
+              </details>
+            )}
+          </div>
+        ))}
+      </section>
+
+      {/* Desktop: table */}
+      <section className="mt-8 ix-card overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="text-left px-4 py-2">When</th>
                 <th className="text-left px-4 py-2">Actor</th>
@@ -59,14 +96,14 @@ export default async function AuditLog() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center text-slate-500 px-4 py-6">
-                    <History size={20} className="mx-auto text-slate-300 mb-2" />
+                    <History size={20} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
                     No audit entries yet.
                   </td>
                 </tr>
               )}
               {rows.map(r => (
-                <tr key={r.id} className="border-b border-slate-100">
-                  <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500">
+                <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800">
+                  <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
                     {new Date(r.created_at).toLocaleString()}
                   </td>
                   <td className="px-4 py-2 text-xs">
@@ -74,7 +111,7 @@ export default async function AuditLog() {
                     {r.actor_role && <span className="ml-1 text-slate-400">({r.actor_role})</span>}
                   </td>
                   <td className="px-4 py-2 font-mono text-xs">{r.action}</td>
-                  <td className="px-4 py-2 text-xs text-slate-600">
+                  <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
                     {r.from_status || '—'} → {r.to_status || '—'}
                   </td>
                   <td className="px-4 py-2 text-xs text-slate-500 font-mono">
