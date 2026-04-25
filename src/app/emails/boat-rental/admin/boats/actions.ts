@@ -5,6 +5,9 @@ import { redirect } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBoatAdmin, s, sOrNull, nOrNull, normPhone } from '@/lib/boat-rental/server-helpers';
 import { isValidFeatureCode } from '@/lib/boat-rental/features';
+import { signedImageUrl } from '@/lib/boat-rental/storage';
+import { classifyBoatPhoto } from '@/lib/boat-rental/photo-classifier';
+import { PHOTO_CATEGORIES, type PhotoCategory } from '@/lib/boat-rental/photo-categories';
 
 // Pull every 'features' value from the form, dedupe, and drop anything
 // that's not in the predefined registry. Defends against tampered
@@ -138,6 +141,91 @@ export async function setPrimaryBoatImageAction(formData: FormData): Promise<voi
     .eq('id', id);
   revalidatePath(`/emails/boat-rental/admin/boats/${boatId}`);
   revalidatePath('/emails/boat-rental/admin/boats');
+  revalidatePath('/emails/boat-rental/broker/inventory');
+  revalidatePath('/emails/boat-rental/owner/inventory');
+  revalidatePath('/emails/boat-rental/admin/inventory');
+}
+
+// Move a photo up or down in the boat's gallery by swapping its
+// sort_order with the nearest neighbor. The neighbor is whichever
+// photo currently sits at sort_order +/-1 — if the boat has gaps in
+// numbering (deleted middle row, etc.), this still does the right
+// thing because we sort the live list and pick the actual neighbor.
+export async function moveBoatImageAction(formData: FormData): Promise<void> {
+  await requireBoatAdmin();
+  const id = s(formData.get('id'));
+  const boatId = s(formData.get('boat_id'));
+  const direction = s(formData.get('direction'));
+  if (!id || !boatId || !['up', 'down'].includes(direction)) return;
+
+  const sb = supabaseAdmin();
+  const { data: rows } = await sb
+    .from('boat_rental_boat_images')
+    .select('id, sort_order')
+    .eq('boat_id', boatId)
+    .order('sort_order');
+  const list = (rows as Array<{ id: string; sort_order: number }> | null) || [];
+  const idx = list.findIndex(r => r.id === id);
+  if (idx === -1) return;
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= list.length) return;
+
+  const a = list[idx];
+  const b = list[swapIdx];
+  // Two-step swap to avoid colliding with any future unique constraint
+  // on (boat_id, sort_order).
+  await sb.from('boat_rental_boat_images').update({ sort_order: -1 }).eq('id', a.id);
+  await sb.from('boat_rental_boat_images').update({ sort_order: a.sort_order }).eq('id', b.id);
+  await sb.from('boat_rental_boat_images').update({ sort_order: b.sort_order }).eq('id', a.id);
+
+  revalidatePath(`/emails/boat-rental/admin/boats/${boatId}`);
+  revalidatePath('/emails/boat-rental/broker/inventory');
+  revalidatePath('/emails/boat-rental/owner/inventory');
+  revalidatePath('/emails/boat-rental/admin/inventory');
+}
+
+// Manual override for the AI's category guess. Allow null (clear) so
+// admin can wipe a wrong tag and let the next backfill re-pick.
+export async function setBoatImageCategoryAction(formData: FormData): Promise<void> {
+  await requireBoatAdmin();
+  const id = s(formData.get('id'));
+  const boatId = s(formData.get('boat_id'));
+  const raw = s(formData.get('category'));
+  if (!id || !boatId) return;
+  const category = (PHOTO_CATEGORIES as readonly string[]).includes(raw)
+    ? (raw as PhotoCategory)
+    : null;
+  const sb = supabaseAdmin();
+  await sb.from('boat_rental_boat_images').update({ category }).eq('id', id);
+  revalidatePath(`/emails/boat-rental/admin/boats/${boatId}`);
+  revalidatePath('/emails/boat-rental/broker/inventory');
+  revalidatePath('/emails/boat-rental/owner/inventory');
+  revalidatePath('/emails/boat-rental/admin/inventory');
+}
+
+// Re-runs the Claude vision classifier on every photo for this boat
+// that doesn't yet have a category. Sequential to keep the function
+// well within Vercel's 60s budget; ~1-2s per photo on Haiku 4.5.
+export async function backfillBoatPhotosClassificationAction(formData: FormData): Promise<void> {
+  await requireBoatAdmin();
+  const boatId = s(formData.get('boat_id'));
+  if (!boatId) return;
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('boat_rental_boat_images')
+    .select('id, storage_path, category')
+    .eq('boat_id', boatId)
+    .is('category', null);
+  const rows = ((data as unknown) as Array<{ id: string; storage_path: string }> | null) || [];
+  for (const r of rows) {
+    const url = await signedImageUrl(r.storage_path);
+    if (!url) continue;
+    const cat = await classifyBoatPhoto(url);
+    if (cat) {
+      await sb.from('boat_rental_boat_images').update({ category: cat }).eq('id', r.id);
+    }
+  }
+  revalidatePath(`/emails/boat-rental/admin/boats/${boatId}`);
   revalidatePath('/emails/boat-rental/broker/inventory');
   revalidatePath('/emails/boat-rental/owner/inventory');
   revalidatePath('/emails/boat-rental/admin/inventory');

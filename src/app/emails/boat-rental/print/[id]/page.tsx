@@ -5,6 +5,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { getBoatRoles, getOwnedOwnerIds, type BoatRole } from '@/lib/boat-rental/auth';
 import { signedImageUrls, signedImageUrl } from '@/lib/boat-rental/storage';
 import { partitionFeatures } from '@/lib/boat-rental/features';
+import { pickShowcasePhotos } from '@/lib/boat-rental/photo-picker';
+import type { PhotoCategory } from '@/lib/boat-rental/photo-categories';
 import { PrintTrigger } from './print-trigger';
 import { PrintNavBar } from './print-nav-bar';
 
@@ -94,17 +96,22 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
     if (!isBroker && !isOwner) notFound();
   }
 
-  // First 5 photos (hero + up to 4 thumbs). Admin-starred primary
-  // wins as hero if set; rest by sort_order.
+  // Pull all photos and let the smart picker fill priority slots:
+  // hero = admin-pinned primary or best full_boat, then 1 seating /
+  // 1 interior / 1 bathroom + 1 filler. Guarantees variety on the
+  // PDF even when boats have lots of photos in one category.
   const { data: imgRaw } = await sb
     .from('boat_rental_boat_images')
-    .select('storage_path, sort_order, is_primary')
+    .select('storage_path, sort_order, is_primary, category')
     .eq('boat_id', id)
-    .order('is_primary', { ascending: false })
-    .order('sort_order')
-    .limit(5);
-  const imgRows = ((imgRaw as unknown) as Array<{ storage_path: string }> | null) || [];
-  const urls = await signedImageUrls(imgRows.map(r => r.storage_path));
+    .order('sort_order');
+  const allImages = ((imgRaw as unknown) as Array<{
+    storage_path: string;
+    is_primary: boolean;
+    category: PhotoCategory | null;
+  }> | null) || [];
+  const showcase = pickShowcasePhotos(allImages, 5);
+  const urls = await signedImageUrls(showcase.map(r => r.storage_path));
   const photos = urls.filter(Boolean) as string[];
   const hero = photos[0] || null;
   const thumbs = photos.slice(1, 5);

@@ -1,5 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ AI photo categorization + manual reorder (full feature)
+
+User: "ok To All, with Option To Re Sort the Pictures Manualy in the admin Panel". Greenlit all 4 Q1-Q4 defaults from earlier planning round AND added manual reorder.
+
+**Migration ([0024_boat_image_categories.sql](supabase/migrations/0024_boat_image_categories.sql), applied via MCP):**
+- `boat_rental_boat_images.category text check (in 'full_boat','seating','interior','bathroom','other')` — nullable; null = untagged
+- `idx_boat_rental_boat_images_category` on `(boat_id, category)` for fast picker queries
+
+**Lib:**
+- [photo-categories.ts](src/lib/boat-rental/photo-categories.ts) — non-server-only constants (`PHOTO_CATEGORIES`, `PHOTO_CATEGORY_LABEL`, `PHOTO_CATEGORY_PRIORITY`, `PhotoCategory` type). **Critical:** had to split this from photo-classifier.ts because the classifier imports `'server-only'` and `<CategorySelect>` is a client component — first build attempt failed on this exact issue.
+- [photo-classifier.ts](src/lib/boat-rental/photo-classifier.ts) — `'server-only'`, exports `classifyBoatPhoto(imageUrl)`. Fetches the (signed) URL, base64-encodes, sends to Claude Haiku 4.5 via the existing `anthropic()` helper with a one-shot system prompt that demands a single category code back. Returns null on missing API key, fetch failure, or unparseable response.
+- [photo-picker.ts](src/lib/boat-rental/photo-picker.ts) — `pickShowcasePhotos(photos, count)` and `pickPreviewPhoto(photos)`. Algorithm: admin-pinned `is_primary` always wins as hero; else fills slots in order [full_boat, seating, interior, bathroom, filler]; backfills from `PHOTO_CATEGORY_PRIORITY` if slots empty. Untagged photos bucketed as 'other' so nothing is lost.
+
+**Upload-time hook ([api/boat-rental/admin/boat-image/attach/route.ts](src/app/api/boat-rental/admin/boat-image/attach/route.ts)):** After insert, fetches a signed URL and calls `classifyBoatPhoto`. Updates the row with the result. Wrapped in try/catch — never fails the upload over a classifier error. Bumped `maxDuration` from 10s → 30s. Returns the category in the response.
+
+**Server actions ([admin/boats/actions.ts](src/app/emails/boat-rental/admin/boats/actions.ts)):**
+- `moveBoatImageAction(id, boat_id, direction='up'|'down')` — finds neighbor by sort_order, 3-step swap (set -1 → other = old → me = other's old) so it never collides with a future unique constraint. Revalidates all inventory paths.
+- `setBoatImageCategoryAction(id, boat_id, category)` — manual override; allows blank string → null. Allowlist-validated against PHOTO_CATEGORIES.
+- `backfillBoatPhotosClassificationAction(boat_id)` — sequential loop over photos with `category IS NULL`, calls classifier per photo, updates. ~1-2s per photo on Haiku, sequential to stay under 60s timeout.
+
+**Admin photo grid UI ([admin/boats/[id]/page.tsx](src/app/emails/boat-rental/admin/boats/[id]/page.tsx)):** Each photo card now has:
+- Image (top, square)
+- Hover top-right: Star (set as main) + X (delete)
+- Hover bottom-left: ↑ / ↓ reorder arrows (disabled when at endpoints)
+- Always-visible bottom strip: `<CategorySelect>` ([category-select.tsx](src/app/emails/boat-rental/admin/boats/_components/category-select.tsx)) — auto-submitting `<select>` in a `useTransition`. Cyan when tagged, amber italic when untagged.
+- Section header has a "Auto-tag N untagged photos" violet button when any are untagged — fires `backfillBoatPhotosClassificationAction`.
+
+**Display surfaces wired:**
+- [catalogue-grid.tsx](src/app/emails/boat-rental/_components/catalogue/catalogue-grid.tsx) — uses `pickPreviewPhoto` per boat; admin-pinned primary always wins, else best full_boat.
+- [catalogue-detail.tsx](src/app/emails/boat-rental/_components/catalogue/catalogue-detail.tsx) — `pickShowcasePhotos(allImages, 5)` for hero + 4 thumbs; appends remaining photos so the lightbox still includes EVERYTHING (just reordered with the showcase first).
+- [print/[id]/page.tsx](src/app/emails/boat-rental/print/[id]/page.tsx) — `pickShowcasePhotos(allImages, 5)` only (PDF doesn't show the rest).
+
+**Cost guess for backfill:** ~$0.001/photo × 10 photos × 50 boats = ~$0.50 one-time. New uploads add ~$0.001 each. Trivial.
+
+**Verified ANTHROPIC_API_KEY exists in `.env.example`** — assumed populated in Vercel env. If missing, classifier returns null silently (admin can still manually tag via dropdown).
+
+Type check + production build pass. Deployed.
+
+---
+
 ## ✅ Boat photos: admin-picked "Main" override (catalogue + PDF hero)
 
 User: "Main Pictures choosen is a Bad one — Also Here??". The catalogue grid was picking the first photo by `sort_order`, which often surfaced poor representative images (close-up cushion shots, etc). Same problem on catalogue-detail hero and PDF hero.

@@ -1,17 +1,21 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Save, Trash2, X, Star } from 'lucide-react';
+import { ChevronLeft, Save, Trash2, X, Star, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrls } from '@/lib/boat-rental/storage';
+import type { PhotoCategory } from '@/lib/boat-rental/photo-categories';
 import {
   updateBoatAction,
   deleteBoatImageAction,
   deleteBoatAction,
   setPrimaryBoatImageAction,
+  moveBoatImageAction,
+  backfillBoatPhotosClassificationAction,
 } from '../actions';
 import { BoatImageUploader } from '../_components/image-uploader';
 import { FeaturePicker } from '../_components/feature-picker';
+import { CategorySelect } from '../_components/category-select';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,14 +49,14 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
     sb.from('boat_rental_owners').select('id, name').order('name'),
     sb
       .from('boat_rental_boat_images')
-      .select('id, storage_path, sort_order, is_primary')
+      .select('id, storage_path, sort_order, is_primary, category')
       .eq('boat_id', id)
-      .order('is_primary', { ascending: false })
       .order('sort_order'),
     sb.from('boat_rental_pricing').select('tier, amount_egp').eq('boat_id', id),
   ]);
   const owners = ((ownersRes.data as unknown) as Array<{ id: string; name: string }> | null) || [];
-  const images = ((imagesRes.data as unknown) as Array<{ id: string; storage_path: string; sort_order: number; is_primary: boolean }> | null) || [];
+  const images = ((imagesRes.data as unknown) as Array<{ id: string; storage_path: string; sort_order: number; is_primary: boolean; category: PhotoCategory | null }> | null) || [];
+  const untaggedCount = images.filter(i => !i.category).length;
   const pricing = ((pricingRes.data as unknown) as Array<{ tier: string; amount_egp: string | number }> | null) || [];
 
   const imageUrls = await signedImageUrls(images.map(i => i.storage_path));
@@ -153,54 +157,108 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
         <div className="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
           <h2 className="font-semibold">Photos ({images.length} / 10)</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Star a photo to set it as the catalogue + PDF main image. Without a starred pick, the first uploaded photo is used.
+            Star = catalogue + PDF hero. AI auto-tags new uploads — change a tag to override.
+            Use ↑/↓ to reorder.
           </p>
         </div>
+
+        {untaggedCount > 0 && (
+          <form action={backfillBoatPhotosClassificationAction} className="mb-3">
+            <input type="hidden" name="boat_id" value={boat.id} />
+            <button
+              type="submit"
+              className="ix-btn-secondary text-xs border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950"
+              title="Run Claude vision on every untagged photo and assign a category. ~1-2 sec per photo."
+            >
+              <Sparkles size={12} /> Auto-tag {untaggedCount} untagged photo{untaggedCount === 1 ? '' : 's'}
+            </button>
+          </form>
+        )}
+
         {images.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             {images.map((img, i) => (
               <div
                 key={img.id}
                 className={
-                  'relative aspect-square rounded-lg overflow-hidden group ' +
+                  'relative rounded-lg overflow-hidden group flex flex-col ' +
                   (img.is_primary
                     ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-500/20'
-                    : 'bg-slate-100')
+                    : 'border border-slate-200 dark:border-slate-700')
                 }
               >
-                {imageUrls[i] && (
-                  <Image src={imageUrls[i] as string} alt="" fill unoptimized className="object-cover" />
-                )}
-                {img.is_primary && (
-                  <span className="absolute top-1 left-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold uppercase tracking-wide shadow">
-                    <Star size={10} fill="currentColor" /> Main
-                  </span>
-                )}
-                <div className="absolute top-1 right-1 flex gap-1">
-                  {!img.is_primary && (
-                    <form action={setPrimaryBoatImageAction}>
+                <div className="relative aspect-square bg-slate-100 dark:bg-slate-800">
+                  {imageUrls[i] && (
+                    <Image src={imageUrls[i] as string} alt="" fill unoptimized className="object-cover" />
+                  )}
+                  {img.is_primary && (
+                    <span className="absolute top-1 left-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold uppercase tracking-wide shadow">
+                      <Star size={10} fill="currentColor" /> Main
+                    </span>
+                  )}
+
+                  {/* Reorder controls — bottom-left, hover only */}
+                  <div className="absolute bottom-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                    <form action={moveBoatImageAction}>
+                      <input type="hidden" name="id" value={img.id} />
+                      <input type="hidden" name="boat_id" value={boat.id} />
+                      <input type="hidden" name="direction" value="up" />
+                      <button
+                        type="submit"
+                        disabled={i === 0}
+                        className="p-1 rounded bg-white/90 text-slate-700 hover:bg-cyan-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move earlier"
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                    </form>
+                    <form action={moveBoatImageAction}>
+                      <input type="hidden" name="id" value={img.id} />
+                      <input type="hidden" name="boat_id" value={boat.id} />
+                      <input type="hidden" name="direction" value="down" />
+                      <button
+                        type="submit"
+                        disabled={i === images.length - 1}
+                        className="p-1 rounded bg-white/90 text-slate-700 hover:bg-cyan-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move later"
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Star + Delete — top-right, hover only */}
+                  <div className="absolute top-1 right-1 flex gap-1">
+                    {!img.is_primary && (
+                      <form action={setPrimaryBoatImageAction}>
+                        <input type="hidden" name="id" value={img.id} />
+                        <input type="hidden" name="boat_id" value={boat.id} />
+                        <button
+                          type="submit"
+                          className="p-1 rounded bg-white/90 text-amber-600 hover:bg-amber-50 opacity-0 group-hover:opacity-100 transition"
+                          title="Set as main photo"
+                        >
+                          <Star size={12} />
+                        </button>
+                      </form>
+                    )}
+                    <form action={deleteBoatImageAction}>
                       <input type="hidden" name="id" value={img.id} />
                       <input type="hidden" name="boat_id" value={boat.id} />
                       <button
                         type="submit"
-                        className="p-1 rounded bg-white/90 text-amber-600 hover:bg-amber-50 opacity-0 group-hover:opacity-100 transition"
-                        title="Set as main photo"
+                        className="p-1 rounded bg-white/90 text-rose-600 opacity-0 group-hover:opacity-100 transition"
+                        title="Remove"
                       >
-                        <Star size={12} />
+                        <X size={12} />
                       </button>
                     </form>
-                  )}
-                  <form action={deleteBoatImageAction}>
-                    <input type="hidden" name="id" value={img.id} />
-                    <input type="hidden" name="boat_id" value={boat.id} />
-                    <button
-                      type="submit"
-                      className="p-1 rounded bg-white/90 text-rose-600 opacity-0 group-hover:opacity-100 transition"
-                      title="Remove"
-                    >
-                      <X size={12} />
-                    </button>
-                  </form>
+                  </div>
+                </div>
+
+                {/* Category bar — always visible at bottom */}
+                <div className="bg-white dark:bg-slate-900 px-1.5 py-1.5">
+                  <CategorySelect imageId={img.id} boatId={boat.id} current={img.category} />
                 </div>
               </div>
             ))}

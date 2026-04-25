@@ -3,6 +3,8 @@ import Image from 'next/image';
 import { ArrowRight, Users, Ship, ImageIcon } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
+import { pickPreviewPhoto } from '@/lib/boat-rental/photo-picker';
+import type { PhotoCategory } from '@/lib/boat-rental/photo-categories';
 import { TabNav, type TabItem } from '../tabs';
 
 // Catalogue Grid — read-only, presentational. Used in all three portals
@@ -65,23 +67,35 @@ export async function CatalogueGrid({ scope, basePath, tabs, currentPath }: Prop
   const { data: boatsRaw } = await query;
   const boats = ((boatsRaw as unknown) as Boat[] | null) || [];
 
-  // Best preview photo per boat: prefer the admin-flagged primary,
-  // otherwise the first by sort_order. We sort is_primary desc first
-  // so the primary (if any) lands at the top of each boat's group.
+  // Best preview photo per boat via the smart picker: admin-pinned
+  // primary wins, else best full_boat (per AI category), else next
+  // priority category, else first by sort_order. Falls back gracefully
+  // when no AI tags exist yet.
   const { data: imgRaw } = await sb
     .from('boat_rental_boat_images')
-    .select('boat_id, storage_path, sort_order, is_primary')
+    .select('boat_id, storage_path, sort_order, is_primary, category')
     .in('boat_id', boats.map(b => b.id))
-    .order('is_primary', { ascending: false })
     .order('sort_order');
-  const imgRows = ((imgRaw as unknown) as Array<{ boat_id: string; storage_path: string; is_primary: boolean }> | null) || [];
+  const imgRows = ((imgRaw as unknown) as Array<{
+    boat_id: string;
+    storage_path: string;
+    is_primary: boolean;
+    category: PhotoCategory | null;
+  }> | null) || [];
 
-  const firstByBoat = new Map<string, string>();
-  for (const r of imgRows) if (!firstByBoat.has(r.boat_id)) firstByBoat.set(r.boat_id, r.storage_path);
+  const photosByBoat = new Map<string, typeof imgRows>();
+  for (const r of imgRows) {
+    const arr = photosByBoat.get(r.boat_id) || [];
+    arr.push(r);
+    photosByBoat.set(r.boat_id, arr);
+  }
+
   const previews = new Map<string, string | null>();
   await Promise.all(
-    [...firstByBoat.entries()].map(async ([bid, path]) => {
-      previews.set(bid, await signedImageUrl(path));
+    boats.map(async b => {
+      const list = photosByBoat.get(b.id) || [];
+      const pick = pickPreviewPhoto(list);
+      previews.set(b.id, pick ? await signedImageUrl(pick.storage_path) : null);
     })
   );
   const photoCount = new Map<string, number>();

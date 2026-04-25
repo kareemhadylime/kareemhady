@@ -4,6 +4,8 @@ import { ChevronLeft, Users, Ship, Check, DollarSign } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrls } from '@/lib/boat-rental/storage';
 import { partitionFeatures } from '@/lib/boat-rental/features';
+import { pickShowcasePhotos } from '@/lib/boat-rental/photo-picker';
+import type { PhotoCategory } from '@/lib/boat-rental/photo-categories';
 import { TabNav, type TabItem } from '../tabs';
 import { CataloguePhotoGallery } from './photo-gallery';
 import { PdfLink } from './pdf-link';
@@ -55,16 +57,31 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
   if (scope.kind === 'active-only' && boat.status !== 'active') notFound();
   if (scope.kind === 'own-only' && !scope.ownerIds.includes(boat.owner_id)) notFound();
 
-  // Hero is the admin-flagged primary if set, else first by sort_order.
-  // is_primary desc puts the starred photo first for everyone.
+  // Pull all images with categories so the smart picker can fill the
+  // priority slots (1 full_boat / 1 seating / 1 interior / 1 bathroom
+  // + 1 filler). Showcase = visible 5 = hero + 4 thumbs. Lightbox
+  // still gets ALL photos in the original sort_order so users can
+  // browse the full gallery — just reordered with the showcase first.
   const { data: imgRaw } = await sb
     .from('boat_rental_boat_images')
-    .select('id, storage_path, sort_order, is_primary')
+    .select('id, storage_path, sort_order, is_primary, category')
     .eq('boat_id', boatId)
-    .order('is_primary', { ascending: false })
     .order('sort_order');
-  const images = ((imgRaw as unknown) as Array<{ id: string; storage_path: string; sort_order: number; is_primary: boolean }> | null) || [];
-  const urls = await signedImageUrls(images.map(i => i.storage_path));
+  const allImages = ((imgRaw as unknown) as Array<{
+    id: string;
+    storage_path: string;
+    sort_order: number;
+    is_primary: boolean;
+    category: PhotoCategory | null;
+  }> | null) || [];
+
+  // Run the picker on the raw rows, then dedupe + append remaining
+  // photos so the lightbox still includes everything.
+  const showcase = pickShowcasePhotos(allImages, 5);
+  const showcaseIds = new Set(showcase.map(p => p.id));
+  const orderedRows = [...showcase, ...allImages.filter(p => !showcaseIds.has(p.id))];
+
+  const urls = await signedImageUrls(orderedRows.map(i => i.storage_path));
   const photos = urls
     .map((u, i) => (u ? { url: u, alt: `${boat.name} photo ${i + 1}` } : null))
     .filter(Boolean) as { url: string; alt: string }[];
