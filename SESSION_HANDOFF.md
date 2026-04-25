@@ -1,5 +1,84 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Payment Confirmation: show all confirmed reservations regardless of date (commit `e96f5b3`)
+
+User reported "no reservations awaiting payment, reservations not propagating?" — they had a confirmed Malaya II reservation for 2026-05-03 (future) and expected it on the Payment page.
+
+**Diagnosis (via Supabase MCP query):** The reservation IS in the DB — `confirmed`, future date, no payment row. The page was filtering `lte('booking_date', today)` so future trips were excluded by design (post-trip only). User's mental model: "any confirmed reservation that hasn't been paid yet should show up."
+
+**Fix in [src/app/emails/boat-rental/broker/payments/page.tsx](src/app/emails/boat-rental/broker/payments/page.tsx):**
+- Removed `.lte('booking_date', today)` from the pending query
+- Now filters to `status in (confirmed, details_filled)` AND `!payment` (any reservation without a payment record)
+- Added visual indicators on each card:
+  - **"Trip not yet happened"** amber pill for `booking_date > today`
+  - **"Today"** cyan pill for `booking_date === today`
+- Sort still by booking_date desc so past trips bubble up first when they exist
+
+Pages are already `export const dynamic = 'force-dynamic'` so no `revalidatePath` additions were needed — fresh DB read every page load.
+
+Deployed at `suspicious-mirzakhani-b822bc-7dzi0by34-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Broker UX polish (commit `a4d06c0`)
+
+User flagged 5 issues from logged-in broker view: All-rules tile shouldn't show, tabs need to be clickable boxes, Reserve now / Release hold should be buttons, Payment Confirmation needs a step-by-step flow. All addressed.
+
+**Files:**
+- [src/app/page.tsx](src/app/page.tsx) — `All rules` link wrapped in `{user.is_admin && (...)}` so non-admin users don't see it.
+- [src/app/emails/boat-rental/_components/tabs.tsx](src/app/emails/boat-rental/_components/tabs.tsx) — `TabNav` rewritten: CSS grid with `auto-cols-fr` (equal-width across the row), each tab is a `flex-col` icon-on-top tile with `border-2`, `py-4`, hover `-translate-y-0.5` + `shadow-md`, active filled cyan with `shadow-cyan-500/30`. Reads unmistakably as clickable boxes.
+- [src/app/emails/boat-rental/broker/holds/page.tsx](src/app/emails/boat-rental/broker/holds/page.tsx) — "Reserve now (skip 'client paid')" + "Release hold" promoted from text links to proper `ix-btn-secondary` (with cyan accent border) and `ix-btn-danger`. Sit in a top-bordered action row at the bottom of each hold card.
+- [src/app/emails/boat-rental/broker/payments/page.tsx](src/app/emails/boat-rental/broker/payments/page.tsx) — full wizard rebuild:
+  - Step 1: list of pending reservations as clickable cards with hover state and "Confirm payment →" affordance
+  - Step 2: pick one (URL `?id=`) → focused form with reservation header, amount + method (grouped grid), receipt upload (camera capture), optional note, amber warning panel
+  - Step 3: submit → marks paid + notifies owner
+  - Step indicator at top showing progress (1→2→3) with completed/active/pending states
+  - "Back to pending list" link in Step 2
+
+Deployed at `suspicious-mirzakhani-b822bc-pjuaz0pvy-lime-investments.vercel.app`. Pushed to main.
+
+---
+
+## ✅ Reservation flow redesign + Owner Block Dates shipped (commit `d6c93d6`)
+
+20 files / 2,325 insertions / migration 0018 applied + reservations wiped per user request. Full plan→workflow→code cycle in one turn after user answered all 16 clarifying questions.
+
+### Schema (migration 0018)
+- `boat_rental_owner_blocks` — single source of truth for owner-blocked dates. Unique on `(boat_id, blocked_date)`. Reason enum: personal_use/maintenance/owner_trip/repair/other + free-text note. `blocked_by_role` distinguishes owner self-block from admin emergency override.
+- `boat_rental_inquiries` — every Hold/Reserve action logs a row for funnel analytics. Outcome: held/reserved/none/unavailable/blocked.
+- `boat_rental_reservations` gained 7 cancellation_request_* columns (within-72h owner approval workflow) + `hold_warning_sent_at` for T-30min push dedup.
+
+### New shared modules
+- [lib/boat-rental/availability.ts](src/lib/boat-rental/availability.ts) — `checkAvailability()` and `checkAvailabilityRange()`. Joins reservations AND owner_blocks. Single source of truth used by inquiry view, `reserveHoldAction`, `reserveDirectAction`.
+- [lib/boat-rental/notifications.ts](src/lib/boat-rental/notifications.ts) — 4 new template keys: cancellation_requested, cancellation_resolved, owner_block_confirmed, hold_warning. `reservationId` is now `string | null` so non-reservation events (block confirmation) can enqueue.
+
+### Flow changes
+**Inquiry → 3 actions:** /broker/availability becomes a real Inquire view with a 7-day price strip (today through today+6, status pills + clickable available days) and 3 actions on the chosen day: Hold 2h, Reserve now (skip held + immediate WhatsApp), Cancel/Back. Notes captured at Reserve action AND at day-before trip details.
+
+**Hold → Reserve shortcut:** Holds page has a new one-click "Reserve now (skip 'client paid' step)" button next to the existing Mark Client Paid form. Inquiry log updates held→reserved.
+
+**Within-72h cancellation = owner approval:** Cancel button forks. Outside 72h → immediate cancel with reason dropdown. Within 72h → `requestCancellationAction` creates a pending request. Reservation stays active. Owner gets WhatsApp + sees a "Cancellation requests" bucket with Approve/Reject buttons on /owner/reservations. Broker UI shows "Pending owner approval" until resolved.
+
+**Owner blocks = inline calendar:** Empty future days on /owner/calendar are clickable → opens block dialog (single-day OR contiguous range, reason dropdown, optional note). Existing blocks render purple, click to remove. Conflicts with live reservations are rejected with a clear inline error listing the conflicting dates.
+
+**Admin emergency override:** New `adminEmergencyBlockAction` on All Bookings — force-cancels any reservation regardless of status AND auto-inserts an owner block on the same date. Use case: boat broken last-minute. Cancellation reason dropdown + optional note.
+
+### New routes
+- `/api/cron/boat-rental/hold-warnings` — every 5 min, finds held reservations whose `held_until` is 25-35 min away and sends T-30min hold_warning WhatsApp to broker. Tracked via hold_warning_sent_at to prevent re-fires.
+- `/emails/boat-rental/owner/reservations` — new owner-side dashboard with 4 buckets (Cancellation requests / Upcoming / Awaiting payment / Past).
+
+### UI additions
+- [broker/_components/cancel-reservation.tsx](src/app/emails/boat-rental/broker/_components/cancel-reservation.tsx) — client component with reason dropdown, forks on `requiresOwnerApproval` prop, shows "Pending owner approval" when a request is in flight.
+- [owner/calendar/_components/block-dialog.tsx](src/app/emails/boat-rental/owner/calendar/_components/block-dialog.tsx) + [interactive-grid.tsx](src/app/emails/boat-rental/owner/calendar/_components/interactive-grid.tsx) — calendar grid is now an interactive client component; empty future days are clickable buttons that open the block dialog. Existing blocks are clickable to remove.
+- Owner bottom nav grew to 3 tabs (Boats / Calendar / Bookings) using Lock icon for Calendar to hint at the block-dates capability.
+
+### Existing data
+All reservations / payments / bookings / audit / notifications were wiped after migration to start clean. New flow uses new schema columns from day one.
+
+Deployed at `suspicious-mirzakhani-b822bc-lmuhf9t0t-lime-investments.vercel.app`. Pushed to main.
+
+---
+
 ## 🧭 Reservation flow redesign + Owner Block Dates — Plan Phase delivered (no code yet)
 
 User asked to redesign the reservation entry flow plus add an owner-side capability to block dates for personal use. Following the protocol: plan → 16 clarifying questions + 12 improvements → wait for 95% confidence → workflow phase → wait for sign-off → code. **No commits, no schema changes this turn.**
