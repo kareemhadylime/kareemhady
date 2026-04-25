@@ -1,5 +1,42 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ PDF marketing polish + boat hull + description
+
+User: PDF was "empty" (mostly because the boat's predefined-feature pills were never picked → only the legacy free-text features_md showed). Added two new boat fields (hull, description) and redesigned the PDF for marketing impact. User explicitly wanted: bigger feature fonts, separated/show-up styling, marketing-grade.
+
+**Migration ([0022_boat_hull_description.sql](supabase/migrations/0022_boat_hull_description.sql), applied via MCP):**
+- `boat_rental_boats.hull text check (in 'wood','fiberglass')` — nullable
+- `boat_rental_boats.description text` — nullable, marketing tagline
+
+**Forms ([admin/boats/page.tsx](src/app/emails/boat-rental/admin/boats/page.tsx) + [[id]/page.tsx](src/app/emails/boat-rental/admin/boats/[id]/page.tsx)):**
+- Size field relabeled to "Size in ft" with placeholder "e.g. 35"
+- New "Hull" select (Wood / Fiber Glass / unset) next to Size
+- New "Boat description (marketing tagline)" textarea spanning both columns, helper text notes it appears on the PDF
+
+**Actions ([admin/boats/actions.ts](src/app/emails/boat-rental/admin/boats/actions.ts):** New `readHull()` helper — server-side allowlist check (only `'wood'` or `'fiberglass'`, otherwise null). Both create + update persist `hull` and `description`.
+
+**Catalogue detail ([_components/catalogue/catalogue-detail.tsx](src/app/emails/boat-rental/_components/catalogue/catalogue-detail.tsx)):**
+- Added hull badge (amber) next to the status pill
+- Description rendered as italic text below boat name
+- Size now shown as bold prominent number (`{size} ft`)
+
+**PDF redesign ([print/[id]/page.tsx](src/app/emails/boat-rental/print/[id]/page.tsx)) — the big change:**
+- Header bottom-border bumped from 1px slate to 2px cyan
+- Boat name larger (text-3xl with logo, text-5xl without)
+- Description rendered as full-width italic marketing tagline directly under header
+- Size shown on **its own line** as `text-4xl font-bold cyan-700` with "ft" suffix (per user's "Boat Size in Ft - Shown On Separate Line in PDF")
+- Hull badge ("Wood Hull" / "Fiber Glass Hull") sits inline with the size, amber pill
+- Capacity + status moved to a smaller secondary strip
+- **Always Included** features now in a **full-width cyan-bordered card** with 3-col grid, `text-[13px] font-semibold` (was `text-[11px]`), check icons strokeWidth 2.5 — designed to be the visual centerpiece for marketing
+- **On Demand** features in matching amber-bordered card, same 3-col grid, same prominence
+- **Additional features** (free text) in slate card, smaller `text-[12px]` — clearly secondary to the structured pills
+
+Result: existing boats show ALL their data prominently. Once admin opens an existing boat → ticks the structured feature pills + writes a description, the PDF transforms from sparse to fully-populated marketing-grade material.
+
+Type check passes. Deployed.
+
+---
+
 ## ✅ Lightbox bug fix + thumbnail strip
 
 User reported lightbox arrows not clickable + appeared "stuck between photos 6 and 10". Root cause: the wrapping div around the `<img>` was `w-full h-full max-w-[95vw] max-h-[90vh]` — rendered AFTER the absolute-positioned arrow buttons in DOM order with no z-index, so it intercepted clicks at the arrow positions. The "+N more" tile opens index 5 (photo 6), and broken arrows kept the user there.

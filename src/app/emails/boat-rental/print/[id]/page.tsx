@@ -25,6 +25,8 @@ type Boat = {
   id: string;
   name: string;
   size: string | null;
+  hull: 'wood' | 'fiberglass' | null;
+  description: string | null;
   features_md: string | null;
   features: string[] | null;
   capacity_guests: number;
@@ -68,7 +70,7 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, features_md, features, capacity_guests, status, owner_id')
+    .select('id, name, size, hull, description, features_md, features, capacity_guests, status, owner_id')
     .eq('id', id)
     .maybeSingle();
   const boat = boatRow as Boat | null;
@@ -109,6 +111,7 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
     month: 'short',
     year: 'numeric',
   });
+  const hullLabel = boat.hull === 'wood' ? 'Wood Hull' : boat.hull === 'fiberglass' ? 'Fiber Glass Hull' : null;
 
   return (
     <>
@@ -129,9 +132,10 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
             boxSizing: 'border-box',
           }}
         >
-          {/* Header */}
-          <header className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200">
-            <div className="flex items-center gap-4 min-w-0">
+          {/* Header — logo + boat name + date. Description sits on
+              its own marketing-tagline line below. */}
+          <header className="flex items-start justify-between gap-4 pb-3 border-b-2 border-cyan-500">
+            <div className="flex items-center gap-4 min-w-0 flex-1">
               {viewer.info.logoUrl ? (
                 <div className="w-[140px] h-[64px] flex items-center justify-start shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -143,10 +147,10 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
                 </div>
               ) : null}
               <div className="min-w-0">
-                <div className={`font-bold tracking-tight leading-none ${viewer.info.logoUrl ? 'text-2xl' : 'text-4xl'}`}>
+                <div className={`font-bold tracking-tight leading-none ${viewer.info.logoUrl ? 'text-3xl' : 'text-5xl'}`}>
                   {boat.name}
                 </div>
-                <div className="text-xs text-slate-500 mt-1">
+                <div className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide font-semibold">
                   Boat spec sheet
                 </div>
               </div>
@@ -156,34 +160,46 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
             </div>
           </header>
 
-          {/* Quick facts row */}
-          <section className="mt-4 flex items-center gap-6 text-sm">
-            {boat.size && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Size</div>
-                <div className="font-semibold text-slate-900">{boat.size}</div>
-              </div>
-            )}
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Capacity</div>
-              <div className="font-semibold text-slate-900 inline-flex items-center gap-1">
-                <Users size={14} className="text-cyan-600" /> {boat.capacity_guests} guests
-              </div>
+          {/* Description tagline — full-width italic marketing copy */}
+          {boat.description && (
+            <p className="mt-3 text-base italic text-slate-700 leading-relaxed">
+              {boat.description}
+            </p>
+          )}
+
+          {/* Size — own line, BIG, marketing focal */}
+          {boat.size && (
+            <div className="mt-4 flex items-baseline gap-3">
+              <span className="text-4xl font-bold text-cyan-700 tabular-nums leading-none">
+                {boat.size}
+              </span>
+              <span className="text-lg font-semibold text-slate-700">ft</span>
+              {hullLabel && (
+                <span className="ml-3 text-[11px] uppercase tracking-wide font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                  {hullLabel}
+                </span>
+              )}
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold">Status</div>
-              <div
-                className={
-                  'font-semibold inline-block px-2 py-0.5 rounded text-xs ' +
-                  (boat.status === 'active'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : boat.status === 'maintenance'
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                      : 'bg-slate-100 text-slate-600 border border-slate-200')
-                }
-              >
-                {boat.status.charAt(0).toUpperCase() + boat.status.slice(1)}
-              </div>
+          )}
+
+          {/* Quick facts strip — capacity + status */}
+          <section className="mt-3 flex items-center gap-6 text-sm">
+            <div className="inline-flex items-center gap-1.5">
+              <Users size={18} className="text-cyan-600" />
+              <span className="font-bold text-slate-900 text-base">{boat.capacity_guests}</span>
+              <span className="text-slate-600">guests</span>
+            </div>
+            <div
+              className={
+                'font-semibold inline-block px-2 py-0.5 rounded text-xs ' +
+                (boat.status === 'active'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : boat.status === 'maintenance'
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-slate-100 text-slate-600 border border-slate-200')
+              }
+            >
+              {boat.status.charAt(0).toUpperCase() + boat.status.slice(1)}
             </div>
           </section>
 
@@ -221,49 +237,54 @@ export default async function BoatPrint({ params }: { params: Promise<{ id: stri
             </div>
           </section>
 
-          {/* Predefined features — two grouped lists */}
-          {(always.length > 0 || onDemand.length > 0) && (
-            <section className="mt-6 grid grid-cols-2 gap-5">
-              {always.length > 0 && (
-                <div>
-                  <h2 className="text-[10px] uppercase tracking-wide text-cyan-700 font-semibold mb-1.5">
-                    Always Included
-                  </h2>
-                  <ul className="grid grid-cols-2 gap-y-1 gap-x-2">
-                    {always.map(f => (
-                      <li key={f.code} className="text-[11px] text-slate-800 inline-flex items-center gap-1.5 leading-snug">
-                        <Check size={11} className="text-cyan-600 shrink-0" />
-                        {f.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {onDemand.length > 0 && (
-                <div>
-                  <h2 className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold mb-1.5 inline-flex items-center gap-1">
-                    <DollarSign size={10} /> On Demand · Available on request
-                  </h2>
-                  <ul className="grid grid-cols-1 gap-y-1">
-                    {onDemand.map(f => (
-                      <li key={f.code} className="text-[11px] text-slate-800 inline-flex items-center gap-1.5 leading-snug">
-                        <DollarSign size={10} className="text-amber-600 shrink-0" />
-                        {f.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+          {/* Always Included — marketing-grade pill grid, full-width
+              cyan-tinted card so the "what's included" answer pops. */}
+          {always.length > 0 && (
+            <section className="mt-6 rounded-lg border-2 border-cyan-200 bg-cyan-50/50 p-4">
+              <h2 className="text-xs uppercase tracking-widest text-cyan-700 font-bold mb-3 inline-flex items-center gap-1.5">
+                <Check size={14} className="text-cyan-700" /> Always Included
+              </h2>
+              <ul className="grid grid-cols-3 gap-y-2 gap-x-3">
+                {always.map(f => (
+                  <li
+                    key={f.code}
+                    className="text-[13px] font-semibold text-slate-900 inline-flex items-start gap-1.5 leading-tight"
+                  >
+                    <Check size={14} className="text-cyan-600 shrink-0 mt-px" strokeWidth={2.5} />
+                    <span>{f.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* On Demand — amber, smaller as it's secondary */}
+          {onDemand.length > 0 && (
+            <section className="mt-3 rounded-lg border-2 border-amber-200 bg-amber-50/50 p-4">
+              <h2 className="text-xs uppercase tracking-widest text-amber-700 font-bold mb-3 inline-flex items-center gap-1.5">
+                <DollarSign size={14} className="text-amber-700" /> On Demand · Available on request
+              </h2>
+              <ul className="grid grid-cols-3 gap-y-2 gap-x-3">
+                {onDemand.map(f => (
+                  <li
+                    key={f.code}
+                    className="text-[13px] font-semibold text-slate-900 inline-flex items-start gap-1.5 leading-tight"
+                  >
+                    <DollarSign size={14} className="text-amber-600 shrink-0 mt-px" strokeWidth={2.5} />
+                    <span>{f.label}</span>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
           {/* Other (free-text) features */}
           {boat.features_md && (
-            <section className="mt-5">
-              <h2 className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-1.5">
-                Other features
+            <section className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h2 className="text-xs uppercase tracking-widest text-slate-600 font-bold mb-2">
+                Additional features
               </h2>
-              <p className="text-[11px] text-slate-800 whitespace-pre-line leading-snug">
+              <p className="text-[12px] text-slate-800 whitespace-pre-line leading-relaxed">
                 {boat.features_md}
               </p>
             </section>

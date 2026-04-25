@@ -17,6 +17,8 @@ type Boat = {
   id: string;
   name: string;
   size: string | null;
+  hull: 'wood' | 'fiberglass' | null;
+  description: string | null;
   features_md: string | null;
   features: string[] | null;
   capacity_guests: number;
@@ -42,7 +44,7 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, features_md, features, capacity_guests, status, owner_id')
+    .select('id, name, size, hull, description, features_md, features, capacity_guests, status, owner_id')
     .eq('id', boatId)
     .maybeSingle();
   const boat = boatRow as Boat | null;
@@ -65,6 +67,7 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
     .filter(Boolean) as { url: string; alt: string }[];
 
   const pill = STATUS_PILL[boat.status];
+  const hullLabel = boat.hull === 'wood' ? 'Wood Hull' : boat.hull === 'fiberglass' ? 'Fiber Glass Hull' : null;
 
   return (
     <>
@@ -81,15 +84,29 @@ export async function CatalogueDetail({ boatId, scope, basePath, tabs, currentPa
 
       <section className="ix-card p-6">
         <div className="flex items-start justify-between gap-3 flex-wrap mb-5">
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight">{boat.name}</h1>
               <span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border ${pill.cls}`}>
                 {pill.label}
               </span>
+              {hullLabel && (
+                <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                  {hullLabel}
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300 mt-1">
-              {boat.size && <span>{boat.size}</span>}
+            {boat.description && (
+              <p className="text-base text-slate-700 dark:text-slate-200 mt-2 italic leading-relaxed">
+                {boat.description}
+              </p>
+            )}
+            <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-300 mt-3">
+              {boat.size && (
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  {boat.size} ft
+                </span>
+              )}
               <span className="inline-flex items-center gap-1">
                 <Users size={14} /> {boat.capacity_guests} guests
               </span>

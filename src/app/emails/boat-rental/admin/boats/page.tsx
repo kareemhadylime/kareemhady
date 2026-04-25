@@ -77,8 +77,16 @@ export default async function BoatsAdmin() {
               <input name="name" required className="ix-input mt-1" />
             </label>
             <label className="text-sm">
-              <span className="text-slate-600 text-xs">Size</span>
-              <input name="size" placeholder="e.g. 35ft" className="ix-input mt-1" />
+              <span className="text-slate-600 text-xs">Size in ft</span>
+              <input name="size" placeholder="e.g. 35" className="ix-input mt-1" />
+            </label>
+            <label className="text-sm">
+              <span className="text-slate-600 text-xs">Hull</span>
+              <select name="hull" className="ix-input mt-1" defaultValue="">
+                <option value="">— Select hull —</option>
+                <option value="wood">Wood</option>
+                <option value="fiberglass">Fiber Glass</option>
+              </select>
             </label>
             <label className="text-sm">
               <span className="text-slate-600 text-xs">Owner *</span>
@@ -88,6 +96,17 @@ export default async function BoatsAdmin() {
                   <option key={o.id} value={o.id}>{o.name}</option>
                 ))}
               </select>
+            </label>
+            <label className="text-sm md:col-span-2">
+              <span className="text-slate-600 dark:text-slate-300 text-xs">
+                Boat description (marketing tagline — appears on the catalogue PDF under the boat name)
+              </span>
+              <textarea
+                name="description"
+                rows={2}
+                placeholder="e.g. Spacious 35ft cruiser perfect for full-day Red Sea getaways with family and friends."
+                className="ix-input mt-1"
+              />
             </label>
             <label className="text-sm">
               <span className="text-slate-600 text-xs">Guest capacity *</span>

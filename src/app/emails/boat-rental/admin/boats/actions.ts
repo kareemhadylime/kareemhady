@@ -24,10 +24,17 @@ function readFeatures(formData: FormData): string[] {
 
 const BUCKET = 'boat-rental';
 
+function readHull(formData: FormData): 'wood' | 'fiberglass' | null {
+  const v = s(formData.get('hull'));
+  return v === 'wood' || v === 'fiberglass' ? v : null;
+}
+
 export async function createBoatAction(formData: FormData): Promise<void> {
   await requireBoatAdmin();
   const name = s(formData.get('name'));
   const size = sOrNull(formData.get('size'));
+  const hull = readHull(formData);
+  const description = sOrNull(formData.get('description'));
   const features_md = sOrNull(formData.get('features_md'));
   const features = readFeatures(formData);
   const capacity_guests = nOrNull(formData.get('capacity_guests'));
@@ -40,7 +47,7 @@ export async function createBoatAction(formData: FormData): Promise<void> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from('boat_rental_boats')
-    .insert({ name, size, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp })
+    .insert({ name, size, hull, description, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp })
     .select('id')
     .single();
   if (error || !data) throw new Error(error?.message || 'create_failed');
@@ -58,6 +65,8 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
   const id = s(formData.get('id'));
   const name = s(formData.get('name'));
   const size = sOrNull(formData.get('size'));
+  const hull = readHull(formData);
+  const description = sOrNull(formData.get('description'));
   const features_md = sOrNull(formData.get('features_md'));
   const features = readFeatures(formData);
   const capacity_guests = nOrNull(formData.get('capacity_guests'));
@@ -83,6 +92,8 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
     .update({
       name,
       size,
+      hull,
+      description,
       features_md,
       features,
       capacity_guests,

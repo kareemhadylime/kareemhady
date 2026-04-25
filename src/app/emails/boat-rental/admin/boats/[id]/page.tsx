@@ -18,6 +18,8 @@ type BoatWithOwner = {
   id: string;
   name: string;
   size: string | null;
+  hull: 'wood' | 'fiberglass' | null;
+  description: string | null;
   features_md: string | null;
   features: string[] | null;
   capacity_guests: number;
@@ -32,7 +34,7 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp, status')
+    .select('id, name, size, hull, description, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp, status')
     .eq('id', id)
     .maybeSingle();
   const boat = boatRow as BoatWithOwner | null;
@@ -70,8 +72,16 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
             <input name="name" required defaultValue={boat.name} className="ix-input mt-1" />
           </label>
           <label className="text-sm">
-            <span className="text-slate-600 text-xs">Size</span>
-            <input name="size" defaultValue={boat.size || ''} className="ix-input mt-1" />
+            <span className="text-slate-600 text-xs">Size in ft</span>
+            <input name="size" defaultValue={boat.size || ''} placeholder="e.g. 35" className="ix-input mt-1" />
+          </label>
+          <label className="text-sm">
+            <span className="text-slate-600 text-xs">Hull</span>
+            <select name="hull" defaultValue={boat.hull || ''} className="ix-input mt-1">
+              <option value="">— Select hull —</option>
+              <option value="wood">Wood</option>
+              <option value="fiberglass">Fiber Glass</option>
+            </select>
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">Owner *</span>
@@ -80,6 +90,18 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
+          </label>
+          <label className="text-sm md:col-span-2">
+            <span className="text-slate-600 dark:text-slate-300 text-xs">
+              Boat description (marketing tagline — appears on the catalogue PDF under the boat name)
+            </span>
+            <textarea
+              name="description"
+              rows={2}
+              defaultValue={boat.description || ''}
+              placeholder="e.g. Spacious 35ft cruiser perfect for full-day Red Sea getaways with family and friends."
+              className="ix-input mt-1"
+            />
           </label>
           <label className="text-sm">
             <span className="text-slate-600 text-xs">Status</span>
