@@ -32,7 +32,10 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
   const sb = supabaseAdmin();
   const today = cairoTodayStr();
 
-  // Pending: trips whose booking date is today or earlier AND not yet paid_to_owner.
+  // Pending: any confirmed/details_filled reservation that hasn't been paid yet.
+  // We don't filter on date — broker may upload payment any time, though the
+  // typical workflow is post-trip. Past trips sort first; future trips show
+  // with a visual hint that the trip hasn't happened yet.
   const pendingRes = await sb
     .from('boat_rental_reservations')
     .select(
@@ -45,9 +48,10 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
     )
     .eq('broker_id', me!.id)
     .in('status', ['confirmed', 'details_filled'])
-    .lte('booking_date', today)
     .order('booking_date', { ascending: false });
-  const pending = ((pendingRes.data as unknown) as Row[] | null) || [];
+  const pendingRaw = ((pendingRes.data as unknown) as Row[] | null) || [];
+  // Filter out any that already have a payment (paid_to_owner status).
+  const pending = pendingRaw.filter(r => !r.payment);
 
   const doneRes = await sb
     .from('boat_rental_reservations')
@@ -100,33 +104,49 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
               </div>
             ) : (
               <div className="space-y-3">
-                {pending.map(r => (
-                  <Link
-                    key={r.id}
-                    href={`?id=${r.id}`}
-                    className="group ix-card p-5 block hover:shadow-md hover:border-cyan-300 dark:hover:border-cyan-700 transition"
-                  >
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <h3 className="font-semibold">{r.boat?.name || '(boat)'}</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
-                          {r.booking_date} · Owner · {r.boat?.owner?.name || '—'}
-                          {r.booking?.client_name ? ` · Client · ${r.booking.client_name}` : ''}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Amount due to owner:{' '}
-                          <span className="font-bold text-slate-900 dark:text-slate-100">
-                            EGP {Number(r.price_egp_snapshot).toLocaleString()}
-                          </span>
-                        </p>
+                {pending.map(r => {
+                  const isFuture = r.booking_date > today;
+                  const isToday = r.booking_date === today;
+                  return (
+                    <Link
+                      key={r.id}
+                      href={`?id=${r.id}`}
+                      className="group ix-card p-5 block hover:shadow-md hover:border-cyan-300 dark:hover:border-cyan-700 transition"
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold">{r.boat?.name || '(boat)'}</h3>
+                            {isFuture && (
+                              <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                Trip not yet happened
+                              </span>
+                            )}
+                            {isToday && (
+                              <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                                Today
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
+                            {r.booking_date} · Owner · {r.boat?.owner?.name || '—'}
+                            {r.booking?.client_name ? ` · Client · ${r.booking.client_name}` : ''}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Amount due to owner:{' '}
+                            <span className="font-bold text-slate-900 dark:text-slate-100">
+                              EGP {Number(r.price_egp_snapshot).toLocaleString()}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="ix-btn-secondary group-hover:border-cyan-400">
+                          <Receipt size={14} /> Confirm payment
+                          <ChevronRight size={14} />
+                        </div>
                       </div>
-                      <div className="ix-btn-secondary group-hover:border-cyan-400">
-                        <Receipt size={14} /> Confirm payment
-                        <ChevronRight size={14} />
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </section>
