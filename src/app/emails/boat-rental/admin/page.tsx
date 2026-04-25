@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  Ship, LayoutDashboard, Settings, ListOrdered, Bell, History, ArrowRight,
+  Ship, LayoutDashboard, Settings, ListOrdered, Bell, History, ArrowRight, BookOpen,
 } from 'lucide-react';
 
 // Admin landing — launcher grid of large box buttons. Each button is a
@@ -40,6 +40,13 @@ const SECTIONS: Section[] = [
     description: 'Every reservation with filters, force-cancel, refund flag.',
     icon: ListOrdered,
     accent: 'blue',
+  },
+  {
+    href: '/emails/boat-rental/admin/inventory',
+    title: 'Boat Catalogue',
+    description: 'Browse the fleet, view photos, download a one-page PDF spec sheet to share.',
+    icon: BookOpen,
+    accent: 'emerald',
   },
   {
     href: '/emails/boat-rental/admin/notifications',

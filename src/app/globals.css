@@ -112,3 +112,20 @@ body {
     @apply text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline;
   }
 }
+
+/* Boat Catalogue print sheet — single A4 portrait page. The page
+   wrapper (`<main>` in print/[id]/page.tsx) already carries the 12mm
+   inset padding, so @page margin is 0. Forces light theme on print so
+   colours stay legible regardless of OS dark mode. */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #0f172a !important;
+    color-scheme: light !important;
+  }
+}
+

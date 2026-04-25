@@ -1,5 +1,6 @@
 'use server';
 
+import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword } from '@/lib/auth';
@@ -133,6 +134,76 @@ export async function resetPasswordAction(formData: FormData) {
   await sb.from('app_users').update({ password_hash: hashPassword(newPw) }).eq('id', userId);
   // Also wipe existing sessions so the user is forced to re-auth with the new password.
   await sb.from('app_sessions').delete().eq('user_id', userId);
+  revalidatePath('/emails/boat-rental/admin/users');
+}
+
+// Upload (or replace) a broker's logo. Stored in the existing
+// 'boat-rental' bucket under 'user-logos/{user_id}/{uuid}.{ext}'. We
+// don't process the image — the PDF print page renders it with
+// object-contain inside a fixed slot, so any aspect ratio fits.
+export async function uploadUserLogoAction(formData: FormData) {
+  await requireBoatAdmin();
+  const userId = s(formData.get('user_id'));
+  if (!userId) return;
+
+  const file = formData.get('logo');
+  const f = file instanceof File && file.size > 0 ? file : null;
+  if (!f) return;
+  const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (!allowed.has(f.type)) throw new Error('logo_invalid_type');
+  if (f.size > 2 * 1024 * 1024) throw new Error('logo_too_large');
+
+  // Verify the target user is actually a broker — logos are broker-only.
+  const sb = supabaseAdmin();
+  const { data: roleRow } = await sb
+    .from('boat_rental_user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('role', 'broker')
+    .maybeSingle();
+  if (!roleRow) throw new Error('not_a_broker');
+
+  const ext =
+    f.type === 'image/png' ? 'png' :
+    f.type === 'image/webp' ? 'webp' : 'jpg';
+  const key = `user-logos/${userId}/${crypto.randomUUID()}.${ext}`;
+  const buf = Buffer.from(await f.arrayBuffer());
+  const up = await sb.storage.from('boat-rental').upload(key, buf, {
+    contentType: f.type,
+    upsert: false,
+  });
+  if (up.error) throw new Error(up.error.message);
+
+  // Best-effort: remove the previous logo file so storage doesn't bloat.
+  const { data: prior } = await sb
+    .from('app_users')
+    .select('logo_path')
+    .eq('id', userId)
+    .maybeSingle();
+  const oldPath = (prior as { logo_path: string | null } | null)?.logo_path;
+  if (oldPath && oldPath !== key) {
+    await sb.storage.from('boat-rental').remove([oldPath]);
+  }
+
+  await sb.from('app_users').update({ logo_path: key }).eq('id', userId);
+  revalidatePath('/emails/boat-rental/admin/users');
+}
+
+export async function removeUserLogoAction(formData: FormData) {
+  await requireBoatAdmin();
+  const userId = s(formData.get('user_id'));
+  if (!userId) return;
+  const sb = supabaseAdmin();
+  const { data: prior } = await sb
+    .from('app_users')
+    .select('logo_path')
+    .eq('id', userId)
+    .maybeSingle();
+  const oldPath = (prior as { logo_path: string | null } | null)?.logo_path;
+  if (oldPath) {
+    await sb.storage.from('boat-rental').remove([oldPath]);
+  }
+  await sb.from('app_users').update({ logo_path: null }).eq('id', userId);
   revalidatePath('/emails/boat-rental/admin/users');
 }
 

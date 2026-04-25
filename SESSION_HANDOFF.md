@@ -1,5 +1,74 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Boat Catalogue tab (all 3 portals) + per-broker logo + A4 PDF spec sheet
+
+User answered all 6 Workflow questions ("logo broker only", "admin overrides only — no self-serve", "3+2 mobile wrap", "no-logo PDF shows boat name big", "WhatsApp share OOS", "auto-fit on upload — no server processing"). Built end-to-end and shipped.
+
+**Migration ([0020_user_logos.sql](supabase/migrations/0020_user_logos.sql), applied via MCP):** `app_users.logo_path text` (Supabase Storage key in existing `boat-rental` bucket under `user-logos/{user_id}/`).
+
+**Logo upload UI ([src/app/emails/boat-rental/admin/users/actions.ts](src/app/emails/boat-rental/admin/users/actions.ts) + [page.tsx](src/app/emails/boat-rental/admin/users/page.tsx)):** Per-user violet "Broker logo" panel rendered ONLY on cards with broker role. 96×64 preview tile (object-contain), file input (JPG/PNG/WEBP, 2MB cap), Upload + Remove buttons. `uploadUserLogoAction` validates broker-role-only, stores under `user-logos/{uid}/{uuid}.{ext}`, removes prior file to avoid bloat.
+
+**TabNav rework ([_components/tabs.tsx](src/app/emails/boat-rental/_components/tabs.tsx)):** `Boat Catalogue` added as first tab on broker (5 total) and second on owner (4 total). Replaced inline `gridTemplateColumns` with CSS variables `--tabs-cols-mobile` / `--tabs-cols-desktop` so mobile wraps cleanly (5 tabs → 3+2 wrap, 4 tabs → 2+2). Active-tab logic rewritten to use longest-prefix match — needed because `My Bookings` href `/emails/boat-rental/broker` is now a prefix of every other broker page.
+
+**Shared catalogue components ([_components/catalogue/](src/app/emails/boat-rental/_components/catalogue/)):**
+- `catalogue-grid.tsx` (server) — card grid with first photo + name + capacity + status pill, scope-filtered (`active-only` / `own-only` / `all`).
+- `catalogue-detail.tsx` (server) — header + status pill + PdfLink button + photo gallery + features. Scope guard inside (404s if a broker tries to view inactive boat by URL, owner views someone else's boat, etc.).
+- `photo-gallery.tsx` (client) — hero (md:col-span-2) + 4-thumb 2×2 grid + "+N more" tile. Click any photo → fullscreen Lightbox modal with ←/→/ESC/swipe/backdrop-click/photo counter, body scroll lock while open.
+- `pdf-link.tsx` (client) — `<a target="_blank">` to print route.
+
+**Per-portal pages (6 thin wrappers):** `broker/inventory/{page,[id]/page}`, `owner/inventory/{page,[id]/page}`, `admin/inventory/{page,[id]/page}`. Owner uses `getOwnedOwnerIds()` for scope; admin uses `BackToAdminMenu` instead of TabNav (10 admin tabs would be too cramped).
+
+**Print route ([print/[id]/page.tsx](src/app/emails/boat-rental/print/[id]/page.tsx) + [print-trigger.tsx](src/app/emails/boat-rental/print/[id]/print-trigger.tsx)):** A4 portrait, `width:210mm minHeight:297mm padding:12mm 14mm`. Header = viewer's logo (140×64 contain) + boat name (text-2xl with logo, text-4xl without per W4) + date. Quick-facts row (size, capacity with users icon, status pill). Photos = hero 2-col + 2×2 thumbs. Features (whitespace-pre-line). Footer = "Prepared by {username}" + "+{viewer.whatsapp}". `PrintTrigger` client component fires `window.print()` after 600ms idle delay. Scope check inside print page (broker active-only, owner own-only, admin all).
+
+**Print CSS ([globals.css](src/app/globals.css)):** `@page { size: A4 portrait; margin: 0; }` + `@media print { html, body { background: #fff; color-scheme: light; } }` so dark mode doesn't bleed into prints.
+
+**Admin landing tile ([admin/page.tsx](src/app/emails/boat-rental/admin/page.tsx)):** Added emerald `Boat Catalogue` tile after `All Bookings` (admins land here, no tab strip — uses BackToAdminMenu pattern).
+
+**Build clean:** `npx next build` lists all 6 new inventory routes + print route. Type check passes.
+
+---
+
+## ✅ Admin Users: WhatsApp on invite + per-user edit
+
+User answered all 10 Plan-phase decision points. **Plan locked:** print-CSS PDF (no lib), broker logo + WhatsApp on PDF (no Lime branding, no pricing), owner sees own only / broker active-only / admin all, hand-rolled lightbox, first 5 photos by sort_order, tab name **"Boat Catalogue"**, broker tab in **first** position, mobile must wrap cleanly.
+
+**Key new requirement extracted from plan answers:** PDF header uses the broker's uploaded logo, NOT Lime's. Need new `app_users.logo_path` column + storage upload UI on admin Users page + self-serve `/account/logo/page.tsx`. Logo column shared across all roles (fallback: no logo if empty).
+
+**Workflow phase delivered.** 11-step build order, ~15 new + ~5 modified files. Routes: `_components/catalogue/` (grid, detail, lightbox, pdf-link), per-portal thin pages at `broker/inventory/`, `owner/inventory/`, `admin/inventory/`, plus `print/[id]/page.tsx` for the A4 print route. TabNav mobile-wrap fix needed (`grid-cols-2 sm:grid-cols-3 md:grid-cols-5` for broker's 5 tabs).
+
+**6 Workflow questions sent to user (W1-W6):** logo scope (all roles vs broker-only), self-serve vs admin-only logo upload, 3+2 mobile tab wrap, no-logo PDF fallback, "Send via WhatsApp" OOS confirmation, logo format constraints (JPG/PNG/WEBP, 1MB, 300×300 recommended).
+
+**Risk areas flagged:** TabNav active-tab highlight after re-layout, storage RLS for cross-user logo reads, owner-scope guard in catalogue-detail (must verify boat.owner_id matches viewer's owner record, not just trust route param), print CSS `@page A4` in globals.css.
+
+**Next step:** When user replies with W1-W6 answers (or "go on defaults"), start coding sequentially per the build order. ETA ~30 min code + deploy.
+
+---
+
+## ✅ Admin Users: WhatsApp on invite + per-user edit
+
+User asked for a new "Inventory" tab in **broker + owner + admin** portals: browse all registered boats, click into detail view with photo gallery (lightbox prev/next), and download a one-page A4 PDF spec sheet for clients. User explicitly requested phased process: **Plan → 95% confidence → Workflow → 95% → Code**.
+
+**Plan delivered (no code yet).** Architecture: 3 thin per-portal pages (`broker/inventory`, `owner/inventory`, `admin/inventory`) sharing one `InventoryGrid` + `InventoryDetail` component under `_components/inventory/`, plus a print-CSS `/print/[id]` route that uses `window.print()` for the PDF (zero new deps — strongly recommended over `@react-pdf/renderer`/puppeteer; checked package.json, no PDF lib currently installed).
+
+**10 decision points sent to user:**
+1. PDF strategy: print-CSS + `window.print()` vs library
+2a. Pricing on PDF: all 3 tiers vs "Starting at EGP X"
+2b. Other PDF includes/excludes (recommended exclude: skipper, owner name, internal IDs)
+3. Owner scoping: own boats only (recommended) vs full fleet
+4. Status visibility: broker active-only; owner+admin see all (recommended)
+5. Lightbox: hand-rolled client component, no lib (recommended)
+6. PDF photos: first 5 by sort_order, no picker UI (recommended)
+7. Tab name: "Inventory" vs "Catalog"/"Browse Boats"/"Fleet"
+8. Broker tab position: 5th (end) vs 2nd (after My Bookings)
+9. Signed URL TTL — confirmed existing helper, may need bump (currently fine)
+10. Future hooks (out of scope): "Send via WhatsApp", comparison view
+
+**Grounded in code checks:** existing `boat_rental_boats` columns (`features_md`, `capacity_guests`, `skipper_*`, `owner_id`, `status`), `boat_rental_boat_images` (sort_order, max 10), `signedImageUrl(s)` helper in [src/lib/boat-rental/storage.ts](src/lib/boat-rental/storage.ts), tab patterns in [_components/tabs.tsx](src/app/emails/boat-rental/_components/tabs.tsx) (BROKER_TABS / OWNER_TABS / ADMIN_TABS).
+
+**Next step when user replies:** if they say "go" on defaults or override specific items, produce the Workflow phase doc (step-by-step build order, types, file dependency graph, possible parallel agent split) for second review pass, THEN code.
+
+---
+
 ## ✅ Admin Users: WhatsApp on invite + per-user edit
 
 User: "Need to be able to edit Broker/user, Also no Field to enter Whatsapp Number?" Filled the gap left by the previous skipper-cash work (which depended on `app_users.whatsapp` but had no UI to set it).

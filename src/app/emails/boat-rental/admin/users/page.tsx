@@ -1,5 +1,7 @@
-import { UserPlus, KeyRound, UserMinus, MessageCircle } from 'lucide-react';
+import Image from 'next/image';
+import { UserPlus, KeyRound, UserMinus, MessageCircle, ImageIcon, Trash2 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
+import { signedImageUrls } from '@/lib/boat-rental/storage';
 import { BackToAdminMenu } from '../_components/back-to-menu';
 import {
   inviteBrokerAction,
@@ -7,12 +9,14 @@ import {
   resetPasswordAction,
   removeBoatRoleAction,
   updateUserWhatsappAction,
+  uploadUserLogoAction,
+  removeUserLogoAction,
 } from './actions';
 
 export const dynamic = 'force-dynamic';
 
 type RoleRow = { user_id: string; role: 'admin' | 'broker' | 'owner'; owner_id: string | null };
-type UserRow = { id: string; username: string; last_login_at: string | null; whatsapp: string | null };
+type UserRow = { id: string; username: string; last_login_at: string | null; whatsapp: string | null; logo_path: string | null };
 type OwnerLite = { id: string; name: string };
 
 export default async function UsersAdmin() {
@@ -26,11 +30,18 @@ export default async function UsersAdmin() {
 
   const userIds = [...new Set(roles.map(r => r.user_id))];
   const usersRes = userIds.length
-    ? await sb.from('app_users').select('id, username, last_login_at, whatsapp').in('id', userIds)
+    ? await sb.from('app_users').select('id, username, last_login_at, whatsapp, logo_path').in('id', userIds)
     : { data: [] };
   const users = ((usersRes.data as unknown) as UserRow[] | null) || [];
   const userMap = new Map(users.map(u => [u.id, u]));
   const ownerMap = new Map(owners.map(o => [o.id, o]));
+
+  // Sign logo URLs for any user that has one (broker logos for the
+  // catalogue PDF preview).
+  const logoUrlByUid = new Map<string, string | null>();
+  const userIdsWithLogo = users.filter(u => u.logo_path).map(u => u.id);
+  const logoUrls = await signedImageUrls(users.filter(u => u.logo_path).map(u => u.logo_path));
+  userIdsWithLogo.forEach((uid, i) => logoUrlByUid.set(uid, logoUrls[i] ?? null));
 
   const rolesByUser = new Map<string, RoleRow[]>();
   for (const r of roles) {
@@ -209,6 +220,60 @@ export default async function UsersAdmin() {
                       </button>
                     </form>
                   </div>
+                  {userRoles.some(r => r.role === 'broker') && (
+                    <div className="mt-2 mb-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/30 p-3">
+                      <div className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 dark:text-violet-300 mb-2 inline-flex items-center gap-1">
+                        <ImageIcon size={11} /> Broker logo (Boat Catalogue PDF header)
+                      </div>
+                      <div className="flex items-start gap-3 flex-wrap">
+                        <div className="w-24 h-16 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden flex items-center justify-center shrink-0">
+                          {logoUrlByUid.get(uid) ? (
+                            <Image
+                              src={logoUrlByUid.get(uid) as string}
+                              alt={`${u.username} logo`}
+                              width={96}
+                              height={64}
+                              unoptimized
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          ) : (
+                            <span className="text-[10px] italic text-slate-400">No logo</span>
+                          )}
+                        </div>
+                        <form
+                          action={uploadUserLogoAction}
+                          encType="multipart/form-data"
+                          className="flex items-center gap-2 flex-wrap"
+                        >
+                          <input type="hidden" name="user_id" value={uid} />
+                          <input
+                            name="logo"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            required
+                            className="ix-input text-xs file:text-xs file:mr-2 file:rounded file:border-0 file:bg-violet-100 dark:file:bg-violet-900 file:text-violet-700 dark:file:text-violet-200 file:px-2 file:py-1 file:cursor-pointer"
+                          />
+                          <button type="submit" className="ix-btn-secondary text-xs">
+                            <ImageIcon size={12} /> Upload
+                          </button>
+                        </form>
+                        {u.logo_path && (
+                          <form action={removeUserLogoAction}>
+                            <input type="hidden" name="user_id" value={uid} />
+                            <button
+                              type="submit"
+                              className="text-xs text-rose-600 hover:text-rose-800 inline-flex items-center gap-1"
+                            >
+                              <Trash2 size={12} /> Remove logo
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2">
+                        JPG, PNG, or WEBP — 2MB max. Auto-fitted to the PDF header slot, any aspect ratio works.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 flex-wrap">
                     {userRoles.map(r => (
                       <form key={r.role} action={removeBoatRoleAction}>

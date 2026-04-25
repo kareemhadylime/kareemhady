@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   LayoutDashboard, Ship, Tag, CalendarRange, MapPin, Users, Bell, ListOrdered, History,
-  Search, Clock, Receipt, Calendar, User2,
+  Search, Clock, Receipt, Calendar, User2, BookOpen,
 } from 'lucide-react';
 
 // Tab groups per role. Kept as plain data so the active tab can be
@@ -27,6 +27,7 @@ export const ADMIN_TABS: TabItem[] = [
 ];
 
 export const BROKER_TABS: TabItem[] = [
+  { href: '/emails/boat-rental/broker/inventory', label: 'Boat Catalogue', icon: BookOpen },
   { href: '/emails/boat-rental/broker', label: 'My Bookings', icon: ListOrdered },
   { href: '/emails/boat-rental/broker/availability', label: 'Check Availability', icon: Search },
   { href: '/emails/boat-rental/broker/holds', label: 'Active Holds', icon: Clock },
@@ -35,23 +36,52 @@ export const BROKER_TABS: TabItem[] = [
 
 export const OWNER_TABS: TabItem[] = [
   { href: '/emails/boat-rental/owner', label: 'My Boats', icon: Ship },
+  { href: '/emails/boat-rental/owner/inventory', label: 'Boat Catalogue', icon: BookOpen },
   { href: '/emails/boat-rental/owner/calendar', label: 'Calendar', icon: Calendar },
   { href: '/emails/boat-rental/owner/reservations', label: 'Reservations', icon: ListOrdered },
 ];
 
+// Mobile column layout per total tab count. Picked so rows are roughly
+// balanced (e.g. 5 tabs → 3+2 wrap, 4 tabs → 2+2). Desktop always
+// expands to a single row via the inline gridTemplateColumns below.
+function mobileTemplate(n: number): string {
+  if (n <= 2) return `repeat(${n}, minmax(0, 1fr))`;
+  if (n === 3) return 'repeat(3, minmax(0, 1fr))';
+  if (n === 4) return 'repeat(2, minmax(0, 1fr))';     // 2+2
+  if (n === 5) return 'repeat(3, minmax(0, 1fr))';     // 3+2
+  if (n === 6) return 'repeat(3, minmax(0, 1fr))';     // 3+3
+  return 'repeat(3, minmax(0, 1fr))';                  // 7+ wraps in 3-up rows
+}
+
+// Pick the active tab as the one whose href is the longest prefix of
+// the current path. Handles overlapping hrefs like '/foo' (root) and
+// '/foo/bar' (sub-route) correctly: '/foo/bar' wins on '/foo/bar/x'.
+function findActiveHref(tabs: TabItem[], currentPath: string): string | null {
+  const matches = tabs
+    .filter(t => currentPath === t.href || currentPath.startsWith(t.href + '/'))
+    .sort((a, b) => b.href.length - a.href.length);
+  return matches[0]?.href || null;
+}
+
 export function TabNav({ tabs, currentPath }: { tabs: TabItem[]; currentPath: string }) {
+  // CSS variables let us swap the grid template at the sm: breakpoint
+  // without needing one of dozens of dynamic Tailwind class strings.
+  const styleVars: React.CSSProperties = {
+    ['--tabs-cols-mobile' as string]: mobileTemplate(tabs.length),
+    ['--tabs-cols-desktop' as string]: `repeat(${tabs.length}, minmax(0, 1fr))`,
+  };
+  const activeHref = findActiveHref(tabs, currentPath);
   return (
     <nav
       aria-label="Section navigation"
       className="
-        -mx-4 px-4 sm:-mx-6 sm:px-6 mb-6
-        grid sm:grid-flow-col sm:auto-cols-fr gap-3
-        sm:overflow-visible
+        -mx-4 px-4 sm:-mx-6 sm:px-6 mb-6 gap-3
+        grid grid-cols-[var(--tabs-cols-mobile)] sm:grid-cols-[var(--tabs-cols-desktop)]
       "
-      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      style={styleVars}
     >
       {tabs.map(t => {
-        const active = t.href === currentPath || (t.href !== tabs[0].href && currentPath.startsWith(t.href));
+        const active = t.href === activeHref;
         const Icon = t.icon;
         return (
           <Link
