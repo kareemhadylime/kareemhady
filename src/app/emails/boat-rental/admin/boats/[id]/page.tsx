@@ -4,7 +4,6 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, Save, Upload, Trash2, X } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrls } from '@/lib/boat-rental/storage';
-import { TabNav, ADMIN_TABS } from '../../../_components/tabs';
 import {
   updateBoatAction,
   uploadBoatImagesAction,
@@ -55,11 +54,10 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
   return (
     <>
       <header className="mb-6 flex items-center gap-2">
-        <Link href="/emails/boat-rental/admin/boats" className="text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+        <Link href="/emails/boat-rental/admin/boats" className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 inline-flex items-center gap-1">
           <ChevronLeft size={14} /> Boats
         </Link>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/boats" />
 
       <section className="mt-8 ix-card p-6">
         <h2 className="font-semibold mb-4">Boat details</h2>

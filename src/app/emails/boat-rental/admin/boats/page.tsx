@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { Plus, Ship, ArrowRight } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 import { createBoatAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -53,13 +53,13 @@ export default async function BoatsAdmin() {
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Boats</h1>
         <p className="text-sm text-slate-500 mt-1">
           Boat inventory with owner, skipper, capacity, and photo gallery.
         </p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/boats" />
 
       {owners.length === 0 && (
         <div className="mt-8 ix-card p-6 bg-amber-50 border-amber-200 text-sm text-amber-900">

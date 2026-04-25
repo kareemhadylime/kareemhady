@@ -1,6 +1,6 @@
 import { UserPlus, KeyRound, UserMinus } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 import {
   inviteBrokerAction,
   inviteOwnerAction,
@@ -40,6 +40,7 @@ export default async function UsersAdmin() {
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Users</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -47,7 +48,6 @@ export default async function UsersAdmin() {
           <code className="text-xs">/account/password</code> after first login.
         </p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/users" />
 
       <section className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="ix-card p-6">

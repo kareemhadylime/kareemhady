@@ -1,6 +1,6 @@
 import { History } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,11 +36,11 @@ export default async function AuditLog() {
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Audit Log</h1>
         <p className="text-sm text-slate-500 mt-1">Every state transition. Useful for disputes.</p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/audit" />
 
       {/* Mobile: card list */}
       <section className="mt-8 md:hidden space-y-2">

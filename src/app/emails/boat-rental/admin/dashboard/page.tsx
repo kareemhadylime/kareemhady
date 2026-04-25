@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { cairoTodayStr } from '@/lib/boat-rental/pricing';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 
 export const dynamic = 'force-dynamic';
 
@@ -243,6 +243,7 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="flex items-start gap-4 mb-6">
         <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-cyan-50 dark:bg-cyan-950 text-cyan-600 dark:text-cyan-300 shrink-0">
           <Ship size={24} strokeWidth={2.2} />
@@ -269,7 +270,6 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
         </div>
       </header>
 
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/dashboard" />
 
       {/* Date range filters */}
       <section className="mt-6 ix-card p-4">

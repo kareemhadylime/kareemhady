@@ -1,6 +1,6 @@
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 import { createSeasonAction, updateSeasonAction, deleteSeasonAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -17,13 +17,13 @@ export default async function SeasonsAdmin() {
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Seasons & Holidays</h1>
         <p className="text-sm text-slate-500 mt-1">
           Any booking whose date falls inside one of these ranges uses the <em>season</em> pricing tier.
         </p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/seasons" />
 
       <section className="mt-8 ix-card p-6">
         <h2 className="font-semibold mb-3 text-sm">Add season / holiday range</h2>

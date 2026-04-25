@@ -1,6 +1,6 @@
 import { RefreshCw, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 import { retryNotificationAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +37,7 @@ export default async function NotificationsLog({ searchParams }: { searchParams:
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -46,7 +47,6 @@ export default async function NotificationsLog({ searchParams }: { searchParams:
           )}
         </p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/notifications" />
 
       <section className="mt-8">
         <form method="get" className="flex items-end gap-3 mb-4">

@@ -1,6 +1,6 @@
 import { Filter, AlertTriangle, XCircle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 import { adminForceCancelAction, clearRefundFlagAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +51,7 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">All Bookings</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -61,7 +62,6 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
           )}
         </p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/bookings" />
 
       <section className="mt-8 ix-card p-5">
         <form method="get" className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">

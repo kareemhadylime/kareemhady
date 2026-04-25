@@ -1,6 +1,6 @@
 import { Plus, Save, Trash2, Eye, EyeOff } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { TabNav, ADMIN_TABS } from '../../_components/tabs';
+import { BackToAdminMenu } from '../_components/back-to-menu';
 import {
   createDestinationAction,
   toggleDestinationAction,
@@ -23,11 +23,11 @@ export default async function DestinationsAdmin() {
 
   return (
     <>
+      <BackToAdminMenu />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Destinations</h1>
         <p className="text-sm text-slate-500 mt-1">Dropdown options on the broker trip-details form.</p>
       </header>
-      <TabNav tabs={ADMIN_TABS} currentPath="/emails/boat-rental/admin/destinations" />
 
       <section className="mt-8 ix-card p-6">
         <form action={createDestinationAction} className="flex gap-3 items-end">

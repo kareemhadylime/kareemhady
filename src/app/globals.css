@@ -51,6 +51,20 @@ body {
     linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
 }
 
+/* Dark-mode contrast bumps. The pre-existing codebase uses text-slate-600
+   and text-slate-500 as the standard "muted" colors, but on a slate-900
+   background those read at <3:1 contrast and feel grayed out. Lifting
+   them one step (600→300, 500→400) restores legibility everywhere
+   without touching every component. */
+.dark .text-slate-600 { color: rgb(203 213 225); /* slate-300 */ }
+.dark .text-slate-500 { color: rgb(148 163 184); /* slate-400 */ }
+
+/* Placeholders use a slightly muted color in light mode and a clearly
+   readable one in dark mode (default browser placeholder is typically
+   ~50% of text color, which on slate-900 disappears). */
+.ix-input::placeholder { color: rgb(148 163 184); /* slate-400 */ }
+.dark .ix-input::placeholder { color: rgb(148 163 184); /* slate-400 */ opacity: 0.85; }
+
 /* iOS notch / home-indicator safe-area helpers. Combine with
    viewport-fit=cover in the meta tag. */
 @layer utilities {
