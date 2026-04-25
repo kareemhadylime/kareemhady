@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Most image uploads now go direct-to-Supabase via signed URLs (the
+  // boat photo path), which bypasses Vercel's function payload limit.
+  // The receipt-upload server action (broker payments) still goes through
+  // a Server Action; allow up to 12MB for that single-file path.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '12mb',
+    },
+  },
   async headers() {
     return [
       {

@@ -1,15 +1,15 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Save, Upload, Trash2, X } from 'lucide-react';
+import { ChevronLeft, Save, Trash2, X } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { signedImageUrls } from '@/lib/boat-rental/storage';
 import {
   updateBoatAction,
-  uploadBoatImagesAction,
   deleteBoatImageAction,
   deleteBoatAction,
 } from '../actions';
+import { BoatImageUploader } from '../_components/image-uploader';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,16 +133,7 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
             ))}
           </div>
         )}
-        {images.length < 10 && (
-          <form action={uploadBoatImagesAction} className="flex items-end gap-3 flex-wrap">
-            <input type="hidden" name="boat_id" value={boat.id} />
-            <label className="text-sm flex-1 min-w-[200px]">
-              <span className="text-slate-600 text-xs">Add photos (JPG/PNG/WEBP, 5MB max each)</span>
-              <input name="images" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple required className="ix-input mt-1 cursor-pointer" />
-            </label>
-            <button type="submit" className="ix-btn-secondary"><Upload size={14} /> Upload</button>
-          </form>
-        )}
+        <BoatImageUploader boatId={boat.id} slotsLeft={Math.max(0, 10 - images.length)} />
       </section>
 
       <section className="mt-6 ix-card p-6">

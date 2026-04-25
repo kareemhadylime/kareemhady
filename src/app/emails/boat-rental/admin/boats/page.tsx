@@ -104,12 +104,11 @@ export default async function BoatsAdmin() {
               <span className="text-slate-600 text-xs">Features</span>
               <textarea name="features_md" rows={3} placeholder="Sun deck · shower · sound system · snorkel gear" className="ix-input mt-1" />
             </label>
-            <label className="text-sm md:col-span-2">
-              <span className="text-slate-600 text-xs">Images (optional — up to 10, 5MB each, JPG/PNG/WEBP)</span>
-              <input name="images" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple className="ix-input mt-1 cursor-pointer" />
-            </label>
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 flex items-center justify-between gap-3 flex-wrap">
               <button type="submit" className="ix-btn-primary"><Plus size={14} /> Create boat</button>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Photos are added on the boat&apos;s detail page after creation (uploads go directly to storage).
+              </p>
             </div>
           </form>
         </section>

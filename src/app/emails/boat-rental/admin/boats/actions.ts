@@ -2,53 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import crypto from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBoatAdmin, s, sOrNull, nOrNull, normPhone } from '@/lib/boat-rental/server-helpers';
 
+// Image uploads no longer flow through Server Actions because Vercel
+// caps Server Action request bodies at ~4.5MB and multi-image submits
+// blew past that. Photos are now uploaded directly to Supabase Storage
+// via signed URLs (see /api/boat-rental/admin/boat-image/sign and
+// /attach + the BoatImageUploader client component on the boat detail
+// page). createBoatAction below stays text-only.
+
 const BUCKET = 'boat-rental';
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB per image
-const MAX_IMAGES_PER_BOAT = 10;
-const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-function extFor(mime: string): string {
-  if (mime === 'image/jpeg') return 'jpg';
-  if (mime === 'image/png') return 'png';
-  if (mime === 'image/webp') return 'webp';
-  return 'bin';
-}
-
-async function uploadImages(boatId: string, files: File[]): Promise<number> {
-  if (!files.length) return 0;
-  const sb = supabaseAdmin();
-  const { count: existingCount } = await sb
-    .from('boat_rental_boat_images')
-    .select('id', { count: 'exact', head: true })
-    .eq('boat_id', boatId);
-
-  let slotsLeft = MAX_IMAGES_PER_BOAT - (existingCount || 0);
-  let uploaded = 0;
-  for (const f of files) {
-    if (slotsLeft <= 0) break;
-    if (!IMAGE_MIMES.has(f.type)) continue;
-    if (f.size === 0 || f.size > MAX_IMAGE_BYTES) continue;
-    const key = `boats/${boatId}/${crypto.randomUUID()}.${extFor(f.type)}`;
-    const buf = Buffer.from(await f.arrayBuffer());
-    const up = await sb.storage.from(BUCKET).upload(key, buf, {
-      contentType: f.type,
-      upsert: false,
-    });
-    if (up.error) continue;
-    await sb.from('boat_rental_boat_images').insert({
-      boat_id: boatId,
-      storage_path: key,
-      sort_order: (existingCount || 0) + uploaded,
-    });
-    uploaded++;
-    slotsLeft--;
-  }
-  return uploaded;
-}
 
 export async function createBoatAction(formData: FormData): Promise<void> {
   await requireBoatAdmin();
@@ -71,9 +35,8 @@ export async function createBoatAction(formData: FormData): Promise<void> {
   if (error || !data) throw new Error(error?.message || 'create_failed');
   const boatId = (data as { id: string }).id;
 
-  // Handle any images posted alongside create.
-  const files = formData.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
-  if (files.length) await uploadImages(boatId, files);
+  // No image handling here — the user lands on the detail page, which
+  // hosts the direct-upload widget (BoatImageUploader).
 
   revalidatePath('/emails/boat-rental/admin/boats');
   redirect(`/emails/boat-rental/admin/boats/${boatId}`);
@@ -121,14 +84,9 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
   revalidatePath('/emails/boat-rental/admin/boats');
 }
 
-export async function uploadBoatImagesAction(formData: FormData): Promise<void> {
-  await requireBoatAdmin();
-  const boatId = s(formData.get('boat_id'));
-  if (!boatId) return;
-  const files = formData.getAll('images').filter((v): v is File => v instanceof File && v.size > 0);
-  if (files.length) await uploadImages(boatId, files);
-  revalidatePath(`/emails/boat-rental/admin/boats/${boatId}`);
-}
+// uploadBoatImagesAction was removed — replaced by client-direct upload via
+// /api/boat-rental/admin/boat-image/sign + /attach. Kept the helper export
+// commented for reference only.
 
 export async function deleteBoatImageAction(formData: FormData): Promise<void> {
   await requireBoatAdmin();
