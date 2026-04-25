@@ -14,7 +14,7 @@ export type TabItem = {
 };
 
 export const ADMIN_TABS: TabItem[] = [
-  { href: '/emails/boat-rental/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/emails/boat-rental/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/emails/boat-rental/admin/owners', label: 'Owners', icon: User2 },
   { href: '/emails/boat-rental/admin/boats', label: 'Boats', icon: Ship },
   { href: '/emails/boat-rental/admin/pricing', label: 'Pricing', icon: Tag },
