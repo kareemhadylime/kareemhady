@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-25)
 
+## ✅ Photo controls always-visible (no hover required)
+
+User: "No Sorting Arrows - No Starring". The reorder ↑/↓ and the star (set-as-main) buttons were `opacity-0 group-hover:opacity-100` on the image overlay — invisible without hover, completely broken on touch devices, and the user couldn't find them.
+
+**[admin/boats/[id]/page.tsx](src/app/emails/boat-rental/admin/boats/[id]/page.tsx):** Pulled all controls out of the image overlay into a permanent action bar below the category dropdown. Each card is now:
+- Image (top, square) — only the gold "Main" pill + a small "#N" position badge stay overlaid
+- Category dropdown
+- Always-visible action bar with: ↑ ↓ on the left, ★ ✕ on the right (14px icons, p-1.5 hit area)
+- Disabled state on ↑/↓ when the photo is at the first/last position
+- The active "Main" photo shows a filled gold star (not clickable since it's already the main)
+- Hover tints: cyan for reorder, amber for star, rose for delete
+
+Type check passes. Deployed.
+
+---
+
 ## ✅ AI photo categorization + manual reorder (full feature)
 
 User: "ok To All, with Option To Re Sort the Pictures Manualy in the admin Panel". Greenlit all 4 Q1-Q4 defaults from earlier planning round AND added manual reorder.

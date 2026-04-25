@@ -181,7 +181,7 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
               <div
                 key={img.id}
                 className={
-                  'relative rounded-lg overflow-hidden group flex flex-col ' +
+                  'relative rounded-lg overflow-hidden flex flex-col ' +
                   (img.is_primary
                     ? 'ring-2 ring-amber-500 shadow-lg shadow-amber-500/20'
                     : 'border border-slate-200 dark:border-slate-700')
@@ -196,9 +196,20 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
                       <Star size={10} fill="currentColor" /> Main
                     </span>
                   )}
+                  <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-semibold tabular-nums">
+                    #{i + 1}
+                  </span>
+                </div>
 
-                  {/* Reorder controls — bottom-left, hover only */}
-                  <div className="absolute bottom-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                {/* Category dropdown */}
+                <div className="bg-white dark:bg-slate-900 px-1.5 pt-1.5">
+                  <CategorySelect imageId={img.id} boatId={boat.id} current={img.category} />
+                </div>
+
+                {/* Always-visible action bar — reorder + star + delete.
+                    Touch-friendly, no hover required. */}
+                <div className="bg-white dark:bg-slate-900 px-1.5 py-1.5 flex items-center justify-between gap-1 border-t border-slate-100 dark:border-slate-800 mt-1.5">
+                  <div className="flex items-center gap-0.5">
                     <form action={moveBoatImageAction}>
                       <input type="hidden" name="id" value={img.id} />
                       <input type="hidden" name="boat_id" value={boat.id} />
@@ -206,10 +217,11 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
                       <button
                         type="submit"
                         disabled={i === 0}
-                        className="p-1 rounded bg-white/90 text-slate-700 hover:bg-cyan-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="p-1.5 rounded text-slate-600 dark:text-slate-300 hover:bg-cyan-50 dark:hover:bg-cyan-950 hover:text-cyan-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         title="Move earlier"
+                        aria-label="Move earlier"
                       >
-                        <ChevronUp size={12} />
+                        <ChevronUp size={14} />
                       </button>
                     </form>
                     <form action={moveBoatImageAction}>
@@ -219,26 +231,33 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
                       <button
                         type="submit"
                         disabled={i === images.length - 1}
-                        className="p-1 rounded bg-white/90 text-slate-700 hover:bg-cyan-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="p-1.5 rounded text-slate-600 dark:text-slate-300 hover:bg-cyan-50 dark:hover:bg-cyan-950 hover:text-cyan-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         title="Move later"
+                        aria-label="Move later"
                       >
-                        <ChevronDown size={12} />
+                        <ChevronDown size={14} />
                       </button>
                     </form>
                   </div>
-
-                  {/* Star + Delete — top-right, hover only */}
-                  <div className="absolute top-1 right-1 flex gap-1">
-                    {!img.is_primary && (
+                  <div className="flex items-center gap-0.5">
+                    {img.is_primary ? (
+                      <span
+                        className="p-1.5 text-amber-500"
+                        title="This is the catalogue + PDF main photo"
+                      >
+                        <Star size={14} fill="currentColor" />
+                      </span>
+                    ) : (
                       <form action={setPrimaryBoatImageAction}>
                         <input type="hidden" name="id" value={img.id} />
                         <input type="hidden" name="boat_id" value={boat.id} />
                         <button
                           type="submit"
-                          className="p-1 rounded bg-white/90 text-amber-600 hover:bg-amber-50 opacity-0 group-hover:opacity-100 transition"
-                          title="Set as main photo"
+                          className="p-1.5 rounded text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-950 hover:text-amber-600"
+                          title="Set as main photo (catalogue + PDF hero)"
+                          aria-label="Set as main photo"
                         >
-                          <Star size={12} />
+                          <Star size={14} />
                         </button>
                       </form>
                     )}
@@ -247,18 +266,14 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
                       <input type="hidden" name="boat_id" value={boat.id} />
                       <button
                         type="submit"
-                        className="p-1 rounded bg-white/90 text-rose-600 opacity-0 group-hover:opacity-100 transition"
-                        title="Remove"
+                        className="p-1.5 rounded text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950 hover:text-rose-600"
+                        title="Remove photo"
+                        aria-label="Remove photo"
                       >
-                        <X size={12} />
+                        <X size={14} />
                       </button>
                     </form>
                   </div>
-                </div>
-
-                {/* Category bar — always visible at bottom */}
-                <div className="bg-white dark:bg-slate-900 px-1.5 py-1.5">
-                  <CategorySelect imageId={img.id} boatId={boat.id} current={img.category} />
                 </div>
               </div>
             ))}
