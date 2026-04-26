@@ -201,15 +201,24 @@ export async function distributeReport(args: {
   const { data: rcps } = await q;
   const recipients = (rcps as Recipient[] | null) || [];
 
-  // Existing successful sends → skip set
-  const { data: alreadySent } = await sb
-    .from('daily_report_deliveries')
-    .select('channel, destination')
-    .eq('snapshot_id', args.snapshot_id)
-    .eq('status', 'sent');
+  // Existing successful sends → skip set (only when running as cron).
+  // In TEST MODE (restrict_to_recipient_ids set), the admin wants a
+  // fresh send every click, so bypass the dedupe — otherwise repeated
+  // clicks would all return Attempted: 0 because today's recipients
+  // already have status='sent' rows from the first test.
+  const isTestMode = !!(
+    args.restrict_to_recipient_ids && args.restrict_to_recipient_ids.length > 0
+  );
   const sentSet = new Set<string>();
-  for (const r of (alreadySent as { channel: string; destination: string }[] | null) || []) {
-    sentSet.add(`${r.channel}:${(r.destination || '').toLowerCase()}`);
+  if (!isTestMode) {
+    const { data: alreadySent } = await sb
+      .from('daily_report_deliveries')
+      .select('channel, destination')
+      .eq('snapshot_id', args.snapshot_id)
+      .eq('status', 'sent');
+    for (const r of (alreadySent as { channel: string; destination: string }[] | null) || []) {
+      sentSet.add(`${r.channel}:${(r.destination || '').toLowerCase()}`);
+    }
   }
 
   const link = buildLinkUrl(args.token);

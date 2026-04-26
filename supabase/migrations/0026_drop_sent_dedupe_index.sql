@@ -1,0 +1,22 @@
+-- Drop partial unique index that blocked test-mode resends.
+--
+-- Original migration 0025 created:
+--   create unique index uq_dr_deliveries_sent
+--     on public.daily_report_deliveries (snapshot_id, channel, lower(destination))
+--     where status = 'sent';
+--
+-- Intent was idempotency: a cron retry tick would log a duplicate `sent`
+-- row when the dedupe-skip logic raced. In practice the in-memory sentSet
+-- check at the start of distributeReport() already handles this — and
+-- this index actively breaks "Send Test Now" for an admin who wants a
+-- fresh send to themselves on every click (PG raises 23505 on the second
+-- insert for the same (snapshot, channel, destination)).
+--
+-- Idempotency is now enforced solely by:
+--   1. In-memory sentSet check before each send (in distributeReport)
+--   2. Snapshot-level delivery_complete=true short-circuit on subsequent
+--      cron ticks (in runDailyReport)
+--   3. Test mode (restrict_to_recipient_ids set) bypasses BOTH so the
+--      admin can resend on demand.
+
+drop index if exists public.uq_dr_deliveries_sent;
