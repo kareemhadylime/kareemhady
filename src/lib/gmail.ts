@@ -254,6 +254,27 @@ function encodeHeader(s: string): string {
 
 // Multipart MIME helper for HTML email + a single PDF attachment.
 // Used by the Beithady daily report to deliver the A4 PDF inline.
+//
+// Encoding choices (debugged against Mailbird's bytea cache that was
+// rejecting the attachment as "damaged"):
+//   - HTML part: 7bit ASCII (no encoding) — Gmail/Mailbird both accept
+//     literal HTML in the multipart body.
+//   - PDF part: base64, line-folded at exactly 76 chars with `\r\n` per
+//     RFC 2045 §6.8. Uses slice-based folding instead of a regex so the
+//     last chunk never gets a stray trailing `\r\n` (some PDF parsers
+//     are sensitive to that, treating it as part of the binary).
+//   - Boundary: a single `\r\n--boundary` separator (RFC 2046 §5.1.1
+//     attaches the preceding CRLF to the boundary, so the BODY itself
+//     must NOT end with a blank line).
+function foldBase64(s: string, width = 76): string {
+  if (s.length <= width) return s;
+  const lines: string[] = [];
+  for (let i = 0; i < s.length; i += width) {
+    lines.push(s.slice(i, i + width));
+  }
+  return lines.join('\r\n');
+}
+
 export async function sendHtmlEmailWithAttachment(
   refreshTokenEncrypted: string,
   params: {
@@ -268,38 +289,38 @@ export async function sendHtmlEmailWithAttachment(
   const from = params.fromEmail || 'me';
   const boundary = '__beithady_pdf_boundary_' + Date.now().toString(36);
 
-  // Quoted-printable encoding would be safer for HTML body, but Gmail
-  // accepts 7bit + base64-attachment fine here. Body is pure ASCII /
-  // UTF-8; we'll mark the part as utf-8 + base64 to avoid 8-bit-line-
-  // length pitfalls.
-  const htmlB64 = Buffer.from(params.html, 'utf-8').toString('base64');
-  const attachB64 = params.attachment.bytes.toString('base64');
-  // Split base64 into 76-char lines per RFC 2045 to keep MTAs happy.
-  const wrap76 = (s: string): string => s.replace(/(.{76})/g, '$1\r\n');
+  const attachB64 = foldBase64(params.attachment.bytes.toString('base64'));
 
-  const mime = [
-    `From: ${from}`,
-    `To: ${params.to}`,
-    `Subject: ${encodeHeader(params.subject)}`,
-    'MIME-Version: 1.0',
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    wrap76(htmlB64),
-    '',
-    `--${boundary}`,
-    `Content-Type: ${params.attachment.contentType}; name="${params.attachment.filename}"`,
-    'Content-Transfer-Encoding: base64',
-    `Content-Disposition: attachment; filename="${params.attachment.filename}"`,
-    '',
-    wrap76(attachB64),
-    '',
-    `--${boundary}--`,
-    '',
-  ].join('\r\n');
+  // Build with explicit \r\n joins. No trailing blank line at the end of
+  // each part body — the closing CRLF is implicit in the boundary.
+  const CRLF = '\r\n';
+  const headers =
+    [
+      `From: ${from}`,
+      `To: ${params.to}`,
+      `Subject: ${encodeHeader(params.subject)}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    ].join(CRLF) + CRLF + CRLF;
+
+  const htmlPart =
+    `--${boundary}` + CRLF +
+    'Content-Type: text/html; charset=UTF-8' + CRLF +
+    'Content-Transfer-Encoding: 7bit' + CRLF +
+    CRLF +
+    params.html + CRLF;
+
+  const pdfPart =
+    `--${boundary}` + CRLF +
+    `Content-Type: ${params.attachment.contentType}; name="${params.attachment.filename}"` + CRLF +
+    'Content-Transfer-Encoding: base64' + CRLF +
+    `Content-Disposition: attachment; filename="${params.attachment.filename}"` + CRLF +
+    CRLF +
+    attachB64 + CRLF;
+
+  const closing = `--${boundary}--` + CRLF;
+
+  const mime = headers + htmlPart + pdfPart + closing;
 
   const raw = Buffer.from(mime, 'utf-8')
     .toString('base64')
