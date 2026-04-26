@@ -19,8 +19,45 @@ import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// OG metadata override — when WhatsApp scrapes the link it should show
+// the Beit Hady wordmark, not the boat-rental PWA branding from the
+// root manifest. Absolute image URLs only (Next.js warns on relative
+// without metadataBase, and WhatsApp's scraper requires absolute).
+const APP_BASE = (() => {
+  const b =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VERCEL_URL ||
+    'https://limeinc.vercel.app';
+  return b.startsWith('http') ? b : `https://${b}`;
+})();
+const OG_IMAGE = `${APP_BASE.replace(/\/$/, '')}/brand/beithady/logo-stacked.jpg`;
+
 export const metadata = {
-  title: 'Beithady Daily Report',
+  title: 'Beit Hady · Daily Performance Report',
+  description: 'Daily operations and performance metrics for Beit Hady properties. Confidential — link expires 48h after generation.',
+  applicationName: 'Beit Hady',
+  openGraph: {
+    title: 'Beit Hady · Daily Performance Report',
+    description: 'Daily operations and performance metrics for Beit Hady properties.',
+    type: 'website' as const,
+    siteName: 'Beit Hady',
+    images: [
+      {
+        url: OG_IMAGE,
+        width: 1200,
+        height: 1200,
+        alt: 'Beit Hady',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image' as const,
+    title: 'Beit Hady · Daily Performance Report',
+    description: 'Daily operations and performance metrics for Beit Hady properties.',
+    images: [OG_IMAGE],
+  },
+  robots: { index: false, follow: false },
 };
 
 type SnapshotRow = {

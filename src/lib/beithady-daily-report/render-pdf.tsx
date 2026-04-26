@@ -1,9 +1,12 @@
 import 'server-only';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   Document,
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   renderToBuffer,
 } from '@react-pdf/renderer';
@@ -18,19 +21,36 @@ import {
 // A4 PDF render via @react-pdf/renderer. Server-side (Node), no Chromium
 // needed. Mirrors the HTML report structure but uses @react-pdf primitives.
 
+// BeitHady brand palette (matches render-html.tsx — deep navy + warm gold).
 const PALETTE = {
-  ink: '#0f172a',
-  ink2: '#334155',
-  muted: '#64748b',
-  line: '#e2e8f0',
-  brand: '#0e7490',
-  brandBg: '#ecfeff',
+  ink: '#1a2c47',
+  ink2: '#374b6b',
+  muted: '#7a8aa3',
+  line: '#e6dfce',
+  brand: '#1e3a5f',
+  brandBg: '#f0e9d9',
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
-  gold: '#d97706',
-  cardBg: '#f8fafc',
+  gold: '#c9a96e',
+  cardBg: '#faf8f3',
 };
+
+// Load logo bytes once per cold start. The file lives in `public/` so it
+// ships with the Vercel deployment. Reading at module-init keeps render
+// fast on warm invocations.
+let _logoBytes: Buffer | null = null;
+function getLogoBytes(): Buffer | null {
+  if (_logoBytes) return _logoBytes;
+  try {
+    _logoBytes = readFileSync(
+      join(process.cwd(), 'public', 'brand', 'beithady', 'logo-stacked.jpg')
+    );
+    return _logoBytes;
+  } catch {
+    return null;
+  }
+}
 
 const styles = StyleSheet.create({
   page: {
@@ -524,15 +544,21 @@ function DeadInventoryPdf({ payload }: { payload: DailyReportPayload }) {
 }
 
 function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
+  const logo = getLogoBytes();
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>BEITHADY · Daily Performance Report</Text>
-            <Text style={styles.subtitle}>
-              {payload.generated_at_cairo} · all amounts USD
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {logo ? (
+              <Image src={logo} style={{ width: 48, height: 48 }} />
+            ) : null}
+            <View>
+              <Text style={styles.title}>Daily Performance Report</Text>
+              <Text style={styles.subtitle}>
+                {payload.generated_at_cairo} · all amounts USD
+              </Text>
+            </View>
           </View>
           <Text style={{ fontSize: 8, color: PALETTE.muted }}>
             Day {payload.month_days_elapsed} of {payload.month_days_total} · {payload.month_label}
@@ -573,7 +599,12 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
       </Page>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>BEITHADY · Reviews & Watchlist</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {logo ? (
+              <Image src={logo} style={{ width: 36, height: 36 }} />
+            ) : null}
+            <Text style={styles.title}>Reviews & Watchlist</Text>
+          </View>
           <Text style={{ fontSize: 8, color: PALETTE.muted }}>
             {payload.report_date}
           </Text>

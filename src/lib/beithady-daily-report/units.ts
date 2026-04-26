@@ -49,18 +49,52 @@ function bucketBuilding(rawBuilding: string | null | undefined): BuildingCode {
  *   listingType='MTL' → parent (NOT a physical unit, do not count)
  *   listingType='SLT' → sub-listing (a physical unit)
  *   listingType='SINGLE' → standalone single physical unit
- *   listingType=null → treat as SINGLE (catalog SINGLE-UNIT entries)
+ *   listingType=null → fall back to catalog (the static `BEITHADY_LISTINGS`
+ *     catalog has the authoritative `unit_type`; we exclude MULTI-UNIT
+ *     parents since their sub-units already count separately).
+ *
+ * Field-level reality check: Guesty's `listingType` is NOT in the schema
+ * we sync from `/v1/listings` for many tenants — confirmed via SQL that
+ * all 36 BH-73 listings have `listing_type=null`. The catalog fallback
+ * is therefore essential, not optional.
  *
  * Inactive listings (active=false) are excluded.
  */
-function isPhysicalUnit(row: {
-  listing_type: string | null;
-  active: boolean | null;
-}): boolean {
+function isPhysicalUnit(
+  row: {
+    id?: string;
+    listing_type: string | null;
+    active: boolean | null;
+    nickname?: string | null;
+  }
+): boolean {
   if (row.active === false) return false;
+
   const t = (row.listing_type || '').toUpperCase();
-  if (t === 'MTL') return false; // parent — its sub-units count instead
-  return true; // SLT, SINGLE, or null all count
+  if (t === 'MTL') return false;
+  if (t === 'SLT' || t === 'SINGLE') return true;
+
+  // listing_type unknown — consult catalog by Guesty id
+  if (row.id) {
+    const cat = getListingByGuestyId(row.id);
+    if (cat) {
+      if (cat.unit_type === 'MULTI-UNIT') return false;
+      return true;
+    }
+  }
+  // Last resort: nickname pattern. Multi-unit parents in BH-73 follow the
+  // `BH73-XXX-Y-Z` pattern WITHOUT a trailing 3-digit unit number, while
+  // sub-units always end in `-NNN`. This heuristic only fires when both
+  // listing_type and catalog lookup fail.
+  if (row.nickname) {
+    const nick = row.nickname.toUpperCase().trim();
+    // Matches a sub-unit suffix: `-001`, `-101`, `-203`, etc.
+    if (/-\d{3}$/.test(nick)) return true;
+    // Catalog says SINGLE-UNIT for any non-multi nickname like
+    // `BH-26-501`, `BH73-2BR-SB-404`, `LIME-MA-1402`, etc.
+    return true;
+  }
+  return true;
 }
 
 /**
@@ -106,7 +140,12 @@ export async function loadBuildingInventories(): Promise<AllInventories> {
   }
 
   for (const r of rows) {
-    if (!isPhysicalUnit(r)) continue;
+    if (!isPhysicalUnit({
+      id: r.id,
+      listing_type: r.listing_type,
+      active: r.active,
+      nickname: r.nickname,
+    })) continue;
     // Prefer Guesty's building_code; fall back to the catalog match.
     const bcRaw =
       r.building_code ||

@@ -18,19 +18,22 @@ import {
 //
 // Pure presentation — never queries data. Takes a fully-built payload.
 
+// Beithady brand palette (extracted from /BeitHady Logos/* — deep navy
+// monogram on cream background, with gold accents from the FM+ lockup).
 const C = {
-  ink: '#0f172a',
-  ink2: '#334155',
-  muted: '#64748b',
-  line: '#e2e8f0',
+  ink: '#1a2c47',       // deep navy (headings)
+  ink2: '#374b6b',      // softer navy (body)
+  muted: '#7a8aa3',
+  line: '#e6dfce',      // warm cream border
   bg: '#ffffff',
-  card: '#f8fafc',
-  brand: '#0e7490',     // cyan-700
+  card: '#faf8f3',      // light cream card bg
+  brand: '#1e3a5f',     // primary navy
+  brandBg: '#f0e9d9',   // warm cream digest box
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
   emerald: '#10b981',
-  gold: '#d97706',
+  gold: '#c9a96e',      // BeitHady warm gold
 };
 
 const fmtUsd = (n: number): string => {
@@ -688,17 +691,24 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          paddingBottom: 8,
+          alignItems: 'center',
+          paddingBottom: 12,
           borderBottom: `2px solid ${C.brand}`,
         }}
       >
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.brand }}>
-            BEITHADY · Daily Performance Report
-          </div>
-          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-            {payload.generated_at_cairo} · all amounts USD
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img
+            src="/brand/beithady/logo-stacked.jpg"
+            alt="Beit Hady"
+            style={{ height: 56, width: 'auto', objectFit: 'contain' }}
+          />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.brand, letterSpacing: 1 }}>
+              Daily Performance Report
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+              {payload.generated_at_cairo} · all amounts USD
+            </div>
           </div>
         </div>
         <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>
@@ -711,12 +721,12 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
       <div
         style={{
           marginTop: 10,
-          padding: 10,
-          background: '#ecfeff',
-          border: `1px solid #67e8f9`,
-          borderRadius: 6,
+          padding: 12,
+          background: C.brandBg,
+          borderLeft: `4px solid ${C.gold}`,
+          borderRadius: 4,
           fontSize: 11,
-          lineHeight: 1.4,
+          lineHeight: 1.5,
           color: C.ink,
         }}
       >
