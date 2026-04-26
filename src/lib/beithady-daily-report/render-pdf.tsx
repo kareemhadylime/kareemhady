@@ -682,6 +682,75 @@ function V2_BlocksAndNoShowPdf({ payload }: { payload: DailyReportPayload }) {
   );
 }
 
+function V3_PricingIntelligencePdf({ payload }: { payload: DailyReportPayload }) {
+  const pi = payload.pricing_intelligence;
+  if (!pi || !pi.available || pi.rows.length === 0) return null;
+  const fmtPct = (n: number | null) =>
+    n == null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
+  const colorFor = (lvl: string) =>
+    lvl.startsWith('critical') ? PALETTE.red :
+    lvl.startsWith('warn') ? PALETTE.amber :
+    lvl === 'in_band' ? PALETTE.green :
+    PALETTE.muted;
+  const labelFor = (lvl: string) =>
+    lvl === 'critical_under' ? 'Underpriced' :
+    lvl === 'warn_under' ? 'Underpriced' :
+    lvl === 'critical_over' ? 'Overpriced' :
+    lvl === 'warn_over' ? 'Overpriced' :
+    lvl === 'in_band' ? 'In band' :
+    lvl === 'insufficient' ? 'Low data' :
+    lvl === 'suppressed_occ_high' ? 'Occ ≥90%' :
+    lvl === 'suppressed_market_slow' ? 'Mkt slow' :
+    '—';
+  return (
+    <View style={styles.card}>
+      <Text style={styles.sectionTitle}>PRICING INTELLIGENCE — Area Comps</Text>
+      {(pi.summary.underpriced_groups > 0 || pi.summary.overpriced_groups > 0) && (
+        <Text style={{ fontSize: 8, marginBottom: 4 }}>
+          {pi.summary.underpriced_groups > 0 && (
+            <Text style={{ color: PALETTE.amber }}>
+              {pi.summary.underpriced_groups} underpriced · gap ~{fmtUsd(pi.summary.daily_revenue_gap_usd)}/night.{' '}
+            </Text>
+          )}
+          {pi.summary.overpriced_groups > 0 && (
+            <Text style={{ color: PALETTE.red }}>
+              {pi.summary.overpriced_groups} overpriced.
+            </Text>
+          )}
+        </Text>
+      )}
+      <View style={styles.tr}>
+        <Text style={[styles.thLeft, { flex: 1.2 }]}>Bldg</Text>
+        <Text style={[styles.thLeft, { flex: 0.8 }]}>Size</Text>
+        <Text style={styles.th}>Units</Text>
+        <Text style={styles.th}>Our $</Text>
+        <Text style={styles.th}>Mkt med</Text>
+        <Text style={styles.th}>Δ%</Text>
+        <Text style={styles.th}>Comp N</Text>
+        <Text style={[styles.th, { flex: 1.5 }]}>Action</Text>
+      </View>
+      {pi.rows.map((r, i) => (
+        <View key={i} style={styles.tr}>
+          <Text style={[styles.tdLeft, { flex: 1.2 }]}>{r.building}</Text>
+          <Text style={[styles.tdLeft, { flex: 0.8 }]}>{r.bedroom_bucket}</Text>
+          <Text style={styles.td}>{r.unit_count}</Text>
+          <Text style={styles.td}>{r.our_avg_base_usd != null ? fmtUsd(r.our_avg_base_usd) : '—'}</Text>
+          <Text style={styles.td}>{r.comp_median_usd != null ? fmtUsd(r.comp_median_usd) : '—'}</Text>
+          <Text style={[styles.td, { color: colorFor(r.alert_level), fontFamily: 'Helvetica-Bold' }]}>
+            {fmtPct(r.delta_pct)}
+          </Text>
+          <Text style={styles.td}>{r.comp_set_size}</Text>
+          <Text style={[styles.td, { flex: 1.5, color: colorFor(r.alert_level), textAlign: 'left' }]}>
+            {labelFor(r.alert_level)}
+            {r.recommended_price_usd != null && (r.alert_level.includes('under') || r.alert_level.includes('over')) ?
+              ` → ${fmtUsd(r.recommended_price_usd)}` : ''}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
   const logo = getLogoBytes();
   return (
@@ -753,6 +822,7 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
           </Text>
         </View>
         <ReviewsBlockPdf payload={payload} />
+        <V3_PricingIntelligencePdf payload={payload} />
         <PricingAlertsPdf payload={payload} />
         <DeadInventoryPdf payload={payload} />
         <Text

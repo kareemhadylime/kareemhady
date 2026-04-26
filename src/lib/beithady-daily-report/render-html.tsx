@@ -777,6 +777,7 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
       {/* Page break before reviews */}
       <div style={{ pageBreakBefore: 'always', marginTop: 14 }}>
         <ReviewsBlock payload={payload} />
+        <V3_PricingIntelligence payload={payload} />
         <PricingAlerts payload={payload} />
         <DeadInventory payload={payload} />
       </div>
@@ -1122,6 +1123,143 @@ function V2_Conversations({ payload }: { payload: DailyReportPayload }) {
           </dialog>
         </>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// v3 — Pricing Intelligence section (PriceLabs comp-set comparison)
+// ─────────────────────────────────────────────────────────────────────────
+
+function alertColor(level: string): string {
+  if (level.startsWith('critical')) return C.red;
+  if (level.startsWith('warn')) return C.amber;
+  if (level === 'in_band') return C.green;
+  return C.muted;
+}
+function alertLabel(level: string, deltaPct: number | null): string {
+  if (level === 'critical_under') return '🚩 Underpriced';
+  if (level === 'warn_under') return '⚠ Underpriced';
+  if (level === 'critical_over') return '🚩 Overpriced';
+  if (level === 'warn_over') return '⚠ Overpriced';
+  if (level === 'in_band') return '✓ In band';
+  if (level === 'insufficient') return 'Low data';
+  if (level === 'suppressed_occ_high') return 'Occ ≥90%';
+  if (level === 'suppressed_market_slow') return 'Market slow';
+  return '—';
+}
+
+function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
+  const pi = payload.pricing_intelligence;
+  if (!pi || !pi.available || pi.rows.length === 0) return null;
+  const fmtPct = (n: number | null) =>
+    n == null ? '—' : `${n > 0 ? '▲ +' : '▼ '}${n.toFixed(1)}%`;
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        padding: 10,
+        border: `1px solid ${C.line}`,
+        borderRadius: 6,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 6,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: 1,
+            color: C.brand,
+          }}
+        >
+          PRICING INTELLIGENCE — Beit Hady vs Area Comps
+        </div>
+        <div style={{ fontSize: 9, color: C.muted }}>
+          Source: PriceLabs neighborhood_data
+        </div>
+      </div>
+
+      {/* SP1 ribbon */}
+      {(pi.summary.underpriced_groups > 0 ||
+        pi.summary.overpriced_groups > 0) && (
+        <div
+          style={{
+            padding: 8,
+            background: C.brandBg,
+            borderLeft: `4px solid ${C.gold}`,
+            fontSize: 10,
+            color: C.ink,
+            marginBottom: 8,
+          }}
+        >
+          {pi.summary.underpriced_groups > 0 && (
+            <span>
+              <strong style={{ color: C.amber }}>{pi.summary.underpriced_groups}</strong> underpriced groups · revenue gap ~{' '}
+              <strong>{fmtUsd1(pi.summary.daily_revenue_gap_usd)}</strong>/night.{' '}
+            </span>
+          )}
+          {pi.summary.overpriced_groups > 0 && (
+            <span>
+              <strong style={{ color: C.red }}>{pi.summary.overpriced_groups}</strong> overpriced groups (occupancy risk).
+            </span>
+          )}
+        </div>
+      )}
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9.5 }}>
+        <thead>
+          <tr>
+            <th style={{ ...colHead, textAlign: 'left' }}>Building</th>
+            <th style={{ ...colHead, textAlign: 'left' }}>Size</th>
+            <th style={colHead}>Units</th>
+            <th style={colHead}>Our base</th>
+            <th style={colHead}>Mkt med</th>
+            <th style={colHead}>Δ%</th>
+            <th style={colHead}>Wkdy / Wknd</th>
+            <th style={colHead}>Comp size</th>
+            <th style={{ ...colHead, textAlign: 'left' }}>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pi.rows.map((r, i) => (
+            <tr
+              key={i}
+              style={{ borderBottom: `1px solid ${C.line}` }}
+            >
+              <td style={lblCell}>{r.building}</td>
+              <td style={lblCell}>{r.bedroom_bucket}</td>
+              <td style={numCell}>{r.unit_count}</td>
+              <td style={numCell}>{r.our_avg_base_usd != null ? fmtUsd(r.our_avg_base_usd) : '—'}</td>
+              <td style={numCell}>{r.comp_median_usd != null ? fmtUsd(r.comp_median_usd) : '—'}</td>
+              <td style={{ ...numCell, color: alertColor(r.alert_level), fontWeight: 600 }}>
+                {fmtPct(r.delta_pct)}
+              </td>
+              <td style={numCell}>
+                {r.comp_median_weekday_usd != null
+                  ? `${fmtUsd(r.comp_median_weekday_usd)} / ${r.comp_median_weekend_usd != null ? fmtUsd(r.comp_median_weekend_usd) : '—'}`
+                  : '—'}
+              </td>
+              <td style={numCell}>{r.comp_set_size}</td>
+              <td style={{ ...lblCell, color: alertColor(r.alert_level), fontWeight: 600 }}>
+                {alertLabel(r.alert_level, r.delta_pct)}
+                {r.recommended_price_usd != null &&
+                  (r.alert_level.includes('under') || r.alert_level.includes('over')) && (
+                    <span style={{ color: C.muted, fontWeight: 400, marginLeft: 4 }}>
+                      → {fmtUsd(r.recommended_price_usd)}
+                    </span>
+                  )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

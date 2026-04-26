@@ -251,4 +251,38 @@ export type DailyReportPayload = {
   weekly_digest?: WeeklyDigestV2;
   /** Booking-channel mix paired Yesterday + MTD (replaces v1 `channel_mix` long-term). */
   paired_channel_mix?: PairedChannelMixV2[];
+
+  /** v3 — Pricing intelligence (PriceLabs comp-set comparison). null if endpoint absent. */
+  pricing_intelligence?: PricingIntelligenceSectionV3 | null;
+};
+
+export type PricingIntelligenceRowV3 = {
+  building: string;
+  bedroom_bucket: string;
+  unit_count: number;
+  our_avg_base_usd: number | null;
+  our_avg_adr_past_30_usd: number | null;
+  comp_median_usd: number | null;
+  comp_median_weekday_usd: number | null;
+  comp_median_weekend_usd: number | null;
+  comp_avg_rating: number | null;
+  comp_set_size: number;
+  comp_occupancy_pct: number | null;
+  our_avg_occupancy_pct: number | null;
+  delta_pct: number | null;
+  stly_delta_pct: number | null;
+  alert_level: string;
+  recommended_price_usd: number | null;
+};
+
+export type PricingIntelligenceSectionV3 = {
+  available: boolean;
+  rows: PricingIntelligenceRowV3[];
+  summary: {
+    underpriced_groups: number;
+    overpriced_groups: number;
+    in_band_groups: number;
+    insufficient_groups: number;
+    daily_revenue_gap_usd: number;
+  };
 };

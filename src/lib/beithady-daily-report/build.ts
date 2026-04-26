@@ -27,6 +27,7 @@ import { buildBlocksSection } from './build-blocks';
 import { buildNoShowSection } from './build-no-show';
 import { buildWeeklyDigest } from './build-weekly-digest';
 import { buildPairedChannelMix } from './build-channels-paired';
+import { buildPricingIntelligenceSection } from './build-pricing-intelligence';
 import type { DailyReportPayload } from './types';
 
 // Orchestrator. Single entry point: returns a fully-built DailyReportPayload
@@ -79,6 +80,7 @@ export async function buildDailyReport(
     triageResult,
     conversationsResult,
     blocksResult,
+    pricingIntelResult,
   ] = await Promise.all([
     buildPayoutsSection(corpus.active, ctx),
     buildReviewsSection(ctx),
@@ -87,6 +89,7 @@ export async function buildDailyReport(
     buildInquiryTriage(),
     buildConversationsSection(period),
     buildBlocksSection(inventories, period),
+    buildPricingIntelligenceSection(),
   ]);
 
   const warnings = [
@@ -159,6 +162,9 @@ export async function buildDailyReport(
     no_show,
     weekly_digest,
     paired_channel_mix,
+    pricing_intelligence: pricingIntelResult.section.available
+      ? pricingIntelResult.section
+      : null,
   };
 }
 
