@@ -12,19 +12,25 @@ import type { BuildingCode } from './types';
 
 export type ReservationRow = {
   id: string;
+  confirmation_code: string | null;
   status: string | null;
   source: string | null;
   listing_id: string | null;
   listing_nickname: string | null;
   guest_name: string | null;
+  guest_email: string | null;
   check_in_date: string | null;
   check_out_date: string | null;
   nights: number | null;
   currency: string | null;
   host_payout_usd: number | null;     // converted
   host_payout_raw: number | null;     // original
+  guest_paid_usd: number | null;      // converted (for payment-on-checkin check)
   created_at_iso: string | null;      // Guesty createdAt
   updated_at_iso: string | null;
+  cancelled_at_iso: string | null;    // Guesty cancelledAt — preferred for cancellations bucketing
+  /** Effective cancellation timestamp = cancelled_at if present else updated_at. */
+  effective_cancel_at_iso: string | null;
   building: BuildingCode;
 };
 
@@ -80,9 +86,11 @@ export async function loadReservationCorpus(
     const { data, error } = await sb
       .from('guesty_reservations')
       .select(
-        `id, status, source, listing_id, listing_nickname, guest_name,
-         check_in_date, check_out_date, nights, currency, host_payout,
-         created_at_odoo, updated_at_odoo,
+        `id, confirmation_code, status, source, listing_id, listing_nickname,
+         guest_name, guest_email,
+         check_in_date, check_out_date, nights, currency,
+         host_payout, guest_paid,
+         created_at_odoo, updated_at_odoo, cancelled_at,
          listing:guesty_listings!left(building_code)`
       )
       .lte('check_in_date', windowToYmd)
@@ -90,6 +98,35 @@ export async function loadReservationCorpus(
       .order('check_in_date', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw new Error(`reservation_query_failed: ${error.message}`);
+    const batch = (data || []) as Array<Record<string, unknown>>;
+    collected.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+
+  // Cancellations are tracked separately from the stay-window query
+  // because canceled reservations may have check_out < windowFromYmd
+  // (a future stay canceled today still needs to surface today). Pull
+  // any reservation with status='canceled' AND cancelled_at OR updated_at
+  // in the window from start-of-month minus 30 days through "today".
+  // This uses the cancelled_at index added in migration 0027.
+  for (let offset = 0; offset < 5000; offset += PAGE) {
+    const { data, error } = await sb
+      .from('guesty_reservations')
+      .select(
+        `id, confirmation_code, status, source, listing_id, listing_nickname,
+         guest_name, guest_email,
+         check_in_date, check_out_date, nights, currency,
+         host_payout, guest_paid,
+         created_at_odoo, updated_at_odoo, cancelled_at,
+         listing:guesty_listings!left(building_code)`
+      )
+      .eq('status', 'canceled')
+      .or(
+        `cancelled_at.gte.${windowFromYmd}T00:00:00Z,updated_at_odoo.gte.${windowFromYmd}T00:00:00Z`
+      )
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`cancel_query_failed: ${error.message}`);
     const batch = (data || []) as Array<Record<string, unknown>>;
     collected.push(...batch);
     if (batch.length < PAGE) break;
@@ -120,13 +157,30 @@ export async function loadReservationCorpus(
       fxDate
     );
 
+    const guestPaidRaw = r.guest_paid as number | string | null;
+    const guestPaidNum =
+      typeof guestPaidRaw === 'string' ? Number(guestPaidRaw) : guestPaidRaw;
+    const guestPaidUsd = await toUsd(
+      typeof guestPaidNum === 'number' && Number.isFinite(guestPaidNum)
+        ? guestPaidNum
+        : null,
+      (r.currency as string | null) || 'USD',
+      fxDate
+    );
+
+    const cancelledAt = (r.cancelled_at as string | null) || null;
+    const updatedAt = (r.updated_at_odoo as string | null) || null;
+    const effectiveCancel = cancelledAt || updatedAt;
+
     rows.push({
       id,
+      confirmation_code: (r.confirmation_code as string | null) || null,
       status: ((r.status as string | null) || '').toLowerCase() || null,
       source: (r.source as string | null) || null,
       listing_id: (r.listing_id as string | null) || null,
       listing_nickname: (r.listing_nickname as string | null) || null,
       guest_name: (r.guest_name as string | null) || null,
+      guest_email: (r.guest_email as string | null) || null,
       check_in_date: (r.check_in_date as string | null) || null,
       check_out_date: (r.check_out_date as string | null) || null,
       nights:
@@ -137,8 +191,11 @@ export async function loadReservationCorpus(
         typeof payoutNum === 'number' && Number.isFinite(payoutNum)
           ? payoutNum
           : null,
+      guest_paid_usd: guestPaidUsd,
       created_at_iso: (r.created_at_odoo as string | null) || null,
-      updated_at_iso: (r.updated_at_odoo as string | null) || null,
+      updated_at_iso: updatedAt,
+      cancelled_at_iso: cancelledAt,
+      effective_cancel_at_iso: effectiveCancel,
       building,
     });
   }

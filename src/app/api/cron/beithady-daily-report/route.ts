@@ -35,5 +35,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export const maxDuration = 120;
+// v2 added 5+ new builders (conversations + payment-checkin + blocks +
+// no-show + weekly-digest + paired channels). Bumped from 120s → 180s
+// to absorb the worst-case cold start of @react-pdf/renderer + the
+// extra Postgres aggregations.
+export const maxDuration = 180;
 export const dynamic = 'force-dynamic';

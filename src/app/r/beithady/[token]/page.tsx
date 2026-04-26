@@ -88,6 +88,27 @@ const PRINT_SCRIPT = `
     document.body.classList.add('beithady-report-body');
     var btn = document.getElementById('beithady-report-print');
     if (btn) { btn.addEventListener('click', function(){ window.print(); }); }
+
+    // v2: wire up <dialog> popouts. Buttons with data-dialog-trigger="X"
+    // open dialog #X via showModal(); buttons with data-dialog-close="X"
+    // close it. Falls back gracefully if the browser doesn't support
+    // <dialog> (Safari < 15.4, etc.) — clicks are no-op then.
+    document.querySelectorAll('[data-dialog-trigger]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var id = el.getAttribute('data-dialog-trigger');
+        var dlg = document.getElementById(id);
+        if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+        else if (dlg) dlg.setAttribute('open', '');
+      });
+    });
+    document.querySelectorAll('[data-dialog-close]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var id = el.getAttribute('data-dialog-close');
+        var dlg = document.getElementById(id);
+        if (dlg && typeof dlg.close === 'function') dlg.close();
+        else if (dlg) dlg.removeAttribute('open');
+      });
+    });
   })();
 `;
 

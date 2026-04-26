@@ -53,21 +53,55 @@ export function buildChannelMix(
 export function buildCancellations(
   canceled: ReservationRow[],
   ctx: MonthRange
-): CancellationSummary {
+): CancellationSummary & {
+  details_yesterday: Array<{
+    id: string;
+    code: string | null;
+    unit: string;
+    channel: string;
+    guest: string | null;
+    check_in: string | null;
+    value_usd: number;
+    canceled_at: string;
+  }>;
+} {
   const today = ctx.today;
   let count_today = 0;
   let value_today_usd = 0;
   let count_mtd = 0;
   let value_mtd_usd = 0;
+  const details_yesterday: Array<{
+    id: string;
+    code: string | null;
+    unit: string;
+    channel: string;
+    guest: string | null;
+    check_in: string | null;
+    value_usd: number;
+    canceled_at: string;
+  }> = [];
   for (const r of canceled) {
-    const updatedDay = (r.updated_at_iso || '').slice(0, 10);
-    if (!updatedDay) continue;
+    // Prefer cancelled_at (the actual cancellation event) over updated_at
+    // (which is "any field on the row was modified" — too noisy and
+    // historically stale for canceled reservations on this tenant).
+    const effective = (r.effective_cancel_at_iso || r.updated_at_iso || '').slice(0, 10);
+    if (!effective) continue;
     const usd = r.host_payout_usd || 0;
-    if (updatedDay === today) {
+    if (effective === today) {
       count_today += 1;
       value_today_usd += usd;
+      details_yesterday.push({
+        id: r.id,
+        code: r.confirmation_code,
+        unit: r.listing_nickname || r.listing_id || 'Unknown',
+        channel: normalizeChannelInline(r.source),
+        guest: r.guest_name,
+        check_in: r.check_in_date,
+        value_usd: round2(usd),
+        canceled_at: r.effective_cancel_at_iso || r.updated_at_iso || '',
+      });
     }
-    if (updatedDay >= ctx.start && updatedDay <= today) {
+    if (effective >= ctx.start && effective <= today) {
       count_mtd += 1;
       value_mtd_usd += usd;
     }
@@ -77,7 +111,19 @@ export function buildCancellations(
     value_today_usd: round2(value_today_usd),
     count_mtd,
     value_mtd_usd: round2(value_mtd_usd),
+    details_yesterday: details_yesterday.sort(
+      (a, b) => b.value_usd - a.value_usd
+    ),
   };
+}
+
+function normalizeChannelInline(source: string | null): string {
+  const raw = String(source || '').trim().toLowerCase();
+  if (!raw) return 'Direct';
+  if (raw.includes('airbnb')) return 'Airbnb';
+  if (raw.includes('booking')) return 'Booking.com';
+  if (raw === 'manual' || raw === 'direct' || raw.includes('direct')) return 'Direct';
+  return raw.replace(/\b\w/g, c => c.toUpperCase());
 }
 
 export async function buildDeadInventoryAsync(

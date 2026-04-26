@@ -717,6 +717,22 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
         </div>
       </div>
 
+      {/* v2 Weekly digest banner (S8) */}
+      {payload.weekly_digest && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 8,
+            background: '#1e3a5f',
+            color: 'white',
+            fontSize: 10.5,
+            borderRadius: 4,
+          }}
+        >
+          📅 <strong>{payload.weekly_digest.oneliner}</strong>
+        </div>
+      )}
+
       {/* Digest */}
       <div
         style={{
@@ -750,9 +766,13 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
 
       <BuildingsTable payload={payload} />
       <PayoutsBlock payload={payload} />
-      <ChannelMix payload={payload} />
-      <CancellationsAndTriage payload={payload} />
+      <V2_PairedChannelMix payload={payload} />
+      <V2_CancellationsAndTriage payload={payload} />
       <CleaningOps payload={payload} />
+      <V2_NoShow payload={payload} />
+      <V2_BlocksAndAvailable payload={payload} />
+      <V2_CheckinPayment payload={payload} />
+      <V2_Conversations payload={payload} />
 
       {/* Page break before reviews */}
       <div style={{ pageBreakBefore: 'always', marginTop: 14 }}>
@@ -774,6 +794,334 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
       >
         Generated {payload.generated_at_iso} · Beithady InboxOps · Auto-deletes 48h after generation
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// v2 sections — Yesterday + MTD pairs, popouts via <details> / <dialog>
+// ─────────────────────────────────────────────────────────────────────────
+
+function V2_PairedChannelMix({ payload }: { payload: DailyReportPayload }) {
+  if (!payload.paired_channel_mix || payload.paired_channel_mix.length === 0) {
+    return <ChannelMix payload={payload} />;
+  }
+  return (
+    <div style={{ marginTop: 14, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
+        CHANNEL MIX — Yesterday vs MTD
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <thead>
+          <tr>
+            <th style={{ ...colHead, textAlign: 'left' }}>Channel</th>
+            <th style={colHead}>Yest $</th>
+            <th style={colHead}>Yest %</th>
+            <th style={colHead}>MTD $</th>
+            <th style={colHead}>MTD %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {payload.paired_channel_mix.map((m, i) => (
+            <tr key={i}>
+              <td style={lblCell}><strong>{m.channel}</strong></td>
+              <td style={numCell}>{fmtUsd1(m.yesterday_revenue_usd)}</td>
+              <td style={numCell}>{m.yesterday_pct.toFixed(1)}%</td>
+              <td style={numCell}>{fmtUsd1(m.mtd_revenue_usd)}</td>
+              <td style={numCell}>{m.mtd_pct.toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function V2_CancellationsAndTriage({ payload }: { payload: DailyReportPayload }) {
+  const c = payload.cancellations;
+  const details = payload.cancellation_details || [];
+  return (
+    <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+      <div style={{ flex: 1, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
+          CANCELLATIONS
+        </div>
+        <div style={{ fontSize: 10, color: C.ink }}>
+          Yesterday: <strong>{c.count_today}</strong>
+          {c.value_today_usd > 0 && ` · ${fmtUsd1(c.value_today_usd)}`}
+        </div>
+        <div style={{ fontSize: 10, color: C.ink2, marginTop: 2 }}>
+          MTD: {c.count_mtd} · {fmtUsd1(c.value_mtd_usd)}
+        </div>
+        {details.length > 0 && (
+          <details style={{ marginTop: 6 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 9, color: C.brand, fontWeight: 600 }}>
+              Show {details.length} cancellation detail{details.length === 1 ? '' : 's'} ▾
+            </summary>
+            <div style={{ marginTop: 4, fontSize: 9 }}>
+              {details.map((d, i) => (
+                <div key={i} style={{ padding: '3px 0', borderBottom: `1px solid ${C.line}` }}>
+                  <strong>{d.code || d.id.slice(0, 8)}</strong> · {d.unit} · {d.channel}<br />
+                  <span style={{ color: C.muted }}>
+                    Guest: {d.guest || '—'} · Was check-in: {d.check_in || '—'} · {fmtUsd1(d.value_usd)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+      <div style={{ flex: 1, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
+          INQUIRY TRIAGE
+        </div>
+        <div style={{ fontSize: 10, color: C.ink }}>
+          Inquiries unanswered:{' '}
+          <strong style={{ color: payload.inquiry_triage.inquiries_unanswered_count > 0 ? C.amber : C.ink }}>
+            {payload.inquiry_triage.inquiries_unanswered_count}
+          </strong>
+        </div>
+        <div style={{ fontSize: 10, color: C.ink2, marginTop: 2 }}>
+          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} · high:{' '}
+          {payload.inquiry_triage.in_stay_high_count}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function V2_NoShow({ payload }: { payload: DailyReportPayload }) {
+  const ns = payload.no_show;
+  if (!ns || ns.no_shows.length === 0) return null;
+  return (
+    <div style={{ marginTop: 14, padding: 10, background: '#fef2f2', border: `1px solid ${C.red}`, borderRadius: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.red, marginBottom: 6 }}>
+        🚫 NO-SHOW ALERT — {ns.no_shows.length} of {ns.expected} expected check-ins
+      </div>
+      <div style={{ fontSize: 10 }}>
+        {ns.no_shows.map((n, i) => (
+          <div key={i} style={{ color: C.ink, marginBottom: 2 }}>
+            <strong>{n.unit}</strong> · {n.channel} · {n.guest || 'Guest'} {n.code ? `(${n.code})` : ''}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function V2_BlocksAndAvailable({ payload }: { payload: DailyReportPayload }) {
+  const b = payload.blocks;
+  if (!b) return null;
+  return (
+    <div style={{ marginTop: 14, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
+        BLOCKS & AVAILABILITY
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <tbody>
+          <tr>
+            <td style={lblCell}>Yesterday — manual / confirmed / total blocked units</td>
+            <td style={{ ...numCell, fontWeight: 600 }}>
+              {b.yesterday.manual_block_units} / {b.yesterday.confirmed_block_units} / {b.yesterday.total_blocked_units}
+            </td>
+          </tr>
+          <tr>
+            <td style={lblCell}>Forward (today → EOM, {b.forward.days_remaining} days)</td>
+            <td style={numCell}>
+              {b.forward.available_nights.toLocaleString()} avail of {b.forward.total_unit_nights.toLocaleString()} ({b.forward.available_pct}%)
+            </td>
+          </tr>
+          <tr>
+            <td style={lblCell}>Manual blocked nights / Confirmed blocked nights</td>
+            <td style={numCell}>
+              {b.forward.manual_block_nights.toLocaleString()} / {b.forward.confirmed_block_nights.toLocaleString()}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {b.manual_blocks_open.length > 0 && (
+        <details style={{ marginTop: 6 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 9, color: C.brand, fontWeight: 600 }}>
+            Show {b.manual_blocks_open.length} manual block{b.manual_blocks_open.length === 1 ? '' : 's'} ▾
+          </summary>
+          <div style={{ marginTop: 4, fontSize: 9, columnCount: 2, columnGap: 16 }}>
+            {b.manual_blocks_open.map((mb, i) => (
+              <div key={i}>
+                <strong>{mb.unit}</strong> · {mb.from} → {mb.to}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function V2_CheckinPayment({ payload }: { payload: DailyReportPayload }) {
+  const cp = payload.checkin_payment;
+  if (!cp) return null;
+  return (
+    <div style={{ marginTop: 14, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
+        CHECK-INS WITH RECORDED PAYMENT
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <thead>
+          <tr>
+            <th style={{ ...colHead, textAlign: 'left' }}> </th>
+            <th style={colHead}>Total</th>
+            <th style={colHead}>With pmt</th>
+            <th style={colHead}>Without</th>
+            <th style={colHead}>%</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={lblCell}><strong>Yesterday</strong></td>
+            <td style={numCell}>{cp.yesterday.checkins}</td>
+            <td style={numCell}>{cp.yesterday.with_payment}</td>
+            <td style={{ ...numCell, color: cp.yesterday.without_payment > 0 ? C.red : C.ink }}>
+              {cp.yesterday.without_payment}
+            </td>
+            <td style={numCell}>{cp.yesterday.pct}%</td>
+          </tr>
+          <tr>
+            <td style={lblCell}>MTD</td>
+            <td style={numCell}>{cp.mtd.checkins}</td>
+            <td style={numCell}>{cp.mtd.with_payment}</td>
+            <td style={numCell}>{cp.mtd.without_payment}</td>
+            <td style={numCell}>{cp.mtd.pct}%</td>
+          </tr>
+        </tbody>
+      </table>
+      {cp.flagged.length > 0 && (
+        <details style={{ marginTop: 6 }}>
+          <summary style={{ cursor: 'pointer', fontSize: 9, color: C.red, fontWeight: 600 }}>
+            🚩 {cp.flagged.length} check-in{cp.flagged.length === 1 ? '' : 's'} without payment ▾
+          </summary>
+          <div style={{ marginTop: 4, fontSize: 9 }}>
+            {cp.flagged.map((f, i) => (
+              <div key={i} style={{ padding: '2px 0' }}>
+                <strong>{f.code || '—'}</strong> · {f.unit} · {f.guest || '—'} · {f.check_in_date}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function V2_Conversations({ payload }: { payload: DailyReportPayload }) {
+  const conv = payload.conversations;
+  if (!conv) return null;
+  const fmtMin = (m: number) => (m >= 60 ? `${(m / 60).toFixed(1)}h` : `${Math.round(m)}m`);
+  const dialogId = 'beithady-worst-agents';
+  return (
+    <div style={{ marginTop: 14, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
+        CONVERSATIONS — Response time + Messages
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <thead>
+          <tr>
+            <th style={{ ...colHead, textAlign: 'left' }}> </th>
+            <th style={colHead}>Avg response</th>
+            <th style={colHead}>First response</th>
+            <th style={colHead}>Guest msgs</th>
+            <th style={colHead}>Sample</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={lblCell}><strong>Yesterday</strong></td>
+            <td style={numCell}>{fmtMin(conv.yesterday.avg_response_minutes)}</td>
+            <td style={numCell}>{fmtMin(conv.yesterday.first_response_avg_minutes)}</td>
+            <td style={numCell}>{conv.yesterday.guest_message_count}</td>
+            <td style={numCell}>{conv.yesterday.sample_size}</td>
+          </tr>
+          <tr>
+            <td style={lblCell}>MTD</td>
+            <td style={numCell}>{fmtMin(conv.mtd.avg_response_minutes)}</td>
+            <td style={numCell}>{fmtMin(conv.mtd.first_response_avg_minutes)}</td>
+            <td style={numCell}>{conv.mtd.guest_message_count}</td>
+            <td style={numCell}>{conv.mtd.sample_size}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* SLA buckets */}
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        {conv.sla_buckets_yesterday.map(b => (
+          <div key={b.bucket} style={{ flex: 1, padding: 4, background: C.card, borderRadius: 4, textAlign: 'center', fontSize: 9 }}>
+            <div style={{ color: C.muted }}>{b.bucket}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{b.count}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Worst-2 agents trigger */}
+      {conv.worst_2_agents.length > 0 && (
+        <>
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              data-dialog-trigger={dialogId}
+              style={{
+                fontSize: 9,
+                background: C.brand,
+                color: 'white',
+                border: 'none',
+                padding: '4px 10px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              View worst-2 agents ({conv.worst_2_agents.length}) →
+            </button>
+            <span style={{ fontSize: 9, color: C.muted, marginLeft: 8 }}>
+              {conv.worst_2_agents
+                .map(a => `${a.agent_name}: ${fmtMin(a.avg_response_minutes)}`)
+                .join(' · ')}
+            </span>
+          </div>
+          {/* The dialog (hidden by default) */}
+          <dialog
+            id={dialogId}
+            style={{
+              padding: 16,
+              border: `1px solid ${C.brand}`,
+              borderRadius: 6,
+              maxWidth: '90vw',
+              minWidth: 480,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <strong style={{ color: C.brand, fontSize: 13 }}>Worst-2 Agents — Response Time (MTD)</strong>
+              <button
+                type="button"
+                data-dialog-close={dialogId}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18 }}
+              >
+                ×
+              </button>
+            </div>
+            {conv.worst_2_agents.map((a, i) => (
+              <div key={i} style={{ marginBottom: 12, fontSize: 10 }}>
+                <div style={{ fontWeight: 700, color: C.ink }}>
+                  {a.agent_name} — avg {fmtMin(a.avg_response_minutes)} ({a.sample_size} responses)
+                </div>
+                {a.slow_threads.map((t, j) => (
+                  <div key={j} style={{ marginTop: 3, paddingLeft: 8, borderLeft: `2px solid ${C.amber}`, color: C.ink2 }}>
+                    {t.subject || '(no subject)'} — <strong>{fmtMin(t.minutes)}</strong> · {t.created_at.slice(0, 16).replace('T', ' ')}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </dialog>
+        </>
+      )}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import {
   monthLabel,
   reportDateLabel,
   addDays,
+  yesterday as yesterdayOf,
+  reportPeriodWindow,
 } from './cairo-dates';
 import { loadBuildingInventories } from './units';
 import { loadReservationCorpus } from './reservations';
@@ -19,6 +21,12 @@ import {
   buildInquiryTriage,
   buildCleaningOps,
 } from './build-extras';
+import { buildConversationsSection } from './build-conversations';
+import { buildCheckinPaymentSection } from './build-payment-checkins';
+import { buildBlocksSection } from './build-blocks';
+import { buildNoShowSection } from './build-no-show';
+import { buildWeeklyDigest } from './build-weekly-digest';
+import { buildPairedChannelMix } from './build-channels-paired';
 import type { DailyReportPayload } from './types';
 
 // Orchestrator. Single entry point: returns a fully-built DailyReportPayload
@@ -28,8 +36,16 @@ import type { DailyReportPayload } from './types';
 export async function buildDailyReport(
   reportDateYmd?: string
 ): Promise<DailyReportPayload> {
-  const today = reportDateYmd || cairoYmd();
+  // v2 date semantics: report run "today" describes "yesterday's" full
+  // 24h period (00:00–23:59 Cairo). All "today" math in the existing
+  // builders points at the report's DATA date (yesterday) rather than
+  // the GENERATION date. We keep the local var named `today` in the
+  // existing builders so they require minimal change.
+  const generationDate = reportDateYmd || cairoYmd();
+  const yesterdayDate = yesterdayOf(generationDate);
+  const today = yesterdayDate; // alias for clarity in this scope
   const ctx = cairoMonthContext(today);
+  const period = reportPeriodWindow(generationDate);
   const generatedAt = new Date();
   const fxDate = generatedAt;
 
@@ -49,18 +65,28 @@ export async function buildDailyReport(
   const cancellations = buildCancellations(corpus.canceled, ctx);
   const cleaning_ops_today = buildCleaningOps(corpus.active, ctx);
 
+  // v2 sync builders
+  const checkin_payment = buildCheckinPaymentSection(corpus.active, period);
+  const no_show = buildNoShowSection(corpus.active, period);
+  const weekly_digest = buildWeeklyDigest(corpus.active, corpus.canceled, period);
+  const paired_channel_mix = buildPairedChannelMix(corpus.active, period);
+
   const [
     payoutsResult,
     reviewsResult,
     deadInventory,
     pricingResult,
     triageResult,
+    conversationsResult,
+    blocksResult,
   ] = await Promise.all([
     buildPayoutsSection(corpus.active, ctx),
     buildReviewsSection(ctx),
     buildDeadInventoryAsync(corpus.active, inventories, ctx),
     buildPricingAlerts(),
     buildInquiryTriage(),
+    buildConversationsSection(period),
+    buildBlocksSection(inventories, period),
   ]);
 
   const warnings = [
@@ -68,9 +94,11 @@ export async function buildDailyReport(
     ...reviewsResult.warnings,
     ...pricingResult.warnings,
     ...triageResult.warnings,
+    ...conversationsResult.warnings,
   ];
 
-  // Plain-English digest.
+  // Plain-English digest. Header copy now reads "Yesterday: …" so the
+  // recipient understands the report describes a completed day.
   const digest = composeDigest({
     today,
     occupiedAll: buildings.all.occupied_today,
@@ -95,10 +123,16 @@ export async function buildDailyReport(
     if (r.currency && r.currency !== 'USD') seenCurrencies.add(r.currency);
   }
 
+  // Cancellation popout details (yesterday's actually-canceled rows).
+  const cancellationDetails = (cancellations as unknown as {
+    details_yesterday?: DailyReportPayload['cancellation_details'];
+  }).details_yesterday || [];
+
   return {
     report_date: today,
     generated_at_iso: generatedAt.toISOString(),
-    generated_at_cairo: `${reportDateLabel(today)} · 09:00 Cairo`,
+    // v2 header: "for Sat, 25 Apr 2026 · Generated 26 Apr 09:00 Cairo"
+    generated_at_cairo: `for ${reportDateLabel(today)} · Generated ${reportDateLabel(generationDate)} 09:00 Cairo`,
     month_label: monthLabel(today),
     month_days_total: ctx.days_total,
     month_days_elapsed: ctx.days_elapsed,
@@ -115,6 +149,16 @@ export async function buildDailyReport(
     digest_oneliner: digest,
     build_warnings: warnings,
     fx_rates_used: fxRatesUsed,
+    // v2 additions
+    period_yesterday: yesterdayDate,
+    period_generated_today: generationDate,
+    cancellation_details: cancellationDetails,
+    conversations: conversationsResult.section,
+    checkin_payment,
+    blocks: blocksResult,
+    no_show,
+    weekly_digest,
+    paired_channel_mix,
   };
 }
 
@@ -146,7 +190,7 @@ function composeDigest(p: {
   const flag =
     p.flaggedCount > 0 ? ` · ${p.flaggedCount} flagged 🚩` : '';
   return (
-    `Today: ${p.occupiedAll}/${p.totalUnits} occupied (${p.occPct.toFixed(1)}%). ` +
+    `Yesterday: ${p.occupiedAll}/${p.totalUnits} occupied (${p.occPct.toFixed(1)}%). ` +
     `${p.checkIns} check-ins · ${p.checkOuts} check-outs · ${p.turnovers} turnovers. ` +
     `${p.monthLabelStr} revenue ${fmtUsd(p.revenueMtd)}${pickup}. ` +
     `${p.reviewsCount} reviews this month · ${p.avgRating.toFixed(1)}★ avg${flag}.`

@@ -28,8 +28,13 @@ import {
 const BACKFILL_DAYS = 365;
 const LISTINGS_FIELDS =
   '_id nickname title active listingType masterListingId bedrooms accommodates propertyType accountId address tags customFields';
+// Includes cancelledAt + lastUpdatedAt so the daily report's cancellations
+// section can pin to the correct timestamp. Without these, the previous
+// sync was silently dropping cancellation date info: the mirror's
+// `updated_at_odoo` column tracks Guesty's `updatedAt`, which doesn't
+// always refresh on status flips for older reservations.
 const RESERVATION_FIELDS =
-  '_id confirmationCode status source listingId accountId guest.fullName guest.email guest.phone checkInDateLocalized checkOutDateLocalized nightsCount guestsCount money.hostPayout money.guestPaid money.fareAccommodation money.cleaningFee money.currency integration.platform integration.confirmationCode createdAt updatedAt';
+  '_id confirmationCode status source listingId accountId guest.fullName guest.email guest.phone checkInDateLocalized checkOutDateLocalized nightsCount guestsCount money.hostPayout money.guestPaid money.fareAccommodation money.cleaningFee money.currency integration.platform integration.confirmationCode createdAt updatedAt cancelledAt lastUpdatedAt';
 
 // Normalize a Guesty /reviews row into our guesty_reviews schema. Each
 // channel ships a different `rawReview` shape:
@@ -290,6 +295,12 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
           cleaning_fee: toNumber(money.cleaningFee),
           created_at_odoo: toTs(r.createdAt),
           updated_at_odoo: toTs(r.updatedAt),
+          // v2 daily report: pin cancellation date so the cancellations
+          // section can find recent cancels without falling back to the
+          // (often-stale) updatedAt timestamp.
+          cancelled_at: toTs(
+            (r as unknown as { cancelledAt?: string }).cancelledAt
+          ),
           raw: (r as unknown) as Record<string, unknown>,
           synced_at: new Date().toISOString(),
         };
@@ -454,6 +465,46 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
             limit: 50,
           });
           conversationPostsFetched += postsRes.posts?.length || 0;
+
+          // v2 daily report: persist each post into guesty_conversation_posts
+          // so the conversations builder can compute response time, message
+          // counts, and per-agent ranking. Upsert by Guesty post _id.
+          const postRows = (postsRes.posts || [])
+            .filter(p => p && typeof p._id === 'string' && typeof p.createdAt === 'string')
+            .map(p => {
+              const from = (p.from || {}) as { type?: string; fullName?: string };
+              const module = (p.module || {}) as { type?: string; subject?: string; reservationId?: string };
+              const text =
+                (typeof p.plainTextBody === 'string' && p.plainTextBody) ||
+                (typeof p.body === 'string' && p.body) ||
+                '';
+              return {
+                id: String(p._id),
+                conversation_id: t.id,
+                account_id:
+                  typeof (p as unknown as { accountId?: string }).accountId === 'string'
+                    ? (p as unknown as { accountId?: string }).accountId
+                    : null,
+                reservation_id: typeof module.reservationId === 'string' ? module.reservationId : null,
+                sent_by: typeof p.sentBy === 'string' ? p.sentBy : null,
+                from_type: typeof from.type === 'string' ? from.type : null,
+                from_full_name: typeof from.fullName === 'string' ? from.fullName : null,
+                is_automatic: typeof p.isAutomatic === 'boolean' ? p.isAutomatic : null,
+                module_type: typeof module.type === 'string' ? module.type : null,
+                module_subject: typeof module.subject === 'string' ? module.subject.slice(0, 500) : null,
+                body_text: text ? text.slice(0, 4000) : null,
+                created_at_guesty: p.createdAt,
+                raw: p as unknown as Record<string, unknown>,
+                synced_at: new Date().toISOString(),
+              };
+            });
+          if (postRows.length > 0) {
+            for (let i = 0; i < postRows.length; i += 200) {
+              await sb
+                .from('guesty_conversation_posts')
+                .upsert(postRows.slice(i, i + 200), { onConflict: 'id' });
+            }
+          }
 
           const { latest, first, guestCount, hostCount } = extractGuestPosts(
             postsRes.posts || []

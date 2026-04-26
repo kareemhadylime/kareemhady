@@ -125,6 +125,81 @@ export type CleaningOpsRow = {
   checkin_guest: string | null;
 };
 
+// v2 additions: per-section types for new metrics. The detail-row shapes
+// for popouts (cancellations details, no-show list, agent slow threads)
+// are owned by their respective build modules and re-exported here.
+export type CancellationDetailRow = {
+  id: string;
+  code: string | null;
+  unit: string;
+  channel: string;
+  guest: string | null;
+  check_in: string | null;
+  value_usd: number;
+  canceled_at: string;
+};
+
+export type ConversationsSectionV2 = {
+  yesterday: { avg_response_minutes: number; first_response_avg_minutes: number; guest_message_count: number; sample_size: number };
+  mtd: { avg_response_minutes: number; first_response_avg_minutes: number; guest_message_count: number; sample_size: number };
+  worst_2_agents: Array<{
+    agent_name: string;
+    avg_response_minutes: number;
+    sample_size: number;
+    slow_threads: Array<{ conversation_id: string; subject: string | null; minutes: number; created_at: string }>;
+  }>;
+  sla_buckets_yesterday: { bucket: '<1h' | '1-4h' | '4-24h' | '>24h'; count: number }[];
+};
+
+export type CheckinPaymentSectionV2 = {
+  yesterday: { checkins: number; with_payment: number; without_payment: number; pct: number };
+  mtd: { checkins: number; with_payment: number; without_payment: number; pct: number };
+  flagged: Array<{ code: string | null; unit: string; guest: string | null; check_in_date: string; reason: string }>;
+};
+
+export type BlocksSectionV2 = {
+  yesterday: { manual_block_units: number; confirmed_block_units: number; total_blocked_units: number; occupancy_pct: number };
+  forward: {
+    days_remaining: number;
+    total_unit_nights: number;
+    manual_block_nights: number;
+    confirmed_block_nights: number;
+    available_nights: number;
+    available_pct: number;
+  };
+  manual_blocks_open: Array<{ unit: string; from: string; to: string }>;
+};
+
+export type NoShowSectionV2 = {
+  expected: number;
+  checked_in: number;
+  no_shows: Array<{ code: string | null; unit: string; guest: string | null; channel: string }>;
+};
+
+export type WeeklyDigestV2 = {
+  week_start: string;
+  week_end: string;
+  days_elapsed: number;
+  revenue_usd: number;
+  bookings: number;
+  cancellations: number;
+  prior_revenue_usd: number;
+  prior_bookings: number;
+  revenue_vs_last_week_pct: number;
+  bookings_vs_last_week_pct: number;
+  oneliner: string;
+};
+
+export type PairedChannelMixV2 = {
+  channel: string;
+  yesterday_revenue_usd: number;
+  yesterday_pct: number;
+  mtd_revenue_usd: number;
+  mtd_pct: number;
+  yesterday_net_usd: number | null;
+  mtd_net_usd: number | null;
+};
+
 export type DailyReportPayload = {
   // ---- Header / context ----
   report_date: string;             // 'YYYY-MM-DD' (Cairo)
@@ -156,4 +231,24 @@ export type DailyReportPayload = {
   // ---- Build metadata ----
   build_warnings: string[];        // soft errors that didn't fail the build
   fx_rates_used: { quote: string; rate: number; source: string }[];
+
+  // ---- v2 additions ----
+  /** Wall date the report DESCRIBES (yesterday in Cairo). */
+  period_yesterday?: string;
+  /** Wall date the report was GENERATED (today in Cairo). */
+  period_generated_today?: string;
+  /** Cancellation popout detail rows for yesterday. */
+  cancellation_details?: CancellationDetailRow[];
+  /** Conversations section v2 (response time + agent ranking + SLA buckets). */
+  conversations?: ConversationsSectionV2;
+  /** Check-ins with recorded payment cross-check. */
+  checkin_payment?: CheckinPaymentSectionV2;
+  /** Blocks + available-nights forward look. */
+  blocks?: BlocksSectionV2;
+  /** No-show alert list for yesterday. */
+  no_show?: NoShowSectionV2;
+  /** Weekly digest banner (Sun→Sat). */
+  weekly_digest?: WeeklyDigestV2;
+  /** Booking-channel mix paired Yesterday + MTD (replaces v1 `channel_mix` long-term). */
+  paired_channel_mix?: PairedChannelMixV2[];
 };

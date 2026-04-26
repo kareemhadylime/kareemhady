@@ -543,6 +543,145 @@ function DeadInventoryPdf({ payload }: { payload: DailyReportPayload }) {
   );
 }
 
+// v2 PDF blocks — paired metrics with no popouts (PDF is summary-only).
+
+function V2_WeeklyDigestPdf({ payload }: { payload: DailyReportPayload }) {
+  const w = payload.weekly_digest;
+  if (!w) return null;
+  return (
+    <View
+      style={{
+        padding: 5,
+        backgroundColor: PALETTE.brand,
+        borderRadius: 2,
+        marginBottom: 6,
+      }}
+    >
+      <Text style={{ color: 'white', fontSize: 8, fontFamily: 'Helvetica-Bold' }}>
+        Week {w.week_start} → {w.week_end}: {w.oneliner.replace(/^[^:]+:\s/, '')}
+      </Text>
+    </View>
+  );
+}
+
+function V2_PairedChannelsPdf({ payload }: { payload: DailyReportPayload }) {
+  const list = payload.paired_channel_mix || [];
+  if (list.length === 0) return null;
+  return (
+    <View style={styles.card}>
+      <Text style={styles.sectionTitle}>CHANNEL MIX — Yesterday vs MTD</Text>
+      <View style={styles.payoutsRow}>
+        <Text style={styles.tdLeft}> </Text>
+        <Text style={[styles.td, { fontFamily: 'Helvetica-Bold' }]}>Yest $</Text>
+        <Text style={[styles.td, { fontFamily: 'Helvetica-Bold' }]}>Yest %</Text>
+        <Text style={[styles.td, { fontFamily: 'Helvetica-Bold' }]}>MTD $</Text>
+        <Text style={[styles.td, { fontFamily: 'Helvetica-Bold' }]}>MTD %</Text>
+      </View>
+      {list.map((m, i) => (
+        <View key={i} style={styles.payoutsRow}>
+          <Text style={styles.tdLeft}>{m.channel}</Text>
+          <Text style={styles.td}>{fmtUsd(m.yesterday_revenue_usd)}</Text>
+          <Text style={styles.td}>{m.yesterday_pct.toFixed(1)}%</Text>
+          <Text style={styles.td}>{fmtUsd(m.mtd_revenue_usd)}</Text>
+          <Text style={styles.td}>{m.mtd_pct.toFixed(1)}%</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function V2_ConvAndPaymentPdf({ payload }: { payload: DailyReportPayload }) {
+  const conv = payload.conversations;
+  const cp = payload.checkin_payment;
+  if (!conv && !cp) return null;
+  const fmtMin = (m: number) => (m >= 60 ? `${(m / 60).toFixed(1)}h` : `${Math.round(m)}m`);
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+      {conv && (
+        <View style={[styles.card, { flex: 1, marginTop: 0 }]}>
+          <Text style={styles.sectionTitle}>RESPONSE TIME</Text>
+          <Text style={{ fontSize: 8 }}>
+            Yesterday avg: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{fmtMin(conv.yesterday.avg_response_minutes)}</Text> · first {fmtMin(conv.yesterday.first_response_avg_minutes)}
+          </Text>
+          <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
+            MTD avg: {fmtMin(conv.mtd.avg_response_minutes)} · first {fmtMin(conv.mtd.first_response_avg_minutes)}
+          </Text>
+          <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
+            Guest msgs Y/MTD: {conv.yesterday.guest_message_count} / {conv.mtd.guest_message_count}
+          </Text>
+          {conv.worst_2_agents.length > 0 && (
+            <Text style={{ fontSize: 7.5, color: PALETTE.red, marginTop: 3 }}>
+              Worst-2: {conv.worst_2_agents.map(a => `${a.agent_name} ${fmtMin(a.avg_response_minutes)}`).join(' · ')}
+            </Text>
+          )}
+        </View>
+      )}
+      {cp && (
+        <View style={[styles.card, { flex: 1, marginTop: 0 }]}>
+          <Text style={styles.sectionTitle}>CHECK-INS WITH PAYMENT</Text>
+          <Text style={{ fontSize: 8 }}>
+            Yesterday: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{cp.yesterday.with_payment}/{cp.yesterday.checkins}</Text> ({cp.yesterday.pct}%)
+          </Text>
+          <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
+            MTD: {cp.mtd.with_payment}/{cp.mtd.checkins} ({cp.mtd.pct}%)
+          </Text>
+          {cp.flagged.length > 0 && (
+            <Text style={{ fontSize: 7.5, color: PALETTE.red, marginTop: 2 }}>
+              {cp.flagged.length} no-payment flag{cp.flagged.length === 1 ? '' : 's'}
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function V2_BlocksAndNoShowPdf({ payload }: { payload: DailyReportPayload }) {
+  const b = payload.blocks;
+  const ns = payload.no_show;
+  if (!b && (!ns || ns.no_shows.length === 0)) return null;
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+      {b && (
+        <View style={[styles.card, { flex: 1.5, marginTop: 0 }]}>
+          <Text style={styles.sectionTitle}>BLOCKS & AVAILABILITY</Text>
+          <Text style={{ fontSize: 8 }}>
+            Yesterday blocked: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{b.yesterday.total_blocked_units}</Text> ({b.yesterday.manual_block_units} manual / {b.yesterday.confirmed_block_units} confirmed)
+          </Text>
+          <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
+            Forward {b.forward.days_remaining}d to EOM: {b.forward.available_nights.toLocaleString()} of {b.forward.total_unit_nights.toLocaleString()} avail ({b.forward.available_pct}%)
+          </Text>
+          <Text style={{ fontSize: 7.5, color: PALETTE.muted, marginTop: 1 }}>
+            Manual blocked: {b.forward.manual_block_nights.toLocaleString()} nights · confirmed: {b.forward.confirmed_block_nights.toLocaleString()} nights
+          </Text>
+        </View>
+      )}
+      {ns && ns.no_shows.length > 0 && (
+        <View
+          style={[
+            styles.card,
+            {
+              flex: 1,
+              marginTop: 0,
+              borderColor: PALETTE.red,
+              backgroundColor: '#fef2f2',
+            },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: PALETTE.red }]}>
+            NO-SHOWS — {ns.no_shows.length} of {ns.expected}
+          </Text>
+          {ns.no_shows.slice(0, 5).map((n, i) => (
+            <Text key={i} style={{ fontSize: 7.5, marginBottom: 1 }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>{n.unit}</Text> · {n.guest || '—'} · {n.channel}
+            </Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
   const logo = getLogoBytes();
   return (
@@ -565,6 +704,8 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
           </Text>
         </View>
 
+        <V2_WeeklyDigestPdf payload={payload} />
+
         <View style={styles.digestBox}>
           <Text>{payload.digest_oneliner}</Text>
         </View>
@@ -585,8 +726,10 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
 
         <BuildingsTablePdf payload={payload} />
         <PayoutsBlockPdf payload={payload} />
-        <ChannelMixPdf payload={payload} />
+        <V2_PairedChannelsPdf payload={payload} />
         <MiniBlocksPdf payload={payload} />
+        <V2_ConvAndPaymentPdf payload={payload} />
+        <V2_BlocksAndNoShowPdf payload={payload} />
         <CleaningOpsPdf payload={payload} />
 
         <Text
