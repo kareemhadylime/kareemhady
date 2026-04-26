@@ -1,4 +1,93 @@
-# Kareemhady — Session Handoff (2026-04-25)
+# Kareemhady — Session Handoff (2026-04-26)
+
+## ✅ Beithady Daily Performance Report — full implementation (CODED, NOT YET DEPLOYED)
+
+End-to-end daily WhatsApp + Email report for Beithady performance. **Code complete on the worktree branch `claude/great-lichterman-625c77`. Type-check + `npx next build` pass. Awaiting user sign-off to merge to main + run `vercel --prod`.**
+
+**Decisions delivered:**
+- Sources: Guesty + PriceLabs APIs (emails fallback only)
+- Delivery: WhatsApp text+link (no PDF attach) + Email HTML body + A4 PDF attachment
+- Schedule: every 30 min cron between 06:00–21:30 UTC, gated to Cairo hour ≥ 9; idempotent retry-until-success
+- Currency: USD only; AED peg 3.6725, EGP via `exchangerate.host` daily cached
+- Buildings: BH-26, BH-73, BH-435, BH-OK + Other column; "All" pulled directly (drift warning if sum diverges by >1%)
+- Occupancy denom: physical sub-units (BH-73 = sub-units, MTL parents excluded)
+- 48-hr auto-delete (hourly cleanup cron clears `pdf_bytes` + `payload` + sets `deleted_at`)
+- C1: BH-435 gross revenue only (no owner-share split)
+- C2: Backward occupancy = both `avg-units-occupied/day` AND `%`
+- C3: WhatsApp link only; PDF by email
+- W1: extra admin gate on /setup (`is_admin === true`)
+- W2: "Send Test Now" → clicker only (matches recipient by username)
+- W3: phone with `+`, normalized at send-time
+- W4: never zero-data; retries through the day until `delivery_complete`
+
+**Migration applied via Supabase MCP** (project `bpjproljatbrbmszwbov`):
+- `report_recipients` (admin-managed)
+- `daily_report_snapshots` (token, payload jsonb, pdf_bytes, expires_at, delivery_complete, build_attempts, last_build_error)
+- `daily_report_deliveries` (per-recipient, unique on `sent` status — idempotent retries)
+- `fx_rates` (USD-base daily cache)
+- File: `supabase/migrations/0025_beithady_daily_report.sql`
+
+**New library** (`src/lib/beithady-daily-report/`):
+- `types.ts` — `DailyReportPayload` shape
+- `cairo-dates.ts` — Cairo-aware month/day helpers + DST-safe gate
+- `fx.ts` — USD conversion with daily cache, AED peg, exchangerate.host fallback
+- `units.ts` — physical sub-unit inventory (handles MTL parents)
+- `reservations.ts` — corpus loader with USD-converted `host_payout_usd`
+- `build-buildings.ts` — single-pass per-building + "All" table (today, MTD, pace, LoS)
+- `build-payouts.ts` — Airbnb (check_in_date = today−1) + Stripe (arrival_date = today+1) + 7-day projection
+- `build-reviews.ts` — Haiku-summarized last-24h + MTD distribution
+- `build-extras.ts` — channel mix, cancellations, dead inventory, pricing alerts, inquiry triage, cleaning ops
+- `build.ts` — orchestrator with one-line plain-English digest at top
+- `render-html.tsx` — A4-styled HTML render (used by /r/beithady/[token] page)
+- `render-pdf.tsx` — `@react-pdf/renderer` 2-page A4 PDF
+- `distribute.ts` — fanout, dedupe via existing successful-send rows, WhatsApp text + Email HTML+PDF
+- `run.ts` — idempotent run orchestrator (snapshot upsert → build-if-null → pdf-if-null → distribute → mark complete)
+
+**New routes:**
+- `src/app/api/cron/beithady-daily-report/route.ts` — main cron (CRON_SECRET bearer auth, `?force=1` skips 9 AM gate)
+- `src/app/api/cron/beithady-daily-report-cleanup/route.ts` — hourly 48-hr expiry cleanup
+- `src/app/r/beithady/[token]/page.tsx` — public tokenized HTML preview (proxy whitelisted via `/r/` prefix)
+- `src/app/emails/beithady/setup/page.tsx` — admin recipient CRUD + delivery monitor (W1 gate via `me.is_admin`)
+- `src/app/emails/beithady/setup/actions.ts` — addRecipient / toggle / delete / sendTestNow + void-returning form-action wrappers
+
+**Modified:**
+- `package.json` — added `@react-pdf/renderer ^4.1.6` (installed; v4.5.1 resolved); package-lock.json regenerated
+- `vercel.json` — `*/30 6-21 * * *` for run, `0 * * * *` for cleanup
+- `src/lib/gmail.ts` — added `sendHtmlEmailWithAttachment()` (multipart MIME, base64 PDF)
+- `src/proxy.ts` — added `/r/` to PUBLIC_PREFIXES so tokenized links work without login
+- `src/app/emails/[domain]/page.tsx` — added "Daily Performance Report" card linking to /setup
+
+**Verified:**
+- `npx tsc --noEmit` clean
+- `npx next build` passes; new routes registered (`/r/beithady/[token]`, `/emails/beithady/setup`, `/api/cron/beithady-daily-report`, `/api/cron/beithady-daily-report-cleanup`)
+- Migration applied successfully via MCP (`{"success": true}`)
+
+**Sender email:** `kareem@limeinc.cc` (preferred — already has `gmail.send` scope from payables flow). Falls back to first enabled account in the `accounts` table.
+
+**Key endpoints for testing:**
+- Manual run: `GET /api/cron/beithady-daily-report?force=1` with `Authorization: Bearer $CRON_SECRET`
+- Setup page: `/emails/beithady/setup` (requires `is_admin`)
+- Send test: button on Setup page, restricts fanout to recipients matching the clicker's username (W2)
+
+**Known retry contract:**
+1. Cron tick → `runDailyReport()` → if Cairo hour < 9, exit (skipped_pre_9am)
+2. Upsert snapshot for (beithady_daily, today)
+3. If `delivery_complete=true` and not test-mode, exit (already_complete)
+4. If `payload IS NULL`, run `buildDailyReport()`. Errors → record in `last_build_error`, return 500, next tick retries
+5. If `pdf_bytes IS NULL`, render PDF. Errors → record + retry next tick
+6. Distribute to active recipients not yet `status='sent'` for this snapshot
+7. If all active recipients sent, set `delivery_complete=true`
+
+**Risks called out (not blocking):**
+- @react-pdf/renderer first-render on cold start can take 3–5s — `maxDuration` set to 120s
+- Stripe payouts API may 404 on tomorrow's window if no payout scheduled — handled (returns empty, warning recorded)
+- Anthropic Haiku call cost: ~$0.001 × ≤25 reviews/day = ~$0.025/day for review summaries
+- WhatsApp recipients > 10 may benefit from rate-limiting Green API calls; current code is sequential
+- `/r/beithady/[token]` is public — token has 192-bit entropy; no PII in URL; aggregate metrics only
+
+**Next step:** Merge `claude/great-lichterman-625c77` → `main`, push, run `vercel --prod`. Awaiting user confirmation before destructive merge step. After deploy: add at least one WhatsApp + one email recipient via /setup, click "Send Test Report Now" to validate end-to-end before tomorrow's 09:00 cron.
+
+---
 
 ## ✅ Portal switcher dropdown clipping fix
 
@@ -9,6 +98,9 @@ Root cause: the existing TopNav breadcrumb wrapper at [src/app/_components/brand
 Fix: removed `truncate` from the breadcrumb wrapper. The trail is always short (3 segments) so no ellipsis is needed. Comment added explaining why.
 
 Type check passes. Deploying.
+
+---
+
 
 ---
 

@@ -47,6 +47,7 @@ const PUBLIC_PREFIXES = [
   '/api/cron/',
   '/api/webhooks/',
   '/api/shopify/auth/',
+  '/r/',         // public tokenized reports (e.g. /r/beithady/<token>)
   '/_next/',
   '/favicon',
   '/icon',

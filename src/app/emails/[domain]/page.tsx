@@ -295,6 +295,36 @@ export default async function DomainRulesPage({
         {d === 'beithady' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Link
+              href="/emails/beithady/setup"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden lg:col-span-2"
+            >
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-cyan-50 text-cyan-600">
+                  <Calendar size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Daily Performance Report</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-600">
+                      09:00 Cairo
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                      WhatsApp + Email
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    A4 PDF dashboard · Today + MTD per BH-26/73/435/OK · payouts · reviews · pricing alerts. Manage recipients in Setup.
+                  </p>
+                </div>
+              </div>
+              <ArrowRight
+                size={18}
+                className="text-slate-400 group-hover:text-indigo-600 transition shrink-0"
+              />
+            </Link>
+
+            <Link
               href="/emails/beithady/financials"
               className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
             >

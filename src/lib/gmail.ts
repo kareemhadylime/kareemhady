@@ -252,6 +252,67 @@ function encodeHeader(s: string): string {
   return `=?UTF-8?B?${b64}?=`;
 }
 
+// Multipart MIME helper for HTML email + a single PDF attachment.
+// Used by the Beithady daily report to deliver the A4 PDF inline.
+export async function sendHtmlEmailWithAttachment(
+  refreshTokenEncrypted: string,
+  params: {
+    to: string;
+    subject: string;
+    html: string;
+    fromEmail?: string;
+    attachment: { filename: string; contentType: string; bytes: Buffer };
+  }
+): Promise<{ id: string | null | undefined }> {
+  const gmail = await getGmailClientFromRefresh(refreshTokenEncrypted);
+  const from = params.fromEmail || 'me';
+  const boundary = '__beithady_pdf_boundary_' + Date.now().toString(36);
+
+  // Quoted-printable encoding would be safer for HTML body, but Gmail
+  // accepts 7bit + base64-attachment fine here. Body is pure ASCII /
+  // UTF-8; we'll mark the part as utf-8 + base64 to avoid 8-bit-line-
+  // length pitfalls.
+  const htmlB64 = Buffer.from(params.html, 'utf-8').toString('base64');
+  const attachB64 = params.attachment.bytes.toString('base64');
+  // Split base64 into 76-char lines per RFC 2045 to keep MTAs happy.
+  const wrap76 = (s: string): string => s.replace(/(.{76})/g, '$1\r\n');
+
+  const mime = [
+    `From: ${from}`,
+    `To: ${params.to}`,
+    `Subject: ${encodeHeader(params.subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    wrap76(htmlB64),
+    '',
+    `--${boundary}`,
+    `Content-Type: ${params.attachment.contentType}; name="${params.attachment.filename}"`,
+    'Content-Transfer-Encoding: base64',
+    `Content-Disposition: attachment; filename="${params.attachment.filename}"`,
+    '',
+    wrap76(attachB64),
+    '',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+
+  const raw = Buffer.from(mime, 'utf-8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  const res = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw },
+  });
+  return { id: res.data.id };
+}
+
 export async function fetchEmailFull(
   refreshTokenEncrypted: string,
   gmailMessageId: string

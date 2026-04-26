@@ -15,6 +15,8 @@
     { "path": "/api/cron/shopify", "schedule": "45 4 * * *" },
     { "path": "/api/cron/boat-rental/expire-holds", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/boat-rental/hold-warnings", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/boat-rental/auto-close-skipper-cash", "schedule": "30 1 * * *" }
+    { "path": "/api/cron/boat-rental/auto-close-skipper-cash", "schedule": "30 1 * * *" },
+    { "path": "/api/cron/beithady-daily-report", "schedule": "*/30 6-21 * * *" },
+    { "path": "/api/cron/beithady-daily-report-cleanup", "schedule": "0 * * * *" }
   ]
 }
