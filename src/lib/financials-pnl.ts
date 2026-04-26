@@ -518,12 +518,21 @@ export async function buildPayablesReport(params: {
     eliminateIntercompany ? await getIntercompanyPartnerIds() : []
   );
 
-  // Pull open-AP lines (amount_residual != 0) within company scope. Matching
-  // by name "Home Owner Cut" and "Rent Costs" is how we detect owner lines
-  // since the tenant doesn't use 504xxx codes.
+  // Pull open-AP lines (amount_residual != 0) within company scope.
+  // CRITICAL: gate by `account_type='liability_payable'` so we don't pull
+  // the cash-side legs of vendor payment journal entries. Without this
+  // gate, e.g. partner 26547 "075. Supportries" reported total -736,402
+  // (mixing 227002 Suppliers AP + 121034/121031 Bank lines), but the
+  // true AP balance per Odoo is -466,402 — exactly -270,000 of bank-side
+  // residuals were being double-counted into Aged Over 60.
+  //
+  // Pagination requires `.order(id)` because PostgREST's `range()` is
+  // LIMIT/OFFSET — without ORDER BY, rows can drop or duplicate across
+  // pages on tables this big (~15K rows here).
   const PAGE = 1000;
   let offset = 0;
   type Row = {
+    id: number;
     partner_id: number | null;
     amount_residual: number;
     date: string | null;
@@ -545,12 +554,14 @@ export async function buildPayablesReport(params: {
     const { data, error } = await sb
       .from('odoo_move_lines')
       .select(
-        'partner_id, amount_residual, date, odoo_accounts!inner(code, name, account_type), odoo_partners!inner(id, name, supplier_rank, is_employee, is_owner)'
+        'id, partner_id, amount_residual, date, odoo_accounts!inner(code, name, account_type), odoo_partners!inner(id, name, supplier_rank, is_employee, is_owner)'
       )
       .in('company_id', companyIds)
       .in('parent_state', ['draft', 'posted'])
       .lte('date', params.asOf)
       .not('amount_residual', 'eq', 0)
+      .eq('odoo_accounts.account_type', 'liability_payable')
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw new Error(`buildPayablesReport: ${error.message}`);
     const page = (data as unknown as Row[]) || [];
@@ -570,8 +581,10 @@ export async function buildPayablesReport(params: {
   for (const l of allRows) {
     if (!l.odoo_partners || l.partner_id == null) continue;
     if (excludeSet.has(Number(l.partner_id))) continue; // intercompany
+    // The query already gates to account_type='liability_payable', so
+    // every line here is genuinely on the AP account. The kind is just
+    // a partition by who the counterparty is (vendor / employee / owner).
     const acctName = (l.odoo_accounts?.name || '').toLowerCase();
-    const acctType = l.odoo_accounts?.account_type || '';
 
     const isOwnerLine =
       l.odoo_partners.is_owner || /home\s*owner|rent\s*cost/i.test(acctName);
@@ -581,10 +594,10 @@ export async function buildPayablesReport(params: {
       kind = 'owner';
     } else if (l.odoo_partners.is_employee) {
       kind = 'employee';
-    } else if (
-      acctType === 'liability_payable' ||
-      l.odoo_partners.supplier_rank > 0
-    ) {
+    } else {
+      // Default everything else on the AP account to 'vendor'; covers
+      // both partners with supplier_rank > 0 AND any supplier-side
+      // partners that weren't ranked yet but have AP balances.
       kind = 'vendor';
     }
     if (!kind) continue;
@@ -798,12 +811,17 @@ export async function buildBalanceSheet(params: {
   }
 
   while (true) {
+    // PostgREST `.range()` translates to LIMIT/OFFSET. Without an
+    // explicit ORDER BY, pages can drop or duplicate rows on a table
+    // with ~15K matching rows — which manifested as a balance-sheet
+    // unbalance of ~1.45M EGP at 2026-02-28. `.order('id')` fixes it.
     const q = sb
       .from('odoo_move_lines')
-      .select('balance, odoo_accounts!inner(code, name, account_type)')
+      .select('id, balance, odoo_accounts!inner(code, name, account_type)')
       .lte('date', params.asOf)
       .in('company_id', companyIds)
       .eq('parent_state', 'posted')
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (movesFromDate) q.gt('date', movesFromDate);
     const { data, error } = await q;
@@ -856,11 +874,12 @@ export async function buildBalanceSheet(params: {
     while (true) {
       const { data, error } = await sb
         .from('odoo_move_lines')
-        .select('balance, odoo_accounts!inner(account_type)')
+        .select('id, balance, odoo_accounts!inner(account_type)')
         .gte('date', fyStart)
         .lte('date', params.asOf)
         .in('company_id', companyIds)
         .eq('parent_state', 'posted')
+        .order('id', { ascending: true })
         .range(offset2, offset2 + PAGE2 - 1);
       if (error) throw new Error(`buildBalanceSheet fy: ${error.message}`);
       const rows = (data as unknown as RowFy[]) || [];
