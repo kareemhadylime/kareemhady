@@ -48,6 +48,8 @@ const PUBLIC_PREFIXES = [
   '/api/webhooks/',
   '/api/shopify/auth/',
   '/r/',         // public tokenized reports (e.g. /r/beithady/<token>)
+  '/brand/',     // public brand assets (logos, OG previews)
+  '/manifest.webmanifest',
   '/_next/',
   '/favicon',
   '/icon',
