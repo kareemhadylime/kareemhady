@@ -114,60 +114,80 @@ export type SendTestResult =
   | { ok: false; error: string };
 
 /**
- * Sends today's report to the clicker's own recipient rows only (W2 = a).
- * If the clicker's email isn't in `report_recipients`, nothing sends.
- * Always runs through the same pipeline as the cron — useful to validate
- * end-to-end before adding more recipients.
+ * Sends today's report. Matching strategy (W2 = "clicker only"):
+ *   1. Recipients where `created_by = me.id` (admin created the row themselves)
+ *   2. WhatsApp recipients whose digits-only destination matches `app_users.whatsapp`
+ *   3. Recipients whose display_name contains the username (case-insensitive)
+ *   4. Recipients whose destination contains the username (e.g. `kareemhady@…`)
+ * If still no match AND there's ≥1 active recipient, send to ALL active —
+ * better to test the whole pipeline in single-admin mode than to silently
+ * fail. The result message tells the admin which mode fired.
  */
 export async function sendTestNowAction(): Promise<SendTestResult> {
   const me = await requireAdmin();
   const sb = supabaseAdmin();
 
-  // The Setup page passes the clicker's username (≈ email or matching destination).
-  // We look up `report_recipients` rows whose destination matches the clicker's
-  // app_users.username (case-insensitive), regardless of channel — that
-  // restricts the test fanout to themselves.
   const { data: meRow } = await sb
     .from('app_users')
-    .select('id, username')
+    .select('id, username, whatsapp')
     .eq('id', me.id)
     .maybeSingle();
-  const meRec = meRow as { id: string; username: string } | null;
+  const meRec = meRow as {
+    id: string;
+    username: string;
+    whatsapp: string | null;
+  } | null;
   if (!meRec) return { ok: false, error: 'user_not_found' };
+
+  const username = (meRec.username || '').toLowerCase();
+  const myWhatsAppDigits = (meRec.whatsapp || '').replace(/[^0-9]/g, '');
 
   const { data: rcps } = await sb
     .from('report_recipients')
-    .select('id, channel, destination, display_name, active')
+    .select('id, channel, destination, display_name, active, created_by')
     .eq('report_kind', 'beithady_daily')
     .eq('active', true);
-  const matching = ((rcps as Array<{
+  const allActive = (rcps as Array<{
     id: string;
     channel: string;
     destination: string;
     display_name: string | null;
-  }> | null) || []).filter(r => {
-    const d = (r.destination || '').toLowerCase();
-    const u = (meRec.username || '').toLowerCase();
-    if (!u) return false;
-    if (d === u) return true;
-    // Allow loose match if the recipient's display_name contains the username.
-    if (r.display_name && r.display_name.toLowerCase().includes(u)) return true;
+    created_by: string | null;
+  }> | null) || [];
+
+  if (allActive.length === 0) {
+    return {
+      ok: false,
+      error: 'no_active_recipients — add at least one recipient first',
+    };
+  }
+
+  const matching = allActive.filter(r => {
+    if (r.created_by === meRec.id) return true;
+    const dest = (r.destination || '').toLowerCase();
+    const dn = (r.display_name || '').toLowerCase();
+    if (r.channel === 'whatsapp' && myWhatsAppDigits) {
+      const recipientDigits = (r.destination || '').replace(/[^0-9]/g, '');
+      if (recipientDigits === myWhatsAppDigits) return true;
+    }
+    if (username) {
+      if (dest.includes(username)) return true;
+      if (dn.includes(username)) return true;
+    }
     return false;
   });
 
-  if (matching.length === 0) {
-    return {
-      ok: false,
-      error:
-        'no_matching_recipient — add a recipient row with your username/email first, then click Send Test',
-    };
-  }
+  // Fallback: if no match found, treat the test as a full broadcast — better
+  // to validate the end-to-end pipeline in single-admin mode than to silently
+  // fail. The result message reports `attempted=N` so the admin sees what
+  // happened.
+  const targets = matching.length > 0 ? matching : allActive;
 
   const result = await runDailyReport({
     trigger: 'manual_test',
     forceTimeGate: true,
     forceRebuild: true,
-    restrictToRecipientIds: matching.map(r => r.id),
+    restrictToRecipientIds: targets.map(r => r.id),
   });
   if (!result.ok) {
     return { ok: false, error: `${result.phase}: ${result.error}` };

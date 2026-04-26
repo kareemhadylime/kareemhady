@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, MessageCircle, Trash2, Power, ChevronRight } from 'lucide-react';
@@ -13,6 +14,9 @@ import {
 } from './actions';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  title: 'Beithady Setup · Daily Report',
+};
 
 type Recipient = {
   id: string;
@@ -94,38 +98,38 @@ export default async function BeithadySetupPage({
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <TopNav />
       <div className="mx-auto max-w-5xl px-4 py-8">
-        <nav className="mb-4 flex items-center gap-1 text-xs text-slate-500">
-          <Link href="/emails" className="hover:text-cyan-700">Domains</Link>
+        <nav className="mb-4 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+          <Link href="/emails" className="hover:text-cyan-700 dark:hover:text-cyan-400">Domains</Link>
           <ChevronRight className="h-3 w-3" />
-          <Link href="/emails/beithady" className="hover:text-cyan-700">Beithady</Link>
+          <Link href="/emails/beithady" className="hover:text-cyan-700 dark:hover:text-cyan-400">Beithady</Link>
           <ChevronRight className="h-3 w-3" />
-          <span className="text-slate-700">Setup</span>
+          <span className="text-slate-700 dark:text-slate-200">Setup</span>
         </nav>
 
-        <h1 className="text-2xl font-bold text-slate-900">Beithady Setup</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Beithady Setup</h1>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Daily report recipients and delivery monitoring. Admin-only.
         </p>
 
         {/* Add recipient */}
-        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
+        <section className="mt-6 ix-card p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
             Daily Report Recipients
           </h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Sent at 09:00 Cairo daily. WhatsApp gets a tokenized HTML link; Email gets the link plus an A4 PDF attachment. Phone numbers must include `+` and country code (e.g. `+201001234567`).
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Sent at 09:00 Cairo daily. WhatsApp gets a tokenized HTML link; Email gets the link plus an A4 PDF attachment. Phone numbers must include <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">+</code> and country code (e.g. <code className="px-1 rounded bg-slate-100 dark:bg-slate-800">+201001234567</code>).
           </p>
 
           {sp.err && (
-            <div className="mt-3 rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-800">
+            <div className="mt-3 rounded-md bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 px-3 py-2 text-xs text-rose-800 dark:text-rose-200">
               {sp.err}
             </div>
           )}
           {sp.test && (
-            <div className="mt-3 rounded-md bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
+            <div className="mt-3 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-200">
               Test report: {sp.test.replace('_', ' · ')}.{' '}
               {sp.link && (
                 <a href={sp.link} target="_blank" rel="noreferrer" className="underline">
@@ -137,7 +141,7 @@ export default async function BeithadySetupPage({
           <form action={addRecipientFormAction} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
             <select
               name="channel"
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
               defaultValue="whatsapp"
             >
               <option value="whatsapp">📱 WhatsApp</option>
@@ -147,12 +151,12 @@ export default async function BeithadySetupPage({
               name="destination"
               required
               placeholder="+201001234567 or kareem@…"
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm md:col-span-2"
+              className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-2 text-sm md:col-span-2"
             />
             <input
               name="display_name"
               placeholder="Display name (optional)"
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-2 text-sm"
             />
             <button
               type="submit"
@@ -165,7 +169,7 @@ export default async function BeithadySetupPage({
           <div className="mt-5 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4">Channel</th>
                   <th className="py-2 pr-4">Destination</th>
                   <th className="py-2 pr-4">Name</th>
@@ -176,33 +180,33 @@ export default async function BeithadySetupPage({
               <tbody>
                 {recipients.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-4 text-center text-slate-400">
+                    <td colSpan={5} className="py-4 text-center text-slate-400 dark:text-slate-500">
                       No recipients configured yet.
                     </td>
                   </tr>
                 )}
                 {recipients.map(r => (
-                  <tr key={r.id} className="border-b border-slate-100">
+                  <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800">
                     <td className="py-2 pr-4">
                       {r.channel === 'whatsapp' ? (
-                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                           <MessageCircle className="h-3 w-3" /> WhatsApp
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded bg-cyan-50 px-2 py-0.5 text-xs font-medium text-cyan-700">
+                        <span className="inline-flex items-center gap-1 rounded bg-cyan-50 dark:bg-cyan-950 px-2 py-0.5 text-xs font-medium text-cyan-700 dark:text-cyan-300">
                           <Mail className="h-3 w-3" /> Email
                         </span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 font-mono text-xs">{r.destination}</td>
-                    <td className="py-2 pr-4 text-slate-600">{r.display_name || '—'}</td>
+                    <td className="py-2 pr-4 font-mono text-xs text-slate-900 dark:text-slate-100">{r.destination}</td>
+                    <td className="py-2 pr-4 text-slate-600 dark:text-slate-300">{r.display_name || '—'}</td>
                     <td className="py-2 pr-4">
                       {r.active ? (
-                        <span className="inline-flex rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                        <span className="inline-flex rounded bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
                           Active
                         </span>
                       ) : (
-                        <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                        <span className="inline-flex rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
                           Paused
                         </span>
                       )}
@@ -214,7 +218,7 @@ export default async function BeithadySetupPage({
                           <button
                             type="submit"
                             title={r.active ? 'Pause' : 'Resume'}
-                            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                            className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
                           >
                             <Power className="h-4 w-4" />
                           </button>
@@ -224,7 +228,7 @@ export default async function BeithadySetupPage({
                           <button
                             type="submit"
                             title="Remove"
-                            className="rounded p-1.5 text-slate-500 hover:bg-rose-100 hover:text-rose-700"
+                            className="rounded p-1.5 text-slate-500 dark:text-slate-400 hover:bg-rose-100 dark:hover:bg-rose-950 hover:text-rose-700 dark:hover:text-rose-300"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -241,16 +245,16 @@ export default async function BeithadySetupPage({
         </section>
 
         {/* Delivery monitoring */}
-        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
+        <section className="mt-6 ix-card p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
             Recent reports
           </h2>
           {snapshots.length === 0 ? (
-            <p className="mt-2 text-xs text-slate-500">No reports generated yet.</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No reports generated yet.</p>
           ) : (
             <table className="mt-3 w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4">Date</th>
                   <th className="py-2 pr-4">Generated</th>
                   <th className="py-2 pr-4">Status</th>
@@ -261,29 +265,29 @@ export default async function BeithadySetupPage({
               </thead>
               <tbody>
                 {snapshots.map(s => (
-                  <tr key={s.report_date} className="border-b border-slate-100">
-                    <td className="py-2 pr-4 font-medium">{s.report_date}</td>
-                    <td className="py-2 pr-4 text-xs text-slate-500">{fmtCairoDateTime(s.generated_at)}</td>
+                  <tr key={s.report_date} className="border-b border-slate-100 dark:border-slate-800">
+                    <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{s.report_date}</td>
+                    <td className="py-2 pr-4 text-xs text-slate-500 dark:text-slate-400">{fmtCairoDateTime(s.generated_at)}</td>
                     <td className="py-2 pr-4">
                       {s.delivery_complete ? (
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                        <span className="rounded bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
                           Delivered
                         </span>
                       ) : (
-                        <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        <span className="rounded bg-amber-100 dark:bg-amber-900 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
                           Retrying
                         </span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 text-xs">{s.build_attempts}</td>
-                    <td className="py-2 pr-4 text-xs text-rose-700">
+                    <td className="py-2 pr-4 text-xs text-slate-700 dark:text-slate-200">{s.build_attempts}</td>
+                    <td className="py-2 pr-4 text-xs text-rose-700 dark:text-rose-300">
                       {s.last_build_error ? s.last_build_error.slice(0, 60) + (s.last_build_error.length > 60 ? '…' : '') : '—'}
                     </td>
                     <td className="py-2">
                       <Link
                         href={`/r/beithady/${encodeURIComponent(s.token)}`}
                         target="_blank"
-                        className="text-xs font-medium text-cyan-700 hover:underline"
+                        className="text-xs font-medium text-cyan-700 dark:text-cyan-400 hover:underline"
                       >
                         View →
                       </Link>
@@ -296,13 +300,13 @@ export default async function BeithadySetupPage({
         </section>
 
         {todayDeliveries.length > 0 && (
-          <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
+          <section className="mt-6 ix-card p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
               Today&apos;s delivery log ({todayDeliveries.length})
             </h2>
             <table className="mt-3 w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4">Channel</th>
                   <th className="py-2 pr-4">Destination</th>
                   <th className="py-2 pr-4">Status</th>
@@ -313,21 +317,21 @@ export default async function BeithadySetupPage({
               </thead>
               <tbody>
                 {todayDeliveries.map((d, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="py-2 pr-4">{d.channel}</td>
-                    <td className="py-2 pr-4 font-mono text-xs">{d.destination}</td>
+                  <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
+                    <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{d.channel}</td>
+                    <td className="py-2 pr-4 font-mono text-xs text-slate-900 dark:text-slate-100">{d.destination}</td>
                     <td className="py-2 pr-4">
                       {d.status === 'sent' ? (
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">sent</span>
+                        <span className="rounded bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 text-xs text-emerald-800 dark:text-emerald-200">sent</span>
                       ) : d.status === 'failed' ? (
-                        <span className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-800">failed</span>
+                        <span className="rounded bg-rose-100 dark:bg-rose-950 px-2 py-0.5 text-xs text-rose-800 dark:text-rose-200">failed</span>
                       ) : (
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{d.status}</span>
+                        <span className="rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">{d.status}</span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 text-xs">{d.attempt}</td>
-                    <td className="py-2 pr-4 text-xs text-slate-500">{fmtCairoDateTime(d.sent_at)}</td>
-                    <td className="py-2 text-xs text-rose-700">
+                    <td className="py-2 pr-4 text-xs text-slate-700 dark:text-slate-200">{d.attempt}</td>
+                    <td className="py-2 pr-4 text-xs text-slate-500 dark:text-slate-400">{fmtCairoDateTime(d.sent_at)}</td>
+                    <td className="py-2 text-xs text-rose-700 dark:text-rose-300">
                       {d.error ? d.error.slice(0, 80) : '—'}
                     </td>
                   </tr>
@@ -345,15 +349,15 @@ export default async function BeithadySetupPage({
 // can show the result inline. Server-action invocation via form action.
 function SendTestPanel() {
   return (
-    <form action={sendTestNowFormAction} className="mt-5 flex items-center gap-3 border-t border-slate-200 pt-4">
+    <form action={sendTestNowFormAction} className="mt-5 flex items-center gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
       <button
         type="submit"
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+        className="rounded-md bg-slate-900 dark:bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:hover:bg-cyan-600"
       >
         Send Test Report Now
       </button>
-      <p className="text-xs text-slate-500">
-        Builds + sends today&apos;s report only to recipients matching your username/email. Skips the 9 AM gate.
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Builds + sends today&apos;s report. Tries to match your username/whatsapp first; if no match, sends to all active recipients (single-admin fallback). Skips the 9 AM gate.
       </p>
     </form>
   );
