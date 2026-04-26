@@ -242,3 +242,14 @@ export async function sendTestNowFormAction(): Promise<void> {
     );
   }
 }
+
+// useActionState-compatible variant. Returns SendTestResult so the
+// SendTestPanel client component can show inline feedback (processing
+// → success/fail) without depending on a redirect + query-param
+// roundtrip.
+export async function sendTestNowStateAction(
+  _prev: SendTestResult | null,
+  _formData: FormData
+): Promise<SendTestResult> {
+  return await sendTestNowAction();
+}

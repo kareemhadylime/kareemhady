@@ -10,8 +10,8 @@ import {
   addRecipientFormAction,
   toggleRecipientFormAction,
   deleteRecipientFormAction,
-  sendTestNowFormAction,
 } from './actions';
+import { SendTestPanel } from './SendTestPanel';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
@@ -345,20 +345,5 @@ export default async function BeithadySetupPage({
   );
 }
 
-// "Send Test Now" lives in its own client component so the in-page button
-// can show the result inline. Server-action invocation via form action.
-function SendTestPanel() {
-  return (
-    <form action={sendTestNowFormAction} className="mt-5 flex items-center gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
-      <button
-        type="submit"
-        className="rounded-md bg-slate-900 dark:bg-cyan-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:hover:bg-cyan-600"
-      >
-        Send Test Report Now
-      </button>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        Builds + sends today&apos;s report. Tries to match your username/whatsapp first; if no match, sends to all active recipients (single-admin fallback). Skips the 9 AM gate.
-      </p>
-    </form>
-  );
-}
+// SendTestPanel lives in its own client component file (SendTestPanel.tsx)
+// for proper useActionState pending/result UX.
