@@ -30,6 +30,24 @@
   --color-primary-soft: #1e1b4b;
 }
 
+/* Beit Hady brand variables (Plan v0.3 Q-D, eyeballed from logo +
+   branded-item screenshots since the brand-identity PDFs exceed the
+   100MB read limit). Used by Beithady-scoped pages via a
+   `data-bh-brand` attribute on the layout root, OR directly via the
+   utility classes below. */
+:root {
+  --bh-navy:  #1E2D4A;
+  --bh-blue:  #5F7397;
+  --bh-cream: #F5F1E8;
+  --bh-gold:  #D4A93A;
+}
+[data-bh-brand="true"] {
+  background-color: var(--bh-cream);
+}
+.dark [data-bh-brand="true"] {
+  background-color: #0e172a;
+}
+
 html, body {
   background: var(--color-bg);
   color: var(--color-foreground);

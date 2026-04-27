@@ -135,21 +135,27 @@ export const DOMAIN_THEMES: Record<Domain, DomainTheme> = {
     },
   },
   beithady: {
-    name: 'BEITHADY',
+    name: 'BEIT HADY',
     tagline: 'Serviced apartments · short-term rentals.',
     description:
       'Beithady Hospitality (Egypt + FZCO Dubai) + A1HOSPITALITY (BH-435 owner). 91 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-34.',
     parentNote: 'A Lime Investments subsidiary',
+    // Palette extracted from BeitHady Branding logos + Door Sign /
+    // Room Card branded-item screenshots (Plan v0.3 Q-D):
+    //   navy   #1E2D4A → slate-800
+    //   blue   #5F7397 → slate-500 (wordmark)
+    //   cream  #F5F1E8 → custom var --bh-cream
+    //   gold   #D4A93A → yellow-600 (FM+ tag, branded items)
     accent: {
-      solid: 'bg-rose-600',
-      solidHover: 'bg-rose-700',
-      tint: 'bg-rose-50',
-      tintText: 'text-rose-700',
-      border: 'border-rose-200',
-      text: 'text-rose-700',
-      gradientFrom: 'from-rose-500',
-      gradientTo: 'to-amber-500',
-      ring: 'ring-rose-500',
+      solid: 'bg-slate-700',
+      solidHover: 'bg-slate-800',
+      tint: 'bg-slate-50',
+      tintText: 'text-slate-700',
+      border: 'border-slate-200',
+      text: 'text-slate-700',
+      gradientFrom: 'from-slate-700',
+      gradientTo: 'to-slate-400',
+      ring: 'ring-slate-500',
     },
   },
   'boat-rental': {
