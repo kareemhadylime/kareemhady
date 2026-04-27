@@ -42,8 +42,11 @@ Residual A vs L+E = **0.17 EGP** (down from 0.30 in the prior seed). The 0.17 is
 
 **Files touched**:
 - `src/lib/beithady-opening-balance-2026.ts` — full rewrite (74 inserts / 18 deletes)
+- `SESSION_HANDOFF.md` — this entry
 
 **Source data archived at**: `.claude/Beithady Domain/bh balance sheet.xlsx`
+
+**Concurrent session note**: a parallel worktree session landed `Phase G — Beithady Market Intelligence + Calendar Heatmap` (commit `ba93412`) on `origin/main` between my balance-sheet push (`2860848`) and this docs commit. My handoff push got rejected (non-fast-forward). Resolved with `git pull --rebase origin main` — clean rebase, no conflicts (Phase G didn't touch SESSION_HANDOFF.md). Final main sequence: `2860848` (balance sheet) → `ba93412` (Phase G) → `37bff51` (this handoff doc). Docs commit redeployed to `limeinc.vercel.app` (`dpl_3z9wPhUn2uZtUgK9GYYXWUiv3Xvz`, READY) after one ECONNRESET retry — same transient flakiness as the earlier balance-sheet deploy.
 
 **Next step on session resume**: nothing pending on this thread. If the user spots another amendment to the opening sheet, repeat the same procedure (parse xlsx → diff against current seed → update `BEITHADY_OPENING_BALANCES_2026` + any `ACCOUNT_TYPE_OVERRIDES` shifts if account classification changed → commit → push origin HEAD:main → vercel --prod from worktree with `.vercel/project.json` pre-seeded).
 
