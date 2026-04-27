@@ -24,7 +24,8 @@ export type BeithadyCategory =
   | 'communication'
   | 'settings'
   | 'gallery'
-  | 'ads';
+  | 'ads'
+  | 'operations';
 
 export type Permission = 'none' | 'read' | 'full';
 
@@ -38,6 +39,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     settings: 'read',          // own profile only — handled at sub-tab level
     gallery: 'full',
     ads: 'none',
+    operations: 'read',
   },
   finance: {
     financial: 'full',
@@ -47,6 +49,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     settings: 'read',
     gallery: 'read',
     ads: 'none',
+    operations: 'read',
   },
   ops: {
     financial: 'read',
@@ -56,6 +59,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     settings: 'read',
     gallery: 'full',
     ads: 'none',
+    operations: 'full',        // operations role owns this category
   },
   manager: {
     financial: 'full',
@@ -65,6 +69,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     settings: 'read',          // partial — no integration credentials, enforced in sub-tab
     gallery: 'full',
     ads: 'full',
+    operations: 'full',
   },
   admin: {
     financial: 'full',
@@ -74,6 +79,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     settings: 'full',
     gallery: 'full',
     ads: 'full',
+    operations: 'full',
   },
 };
 
@@ -157,6 +163,7 @@ export function visibleCategoriesFor(roles: BeithadyRole[]): BeithadyCategory[] 
     'settings',
     'gallery',
     'ads',
+    'operations',
   ];
   return all.filter(c => rolesGrantPermission(roles, c, 'read'));
 }
