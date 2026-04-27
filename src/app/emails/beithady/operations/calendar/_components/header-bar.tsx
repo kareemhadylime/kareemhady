@@ -86,6 +86,20 @@ export function HeaderBar({
         <option value="28">28 days</option>
       </select>
 
+      {/* Density / overlay (J.9 improvement #2) */}
+      <select
+        value={sp?.get('density') || 'price'}
+        onChange={e => updateParam('density', e.target.value === 'price' ? undefined : e.target.value)}
+        className="ix-input !text-xs !py-1 !px-2"
+        aria-label="Cell overlay"
+        title="What to show in each cell"
+      >
+        <option value="price">Price</option>
+        <option value="occupancy">Occupancy 30d</option>
+        <option value="adr">ADR 30d</option>
+        <option value="revenue">Revenue 30d</option>
+      </select>
+
       {/* Buildings */}
       <select
         value={buildingsCsv}

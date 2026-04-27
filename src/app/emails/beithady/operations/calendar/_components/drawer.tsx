@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { ReservationDetail, PastStay, ReservationMessage } from '@/lib/beithady/operations/reservation-detail';
 import { PaymentActions } from './payment-actions';
+import { BoardingPassShare } from './boarding-pass-share';
 
 type TabId = 'overview' | 'guest' | 'channel' | 'payment' | 'comms'
   | 'checkin' | 'tasks' | 'upsells' | 'attribution' | 'audit';
@@ -409,6 +410,13 @@ function TabCheckin({ detail }: { detail: ReservationDetail }) {
             ? <span className="text-emerald-600">{new Date(r.boarding_viewed_at).toLocaleString()}</span>
             : <span className="text-slate-500">Not yet</span>}
         </Row>
+        {r.boarding_pass_exists && (
+          <BoardingPassShare
+            reservationId={r.reservation_id}
+            guestPhone={r.guest_phone}
+            guestName={r.guest_name}
+          />
+        )}
       </Section>
       <p className="text-[11px] text-slate-500 leading-snug">
         Smart-lock codes + ID upload tracking land in V2.

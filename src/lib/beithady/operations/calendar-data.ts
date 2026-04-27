@@ -80,25 +80,78 @@ export async function getCalendarGridData(opts: {
     .filter(l => l.building_code) // Drop MG-* and other unbuildinged listings from the calendar
     .sort((a, b) => (a.nickname || '').localeCompare(b.nickname || ''));
 
-  // 2. Latest pricelabs snapshot per listing for the price column.
+  // 2. Latest pricelabs snapshot per listing for the price column +
+  //    occupancy/ADR/revenue for the heatmap overlay (J.9).
   const listingIds = bookable.map(l => l.id);
   const { data: priceRows } = listingIds.length > 0
     ? await sb
         .from('pricelabs_listing_snapshots')
-        .select('listing_id, recommended_base_price, base, snapshot_date')
+        .select('listing_id, recommended_base_price, base, occupancy_next_30, adr_past_30, revenue_past_30, snapshot_date')
         .in('listing_id', listingIds)
         .order('snapshot_date', { ascending: false })
     : { data: [] };
   const priceByListing = new Map<string, number>();
+  const metricsByListing = new Map<string, {
+    occupancy_next_30: number | null;
+    adr_past_30: number | null;
+    revenue_past_30: number | null;
+  }>();
   for (const r of (priceRows as Array<{
     listing_id: string;
     recommended_base_price: number | null;
     base: number | null;
+    occupancy_next_30: number | null;
+    adr_past_30: number | null;
+    revenue_past_30: number | null;
   }> | null) || []) {
     if (priceByListing.has(r.listing_id)) continue;
     const v = r.recommended_base_price ?? r.base;
     if (v != null) priceByListing.set(r.listing_id, Number(v));
+    metricsByListing.set(r.listing_id, {
+      occupancy_next_30: r.occupancy_next_30 != null ? Number(r.occupancy_next_30) : null,
+      adr_past_30: r.adr_past_30 != null ? Number(r.adr_past_30) : null,
+      revenue_past_30: r.revenue_past_30 != null ? Number(r.revenue_past_30) : null,
+    });
   }
+
+  // 2b. Comp-set median per (building_code, bedroom_bucket). Used for
+  //     the up/down triangle on price cells (J.9 improvement #3).
+  const { data: pricelabsListings } = listingIds.length > 0
+    ? await sb
+        .from('pricelabs_listings')
+        .select('id, bedrooms')
+        .in('id', listingIds)
+    : { data: [] };
+  const bedroomsByListing = new Map<string, number>();
+  for (const r of (pricelabsListings as Array<{ id: string; bedrooms: number | null }> | null) || []) {
+    if (r.bedrooms != null) bedroomsByListing.set(r.id, r.bedrooms);
+  }
+  const buildings = Array.from(new Set(bookable.map(l => l.building_code).filter((b): b is string => Boolean(b))));
+  const { data: marketRows } = buildings.length > 0
+    ? await sb
+        .from('pricelabs_market_snapshots')
+        .select('building_code, bedroom_bucket, comp_median_usd, snapshot_date')
+        .in('building_code', buildings)
+        .order('snapshot_date', { ascending: false })
+    : { data: [] };
+  const compByKey = new Map<string, number>();
+  for (const r of (marketRows as Array<{
+    building_code: string;
+    bedroom_bucket: string;
+    comp_median_usd: number | null;
+  }> | null) || []) {
+    const key = `${r.building_code}|${r.bedroom_bucket}`;
+    if (compByKey.has(key)) continue;
+    if (r.comp_median_usd != null) compByKey.set(key, Number(r.comp_median_usd));
+  }
+  const compForListing = (listingId: string, building: string | null): number | null => {
+    if (!building) return null;
+    const beds = bedroomsByListing.get(listingId);
+    if (beds == null) return null;
+    const bucket = beds === 0 ? 'studio' : beds === 1 ? '1br' : beds === 2 ? '2br' : beds >= 3 ? '3br+' : null;
+    if (!bucket) return null;
+    return compByKey.get(`${building}|${bucket}`) ?? null;
+  };
 
   // 3. Cover thumbnails — first photo per listing in the gallery (best-effort).
   const { data: coverRows } = listingIds.length > 0
@@ -241,15 +294,23 @@ export async function getCalendarGridData(opts: {
     arr.push(r);
     reservationsByListing.set(r.listing_id, arr);
   }
-  const rows: CalendarRow[] = bookable.map(l => ({
-    listing_id: l.id,
-    nickname: l.nickname || l.id,
-    title: l.title,
-    building_code: l.building_code,
-    cover_url: coverByListing.get(l.id) || null,
-    base_price_usd: priceByListing.get(l.id) ?? null,
-    status_dot: statusDotFor(reservationsByListing.get(l.id) || [], nowIso),
-  }));
+  const rows: CalendarRow[] = bookable.map(l => {
+    const metrics = metricsByListing.get(l.id);
+    return {
+      listing_id: l.id,
+      nickname: l.nickname || l.id,
+      title: l.title,
+      building_code: l.building_code,
+      cover_url: coverByListing.get(l.id) || null,
+      base_price_usd: priceByListing.get(l.id) ?? null,
+      comp_median_usd: compForListing(l.id, l.building_code),
+      occupancy_next_30: metrics?.occupancy_next_30 ?? null,
+      adr_past_30: metrics?.adr_past_30 ?? null,
+      revenue_past_30: metrics?.revenue_past_30 ?? null,
+      bedrooms: bedroomsByListing.get(l.id) ?? null,
+      status_dot: statusDotFor(reservationsByListing.get(l.id) || [], nowIso),
+    };
+  });
 
   // 6. Anomaly snapshot for the banner above the grid
   const { data: anomData } = await sb

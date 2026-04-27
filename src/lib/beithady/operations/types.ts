@@ -7,6 +7,14 @@ export type CalendarRow = {
   building_code: string | null;
   cover_url: string | null;
   base_price_usd: number | null;
+  // Comp-set median for the building+bedroom bucket. Used to compute
+  // the up/down triangle on price cells.
+  comp_median_usd: number | null;
+  // Per-listing pricelabs metrics for the heatmap overlay
+  occupancy_next_30: number | null;   // 0..1
+  adr_past_30: number | null;
+  revenue_past_30: number | null;
+  bedrooms: number | null;
   // Status flag color computed from the row's next reservation in <14d
   status_dot: 'red' | 'orange' | 'yellow' | 'green' | 'purple' | 'gray';
 };

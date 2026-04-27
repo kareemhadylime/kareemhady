@@ -1,4 +1,4 @@
-import { Building2 } from 'lucide-react';
+import { Building2, TrendingUp, TrendingDown } from 'lucide-react';
 import type { CalendarRow } from '@/lib/beithady/operations/types';
 import { ManualBlockButton } from './manual-block-button';
 
@@ -49,7 +49,10 @@ export function ListingRail({ row, windowStart }: { row: CalendarRow; windowStar
             <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">{row.building_code}</span>
           )}
           {row.base_price_usd != null && (
-            <span className="tabular-nums">${Math.round(row.base_price_usd)}</span>
+            <span className="tabular-nums inline-flex items-center gap-0.5">
+              ${Math.round(row.base_price_usd)}
+              <CompSetIndicator price={row.base_price_usd} median={row.comp_median_usd} />
+            </span>
           )}
           <ManualBlockButton
             listingId={row.listing_id}
@@ -59,5 +62,23 @@ export function ListingRail({ row, windowStart }: { row: CalendarRow; windowStar
         </div>
       </div>
     </div>
+  );
+}
+
+// Small ▲/▼ shown next to the per-listing base price when our price
+// differs from the comp-set median by ≥10%. Uses pricelabs_market_snapshots
+// data joined per (building_code, bedroom_bucket).
+function CompSetIndicator({ price, median }: { price: number | null; median: number | null }) {
+  if (price == null || median == null || median === 0) return null;
+  const delta = (price - median) / median;
+  if (Math.abs(delta) < 0.10) return null;
+  const up = delta > 0;
+  const Icon = up ? TrendingUp : TrendingDown;
+  const cls = up ? 'text-emerald-600' : 'text-rose-600';
+  const pct = Math.round(delta * 100);
+  return (
+    <span className={`${cls} inline-flex items-center`} title={`${up ? '+' : ''}${pct}% vs comp-set median ($${Math.round(median)})`}>
+      <Icon size={9} />
+    </span>
   );
 }

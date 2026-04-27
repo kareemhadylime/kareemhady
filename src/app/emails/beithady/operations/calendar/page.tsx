@@ -72,6 +72,7 @@ export default async function OperationsCalendarPage({
     risk?: string;
     q?: string;
     reservation?: string;
+    density?: string;
   }>;
 }) {
   await requireBeithadyPermission('operations', 'read');
@@ -116,7 +117,7 @@ export default async function OperationsCalendarPage({
         daysCount={daysCount}
         filters={filters}
       />
-      <CalendarGrid data={data} />
+      <CalendarGrid data={data} density={(sp.density as 'price' | 'occupancy' | 'adr' | 'revenue' | undefined) || 'price'} />
       {detail && <ReservationDrawer detail={detail} />}
     </BeithadyShell>
   );

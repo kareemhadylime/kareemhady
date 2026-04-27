@@ -8,6 +8,43 @@ import { ReservationBar } from './reservation-bar';
 const RAIL_PX = 220;
 const COL_PX = 64;
 
+function densityOverlay(
+  row: { base_price_usd: number | null; occupancy_next_30: number | null; adr_past_30: number | null; revenue_past_30: number | null },
+  mode: DensityMode,
+): { label: string | null; tint: string | null } {
+  if (mode === 'price') {
+    return { label: row.base_price_usd != null ? `$${Math.round(row.base_price_usd)}` : null, tint: null };
+  }
+  if (mode === 'occupancy' && row.occupancy_next_30 != null) {
+    const pct = row.occupancy_next_30 * 100;
+    return {
+      label: `${Math.round(pct)}%`,
+      tint: tintForPercent(pct),
+    };
+  }
+  if (mode === 'adr' && row.adr_past_30 != null) {
+    return { label: `$${Math.round(row.adr_past_30)}`, tint: null };
+  }
+  if (mode === 'revenue' && row.revenue_past_30 != null) {
+    return { label: `$${Math.round(row.revenue_past_30 / 1000)}k`, tint: null };
+  }
+  return { label: null, tint: null };
+}
+
+function tintForPercent(pct: number): string | null {
+  // Heatmap tint: 0% red → 50% amber → 100% green
+  if (pct == null || isNaN(pct)) return null;
+  const clamped = Math.max(0, Math.min(100, pct));
+  if (clamped < 50) {
+    // Red → amber
+    const t = clamped / 50;
+    return `rgba(${Math.round(254 - 50 * t)}, ${Math.round(202 + 23 * t)}, ${Math.round(202 + 18 * t)}, 0.35)`;
+  }
+  // Amber → green
+  const t = (clamped - 50) / 50;
+  return `rgba(${Math.round(204 - 50 * t)}, ${Math.round(225 + 21 * t)}, ${Math.round(220 + 14 * t)}, 0.35)`;
+}
+
 function fmtDate(iso: string): { dow: string; day: string; isWeekend: boolean } {
   const d = new Date(iso + 'T00:00:00');
   const dow = d.toLocaleDateString('en', { weekday: 'short' });
@@ -16,7 +53,9 @@ function fmtDate(iso: string): { dow: string; day: string; isWeekend: boolean } 
   return { dow, day, isWeekend: wd === 0 || wd === 6 };
 }
 
-export function CalendarGrid({ data }: { data: CalendarGridData }) {
+type DensityMode = 'price' | 'occupancy' | 'adr' | 'revenue';
+
+export function CalendarGrid({ data, density = 'price' }: { data: CalendarGridData; density?: DensityMode }) {
   const todayIso = useMemo(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
@@ -108,15 +147,17 @@ export function CalendarGrid({ data }: { data: CalendarGridData }) {
                   {dates.map(iso => {
                     const { isWeekend } = fmtDate(iso);
                     const isToday = iso === todayIso;
+                    const overlay = densityOverlay(row, density);
                     return (
                       <div
                         key={iso}
                         className={`border-l border-slate-100 dark:border-slate-800 flex items-center justify-center text-[10px] tabular-nums
                           ${isWeekend ? 'bg-slate-50/40 dark:bg-slate-800/20' : ''}
                           ${isToday ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}
+                        style={overlay.tint ? { backgroundColor: overlay.tint } : undefined}
                       >
-                        {row.base_price_usd != null && (
-                          <span className="text-slate-400">${Math.round(row.base_price_usd)}</span>
+                        {overlay.label && (
+                          <span className="text-slate-400">{overlay.label}</span>
                         )}
                       </div>
                     );

@@ -204,6 +204,26 @@ export async function recomputePaymentAction(input: {
   }
 }
 
+// =================================================================== Boarding pass
+
+export async function getBoardingPassUrlAction(input: {
+  reservationId: string;
+}): Promise<{ ok: boolean; url?: string; error?: string }> {
+  await requireBeithadyPermission('operations', 'read');
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('beithady_boarding_passes')
+    .select('token, expires_at')
+    .eq('reservation_id', input.reservationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return { ok: false, error: 'No boarding pass exists yet for this reservation' };
+  const row = data as { token: string; expires_at: string | null };
+  // App-relative path; client builds the absolute URL with location.origin
+  return { ok: true, url: `/boarding/${row.token}` };
+}
+
 // =================================================================== Manual blocks
 
 export async function createManualBlockAction(input: {
