@@ -1,6 +1,22 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — "Other" bucket for out-of-scope units (commit `1a3ef97`)
+## 🟢 Latest turn — MTL-aware pricing fallback for BH-73 children (commit `8048ea1`)
+
+User flagged two grid issues:
+1. BH-73 children (BH73-1BR-C-8-106, …-2BR-SB-5-107, etc.) showed empty price cells while their MTL parents had prices.
+2. Wondered if a Radwa Negm reservation was duplicated across two units.
+
+**Q1 root cause:** Pricelabs only tracks data on MTL **parents**, not their children. In BH-73:
+- `BH73-1BR-C-8` (parent): `base=$75`, `bedrooms=1`
+- `BH73-1BR-C-8-106` / `…-306` (children): no own pricelabs row
+
+The gallery hides parents (per the polarity matrix), so users only see children — which had no prices. Fixed by fetching `pricelabs_listing_snapshots` + `pricelabs_listings` for the union of `{bookable atom ids, master_listing_ids}` and resolving via `priceFor` / `bedroomsFor` helpers that prefer the child's own value but fall back to the parent.
+
+Same fallback applied in `findAvailabilityAction` and to the comp-set median lookup so children inherit the parent's bedroom bucket for the ▲▼ triangle.
+
+**Q2 verdict:** Not a display duplicate. The two Radwa Negm bars are **two separate cancelled reservation IDs** (`69e4e364…` on `BH73-1BR-C-8-106` and `69e4f263…` on `BH73-1BR-C-8-306`), same guest/email/phone, same dates 2026-05-01 → 2026-05-13. Both are correctly rendered faded + crosshatch (cancelled state). Click either bar → drawer shows the distinct reservation_id.
+
+## 🟢 Earlier this session — "Other" bucket for out-of-scope units (commit `1a3ef97`)
 
 8 active listings with NULL `building_code` (BH-MANG-M15B13, BH-MB34-105, BH-MG-20-1, BH-NEWCAI-4021, BH-WS-E245, LIME-MA-1402, REEHAN-204, YANSOON-105) were previously filtered out of the calendar. Now bucketed into a synthetic 'OTHER' building so they appear alongside BH-26/73/435/OK.
 
@@ -369,7 +385,8 @@ Order of phases shipped (oldest → newest):
 29. **Phase J.8 — Realtime + overbooking guard** (`badc893`) — Supabase Realtime subscription to 4 tables + live/connecting/offline pill + pre-write conflict check on manual blocks
 30. **Phase J.9 — Heatmap + comp-set + WhatsApp share** (`926eb15`) — density toggle (price/occupancy/ADR/revenue) + ▲▼ comp-set triangles + Copy/WhatsApp boarding-pass share
 31. **Phase J.10 — Find availability modal** (`0d495a3`) — server action + form + result grid with Guesty deep-link for booking creation. Phase J COMPLETE
-32. **Operations Calendar — "Other" bucket** (`1a3ef97`) — 8 out-of-scope listings (Madinaty, Mall of Mansoura, etc.) now bucketed under synthetic 'OTHER' building (this turn)
+32. **Operations Calendar — "Other" bucket** (`1a3ef97`) — 8 out-of-scope listings (Madinaty, Mall of Mansoura, etc.) now bucketed under synthetic 'OTHER' building
+33. **Calendar — MTL-aware price + bedrooms fallback** (`8048ea1`) — BH-73 children now show their parent's pricelabs price/bedrooms/comp-set since pricelabs only tracks the MTL parent (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
