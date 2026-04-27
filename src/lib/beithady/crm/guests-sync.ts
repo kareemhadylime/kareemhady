@@ -129,15 +129,18 @@ function getNested(obj: unknown, path: string[]): unknown {
 
 async function getEgpToUsdRate(): Promise<number> {
   // Reuse the fx_rates table populated by the daily-report fx helper.
+  // Schema: (rate_date, base, quote, rate, source, fetched_at) where
+  // we look up base=USD quote=EGP → "EGP per USD".
   const sb = supabaseAdmin();
   const { data } = await sb
     .from('fx_rates')
-    .select('rate_per_usd')
-    .eq('currency', 'EGP')
-    .order('date', { ascending: false })
+    .select('rate')
+    .eq('base', 'USD')
+    .eq('quote', 'EGP')
+    .order('rate_date', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const rate = (data as { rate_per_usd?: number } | null)?.rate_per_usd;
+  const rate = (data as { rate?: number } | null)?.rate;
   return rate && rate > 0 ? rate : 49; // sensible 2026 fallback
 }
 
