@@ -72,6 +72,7 @@ export type AnomalySnapshot = {
 export type CalendarFilters = {
   buildings?: string[];
   channels?: string[];
+  countries?: string[];           // ISO names or 'OTHER'
   statusFilter?: 'all' | 'confirmed' | 'inquiry' | 'canceled';
   riskFilter?: 'all' | 'unpaid' | 'prearrival_missing' | 'vip';
   search?: string;

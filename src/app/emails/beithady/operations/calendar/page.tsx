@@ -74,6 +74,7 @@ export default async function OperationsCalendarPage({
     q?: string;
     reservation?: string;
     density?: string;
+    country?: string;
   }>;
 }) {
   await requireBeithadyPermission('operations', 'read');
@@ -83,6 +84,7 @@ export default async function OperationsCalendarPage({
   const filters = {
     buildings: parseBuildings(sp.buildings),
     channels: parseChannels(sp.channels),
+    countries: sp.country ? [sp.country] : [],
     statusFilter: parseStatus(sp.status),
     riskFilter: parseRisk(sp.risk),
     search: sp.q || undefined,

@@ -68,7 +68,7 @@ export async function getCalendarGridData(opts: {
 
   let listingsQ = sb
     .from('guesty_listings')
-    .select('id, nickname, title, master_listing_id, building_code')
+    .select('id, nickname, title, master_listing_id, building_code, address_country')
     .eq('active', true);
   if (namedBuildings.length > 0 && !includeOther) {
     listingsQ = listingsQ.in('building_code', namedBuildings);
@@ -77,6 +77,9 @@ export async function getCalendarGridData(opts: {
     const inExpr = namedBuildings.map(b => `building_code.eq.${b}`).join(',');
     listingsQ = listingsQ.or(`${inExpr},building_code.is.null`);
   } // else: no filter — fetch everything
+  if (opts.filters?.countries && opts.filters.countries.length > 0) {
+    listingsQ = listingsQ.in('address_country', opts.filters.countries);
+  }
   const { data: allListings } = await listingsQ;
   const allListingRows = (allListings as Array<{
     id: string;
@@ -84,6 +87,7 @@ export async function getCalendarGridData(opts: {
     title: string | null;
     master_listing_id: string | null;
     building_code: string | null;
+    address_country: string | null;
   }> | null) || [];
 
   const bookable = allListingRows
@@ -230,8 +234,15 @@ export async function getCalendarGridData(opts: {
   if (listingIds.length > 0) {
     resQ = resQ.in('listing_id', listingIds);
   }
+  // Status filter:
+  // - 'all'     → exclude canceled (most common case; cancelled bookings clutter the grid)
+  // - specific → exact match (including 'canceled' if explicitly chosen)
+  // To see EVERYTHING including cancelled, use the explicit 'canceled' value
+  // alongside the others — but the primary filter is single-select.
   if (opts.filters?.statusFilter && opts.filters.statusFilter !== 'all') {
     resQ = resQ.eq('status', opts.filters.statusFilter);
+  } else {
+    resQ = resQ.neq('status', 'canceled');
   }
   if (opts.filters?.channels && opts.filters.channels.length > 0) {
     resQ = resQ.in('channel', opts.filters.channels);
