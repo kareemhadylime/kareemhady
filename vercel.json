@@ -33,6 +33,7 @@
     { "path": "/api/cron/beithady-csat-survey", "schedule": "0 13 * * *" },
     { "path": "/api/cron/beithady-ads-insights", "schedule": "30 3 * * *" },
     { "path": "/api/cron/beithady-ads-attribution", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/beithady-review-reply-queue", "schedule": "0 1 * * *" }
+    { "path": "/api/cron/beithady-review-reply-queue", "schedule": "0 1 * * *" },
+    { "path": "/api/cron/beithady-operations-recompute", "schedule": "*/30 * * * *" }
   ]
 }
