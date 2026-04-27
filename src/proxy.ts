@@ -46,6 +46,7 @@ const PUBLIC_PREFIXES = [
   '/api/auth/',  // covers login, logout, bootstrap
   '/api/cron/',
   '/api/webhooks/',
+  '/api/leads/', // Phase I — public website-form lead intake
   '/api/shopify/auth/',
   '/r/',         // public tokenized reports (e.g. /r/beithady/<token>)
   '/brand/',     // public brand assets (logos, OG previews)
