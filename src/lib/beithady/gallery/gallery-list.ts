@@ -117,16 +117,40 @@ export async function getBuildingSummaries(): Promise<BuildingSummary[]> {
   });
 }
 
+// Drop MTL parents: a row is treated as a multi-unit aggregate (and
+// hidden) when either (a) another row's master_listing_id points to
+// its id, or (b) another row's nickname starts with `<this.nickname>-`.
+// (b) catches the naming-convention MTLs we have today, where Guesty
+// hasn't populated master_listing_id but agents named children
+// `BH73-3BR-SB-1-201` under parent `BH73-3BR-SB-1`.
+type MtlListingShape = { id: string; nickname: string | null; master_listing_id?: string | null };
+function dropMtlParents<T extends MtlListingShape>(rows: T[]): T[] {
+  const parentIds = new Set<string>();
+  for (const r of rows) {
+    if (r.master_listing_id) parentIds.add(r.master_listing_id);
+  }
+  const nicknames = rows.map(r => r.nickname || '');
+  return rows.filter(r => {
+    if (parentIds.has(r.id)) return false;
+    const nick = r.nickname || '';
+    if (!nick) return true;
+    const prefix = nick + '-';
+    for (const other of nicknames) {
+      if (other !== nick && other.startsWith(prefix)) return false;
+    }
+    return true;
+  });
+}
+
 // Distinct listings per building (filtered by what's actually in beithady_guests + guesty_listings)
 export async function getListingsForBuilding(buildingCode: string): Promise<Array<{ listing_id: string; nickname: string; assets: number }>> {
   const sb = supabaseAdmin();
   const [{ data: listings }, { data: assetCounts }] = await Promise.all([
     sb
       .from('guesty_listings')
-      .select('id, nickname, building_code')
+      .select('id, nickname, master_listing_id, building_code')
       .eq('building_code', buildingCode)
       .eq('active', true)
-      .is('master_listing_id', null)
       .order('nickname'),
     sb
       .from('beithady_gallery_assets')
@@ -138,7 +162,8 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
   for (const r of (assetCounts as Array<{ listing_id: string | null }> | null) || []) {
     if (r.listing_id) tally.set(r.listing_id, (tally.get(r.listing_id) || 0) + 1);
   }
-  return ((listings as Array<{ id: string; nickname: string | null }> | null) || []).map(l => ({
+  const allRows = (listings as Array<{ id: string; nickname: string | null; master_listing_id: string | null }> | null) || [];
+  return dropMtlParents(allRows).map(l => ({
     listing_id: l.id,
     nickname: l.nickname || l.id,
     assets: tally.get(l.id) || 0,
@@ -147,9 +172,11 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
 
 // Detailed unit folder summary — adds cover thumbnail + photo/video/
 // document/ad-eligible counts. Used by the building page to render
-// every Guesty unit as a folder card (even empty ones), so the agent
-// always sees the full unit list and can upload directly into the
-// right folder. Cover is the most-recent photo for that listing.
+// every bookable Guesty unit as a folder card (even empty ones), so
+// the agent always sees the full unit list and can upload directly
+// into the right folder. MTL parents are dropped via dropMtlParents
+// (sub-units + standalones survive). Cover is the most-recent photo
+// for that listing.
 export type UnitFolder = {
   listing_id: string;
   nickname: string;
@@ -167,12 +194,12 @@ export async function getUnitFoldersForBuilding(buildingCode: string): Promise<U
   const sb = supabaseAdmin();
   const { data: listings } = await sb
     .from('guesty_listings')
-    .select('id, nickname, title, building_code')
+    .select('id, nickname, title, master_listing_id, building_code')
     .eq('building_code', buildingCode)
     .eq('active', true)
-    .is('master_listing_id', null)
     .order('nickname');
-  const listingRows = (listings as Array<{ id: string; nickname: string | null; title: string | null }> | null) || [];
+  const allRows = (listings as Array<{ id: string; nickname: string | null; title: string | null; master_listing_id: string | null }> | null) || [];
+  const listingRows = dropMtlParents(allRows);
   if (listingRows.length === 0) return [];
 
   const ids = listingRows.map(l => l.id);
