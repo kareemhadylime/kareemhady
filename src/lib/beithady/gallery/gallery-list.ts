@@ -126,7 +126,7 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
       .select('id, nickname, building_code')
       .eq('building_code', buildingCode)
       .eq('active', true)
-      .or('listing_type.is.null,listing_type.neq.MTL')
+      .is('master_listing_id', null)
       .order('nickname'),
     sb
       .from('beithady_gallery_assets')
@@ -170,7 +170,7 @@ export async function getUnitFoldersForBuilding(buildingCode: string): Promise<U
     .select('id, nickname, title, building_code')
     .eq('building_code', buildingCode)
     .eq('active', true)
-    .or('listing_type.is.null,listing_type.neq.MTL')
+    .is('master_listing_id', null)
     .order('nickname');
   const listingRows = (listings as Array<{ id: string; nickname: string | null; title: string | null }> | null) || [];
   if (listingRows.length === 0) return [];

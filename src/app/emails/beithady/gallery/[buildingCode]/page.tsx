@@ -164,7 +164,7 @@ export default async function GalleryBuildingPage({
       </section>
 
       <p className="text-[11px] text-slate-500 text-center">
-        Folders auto-import from <code>guesty_listings</code> (active, non-MTL parents) where <code>building_code = {buildingCode}</code>.
+        Folders auto-import from <code>guesty_listings</code> where <code>building_code = {buildingCode}</code>, <code>active = true</code>, and the listing is not a sub-unit of an MTL parent (we show the MTL nickname instead of its children).
         Photos land in their unit folder when a unit is picked above; otherwise in General Building Area.
       </p>
     </BeithadyShell>
