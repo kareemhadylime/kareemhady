@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { resolvePaymentForReservation } from '@/lib/beithady/operations/payment-resolver';
+import { blockGuestyAvailability, unblockGuestyAvailability } from '@/lib/beithady/operations/guesty-writes';
 
 async function writeAudit(
   actorUserId: string,
@@ -201,6 +202,207 @@ export async function recomputePaymentAction(input: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// =================================================================== Manual blocks
+
+export async function createManualBlockAction(input: {
+  listingId: string;
+  startDate: string;       // YYYY-MM-DD
+  endDate: string;         // YYYY-MM-DD (exclusive)
+  reason: 'owner_stay' | 'maintenance' | 'hold' | 'other';
+  notes?: string;
+}): Promise<{ ok: boolean; id?: string; guestySync?: boolean; guestyError?: string; error?: string }> {
+  const { user } = await requireBeithadyPermission('operations', 'full');
+  if (input.endDate <= input.startDate) {
+    return { ok: false, error: 'End date must be after start date' };
+  }
+  const sb = supabaseAdmin();
+
+  // 1) Insert local block first — local always wins, sync is best-effort.
+  const { data: created, error: insErr } = await sb
+    .from('beithady_calendar_manual_blocks')
+    .insert({
+      listing_id: input.listingId,
+      start_date: input.startDate,
+      end_date: input.endDate,
+      reason: input.reason,
+      notes: input.notes,
+      created_by_user: user.id,
+    })
+    .select('id')
+    .single();
+  if (insErr) return { ok: false, error: insErr.message };
+  const blockId = (created as { id: string }).id;
+
+  // 2) Push to Guesty (best effort).
+  const sync = await blockGuestyAvailability({
+    listingId: input.listingId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    reason: input.reason,
+    note: input.notes,
+  });
+  await sb
+    .from('beithady_calendar_manual_blocks')
+    .update({
+      guesty_synced: sync.ok,
+      guesty_synced_at: sync.ok ? new Date().toISOString() : null,
+      guesty_sync_error: sync.ok ? null : sync.error || 'unknown error',
+    })
+    .eq('id', blockId);
+
+  await writeAudit(user.id, 'block.create', input.listingId, null, {
+    block_id: blockId,
+    start: input.startDate,
+    end: input.endDate,
+    reason: input.reason,
+    guesty_synced: sync.ok,
+  }, { notes: input.notes });
+
+  revalidatePath('/emails/beithady/operations/calendar');
+  return { ok: true, id: blockId, guestySync: sync.ok, guestyError: sync.error };
+}
+
+export async function removeManualBlockAction(input: {
+  blockId: string;
+}): Promise<{ ok: boolean; guestySync?: boolean; guestyError?: string; error?: string }> {
+  const { user } = await requireBeithadyPermission('operations', 'full');
+  const sb = supabaseAdmin();
+  const { data: block } = await sb
+    .from('beithady_calendar_manual_blocks')
+    .select('listing_id, start_date, end_date, reason')
+    .eq('id', input.blockId)
+    .maybeSingle();
+  if (!block) return { ok: false, error: 'Block not found' };
+  const b = block as { listing_id: string; start_date: string; end_date: string; reason: string };
+
+  // 1) Reopen availability in Guesty (best effort).
+  const sync = await unblockGuestyAvailability({
+    listingId: b.listing_id,
+    startDate: b.start_date,
+    endDate: b.end_date,
+  });
+
+  // 2) Delete the local row.
+  const { error: delErr } = await sb
+    .from('beithady_calendar_manual_blocks')
+    .delete()
+    .eq('id', input.blockId);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  await writeAudit(user.id, 'block.remove', b.listing_id, b, null, {
+    block_id: input.blockId,
+    guesty_synced: sync.ok,
+  });
+
+  revalidatePath('/emails/beithady/operations/calendar');
+  return { ok: true, guestySync: sync.ok, guestyError: sync.error };
+}
+
+export async function listManualBlocksForWindow(input: {
+  startDate: string;
+  endDate: string;
+  buildingCodes?: string[];
+}): Promise<Array<{
+  id: string;
+  listing_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  notes: string | null;
+  guesty_synced: boolean;
+  guesty_sync_error: string | null;
+}>> {
+  await requireBeithadyPermission('operations', 'read');
+  const sb = supabaseAdmin();
+  let q = sb
+    .from('beithady_calendar_manual_blocks')
+    .select('id, listing_id, start_date, end_date, reason, notes, guesty_synced, guesty_sync_error')
+    .gte('end_date', input.startDate)
+    .lte('start_date', input.endDate);
+  if (input.buildingCodes && input.buildingCodes.length > 0) {
+    // Join via guesty_listings would be cleaner; for V1 we filter by listing_id
+    // membership using a sub-select.
+    const { data: listings } = await sb
+      .from('guesty_listings')
+      .select('id')
+      .in('building_code', input.buildingCodes);
+    const ids = (listings as Array<{ id: string }> | null)?.map(l => l.id) || [];
+    q = q.in('listing_id', ids);
+  }
+  const { data } = await q;
+  return (data as Array<{
+    id: string;
+    listing_id: string;
+    start_date: string;
+    end_date: string;
+    reason: string;
+    notes: string | null;
+    guesty_synced: boolean;
+    guesty_sync_error: string | null;
+  }> | null) || [];
+}
+
+// =================================================================== Bulk
+
+export async function bulkSendPreArrivalAction(input: {
+  daysAhead?: number;       // default 3
+  buildingCodes?: string[];
+  dryRun?: boolean;
+}): Promise<{ ok: boolean; matched: number; skipped: number; error?: string }> {
+  const { user } = await requireBeithadyPermission('operations', 'full');
+  const sb = supabaseAdmin();
+  const days = input.daysAhead ?? 3;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cutoff = new Date(today.getTime() + days * 86400000);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+  const todayIso = today.toISOString().slice(0, 10);
+
+  // Find reservations arriving in [today, today+days] that DO NOT have
+  // a pre-arrival message yet.
+  let q = sb
+    .from('beithady_reservation_grid_v')
+    .select('reservation_id, listing_id, building_code, prearrival_sent_at, status')
+    .gte('check_in_date', todayIso)
+    .lte('check_in_date', cutoffIso)
+    .is('prearrival_sent_at', null)
+    .neq('status', 'canceled');
+  if (input.buildingCodes && input.buildingCodes.length > 0) {
+    q = q.in('building_code', input.buildingCodes);
+  }
+  const { data, error } = await q;
+  if (error) return { ok: false, matched: 0, skipped: 0, error: error.message };
+
+  const rows = (data as Array<{ reservation_id: string }> | null) || [];
+
+  if (input.dryRun) {
+    return { ok: true, matched: rows.length, skipped: 0 };
+  }
+
+  // Insert placeholder pre_arrival_messages rows. The
+  // /api/cron/beithady-pre-arrival cron picks these up on its next tick
+  // and actually sends. This avoids us hammering the messaging API
+  // synchronously in a server action.
+  let skipped = 0;
+  for (const r of rows) {
+    const { error: e } = await sb.from('beithady_pre_arrival_messages').insert({
+      reservation_id: r.reservation_id,
+      scheduled_for: new Date().toISOString(),
+    });
+    if (e) skipped += 1;
+  }
+
+  await writeAudit(user.id, 'bulk.send_prearrival', 'bulk', null, {
+    matched: rows.length,
+    skipped,
+    days_ahead: days,
+    buildings: input.buildingCodes,
+  });
+
+  revalidatePath('/emails/beithady/operations/calendar');
+  return { ok: true, matched: rows.length - skipped, skipped };
 }
 
 // =================================================================== Saved views

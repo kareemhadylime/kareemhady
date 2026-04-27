@@ -1,5 +1,6 @@
 import { Building2 } from 'lucide-react';
 import type { CalendarRow } from '@/lib/beithady/operations/types';
+import { ManualBlockButton } from './manual-block-button';
 
 const DOT_COLOR: Record<CalendarRow['status_dot'], string> = {
   red: 'bg-rose-500',
@@ -19,7 +20,7 @@ const DOT_TITLE: Record<CalendarRow['status_dot'], string> = {
   gray: 'No upcoming reservation',
 };
 
-export function ListingRail({ row }: { row: CalendarRow }) {
+export function ListingRail({ row, windowStart }: { row: CalendarRow; windowStart: string }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 border-r border-slate-200 dark:border-slate-700 sticky left-0 bg-white dark:bg-slate-900 z-[5] min-w-0">
       <span
@@ -48,8 +49,13 @@ export function ListingRail({ row }: { row: CalendarRow }) {
             <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">{row.building_code}</span>
           )}
           {row.base_price_usd != null && (
-            <span className="tabular-nums">${Math.round(row.base_price_usd)}/night</span>
+            <span className="tabular-nums">${Math.round(row.base_price_usd)}</span>
           )}
+          <ManualBlockButton
+            listingId={row.listing_id}
+            listingNickname={row.nickname}
+            defaultStart={windowStart}
+          />
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { AnomalyBanner } from './_components/anomaly-banner';
 import { ReservationDrawer } from './_components/drawer';
 import { SavedViewsMenu } from './_components/saved-views-menu';
 import { ChannelMix } from './_components/channel-mix';
+import { BulkActions } from './_components/bulk-actions';
 import { listViews } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -99,7 +100,12 @@ export default async function OperationsCalendarPage({
         eyebrow="Beit Hady · Operations"
         title="Multi-Calendar"
         subtitle={`${data.rows.length} bookable units · ${data.reservations.length} reservations in window · ${data.windowStart} → ${data.windowEnd}`}
-        right={<SavedViewsMenu initialViews={views} />}
+        right={
+          <div className="flex items-center gap-2">
+            <BulkActions buildings={filters.buildings} />
+            <SavedViewsMenu initialViews={views} />
+          </div>
+        }
       />
       <AnomalyBanner anomalies={data.anomalies} />
       <ChannelMix reservations={data.reservations} />

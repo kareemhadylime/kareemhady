@@ -94,7 +94,7 @@ export function CalendarGrid({ data }: { data: CalendarGridData }) {
               className="grid border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/20"
               style={{ gridTemplateColumns: gridTemplate }}
             >
-              <ListingRail row={row} />
+              <ListingRail row={row} windowStart={data.windowStart} />
               {/* Date strip wrapper — single column 2 → end, but inside it
                   we render per-cell backgrounds + reservation bars overlaid. */}
               <div
