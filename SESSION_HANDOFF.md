@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase J.1 + J.2 + J.3 shipped (commits `0346db5` + `90ae39e` + `1e6bde0`)
+## 🟢 Latest turn — Phase J.1 → J.4 shipped (commits `0346db5`, `90ae39e`, `1e6bde0`, `40958cc`)
+
+J.4 — 10-tab reservation drawer (`40958cc`):
+- [src/lib/beithady/operations/reservation-detail.ts](src/lib/beithady/operations/reservation-detail.ts) — `getReservationDetail(id)` parallel-fetches base + conversation + last 10 messages + tasks + upsells + audit + ads attribution + lead pipeline + past stays + reviews
+- [drawer.tsx](src/app/emails/beithady/operations/calendar/_components/drawer.tsx) — slideover with backdrop, header (confirmation code, guest, listing, status pill, risk pill), tier-specific loyalty banner (VIP/Platinum/Gold/Silver perks), 10 tabs in a left rail
+- All 10 tabs implemented in V1 (read-only): Overview / Guest / Channel / Payment / Communication / Check-in / Tasks / Upsells / Attribution / Audit
+- Past-stay quick-look (improvement #12) shows last 3 stays with star ratings + previous review excerpts
+- Loyalty banner (improvement #13) drives feature gating per tier
+- Page parallel-fetches grid data + reservation detail; drawer mounts when `?reservation=<id>` is set
+- Read-only V1; write actions (mark paid, status changes, manual blocks) land in J.7
+
+J.3 — Read-only Calendar Grid (`1e6bde0`):
+- [src/lib/beithady/operations/calendar-data.ts](src/lib/beithady/operations/calendar-data.ts) + [channel-meta.ts](src/lib/beithady/operations/channel-meta.ts) + [types.ts](src/lib/beithady/operations/types.ts)
+- 5 UI components: anomaly-banner, header-bar (filters + URL params), listing-rail, reservation-bar, calendar-grid (220px sticky rail × N date cols, today indicator, weekend tinting)
+- Click reservation → `?reservation=<id>` (drawer wired in J.4)
+
+**Phase J progress:** J.1 ✅ J.2 ✅ J.3 ✅ J.4 ⏳ (build verification pending) — J.5–J.10 ⏳
+
+## 🟢 Earlier this session — Phase J.1 + J.2 + J.3 shipped
 
 J.3 grid coding done — Vercel build verification scheduled. Note on J.1's individual deploy: it errored because adding `operations` to `BeithadyCategory` broke `Record<BeithadyCategory, LauncherTile>` in the launcher map; J.2 fixed it within the same logical change. Canonical `limeinc.vercel.app` is on J.2's READY build (which contains J.1 code).
 
@@ -263,7 +281,8 @@ Order of phases shipped (oldest → newest):
 20. **Phase J workflow drafted** (no commit) — 10 sub-phase build plan + pre-flight investigations sent for review
 21. **Phase J.1 — Operations Calendar foundation** (`0346db5`) — migration 0043, 277 reservations cached with risk + payment status, permission matrix gains `operations` category
 22. **Phase J.2 — Operations launcher card + sub-landing** (`90ae39e`) — 8th tile on Beithady main, sub-landing with anomaly snapshot + 3 op cards, calendar placeholder, boarding-passes table
-23. **Phase J.3 — Read-only calendar grid** (`1e6bde0`) — server page + `getCalendarGridData` lib + 5 UI components (anomaly-banner, header-bar, listing-rail, reservation-bar, calendar-grid). Click reservation → `?reservation=<id>` (drawer in J.4) (this turn)
+23. **Phase J.3 — Read-only calendar grid** (`1e6bde0`) — server page + `getCalendarGridData` lib + 5 UI components. Click reservation → `?reservation=<id>` (drawer in J.4)
+24. **Phase J.4 — 10-tab reservation drawer** (`40958cc`) — `getReservationDetail` lib + 600-line drawer.tsx with all 10 tabs (Overview/Guest/Channel/Payment/Comms/Check-in/Tasks/Upsells/Attribution/Audit) + tier loyalty banner (improvement #13) + past-stay quick-look (improvement #12) (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
