@@ -6,6 +6,9 @@ import { CalendarGrid } from './_components/calendar-grid';
 import { HeaderBar } from './_components/header-bar';
 import { AnomalyBanner } from './_components/anomaly-banner';
 import { ReservationDrawer } from './_components/drawer';
+import { SavedViewsMenu } from './_components/saved-views-menu';
+import { ChannelMix } from './_components/channel-mix';
+import { listViews } from './actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -81,9 +84,10 @@ export default async function OperationsCalendarPage({
     search: sp.q || undefined,
   };
 
-  const [data, detail] = await Promise.all([
+  const [data, detail, views] = await Promise.all([
     getCalendarGridData({ startDate, daysCount, filters }),
     sp.reservation ? getReservationDetail(sp.reservation) : Promise.resolve(null),
+    listViews(),
   ]);
 
   return (
@@ -95,8 +99,10 @@ export default async function OperationsCalendarPage({
         eyebrow="Beit Hady · Operations"
         title="Multi-Calendar"
         subtitle={`${data.rows.length} bookable units · ${data.reservations.length} reservations in window · ${data.windowStart} → ${data.windowEnd}`}
+        right={<SavedViewsMenu initialViews={views} />}
       />
       <AnomalyBanner anomalies={data.anomalies} />
+      <ChannelMix reservations={data.reservations} />
       <HeaderBar
         startDate={data.windowStart}
         daysCount={daysCount}
