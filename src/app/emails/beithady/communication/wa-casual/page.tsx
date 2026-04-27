@@ -3,6 +3,7 @@ import { Smartphone, ExternalLink, Search, Activity } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
 import { listInbox, loadThread, getInboxStats, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { ChannelTabs } from '../_components/channel-tabs';
 import { SidebarList } from '../_components/sidebar-list';
@@ -48,10 +49,11 @@ export default async function WaCasualPage({
   const ready = enabled && configured;
 
   const filter = parseFilter(sp);
-  const [inbox, stats, thread] = await Promise.all([
+  const [inbox, stats, thread, pendingSuggestion] = await Promise.all([
     listInbox({ filter, page: 1, pageSize: 50 }),
     getInboxStats('wa_casual'),
     sp.c ? loadThread(sp.c) : Promise.resolve(null),
+    sp.c ? getPendingSuggestion(sp.c) : Promise.resolve(null),
   ]);
 
   return (
@@ -149,6 +151,7 @@ export default async function WaCasualPage({
               fallback_url: sp.fallback,
               sent: sp.sent === '1',
             }}
+            pendingSuggestion={pendingSuggestion}
           />
         </div>
       </section>

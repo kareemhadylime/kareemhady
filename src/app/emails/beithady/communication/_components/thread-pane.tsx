@@ -5,6 +5,7 @@ import type { ThreadBundle } from '@/lib/beithady/communication/inbox';
 import { SlaPill } from './sla-pill';
 import { GuestyComposer } from './composer';
 import { WaCasualComposer } from './wa-casual-composer';
+import { SuggestionStrip, type Suggestion } from './suggestion-strip';
 
 export type ThreadComposerHints = {
   send_error?: string;
@@ -13,7 +14,15 @@ export type ThreadComposerHints = {
   sent?: boolean;
 };
 
-export function ThreadPane({ bundle, composerHints }: { bundle: ThreadBundle | null; composerHints?: ThreadComposerHints }) {
+export function ThreadPane({
+  bundle,
+  composerHints,
+  pendingSuggestion,
+}: {
+  bundle: ThreadBundle | null;
+  composerHints?: ThreadComposerHints;
+  pendingSuggestion?: Suggestion | null;
+}) {
   if (!bundle) {
     return (
       <div className="ix-card p-12 text-center text-sm text-slate-500 h-full flex items-center justify-center">
@@ -40,6 +49,13 @@ export function ThreadPane({ bundle, composerHints }: { bundle: ThreadBundle | n
       </div>
 
       <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-3 bg-white dark:bg-slate-900">
+        {pendingSuggestion && (
+          <SuggestionStrip
+            conversationId={header.id}
+            suggestion={pendingSuggestion}
+            channel={header.channel}
+          />
+        )}
         {header.channel === 'guesty' ? (
           <GuestyComposer
             conversationId={header.id}

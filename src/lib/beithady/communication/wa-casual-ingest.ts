@@ -246,9 +246,27 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
   // Recompute SLA so the inbox sidebar lights up immediately
   await sb.rpc('beithady_communication_sla_recompute');
 
+  const newMessageId = (insMsg as { id: string } | null)?.id;
+
+  // Phase E: kick off AI auto-reply asynchronously. We don't await
+  // because Green-API webhooks have a tight timeout — fire-and-forget,
+  // log errors. The classification + decision land back in the
+  // beithady_ai_reply_log table within ~2s.
+  if (newMessageId) {
+    void (async () => {
+      try {
+        const { processInboundForAutoReply } = await import('@/lib/beithady/ai/auto-reply');
+        await processInboundForAutoReply(newMessageId);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[wa-casual-ingest] auto-reply failed:', e);
+      }
+    })();
+  }
+
   return {
     ok: true,
-    message_id: (insMsg as { id: string } | null)?.id,
+    message_id: newMessageId,
     conversation_id: conversationId,
   };
 }
