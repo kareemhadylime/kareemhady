@@ -1,5 +1,54 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
+## ✅ Beithady Financials — Opening Balances refreshed from amended `bh balance sheet.xlsx` · DEPLOYED to limeinc.vercel.app
+
+User: "For BeitHady Domain · Financial · In Regards to Balance Sheet, we have made amendments to the Beginning Balance Sheet 31-DEC-2025 that was previously used to build the balance sheet. Redo to take into account the newer Data · Under Folder C:\kareemhady\.claude\Beithady Domain"
+
+**What changed**: rebuilt `src/lib/beithady-opening-balance-2026.ts` (single file touched) from the amended `.claude/Beithady Domain/bh balance sheet.xlsx`, replacing the prior source `Beithady Consildated upto31-12-2025.xlsx`. Commit `2860848` pushed to `origin/main` and live on `https://limeinc.vercel.app` (Vercel deploy `dpl_4mVv2GUKk4ZHsoBzyF8y2vivfhfq`, target=production, READY).
+
+**Material amendments picked up from the new xlsx**:
+- **Notes Payable consolidated.** Prior xlsx split as `221001 Long Term` (-11,937,183, NCL) + `221002 Short Term` (-6,138,396, CL); amended sheet rolls both into a single `221001 'Notes Payable - Short Term'` of -18,075,579 sitting under **Non-current Liabilities**. As a consequence, `ACCOUNT_TYPE_OVERRIDES['221001']` was flipped from `liability_current` → `liability_non_current` so 2026 Odoo deltas on this code (which Odoo tags variously `asset_cash` for 2 cheque-journal sub-accounts + `liability_current` for 1) now route to the same NCL bucket as the opening seed.
+- **222008 Total Lime Loan** -42,311,641 → -42,311,642.82 (delta -1.82). Override stays `liability_non_current`.
+- **122001 Customers** -796,296.28 → -796,296.00 (delta +0.28).
+- **Two new cash custodies seeded**: `121028 Omar Kamel Custody` (-0.59) and `121051 Ahmed Abdelsalam Custody` (+2.00).
+- **Side fix**: prior file kept `124004 Prepaid Expenses` as two same-key rows (134,231.90 + 96,704.92), and the consumer at `financials-pnl.ts:802` uses `byAccount.set(key, ...)` which silently overwrote — effectively dropping the 134,231.90. Now combined into one 230,936.82 entry. Same combine applied to `227003 City Tax` (now -4,341.98 single row; appears split as 1,338.28 + 3,003.70 in the xlsx).
+
+**Reconciliation against the source xlsx (every section sum exact to the cent)**:
+```
+Bank & Cash         707,352.62
+Receivables        -796,296.00
+Current Assets    4,806,642.42
+Prepayments       4,713,167.41
+Fixed Assets     67,527,108.92
+ASSETS           76,957,975.37
+
+Current Liab      1,854,719.73
+Payables          9,081,444.65
+Non-current Liab 70,387,221.82
+LIABILITIES      81,323,386.20
+EQUITY           -4,365,411.00
+L + E            76,957,975.20
+```
+Residual A vs L+E = **0.17 EGP** (down from 0.30 in the prior seed). The 0.17 is present in the user's source xlsx itself; preserved verbatim rather than plugged into a synthetic equity line.
+
+**Verification**:
+- ✅ Python parse of `bh balance sheet.xlsx` matches every section subtotal in the xlsx
+- ✅ Recomputed seed totals by `account_type`: each one matches xlsx ±0.00
+- ✅ No duplicate `(code|name|account_type)` keys in the new seed (pre-existing 124004 dup-bug closed)
+- ✅ `npx tsc --noEmit` — no new errors introduced (pre-existing `@react-pdf/renderer` warnings only)
+- ✅ `vercel --prod` build "Compiled successfully", deployed to canonical `kareemhady` Vercel project (prj_eA8n3hQvSyUclvJQ0o6kzfxVMUQw) → aliased `limeinc.vercel.app`
+
+**Deploy hiccup worth noting for next session**: running `vercel --prod` in this worktree directory the first time auto-created a brand-new Vercel project `goofy-kilby-f5d4c8` and deployed there (because `.vercel/project.json` was absent). Fix: wrote the canonical `kareemhady` projectId/orgId into `.claude/worktrees/goofy-kilby-f5d4c8/.vercel/project.json` from the `C:\kareemhady\.vercel/project.json` source-of-truth, then re-ran. Second run hit a transient `ECONNRESET` during upload (build had already completed); third run succeeded. **For future worktree-based deploys**: pre-seed the `.vercel/project.json` before running `vercel --prod`, or run from `C:\kareemhady` after the worktree branch is merged into main.
+
+**Files touched**:
+- `src/lib/beithady-opening-balance-2026.ts` — full rewrite (74 inserts / 18 deletes)
+
+**Source data archived at**: `.claude/Beithady Domain/bh balance sheet.xlsx`
+
+**Next step on session resume**: nothing pending on this thread. If the user spots another amendment to the opening sheet, repeat the same procedure (parse xlsx → diff against current seed → update `BEITHADY_OPENING_BALANCES_2026` + any `ACCOUNT_TYPE_OVERRIDES` shifts if account classification changed → commit → push origin HEAD:main → vercel --prod from worktree with `.vercel/project.json` pre-seeded).
+
+---
+
 ## 🟢 Beithady v2 Phase B — CRM CODED + INGESTED (5,753 guests live in Supabase) · main push pending user authorization
 
 User said "Phase B" then "continue". Phase B implemented end-to-end on this worktree; data populated via a SQL initial-ingest stored procedure (since the worktree's Vercel project lacks `SUPABASE_URL`/`ANTHROPIC_API_KEY` env vars and direct push to main is gated per-action).
