@@ -1,9 +1,11 @@
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getCalendarGridData } from '@/lib/beithady/operations/calendar-data';
+import { getReservationDetail } from '@/lib/beithady/operations/reservation-detail';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { CalendarGrid } from './_components/calendar-grid';
 import { HeaderBar } from './_components/header-bar';
 import { AnomalyBanner } from './_components/anomaly-banner';
+import { ReservationDrawer } from './_components/drawer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -79,7 +81,10 @@ export default async function OperationsCalendarPage({
     search: sp.q || undefined,
   };
 
-  const data = await getCalendarGridData({ startDate, daysCount, filters });
+  const [data, detail] = await Promise.all([
+    getCalendarGridData({ startDate, daysCount, filters }),
+    sp.reservation ? getReservationDetail(sp.reservation) : Promise.resolve(null),
+  ]);
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -98,6 +103,7 @@ export default async function OperationsCalendarPage({
         filters={filters}
       />
       <CalendarGrid data={data} />
+      {detail && <ReservationDrawer detail={detail} />}
     </BeithadyShell>
   );
 }
