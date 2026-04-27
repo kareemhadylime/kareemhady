@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — MTL-aware pricing fallback for BH-73 children (commit `8048ea1`)
+## 🟢 Latest turn — Chip filters + Country filter + Hide cancelled (commit `3fbc5c3`)
+
+User asked for three things:
+
+**1. Filter UI redesign — chips instead of selects**
+Replaced the single row of select dropdowns with labeled chip rows. Each row has a category label (View / Buildings / Channels / Country / Status / Risk) and pill-style chips that toggle filter values via URL params. Active chips get category-specific colours:
+- Channels chips use the brand colour when active (Airbnb red, Booking blue, Direct teal, Hopper purple)
+- Status: Confirmed=emerald, Inquiry=amber, Canceled=slate
+- Risk: Unpaid=rose, Pre-arrival=amber, VIP=violet
+- Buildings + Country = navy/emerald with flag emojis (🇪🇬 🇦🇪)
+
+**2. Country filter added**
+Pulled from `guesty_listings.address_country` — 87 Egypt + 3 UAE listings active. URL param `?country=<value>`. Filters listings via SQL `.in('address_country', [...])` before the calendar even queries reservations.
+
+**3. Cancelled reservations now hidden by default**
+Was: shown faded with crosshatch.
+Now: hidden when status filter is "Active" (default). Click the Canceled status chip to opt-in.
+
+## 🟢 Earlier this session — MTL-aware pricing fallback for BH-73 children (commit `8048ea1`)
 
 User flagged two grid issues:
 1. BH-73 children (BH73-1BR-C-8-106, …-2BR-SB-5-107, etc.) showed empty price cells while their MTL parents had prices.
@@ -386,7 +404,8 @@ Order of phases shipped (oldest → newest):
 30. **Phase J.9 — Heatmap + comp-set + WhatsApp share** (`926eb15`) — density toggle (price/occupancy/ADR/revenue) + ▲▼ comp-set triangles + Copy/WhatsApp boarding-pass share
 31. **Phase J.10 — Find availability modal** (`0d495a3`) — server action + form + result grid with Guesty deep-link for booking creation. Phase J COMPLETE
 32. **Operations Calendar — "Other" bucket** (`1a3ef97`) — 8 out-of-scope listings (Madinaty, Mall of Mansoura, etc.) now bucketed under synthetic 'OTHER' building
-33. **Calendar — MTL-aware price + bedrooms fallback** (`8048ea1`) — BH-73 children now show their parent's pricelabs price/bedrooms/comp-set since pricelabs only tracks the MTL parent (this turn)
+33. **Calendar — MTL-aware price + bedrooms fallback** (`8048ea1`) — BH-73 children now show their parent's pricelabs price/bedrooms/comp-set since pricelabs only tracks the MTL parent
+34. **Calendar — Chip filters + Country + hide cancelled** (`3fbc5c3`) — select dropdowns → categorised chip rows with brand colours; new Country chip row (Egypt/UAE); cancelled reservations now hidden by default (explicit Canceled chip to opt-in) (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
