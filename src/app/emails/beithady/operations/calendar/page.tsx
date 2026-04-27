@@ -10,6 +10,7 @@ import { SavedViewsMenu } from './_components/saved-views-menu';
 import { ChannelMix } from './_components/channel-mix';
 import { BulkActions } from './_components/bulk-actions';
 import { RealtimeBridge } from './_components/realtime-bridge';
+import { FindAvailabilityModal } from './_components/find-availability-modal';
 import { listViews } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -105,6 +106,7 @@ export default async function OperationsCalendarPage({
         right={
           <div className="flex items-center gap-2">
             <RealtimeBridge />
+            <FindAvailabilityModal defaultStart={data.windowStart} />
             <BulkActions buildings={filters.buildings} />
             <SavedViewsMenu initialViews={views} />
           </div>

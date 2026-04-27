@@ -393,6 +393,130 @@ export async function listManualBlocksForWindow(input: {
   }> | null) || [];
 }
 
+// =================================================================== Find availability
+
+export type AvailableUnit = {
+  listing_id: string;
+  nickname: string;
+  building_code: string | null;
+  bedrooms: number | null;
+  base_price_usd: number | null;
+  cover_url: string | null;
+};
+
+export async function findAvailabilityAction(input: {
+  startDate: string;       // YYYY-MM-DD
+  endDate: string;         // YYYY-MM-DD (exclusive)
+  bedrooms?: number;       // optional minimum
+  buildingCodes?: string[];
+}): Promise<{ ok: boolean; units?: AvailableUnit[]; error?: string }> {
+  await requireBeithadyPermission('operations', 'read');
+  const sb = supabaseAdmin();
+  if (input.endDate <= input.startDate) {
+    return { ok: false, error: 'End date must be after start date' };
+  }
+
+  // 1) All bookable atoms (master_listing_id IS NULL after MTL backfill).
+  let listingsQ = sb
+    .from('guesty_listings')
+    .select('id, nickname, building_code, master_listing_id')
+    .eq('active', true)
+    .is('master_listing_id', null);
+  if (input.buildingCodes && input.buildingCodes.length > 0) {
+    listingsQ = listingsQ.in('building_code', input.buildingCodes);
+  }
+  const { data: listings } = await listingsQ;
+  const all = (listings as Array<{ id: string; nickname: string | null; building_code: string | null }> | null) || [];
+
+  // 2) Reservations overlapping the window — exclude these listings.
+  const { data: occupied } = await sb
+    .from('guesty_reservations')
+    .select('listing_id')
+    .neq('status', 'canceled')
+    .lt('check_in_date', input.endDate)
+    .gt('check_out_date', input.startDate);
+  const taken = new Set<string>();
+  for (const r of (occupied as Array<{ listing_id: string }> | null) || []) {
+    taken.add(r.listing_id);
+  }
+
+  // 3) Manual blocks overlapping the window — also exclude.
+  const { data: blocks } = await sb
+    .from('beithady_calendar_manual_blocks')
+    .select('listing_id')
+    .lt('start_date', input.endDate)
+    .gt('end_date', input.startDate);
+  for (const b of (blocks as Array<{ listing_id: string }> | null) || []) {
+    taken.add(b.listing_id);
+  }
+
+  const freeIds = all.filter(l => !taken.has(l.id)).map(l => l.id);
+
+  // 4) Pricelabs metadata for bedrooms + price.
+  const { data: pricelabs } = freeIds.length > 0
+    ? await sb
+        .from('pricelabs_listings')
+        .select('id, bedrooms')
+        .in('id', freeIds)
+    : { data: [] };
+  const bedroomsByListing = new Map<string, number>();
+  for (const r of (pricelabs as Array<{ id: string; bedrooms: number | null }> | null) || []) {
+    if (r.bedrooms != null) bedroomsByListing.set(r.id, r.bedrooms);
+  }
+
+  const { data: prices } = freeIds.length > 0
+    ? await sb
+        .from('pricelabs_listing_snapshots')
+        .select('listing_id, recommended_base_price, base, snapshot_date')
+        .in('listing_id', freeIds)
+        .order('snapshot_date', { ascending: false })
+    : { data: [] };
+  const priceByListing = new Map<string, number>();
+  for (const r of (prices as Array<{
+    listing_id: string;
+    recommended_base_price: number | null;
+    base: number | null;
+  }> | null) || []) {
+    if (priceByListing.has(r.listing_id)) continue;
+    const v = r.recommended_base_price ?? r.base;
+    if (v != null) priceByListing.set(r.listing_id, Number(v));
+  }
+
+  // 5) Cover thumbnails (best effort)
+  const { data: covers } = freeIds.length > 0
+    ? await sb
+        .from('beithady_gallery_assets')
+        .select('listing_id, public_url')
+        .in('listing_id', freeIds)
+        .eq('category', 'photo')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+    : { data: [] };
+  const coverByListing = new Map<string, string>();
+  for (const r of (covers as Array<{ listing_id: string; public_url: string | null }> | null) || []) {
+    if (coverByListing.has(r.listing_id)) continue;
+    if (r.public_url) coverByListing.set(r.listing_id, r.public_url);
+  }
+
+  // Apply bedroom filter if provided
+  let units: AvailableUnit[] = all
+    .filter(l => !taken.has(l.id))
+    .map(l => ({
+      listing_id: l.id,
+      nickname: l.nickname || l.id,
+      building_code: l.building_code,
+      bedrooms: bedroomsByListing.get(l.id) ?? null,
+      base_price_usd: priceByListing.get(l.id) ?? null,
+      cover_url: coverByListing.get(l.id) || null,
+    }));
+  if (input.bedrooms != null) {
+    units = units.filter(u => u.bedrooms != null && u.bedrooms >= input.bedrooms!);
+  }
+
+  units.sort((a, b) => a.nickname.localeCompare(b.nickname));
+  return { ok: true, units };
+}
+
 // =================================================================== Bulk
 
 export async function bulkSendPreArrivalAction(input: {
