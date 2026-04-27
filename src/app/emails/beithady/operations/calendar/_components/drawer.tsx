@@ -9,6 +9,7 @@ import {
   CheckCircle2, Circle, AlertCircle,
 } from 'lucide-react';
 import type { ReservationDetail, PastStay, ReservationMessage } from '@/lib/beithady/operations/reservation-detail';
+import { PaymentActions } from './payment-actions';
 
 type TabId = 'overview' | 'guest' | 'channel' | 'payment' | 'comms'
   | 'checkin' | 'tasks' | 'upsells' | 'attribution' | 'audit';
@@ -310,10 +311,20 @@ function TabPayment({ detail }: { detail: ReservationDetail }) {
       </Section>
       <Section title="Source">
         <p className="text-[11px] text-slate-500 leading-snug">
-          For OTAs (Airbnb, Booking.com, Vrbo, Expedia), the channel collects payment upfront —
-          status defaults to <em>paid</em> on confirmation. For direct/website bookings, balance
-          is reconciled against Stripe in J.7.
+          For OTAs (Airbnb, Booking.com, Vrbo, Expedia, Hopper), the channel collects payment upfront —
+          status defaults to <em>paid</em> on confirmation. For direct/website bookings, balance is
+          reconciled against Stripe via the recompute action below.
         </p>
+      </Section>
+      <Section title="Actions">
+        <PaymentActions
+          reservationId={r.reservation_id}
+          currentStatus={r.payment_status}
+          totalCents={r.host_payout != null && r.commission != null
+            ? Math.round((Number(r.host_payout) + Number(r.commission)) * 100)
+            : null}
+          currency={r.currency}
+        />
       </Section>
     </div>
   );
