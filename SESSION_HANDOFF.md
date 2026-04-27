@@ -1,6 +1,35 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟡 Latest turn — Phase J workflow drafted (no commits yet, awaiting user sign-off)
+## 🟢 Latest turn — Phase J.1 + J.2 shipped (commits `0346db5` + `90ae39e`)
+
+User signed off on the workflow phase. Pre-flight read-only investigations + J.1 (foundation) + J.2 (launcher) all deployed to limeinc.vercel.app via auto-deploy.
+
+**Pre-flight findings (shaped J.1):**
+1. `pricelabs_listing_snapshots` has `recommended_base_price` per-listing per-snapshot — no per-night calendar exists. Cells in J.3 use this as a flat per-listing price.
+2. `beithady_boarding_passes` has only `viewed_at`/`view_count`/`token` — no ID upload + no smart-lock. V1 risk score drops those components; J.4 Tab 6 ships boarding pass + pre-arrival only.
+3. `guesty_reservations.raw.money` carries `hostPayout` / `fareAccommodation` / `commission` / `currency` — used as money source-of-truth.
+4. `comp_median_usd` is in `pricelabs_market_snapshots` per (building, bedroom_bucket) — joined in code, not in the view.
+5. `beithady_role_permissions` table doesn't exist — permission matrix is in code at `src/lib/beithady/auth.ts`.
+6. Status set in `guesty_reservations`: `confirmed` / `inquiry` / `canceled`. Channels: `airbnb2` / `bookingCom` / `hopper` / `manual`.
+7. Stripe lib at `src/lib/stripe.ts`, env var `STRIPE_SECRET_KEY` confirmed (Phase 5.8).
+
+**J.1 — Foundation (`0346db5`):**
+- Migration `0043_beithady_operations.sql` applied via MCP. Tables: `beithady_reservation_overrides` (risk + payment cache + manual fields), `beithady_calendar_saved_views`, `beithady_calendar_manual_blocks`. Views: `beithady_reservation_grid_v` (joins reservations + listings + guests + overrides + boarding pass + pre-arrival), `beithady_calendar_anomalies_v` (banner counts).
+- RPCs: `beithady_calendar_recompute_payment(id)`, `beithady_calendar_recompute_risk(id)`, `beithady_calendar_recompute_all_active()` (cron entry point).
+- Initial backfill on **277 reservations**: 25 unpaid flag, 23 prearrival missing.
+- Permission matrix updated: `operations` BeithadyCategory added to `src/lib/beithady/auth.ts`. Grants: admin/manager/ops = full, GR/finance = read.
+
+**J.2 — Launcher (`90ae39e`):**
+- 8th tile "Operations" added to Beithady main launcher (CalendarRange icon, cyan accent).
+- Sub-landing at `/emails/beithady/operations`: anomaly snapshot strip + 3 cards (Multi-Calendar, Tasks → Phase F, Boarding Passes).
+- `/operations/calendar` placeholder (J.3 lands the grid).
+- `/operations/boarding-passes` table of 50 most recent passes from `beithady_boarding_passes`.
+
+**Phase J progress:** J.1 ✅ J.2 ✅ J.3-J.10 ⏳
+
+Next sub-phase J.3 (read-only calendar grid with virtualized rows × dates, ~2 commits) is a natural checkpoint — pausing for user to verify J.1 + J.2 deploys before continuing.
+
+## 🟢 Earlier this session — Phase J workflow drafted (commit `f0a34b9`)
 
 User answered all 10 open questions and confirmed all 12 suggested improvements + added a 13th (loyalty pill on Overview tab driving feature gating per tier). Workflow phase sent for review:
 
@@ -202,7 +231,9 @@ Order of phases shipped (oldest → newest):
 17. **MTL semantics v3** (`5abec90`) — inverted to `dropMtlChildren()`; BH-73 → 13 folders (gallery only)
 18. **MTL backfill + cross-domain unification** (`5256135`) — migration 0042 + sync re-runs RPC + central `mtl.ts` helpers + applied to gallery/calendar/daily-report
 19. **Phase J plan drafted** (no commit) — Operations Calendar module spec sent; user confirmed 13 improvements + answered 10 questions
-20. **Phase J workflow drafted** (no commit) — 10 sub-phase build plan + 5 pre-flight investigations sent for review; awaiting sign-off before coding (this turn)
+20. **Phase J workflow drafted** (no commit) — 10 sub-phase build plan + pre-flight investigations sent for review
+21. **Phase J.1 — Operations Calendar foundation** (`0346db5`) — migration 0043, 277 reservations cached with risk + payment status, permission matrix gains `operations` category
+22. **Phase J.2 — Operations launcher card + sub-landing** (`90ae39e`) — 8th tile on Beithady main, sub-landing with anomaly snapshot + 3 op cards, calendar placeholder, boarding-passes table (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
