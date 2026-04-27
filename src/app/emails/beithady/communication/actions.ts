@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { sendGuestyMessage, type SendGuestyResult } from '@/lib/beithady/communication/send-guesty';
+import { sendWaCasualMessage, uploadWaMedia } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
 
 // Server actions for the Communication module. Today: Guesty send +
@@ -52,6 +53,98 @@ export async function sendGuestyMessageAction(formData: FormData): Promise<void>
 
   // Success: redirect back to the thread with a tick query for the UI.
   redirect(`/emails/beithady/communication/guesty?c=${conversationId}&sent=1`);
+}
+
+// WhatsApp Casual — text-only send via server form action
+export async function sendWaCasualMessageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('not_authenticated');
+  const allowed = user.is_admin || (await hasBeithadyPermission(user, 'communication', 'full'));
+  if (!allowed) throw new Error('forbidden');
+
+  const conversationId = String(formData.get('conversation_id') || '').trim();
+  const body = String(formData.get('body') || '').trim();
+  if (!conversationId) throw new Error('missing_conversation_id');
+  if (!body) throw new Error('empty_body');
+  if (body.length > 5000) throw new Error('body_too_long');
+
+  const result = await sendWaCasualMessage({
+    beithadyConversationId: conversationId,
+    body,
+    agentUserId: user.id,
+    agentDisplayName: user.username,
+  });
+
+  revalidatePath('/emails/beithady/communication/wa-casual');
+  revalidatePath('/emails/beithady/communication/unified');
+
+  if (!result.ok) {
+    const params = new URLSearchParams();
+    params.set('c', conversationId);
+    params.set('send_error', result.error.slice(0, 200));
+    params.set('send_status', String(result.status));
+    redirect(`/emails/beithady/communication/wa-casual?${params.toString()}`);
+  }
+  redirect(`/emails/beithady/communication/wa-casual?c=${conversationId}&sent=1`);
+}
+
+// WhatsApp Casual — voice / file send. Accepts a multipart upload from
+// the client, persists to Supabase Storage, then sends the public URL
+// to Green-API. Same flow handles voice notes (audio/ogg|webm) and
+// arbitrary attachments (image/pdf/etc).
+export async function sendWaCasualVoiceAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('not_authenticated');
+  const allowed = user.is_admin || (await hasBeithadyPermission(user, 'communication', 'full'));
+  if (!allowed) throw new Error('forbidden');
+
+  const conversationId = String(formData.get('conversation_id') || '').trim();
+  if (!conversationId) throw new Error('missing_conversation_id');
+
+  // Accept either an `audio` (voice) or `file` (attachment) blob.
+  const audio = formData.get('audio');
+  const file = formData.get('file');
+  const blob = (audio instanceof Blob ? audio : null) ?? (file instanceof Blob ? file : null);
+  if (!blob) throw new Error('missing_blob');
+
+  const mime = String(formData.get('mime') || blob.type || 'application/octet-stream');
+  const fileName = String(formData.get('file_name') || `voice-${Date.now()}`);
+  const ext =
+    mime.includes('ogg') ? 'ogg' :
+    mime.includes('webm') ? 'webm' :
+    mime.includes('mp4') ? 'm4a' :
+    mime.startsWith('image/jpeg') ? 'jpg' :
+    mime.startsWith('image/png') ? 'png' :
+    mime.startsWith('image/webp') ? 'webp' :
+    mime === 'application/pdf' ? 'pdf' :
+    'bin';
+
+  const ab = await blob.arrayBuffer();
+  const uploaded = await uploadWaMedia(ab, mime, ext);
+  if (!uploaded.ok) throw new Error(`upload_failed: ${uploaded.error}`);
+
+  const captionRaw = String(formData.get('body') || '').trim();
+  const result = await sendWaCasualMessage({
+    beithadyConversationId: conversationId,
+    body: captionRaw,
+    fileUrl: uploaded.url,
+    fileName,
+    fileMime: mime,
+    agentUserId: user.id,
+    agentDisplayName: user.username,
+  });
+
+  revalidatePath('/emails/beithady/communication/wa-casual');
+  revalidatePath('/emails/beithady/communication/unified');
+
+  if (!result.ok) {
+    const params = new URLSearchParams();
+    params.set('c', conversationId);
+    params.set('send_error', result.error.slice(0, 200));
+    params.set('send_status', String(result.status));
+    redirect(`/emails/beithady/communication/wa-casual?${params.toString()}`);
+  }
+  redirect(`/emails/beithady/communication/wa-casual?c=${conversationId}&sent=1`);
 }
 
 export async function toggleKillSwitchAction(formData: FormData): Promise<void> {

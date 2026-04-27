@@ -4,6 +4,7 @@ import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { ThreadBundle } from '@/lib/beithady/communication/inbox';
 import { SlaPill } from './sla-pill';
 import { GuestyComposer } from './composer';
+import { WaCasualComposer } from './wa-casual-composer';
 
 export type ThreadComposerHints = {
   send_error?: string;
@@ -48,6 +49,13 @@ export function ThreadPane({ bundle, composerHints }: { bundle: ThreadBundle | n
             initialError={composerHints?.send_error}
             initialStatus={composerHints?.send_status}
             initialFallbackUrl={composerHints?.fallback_url}
+            initialSent={composerHints?.sent}
+          />
+        ) : header.channel === 'wa_casual' ? (
+          <WaCasualComposer
+            conversationId={header.id}
+            killSwitchOn={!!header.ai_kill_switch}
+            initialError={composerHints?.send_error}
             initialSent={composerHints?.sent}
           />
         ) : (
@@ -154,11 +162,45 @@ function Bubble({ m }: { m: ThreadBundle['messages'][number] }) {
             {m.module_subject}
           </div>
         )}
+        <Attachments attachments={m.attachments} inbound={inbound} />
         <div className="whitespace-pre-wrap text-sm">{m.body || <em className="opacity-60">(empty)</em>}</div>
         <div className={`text-[10px] mt-1 ${inbound ? 'text-slate-400' : 'text-slate-300'}`}>
           {fmtCairoDateTime(m.sent_at || m.created_at)}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Attachments({ attachments, inbound }: { attachments: unknown; inbound: boolean }) {
+  if (!attachments || !Array.isArray(attachments) || attachments.length === 0) return null;
+  return (
+    <div className="space-y-2 mb-2">
+      {(attachments as Array<Record<string, unknown>>).map((a, i) => {
+        const url = typeof a.downloadUrl === 'string' ? a.downloadUrl : null;
+        const type = typeof a.type === 'string' ? a.type : 'file';
+        const name = typeof a.fileName === 'string' ? a.fileName : '';
+        const mime = typeof a.mimeType === 'string' ? a.mimeType : '';
+        if (!url) return null;
+        if (type === 'voice' || type === 'audio' || mime.startsWith('audio/')) {
+          return <audio key={i} src={url} controls className="max-w-full" />;
+        }
+        if (type === 'image' || mime.startsWith('image/')) {
+          // eslint-disable-next-line @next/next/no-img-element
+          return <img key={i} src={url} alt={name || 'image'} className="rounded-lg max-w-[240px] max-h-[240px] object-cover" />;
+        }
+        return (
+          <a
+            key={i}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1 text-xs underline ${inbound ? 'text-slate-700' : 'text-white'}`}
+          >
+            📎 {name || 'attachment'}
+          </a>
+        );
+      })}
     </div>
   );
 }
