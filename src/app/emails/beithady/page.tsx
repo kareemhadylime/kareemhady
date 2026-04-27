@@ -58,10 +58,10 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
   gallery: {
     href: '/emails/beithady/gallery',
     title: 'Gallery',
-    description: 'Pictures · videos · documents · brand library — organized by building and apartment.',
+    description: 'Pictures · videos · documents · brand library — organized by building and apartment, AI-labeled.',
     icon: ImageIcon,
     accent: 'violet',
-    badge: { label: 'Phase D', tone: 'gold' },
+    badge: { label: 'Live', tone: 'navy' },
   },
   ads: {
     href: '/emails/beithady/ads',
@@ -81,7 +81,7 @@ const PHASE_PENDING: Record<BeithadyCategory, string | undefined> = {
   crm: 'Phase B',
   communication: 'Phase C',
   settings: undefined,
-  gallery: 'Phase D',
+  gallery: undefined,
   ads: 'Phase H',
 };
 
