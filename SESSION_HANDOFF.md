@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟡 Latest turn — Phase K.1 Daily Morning Brief plan drafted (no code yet)
+## 🟢 Latest turn — Phase K.1 Daily Morning Brief shipped (commit `730f1f2`)
+
+User confirmed recipients policy: auto-broadcast + admin extras. Built all 6 planned sub-phases in one commit.
+
+**Migration `0044_beithady_morning_brief.sql`** (applied via MCP):
+- `beithady_morning_brief_extras` — admin-curated recipients (label, email, whatsapp, enabled, role)
+- `beithady_morning_brief_log` — per-day per-role delivery log + rendered markdown/HTML for the web archive
+
+**Library `src/lib/beithady/morning-brief/`** (7 files):
+- `types.ts` — Brief / BriefSection / BriefItem / BriefRecipient / BriefRole
+- `gr-brief.ts` — Guest Relations: arrivals/departures today, pre-arrival pending, late-SLA breaches, VIP next 3d, yesterday's CSAT
+- `ops-brief.ts` — Housekeeping & Ops: today's checkouts/check-ins, same-day cleaning flips ⚠, open Phase F tasks, manual blocks starting today, long-stay extensions
+- `finance-brief.ts` — Finance: yesterday revenue (+ by channel), MTD with currency mix, unpaid arriving ≤7d (count + balance), direct-booking revenue
+- `renderers.ts` — `renderMarkdown` (WhatsApp) + `renderHtml` (email/web)
+- `recipients.ts` — `getBriefRecipients(role)`: union of users with matching `beithady_user_role` (auto-broadcast incl. manager/admin) + admin extras
+- `run.ts` — orchestrates build + render + send WhatsApp via existing `sendWhatsApp` + persist log; idempotent per (run_date, role)
+
+**Cron** `/api/cron/beithady-morning-brief`:
+- Scheduled at `0 5 * * *` + `0 6 * * *` UTC (DST-aware Cairo 8am gate via `Intl.DateTimeFormat('Africa/Cairo')`)
+- Bearer-CRON_SECRET auth; `?force=1` bypass
+
+**Web pages:**
+- [/emails/beithady/operations/morning-brief](src/app/emails/beithady/operations/morning-brief/page.tsx) — archive view with role tabs (GR/Ops/Finance), prev/next day nav, delivery stats, rendered HTML. Live-rebuilds if no log row exists.
+- [/emails/beithady/operations/morning-brief/recipients](src/app/emails/beithady/operations/morning-brief/recipients/page.tsx) — admin page: auto-broadcast users (read-only, with email/WA validity flags) + add/toggle/delete extras per role.
+
+**Operations sub-landing** now surfaces a 4th card: Morning Brief (Sunrise icon, amber accent, "Phase K" badge).
+
+**Open notes:**
+- Email delivery is logged but the SMTP provider hookup is a TODO inside `run.ts` (the web archive is canonical regardless)
+- WhatsApp delivery uses the existing Phase C green-api `sendWhatsApp({to, message})` helper
+
+**Phase progress:** Phase J ✅ — Phase K.1 ✅ — K.2-K.5 (cancellation prediction / pricing recommender / direct-booking funnel / KB+SOP / owner portal etc.) ⏳
+
+## 🟢 Earlier this session — Phase K.1 plan drafted
 
 User chose **Daily Morning Brief** from the strategic recommendations list and specified three role-specific versions: Guest Relations, Housekeeping & Operations, Finance & Accounting.
 
@@ -440,7 +473,8 @@ Order of phases shipped (oldest → newest):
 32. **Operations Calendar — "Other" bucket** (`1a3ef97`) — 8 out-of-scope listings (Madinaty, Mall of Mansoura, etc.) now bucketed under synthetic 'OTHER' building
 33. **Calendar — MTL-aware price + bedrooms fallback** (`8048ea1`) — BH-73 children now show their parent's pricelabs price/bedrooms/comp-set since pricelabs only tracks the MTL parent
 34. **Calendar — Chip filters + Country + hide cancelled** (`3fbc5c3`) — select dropdowns → categorised chip rows with brand colours; new Country chip row (Egypt/UAE); cancelled reservations now hidden by default
-35. **Phase K.1 Daily Morning Brief plan drafted** (no commit) — 3 role-specific briefs (Guest Relations / Housekeeping & Ops / Finance & Accounting), 8am Cairo delivery via WhatsApp + email + web archive, ~5-6 commit scope; awaiting recipients-policy answer (this turn)
+35. **Phase K.1 Daily Morning Brief plan drafted** (no commit) — 3 role-specific briefs spec
+36. **Phase K.1 — Daily Morning Brief shipped** (`730f1f2`) — migration 0044 + 7 lib files + cron + web archive + recipients-management page + Operations card. WhatsApp delivery wired via existing green-api; email wire-up is a TODO (web archive is canonical) (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
