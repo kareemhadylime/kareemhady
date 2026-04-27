@@ -5,6 +5,7 @@ import {
   canonicalBuildingFromTag,
   getListingByGuestyId,
 } from '../rules/beithady-listings';
+import { fetchMtlParentIds } from '../beithady/mtl';
 import type { BuildingCode } from './types';
 import { BUILDING_CODES } from './types';
 
@@ -66,15 +67,25 @@ function isPhysicalUnit(
     listing_type: string | null;
     active: boolean | null;
     nickname?: string | null;
-  }
+    master_listing_id?: string | null;
+  },
+  mtlParentIds: Set<string>,
 ): boolean {
   if (row.active === false) return false;
 
+  // Primary signal (post migration 0042): master_listing_id is the
+  // populated MTL parent reference. If this row IS a parent (some other
+  // row points to its id), it's not bookable.
+  if (row.id && mtlParentIds.has(row.id)) return false;
+  // If it has a parent of its own, it's a child → bookable.
+  if (row.master_listing_id) return true;
+
+  // Fallback signals (still useful when Guesty actually populates
+  // listing_type or for legacy rows the backfill hasn't touched yet).
   const t = (row.listing_type || '').toUpperCase();
   if (t === 'MTL') return false;
   if (t === 'SLT' || t === 'SINGLE') return true;
 
-  // listing_type unknown — consult catalog by Guesty id
   if (row.id) {
     const cat = getListingByGuestyId(row.id);
     if (cat) {
@@ -82,18 +93,7 @@ function isPhysicalUnit(
       return true;
     }
   }
-  // Last resort: nickname pattern. Multi-unit parents in BH-73 follow the
-  // `BH73-XXX-Y-Z` pattern WITHOUT a trailing 3-digit unit number, while
-  // sub-units always end in `-NNN`. This heuristic only fires when both
-  // listing_type and catalog lookup fail.
-  if (row.nickname) {
-    const nick = row.nickname.toUpperCase().trim();
-    // Matches a sub-unit suffix: `-001`, `-101`, `-203`, etc.
-    if (/-\d{3}$/.test(nick)) return true;
-    // Catalog says SINGLE-UNIT for any non-multi nickname like
-    // `BH-26-501`, `BH73-2BR-SB-404`, `LIME-MA-1402`, etc.
-    return true;
-  }
+  // Standalone with no signals → treat as bookable.
   return true;
 }
 
@@ -105,13 +105,17 @@ function isPhysicalUnit(
  */
 export async function loadBuildingInventories(): Promise<AllInventories> {
   const sb = supabaseAdmin();
-  const { data } = await sb
-    .from('guesty_listings')
-    .select('id, building_code, listing_type, active, nickname');
+  const [{ data }, mtlParentIds] = await Promise.all([
+    sb
+      .from('guesty_listings')
+      .select('id, building_code, listing_type, master_listing_id, active, nickname'),
+    fetchMtlParentIds(),
+  ]);
   const rows = (data || []) as Array<{
     id: string;
     building_code: string | null;
     listing_type: string | null;
+    master_listing_id: string | null;
     active: boolean | null;
     nickname: string | null;
   }>;
@@ -145,7 +149,8 @@ export async function loadBuildingInventories(): Promise<AllInventories> {
       listing_type: r.listing_type,
       active: r.active,
       nickname: r.nickname,
-    })) continue;
+      master_listing_id: r.master_listing_id,
+    }, mtlParentIds)) continue;
     // Prefer Guesty's building_code; fall back to the catalog match.
     const bcRaw =
       r.building_code ||

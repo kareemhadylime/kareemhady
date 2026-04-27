@@ -117,43 +117,18 @@ export async function getBuildingSummaries(): Promise<BuildingSummary[]> {
   });
 }
 
-// Drop MTL children — keeps MTL parents and standalones. A row is
-// treated as a child (and hidden) when either:
-//   (a) its master_listing_id points to another row in the input set
-//       (Guesty-structured MTLs — future-proofs for when sync starts
-//       populating this column), or
-//   (b) another row's nickname is a strict prefix of this one with
-//       a `-` separator, e.g. `BH73-3BR-SB-1-201` is a child of
-//       `BH73-3BR-SB-1` (naming-convention MTLs — today's data).
-//
-// Why drop children rather than parents in the gallery: children of an
-// MTL share pictures/features with the parent, so the agent uploads
-// once to the MTL parent and every sub-unit inherits. Showing each
-// child as its own folder forces redundant uploads.
-type MtlListingShape = { id: string; nickname: string | null; master_listing_id?: string | null };
-function dropMtlChildren<T extends MtlListingShape>(rows: T[]): T[] {
-  const ids = new Set(rows.map(r => r.id));
-  const nicknames = rows.map(r => r.nickname || '').filter(Boolean);
-  return rows.filter(r => {
-    if (r.master_listing_id && ids.has(r.master_listing_id)) return false;
-    const nick = r.nickname || '';
-    if (!nick) return true;
-    for (const other of nicknames) {
-      if (other !== nick && nick.startsWith(other + '-')) return false;
-    }
-    return true;
-  });
-}
-
-// Distinct listings per building (filtered by what's actually in beithady_guests + guesty_listings)
+// Distinct listings per building (filtered by what's actually in beithady_guests + guesty_listings).
+// MTL children are collapsed via `master_listing_id IS NULL` — see
+// migration 0042 + the "Beithady MTL polarity" notes in src/lib/beithady/mtl.ts.
 export async function getListingsForBuilding(buildingCode: string): Promise<Array<{ listing_id: string; nickname: string; assets: number }>> {
   const sb = supabaseAdmin();
   const [{ data: listings }, { data: assetCounts }] = await Promise.all([
     sb
       .from('guesty_listings')
-      .select('id, nickname, master_listing_id, building_code')
+      .select('id, nickname, building_code')
       .eq('building_code', buildingCode)
       .eq('active', true)
+      .is('master_listing_id', null)
       .order('nickname'),
     sb
       .from('beithady_gallery_assets')
@@ -165,8 +140,7 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
   for (const r of (assetCounts as Array<{ listing_id: string | null }> | null) || []) {
     if (r.listing_id) tally.set(r.listing_id, (tally.get(r.listing_id) || 0) + 1);
   }
-  const allRows = (listings as Array<{ id: string; nickname: string | null; master_listing_id: string | null }> | null) || [];
-  return dropMtlChildren(allRows).map(l => ({
+  return ((listings as Array<{ id: string; nickname: string | null }> | null) || []).map(l => ({
     listing_id: l.id,
     nickname: l.nickname || l.id,
     assets: tally.get(l.id) || 0,
@@ -176,9 +150,10 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
 // Detailed unit folder summary — adds cover thumbnail + photo/video/
 // document/ad-eligible counts. Used by the building page to render
 // one folder per MTL parent + one folder per standalone listing.
-// MTL children are collapsed into their parent via dropMtlChildren
-// because they share pictures/features (single upload covers all
-// sub-units). Cover is the most-recent photo for that listing.
+// MTL children are dropped via `master_listing_id IS NULL` because
+// they share pictures/features with their parent (single upload to
+// the MTL covers every sub-unit). Cover is the most-recent photo
+// for that listing.
 export type UnitFolder = {
   listing_id: string;
   nickname: string;
@@ -196,12 +171,12 @@ export async function getUnitFoldersForBuilding(buildingCode: string): Promise<U
   const sb = supabaseAdmin();
   const { data: listings } = await sb
     .from('guesty_listings')
-    .select('id, nickname, title, master_listing_id, building_code')
+    .select('id, nickname, title, building_code')
     .eq('building_code', buildingCode)
     .eq('active', true)
+    .is('master_listing_id', null)
     .order('nickname');
-  const allRows = (listings as Array<{ id: string; nickname: string | null; title: string | null; master_listing_id: string | null }> | null) || [];
-  const listingRows = dropMtlChildren(allRows);
+  const listingRows = (listings as Array<{ id: string; nickname: string | null; title: string | null }> | null) || [];
   if (listingRows.length === 0) return [];
 
   const ids = listingRows.map(l => l.id);

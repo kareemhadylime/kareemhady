@@ -231,6 +231,14 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       lOffset += 100;
     }
 
+    // After listings sync, infer master_listing_id from nickname-prefix
+    // convention for any rows where Guesty's masterListingId came back
+    // NULL (which is most of them today). The DB function only updates
+    // rows where master_listing_id IS NULL, so a real Guesty value wins
+    // over our inference whenever they start populating it.
+    // See migration 0042_beithady_mtl_backfill.sql.
+    await sb.rpc('beithady_backfill_mtl_master_id');
+
     // 2. Reservations — filtered by createdAt >= now - 365d.
     // Guesty's list endpoint uses MongoDB-style filters serialized as JSON.
     const cutoff = new Date(

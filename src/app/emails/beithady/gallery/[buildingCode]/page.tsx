@@ -164,7 +164,7 @@ export default async function GalleryBuildingPage({
       </section>
 
       <p className="text-[11px] text-slate-500 text-center">
-        Folders auto-import from <code>guesty_listings</code> where <code>building_code = {buildingCode}</code> and <code>active = true</code>. For multi-unit (MTL) listings we show <em>one folder per MTL parent</em> and collapse its sub-units (they share pictures + features, so a single upload to the MTL covers every child). MTL children are detected via <code>master_listing_id</code> or by nickname-prefix convention (e.g. <code>BH73-3BR-SB-1-201</code> belongs to <code>BH73-3BR-SB-1</code>).
+        Folders auto-import from <code>guesty_listings</code> where <code>building_code = {buildingCode}</code>, <code>active = true</code>, and <code>master_listing_id IS NULL</code>. For multi-unit (MTL) listings we show <em>one folder per MTL parent</em> and collapse its sub-units (they share pictures + features, so a single upload to the MTL covers every child).
         Photos land in their unit folder when a unit is picked above; otherwise in General Building Area.
       </p>
     </BeithadyShell>

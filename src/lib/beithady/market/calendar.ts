@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import { fetchMtlParentIds, isBookableAtom } from '@/lib/beithady/mtl';
 
 // 90-day occupancy heatmap per Beithady building. Computes occupancy
 // from guesty_reservations × guesty_listings.
@@ -34,14 +35,18 @@ export async function buildHeatmap(daysAhead = 90): Promise<HeatmapResult> {
   const start = today.toISOString().slice(0, 10);
   const end = new Date(today.getTime() + daysAhead * 86400e3).toISOString().slice(0, 10);
 
-  // Pull active listings per building (count of distinct units we have).
+  // Pull active listings per building, then drop MTL parents — heatmap
+  // counts bookable atoms (children + standalones), not aggregates.
+  // See src/lib/beithady/mtl.ts for the polarity rule.
+  const parentIds = await fetchMtlParentIds();
   const { data: listings } = await sb
     .from('guesty_listings')
-    .select('id, building_code, listing_type, master_listing_id')
-    .eq('active', true)
-    .or('listing_type.is.null,listing_type.neq.MTL'); // exclude multi-unit parents (children are bookable; null type = treat as child)
+    .select('id, building_code, master_listing_id')
+    .eq('active', true);
+  const allListings = (listings as Array<{ id: string; building_code: string | null; master_listing_id: string | null }> | null) || [];
+  const bookable = allListings.filter(l => isBookableAtom(l, parentIds));
   const totalByBuilding = new Map<string, number>();
-  for (const l of (listings as Array<{ building_code: string | null }> | null) || []) {
+  for (const l of bookable) {
     if (!l.building_code) continue;
     if (!BUILDINGS.includes(l.building_code as typeof BUILDINGS[number])) continue;
     totalByBuilding.set(l.building_code, (totalByBuilding.get(l.building_code) || 0) + 1);
@@ -55,7 +60,7 @@ export async function buildHeatmap(daysAhead = 90): Promise<HeatmapResult> {
     .lte('check_in_date', end);
 
   const listingToBuilding = new Map<string, string>();
-  for (const l of (listings as Array<{ id: string; building_code: string | null }> | null) || []) {
+  for (const l of allListings) {
     if (l.building_code) listingToBuilding.set(l.id, l.building_code);
   }
 
