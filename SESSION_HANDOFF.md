@@ -1,6 +1,40 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Chip filters + Country filter + Hide cancelled (commit `3fbc5c3`)
+## 🟡 Latest turn — Phase K.1 Daily Morning Brief plan drafted (no code yet)
+
+User chose **Daily Morning Brief** from the strategic recommendations list and specified three role-specific versions: Guest Relations, Housekeeping & Operations, Finance & Accounting.
+
+**Plan I sent the user, awaiting one confirmation:**
+
+Three briefs delivered at 8am Cairo via WhatsApp + email + web archive:
+
+1. **Guest Relations** — arrivals/departures today, late-SLA breaches, pre-arrival pending, AI suggestions awaiting approval, 1–2★ reviews yesterday, VIP arrivals next 3 days, yesterday's CSAT
+2. **Housekeeping & Operations** — today's checkouts/check-ins, cleaning gaps (<3h red, <6h yellow), open maintenance tasks (Phase F), manual blocks starting today, long-stay extensions, smart-lock issues (V2)
+3. **Finance & Accounting** — yesterday's revenue (total + by channel + by building), MTD vs budget, unpaid + arriving ≤7d (count + balance), payouts received (Guesty + Stripe), refunds, new direct bookings, channel commission, currency-mix exposure, owner payouts due
+
+**Delivery:**
+- WhatsApp via Phase C wa-casual sender (markdown)
+- Email via existing email lib (HTML)
+- Web archive at `/emails/beithady/operations/morning-brief?role=X&date=YYYY-MM-DD`
+
+**Cron:** `0 5 * * *` + `0 6 * * *` UTC for Cairo 08:00 DST handling (mirrors Phase C late-reply-digest pattern).
+
+**Implementation scope (~5-6 commits) sub-phases K.1.1 → K.1.6:**
+- Migration `0044_beithady_morning_brief.sql` — recipients table + delivery log
+- Three brief content libs + shared types
+- Three renderers (markdown / html / jsx)
+- Cron route + `vercel.json` entries
+- Web archive page
+- Settings page for recipients management
+
+**Open question blocking K.1.1:** which recipients-default policy?
+1. Auto-broadcast to all users with matching beithady_user_role
+2. Opt-in only (admin adds manually)
+3. Whitelist (hardcoded names + later editable)
+
+Awaiting answer + any role-specific item additions before coding.
+
+## 🟢 Earlier this session — Chip filters + Country filter + Hide cancelled (commit `3fbc5c3`)
 
 User asked for three things:
 
@@ -405,7 +439,8 @@ Order of phases shipped (oldest → newest):
 31. **Phase J.10 — Find availability modal** (`0d495a3`) — server action + form + result grid with Guesty deep-link for booking creation. Phase J COMPLETE
 32. **Operations Calendar — "Other" bucket** (`1a3ef97`) — 8 out-of-scope listings (Madinaty, Mall of Mansoura, etc.) now bucketed under synthetic 'OTHER' building
 33. **Calendar — MTL-aware price + bedrooms fallback** (`8048ea1`) — BH-73 children now show their parent's pricelabs price/bedrooms/comp-set since pricelabs only tracks the MTL parent
-34. **Calendar — Chip filters + Country + hide cancelled** (`3fbc5c3`) — select dropdowns → categorised chip rows with brand colours; new Country chip row (Egypt/UAE); cancelled reservations now hidden by default (explicit Canceled chip to opt-in) (this turn)
+34. **Calendar — Chip filters + Country + hide cancelled** (`3fbc5c3`) — select dropdowns → categorised chip rows with brand colours; new Country chip row (Egypt/UAE); cancelled reservations now hidden by default
+35. **Phase K.1 Daily Morning Brief plan drafted** (no commit) — 3 role-specific briefs (Guest Relations / Housekeeping & Ops / Finance & Accounting), 8am Cairo delivery via WhatsApp + email + web archive, ~5-6 commit scope; awaiting recipients-policy answer (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
