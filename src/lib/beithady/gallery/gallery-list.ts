@@ -145,6 +145,120 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
   }));
 }
 
+// Detailed unit folder summary — adds cover thumbnail + photo/video/
+// document/ad-eligible counts. Used by the building page to render
+// every Guesty unit as a folder card (even empty ones), so the agent
+// always sees the full unit list and can upload directly into the
+// right folder. Cover is the most-recent photo for that listing.
+export type UnitFolder = {
+  listing_id: string;
+  nickname: string;
+  title: string | null;
+  photos: number;
+  videos: number;
+  documents: number;
+  ad_eligible: number;
+  total: number;
+  cover_url: string | null;
+  cover_caption: string | null;
+};
+
+export async function getUnitFoldersForBuilding(buildingCode: string): Promise<UnitFolder[]> {
+  const sb = supabaseAdmin();
+  const { data: listings } = await sb
+    .from('guesty_listings')
+    .select('id, nickname, title, building_code')
+    .eq('building_code', buildingCode)
+    .eq('active', true)
+    .neq('listing_type', 'MTL')
+    .order('nickname');
+  const listingRows = (listings as Array<{ id: string; nickname: string | null; title: string | null }> | null) || [];
+  if (listingRows.length === 0) return [];
+
+  const ids = listingRows.map(l => l.id);
+  const { data: assets } = await sb
+    .from('beithady_gallery_assets')
+    .select('id, listing_id, category, ad_eligible, storage_bucket, storage_path, public_url, ai_caption, file_name, created_at')
+    .in('listing_id', ids)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  const assetRows = (assets as Array<{
+    id: string;
+    listing_id: string | null;
+    category: string;
+    ad_eligible: boolean;
+    storage_bucket: GalleryBucket;
+    storage_path: string;
+    public_url: string | null;
+    ai_caption: string | null;
+    file_name: string | null;
+    created_at: string;
+  }> | null) || [];
+
+  const byListing = new Map<string, typeof assetRows>();
+  for (const a of assetRows) {
+    if (!a.listing_id) continue;
+    const arr = byListing.get(a.listing_id) || [];
+    arr.push(a);
+    byListing.set(a.listing_id, arr);
+  }
+
+  const folders: UnitFolder[] = await Promise.all(listingRows.map(async l => {
+    const list = byListing.get(l.id) || [];
+    const photos = list.filter(a => a.category === 'photo').length;
+    const videos = list.filter(a => a.category === 'video').length;
+    const documents = list.filter(a => a.category === 'document').length;
+    const adEligible = list.filter(a => a.ad_eligible).length;
+    const coverAsset = list.find(a => a.category === 'photo');
+    let coverUrl: string | null = null;
+    if (coverAsset) {
+      coverUrl = coverAsset.public_url || (await signedUrlFor(coverAsset.storage_bucket, coverAsset.storage_path, 3600));
+    }
+    return {
+      listing_id: l.id,
+      nickname: l.nickname || l.id,
+      title: l.title,
+      photos,
+      videos,
+      documents,
+      ad_eligible: adEligible,
+      total: list.length,
+      cover_url: coverUrl,
+      cover_caption: coverAsset?.ai_caption || coverAsset?.file_name || null,
+    };
+  }));
+
+  return folders.sort((a, b) => a.nickname.localeCompare(b.nickname));
+}
+
+// "General Building Area" folder summary — assets at the building
+// level with no listing_id (lobby, pool, gym, exterior, building-wide).
+export async function getCommonAreaSummary(buildingCode: string): Promise<{
+  count: number;
+  photos: number;
+  videos: number;
+  cover_url: string | null;
+}> {
+  const sb = supabaseAdmin();
+  const [{ count: total }, { count: photos }, { count: videos }, { data: coverData }] = await Promise.all([
+    sb.from('beithady_gallery_assets').select('id', { count: 'exact', head: true })
+      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null),
+    sb.from('beithady_gallery_assets').select('id', { count: 'exact', head: true })
+      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null).eq('category', 'photo'),
+    sb.from('beithady_gallery_assets').select('id', { count: 'exact', head: true })
+      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null).eq('category', 'video'),
+    sb.from('beithady_gallery_assets').select('storage_bucket, storage_path, public_url')
+      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null).eq('category', 'photo')
+      .order('created_at', { ascending: false }).limit(1),
+  ]);
+  const first = ((coverData as Array<{ storage_bucket: GalleryBucket; storage_path: string; public_url: string | null }> | null) || [])[0];
+  let coverUrl: string | null = null;
+  if (first) {
+    coverUrl = first.public_url || (await signedUrlFor(first.storage_bucket, first.storage_path, 3600));
+  }
+  return { count: total ?? 0, photos: photos ?? 0, videos: videos ?? 0, cover_url: coverUrl };
+}
+
 // Popular tags in this scope (used in filter chips)
 export async function getTopTags(filter: GalleryFilter, limit = 20): Promise<Array<{ tag: string; count: number }>> {
   const sb = supabaseAdmin();
