@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase K.1 Daily Morning Brief shipped (commit `730f1f2`)
+## 🟢 Latest turn — Morning Brief: Arabic Ops + Finance payout forecasts (commit `906f156`)
+
+User asked for two changes:
+
+**1. Ops brief in Arabic.** Translated all strings in `ops-brief.ts` (إقامة المالك, صيانة, حجز إداري, تنظيف بين النزلاء, أولوية, etc.). Date label uses ar-EG locale. `Brief.language = 'ar'`.
+
+**Renderers now RTL-aware** ([renderers.ts](src/lib/beithady/morning-brief/renderers.ts)):
+- WhatsApp markdown emits localized headline (*بيت هادي — موجز الصباح*) + role title + view link
+- HTML email sets `<html lang="ar" dir="rtl">` + Arabic font stack (Cairo/Amiri/Tahoma)
+- I18N table keeps en/ar copy side by side
+
+**2. Finance brief — two new sections:**
+- **Expected payouts — next 2 days** — confirmed reservations checking in in `[today, today+2]`. Sums `host_payout`. Per-channel breakdown + per-reservation list (top 8). Tag = "Forecast" (cyan).
+- **Expected payouts — through month end** — confirmed reservations checking in through last-day-of-month. Single summary card with total + count + clarifying note that channel pre-collection windows apply.
+- Summary stats add `payouts_2d_count/usd` + `payouts_month_count/usd`.
+
+GR + Finance briefs both flagged `language: 'en'`. The new `language` field on `Brief` is required so any future role can opt into another language.
+
+## 🟢 Earlier this session — Phase K.1 shipped (commit `730f1f2`)
 
 User confirmed recipients policy: auto-broadcast + admin extras. Built all 6 planned sub-phases in one commit.
 
@@ -474,7 +492,8 @@ Order of phases shipped (oldest → newest):
 33. **Calendar — MTL-aware price + bedrooms fallback** (`8048ea1`) — BH-73 children now show their parent's pricelabs price/bedrooms/comp-set since pricelabs only tracks the MTL parent
 34. **Calendar — Chip filters + Country + hide cancelled** (`3fbc5c3`) — select dropdowns → categorised chip rows with brand colours; new Country chip row (Egypt/UAE); cancelled reservations now hidden by default
 35. **Phase K.1 Daily Morning Brief plan drafted** (no commit) — 3 role-specific briefs spec
-36. **Phase K.1 — Daily Morning Brief shipped** (`730f1f2`) — migration 0044 + 7 lib files + cron + web archive + recipients-management page + Operations card. WhatsApp delivery wired via existing green-api; email wire-up is a TODO (web archive is canonical) (this turn)
+36. **Phase K.1 — Daily Morning Brief shipped** (`730f1f2`) — migration 0044 + 7 lib files + cron + web archive + recipients-management page + Operations card
+37. **Morning Brief — Arabic Ops + Finance payout forecasts** (`906f156`) — Ops brief now in Arabic with RTL HTML; Finance gains 2-day + month-end expected payout forecasts. Brief gains `language` field; renderers I18N-aware (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
