@@ -1,6 +1,25 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Morning Brief: Arabic Ops + Finance payout forecasts (commit `906f156`)
+## 🟢 Latest turn — Morning Brief test panel (commit `3adaf81`)
+
+User asked for a test button with processing indication + result display.
+
+Added [_test-panel.tsx](src/app/emails/beithady/operations/morning-brief/_test-panel.tsx) above the rendered brief on `/emails/beithady/operations/morning-brief`. Three actions:
+
+1. **Preview only** — builds the brief without sending; result panel shows the rendered HTML in an inline iframe + summary stats. No DB writes.
+2. **Send test to me** — sends the brief to the calling admin's WhatsApp only (using `app_users.whatsapp`). Doesn't touch the delivery log; the daily real send still happens. Errors if the admin has no WhatsApp on file.
+3. **Send NOW to all recipients** — confirms via dialog, then deletes any existing log row for (role, date) and re-runs `runMorningBrief` for the full auto-broadcast + extras list. Refreshes the page so the delivery-status header updates.
+
+UI states:
+- **Processing pill** — cyan banner with spinner + per-action label ("Building brief…" / "Sending test to your WhatsApp…" / "Sending to all recipients…")
+- **Success** — emerald banner with duration_ms, recipients/email/WA counts, expandable summary stats + preview iframe
+- **Failure** — rose banner with error string + per-recipient error list
+
+Three new server actions: `previewBriefAction`, `sendBriefNowAction`, `sendTestToMeAction` — all behind `operations.full` permission. Returns a `TestResult` shape with optional `preview_html`, `summary`, `errors[]`, `delivered_email/whatsapp` counters.
+
+Removed the old `?preview=1` URL hack (replaced by the test panel).
+
+## 🟢 Earlier this session — Morning Brief: Arabic Ops + Finance payout forecasts
 
 User asked for two changes:
 
@@ -493,7 +512,8 @@ Order of phases shipped (oldest → newest):
 34. **Calendar — Chip filters + Country + hide cancelled** (`3fbc5c3`) — select dropdowns → categorised chip rows with brand colours; new Country chip row (Egypt/UAE); cancelled reservations now hidden by default
 35. **Phase K.1 Daily Morning Brief plan drafted** (no commit) — 3 role-specific briefs spec
 36. **Phase K.1 — Daily Morning Brief shipped** (`730f1f2`) — migration 0044 + 7 lib files + cron + web archive + recipients-management page + Operations card
-37. **Morning Brief — Arabic Ops + Finance payout forecasts** (`906f156`) — Ops brief now in Arabic with RTL HTML; Finance gains 2-day + month-end expected payout forecasts. Brief gains `language` field; renderers I18N-aware (this turn)
+37. **Morning Brief — Arabic Ops + Finance payout forecasts** (`906f156`) — Ops brief now in Arabic with RTL HTML; Finance gains 2-day + month-end expected payout forecasts
+38. **Morning Brief — Test panel** (`3adaf81`) — Preview / Send test to me / Send NOW to all recipients buttons with spinner + per-action processing pill + emerald/rose result banners showing duration, recipients, delivery counts, errors, and inline HTML preview iframe (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
