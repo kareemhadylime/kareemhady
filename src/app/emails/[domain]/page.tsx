@@ -194,6 +194,39 @@ export default async function DomainRulesPage({
         {d === 'kika' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Link
+              href="/emails/kika/setup"
+              className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden lg:col-span-2"
+            >
+              <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-slate-700 to-pink-500 opacity-[0.08] blur-2xl pointer-events-none" />
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-xl inline-flex items-center justify-center bg-slate-900 text-white">
+                  <Calendar size={24} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold">Daily Performance Report</h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-900 text-white">
+                      X-Label
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                      09:00 Cairo
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-pink-50 text-pink-700">
+                      WhatsApp + Email
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Yesterday&apos;s revenue · orders · top SKUs · inventory alerts · abandoned carts · fulfillment · discounts · geography. Day/week/month comparisons. Sunday weekly digest. Manage recipients in Setup.
+                  </p>
+                </div>
+              </div>
+              <ArrowRight
+                size={18}
+                className="text-slate-400 group-hover:text-pink-600 transition shrink-0"
+              />
+            </Link>
+
+            <Link
               href="/emails/kika/exec"
               className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden col-span-full"
             >

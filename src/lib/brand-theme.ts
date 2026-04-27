@@ -182,3 +182,40 @@ export function getDomainTheme(d: Domain | null | undefined): DomainTheme {
   if (d && DOMAIN_THEMES[d]) return DOMAIN_THEMES[d];
   return DOMAIN_THEMES.lime; // default = parent palette
 }
+
+// X-Label · KIKA report theme — used by the Kika Daily Performance Report
+// (email body, hosted HTML token page, A4 PDF). The report represents the
+// vertically-integrated brand: X-Label garments factory on the outside chrome
+// (white wordmark on slate hero band), KIKA editorial accents inside the
+// e-commerce content (cream sections, gold flourish, pink only as a sparing
+// brand mark for KIKA-specific callouts). Raw hex codes — render-html.tsx
+// and render-pdf.tsx need them, Tailwind classes don't survive into PDF.
+//
+// Logos are checked in at /public/brand/xlabel/ (mirrored from xlabel.net
+// and thekikastore.com) so PDF renders, email bodies, and OG previews are
+// not at the mercy of either CDN.
+export const XLABEL_REPORT_THEME = {
+  // Outer chrome — XLabel
+  primary: '#0F172A',          // slate-900 hero band (XLabel white logo sits on this)
+  primaryHover: '#1E293B',
+  ink: '#0B0B0B',              // body text
+  ink2: '#374151',             // muted body text
+  muted: '#737373',             // captions, footnotes
+  paper: '#FFFFFF',            // page bg
+  cream: '#FAF7F2',             // KIKA editorial section bg
+  rule: '#E5E5E5',              // hairline borders
+  // KIKA accents (used sparingly for product/brand callouts)
+  kikaPink: '#EC4899',         // pink-500 — single accent
+  gold: '#C9A961',              // KIKA warm metallic flourish
+  // Comparison color buckets (±5% threshold)
+  upGreen: '#15803D',           // ▲ green-700
+  downRed: '#B91C1C',           // ▼ red-700
+  flat: '#737373',              // — neutral
+  amber: '#B45309',             // warning yellow (anomaly banner)
+  // Logo paths (resolved from /public — pinned at deploy time)
+  logos: {
+    xlabelWhite: '/brand/xlabel/xlabel-white.png',
+    kikaBlack: '/brand/xlabel/kika-black.png',
+  },
+} as const;
+
