@@ -1,17 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Gallery unit folders fix (commit `4cd4d12`)
+## 🟢 Latest turn — Gallery MTL semantics: show parent, hide sub-units (commit `f87502f`)
+
+User asked: when a building has multi-unit listings, show the **MTL parent nickname** and don't list each sub-unit separately.
+
+The previous filter (`listing_type != 'MTL'`) was the opposite semantic — it dropped MTL parents and kept their children. Switched both gallery functions to filter on `master_listing_id IS NULL` instead:
+- includes standalone listings (no parent)
+- includes MTL parents themselves
+- excludes MTL children (they point to a parent)
+
+Two call sites updated:
+- [src/lib/beithady/gallery/gallery-list.ts:129](src/lib/beithady/gallery/gallery-list.ts:129) — `getListingsForBuilding`
+- [src/lib/beithady/gallery/gallery-list.ts:173](src/lib/beithady/gallery/gallery-list.ts:173) — `getUnitFoldersForBuilding`
+
+Calendar heatmap ([market/calendar.ts:42](src/lib/beithady/market/calendar.ts:42)) intentionally keeps the opposite semantic — it counts bookable children for occupancy math — so it stayed on the OR-listing_type filter.
+
+Page footer text updated. No row-count change today (no listings currently have a `master_listing_id`: BH-26→22, BH-73→36, BH-435→14, BH-OK→10), but takes effect automatically the next time Guesty sync pulls an MTL parent + children.
+
+## 🟢 Earlier this turn — Gallery unit folders fix (commit `4cd4d12`)
 
 User screenshot showed BH-26 building gallery rendering "0 IMPORTED FROM GUESTY" / 0 unit folders even though Guesty has 22 BH-26 listings (BH-26-001…BH-26-501). Investigation: the listings were in `guesty_listings` correctly tagged `building_code = 'BH-26'`, `active = true`, `listing_type = NULL`.
 
 **Root cause:** PostgREST null-comparison gotcha. The Supabase JS query used `.neq('listing_type', 'MTL')`, which translates to SQL `listing_type <> 'MTL'`. In Postgres, `NULL <> 'MTL'` evaluates to **NULL** (not true), so PostgREST drops every row with a null listing_type. Across the 4 active Beithady buildings, 100% of listings have `listing_type = NULL` (BH-26: 22, BH-73: 36, BH-435: 14, BH-OK: 10) → all silently filtered out.
 
-**Fix:** replaced `.neq('listing_type', 'MTL')` with `.or('listing_type.is.null,listing_type.neq.MTL')` at three call sites:
-- [src/lib/beithady/gallery/gallery-list.ts:129](src/lib/beithady/gallery/gallery-list.ts:129) — `getListingsForBuilding`
-- [src/lib/beithady/gallery/gallery-list.ts:173](src/lib/beithady/gallery/gallery-list.ts:173) — `getUnitFoldersForBuilding` (the function rendering the empty page in the screenshot)
-- [src/lib/beithady/market/calendar.ts:42](src/lib/beithady/market/calendar.ts:42) — calendar-heatmap unit count
+**Fix:** replaced `.neq('listing_type', 'MTL')` with `.or('listing_type.is.null,listing_type.neq.MTL')` in calendar.ts; the gallery-list.ts call sites were superseded by the `master_listing_id` filter above.
 
-Verified post-fix: BH-26 → 22 folders, BH-73 → 36, BH-435 → 14, BH-OK → 10. Commit `4cd4d12` pushed to main; GitHub-triggered Vercel build was scheduled to verify ~90s after push.
+Verified post-fix: BH-26 → 22 folders, BH-73 → 36, BH-435 → 14, BH-OK → 10.
 
 ## 🟢 Earlier this session — Vercel build hotfix (commit `f478f23`, green on `limeinc.vercel.app`)
 
@@ -46,7 +60,8 @@ Order of phases shipped (oldest → newest):
 11. **I** (`94a38d4` + `72325b2`) — Lead pipeline + AI review reply + `/api/leads/*` proxy allowance
 12. **Gallery follow-up** (`8bd7ca5`) — Per-unit folders imported from Guesty + General Building Area
 13. **Hotfix #1** (`f478f23`) — `signedUrlFor` accepts optional ttl (unblocks Vercel build)
-14. **Hotfix #2** (`4cd4d12`) — `.neq('listing_type','MTL')` → `.or('listing_type.is.null,listing_type.neq.MTL')` (unit folders now actually render — this turn)
+14. **Hotfix #2** (`4cd4d12`) — `.neq('listing_type','MTL')` → `.or('listing_type.is.null,listing_type.neq.MTL')` (unit folders now actually render in calendar.ts; gallery-list.ts later superseded)
+15. **MTL semantics** (`f87502f`) — gallery-list.ts switched to `master_listing_id IS NULL` so MTL parents show, sub-units hide (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
