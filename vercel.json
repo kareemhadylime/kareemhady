@@ -22,6 +22,7 @@
     { "path": "/api/cron/beithady-crm-sync", "schedule": "30 5 * * *" },
     { "path": "/api/cron/beithady-comm-sync", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/beithady-sla-recalc", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/beithady-late-reply-digest", "schedule": "0 6,12 * * *" }
+    { "path": "/api/cron/beithady-late-reply-digest", "schedule": "0 6,12 * * *" },
+    { "path": "/api/cron/beithady-market-fetch", "schedule": "0 3 1 * *" }
   ]
 }

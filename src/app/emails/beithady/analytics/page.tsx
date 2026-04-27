@@ -20,22 +20,20 @@ export default async function BeithadyAnalyticsPage() {
       badge: { label: 'PriceLabs', tone: 'navy' },
     },
     {
-      href: '#',
+      href: '/emails/beithady/analytics/market-intel',
       title: 'Market Intelligence',
       description: 'Top source markets vs Egypt national mix · AI persona briefs per under-indexed country.',
       icon: Globe2,
       accent: 'violet',
-      disabled: true,
-      comingSoonLabel: 'Phase G',
+      badge: { label: 'Live', tone: 'navy' },
     },
     {
-      href: '#',
+      href: '/emails/beithady/analytics/calendar-heatmap',
       title: 'Calendar Heatmap',
       description: '90-day occupancy grid per building. Click any gap to spawn a targeted Meta CTWA campaign.',
       icon: CalendarRange,
       accent: 'amber',
-      disabled: true,
-      comingSoonLabel: 'Phase G',
+      badge: { label: 'Live', tone: 'navy' },
     },
   ];
 
