@@ -1,5 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
+## ✅ KIKA Daily Performance Report — DEPLOYING TO PROD (per "Always Direct Push to Production" preference)
+
+User policy locked: every change in this repo deploys straight to main + `vercel --prod`, no preview gate. Saved as auto-memory `feedback_deployment_direct_to_prod.md`. Future deploys are implicitly authorized — no permission-asking on standard forward-deploys.
+
+**KIKA Daily Performance Report — IMPLEMENTATION COMPLETE, DEPLOY IN PROGRESS.** Code on worktree `claude/hardcore-turing-82a30e`, commit `85cfbfe` (KIKA report) + `6698b00` (handoff doc). Rebased on top of `b4724c9` (Beithady v2 Phase A) and `dae8630` (Phase A handoff). Pushing to remote `main` then `vercel --prod` next.
+
+**32 files / 5,889 insertions** (KIKA report commit):
+
+**Migration (additive only, no new tables) — already applied to live Supabase:**
+- `supabase/migrations/0026_kika_daily_report.sql` — partial index `daily_report_snapshots_kika_date_idx` + view `public.kika_snapshot_history`. Reuses Beithady's `report_recipients` / `daily_report_snapshots` / `daily_report_deliveries` (filter by `report_kind='kika_daily'`).
+
+**New library** (`src/lib/kika-daily-report/` — 18 files):
+types, comparisons, anomaly, oneliner, why, corpus (60-day order/line/customer/abandoned loader, EGP-only filter, Cairo-ymd reclassification), build-{topline,products,inventory,abandoned,fulfillment,discounts,geo,weekly}, build orchestrator, render-html, render-pdf (2-page A4 via @react-pdf/renderer), distribute (Green-API + Gmail attach + idempotent dedupe + test-mode bypass), run, cairo-dates re-export.
+
+**New routes:**
+- `src/app/api/cron/kika-daily-report/route.ts` — Vercel cron, CRON_SECRET bearer, `?force=1` skips Cairo gate, maxDuration=180s
+- `src/app/r/kika/[token]/page.tsx` — public 48-hr tokenized A4 preview
+- `src/app/emails/kika/setup/page.tsx` + `actions.ts` + `SendTestPanel.tsx` — admin recipient CRUD with inline pending/success/error feedback
+- `src/app/emails/kika/history/page.tsx` — Tab 4 90-day calendar grid via `kika_snapshot_history` view
+
+**Brand assets:**
+- `public/brand/xlabel/{xlabel-white,kika-black}.png` (mirrored from xlabel.net + thekikastore.com)
+- `src/lib/brand-theme.ts` — `XLABEL_REPORT_THEME` const (slate-900 primary, cream sections, gold accent, kikaPink, ±5% comparison color buckets)
+
+**Modified:**
+- `src/app/emails/[domain]/page.tsx` — KIKA Daily Performance Report card on `/emails/kika`
+- `vercel.json` — added `{ "path": "/api/cron/kika-daily-report", "schedule": "*/30 6-21 * * *" }`. Cleanup cron unchanged — existing `beithady-daily-report-cleanup` cleans across all `report_kind`s by virtue of filtering on `expires_at` only.
+
+**Phase deferrals (per user Q&A):** X-Label production data → next phase · sessions/conversion → skip v1 · UTM channel attribution → skip v1 · threshold UI editor → v2 (hardcoded defaults: <14d cover, 2σ, 30% concentration, 20% discount-heavy, ±5% color)
+
+**Currency:** EGP-only. Non-EGP orders dropped during corpus load and counted in `build_warnings`.
+
+**Verified:** `npx tsc --noEmit` clean · `npx next build` clean — all 4 new routes registered (`/api/cron/kika-daily-report`, `/r/kika/[token]`, `/emails/kika/setup`, `/emails/kika/history`) · Migration applied via Supabase MCP (`{success:true}`).
+
+**Test endpoints (post-deploy):**
+- Manual run: `GET /api/cron/kika-daily-report?force=1` with `Authorization: Bearer $CRON_SECRET`
+- Setup page: `/emails/kika/setup` (requires `is_admin`)
+
+---
+
 ## 🚀 Beithady v2 Phase A — Foundation CODED on worktree (commit b4724c9), awaiting deploy sign-off
 
 User confirmed W-1/W-2/W-3 (recommended defaults) + said "Proceed with Phase A". Phase A implemented, committed on `claude/quizzical-satoshi-83e453` worktree branch. **Migration already applied to live Supabase. Code NOT yet merged to main, NOT yet deployed.**
@@ -186,6 +226,177 @@ Major new initiative: rebuild `/emails/beithady` landing as 5 cards (Financial �
 **Next step on session resume:** User confirms "go" on Workflow phase → assistant produces Workflow v0.1 covering: per-phase Supabase migration SQL (10–14 new migrations), complete route tree under `src/app/emails/beithady/{financial,analytics,crm,communication,settings,gallery,ads}/`, Edge Function signatures (port from Voltauto's `ads-meta-publish`, `ads-ctwa-autoreply`, `wa-cloud-{send,webhook}`, `wa-{send,webhook}`, `reports-scheduler`), integration probe checklist (Guesty POST-message endpoint test, Beithady WABA setup, Green-API webhook URL registration, Meta Marketing API ad-account access, Google Ads dev token application), new cron entries for `vercel.json` (CSAT survey at +24h post-checkout, pre-arrival checklist at -24h pre-arrival, daily VIP digest at 09:00 Cairo, Meta/Google insights pull, gallery AI labeling queue), background job inventory + idempotency, deployment sequence with rollback points, acceptance test checklist per phase. Iterate to 95% on Workflow before any code is written.
 
 **No code touched this turn. No commits. No deploys. Plan exists in conversation only — no plan doc written to disk. SESSION_HANDOFF.md is the only persistent artifact of the planning work so far.**
+
+---
+
+## ✅ KIKA Daily Performance Report — full implementation (HISTORICAL — superseded by section at top)
+
+**Status:** Code complete on worktree branch `claude/hardcore-turing-82a30e`, commit `85cfbfe`. `npx tsc --noEmit` + `npx next build` both clean. Supabase migration `0026_kika_daily_report` applied via MCP (`{success:true}`). **Awaiting user choice:** push to preview for smoke test, or merge to main + `vercel --prod` directly.
+
+**32 files / 5,889 insertions** in single commit:
+
+**Migration (additive only, no new tables):**
+- `supabase/migrations/0026_kika_daily_report.sql` — partial index `daily_report_snapshots_kika_date_idx` + view `public.kika_snapshot_history`. Reuses Beithady's `report_recipients` / `daily_report_snapshots` / `daily_report_deliveries` (filter by `report_kind='kika_daily'`).
+
+**New library** (`src/lib/kika-daily-report/` — 18 files):
+- `types.ts` — KikaDailyPayload + ComparisonSet/Chip + section types
+- `cairo-dates.ts` — re-export from beithady + weekday/Sunday helpers + priorMonthSameWindow + priorYearSameDay
+- `comparisons.ts` — buildComparisonSet, ±5% color buckets, chipArrow/chipLabel
+- `anomaly.ts` — 2σ revenue / sold-out / 30% concentration / 20% discount-heavy
+- `oneliner.ts` — owner-readable English digest
+- `why.ts` — dramatic-comparison attribution (≥20% AND ≥EGP 5k threshold)
+- `corpus.ts` — 60-day order/line/customer/abandoned loader, EGP-only filter, Cairo-ymd reclassification
+- `build-topline.ts` — net/gross/AOV/units/customers + 4 comparison sets + 14d sparklines
+- `build-products.ts` — top 10 with variant-level revenue share
+- `build-inventory.ts` — stockout/<14d cover/>120d overstock buckets, velocity from corpus
+- `build-abandoned.ts` — count/recoverable/recovery rate/top 5 with resume URLs
+- `build-fulfillment.ts` — % <24h, >48h delayed, oldest unfulfilled
+- `build-discounts.ts` — per-code usage from raw.discount_codes, % of gross
+- `build-geo.ts` — top 5 countries + top 5 governorates from raw.shipping_address
+- `build-weekly.ts` — Sunday-only 7-day rollup + 60-day rolling repeat rate
+- `build.ts` — orchestrator, parallel builders, weekly/anomaly/oneliner/why composition
+- `render-html.tsx` — A4 hosted page (X-Label hero band + KIKA editorial sections + sparkline SVGs + ChipsRow + AnomalyBanner + OnelinerCard + Top Products + Inventory Health + Abandoned + Fulfillment + Discounts + Geography + Weekly Snapshot + Footer)
+- `render-pdf.tsx` — 2-page A4 via @react-pdf/renderer (Page 1: hero/anomaly/KPIs/oneliner/products/inventory · Page 2: abandoned/fulfillment/discounts/geo/weekly · footer with logo)
+- `distribute.ts` — composeKikaDigestText (~25-line WhatsApp template) + buildEmailBody (X-Label hero + KIKA accents) + Green-API + Gmail attach + idempotent dedupe + test-mode bypass
+- `run.ts` — idempotent run orchestrator (gate → upsert → build → render → distribute → mark complete)
+
+**New routes:**
+- `src/app/api/cron/kika-daily-report/route.ts` — Vercel cron, CRON_SECRET bearer, `?force=1` skips Cairo gate, maxDuration=180s
+- `src/app/r/kika/[token]/page.tsx` — public 48-hr tokenized A4 preview, OG meta with KIKA logo, `report_kind='kika_daily'` filter
+- `src/app/emails/kika/setup/page.tsx` + `actions.ts` + `SendTestPanel.tsx` — admin recipient CRUD with inline pending/success/error feedback (clone of Beithady setup, X-Label slate styling)
+- `src/app/emails/kika/history/page.tsx` — **Tab 4** 90-day calendar grid via `kika_snapshot_history` view, color-coded by delivery status, click any non-expired date for the hosted report
+
+**Brand assets:**
+- `public/brand/xlabel/xlabel-white.png` (mirrored from xlabel.net CDN)
+- `public/brand/xlabel/kika-black.png` (mirrored from thekikastore.com CDN)
+- `src/lib/brand-theme.ts` — new `XLABEL_REPORT_THEME` const with locked hex tokens (slate-900 primary, cream sections, gold accent, kikaPink for KIKA-specific callouts, ±5% comparison color buckets)
+
+**Modified:**
+- `src/app/emails/[domain]/page.tsx` — added KIKA Daily Performance Report card on `/emails/kika` (lg:col-span-2, slate hero, "X-Label / 09:00 Cairo / WhatsApp + Email" badges)
+- `vercel.json` — added `{ "path": "/api/cron/kika-daily-report", "schedule": "*/30 6-21 * * *" }`. Cleanup cron unchanged — existing `beithady-daily-report-cleanup` SQL filters by `expires_at` only, so it cleans KIKA snapshots too.
+
+**Phase deferrals (per user Q&A — Q6/Q3/Q4/Q7):**
+- X-Label production data (finished goods + fabric cover) → next phase
+- Sessions / conversion rate → skipped v1 (would need read_analytics scope or GA4)
+- UTM / channel attribution → skipped v1
+- Threshold UI editor → v2 (hardcoded defaults: <14d cover, 2σ, 30% concentration, 20% discount-heavy, ±5% color)
+
+**Currency:** EGP-only. Non-EGP orders dropped during corpus load and counted in `build_warnings` array.
+
+**Verified before commit:**
+- `npx tsc --noEmit` returns no errors (after `npm install` populated worktree node_modules with @react-pdf/renderer)
+- `npx next build` succeeded — all 4 new routes registered: `/api/cron/kika-daily-report`, `/r/kika/[token]`, `/emails/kika/setup`, `/emails/kika/history`
+- Migration applied successfully via Supabase MCP `apply_migration` (project `bpjproljatbrbmszwbov`)
+
+**Test endpoints (after push):**
+- Manual run: `GET /api/cron/kika-daily-report?force=1` with `Authorization: Bearer $CRON_SECRET`
+- Setup page: `/emails/kika/setup` (requires `is_admin`)
+- "Send Test Now" — restricts fanout to recipients matching the clicker's username/whatsapp digits
+
+**Pending user decision before deployment:**
+1. **Push to preview first** (recommended) — `git push origin claude/hardcore-turing-82a30e` → Vercel auto-builds preview URL → user adds self as KIKA recipient → hits Send Test Now → validates WhatsApp + email delivery → user says "ship" → merge to main + `vercel --prod`
+2. **Direct to prod** — merge + push + `vercel --prod` in one go (riskier; first run is in production)
+
+**Safety:** Will NOT push, merge, or run `vercel --prod` without user nod. AGENTS.md `vercel --prod` rule is acknowledged but explicitly gated by sign-off per the workflow plan.
+
+---
+
+## ✅ KIKA Daily Performance Report — WORKFLOW PHASE locked (HISTORICAL — superseded above)
+
+User requested: clone the Beithady Daily Report v2 pattern for the KIKA domain — daily WhatsApp digest at 9 AM Cairo to specific recipients, with previous-day performance + week + month comparisons, branded with combined X-Label + KIKA identity. **Auto mode active.**
+
+**User's process gates:** Plan → 95% → Workflow → 95% review → Code. Plan locked. Workflow doc sent for review. Awaiting "go".
+
+**Plan-phase answers received (all 9 questions):**
+- Q1 Brand: combined X-Label outer + KIKA inner. Logos extracted via WebFetch:
+  - XLabel white wordmark: `https://xlabel.net/cdn/shop/files/white_logo_500_px.png?v=1741853859&width=400`
+  - KIKA black wordmark: `https://thekikastore.com/cdn/shop/files/KIKA_Black_Logo.png?v=1751233783&width=166`
+  - Will mirror both into `public/brand/xlabel/` for offline reliability
+- Q2 Recipients: same `report_recipients` table, filter `report_kind='kika_daily'`
+- Q3 Sessions/conversion: SKIP v1
+- Q4 UTM channel mix: SKIP v1
+- Q5 Currency: EGP only (filter non-EGP, log skipped count)
+- Q6 X-Label production data: DEFERRED to next phase
+- Q7 Thresholds: hardcoded v1, UI editor v2
+- Q8 Snapshot history page (Tab 4): YES included
+- Q9 v1 improvements: #1 Sunday weekly mode, #2 Anomaly callout, #8 English oneliner, #9 Why-attribution
+
+**Locked brand tokens** (to add to `src/lib/brand-theme.ts` as new `xlabel` entry):
+- primary `#0F172A` (slate-900 hero band) · paper `#FFFFFF` · cream `#FAF7F2` · ink `#0B0B0B`
+- gold `#C9A961` (KIKA warm accent) · rule `#E5E5E5` · kikaPink `#EC4899`
+- upGreen `#15803D` · downRed `#B91C1C` · flat `#737373` · ±5% colour buckets
+
+**Locked file plan:**
+- New migration `0026_kika_daily_report.sql` — additive only (index + view, no new tables; reuses Beithady's `daily_report_snapshots` / `daily_report_deliveries` / `report_recipients`)
+- New library dir `src/lib/kika-daily-report/` — 18 files: types, comparisons, anomaly, oneliner, why, build-{topline,products,inventory,abandoned,fulfillment,discounts,geo,weekly}, build, render-html, render-pdf, distribute, run; cairo-dates re-exported from beithady
+- New routes: `/api/cron/kika-daily-report`, `/r/kika/[token]`, `/emails/kika/setup` (+ actions), `/emails/kika/history` (90-day calendar — Tab 4)
+- Generalised cleanup: rename `beithady-daily-report-cleanup` → `daily-report-cleanup` (cleans all `report_kind`s); old route thin-redirects one release
+- `vercel.json`: add `*/30 6-21 * * *` for kika-daily-report; rename cleanup route
+- No new env vars
+
+**Locked WhatsApp template + 14-section hosted HTML report layout** (full spec in workflow doc sent in chat). Anomaly banner conditional. Weekly snapshot section Sunday-only. Oneliner card at bottom. Why-attribution inline as chip badges next to dramatic comparisons.
+
+**Hardcoded v1 thresholds:** low-stock <14d cover · stockout ≥1 SKU · anomaly >2.0σ · concentration ≥30% single-SKU · colour ±5% · why-trigger abs(Δ%)≥20% AND abs(EGP)≥5,000.
+
+**Rollout order (no push until user signs off staged code):**
+1. Apply migration 0026 via Supabase MCP
+2. Add brand-theme entry + mirror logos to public/
+3. Build lib + render, `npx tsc --noEmit` clean
+4. Wire setup page behind `is_admin`
+5. Manual `?force=1` test with Kareem-only recipient (validate WA + email + token link)
+6. Add cron entries to `vercel.json` only after step 5 passes
+7. Onboard remaining recipients via setup UI
+
+**Safety:** will NOT push to main, run `vercel --prod`, apply prod migration, or add real recipients without explicit user nod. Stage everything in worktree branch `claude/hardcore-turing-82a30e` first.
+
+**Confidence:** ~96%. Awaiting "go" from user to start coding per § D order.
+
+---
+
+## ✅ Beithady Daily Performance Report — full implementation (CODED, NOT YET DEPLOYED)
+
+**Reuse map (validated by codebase exploration):**
+- ~70% clone from `src/lib/beithady-daily-report/*` (build/distribute/run/render/types/cairo-dates)
+- KIKA KPI builders already exist: `kika-sales`, `kika-inventory`, `kika-financials`, `kika-exec`, `kika-abandoned-checkouts`, `kika-raw-materials`
+- Shopify sync already live: `shopify_orders`, `shopify_products`, `shopify_abandoned_checkouts` tables; REST 2024-10
+- WhatsApp infra reusable: `src/lib/whatsapp/green-api.ts`
+- Recipient infra reusable: `report_recipients` table — filter by `report_kind='kika_daily'`
+- Cairo TZ gate + `*/30 6-21 * * *` cron pattern reusable
+- Public tokenized hosted page pattern reusable: clone `/r/beithady/[token]` → `/r/kika/[token]`
+- Setup admin page reusable: clone `/emails/beithady/setup` → `/emails/kika/setup`
+
+**Brand-theme gap identified:** `src/lib/brand-theme.ts` has KIKA (pink/rose) but NO X-Label tokens. Needs new `xlabel` brand entry + `/public/brand/xlabel/` logo assets — pending user decision (Q1).
+
+**Proposed feature surface (4 tabs):**
+1. WhatsApp digest message — ~25-line plain-text template with X-Label header, KPIs, comparisons, top products, inventory alerts, abandoned carts, fulfillment, discounts, refunds, geo, X-Label production, tokenized link
+2. Hosted HTML report `/r/kika/[token]` — 13–14 sections, 48-hr expiry, A4 print CSS, dialog popouts (clone Beithady page)
+3. Setup admin page `/emails/kika/setup` — recipient CRUD, channel selector (WA/Email/Both), Send Test, snapshot history, delivery history, manual re-send, pause toggle, optional thresholds editor
+4. Snapshot history page `/emails/kika/history` — optional 90-day calendar grid (pending Q8)
+
+**Comparison math defined:** every KPI shows Δ vs prior day, vs prior weekday (controls for weekday seasonality — important for swimwear), vs MTD same-period prior month, optionally vs prior year if ≥365 days history. Color thresholds ±5%.
+
+**Industry research compiled:** benchmarked against Lifetimely, Triple Whale, Polar Analytics, Conversific, Glew, Daasity. Identified KIKA's differentiator = X-Label production layer (finished-goods received, fabric days-of-cover) — no off-the-shelf tool covers this.
+
+**9 suggested improvements proposed (§6 of plan), recommended v1 set:**
+- #1 Sunday weekly digest mode (extra weekly section every Sunday)
+- #2 Anomaly callout (>2σ revenue, sold-out sizes, ≥30% SKU concentration)
+- #7 Reorder action list (low-stock + stockout → producer-split actions)
+- #8 Owner-readable English oneliner stored on snapshot
+
+**9 open questions blocking 95% plan confidence:**
+1. Brand chrome — X-Label outside + KIKA pink inside (proposed) vs pure X-Label vs pure KIKA. Are X-Label logo files + brand hexes available?
+2. Day-1 recipients (phone numbers + emails) — same `report_recipients` table or separate?
+3. Sessions / conversion rate — skip v1, wire Shopify GraphQL Analytics, or wire GA4? (default skip)
+4. UTM / channel attribution — skip v1? (default yes, skip)
+5. Currency — EGP only, or multi-currency rollup needed?
+6. X-Label production data source — does `xlabel_production` table or Odoo MO completion event exist? If neither, exclude section v1
+7. Threshold alerts — UI editor or hardcoded defaults? (default hardcode v1)
+8. Snapshot history page (Tab 4) — yes/no?
+9. Which of the 9 improvements are in for v1 vs deferred vs killed?
+
+**Next step on user reply:** lock plan, move to Workflow phase (file-by-file change list, migration SQL, cron schedule, env vars, rollout sequence) for sign-off before any code.
+
+**Status:** awaiting user answers to Q1–Q9. No files modified, no migrations created, no commits. Worktree clean.
 
 ---
 
