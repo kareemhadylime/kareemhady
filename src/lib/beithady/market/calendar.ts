@@ -39,7 +39,7 @@ export async function buildHeatmap(daysAhead = 90): Promise<HeatmapResult> {
     .from('guesty_listings')
     .select('id, building_code, listing_type, master_listing_id')
     .eq('active', true)
-    .neq('listing_type', 'MTL'); // exclude multi-unit parents (children are the bookable units)
+    .or('listing_type.is.null,listing_type.neq.MTL'); // exclude multi-unit parents (children are bookable; null type = treat as child)
   const totalByBuilding = new Map<string, number>();
   for (const l of (listings as Array<{ building_code: string | null }> | null) || []) {
     if (!l.building_code) continue;
