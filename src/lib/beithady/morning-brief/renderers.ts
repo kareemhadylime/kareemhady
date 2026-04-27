@@ -1,16 +1,41 @@
 import type { Brief, BriefRole } from './types';
 
-const ROLE_TITLE: Record<BriefRole, string> = {
+const ROLE_TITLE_EN: Record<BriefRole, string> = {
   guest_relations: 'Guest Relations',
   ops: 'Housekeeping & Operations',
   finance: 'Finance & Accounting',
 };
 
-// WhatsApp markdown — keep it short, mobile-optimised
+const ROLE_TITLE_AR: Record<BriefRole, string> = {
+  guest_relations: 'علاقات الضيوف',
+  ops: 'الإشراف والعمليات',
+  finance: 'الحسابات والمالية',
+};
+
+const I18N = {
+  en: {
+    headline: 'Beit Hady — Morning Brief',
+    view_full: 'View full brief',
+    view_web: 'View on the web',
+    plus_more: (n: number) => `+ ${n} more — see web view`,
+  },
+  ar: {
+    headline: 'بيت هادي — موجز الصباح',
+    view_full: 'عرض الموجز الكامل',
+    view_web: 'فتح على الويب',
+    plus_more: (n: number) => `+ ${n} إضافية — راجع نسخة الويب`,
+  },
+} as const;
+
+// WhatsApp markdown — keep it short, mobile-optimised. RTL languages
+// (Arabic) work natively in WhatsApp; we just emit the Arabic strings
+// and the client renders right-to-left.
 export function renderMarkdown(brief: Brief, baseUrl?: string): string {
+  const t = I18N[brief.language];
+  const roleTitle = brief.language === 'ar' ? ROLE_TITLE_AR[brief.role] : ROLE_TITLE_EN[brief.role];
   const lines: string[] = [];
-  lines.push(`*Beit Hady — Morning Brief*`);
-  lines.push(`${ROLE_TITLE[brief.role]} · ${brief.cairo_label}`);
+  lines.push(`*${t.headline}*`);
+  lines.push(`${roleTitle} · ${brief.cairo_label}`);
   lines.push('');
 
   for (const sec of brief.sections) {
@@ -28,7 +53,7 @@ export function renderMarkdown(brief: Brief, baseUrl?: string): string {
       if (it.secondary) lines.push(`   _${it.secondary}_`);
     }
     if (sec.items.length > 8) {
-      lines.push(`_+ ${sec.items.length - 8} more — see web view_`);
+      lines.push(`_${t.plus_more(sec.items.length - 8)}_`);
     }
     lines.push('');
   }
@@ -37,14 +62,18 @@ export function renderMarkdown(brief: Brief, baseUrl?: string): string {
     ? `${baseUrl}/emails/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
     : null;
   if (url) {
-    lines.push(`View full brief: ${url}`);
+    lines.push(`${t.view_full}: ${url}`);
   }
 
   return lines.join('\n');
 }
 
-// Email HTML — clean inbox-friendly layout
+// Email HTML — clean inbox-friendly layout. For Arabic briefs we set
+// dir="rtl" + lang="ar" + an Arabic system-font stack.
 export function renderHtml(brief: Brief, baseUrl?: string): string {
+  const t = I18N[brief.language];
+  const roleTitle = brief.language === 'ar' ? ROLE_TITLE_AR[brief.role] : ROLE_TITLE_EN[brief.role];
+  const isRtl = brief.language === 'ar';
   const sections = brief.sections.map(sec => {
     if (sec.items.length === 0) {
       return sec.empty_message
@@ -73,19 +102,24 @@ export function renderHtml(brief: Brief, baseUrl?: string): string {
     ? `${baseUrl}/emails/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
     : null;
 
+  const fontStack = isRtl
+    ? `'Segoe UI','Tahoma','Cairo','Amiri','Geeza Pro',-apple-system,sans-serif`
+    : `-apple-system,'Segoe UI',sans-serif`;
+
   return `
 <!DOCTYPE html>
-<html><body style="font-family:-apple-system,Segoe UI,sans-serif;background:#f8fafc;margin:0;padding:20px;">
+<html lang="${isRtl ? 'ar' : 'en'}" dir="${isRtl ? 'rtl' : 'ltr'}">
+<body style="font-family:${fontStack};background:#f8fafc;margin:0;padding:20px;">
   <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e2e8f0;">
     <div style="border-bottom:2px solid #1e2d4a;padding-bottom:12px;margin-bottom:16px;">
-      <h1 style="margin:0;color:#1e2d4a;font-size:20px;">Beit Hady — Morning Brief</h1>
+      <h1 style="margin:0;color:#1e2d4a;font-size:20px;">${escapeHtml(t.headline)}</h1>
       <p style="margin:4px 0 0;color:#64748b;font-size:13px;">
-        ${escapeHtml(ROLE_TITLE[brief.role])} · ${escapeHtml(brief.cairo_label)}
+        ${escapeHtml(roleTitle)} · ${escapeHtml(brief.cairo_label)}
       </p>
     </div>
     ${sections}
     ${url ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
-      <a href="${url}" style="color:#1e2d4a;text-decoration:none;font-size:12px;">View full brief on the web</a>
+      <a href="${url}" style="color:#1e2d4a;text-decoration:none;font-size:12px;">${escapeHtml(t.view_web)}</a>
     </div>` : ''}
   </div>
 </body></html>

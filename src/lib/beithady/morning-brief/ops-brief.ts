@@ -3,11 +3,37 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type { Brief, BriefSection } from './types';
 
 // Operations & Housekeeping brief — what crew + ops manager need at 8am.
+// Rendered in Arabic per user request (RTL).
+
+const REASON_AR: Record<string, string> = {
+  owner_stay: 'إقامة المالك',
+  maintenance: 'صيانة',
+  hold: 'حجز إداري',
+  other: 'أخرى',
+};
+
+const PRIORITY_AR: Record<string, string> = {
+  urgent: 'عاجل',
+  high: 'مرتفعة',
+  medium: 'متوسطة',
+  low: 'منخفضة',
+};
+
+const TASK_TYPE_AR: Record<string, string> = {
+  cleaning: 'تنظيف',
+  maintenance: 'صيانة',
+  upsell: 'بيع إضافي',
+  inspection: 'فحص',
+  delivery: 'توصيل',
+};
+
+function arDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   const sb = supabaseAdmin();
-  const tomorrow = new Date(dateIso + 'T00:00:00');
-  tomorrow.setDate(tomorrow.getDate() + 1);
 
   const [
     { data: checkouts },
@@ -16,29 +42,24 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     { data: blocks },
     { data: extensions },
   ] = await Promise.all([
-    // Today's checkouts (must clean before today's check-in if same listing)
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel')
       .eq('check_out_date', dateIso)
       .neq('status', 'canceled')
       .order('listing_nickname'),
-    // Today's check-ins
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_in_date', dateIso)
       .neq('status', 'canceled')
       .order('listing_nickname'),
-    // Open maintenance/cleaning tasks (not done, not cancelled)
     sb.from('beithady_tasks')
       .select('id, title, type, priority, status, due_at, building_code, reservation_id')
       .in('status', ['pending', 'in_progress'])
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(20),
-    // Manual blocks starting today
     sb.from('beithady_calendar_manual_blocks')
       .select('id, listing_id, start_date, end_date, reason, notes')
       .eq('start_date', dateIso),
-    // Long-stay extensions (guest staying past today, no checkout today)
     sb.from('beithady_reservation_grid_v')
       .select('listing_nickname, guest_name, check_out_date')
       .lte('check_in_date', dateIso)
@@ -56,84 +77,82 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   const blockRows = (blocks as Array<{ id: string; listing_id: string; start_date: string; end_date: string; reason: string; notes: string | null }> | null) || [];
   const ext = (extensions as Array<{ listing_nickname: string | null; guest_name: string | null; check_out_date: string }> | null) || [];
 
-  // Detect cleaning gaps: same listing checks out + checks in same day
   const checkoutListings = new Set(co.map(r => r.listing_id));
   const sameDayFlips = ci.filter(r => checkoutListings.has(r.listing_id));
 
   const sections: BriefSection[] = [
     {
-      title: `Check-outs today (${co.length})`,
+      title: `المغادرات اليوم (${co.length})`,
       emoji: '📤',
       items: co.map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
         secondary: `${r.channel || ''}${r.building_code ? ` · ${r.building_code}` : ''}`,
         tag: checkoutListings.has(r.listing_id) && sameDayFlips.find(f => f.listing_id === r.listing_id)
-          ? { label: 'Same-day flip', tone: 'red' }
+          ? { label: 'تنظيف عاجل', tone: 'red' }
           : undefined,
       })),
-      empty_message: 'No check-outs today.',
+      empty_message: 'لا توجد مغادرات اليوم.',
     },
     {
-      title: `Check-ins today (${ci.length})`,
+      title: `الوصول اليوم (${ci.length})`,
       emoji: '📥',
       items: ci.map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: `${r.channel || ''} · ${r.nights || 0} nights${r.building_code ? ` · ${r.building_code}` : ''}`,
+        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+        secondary: `${r.channel || ''} · ${r.nights || 0} ليالٍ${r.building_code ? ` · ${r.building_code}` : ''}`,
         tag: checkoutListings.has(r.listing_id)
-          ? { label: 'Cleaning flip', tone: 'red' }
+          ? { label: 'تنظيف بين النزلاء', tone: 'red' }
           : undefined,
       })),
-      empty_message: 'No check-ins today.',
+      empty_message: 'لا توجد وصولات اليوم.',
     },
     {
-      title: `Same-day cleaning flips (${sameDayFlips.length})`,
+      title: `تنظيف بين النزلاء في نفس اليوم (${sameDayFlips.length})`,
       emoji: '⚠️',
       items: sameDayFlips.map(r => ({
         primary: `${r.listing_nickname || r.listing_id}`,
-        secondary: 'Checkout 11:00 → next check-in same day. Prioritise crew.',
-        tag: { label: 'Priority', tone: 'red' },
+        secondary: 'مغادرة الساعة 11 ووصول نزيل جديد نفس اليوم. أعطِ الأولوية لطاقم النظافة.',
+        tag: { label: 'أولوية', tone: 'red' },
       })),
-      empty_message: 'No same-day flips. Crew can pace cleaning normally.',
+      empty_message: 'لا توجد عمليات تنظيف بين نزلاء بنفس اليوم. يمكن للطاقم التنظيم بشكل طبيعي.',
     },
     {
-      title: `Open tasks (${tasks.length})`,
+      title: `المهام المفتوحة (${tasks.length})`,
       emoji: '🛠',
       items: tasks.slice(0, 10).map(t => ({
         primary: t.title,
-        secondary: `${t.type}${t.priority ? ` · ${t.priority}` : ''}${t.due_at ? ` · due ${new Date(t.due_at).toLocaleDateString()}` : ''}${t.building_code ? ` · ${t.building_code}` : ''}`,
-        tag: t.priority === 'high'
-          ? { label: 'High', tone: 'red' }
-          : t.priority === 'urgent'
-          ? { label: 'Urgent', tone: 'red' }
+        secondary: `${TASK_TYPE_AR[t.type] || t.type}${t.priority ? ` · ${PRIORITY_AR[t.priority] || t.priority}` : ''}${t.due_at ? ` · موعد ${new Date(t.due_at).toLocaleDateString('ar-EG')}` : ''}${t.building_code ? ` · ${t.building_code}` : ''}`,
+        tag: t.priority === 'high' || t.priority === 'urgent'
+          ? { label: PRIORITY_AR[t.priority] || t.priority, tone: 'red' }
           : undefined,
       })),
-      empty_message: 'No open tasks. Nice work.',
+      empty_message: 'لا توجد مهام مفتوحة. عمل ممتاز.',
     },
     {
-      title: `Manual blocks starting today (${blockRows.length})`,
+      title: `حجوزات إدارية تبدأ اليوم (${blockRows.length})`,
       emoji: '🔒',
       items: blockRows.map(b => ({
-        primary: `${b.listing_id} · ${b.reason}`,
-        secondary: `${b.start_date} → ${b.end_date}${b.notes ? ` · ${b.notes}` : ''}`,
-        tag: { label: b.reason, tone: 'slate' },
+        primary: `${b.listing_id} · ${REASON_AR[b.reason] || b.reason}`,
+        secondary: `${b.start_date} ← ${b.end_date}${b.notes ? ` · ${b.notes}` : ''}`,
+        tag: { label: REASON_AR[b.reason] || b.reason, tone: 'slate' },
       })),
-      empty_message: 'No new blocks today.',
+      empty_message: 'لا توجد حجوزات إدارية تبدأ اليوم.',
     },
     {
-      title: `Long-stay guests in residence (${ext.length})`,
+      title: `إقامات طويلة لا تزال قائمة (${ext.length})`,
       emoji: '🏠',
       items: ext.slice(0, 10).map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: `Until ${r.check_out_date}`,
+        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+        secondary: `حتى ${r.check_out_date}`,
       })),
-      empty_message: 'No long-stay guests today.',
+      empty_message: 'لا توجد إقامات طويلة اليوم.',
     },
   ];
 
   return {
     role: 'ops',
     date_iso: dateIso,
-    cairo_label: cairoLabel(dateIso),
+    cairo_label: arDate(dateIso),
+    language: 'ar',
     sections,
     summary: {
       checkouts: co.length,
@@ -144,9 +163,4 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       long_stays: ext.length,
     },
   };
-}
-
-function cairoLabel(iso: string): string {
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('en', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 }

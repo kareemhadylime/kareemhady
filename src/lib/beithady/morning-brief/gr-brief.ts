@@ -147,6 +147,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
     role: 'guest_relations',
     date_iso: dateIso,
     cairo_label: cairoLabel(dateIso),
+    language: 'en',
     sections,
     summary: {
       arrivals: arr.length,

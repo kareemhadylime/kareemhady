@@ -28,6 +28,7 @@ export type Brief = {
   role: BriefRole;
   date_iso: string;             // YYYY-MM-DD
   cairo_label: string;          // "Tue 28 Apr 2026"
+  language: 'en' | 'ar';        // 'ar' enables RTL + Arabic UI strings
   sections: BriefSection[];
   summary: Record<string, number>;  // { arrivals: 3, unpaid: 2, ... } for trend tracking
 };
