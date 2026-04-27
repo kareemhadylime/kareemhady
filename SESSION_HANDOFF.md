@@ -1,6 +1,19 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase J COMPLETE (J.8, J.9, J.10 shipped)
+## 🟢 Latest turn — "Other" bucket for out-of-scope units (commit `1a3ef97`)
+
+8 active listings with NULL `building_code` (BH-MANG-M15B13, BH-MB34-105, BH-MG-20-1, BH-NEWCAI-4021, BH-WS-E245, LIME-MA-1402, REEHAN-204, YANSOON-105) were previously filtered out of the calendar. Now bucketed into a synthetic 'OTHER' building so they appear alongside BH-26/73/435/OK.
+
+Changes:
+- [calendar-data.ts](src/lib/beithady/operations/calendar-data.ts) — removed the `building_code` filter; remaps null → 'OTHER' at row construction. Listing query supports 'OTHER' filter via `building_code.eq.X,...,building_code.is.null` OR expression.
+- [header-bar.tsx](src/app/emails/beithady/operations/calendar/_components/header-bar.tsx) — 'OTHER' added to the buildings dropdown ("Other (uncategorised)").
+- [page.tsx](src/app/emails/beithady/operations/calendar/page.tsx) — `VALID_BUILDINGS` extended.
+- [listing-rail.tsx](src/app/emails/beithady/operations/calendar/_components/listing-rail.tsx) + [find-availability-modal.tsx](src/app/emails/beithady/operations/calendar/_components/find-availability-modal.tsx) — display 'OTHER' as "Other".
+- `findAvailabilityAction` + `bulkSendPreArrivalAction` + `listManualBlocksForWindow` — all updated with the same OR-filter pattern.
+
+Comp-set triangles won't show on Other listings (no comp data keyed by 'OTHER') — that's correct behavior since pricelabs comp data is per BH-* building only.
+
+## 🟢 Earlier this session — Phase J COMPLETE (J.8, J.9, J.10 shipped)
 
 Phase J — Beithady Operations Calendar — fully landed across 10 sub-phases this session.
 
@@ -355,7 +368,8 @@ Order of phases shipped (oldest → newest):
 28. **Phase J.7b — Manual blocks + bulk pre-arrival** (`955126c`) — Guesty calendar writes + manual-block-button on each row + bulk pre-arrival action
 29. **Phase J.8 — Realtime + overbooking guard** (`badc893`) — Supabase Realtime subscription to 4 tables + live/connecting/offline pill + pre-write conflict check on manual blocks
 30. **Phase J.9 — Heatmap + comp-set + WhatsApp share** (`926eb15`) — density toggle (price/occupancy/ADR/revenue) + ▲▼ comp-set triangles + Copy/WhatsApp boarding-pass share
-31. **Phase J.10 — Find availability modal** (`0d495a3`) — server action + form + result grid with Guesty deep-link for booking creation. Phase J COMPLETE (this turn)
+31. **Phase J.10 — Find availability modal** (`0d495a3`) — server action + form + result grid with Guesty deep-link for booking creation. Phase J COMPLETE
+32. **Operations Calendar — "Other" bucket** (`1a3ef97`) — 8 out-of-scope listings (Madinaty, Mall of Mansoura, etc.) now bucketed under synthetic 'OTHER' building (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
