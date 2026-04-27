@@ -1,6 +1,30 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase J.7 shipped (commits `0131741` + `955126c`)
+## 🟢 Latest turn — Phase J COMPLETE (J.8, J.9, J.10 shipped)
+
+Phase J — Beithady Operations Calendar — fully landed across 10 sub-phases this session.
+
+**J.8 — Realtime + overbooking guard** (`badc893`):
+- [src/lib/supabase-browser.ts](src/lib/supabase-browser.ts) — anon-key client for Realtime.
+- [realtime-bridge.tsx](src/app/emails/beithady/operations/calendar/_components/realtime-bridge.tsx) — subscribes to 4 tables in one Supabase channel (reservations, overrides, manual blocks, messages-INSERT). Debounced router.refresh (1.5s burst window). Live/connecting/offline pill in header. Click → recent-activity dropdown with 20-event log.
+- Overbooking pre-write guard added to `createManualBlockAction`: re-reads grid view for overlapping reservations before write. On conflict returns `{ok:false, conflict:{...}}`. UI shows the conflicting reservation's guest/channel/dates and offers a `forceOverride:true` re-attempt with a destructive-warning modal.
+
+**J.9 — Heatmap overlay + comp-set triangles + WhatsApp share** (`926eb15`):
+- `calendar-data.ts` joins pricelabs_listing_snapshots (occupancy_next_30, adr_past_30, revenue_past_30) + pricelabs_market_snapshots (comp_median_usd by building+bedroom_bucket) + pricelabs_listings.bedrooms.
+- `listing-rail.tsx` — small ▲/▼ next to base price when ours differs from comp-set median by ≥10% (improvement #3). Tooltip shows exact delta.
+- `header-bar.tsx` — density select (Price/Occupancy/ADR/Revenue, improvement #2). Cell tinting in occupancy mode: red→amber→green based on 0–100%.
+- `boarding-pass-share.tsx` — Copy link + Send via WhatsApp buttons (improvement #11). Builds absolute URL via getBoardingPassUrl action + window.location.origin. `wa.me/{phone}` deep link with prefilled message.
+
+**J.10 — Find availability modal** (`0d495a3`):
+- `findAvailabilityAction({startDate, endDate, bedrooms?, buildingCodes?})` — bookable atoms intersected with non-cancelled reservations + manual blocks for the window. Joins bedrooms + price + cover thumb.
+- `find-availability-modal.tsx` — form (check-in + check-out + min-bedrooms + building chips + computed nights) + result grid (1/2/3-col responsive). Each free unit deep-links to `https://app.guesty.com/listings/{id}` for the actual booking creation.
+- "Find availability" primary button placed prominently in page header.
+
+**Phase J final scorecard (improvements 1-13):** ✅ AI risk score · ✅ Heatmap overlay · ✅ Comp-set triangles · ✅ Bulk actions · ⚠ Drag-to-create (form-based instead, drag deferred to V2) · ✅ Realtime · 🔜 Mobile (V2) · ✅ Saved views · ✅ Anomaly callouts · ✅ Channel-mix sparkline · ✅ WhatsApp share boarding pass · ✅ Past-stay quick-look + previous reviews · ✅ Loyalty banner with tier perks.
+
+**V2 backlog:** mobile layout, true drag-to-create blocks, direct-booking creation flow (currently deep-links to Guesty), ID upload + smart-lock data fields (need new migration), free channel logos.
+
+## 🟢 Earlier this session — Phase J.7 shipped (commits `0131741` + `955126c`)
 
 **J.7a — Payment writes + Stripe resolver + audit** (`0131741`):
 - [src/lib/beithady/operations/payment-resolver.ts](src/lib/beithady/operations/payment-resolver.ts) — `resolvePaymentForReservation(id)`. Cancel→n_a, inquiry→unpaid, confirmed+OTA→paid (channel pre-collects), confirmed+direct→Stripe lookup by `metadata.guesty_reservation_id` (preferred) or amount+window match (fallback).
@@ -328,7 +352,10 @@ Order of phases shipped (oldest → newest):
 25. **Phase J.5 — Operations recompute cron** (`497b2e3`) — `/api/cron/beithady-operations-recompute` every 30 min, calls RPC defined in J.1
 26. **Phase J.6 — Saved views + channel-mix sparkline** (`6f490eb`) — saved-views CRUD with private/shared scope + inline channel mix bar (improvement #10)
 27. **Phase J.7a — Payment writes + Stripe resolver** (`0131741`) — markPaid/markUnpaid/recompute actions + payment-resolver.ts + confirm-write-modal + payment-actions buttons in drawer
-28. **Phase J.7b — Manual blocks + bulk pre-arrival** (`955126c`) — Guesty calendar writes + manual-block-button on each row + bulk pre-arrival action (this turn)
+28. **Phase J.7b — Manual blocks + bulk pre-arrival** (`955126c`) — Guesty calendar writes + manual-block-button on each row + bulk pre-arrival action
+29. **Phase J.8 — Realtime + overbooking guard** (`badc893`) — Supabase Realtime subscription to 4 tables + live/connecting/offline pill + pre-write conflict check on manual blocks
+30. **Phase J.9 — Heatmap + comp-set + WhatsApp share** (`926eb15`) — density toggle (price/occupancy/ADR/revenue) + ▲▼ comp-set triangles + Copy/WhatsApp boarding-pass share
+31. **Phase J.10 — Find availability modal** (`0d495a3`) — server action + form + result grid with Guesty deep-link for booking creation. Phase J COMPLETE (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
