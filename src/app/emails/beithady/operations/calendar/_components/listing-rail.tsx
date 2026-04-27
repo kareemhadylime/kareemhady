@@ -46,7 +46,9 @@ export function ListingRail({ row, windowStart }: { row: CalendarRow; windowStar
         </div>
         <div className="flex items-center gap-1 text-[10px] text-slate-500">
           {row.building_code && (
-            <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">{row.building_code}</span>
+            <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">
+              {row.building_code === 'OTHER' ? 'Other' : row.building_code}
+            </span>
           )}
           {row.base_price_usd != null && (
             <span className="tabular-nums inline-flex items-center gap-0.5">

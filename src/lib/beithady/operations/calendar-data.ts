@@ -57,15 +57,26 @@ export async function getCalendarGridData(opts: {
   const nowIso = isoDate(new Date());
 
   // 1. Bookable atoms (children + standalones) — uses Phase J MTL helper.
+  // Listings with no building_code (e.g. BH-MG-20-1 Madinaty units) are
+  // bucketed into a synthetic 'OTHER' building so they still appear on
+  // the calendar, just under the Other group rather than being silently
+  // dropped.
   const parentIds = await fetchMtlParentIds();
+  const wantedBuildings = opts.filters?.buildings;
+  const includeOther = !wantedBuildings || wantedBuildings.length === 0 || wantedBuildings.includes('OTHER');
+  const namedBuildings = (wantedBuildings || []).filter(b => b !== 'OTHER');
 
   let listingsQ = sb
     .from('guesty_listings')
     .select('id, nickname, title, master_listing_id, building_code')
     .eq('active', true);
-  if (opts.filters?.buildings && opts.filters.buildings.length > 0) {
-    listingsQ = listingsQ.in('building_code', opts.filters.buildings);
-  }
+  if (namedBuildings.length > 0 && !includeOther) {
+    listingsQ = listingsQ.in('building_code', namedBuildings);
+  } else if (namedBuildings.length > 0 && includeOther) {
+    // Want named + OTHER (NULL) → use OR filter
+    const inExpr = namedBuildings.map(b => `building_code.eq.${b}`).join(',');
+    listingsQ = listingsQ.or(`${inExpr},building_code.is.null`);
+  } // else: no filter — fetch everything
   const { data: allListings } = await listingsQ;
   const allListingRows = (allListings as Array<{
     id: string;
@@ -77,7 +88,7 @@ export async function getCalendarGridData(opts: {
 
   const bookable = allListingRows
     .filter(l => isBookableAtom(l, parentIds))
-    .filter(l => l.building_code) // Drop MG-* and other unbuildinged listings from the calendar
+    .map(l => ({ ...l, building_code: l.building_code || 'OTHER' }))
     .sort((a, b) => (a.nickname || '').localeCompare(b.nickname || ''));
 
   // 2. Latest pricelabs snapshot per listing for the price column +

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Calendar as CalIcon } from 'lucide-react';
 import type { CalendarFilters } from '@/lib/beithady/operations/types';
 
-const BUILDINGS = ['BH-26', 'BH-73', 'BH-435', 'BH-OK'] as const;
+const BUILDINGS = ['BH-26', 'BH-73', 'BH-435', 'BH-OK', 'OTHER'] as const;
 const CHANNELS = [
   { value: 'airbnb2', label: 'Airbnb' },
   { value: 'bookingCom', label: 'Booking.com' },
@@ -108,7 +108,9 @@ export function HeaderBar({
         aria-label="Buildings"
       >
         <option value="">All buildings</option>
-        {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
+        {BUILDINGS.map(b => (
+          <option key={b} value={b}>{b === 'OTHER' ? 'Other (uncategorised)' : b}</option>
+        ))}
       </select>
 
       {/* Channels */}

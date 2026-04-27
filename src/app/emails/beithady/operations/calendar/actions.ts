@@ -371,12 +371,20 @@ export async function listManualBlocksForWindow(input: {
     .gte('end_date', input.startDate)
     .lte('start_date', input.endDate);
   if (input.buildingCodes && input.buildingCodes.length > 0) {
-    // Join via guesty_listings would be cleaner; for V1 we filter by listing_id
-    // membership using a sub-select.
-    const { data: listings } = await sb
-      .from('guesty_listings')
-      .select('id')
-      .in('building_code', input.buildingCodes);
+    // Filter listings by building, where 'OTHER' = building_code IS NULL.
+    const wanted = input.buildingCodes;
+    const includeOther = wanted.includes('OTHER');
+    const namedOnly = wanted.filter(b => b !== 'OTHER');
+    let lq = sb.from('guesty_listings').select('id');
+    if (namedOnly.length > 0 && !includeOther) {
+      lq = lq.in('building_code', namedOnly);
+    } else if (namedOnly.length > 0 && includeOther) {
+      const inExpr = namedOnly.map(b => `building_code.eq.${b}`).join(',');
+      lq = lq.or(`${inExpr},building_code.is.null`);
+    } else if (includeOther) {
+      lq = lq.is('building_code', null);
+    }
+    const { data: listings } = await lq;
     const ids = (listings as Array<{ id: string }> | null)?.map(l => l.id) || [];
     q = q.in('listing_id', ids);
   }
@@ -417,16 +425,25 @@ export async function findAvailabilityAction(input: {
   }
 
   // 1) All bookable atoms (master_listing_id IS NULL after MTL backfill).
+  // 'OTHER' is a synthetic bucket for listings with NULL building_code.
+  const wanted = input.buildingCodes || [];
+  const includeOther = wanted.length === 0 || wanted.includes('OTHER');
+  const namedOnly = wanted.filter(b => b !== 'OTHER');
+
   let listingsQ = sb
     .from('guesty_listings')
     .select('id, nickname, building_code, master_listing_id')
     .eq('active', true)
     .is('master_listing_id', null);
-  if (input.buildingCodes && input.buildingCodes.length > 0) {
-    listingsQ = listingsQ.in('building_code', input.buildingCodes);
+  if (namedOnly.length > 0 && !includeOther) {
+    listingsQ = listingsQ.in('building_code', namedOnly);
+  } else if (namedOnly.length > 0 && includeOther) {
+    const inExpr = namedOnly.map(b => `building_code.eq.${b}`).join(',');
+    listingsQ = listingsQ.or(`${inExpr},building_code.is.null`);
   }
   const { data: listings } = await listingsQ;
-  const all = (listings as Array<{ id: string; nickname: string | null; building_code: string | null }> | null) || [];
+  const allRaw = (listings as Array<{ id: string; nickname: string | null; building_code: string | null }> | null) || [];
+  const all = allRaw.map(l => ({ ...l, building_code: l.building_code || 'OTHER' }));
 
   // 2) Reservations overlapping the window — exclude these listings.
   const { data: occupied } = await sb
@@ -543,7 +560,17 @@ export async function bulkSendPreArrivalAction(input: {
     .is('prearrival_sent_at', null)
     .neq('status', 'canceled');
   if (input.buildingCodes && input.buildingCodes.length > 0) {
-    q = q.in('building_code', input.buildingCodes);
+    const wanted = input.buildingCodes;
+    const includeOther = wanted.includes('OTHER');
+    const namedOnly = wanted.filter(b => b !== 'OTHER');
+    if (namedOnly.length > 0 && !includeOther) {
+      q = q.in('building_code', namedOnly);
+    } else if (namedOnly.length > 0 && includeOther) {
+      const inExpr = namedOnly.map(b => `building_code.eq.${b}`).join(',');
+      q = q.or(`${inExpr},building_code.is.null`);
+    } else if (includeOther) {
+      q = q.is('building_code', null);
+    }
   }
   const { data, error } = await q;
   if (error) return { ok: false, matched: 0, skipped: 0, error: error.message };

@@ -177,7 +177,11 @@ export function FindAvailabilityModal({ defaultStart }: { defaultStart: string }
                             {u.nickname}
                           </div>
                           <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                            {u.building_code && <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">{u.building_code}</span>}
+                            {u.building_code && (
+                              <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">
+                                {u.building_code === 'OTHER' ? 'Other' : u.building_code}
+                              </span>
+                            )}
                             {u.bedrooms != null && <span>{u.bedrooms === 0 ? 'Studio' : `${u.bedrooms}BR`}</span>}
                             {u.base_price_usd != null && (
                               <span className="tabular-nums">${Math.round(u.base_price_usd)}/n · ${Math.round(u.base_price_usd * nights)} total</span>

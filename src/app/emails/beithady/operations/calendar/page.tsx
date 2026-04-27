@@ -18,7 +18,7 @@ export const maxDuration = 60;
 
 const DEFAULT_DAYS = 28;
 const VALID_DAYS = [7, 14, 28] as const;
-const VALID_BUILDINGS = ['BH-26', 'BH-73', 'BH-435', 'BH-OK'] as const;
+const VALID_BUILDINGS = ['BH-26', 'BH-73', 'BH-435', 'BH-OK', 'OTHER'] as const;
 const VALID_STATUS = ['all', 'confirmed', 'inquiry', 'canceled'] as const;
 const VALID_RISK = ['all', 'unpaid', 'prearrival_missing', 'vip'] as const;
 
