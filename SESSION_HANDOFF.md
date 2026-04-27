@@ -1,6 +1,63 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟡 Latest turn — Phase J planning: Operations Calendar (no commits yet)
+## 🟡 Latest turn — Phase J workflow drafted (no commits yet, awaiting user sign-off)
+
+User answered all 10 open questions and confirmed all 12 suggested improvements + added a 13th (loyalty pill on Overview tab driving feature gating per tier). Workflow phase sent for review:
+
+**Scope locked:**
+- Route: `/emails/beithady/operations/calendar` (new "Operations" launcher card on Beithady main)
+- Pricelabs as price source (existing data)
+- Payment data: Guesty API first → Stripe fallback (Stripe only for non-Airbnb channels)
+- Read-write to Guesty with confirm modal warning agents on every destructive action
+- Manual blocks sync back to Guesty
+- Free channel logo set
+- Realtime updates via Supabase Realtime (overbooking guard)
+- Desktop V1, mobile V2
+- AI risk score in V1, bulk actions in V1
+
+**10 sub-phases (J.1 → J.10), each independently shippable to limeinc.vercel.app:**
+
+| Sub-phase | Scope |
+|---|---|
+| J.1 | Migration `0043_beithady_operations.sql` — `beithady_reservation_overrides`, `beithady_calendar_saved_views`, view `beithady_reservation_grid_v`, RPCs for risk + payment recompute, permission row `operations.calendar` |
+| J.2 | Operations launcher card + sub-landing (Calendar/Tasks/Boarding cards) |
+| J.3 | Read-only calendar grid with virtualized rows × dates |
+| J.4 | 10-tab reservation drawer (Overview/Guest/Channel/Payment/Comms/Check-in/Tasks/Upsells/Attribution/Audit) |
+| J.5 | AI risk score (1-10) + status flag dots + every-30min cron |
+| J.6 | Filters → URL params + saved views + anomaly banner + channel-mix sparkline |
+| J.7 | Read-write actions to Guesty + Stripe payment resolver + bulk actions + drag-to-create blocks |
+| J.8 | Supabase Realtime subscription + overbooking pre-write guard |
+| J.9 | Heatmap overlay toggle + comp-set price triangles + WhatsApp share-boarding-pass + free channel logos |
+| J.10 | Find-availability modal + direct-booking flow |
+
+**Pre-flight read-only investigations** (first commit in coding phase, before J.1 migration):
+1. Verify pricelabs table schema for prices/min-stay/comp-set
+2. Inspect `guesty_reservations.raw` for payment fields
+3. Confirm Phase F check-in + ID upload + boarding pass table names
+4. Confirm Stripe env var (Phase 5.8 used `STRIPE_SECRET_KEY`)
+5. Inspect `guesty_reviews` shape for past-stay quick-look
+
+**Confidence:** ~88% overall (will hit 95% after pre-flight). Highest uncertainty: Guesty write-API surface (J.7), Stripe-Guesty matching heuristic, Phase H/I schema for Attribution tab.
+
+**5 confirmation questions sent to user, blocking coding phase:**
+1. OK to ship J.1→J.10 sequentially (each its own Vercel deploy)?
+2. OK to run pre-flight read-only investigations as the very first commit?
+3. Anything missing in risk register?
+4. Reorder anything? (e.g., move realtime/J.8 before J.7?)
+5. "Operations" sub-landing with 3 cards — keep, or just put Calendar directly under `/emails/beithady/calendar`?
+
+Estimated ~13 commits across the phase. No code written this turn. Awaiting user answers before queuing pre-flight + J.1.
+
+## 🟢 Earlier this session — Phase J plan accepted (turn before this)
+
+User confirmed all 13 improvements + answered all 10 open questions from the plan-phase. Notable additions:
+- **#13 NEW**: Show guest loyalty level on reservation header → drives feature gating (VIP gets X, Gold gets Y, etc.)
+- **#12 expanded**: Past-stay quick-look should also surface previous reviews if any
+- **Manual blocks (Q5)**: yes, sync back to Guesty
+- **Realtime (Q7)**: confirmed — to prevent overbooking
+- **Bulk actions (Q10)**: V1 scope
+
+## 🟢 Earlier this session — Phase J initial plan drafted
 
 User asked to plan a Guesty-style multi-calendar reservation module for Beithady. This turn was **plan-only**, per the user's process: "Plan → 95% confidence → Workflow → 95% → Code". No files written.
 
@@ -144,7 +201,8 @@ Order of phases shipped (oldest → newest):
 16. **MTL semantics v2** (`bf53ca1`) — `dropMtlParents()` via nickname prefix; BH-73 → 28 (kept children — wrong polarity, superseded)
 17. **MTL semantics v3** (`5abec90`) — inverted to `dropMtlChildren()`; BH-73 → 13 folders (gallery only)
 18. **MTL backfill + cross-domain unification** (`5256135`) — migration 0042 + sync re-runs RPC + central `mtl.ts` helpers + applied to gallery/calendar/daily-report
-19. **Phase J plan drafted** (no commit) — Operations Calendar module spec sent to user; awaiting answers to 10 questions before moving to workflow phase (this turn)
+19. **Phase J plan drafted** (no commit) — Operations Calendar module spec sent; user confirmed 13 improvements + answered 10 questions
+20. **Phase J workflow drafted** (no commit) — 10 sub-phase build plan + 5 pre-flight investigations sent for review; awaiting sign-off before coding (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
