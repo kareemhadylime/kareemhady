@@ -442,7 +442,7 @@ export async function findAvailabilityAction(input: {
     listingsQ = listingsQ.or(`${inExpr},building_code.is.null`);
   }
   const { data: listings } = await listingsQ;
-  const allRaw = (listings as Array<{ id: string; nickname: string | null; building_code: string | null }> | null) || [];
+  const allRaw = (listings as Array<{ id: string; nickname: string | null; building_code: string | null; master_listing_id: string | null }> | null) || [];
   const all = allRaw.map(l => ({ ...l, building_code: l.building_code || 'OTHER' }));
 
   // 2) Reservations overlapping the window — exclude these listings.
@@ -469,23 +469,31 @@ export async function findAvailabilityAction(input: {
 
   const freeIds = all.filter(l => !taken.has(l.id)).map(l => l.id);
 
-  // 4) Pricelabs metadata for bedrooms + price.
-  const { data: pricelabs } = freeIds.length > 0
+  // 4) Pricelabs metadata for bedrooms + price. MTL caveat: BH-73
+  //    children have no own pricelabs row; resolve via master_listing_id.
+  const masterIdsForFree = Array.from(new Set(
+    all.filter(l => freeIds.includes(l.id))
+      // master_listing_id is on the all rows from the listings query above
+      .map(l => (l as { id: string; master_listing_id?: string | null }).master_listing_id)
+      .filter((id): id is string => Boolean(id))
+  ));
+  const lookupIds = Array.from(new Set([...freeIds, ...masterIdsForFree]));
+  const { data: pricelabs } = lookupIds.length > 0
     ? await sb
         .from('pricelabs_listings')
         .select('id, bedrooms')
-        .in('id', freeIds)
+        .in('id', lookupIds)
     : { data: [] };
   const bedroomsByListing = new Map<string, number>();
   for (const r of (pricelabs as Array<{ id: string; bedrooms: number | null }> | null) || []) {
     if (r.bedrooms != null) bedroomsByListing.set(r.id, r.bedrooms);
   }
 
-  const { data: prices } = freeIds.length > 0
+  const { data: prices } = lookupIds.length > 0
     ? await sb
         .from('pricelabs_listing_snapshots')
         .select('listing_id, recommended_base_price, base, snapshot_date')
-        .in('listing_id', freeIds)
+        .in('listing_id', lookupIds)
         .order('snapshot_date', { ascending: false })
     : { data: [] };
   const priceByListing = new Map<string, number>();
@@ -498,6 +506,25 @@ export async function findAvailabilityAction(input: {
     const v = r.recommended_base_price ?? r.base;
     if (v != null) priceByListing.set(r.listing_id, Number(v));
   }
+  // Lookup helpers with parent fallback
+  const masterById = new Map<string, string | null>();
+  for (const l of all as Array<{ id: string; master_listing_id?: string | null }>) {
+    masterById.set(l.id, l.master_listing_id || null);
+  }
+  const priceFor = (id: string): number | null => {
+    const own = priceByListing.get(id);
+    if (own != null) return own;
+    const m = masterById.get(id);
+    if (m) return priceByListing.get(m) ?? null;
+    return null;
+  };
+  const bedroomsFor = (id: string): number | null => {
+    const own = bedroomsByListing.get(id);
+    if (own != null) return own;
+    const m = masterById.get(id);
+    if (m) return bedroomsByListing.get(m) ?? null;
+    return null;
+  };
 
   // 5) Cover thumbnails (best effort)
   const { data: covers } = freeIds.length > 0
@@ -522,8 +549,8 @@ export async function findAvailabilityAction(input: {
       listing_id: l.id,
       nickname: l.nickname || l.id,
       building_code: l.building_code,
-      bedrooms: bedroomsByListing.get(l.id) ?? null,
-      base_price_usd: priceByListing.get(l.id) ?? null,
+      bedrooms: bedroomsFor(l.id),
+      base_price_usd: priceFor(l.id),
       cover_url: coverByListing.get(l.id) || null,
     }));
   if (input.bedrooms != null) {

@@ -93,12 +93,22 @@ export async function getCalendarGridData(opts: {
 
   // 2. Latest pricelabs snapshot per listing for the price column +
   //    occupancy/ADR/revenue for the heatmap overlay (J.9).
+  //
+  // MTL caveat: in BH-73 the children (BH73-1BR-C-8-106, etc.) have
+  // no per-listing pricelabs snapshot — only their parent
+  // (BH73-1BR-C-8) does. We fetch prices for BOTH the bookable atom
+  // ids AND their master_listing_ids, then fall back parent→child
+  // when a child has no own price.
   const listingIds = bookable.map(l => l.id);
-  const { data: priceRows } = listingIds.length > 0
+  const masterIds = Array.from(new Set(
+    bookable.map(l => l.master_listing_id).filter((id): id is string => Boolean(id))
+  ));
+  const priceLookupIds = Array.from(new Set([...listingIds, ...masterIds]));
+  const { data: priceRows } = priceLookupIds.length > 0
     ? await sb
         .from('pricelabs_listing_snapshots')
         .select('listing_id, recommended_base_price, base, occupancy_next_30, adr_past_30, revenue_past_30, snapshot_date')
-        .in('listing_id', listingIds)
+        .in('listing_id', priceLookupIds)
         .order('snapshot_date', { ascending: false })
     : { data: [] };
   const priceByListing = new Map<string, number>();
@@ -124,19 +134,45 @@ export async function getCalendarGridData(opts: {
       revenue_past_30: r.revenue_past_30 != null ? Number(r.revenue_past_30) : null,
     });
   }
+  // Resolver: prefer the child's own price; fall back to its MTL parent.
+  const priceFor = (listingId: string, masterId: string | null | undefined): number | null => {
+    const own = priceByListing.get(listingId);
+    if (own != null) return own;
+    if (masterId) return priceByListing.get(masterId) ?? null;
+    return null;
+  };
+  const metricsFor = (listingId: string, masterId: string | null | undefined) => {
+    const own = metricsByListing.get(listingId);
+    if (own && (own.occupancy_next_30 != null || own.adr_past_30 != null || own.revenue_past_30 != null)) {
+      return own;
+    }
+    if (masterId) {
+      const parent = metricsByListing.get(masterId);
+      if (parent) return parent;
+    }
+    return own || { occupancy_next_30: null, adr_past_30: null, revenue_past_30: null };
+  };
 
   // 2b. Comp-set median per (building_code, bedroom_bucket). Used for
   //     the up/down triangle on price cells (J.9 improvement #3).
-  const { data: pricelabsListings } = listingIds.length > 0
+  //     Same MTL caveat as price: BH-73 children have no own row in
+  //     pricelabs_listings, so we look up via master_listing_id too.
+  const { data: pricelabsListings } = priceLookupIds.length > 0
     ? await sb
         .from('pricelabs_listings')
         .select('id, bedrooms')
-        .in('id', listingIds)
+        .in('id', priceLookupIds)
     : { data: [] };
   const bedroomsByListing = new Map<string, number>();
   for (const r of (pricelabsListings as Array<{ id: string; bedrooms: number | null }> | null) || []) {
     if (r.bedrooms != null) bedroomsByListing.set(r.id, r.bedrooms);
   }
+  const bedroomsFor = (listingId: string, masterId: string | null | undefined): number | null => {
+    const own = bedroomsByListing.get(listingId);
+    if (own != null) return own;
+    if (masterId) return bedroomsByListing.get(masterId) ?? null;
+    return null;
+  };
   const buildings = Array.from(new Set(bookable.map(l => l.building_code).filter((b): b is string => Boolean(b))));
   const { data: marketRows } = buildings.length > 0
     ? await sb
@@ -155,9 +191,9 @@ export async function getCalendarGridData(opts: {
     if (compByKey.has(key)) continue;
     if (r.comp_median_usd != null) compByKey.set(key, Number(r.comp_median_usd));
   }
-  const compForListing = (listingId: string, building: string | null): number | null => {
+  const compForListing = (listingId: string, masterId: string | null | undefined, building: string | null): number | null => {
     if (!building) return null;
-    const beds = bedroomsByListing.get(listingId);
+    const beds = bedroomsFor(listingId, masterId);
     if (beds == null) return null;
     const bucket = beds === 0 ? 'studio' : beds === 1 ? '1br' : beds === 2 ? '2br' : beds >= 3 ? '3br+' : null;
     if (!bucket) return null;
@@ -306,19 +342,19 @@ export async function getCalendarGridData(opts: {
     reservationsByListing.set(r.listing_id, arr);
   }
   const rows: CalendarRow[] = bookable.map(l => {
-    const metrics = metricsByListing.get(l.id);
+    const metrics = metricsFor(l.id, l.master_listing_id);
     return {
       listing_id: l.id,
       nickname: l.nickname || l.id,
       title: l.title,
       building_code: l.building_code,
       cover_url: coverByListing.get(l.id) || null,
-      base_price_usd: priceByListing.get(l.id) ?? null,
-      comp_median_usd: compForListing(l.id, l.building_code),
+      base_price_usd: priceFor(l.id, l.master_listing_id),
+      comp_median_usd: compForListing(l.id, l.master_listing_id, l.building_code),
       occupancy_next_30: metrics?.occupancy_next_30 ?? null,
       adr_past_30: metrics?.adr_past_30 ?? null,
       revenue_past_30: metrics?.revenue_past_30 ?? null,
-      bedrooms: bedroomsByListing.get(l.id) ?? null,
+      bedrooms: bedroomsFor(l.id, l.master_listing_id),
       status_dot: statusDotFor(reservationsByListing.get(l.id) || [], nowIso),
     };
   });
