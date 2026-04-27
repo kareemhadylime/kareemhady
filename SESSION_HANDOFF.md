@@ -1,21 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Gallery MTL semantics: show parent, hide sub-units (commit `f87502f`)
+## 🟢 Latest turn — Gallery MTL parents detected by nickname prefix (commit `bf53ca1`)
 
-User asked: when a building has multi-unit listings, show the **MTL parent nickname** and don't list each sub-unit separately.
+User pushback after the last commit: BH-73 was still showing 36 folders, not 28. Inspection of the data showed Guesty sync hasn't populated `master_listing_id` yet — the previous turn's filter was effectively a no-op. The MTL hierarchy in BH-73 is encoded entirely in nicknames:
 
-The previous filter (`listing_type != 'MTL'`) was the opposite semantic — it dropped MTL parents and kept their children. Switched both gallery functions to filter on `master_listing_id IS NULL` instead:
-- includes standalone listings (no parent)
-- includes MTL parents themselves
-- excludes MTL children (they point to a parent)
+- Parent: `BH73-3BR-SB-1` (an aggregate, not bookable)
+- Sub-units: `BH73-3BR-SB-1-001`, `BH73-3BR-SB-1-101`, `BH73-3BR-SB-1-201`, … (`<parent>-NNN`)
 
-Two call sites updated:
-- [src/lib/beithady/gallery/gallery-list.ts:129](src/lib/beithady/gallery/gallery-list.ts:129) — `getListingsForBuilding`
-- [src/lib/beithady/gallery/gallery-list.ts:173](src/lib/beithady/gallery/gallery-list.ts:173) — `getUnitFoldersForBuilding`
+Replaced the SQL `master_listing_id IS NULL` filter with a JS post-fetch helper `dropMtlParents()` that drops any row with at least one child, where "child" is detected via either:
 
-Calendar heatmap ([market/calendar.ts:42](src/lib/beithady/market/calendar.ts:42)) intentionally keeps the opposite semantic — it counts bookable children for occupancy math — so it stayed on the OR-listing_type filter.
+- (a) another row's `master_listing_id` points to it (Guesty-structured MTLs — future-proofs)
+- (b) another row's nickname starts with `<this.nickname>-` (naming-convention MTLs — today's data)
 
-Page footer text updated. No row-count change today (no listings currently have a `master_listing_id`: BH-26→22, BH-73→36, BH-435→14, BH-OK→10), but takes effect automatically the next time Guesty sync pulls an MTL parent + children.
+Both gallery functions in [src/lib/beithady/gallery/gallery-list.ts](src/lib/beithady/gallery/gallery-list.ts) now fetch all matching listings and apply the helper. Counts after fix:
+
+| Building | Before | After | MTL parents dropped |
+|---|---|---|---|
+| BH-26 | 22 | 22 | 0 |
+| BH-73 | 36 | **28** ✓ | 8 |
+| BH-435 | 14 | 14 | 0 |
+| BH-OK | 10 | 10 | 0 |
+
+The 8 MTL parents dropped from BH-73: `BH73-1BR-C-8`, `BH73-2BR-SB-5`, `BH73-2BR-SB-6`, `BH73-3BR-C-4`, `BH73-3BR-SB-1`, `BH73-3BR-SB-2`, `BH73-3BR-SB-3`, `BH73-ST-C-7`. Page footer text updated to describe the new rule.
+
+## 🟢 Earlier this turn — `master_listing_id IS NULL` filter (commit `f87502f`)
+
+First attempt at the MTL parent/child semantic — switched the SQL filter from `listing_type != 'MTL'` to `master_listing_id IS NULL`. This was the right approach for Guesty-structured MTLs, but turned out to be a no-op against the actual data (sync hasn't populated master_listing_id). Superseded by `bf53ca1` above. Calendar heatmap ([market/calendar.ts:42](src/lib/beithady/market/calendar.ts:42)) was left untouched — it intentionally keeps the opposite semantic for occupancy math.
 
 ## 🟢 Earlier this turn — Gallery unit folders fix (commit `4cd4d12`)
 
@@ -61,7 +71,8 @@ Order of phases shipped (oldest → newest):
 12. **Gallery follow-up** (`8bd7ca5`) — Per-unit folders imported from Guesty + General Building Area
 13. **Hotfix #1** (`f478f23`) — `signedUrlFor` accepts optional ttl (unblocks Vercel build)
 14. **Hotfix #2** (`4cd4d12`) — `.neq('listing_type','MTL')` → `.or('listing_type.is.null,listing_type.neq.MTL')` (unit folders now actually render in calendar.ts; gallery-list.ts later superseded)
-15. **MTL semantics** (`f87502f`) — gallery-list.ts switched to `master_listing_id IS NULL` so MTL parents show, sub-units hide (this turn)
+15. **MTL semantics v1** (`f87502f`) — gallery-list.ts switched to `master_listing_id IS NULL` (turned out to be no-op against current data)
+16. **MTL semantics v2** (`bf53ca1`) — `dropMtlParents()` helper detects MTL parents via nickname prefix; BH-73 now shows 28, not 36 (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
