@@ -1,6 +1,27 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase J.1 → J.4 shipped (commits `0346db5`, `90ae39e`, `1e6bde0`, `40958cc`)
+## 🟢 Latest turn — Phase J.5 + J.6 shipped (commits `497b2e3`, `6f490eb`)
+
+**J.5 — Operations recompute cron** (`497b2e3`):
+- `/api/cron/beithady-operations-recompute` route, scheduled `*/30 * * * *` in `vercel.json`.
+- Calls `beithady_calendar_recompute_all_active()` RPC (defined in J.1's migration 0043).
+- Bearer-token gated via `CRON_SECRET`. Status flag dots refresh within 30 min of any upstream change.
+
+**J.6 — Saved views + channel-mix sparkline** (`6f490eb`):
+- Server actions: `saveViewAction`, `deleteViewAction`, `listViews` — backed by `beithady_calendar_saved_views`. Private vs shared scope; owner-only delete.
+- `saved-views-menu.tsx` — bookmark dropdown. Click view → applies filters via URL params. Save form with private/shared picker.
+- `channel-mix.tsx` — server-rendered inline horizontal bar showing channel split for the visible window (improvement #10). Drops cancelled reservations.
+- Filter state was already URL-driven from J.3, so this completes J.6 scope.
+
+**Phase J progress:** J.1 ✅ J.2 ✅ J.3 ✅ J.4 ✅ J.5 ✅ J.6 ✅ — J.7–J.10 ⏳
+
+**Remaining sub-phases:**
+- J.7 — Read-write actions to Guesty (mark paid, status changes, manual blocks, bulk actions, Stripe payment resolver). Heaviest remaining piece.
+- J.8 — Supabase Realtime + overbooking pre-write guard.
+- J.9 — Heatmap overlay toggle + comp-set price triangles + WhatsApp share-boarding-pass + free channel logos.
+- J.10 — Find-availability modal + direct-booking flow.
+
+## 🟢 Earlier this session — Phase J.1 → J.4 shipped (commits `0346db5`, `90ae39e`, `1e6bde0`, `40958cc`)
 
 J.4 — 10-tab reservation drawer (`40958cc`):
 - [src/lib/beithady/operations/reservation-detail.ts](src/lib/beithady/operations/reservation-detail.ts) — `getReservationDetail(id)` parallel-fetches base + conversation + last 10 messages + tasks + upsells + audit + ads attribution + lead pipeline + past stays + reviews
@@ -282,7 +303,9 @@ Order of phases shipped (oldest → newest):
 21. **Phase J.1 — Operations Calendar foundation** (`0346db5`) — migration 0043, 277 reservations cached with risk + payment status, permission matrix gains `operations` category
 22. **Phase J.2 — Operations launcher card + sub-landing** (`90ae39e`) — 8th tile on Beithady main, sub-landing with anomaly snapshot + 3 op cards, calendar placeholder, boarding-passes table
 23. **Phase J.3 — Read-only calendar grid** (`1e6bde0`) — server page + `getCalendarGridData` lib + 5 UI components. Click reservation → `?reservation=<id>` (drawer in J.4)
-24. **Phase J.4 — 10-tab reservation drawer** (`40958cc`) — `getReservationDetail` lib + 600-line drawer.tsx with all 10 tabs (Overview/Guest/Channel/Payment/Comms/Check-in/Tasks/Upsells/Attribution/Audit) + tier loyalty banner (improvement #13) + past-stay quick-look (improvement #12) (this turn)
+24. **Phase J.4 — 10-tab reservation drawer** (`40958cc`) — `getReservationDetail` lib + drawer.tsx with all 10 tabs + tier loyalty banner (improvement #13) + past-stay quick-look (improvement #12)
+25. **Phase J.5 — Operations recompute cron** (`497b2e3`) — `/api/cron/beithady-operations-recompute` every 30 min, calls RPC defined in J.1
+26. **Phase J.6 — Saved views + channel-mix sparkline** (`6f490eb`) — saved-views CRUD with private/shared scope + inline channel mix bar (improvement #10) (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
