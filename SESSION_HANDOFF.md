@@ -1,6 +1,19 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Vercel build hotfix (commit `f478f23`, green on `limeinc.vercel.app`)
+## 🟢 Latest turn — Gallery unit folders fix (commit `4cd4d12`)
+
+User screenshot showed BH-26 building gallery rendering "0 IMPORTED FROM GUESTY" / 0 unit folders even though Guesty has 22 BH-26 listings (BH-26-001…BH-26-501). Investigation: the listings were in `guesty_listings` correctly tagged `building_code = 'BH-26'`, `active = true`, `listing_type = NULL`.
+
+**Root cause:** PostgREST null-comparison gotcha. The Supabase JS query used `.neq('listing_type', 'MTL')`, which translates to SQL `listing_type <> 'MTL'`. In Postgres, `NULL <> 'MTL'` evaluates to **NULL** (not true), so PostgREST drops every row with a null listing_type. Across the 4 active Beithady buildings, 100% of listings have `listing_type = NULL` (BH-26: 22, BH-73: 36, BH-435: 14, BH-OK: 10) → all silently filtered out.
+
+**Fix:** replaced `.neq('listing_type', 'MTL')` with `.or('listing_type.is.null,listing_type.neq.MTL')` at three call sites:
+- [src/lib/beithady/gallery/gallery-list.ts:129](src/lib/beithady/gallery/gallery-list.ts:129) — `getListingsForBuilding`
+- [src/lib/beithady/gallery/gallery-list.ts:173](src/lib/beithady/gallery/gallery-list.ts:173) — `getUnitFoldersForBuilding` (the function rendering the empty page in the screenshot)
+- [src/lib/beithady/market/calendar.ts:42](src/lib/beithady/market/calendar.ts:42) — calendar-heatmap unit count
+
+Verified post-fix: BH-26 → 22 folders, BH-73 → 36, BH-435 → 14, BH-OK → 10. Commit `4cd4d12` pushed to main; GitHub-triggered Vercel build was scheduled to verify ~90s after push.
+
+## 🟢 Earlier this session — Vercel build hotfix (commit `f478f23`, green on `limeinc.vercel.app`)
 
 The Gallery per-unit-folders commit (`8bd7ca5`) broke production with `Command "npm run build" exited with 1`. Vercel's build logs showed compile ✅ at 30s, then a TypeScript type error during the `tsc` pass:
 
@@ -32,7 +45,8 @@ Order of phases shipped (oldest → newest):
 10. **H** (`1c7edd0`) — Ads module port (VoltAuto + Beithady extensions)
 11. **I** (`94a38d4` + `72325b2`) — Lead pipeline + AI review reply + `/api/leads/*` proxy allowance
 12. **Gallery follow-up** (`8bd7ca5`) — Per-unit folders imported from Guesty + General Building Area
-13. **Hotfix** (`f478f23`) — `signedUrlFor` accepts optional ttl (this turn)
+13. **Hotfix #1** (`f478f23`) — `signedUrlFor` accepts optional ttl (unblocks Vercel build)
+14. **Hotfix #2** (`4cd4d12`) — `.neq('listing_type','MTL')` → `.or('listing_type.is.null,listing_type.neq.MTL')` (unit folders now actually render — this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
