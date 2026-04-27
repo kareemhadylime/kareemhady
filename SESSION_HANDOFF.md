@@ -1,31 +1,46 @@
-# Kareemhady — Session Handoff (2026-04-27, end of day)
+# Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Beithady v2 — Phases A, B, C.1, C.2, C.3 ALL DEPLOYED to canonical production
+## 🟢 Latest turn — Vercel build hotfix (commit `f478f23`, green on `limeinc.vercel.app`)
 
-User flow this session:
-1. Plan → Workflow → Confirm (3-phase process completed at 95% confidence)
-2. Phase A: Foundation (5-card landing, role matrix, brand theme) — deployed
-3. Phase B: CRM read-only (5,753 guests ingested) — deployed
-4. Phase C.1: Communication v1 read side (6,694 convs + 1,011 messages mirrored) — deployed
-5. Phase C.2: Communication send side (Guesty composer + late-reply digest) — deployed
-6. Phase C.3: WhatsApp Casual two-way (Green-API webhook + voice + file) — deployed THIS TURN
+The Gallery per-unit-folders commit (`8bd7ca5`) broke production with `Command "npm run build" exited with 1`. Vercel's build logs showed compile ✅ at 30s, then a TypeScript type error during the `tsc` pass:
 
-User granted **standing authorization for direct pushes to main** ("Always Direct Push") so all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
+```
+./src/lib/beithady/gallery/gallery-list.ts:215
+Type error: Expected 2 arguments, but got 3.
+```
+
+Two new call sites in [src/lib/beithady/gallery/gallery-list.ts](src/lib/beithady/gallery/gallery-list.ts) (lines 215 + 257, the per-unit-folder cover and General-Building-Area cover) passed `3600` as a TTL override to `signedUrlFor()`, but the helper's signature only took 2 args.
+
+**Fix:** promoted the TTL to an optional third parameter on `signedUrlFor()` in [src/lib/beithady/gallery/storage.ts:19](src/lib/beithady/gallery/storage.ts:19), default = existing `SIGNED_URL_TTL_SEC = 3600`. Backward-compatible — the 5 other callers (asset-grid, asset-detail-modal, documents/page, ai-label, getSignedUrlForAsset) continue to work unchanged with two args.
+
+Pushed to main. GitHub-triggered build for `f478f23` went green: `dpl_5v3PftwFBByY7pKvtSQFdC9k4XhC` = READY. `limeinc.vercel.app` is unblocked.
+
+---
+
+## 🟢 Beithady v2 — Phases A → I + Gallery follow-up ALL DEPLOYED to canonical production
+
+Order of phases shipped (oldest → newest):
+1. **A** (`b4724c9`) — Foundation: 5-card landing, role matrix, brand theme
+2. **B** (`667a238` + `d5a526a`) — CRM read-only, 5,753 guests ingested
+3. **C.1** (`5532cac`) — Communication v1 read side, 6,694 convs + 1,011 messages mirrored
+4. **C.2** (`0cd6982`) — Communication send side: Guesty composer + late-reply digest
+5. **C.3** (`2874261`) — WhatsApp Casual two-way: Green-API webhook + voice + file
+6. **D** (`ca08b11`) — Gallery + Documents module
+7. **E** (`3dbaf64`) — AI auto-reply system
+8. **F** (`eda96f2`) — Engagement: loyalty + upsell + pre-arrival + CSAT + boarding pass + tasks
+9. **G** (`ba93412`) — Market Intelligence + Calendar Heatmap (closes Phase B residence_country gap)
+10. **H** (`1c7edd0`) — Ads module port (VoltAuto + Beithady extensions)
+11. **I** (`94a38d4` + `72325b2`) — Lead pipeline + AI review reply + `/api/leads/*` proxy allowance
+12. **Gallery follow-up** (`8bd7ca5`) — Per-unit folders imported from Guesty + General Building Area
+13. **Hotfix** (`f478f23`) — `signedUrlFor` accepts optional ttl (this turn)
+
+User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
 ---
 
 ## Branch + commit state
 
-`claude/quizzical-satoshi-83e453` and `main` are at `2874261`. Recent commits in order:
-- `b4724c9` Phase A — foundation (5-card landing, role matrix, brand theme)
-- `dae8630` docs: SESSION_HANDOFF for Phase A
-- `2b18588` (sibling worktree) KIKA Daily Performance Report
-- `4e5e938` (sibling worktree) docs: SESSION_HANDOFF for KIKA
-- `667a238` Phase B — CRM read-only (rebased onto main with KIKA work)
-- `d5a526a` Phase B follow-up: SQL initial-ingest proc + fx_rates fix
-- `5532cac` Phase C.1 — Communication v1 read side
-- `0cd6982` Phase C.2 — Communication send side
-- `2874261` Phase C.3 — WhatsApp Casual two-way (Green-API)
+Active worktree this turn: `claude/jovial-wilbur-a3fd6a`. `main` is at `f478f23` (Vercel-green).
 
 Branch is clean except SESSION_HANDOFF.md being updated each turn.
 
