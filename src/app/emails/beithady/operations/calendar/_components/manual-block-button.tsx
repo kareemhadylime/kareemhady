@@ -30,18 +30,31 @@ export function ManualBlockButton({ listingId, listingNickname, defaultStart }: 
   const [reason, setReason] = useState<typeof REASONS[number]['value']>('owner_stay');
   const [notes, setNotes] = useState('');
 
-  const submit = () => {
+  const [conflict, setConflict] = useState<{
+    reservation_id: string;
+    guest_name: string | null;
+    channel: string | null;
+    check_in: string;
+    check_out: string;
+  } | null>(null);
+
+  const submit = (force = false) => {
     startTransition(async () => {
       const r = await createManualBlockAction({
-        listingId, startDate: start, endDate: end, reason, notes: notes || undefined,
+        listingId, startDate: start, endDate: end, reason,
+        notes: notes || undefined,
+        forceOverride: force,
       });
       if (r.ok) {
         setOpen(false);
         setNotes('');
+        setConflict(null);
         if (r.guestySync === false) {
           alert(`Block created locally but Guesty sync failed: ${r.guestyError || 'unknown'}. The block is visible in Beithady; re-sync from Settings later.`);
         }
         router.refresh();
+      } else if (r.conflict) {
+        setConflict(r.conflict);
       } else {
         alert(`Failed: ${r.error}`);
       }
@@ -58,13 +71,13 @@ export function ManualBlockButton({ listingId, listingNickname, defaultStart }: 
       >
         <Lock size={9} /> Block
       </button>
-      {open && (
+      {open && !conflict && (
         <ConfirmWriteModal
           title={`Block availability — ${listingNickname}`}
           description="Marks the unit as unavailable for the selected window. The block is visible in this calendar AND pushed to Guesty so OTAs (Airbnb, Booking) won't allow new bookings."
           warningType="guesty_write"
           pending={pending}
-          onConfirm={submit}
+          onConfirm={() => submit(false)}
           onCancel={() => setOpen(false)}
         >
           <div className="grid grid-cols-2 gap-2">
@@ -107,6 +120,28 @@ export function ManualBlockButton({ listingId, listingNickname, defaultStart }: 
               placeholder="e.g. Plumbing repair, owner visit"
             />
           </label>
+        </ConfirmWriteModal>
+      )}
+      {open && conflict && (
+        <ConfirmWriteModal
+          title="Overbooking conflict"
+          description={`A reservation already overlaps this window. Confirming the block will leave the existing reservation in place but mark the dates unavailable for new bookings — the existing guest will not be notified. Proceed only if you've already coordinated with the guest.`}
+          warningType="destructive"
+          pending={pending}
+          onConfirm={() => submit(true)}
+          onCancel={() => { setConflict(null); }}
+        >
+          <div className="border border-rose-200 dark:border-rose-800 bg-rose-50/40 dark:bg-rose-900/10 rounded p-2 space-y-1 text-[11px]">
+            <div className="font-semibold text-rose-900 dark:text-rose-200">
+              {conflict.guest_name || 'Guest'}{conflict.channel ? ` · ${conflict.channel}` : ''}
+            </div>
+            <div className="text-slate-600 dark:text-slate-400">
+              {conflict.check_in} → {conflict.check_out}
+            </div>
+            <div className="text-[10px] text-slate-500">
+              Res: <code>{conflict.reservation_id}</code>
+            </div>
+          </div>
         </ConfirmWriteModal>
       )}
     </>

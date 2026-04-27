@@ -9,6 +9,7 @@ import { ReservationDrawer } from './_components/drawer';
 import { SavedViewsMenu } from './_components/saved-views-menu';
 import { ChannelMix } from './_components/channel-mix';
 import { BulkActions } from './_components/bulk-actions';
+import { RealtimeBridge } from './_components/realtime-bridge';
 import { listViews } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -102,6 +103,7 @@ export default async function OperationsCalendarPage({
         subtitle={`${data.rows.length} bookable units · ${data.reservations.length} reservations in window · ${data.windowStart} → ${data.windowEnd}`}
         right={
           <div className="flex items-center gap-2">
+            <RealtimeBridge />
             <BulkActions buildings={filters.buildings} />
             <SavedViewsMenu initialViews={views} />
           </div>

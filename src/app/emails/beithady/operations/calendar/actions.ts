@@ -212,12 +212,41 @@ export async function createManualBlockAction(input: {
   endDate: string;         // YYYY-MM-DD (exclusive)
   reason: 'owner_stay' | 'maintenance' | 'hold' | 'other';
   notes?: string;
-}): Promise<{ ok: boolean; id?: string; guestySync?: boolean; guestyError?: string; error?: string }> {
+  forceOverride?: boolean; // skip overbooking guard
+}): Promise<{ ok: boolean; id?: string; guestySync?: boolean; guestyError?: string; error?: string; conflict?: { reservation_id: string; guest_name: string | null; channel: string | null; check_in: string; check_out: string } }> {
   const { user } = await requireBeithadyPermission('operations', 'full');
   if (input.endDate <= input.startDate) {
     return { ok: false, error: 'End date must be after start date' };
   }
   const sb = supabaseAdmin();
+
+  // Pre-write overbooking guard (J.8): re-check the latest reservation
+  // state for this listing across the requested window. If a confirmed
+  // reservation overlaps, refuse unless caller passed forceOverride.
+  if (!input.forceOverride) {
+    const { data: conflicts } = await sb
+      .from('beithady_reservation_grid_v')
+      .select('reservation_id, guest_name, channel, check_in_date, check_out_date, status')
+      .eq('listing_id', input.listingId)
+      .neq('status', 'canceled')
+      .lt('check_in_date', input.endDate)
+      .gt('check_out_date', input.startDate)
+      .limit(1);
+    const hit = (conflicts as Array<{ reservation_id: string; guest_name: string | null; channel: string | null; check_in_date: string; check_out_date: string }> | null)?.[0];
+    if (hit) {
+      return {
+        ok: false,
+        error: 'Overbooking conflict — a reservation overlaps the requested block window.',
+        conflict: {
+          reservation_id: hit.reservation_id,
+          guest_name: hit.guest_name,
+          channel: hit.channel,
+          check_in: hit.check_in_date,
+          check_out: hit.check_out_date,
+        },
+      };
+    }
+  }
 
   // 1) Insert local block first — local always wins, sync is best-effort.
   const { data: created, error: insErr } = await sb
