@@ -3,13 +3,13 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Mail, MessageCircle } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { runMorningBrief } from '@/lib/beithady/morning-brief/run';
 import { renderHtml } from '@/lib/beithady/morning-brief/renderers';
 import { buildGuestRelationsBrief } from '@/lib/beithady/morning-brief/gr-brief';
 import { buildOpsBrief } from '@/lib/beithady/morning-brief/ops-brief';
 import { buildFinanceBrief } from '@/lib/beithady/morning-brief/finance-brief';
 import type { BriefRole } from '@/lib/beithady/morning-brief/types';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
+import { TestPanel } from './_test-panel';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -27,13 +27,12 @@ function isValidRole(v: string | undefined): v is BriefRole {
 export default async function MorningBriefArchive({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; date?: string; preview?: string }>;
+  searchParams: Promise<{ role?: string; date?: string }>;
 }) {
   await requireBeithadyPermission('operations', 'read');
   const sp = await searchParams;
   const role: BriefRole = isValidRole(sp.role) ? sp.role : 'guest_relations';
   const date = sp.date || new Date().toISOString().slice(0, 10);
-  const isPreview = sp.preview === '1';
 
   // Load from log if available; otherwise rebuild on the fly.
   const sb = supabaseAdmin();
@@ -61,11 +60,6 @@ export default async function MorningBriefArchive({
   }
 
   if (!html) notFound();
-
-  // Preview = trigger a real send NOW (admin only)
-  if (isPreview) {
-    await runMorningBrief({ role, dateIso: date, dryRun: false });
-  }
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -141,6 +135,9 @@ export default async function MorningBriefArchive({
           Live preview — this brief has not been sent yet for {date}.
         </section>
       )}
+
+      {/* Test panel */}
+      <TestPanel role={role} dateIso={date} />
 
       {/* Rendered brief */}
       <article
