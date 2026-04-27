@@ -1,4 +1,4 @@
-import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange } from 'lucide-react';
+import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { BeithadyLauncher, type LauncherTile } from '../_components/beithady-launcher';
@@ -34,6 +34,14 @@ export default async function BeithadyAnalyticsPage() {
       icon: CalendarRange,
       accent: 'amber',
       badge: { label: 'Live', tone: 'navy' },
+    },
+    {
+      href: '/emails/beithady/analytics/reviews',
+      title: 'Reviews',
+      description: 'AI-drafted multi-language replies to Guesty/OTA reviews. Edit, approve, send back via Guesty.',
+      icon: MessageSquareReply,
+      accent: 'rose',
+      badge: { label: 'AI', tone: 'gold' },
     },
   ];
 

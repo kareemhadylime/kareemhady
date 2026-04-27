@@ -200,6 +200,12 @@ export default async function BeithadyCrmPage({
           <Link href="/emails/beithady/crm/loyalty" className="ix-btn-secondary">
             🥇 Loyalty
           </Link>
+          <Link href="/emails/beithady/crm/pipeline" className="ix-btn-secondary">
+            📋 Pipeline
+          </Link>
+          <Link href="/emails/beithady/crm/tasks" className="ix-btn-secondary">
+            ✓ Tasks
+          </Link>
         </div>
       </form>
 
