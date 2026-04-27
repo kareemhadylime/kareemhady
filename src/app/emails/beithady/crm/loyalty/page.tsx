@@ -1,35 +1,27 @@
-import { Crown, CheckCircle2 } from 'lucide-react';
-import { supabaseAdmin } from '@/lib/supabase';
+import { Crown, Sparkles, RefreshCw, Users } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { LOYALTY_TIERS } from '@/lib/beithady/crm/loyalty';
+import { supabaseAdmin } from '@/lib/supabase';
+import { getLoyaltyTiers } from '@/lib/beithady/engagement/loyalty-config';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
+import { runLoyaltyTickAction } from './actions';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-const PERK_LABELS: Record<string, string> = {
-  late_checkout: 'Late checkout when available',
-  upgrade_when_available: 'Free unit upgrade when available',
-  welcome_gift: 'Branded welcome gift on arrival',
-  vip_flag: 'Auto-flagged VIP across all channels',
-  direct_book_discount_pct: 'Direct rebooking discount',
-};
-
-export default async function BeithadyLoyaltyPage() {
+export default async function LoyaltyPage() {
   await requireBeithadyPermission('crm', 'read');
   const sb = supabaseAdmin();
 
-  // Per-tier counts (single roundtrip, all 5 buckets).
-  const tiers = ['none', 'bronze', 'silver', 'gold', 'platinum'] as const;
-  const counts = await Promise.all(
-    tiers.map(async t => {
-      const { count } = await sb
-        .from('beithady_guests')
-        .select('id', { count: 'exact', head: true })
-        .eq('loyalty_tier', t);
-      return { tier: t, count: count ?? 0 };
-    })
-  );
-  const countsByTier = new Map(counts.map(c => [c.tier, c.count]));
+  const [tiers, { data: counts }] = await Promise.all([
+    getLoyaltyTiers(),
+    sb.from('beithady_guests').select('loyalty_tier'),
+  ]);
+
+  const countByTier = new Map<string, number>();
+  for (const r of (counts as Array<{ loyalty_tier: string }> | null) || []) {
+    countByTier.set(r.loyalty_tier, (countByTier.get(r.loyalty_tier) || 0) + 1);
+  }
+  const totalGuests = (counts as Array<unknown> | null)?.length || 0;
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -39,64 +31,84 @@ export default async function BeithadyLoyaltyPage() {
       <BeithadyHeader
         eyebrow="Beit Hady · CRM · Loyalty"
         title="Loyalty tiers"
-        subtitle="Read-only in Phase B — auto-promotion runs in the daily CRM sync. Phase F adds the per-tier perk editor and welcome-gift workflow."
+        subtitle="Auto-tier on lifetime stays. Tier promotions trigger an automated WhatsApp congrats. Platinum guests are auto-promoted to VIP."
+        right={
+          <form action={runLoyaltyTickAction}>
+            <button type="submit" className="ix-btn-secondary text-xs">
+              <RefreshCw size={12} /> Recompute now
+            </button>
+          </form>
+        }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {LOYALTY_TIERS.map(t => {
-          const count = countsByTier.get(t.tier) ?? 0;
-          const perks = Object.entries(t.perks).filter(([, v]) => v);
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {tiers.map(t => {
+          const cnt = countByTier.get(t.tier) || 0;
+          const pct = totalGuests > 0 ? Math.round((cnt / totalGuests) * 100) : 0;
+          const perks = Object.entries(t.perks).filter(([, v]) => !!v);
           return (
             <div key={t.tier} className="ix-card p-5 space-y-3 relative overflow-hidden">
               <div
-                className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-20 blur-2xl pointer-events-none"
+                className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-20 blur-2xl"
                 style={{ backgroundColor: t.display_color }}
               />
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-3xl">{t.emoji}</div>
-                  <h2 className="font-semibold mt-1" style={{ color: t.display_color }}>{t.label}</h2>
-                  <p className="text-xs text-slate-500">≥ {t.min_stays} stay{t.min_stays === 1 ? '' : 's'}</p>
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-12 h-12 rounded-xl inline-flex items-center justify-center text-2xl"
+                  style={{ backgroundColor: t.display_color + '20', color: t.display_color }}
+                >
+                  {t.emoji}
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">Guests</div>
-                  <div className="text-2xl font-bold tabular-nums" style={{ color: 'var(--bh-navy)' }}>
-                    {count.toLocaleString()}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-bold" style={{ color: 'var(--bh-navy)' }}>
+                      {t.label}
+                    </h3>
+                    <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      ≥ {t.min_stays} stays
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    <span className="font-semibold tabular-nums">{cnt.toLocaleString()}</span> guests · {pct}% of base
                   </div>
                 </div>
               </div>
-              <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                {perks.length === 0 ? (
-                  <li className="italic text-slate-400">No perks at this tier</li>
-                ) : (
-                  perks.map(([k, v]) => (
-                    <li key={k} className="flex items-start gap-2">
-                      <CheckCircle2 size={12} className="text-emerald-600 mt-0.5 shrink-0" />
-                      <span>
-                        {PERK_LABELS[k] || k}
-                        {k === 'direct_book_discount_pct' && typeof v === 'number' ? ` (${v}%)` : ''}
-                      </span>
+              {perks.length > 0 ? (
+                <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  {perks.map(([k, v]) => (
+                    <li key={k} className="flex items-center gap-2">
+                      <Sparkles size={10} style={{ color: t.display_color }} />
+                      {prettyPerk(k, v)}
                     </li>
-                  ))
-                )}
-              </ul>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  No perks at this tier.
+                </p>
+              )}
             </div>
           );
         })}
       </div>
 
-      <div className="ix-card p-5 space-y-3">
-        <h2 className="font-semibold flex items-center gap-2">
-          <Crown size={14} className="text-yellow-600" />
-          How tiers are assigned
-        </h2>
-        <ol className="text-sm text-slate-700 dark:text-slate-200 space-y-1 list-decimal pl-5">
-          <li>Daily CRM sync (07:30 / 08:30 Cairo) recomputes <code>lifetime_stays</code> from completed/active reservations in Guesty.</li>
-          <li>Tier is set to the highest tier whose <code>min_stays</code> threshold is met.</li>
-          <li>Platinum guests are also auto-flagged VIP.</li>
-          <li>Phase F lights up: tier-change WhatsApp message · welcome-gift dispatch · per-tier upsell offers · direct-rebook discount link.</li>
-        </ol>
+      <div className="ix-card p-4 text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+        <Crown size={14} className="text-yellow-600" />
+        Tier thresholds + perks + congrats templates are stored in
+        <code>beithady_loyalty_config</code> and editable via Supabase Studio.
+        <Users size={14} className="text-slate-400 ml-2" />
+        Recompute happens nightly at 06:00 Cairo via the
+        <code>beithady-loyalty-tick</code> cron.
       </div>
     </BeithadyShell>
   );
+}
+
+function prettyPerk(key: string, value: unknown): string {
+  if (key === 'late_checkout') return 'Late checkout when available';
+  if (key === 'upgrade_when_available') return 'Free upgrade when available';
+  if (key === 'welcome_gift') return 'Welcome gift on arrival';
+  if (key === 'vip_flag') return 'VIP concierge';
+  if (key === 'direct_book_discount_pct') return `${value}% off direct rebookings`;
+  return `${key}: ${String(value)}`;
 }
