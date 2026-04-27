@@ -1,4 +1,193 @@
-# Kareemhady — Session Handoff (2026-04-26)
+# Kareemhady — Session Handoff (2026-04-27)
+
+## 🚀 Beithady v2 Phase A — Foundation CODED on worktree (commit b4724c9), awaiting deploy sign-off
+
+User confirmed W-1/W-2/W-3 (recommended defaults) + said "Proceed with Phase A". Phase A implemented, committed on `claude/quizzical-satoshi-83e453` worktree branch. **Migration already applied to live Supabase. Code NOT yet merged to main, NOT yet deployed.**
+
+**Commit b4724c9** — 29 files, 2,210 insertions:
+- `supabase/migrations/0030_beithady_v2_foundation.sql` — beithady_role enum (5 roles), beithady_user_roles, beithady_audit_log, beithady_settings KV. Seeded ai_confidence_threshold=0.85, ai_auto_reply_enabled=true, vip_digest_enabled=true. Existing app-admins auto-granted beithady admin role on install.
+- **Migration applied via Supabase MCP** to project `bpjproljatbrbmszwbov` ✅ (returned `{success:true}`)
+- `src/lib/beithady/auth.ts` — Permission matrix per Plan v0.3 Q-B (5 roles × 7 categories: financial, analytics, crm, communication, settings, gallery, ads). Exports BEITHADY_ROLES, requireBeithadyPermission, hasBeithadyPermission, getEffectiveBeithadyRoles, visibleCategoriesFor, canAccessSettingsSubtab. App-admins implicitly hold every Beithady role.
+- `src/lib/beithady/audit.ts` — recordAudit() (swallows errors, never blocks user actions) + queryAudit() with filters
+- `src/lib/beithady/settings.ts` — getSetting/setSetting + typed getters getAiConfidenceThreshold, isAiAutoReplyEnabled, isVipDigestEnabled. setSetting writes audit row before+after.
+- `src/lib/brand-theme.ts:137` — beithady block rewritten from rose/amber to slate-700/400 gradient. Palette extracted from logo + branded-item screenshots (Plan v0.3 Q-D): navy #1E2D4A → slate-800, blue #5F7397 → slate-500, cream #F5F1E8 → custom var, gold #D4A93A → yellow-600.
+- `src/app/globals.css` — 4 CSS vars wired (`--bh-navy`, `--bh-blue`, `--bh-cream`, `--bh-gold`) + `[data-bh-brand]` selector paints cream backdrop on every Beithady page.
+- `public/brand/beithady/wordmark.jpg` + `monogram.jpg` — copied from `C:\kareemhady\.claude\Beithady Domain\BeitHady Logos\IMG-20250123-WA0327.jpg` and `IMG-20250123-WA0289.jpg`.
+- `src/app/emails/beithady/_components/`:
+  - `beithady-shell.tsx` — branded wrapper with TopNav + breadcrumbs + cream backdrop + serif heading
+  - `beithady-launcher.tsx` — reusable LauncherTile grid component supporting 8 accent palettes (slate, amber, emerald, rose, cyan, violet, indigo, gold)
+  - `role-guard.tsx` — RequireBeithadyPermission server-component wrapper for inline gating
+  - `rule-cards.tsx` — Beithady rule-aggregate mini-cards (BookingMini, PayoutMini, ReviewMini, InquiryMini, RequestMini) lifted from `src/app/emails/[domain]/page.tsx` so Financial + Analytics pages can each show only relevant rules
+- `src/app/emails/beithady/page.tsx` — REPLACES the dynamic [domain] fallback. 5-card launcher (Financial, Analytics, CRM, Communication, Settings) + 2 cross-cutting tiles (Gallery, Ads) with per-role visibility via `visibleCategoriesFor()`. Empty state for users with no Beithady role.
+- `src/app/emails/beithady/financial/page.tsx` — Functional. Launcher tiles linking to existing `/setup` (Daily Report) and `/financials` (Odoo P&L) + payout-aggregate rule cards section.
+- `src/app/emails/beithady/analytics/page.tsx` — Functional. Pricing tile + 4 rule-aggregate sections (Bookings, Reviews, Inquiries, Requests) + 2 disabled "Phase G" tiles (Market Intel, Calendar Heatmap).
+- `src/app/emails/beithady/{crm,communication,gallery,ads}/page.tsx` — Phase B/C/D/H "coming up" stubs with feature previews + appropriate iconography. All gated by requireBeithadyPermission.
+- `src/app/emails/beithady/settings/page.tsx` — 9-sub-tab launcher filtered by canAccessSettingsSubtab. Shows current user's roles in header.
+- `src/app/emails/beithady/settings/users/{page,actions}.tsx` — Functional role assignment UI. Table lists all app_users with current Beithady roles (clickable badges to revoke) + grant-role dropdown. assignRoleAction + revokeRoleAction with last-admin protection (cannot self-revoke if you're the only admin). Both write audit rows.
+- `src/app/emails/beithady/settings/audit/page.tsx` — Functional log viewer with module + limit filters.
+- `src/app/emails/beithady/settings/ai-config/{page,actions}.tsx` — Functional. Confidence threshold range slider, master kill-switch checkbox, VIP digest checkbox. Phase E will consume these settings.
+- `src/app/emails/beithady/settings/branding/page.tsx` — Read-only display: 2 logo previews + 4-swatch palette table + typography note.
+- `src/app/emails/beithady/settings/{templates,tags,custom-fields}/page.tsx` — Phase B/C/F coming-up stubs.
+
+**Settings sub-tabs that link OUTSIDE the Beithady tree** (no new pages built — they reuse existing routes):
+- `rules` → `/admin/rules?domain=beithady` (existing rule CRUD)
+- `integrations` → `/admin/integrations` (admin-only credential management)
+
+**Existing pages preserved unchanged**: `/emails/beithady/{financials,pricing,setup}` still render at their original paths, just now linked from the new Financial + Analytics tiles instead of the old 3-tile dynamic page.
+
+**Verification:**
+- ✅ `npx tsc --noEmit` clean (170 packages installed via `npm install` first since worktree had empty node_modules)
+- ✅ `npx next build` "Compiled successfully in 11.5s"
+- ✅ All 7 new routes appear in build output: /emails/beithady/{analytics,communication,crm,financial,gallery,ads}, /emails/beithady/settings/{ai-config,audit,branding,custom-fields,tags,templates,users}
+- ✅ Existing /financials, /pricing, /setup, /[ruleId] still listed
+- ✅ Migration applied to live Supabase via MCP
+- ✅ Audit log already has 1 row recording the install itself
+
+**Pending sign-off before deploy** (two destructive steps not yet taken — matching pattern from prior SESSION_HANDOFF entries):
+1. Merge `claude/quizzical-satoshi-83e453` → `main` (`git checkout main && git merge`)
+2. `git push origin main && vercel --prod`
+
+Migration is ALREADY on production Supabase but harmless without the code (no live app reads these tables yet). Reply "deploy" triggers steps 1+2.
+
+**Plan v0.3 + Workflow v0.1 reference** (still source of truth for B-I):
+- Phase B · CRM read-only (5d) — beithady_guests mirror, 360° profile, smart widgets
+- Phase C · Communication v1 (7d) — Guesty inbox + dual WhatsApp + SLA color coding
+- Phase D · Gallery (4d) — Storage buckets + AI labeling, brand library seed
+- Phase E · AI auto-reply (4d) — threshold gate + VIP digest cron
+- Phase F · Loyalty/Upsell/Pre-arrival/CSAT/Boarding pass (6d)
+- Phase G · Market Intel + Calendar Heatmap (4d)
+- Phase H · Ads module port from Voltauto (10d)
+- Phase I · Pipeline + AI review reply (3d)
+
+**14 pre-flight integration probes (P0)** still need to run before Phase E begins (Beithady WABA verification, Meta Marketing access, Green-API webhook URL, Guesty POST-message availability). Probes will be a throwaway script `scripts/beithady-v2-probes.ts` that writes `docs/beithady-v2-probe-report.md`.
+
+**Outstanding Workflow questions resolved at recommended defaults:**
+- W-1: Build beithady_guest_timeline_cache jsonb upfront in Phase B (not lazy)
+- W-2: VIP digest >48h auto-revert window — use apology-template fallback
+- W-3: Upsell payments — Stripe Payment Links for v1, migrate to Checkout if data warrants
+
+**Next step on session resume:** User says "deploy" → assistant runs `git checkout main && git merge claude/quizzical-satoshi-83e453 && git push origin main && vercel --prod`, then begins **Phase B · CRM read-only (5 days)** with migration `0031_beithady_crm.sql` (beithady_guests, beithady_guest_notes, beithady_guest_segments) and the daily Guesty guest-mirror cron at 05:30 UTC.
+
+---
+
+## 🛠 Beithady Domain Expansion — WORKFLOW v0.1 delivered, ~93% confidence (awaiting W-1/W-2/W-3 sign-off before code)
+
+User said "Confirmed" on Plan v0.3 → Workflow v0.1 produced this turn. **Document lives in conversation only — not written to disk.** Workflow covers the 9 implementation phases (A through I) plus pre-flight integration probes (P0).
+
+**Key artifacts in Workflow v0.1:**
+- §1 Sequencing graph: A→B→C→{D,E,F,G}→H→I with explicit dependencies (Phase E needs C plumbing; Phase H needs D gallery + E WABA)
+- §2 Pre-flight integration probes (P0) — 14 probes (P1-P14) gating Phase A start. Outputs `docs/beithady-v2-probe-report.md` defining fallbacks. Critical gates: P1 Guesty POST-message (else read-only + deep-link), P5 Beithady WABA verification (blocks Phase E), P6/P7 Meta Marketing access (blocks Phase H), P8 Google Ads dev token (else Meta-only Phase H), P9 TikTok approval (defer to H.6), P10 Green-API webhook (else send-only), P12 Supabase Storage Pro (blocks Phase D).
+- §3 New env vars + 5 new credential providers (`meta_waba`, `meta_marketing`, `google_ads`, `tiktok_ads`, `gmaps`) — all routed through existing `getCredential()` pattern at [credentials.ts:38](src/lib/credentials.ts:38).
+- §4 Phase A · Foundation — migration `0030_beithady_v2_foundation.sql` (beithady_role enum, beithady_user_roles, beithady_audit_log, beithady_settings KV). Full route tree under `src/app/emails/beithady/{page.tsx, financial/, analytics/, crm/, communication/, settings/{rules,users,branding,integrations,ai-config,templates,tags,custom-fields,audit}/}`. Brand-theme rewrite at [brand-theme.ts:137](src/lib/brand-theme.ts:137) — slate-700/400 gradient + cream backdrop + gold accent, 4 hex CSS vars wired to globals.css. Logo files copy from `C:\kareemhady\.claude\Beithady Domain\BeitHady Logos\` → `public/brands/beithady/`.
+- §5 Phase B · CRM read-only — migration `0031` (beithady_guests, beithady_guest_notes, beithady_guest_segments). Library `src/lib/beithady/crm/{guests-sync,guest-loader,guest-list,guest-search,loyalty,ai-summary,segments}.ts`. New cron `30 5 * * *` for daily Guesty guest mirror sync.
+- §6 Phase C · Communication v1 — migration `0032` (beithady_messages, beithady_conversations). Three sub-tabs: guesty/wa-cloud/wa-casual + unified. Edge functions ported from Voltauto: wa-cloud-{send,webhook}, wa-{send,webhook}. New webhooks at `/api/webhooks/{green/[slug],wa-cloud}/route.ts`. SLA recompute every 5 min. Late-reply digest 09:00 + 15:00 Cairo.
+- §7 Phase D · Gallery — migration `0033` (beithady_gallery_assets/_albums/_label_jobs). 3 storage buckets: beithady-gallery (private signed), beithady-gallery-public (CDN, ad_eligible only), beithady-documents (role-gated). Brand library seeded from `BeitHady Branding/Branded Items/` (21 SKUs). AI labeling queue `*/2 * * * *`.
+- §8 Phase E · AI auto-reply — migration `0034` (beithady_ai_reply_log, beithady_flow_state). State machine ported from Voltauto's wa_cold_outreach_flow. Threshold check (≥0.85 default → auto-send, < → suggest), VIP digest cron 09:00 Cairo, kill-switch per conversation.
+- §9 Phase F · Loyalty/Upsell/Pre-arrival/CSAT/Boarding pass — migration `0035` (loyalty_config seeded with bronze/silver/gold/platinum, upsell_catalog, upsell_offers, csat_responses, pre_arrival_messages, boarding_passes, tasks). 5 new crons: pre-arrival 10:00 Cairo, upsell 12:00, CSAT 15:00, boarding-pass 10:30, loyalty-tick 06:00. Boarding pass uses existing `/r/beithady/[token]` public-prefix pattern.
+- §10 Phase G · Market Intel + Heatmap — migration `0036` (market_inbound, market_signals). Monthly fetch cron 1st of month 05:00 Cairo. CAPMAS + UN Tourism + Google Trends sources.
+- §11 Phase H · Ads module port — migration `0037` ports Voltauto's `20260418_ads_module.sql` verbatim with extensions (`building_codes[]`, `target_countries[]`, `target_interests[]`, `gallery_asset_ids[]`, `matched_reservation_id` for attribution + Postgres trigger on guesty_reservations). Edge functions ported: ads-meta-publish, ads-insights-pull, ads-ai-copy, ads-lead-ingest. ads-google-publish + ads-tiktok-publish deferred to H.5 + H.6.
+- §12 Phase I · Pipeline + AI review reply — migration `0038` (beithady_leads kanban, beithady_review_replies).
+- §13 Master cron schedule view — 17 new crons added to vercel.json across phases, all in 03:00-13:00 UTC range to fit existing 04:xx batch slot.
+- §14 Background job idempotency table — every job has explicit dedupe key + failure mode.
+- §15 Deployment sequence — atomic merge per phase, MCP migration apply BEFORE merge, smoke test with `?force=1` after `vercel --prod`. Per-phase rollback: `git revert HEAD && vercel --prod` + MCP down-SQL.
+- §16 Acceptance criteria summary per phase.
+
+**3 outstanding Workflow questions blocking 95% (W-1, W-2, W-3):**
+- W-1: Build `beithady_guest_timeline_cache jsonb` denormalization upfront in Phase B (safe) or wait for measurement (lean)? Recommended: build upfront — refresh cost is negligible inside existing CRM cron.
+- W-2: VIP digest >48h auto-revert — Cloud API delete-message only works inside 48h window. Use apology-template fallback when too late, or send nothing (admin handles manually)? Recommended: apology template.
+- W-3: Upsell Stripe payments — Payment Links per SKU (simple) or Checkout Sessions (full control)? Recommended: Payment Links v1, migrate later if data warrants.
+
+**5 risks I'm carrying** (in §17 of Workflow doc): timeline join performance, 48h auto-revert window limit, ad attribution false positives in 90-day phone-match window (mitigated by `ads_leads.created_at < reservation.created_at - 1h`), Stripe upsell mode, brand-asset PDFs unreadable (mitigated — colors extracted from logo JPGs).
+
+**Plan v0.3 status (still locked):**
+- Q-A: 85% confidence threshold + Daily VIP digest with one-click revert/apologize
+- Q-B: 5-role matrix verbatim
+- Q-C: Beithady gets its OWN WABA
+- Q-D: Brand palette: navy `#1E2D4A` (slate-800), dusty French-blue `#5F7397` (slate-500), cream backdrop `#F5F1E8` (custom var), gold `#D4A93A` (yellow-600). Display font: serif (Cormorant Garamond proposed). Body: Inter.
+- All 16 numbered Qs locked: 5 tabs (Financial · Analytics · CRM · Communication · Settings), 8worx CRM parity, dual WhatsApp (Meta Cloud + Green-API), CAPMAS+UN+Trends, gallery scope = pictures+videos+documents, LinkedIn deferred, WhatsApp booking = Guesty deep-link only, phased delivery, Upsell + Loyalty priority, bonuses A/B/C/D/E/H confirmed, G rejected.
+
+**Voltauto Auto Ads Module location confirmed**: `C:\Voltauto-pricing\supabase\` — schema + 8 edge functions ready to port (ads-meta-publish, ads-ctwa-autoreply, wa-cloud-send/webhook, wa-send/webhook, reports-scheduler, send-sms). Live UI source `C:\Claude\VOLT\VOLT Auto (1)\App.jsx` (146KB) shows the full UI patterns.
+
+**Beithady brand assets confirmed**: `C:\kareemhady\.claude\Beithady Domain\BeitHady Branding\` (Brand Strategy + Brand Identity R2 PDFs both >100MB unreadable so colors extracted from logo JPGs + Door Sign + Room Card PNG screenshots). 12 logos in `BeitHady Logos/` ready to copy to `public/brands/beithady/`. 21 branded-item SKUs seed Gallery's Brand Library.
+
+**Existing infrastructure being reused:**
+- Guesty integration ([guesty.ts](src/lib/guesty.ts), migrations 0006/0014/0028) — listings/reservations/conversations/posts/reviews already mirrored
+- Green-API send ([whatsapp/green-api.ts](src/lib/whatsapp/green-api.ts)) — extending with media, voice, inbound webhook
+- Brand theme system ([brand-theme.ts:137](src/lib/brand-theme.ts:137)) — replacing rose/amber gradient
+- requireDomainAccess ([emails/beithady/layout.tsx](src/app/emails/beithady/layout.tsx)) — extending with new beithady_user_roles
+- Boat-rental admin pattern ([emails/boat-rental/admin/page.tsx](src/app/emails/boat-rental/admin/page.tsx)) — closest reference for the launcher-grid + tab-nav pattern that the 5 new Beithady categories will use
+- Public-prefix pattern `/r/beithady/[token]/` ([proxy.ts](src/proxy.ts)) — reused for boarding pass
+
+**Next step on session resume:** User confirms W-1 / W-2 / W-3 → assistant moves to **Coding Phase A (Foundation, 3 days)**. First commit will be: `0030_beithady_v2_foundation.sql` migration via Supabase MCP, brand-theme rewrite, 5-card landing page, role-guard library, Settings shell with 9 sub-tabs, email-rules relocation. Per-phase atomic-merge + `vercel --prod` deploys. Auto-deploy instructions in CLAUDE.md (always commit to main, never new branch, always `vercel --prod` after push).
+
+**Still no code touched. No commits. No deploys. Plan + Workflow exist in conversation only — only SESSION_HANDOFF.md is the persistent artifact.**
+
+---
+
+## 🧭 Beithady Domain Expansion — PLAN PHASE v0.3 LOCKED at 95% (no code yet, awaiting Workflow-phase go-ahead)
+
+Major new initiative: rebuild `/emails/beithady` landing as 5 cards (Financial · Analytics · CRM · Communication · Settings) plus two cross-cutting modules (Gallery · Ads). User flow is **Plan → Workflow → Code**, with ≥95% confidence required at each gate. **Plan v0.3 is LOCKED — all clarifications resolved this turn. Awaiting user "go" on Workflow phase.**
+
+**Q-A through Q-D resolved this turn:**
+- Q-A · Auto-send safety net = **confidence threshold 85% (configurable)** + suggest-only below threshold + auto-send above + **Daily VIP digest** every morning to admin/manager listing every auto-sent message on VIP-tagged conversations from past 24h with one-click revert/apologize. (User did NOT carve out Airbnb threads — auto-send applies everywhere with the threshold + VIP digest as the safety net.)
+- Q-B · **5-role matrix confirmed verbatim**: guest_relations (read Analytics, full CRM/Communication/Gallery), finance (full Financial, read Analytics+CRM), ops (read Financial, full Analytics/CRM/Comm/Gallery), manager (full everything except integration creds in Settings), admin (full).
+- Q-C · **Beithady gets its OWN Meta WABA** — separate Business Manager asset, separate phone number, separate ad accounts. Voltauto's `+20 10 11 300 300` stays Voltauto's.
+- Q-D · **Brand palette extracted** by viewing logo JPGs + Door Sign / Room Card screenshots (since brand PDFs are >100MB unreadable). The actual Beit Hady identity is **navy + dusty French-blue + warm cream + gold accent** — NOT the rose/amber gradient currently in [brand-theme.ts:137](src/lib/brand-theme.ts:137). Concrete tokens to apply in Phase A migration:
+  - Deep navy primary `#1E2D4A` → Tailwind `slate-800` `#1E293B`
+  - Dusty French-blue secondary (wordmark color) `#5F7397` → Tailwind `slate-500` `#64748B`
+  - Warm cream backdrop `#F5F1E8` → custom CSS var (Tailwind `stone-50` is too white-cool)
+  - Gold accent (FM+ tag, branded items) `#D4A93A` → Tailwind `yellow-600` `#CA8A04`
+  - Gradient: `from-slate-700 to-slate-400`
+  - Display font: elegant serif (proposed Cormorant Garamond / Playfair Display); body stays Inter.
+
+**User answers locked in (all 16 numbered Qs from v0.1 + bonus A–H):**
+
+**User answers locked in (all 16 numbered Qs from v0.1 + bonus A–H):**
+- 5 tabs (not 3): Financial, Analytics, CRM, Communication, Settings
+- Daily Performance Report folded under Financial (was top-pinned in v0.1)
+- Existing email rules relocated under Settings tab
+- 8worx CRM (https://www.8worx.com/products/8worx-crm) is the parity target — Lead/Contact/Customer mgmt, Visual pipelines, Smart dashboard widgets, Sales activity reports, Mobile-first, Bulk actions, Lead rating, Interest tracking, Role-based access
+- Two-way Guesty messaging required for v1 (must probe POST-message endpoint on user's tier; fallback = read-only + deep-link)
+- **Dual WhatsApp**: Meta Cloud API (official WABA) for business/CTWA/templates + Green-API for casual chat. NOT just Green-API.
+- AI auto-send replies (with confidence threshold + per-thread kill-switch + Airbnb-default-OFF safety net to be confirmed via Q-A)
+- Market intelligence sources: CAPMAS + UN Tourism + Google Trends
+- Gallery scope: pictures + videos + documents library (floor plans, house rules, owner contracts)
+- LinkedIn Ads deferred
+- WhatsApp "create booking" = simple deep-link to Guesty UI (no API write)
+- Phased delivery
+- Priority adds: Upsell engine + Loyalty program
+- Bonuses confirmed: A (lead pipeline kanban), B (CSAT/NPS auto-survey), C (smart pre-arrival checklist), D (AI multi-lang review reply), E (calendar heatmap), H (boarding pass passwordless link). G (owner portal) rejected.
+
+**Critical discovery — Voltauto Auto Ads Module is REAL and substantial.** Located at `C:\Voltauto-pricing\supabase\` (NOT in the surface React app `C:\Voltauto-pricing\src\`):
+- `supabase/migrations/20260418_ads_module.sql` — full 7-table schema (`ads_accounts`, `ads_campaigns`, `ads_ad_sets`, `ads_ads`, `ads_daily_metrics`, `ads_leads`, `ads_sync_log`) + 3 reporting views
+- `supabase/functions/ads-meta-publish/index.ts` — Meta Marketing API v21 CTWA campaign publisher (carousel 2-10 cards, geo by lat/lng + radius_km, CONVERSATIONS optimization, destination=WHATSAPP, always PAUSED for review)
+- `supabase/functions/ads-ctwa-autoreply/index.ts` — greeting + state-machine flow (`wa_cold_outreach_flow`) using interactive buttons (≤3 opts) / lists (>3 opts), 24h Meta window aware
+- `supabase/functions/wa-cloud-{send,webhook}/index.ts` — official Meta WABA two-way
+- `supabase/functions/wa-{send,webhook}/index.ts` — Green-API two-way
+- Live UI source: `C:\Claude\VOLT\VOLT Auto (1)\App.jsx` (146KB, 291 ads-related occurrences), URL `https://voltauto-ev.vercel.app/`
+- **Beithady Ads module = port verbatim, change "compound radius targeting" → "country + interest targeting" + add `building_codes[]` filter + multi-currency budget (EGP/USD/SAR/AED) + ad-to-Guesty-booking attribution**
+
+**Brand assets located** at `C:\kareemhady\.claude\Beithady Domain\BeitHady Branding\`:
+- Brand Strategy.pdf + Brand Identity R2.pdf (BOTH >100MB so Read tool errors — need smaller export OR verbal hex/font confirmation)
+- BeitHady Logos/ — 12 logo JPGs ready to wire in
+- Branded Items/ — 21 SKUs (door signs, room cards, mugs, calendars, juice bottles, toiletries, slippers, towels, robes, hangers, pens, notebooks, pillows, tissue boxes, trolleys, welcome rugs, wifi cards, contacts list) — these seed Gallery's brand library at deploy
+
+**Existing infrastructure that v2 will reuse:**
+- Guesty integration: OAuth2 client_credentials, mirrored `guesty_listings/_reservations/_conversations/_conversation_posts/_reviews` ([guesty.ts](src/lib/guesty.ts), migrations 0006/0014/0028). Posts already classify channel as email/sms/whatsapp/log.
+- Green-API send wired ([whatsapp/green-api.ts](src/lib/whatsapp/green-api.ts)) — text only, no media/voice/inbound webhook yet.
+- Brand theme system: [brand-theme.ts:137](src/lib/brand-theme.ts:137) — Beithady = rose/amber gradient.
+- Auth + role gating: `requireDomainAccess()` already used at [emails/beithady/layout.tsx](src/app/emails/beithady/layout.tsx).
+- Pattern reference: `/emails/boat-rental/admin/*` is the closest comparable "full module" already in the codebase.
+
+**Plan v0.3 status: LOCKED at 95% confidence. No outstanding clarifications.**
+
+**Phase plan (~46 working days total):** A. Foundation (3d) → B. CRM read-only (5d) → C. Communication v1 (7d) → D. Gallery+Documents (4d) → E. AI auto-reply (4d) → F. Loyalty/Upsell/Pre-arrival/CSAT/Boarding pass (6d) → G. Market Intel + Calendar heatmap (4d) → H. Ads module port (10d) → I. Pipeline + AI review reply (3d). Phases A→C alone get a usable shell live in ~2.5 weeks.
+
+**Next step on session resume:** User confirms "go" on Workflow phase → assistant produces Workflow v0.1 covering: per-phase Supabase migration SQL (10–14 new migrations), complete route tree under `src/app/emails/beithady/{financial,analytics,crm,communication,settings,gallery,ads}/`, Edge Function signatures (port from Voltauto's `ads-meta-publish`, `ads-ctwa-autoreply`, `wa-cloud-{send,webhook}`, `wa-{send,webhook}`, `reports-scheduler`), integration probe checklist (Guesty POST-message endpoint test, Beithady WABA setup, Green-API webhook URL registration, Meta Marketing API ad-account access, Google Ads dev token application), new cron entries for `vercel.json` (CSAT survey at +24h post-checkout, pre-arrival checklist at -24h pre-arrival, daily VIP digest at 09:00 Cairo, Meta/Google insights pull, gallery AI labeling queue), background job inventory + idempotency, deployment sequence with rollback points, acceptance test checklist per phase. Iterate to 95% on Workflow before any code is written.
+
+**No code touched this turn. No commits. No deploys. Plan exists in conversation only — no plan doc written to disk. SESSION_HANDOFF.md is the only persistent artifact of the planning work so far.**
+
+---
 
 ## ✅ Beithady Daily Performance Report — full implementation (CODED, NOT YET DEPLOYED)
 
