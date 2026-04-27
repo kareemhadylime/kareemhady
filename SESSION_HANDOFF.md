@@ -1,6 +1,35 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase J.1 + J.2 shipped (commits `0346db5` + `90ae39e`)
+## 🟢 Latest turn — Phase J.1 + J.2 + J.3 shipped (commits `0346db5` + `90ae39e` + `1e6bde0`)
+
+J.3 grid coding done — Vercel build verification scheduled. Note on J.1's individual deploy: it errored because adding `operations` to `BeithadyCategory` broke `Record<BeithadyCategory, LauncherTile>` in the launcher map; J.2 fixed it within the same logical change. Canonical `limeinc.vercel.app` is on J.2's READY build (which contains J.1 code).
+
+**J.3 — Read-only Calendar Grid (`1e6bde0`):**
+
+Page at `/emails/beithady/operations/calendar` — server component reading URL params (`from`, `days`, `buildings`, `channels`, `status`, `risk`, `q`).
+
+Library:
+- [src/lib/beithady/operations/types.ts](src/lib/beithady/operations/types.ts) — `CalendarRow`, `CalendarReservation`, `AnomalySnapshot`, `CalendarFilters`, `CalendarGridData`
+- [src/lib/beithady/operations/channel-meta.ts](src/lib/beithady/operations/channel-meta.ts) — channel display map (Airbnb red, Booking blue, Direct teal, …) + 3-char short codes
+- [src/lib/beithady/operations/calendar-data.ts](src/lib/beithady/operations/calendar-data.ts) — `getCalendarGridData`:
+  - Bookable atoms via `fetchMtlParentIds + isBookableAtom` + drops listings without `building_code`
+  - Latest `pricelabs_listing_snapshots.recommended_base_price` per listing as cell price
+  - Cover thumbnails from `beithady_gallery_assets` (best-effort)
+  - Reservations from `beithady_reservation_grid_v` with all filters SQL-side, search post-fetch
+  - Status dot per row from next reservation in <14d (red unpaid+≤7d, yellow prearrival missing+≤2d, purple VIP/Gold/Platinum, gray no upcoming, green healthy)
+
+UI components under `_components/`:
+- `anomaly-banner.tsx` — top-of-page strip listing flag counts
+- `header-bar.tsx` — date nav + view-span (7/14/28) + filters + search
+- `listing-rail.tsx` — left rail per row: status dot + cover + nickname + building badge + per-night price
+- `reservation-bar.tsx` — colored absolute-positioned bar overlay; click → `?reservation=<id>`. Inquiry → diagonal stripes; cancelled → faded crosshatch; out-of-window → marker stripe
+- `calendar-grid.tsx` — 220px sticky-left rail + N date columns (64px). Sticky-top header with day/dow + weekend tinting + amber today column. Pink today vertical line.
+
+Click on a bar sets `?reservation=<id>` URL param; the **drawer slot is empty in J.3** — the 10-tab drawer ships in J.4.
+
+**Phase J progress:** J.1 ✅ J.2 ✅ J.3 ⏳ (build verification pending) — J.4-J.10 ⏳
+
+## 🟢 Earlier this session — Phase J.1 + J.2 shipped
 
 User signed off on the workflow phase. Pre-flight read-only investigations + J.1 (foundation) + J.2 (launcher) all deployed to limeinc.vercel.app via auto-deploy.
 
@@ -233,7 +262,8 @@ Order of phases shipped (oldest → newest):
 19. **Phase J plan drafted** (no commit) — Operations Calendar module spec sent; user confirmed 13 improvements + answered 10 questions
 20. **Phase J workflow drafted** (no commit) — 10 sub-phase build plan + pre-flight investigations sent for review
 21. **Phase J.1 — Operations Calendar foundation** (`0346db5`) — migration 0043, 277 reservations cached with risk + payment status, permission matrix gains `operations` category
-22. **Phase J.2 — Operations launcher card + sub-landing** (`90ae39e`) — 8th tile on Beithady main, sub-landing with anomaly snapshot + 3 op cards, calendar placeholder, boarding-passes table (this turn)
+22. **Phase J.2 — Operations launcher card + sub-landing** (`90ae39e`) — 8th tile on Beithady main, sub-landing with anomaly snapshot + 3 op cards, calendar placeholder, boarding-passes table
+23. **Phase J.3 — Read-only calendar grid** (`1e6bde0`) — server page + `getCalendarGridData` lib + 5 UI components (anomaly-banner, header-bar, listing-rail, reservation-bar, calendar-grid). Click reservation → `?reservation=<id>` (drawer in J.4) (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
