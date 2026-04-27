@@ -1,0 +1,106 @@
+import type { Brief, BriefRole } from './types';
+
+const ROLE_TITLE: Record<BriefRole, string> = {
+  guest_relations: 'Guest Relations',
+  ops: 'Housekeeping & Operations',
+  finance: 'Finance & Accounting',
+};
+
+// WhatsApp markdown — keep it short, mobile-optimised
+export function renderMarkdown(brief: Brief, baseUrl?: string): string {
+  const lines: string[] = [];
+  lines.push(`*Beit Hady — Morning Brief*`);
+  lines.push(`${ROLE_TITLE[brief.role]} · ${brief.cairo_label}`);
+  lines.push('');
+
+  for (const sec of brief.sections) {
+    if (sec.items.length === 0) {
+      if (sec.empty_message) {
+        lines.push(`${sec.emoji} *${sec.title}* — _${sec.empty_message}_`);
+        lines.push('');
+      }
+      continue;
+    }
+    lines.push(`${sec.emoji} *${sec.title}*`);
+    for (const it of sec.items.slice(0, 8)) {
+      const tag = it.tag ? ` [${it.tag.label}]` : '';
+      lines.push(`• ${it.primary}${tag}`);
+      if (it.secondary) lines.push(`   _${it.secondary}_`);
+    }
+    if (sec.items.length > 8) {
+      lines.push(`_+ ${sec.items.length - 8} more — see web view_`);
+    }
+    lines.push('');
+  }
+
+  const url = baseUrl
+    ? `${baseUrl}/emails/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
+    : null;
+  if (url) {
+    lines.push(`View full brief: ${url}`);
+  }
+
+  return lines.join('\n');
+}
+
+// Email HTML — clean inbox-friendly layout
+export function renderHtml(brief: Brief, baseUrl?: string): string {
+  const sections = brief.sections.map(sec => {
+    if (sec.items.length === 0) {
+      return sec.empty_message
+        ? `<div style="margin:16px 0;padding:12px;background:#f8fafc;border-radius:6px;color:#64748b;font-size:13px;">
+             <strong>${escapeHtml(sec.emoji)} ${escapeHtml(sec.title)}</strong> — ${escapeHtml(sec.empty_message)}
+           </div>`
+        : '';
+    }
+    const items = sec.items.map(it => `
+      <li style="margin:6px 0;padding:8px;background:#fff;border:1px solid #e2e8f0;border-radius:4px;">
+        <div style="font-weight:600;color:#0f172a;">${escapeHtml(it.primary)}${it.tag ? ` <span style="font-size:10px;padding:2px 6px;background:${tagBg(it.tag.tone)};color:#fff;border-radius:3px;">${escapeHtml(it.tag.label)}</span>` : ''}</div>
+        ${it.secondary ? `<div style="font-size:12px;color:#64748b;margin-top:2px;">${escapeHtml(it.secondary)}</div>` : ''}
+      </li>
+    `).join('');
+    return `
+      <div style="margin:20px 0;">
+        <h3 style="margin:0 0 8px;color:#1e2d4a;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;">
+          ${escapeHtml(sec.emoji)} ${escapeHtml(sec.title)}
+        </h3>
+        <ul style="list-style:none;padding:0;margin:0;">${items}</ul>
+      </div>
+    `;
+  }).join('');
+
+  const url = baseUrl
+    ? `${baseUrl}/emails/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
+    : null;
+
+  return `
+<!DOCTYPE html>
+<html><body style="font-family:-apple-system,Segoe UI,sans-serif;background:#f8fafc;margin:0;padding:20px;">
+  <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:8px;padding:24px;border:1px solid #e2e8f0;">
+    <div style="border-bottom:2px solid #1e2d4a;padding-bottom:12px;margin-bottom:16px;">
+      <h1 style="margin:0;color:#1e2d4a;font-size:20px;">Beit Hady — Morning Brief</h1>
+      <p style="margin:4px 0 0;color:#64748b;font-size:13px;">
+        ${escapeHtml(ROLE_TITLE[brief.role])} · ${escapeHtml(brief.cairo_label)}
+      </p>
+    </div>
+    ${sections}
+    ${url ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
+      <a href="${url}" style="color:#1e2d4a;text-decoration:none;font-size:12px;">View full brief on the web</a>
+    </div>` : ''}
+  </div>
+</body></html>
+  `.trim();
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c] || c));
+}
+
+function tagBg(tone: 'red' | 'amber' | 'green' | 'violet' | 'cyan' | 'slate'): string {
+  return {
+    red: '#dc2626', amber: '#d97706', green: '#16a34a',
+    violet: '#7c3aed', cyan: '#0891b2', slate: '#64748b',
+  }[tone];
+}
