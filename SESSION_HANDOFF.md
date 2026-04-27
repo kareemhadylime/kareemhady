@@ -1,6 +1,27 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase J.5 + J.6 shipped (commits `497b2e3`, `6f490eb`)
+## 🟢 Latest turn — Phase J.7 shipped (commits `0131741` + `955126c`)
+
+**J.7a — Payment writes + Stripe resolver + audit** (`0131741`):
+- [src/lib/beithady/operations/payment-resolver.ts](src/lib/beithady/operations/payment-resolver.ts) — `resolvePaymentForReservation(id)`. Cancel→n_a, inquiry→unpaid, confirmed+OTA→paid (channel pre-collects), confirmed+direct→Stripe lookup by `metadata.guesty_reservation_id` (preferred) or amount+window match (fallback).
+- Server actions: `markPaidAction` (manual override with amount + note + audit), `markUnpaidAction` (revert), `recomputePaymentAction` (re-runs resolver). All write to `beithady_audit_log` via shared `writeAudit` helper.
+- [confirm-write-modal.tsx](src/app/emails/beithady/operations/calendar/_components/confirm-write-modal.tsx) — reusable confirm dialog with three warning types: `guesty_write` (amber), `destructive` (rose), `local_only` (cyan). Esc to cancel. Slot for form fields.
+- [payment-actions.tsx](src/app/emails/beithady/operations/calendar/_components/payment-actions.tsx) — Mark paid / Revert / Recompute buttons in drawer Tab 4.
+
+**J.7b — Manual blocks (Guesty-synced) + bulk pre-arrival** (`955126c`):
+- [src/lib/beithady/operations/guesty-writes.ts](src/lib/beithady/operations/guesty-writes.ts) — `blockGuestyAvailability` / `unblockGuestyAvailability` via `PUT /v1/calendar/listings/{id}` with per-day status patches. Best-effort: errors don't block local DB writes.
+- Server actions: `createManualBlockAction` (local insert → Guesty push → record sync status → audit), `removeManualBlockAction`, `listManualBlocksForWindow`, `bulkSendPreArrivalAction` (queues placeholder pre_arrival_messages rows for the existing 5-min cron).
+- [manual-block-button.tsx](src/app/emails/beithady/operations/calendar/_components/manual-block-button.tsx) — small "Block" link in each row's left rail; opens form with `guesty_write` warning. Falls back gracefully if Guesty sync fails.
+- [bulk-actions.tsx](src/app/emails/beithady/operations/calendar/_components/bulk-actions.tsx) — Bulk button in page header. Days-ahead picker + dry-run preview + submit. Honors active building filter.
+
+**Phase J progress:** J.1 ✅ J.2 ✅ J.3 ✅ J.4 ✅ J.5 ✅ J.6 ✅ J.7 ✅ — **J.8–J.10 ⏳**
+
+**Remaining sub-phases:**
+- J.8 — Supabase Realtime subscription + overbooking pre-write guard.
+- J.9 — Heatmap overlay toggle + comp-set price triangles + WhatsApp share-boarding-pass + free channel logos. (Drag-to-create manual blocks also deferred here as polish — form-based flow ships in J.7b.)
+- J.10 — Find-availability modal + direct-booking flow.
+
+## 🟢 Earlier this session — Phase J.5 + J.6 shipped (commits `497b2e3`, `6f490eb`)
 
 **J.5 — Operations recompute cron** (`497b2e3`):
 - `/api/cron/beithady-operations-recompute` route, scheduled `*/30 * * * *` in `vercel.json`.
@@ -305,7 +326,9 @@ Order of phases shipped (oldest → newest):
 23. **Phase J.3 — Read-only calendar grid** (`1e6bde0`) — server page + `getCalendarGridData` lib + 5 UI components. Click reservation → `?reservation=<id>` (drawer in J.4)
 24. **Phase J.4 — 10-tab reservation drawer** (`40958cc`) — `getReservationDetail` lib + drawer.tsx with all 10 tabs + tier loyalty banner (improvement #13) + past-stay quick-look (improvement #12)
 25. **Phase J.5 — Operations recompute cron** (`497b2e3`) — `/api/cron/beithady-operations-recompute` every 30 min, calls RPC defined in J.1
-26. **Phase J.6 — Saved views + channel-mix sparkline** (`6f490eb`) — saved-views CRUD with private/shared scope + inline channel mix bar (improvement #10) (this turn)
+26. **Phase J.6 — Saved views + channel-mix sparkline** (`6f490eb`) — saved-views CRUD with private/shared scope + inline channel mix bar (improvement #10)
+27. **Phase J.7a — Payment writes + Stripe resolver** (`0131741`) — markPaid/markUnpaid/recompute actions + payment-resolver.ts + confirm-write-modal + payment-actions buttons in drawer
+28. **Phase J.7b — Manual blocks + bulk pre-arrival** (`955126c`) — Guesty calendar writes + manual-block-button on each row + bulk pre-arrival action (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
