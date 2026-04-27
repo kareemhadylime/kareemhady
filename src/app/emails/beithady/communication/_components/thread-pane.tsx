@@ -1,10 +1,18 @@
 import Link from 'next/link';
-import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles } from 'lucide-react';
+import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles, CalendarPlus } from 'lucide-react';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { ThreadBundle } from '@/lib/beithady/communication/inbox';
 import { SlaPill } from './sla-pill';
+import { GuestyComposer } from './composer';
 
-export function ThreadPane({ bundle }: { bundle: ThreadBundle | null }) {
+export type ThreadComposerHints = {
+  send_error?: string;
+  send_status?: string;
+  fallback_url?: string;
+  sent?: boolean;
+};
+
+export function ThreadPane({ bundle, composerHints }: { bundle: ThreadBundle | null; composerHints?: ThreadComposerHints }) {
   if (!bundle) {
     return (
       <div className="ix-card p-12 text-center text-sm text-slate-500 h-full flex items-center justify-center">
@@ -31,7 +39,20 @@ export function ThreadPane({ bundle }: { bundle: ThreadBundle | null }) {
       </div>
 
       <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-3 bg-white dark:bg-slate-900">
-        <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />
+        {header.channel === 'guesty' ? (
+          <GuestyComposer
+            conversationId={header.id}
+            guestyExternalId={header.external_id}
+            defaultModule={header.source && /airbnb|booking/.test(header.source) ? 'whatsapp' : 'whatsapp'}
+            killSwitchOn={!!header.ai_kill_switch}
+            initialError={composerHints?.send_error}
+            initialStatus={composerHints?.send_status}
+            initialFallbackUrl={composerHints?.fallback_url}
+            initialSent={composerHints?.sent}
+          />
+        ) : (
+          <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />
+        )}
       </div>
     </div>
   );
@@ -39,10 +60,18 @@ export function ThreadPane({ bundle }: { bundle: ThreadBundle | null }) {
 
 function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
   const h = bundle.header;
+  // Direct-booking deep-link per Plan v0.3 Q14 — opens Guesty's
+  // reservation create modal pre-filtered to this listing. Guesty
+  // doesn't expose a deterministic create URL, but the inbox URL puts
+  // the agent one click away from the "New reservation" panel.
+  const guestyInboxLink = h.channel === 'guesty'
+    ? `https://app.guesty.com/inbox/${h.external_id}`
+    : null;
+  const directBookingLink = guestyInboxLink ? `${guestyInboxLink}?action=createReservation` : null;
   return (
     <div className="border-b border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-900 space-y-2">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-semibold truncate">{h.guest_full_name || h.guest_email || h.guest_phone || 'Unknown guest'}</h2>
             <SlaPill bucket={h.sla_bucket} ageSeconds={h.sla_age_seconds} />
@@ -58,6 +87,11 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
               >
                 CRM 360° <ExternalLink size={10} />
               </Link>
+            )}
+            {h.ai_kill_switch && (
+              <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200">
+                AI off
+              </span>
             )}
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
@@ -75,6 +109,17 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
             )}
           </div>
         </div>
+        {directBookingLink && (
+          <a
+            href={directBookingLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ix-btn-secondary text-xs whitespace-nowrap"
+            title="Open Guesty reservation create — direct booking, no API write"
+          >
+            <CalendarPlus size={13} /> Create booking
+          </a>
+        )}
       </div>
     </div>
   );

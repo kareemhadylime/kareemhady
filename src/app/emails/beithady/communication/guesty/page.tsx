@@ -18,6 +18,10 @@ type SearchParams = {
   building?: string;
   sla?: string;
   unread?: string;
+  send_error?: string;
+  send_status?: string;
+  fallback?: string;
+  sent?: string;
 };
 
 function parseFilter(sp: SearchParams): InboxFilter {
@@ -125,7 +129,15 @@ export default async function GuestyInboxPage({
           )}
         </div>
         <div className="lg:h-[640px]">
-          <ThreadPane bundle={thread} />
+          <ThreadPane
+            bundle={thread}
+            composerHints={{
+              send_error: sp.send_error,
+              send_status: sp.send_status,
+              fallback_url: sp.fallback,
+              sent: sp.sent === '1',
+            }}
+          />
         </div>
       </section>
 

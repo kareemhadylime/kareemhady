@@ -506,4 +506,57 @@ export async function listGuestyReviews(params: {
   };
 }
 
+// POST /v1/communication/conversations/{id}/posts — send a message into
+// a Guesty conversation thread. Tier-gated (PRO supports it; older
+// tiers may return 403/404). Surfaces raw error so the UI can fall
+// back to a deep-link to Guesty's own inbox compose.
+export type GuestySendPostInput = {
+  conversationId: string;
+  body: string;
+  type?: 'message' | 'note';
+  subject?: string;
+  module?: 'email' | 'sms' | 'whatsapp' | 'log';
+  attachments?: Array<{ url: string; name?: string; mime?: string }>;
+};
+
+export type GuestySendPostResult =
+  | { ok: true; post: GuestyConversationPost; raw: unknown }
+  | { ok: false; status: number; error: string; raw: unknown };
+
+export async function sendGuestyConversationPost(
+  input: GuestySendPostInput
+): Promise<GuestySendPostResult> {
+  if (!input.conversationId) return { ok: false, status: 400, error: 'missing_conversation_id', raw: null };
+  if (!input.body || !input.body.trim()) return { ok: false, status: 400, error: 'empty_body', raw: null };
+
+  const payload: Record<string, unknown> = {
+    body: input.body,
+    type: input.type ?? 'message',
+  };
+  if (input.subject) payload.subject = input.subject;
+  if (input.module) payload.module = { type: input.module };
+  if (input.attachments && input.attachments.length) payload.attachments = input.attachments;
+
+  try {
+    const raw = await guestyFetch<unknown>(
+      `/communication/conversations/${input.conversationId}/posts`,
+      { method: 'POST', body: payload, retries: 1 }
+    );
+    let post: GuestyConversationPost | null = null;
+    if (raw && typeof raw === 'object') {
+      const r = raw as Record<string, unknown>;
+      if (r.data && typeof r.data === 'object') post = r.data as GuestyConversationPost;
+      else if (r.post && typeof r.post === 'object') post = r.post as GuestyConversationPost;
+      else if (r._id) post = r as GuestyConversationPost;
+    }
+    if (!post) return { ok: false, status: 200, error: 'unrecognized_response_shape', raw };
+    return { ok: true, post, raw };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const m = msg.match(/^guesty_(\d+)/);
+    const status = m ? parseInt(m[1], 10) : 500;
+    return { ok: false, status, error: msg, raw: null };
+  }
+}
+
 export { guestyFetch, getAccessToken };
