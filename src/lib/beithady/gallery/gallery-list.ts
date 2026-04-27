@@ -117,26 +117,29 @@ export async function getBuildingSummaries(): Promise<BuildingSummary[]> {
   });
 }
 
-// Drop MTL parents: a row is treated as a multi-unit aggregate (and
-// hidden) when either (a) another row's master_listing_id points to
-// its id, or (b) another row's nickname starts with `<this.nickname>-`.
-// (b) catches the naming-convention MTLs we have today, where Guesty
-// hasn't populated master_listing_id but agents named children
-// `BH73-3BR-SB-1-201` under parent `BH73-3BR-SB-1`.
+// Drop MTL children — keeps MTL parents and standalones. A row is
+// treated as a child (and hidden) when either:
+//   (a) its master_listing_id points to another row in the input set
+//       (Guesty-structured MTLs — future-proofs for when sync starts
+//       populating this column), or
+//   (b) another row's nickname is a strict prefix of this one with
+//       a `-` separator, e.g. `BH73-3BR-SB-1-201` is a child of
+//       `BH73-3BR-SB-1` (naming-convention MTLs — today's data).
+//
+// Why drop children rather than parents in the gallery: children of an
+// MTL share pictures/features with the parent, so the agent uploads
+// once to the MTL parent and every sub-unit inherits. Showing each
+// child as its own folder forces redundant uploads.
 type MtlListingShape = { id: string; nickname: string | null; master_listing_id?: string | null };
-function dropMtlParents<T extends MtlListingShape>(rows: T[]): T[] {
-  const parentIds = new Set<string>();
-  for (const r of rows) {
-    if (r.master_listing_id) parentIds.add(r.master_listing_id);
-  }
-  const nicknames = rows.map(r => r.nickname || '');
+function dropMtlChildren<T extends MtlListingShape>(rows: T[]): T[] {
+  const ids = new Set(rows.map(r => r.id));
+  const nicknames = rows.map(r => r.nickname || '').filter(Boolean);
   return rows.filter(r => {
-    if (parentIds.has(r.id)) return false;
+    if (r.master_listing_id && ids.has(r.master_listing_id)) return false;
     const nick = r.nickname || '';
     if (!nick) return true;
-    const prefix = nick + '-';
     for (const other of nicknames) {
-      if (other !== nick && other.startsWith(prefix)) return false;
+      if (other !== nick && nick.startsWith(other + '-')) return false;
     }
     return true;
   });
@@ -163,7 +166,7 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
     if (r.listing_id) tally.set(r.listing_id, (tally.get(r.listing_id) || 0) + 1);
   }
   const allRows = (listings as Array<{ id: string; nickname: string | null; master_listing_id: string | null }> | null) || [];
-  return dropMtlParents(allRows).map(l => ({
+  return dropMtlChildren(allRows).map(l => ({
     listing_id: l.id,
     nickname: l.nickname || l.id,
     assets: tally.get(l.id) || 0,
@@ -172,11 +175,10 @@ export async function getListingsForBuilding(buildingCode: string): Promise<Arra
 
 // Detailed unit folder summary — adds cover thumbnail + photo/video/
 // document/ad-eligible counts. Used by the building page to render
-// every bookable Guesty unit as a folder card (even empty ones), so
-// the agent always sees the full unit list and can upload directly
-// into the right folder. MTL parents are dropped via dropMtlParents
-// (sub-units + standalones survive). Cover is the most-recent photo
-// for that listing.
+// one folder per MTL parent + one folder per standalone listing.
+// MTL children are collapsed into their parent via dropMtlChildren
+// because they share pictures/features (single upload covers all
+// sub-units). Cover is the most-recent photo for that listing.
 export type UnitFolder = {
   listing_id: string;
   nickname: string;
@@ -199,7 +201,7 @@ export async function getUnitFoldersForBuilding(buildingCode: string): Promise<U
     .eq('active', true)
     .order('nickname');
   const allRows = (listings as Array<{ id: string; nickname: string | null; title: string | null; master_listing_id: string | null }> | null) || [];
-  const listingRows = dropMtlParents(allRows);
+  const listingRows = dropMtlChildren(allRows);
   if (listingRows.length === 0) return [];
 
   const ids = listingRows.map(l => l.id);
