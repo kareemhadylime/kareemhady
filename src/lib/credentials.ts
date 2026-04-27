@@ -15,7 +15,11 @@ export type ProviderId =
   | 'guesty'
   | 'shopify'
   | 'green'
-  | 'airbnb';
+  | 'airbnb'
+  | 'meta_marketing'   // Phase H: Meta Marketing API (campaigns + insights)
+  | 'meta_waba'        // Phase H/E: Meta WhatsApp Business Cloud API
+  | 'google_ads'       // Phase H follow-up
+  | 'tiktok_ads';      // Phase H follow-up
 
 export type CredentialSpec = {
   provider: ProviderId;
@@ -240,6 +244,127 @@ export const CREDENTIAL_SPECS: Record<ProviderId, CredentialSpec> = {
         envVar: 'AIRBNB_NOTE',
         hint: 'Airbnb reservations are sourced from Guesty today — no direct Airbnb API call is made anywhere in the app.',
       },
+    ],
+  },
+  meta_marketing: {
+    provider: 'meta_marketing',
+    label: 'Meta Marketing API (Beithady Ads)',
+    description:
+      'Phase H. Meta Marketing API v21 for campaign creation + insights pull. Requires Business Manager + System User token + ads_management scope. See ads-meta-publish.ts for the publish flow.',
+    helpUrl: 'https://developers.facebook.com/docs/marketing-api/',
+    fields: [
+      {
+        key: 'system_user_token',
+        label: 'System User access token',
+        envVar: 'META_MARKETING_TOKEN',
+        type: 'password',
+        required: true,
+        hint: 'Permanent token from Business Manager → System Users. Must have ads_management.',
+      },
+      {
+        key: 'business_id',
+        label: 'Business Manager ID',
+        envVar: 'META_BUSINESS_ID',
+        required: true,
+      },
+      {
+        key: 'ad_account_id',
+        label: 'Ad account ID',
+        envVar: 'META_AD_ACCOUNT_ID',
+        required: true,
+        placeholder: 'act_1234567890',
+        hint: 'Format: act_<numeric_id>',
+      },
+      {
+        key: 'fb_page_id',
+        label: 'Facebook Page ID',
+        envVar: 'META_FB_PAGE_ID',
+        required: true,
+        hint: 'Page that hosts the CTWA ad creatives.',
+      },
+      {
+        key: 'app_id',
+        label: 'App ID',
+        envVar: 'META_APP_ID',
+      },
+      {
+        key: 'app_secret',
+        label: 'App secret',
+        envVar: 'META_APP_SECRET',
+        type: 'password',
+      },
+    ],
+  },
+  meta_waba: {
+    provider: 'meta_waba',
+    label: 'Meta WhatsApp Business Cloud (Beithady WABA)',
+    description:
+      'Phase H/E. Beithady\'s OWN WABA — separate phone number + Business Manager asset from Voltauto. Required for CTWA inbound + outbound + auto-reply via Cloud API.',
+    helpUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+    fields: [
+      {
+        key: 'phone_number_id',
+        label: 'Phone number ID',
+        envVar: 'META_WABA_PHONE_NUMBER_ID',
+        required: true,
+      },
+      {
+        key: 'waba_id',
+        label: 'WABA ID',
+        envVar: 'META_WABA_ID',
+        required: true,
+      },
+      {
+        key: 'access_token',
+        label: 'System User access token',
+        envVar: 'META_WABA_TOKEN',
+        type: 'password',
+        required: true,
+        hint: 'Permanent token with whatsapp_business_messaging scope.',
+      },
+      {
+        key: 'verify_token',
+        label: 'Webhook verify token',
+        envVar: 'META_WABA_VERIFY_TOKEN',
+        type: 'password',
+        required: true,
+        hint: 'Random string registered in Meta App settings → Webhooks → WhatsApp.',
+      },
+      {
+        key: 'app_secret',
+        label: 'App secret',
+        envVar: 'META_WABA_APP_SECRET',
+        type: 'password',
+        required: true,
+        hint: 'For webhook signature verification (X-Hub-Signature-256).',
+      },
+    ],
+  },
+  google_ads: {
+    provider: 'google_ads',
+    label: 'Google Ads API',
+    description:
+      'Phase H follow-up. Google Ads API requires developer token approval (auto-approved for basic, app review for standard) + MCC manager account.',
+    helpUrl: 'https://developers.google.com/google-ads/api/docs/start',
+    fields: [
+      { key: 'developer_token', label: 'Developer token', envVar: 'GOOGLE_ADS_DEVELOPER_TOKEN', type: 'password' },
+      { key: 'client_id', label: 'OAuth client ID', envVar: 'GOOGLE_ADS_CLIENT_ID' },
+      { key: 'client_secret', label: 'OAuth client secret', envVar: 'GOOGLE_ADS_CLIENT_SECRET', type: 'password' },
+      { key: 'refresh_token', label: 'Refresh token', envVar: 'GOOGLE_ADS_REFRESH_TOKEN', type: 'password' },
+      { key: 'login_customer_id', label: 'Login customer ID (MCC)', envVar: 'GOOGLE_ADS_LOGIN_CUSTOMER_ID' },
+      { key: 'customer_id', label: 'Beithady customer ID', envVar: 'GOOGLE_ADS_CUSTOMER_ID' },
+    ],
+  },
+  tiktok_ads: {
+    provider: 'tiktok_ads',
+    label: 'TikTok Marketing API',
+    description: 'Phase H follow-up. Requires TikTok For Business app review (~3-10 days).',
+    helpUrl: 'https://business-api.tiktok.com/portal/docs',
+    fields: [
+      { key: 'app_id', label: 'App ID', envVar: 'TIKTOK_APP_ID' },
+      { key: 'secret', label: 'App secret', envVar: 'TIKTOK_APP_SECRET', type: 'password' },
+      { key: 'access_token', label: 'Long-lived access token', envVar: 'TIKTOK_ACCESS_TOKEN', type: 'password' },
+      { key: 'advertiser_id', label: 'Advertiser ID', envVar: 'TIKTOK_ADVERTISER_ID' },
     ],
   },
 };

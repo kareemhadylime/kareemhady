@@ -69,20 +69,19 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
     description: 'Meta + Google + TikTok campaigns · Click-to-WhatsApp lead funnel · AI ad copy generator.',
     icon: Megaphone,
     accent: 'gold',
-    badge: { label: 'Phase H', tone: 'gold' },
+    badge: { label: 'Live', tone: 'navy' },
   },
 };
 
-// Phases B–H ship as separate stub pages today; show them disabled in
-// the launcher so the user sees the full destination map.
+// All categories now live — historical map kept for future phases.
 const PHASE_PENDING: Record<BeithadyCategory, string | undefined> = {
   financial: undefined,
   analytics: undefined,
-  crm: 'Phase B',
-  communication: 'Phase C',
+  crm: undefined,
+  communication: undefined,
   settings: undefined,
   gallery: undefined,
-  ads: 'Phase H',
+  ads: undefined,
 };
 
 export default async function BeithadyHome() {
