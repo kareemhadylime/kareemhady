@@ -16,9 +16,13 @@ export type GalleryBucket =
 
 const SIGNED_URL_TTL_SEC = 3600; // 1h
 
-export async function signedUrlFor(bucket: GalleryBucket, path: string): Promise<string | null> {
+export async function signedUrlFor(
+  bucket: GalleryBucket,
+  path: string,
+  ttlSec: number = SIGNED_URL_TTL_SEC,
+): Promise<string | null> {
   const sb = supabaseAdmin();
-  const { data, error } = await sb.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL_SEC);
+  const { data, error } = await sb.storage.from(bucket).createSignedUrl(path, ttlSec);
   if (error || !data) return null;
   return data.signedUrl;
 }
