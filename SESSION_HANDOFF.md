@@ -80,6 +80,27 @@ User said "all" + "A to D" → applied every change in one commit ([gr-brief.ts]
 
 **Status:** committed locally. Two prior commits also still local (`f9e671d` finance owner-stays, `41475ad` GR audit). All three need a single push to main + `vercel --prod`. Awaiting user approval — earlier push attempt was blocked by the harness today.
 
+### Follow-up — Pre-arrival sender investigation (no code change)
+
+User asked me to investigate why `beithady_pre_arrival_messages` has 0 rows. **Diagnosis: not broken — the cron's first valid scheduled run hasn't happened yet.**
+
+Timeline:
+- Phase F deployed (added the cron to vercel.json) at 2026-04-27 **17:23 UTC**.
+- Pre-arrival cron schedule: `0 8 * * *` UTC = 11:00 Cairo (DST). [vercel.json:30](vercel.json:30).
+- Yesterday's 08:00 UTC trigger: deploy was 9 h later, so missed it.
+- Today's 08:00 UTC trigger: scheduled for ~80 min after this turn (current time 2026-04-28 06:42 UTC).
+
+Audit-log evidence: `pre_arrival_dispatch_run` = 0 rows ever, while sibling Phase F crons that run at earlier UTC times (`comm_sync_run`, `late_reply_digest_generated`, `vip_digest_generated`, `loyalty_tick_run`) all fired today.
+
+Verified the dispatch wouldn't be a no-op when it does fire:
+- 5 templates exist + enabled (incl. 1 fallback)
+- Tomorrow's 2 arrivals match `beithady_guests` rows with `phone_e164` set
+- Templates / matcher / endpoint all wired correctly
+
+Cosmetic: comment in [pre-arrival.ts:17](src/lib/beithady/engagement/pre-arrival.ts:17) says "10:00 Cairo cron" but DST makes it 11:00 Cairo. No functional impact.
+
+**Recommended next step (user picks):** wait for the 08:00 UTC trigger and verify (preferred), manually `curl ...?force=1&secret=...` (user has the secret), or add a backup `0 9 * * *` cron entry. Awaiting decision.
+
 ## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
 Two endpoints:
