@@ -25,12 +25,25 @@ export async function selectSkusForReservation(
   reservation: { id: string; nights: number | null; building_code: string | null }
 ): Promise<UpsellSku[]> {
   const sb = supabaseAdmin();
+  // Approval gate (migration 0049 after the A1 incident): an upsell row
+  // can only fire if enabled=true AND approved_at IS NOT NULL AND name
+  // and description still match the approved frozen copy. Edits clear
+  // approval via trg_clear_upsell_approval on the table.
   const { data } = await sb
     .from('beithady_upsell_catalog')
-    .select('sku, name, description, price_usd, ai_targeting_hint, payment_link_url, building_code')
+    .select('sku, name, description, price_usd, ai_targeting_hint, payment_link_url, building_code, approved_at, approved_name, approved_description')
     .eq('enabled', true)
+    .not('approved_at', 'is', null)
     .order('display_order', { ascending: true });
-  const all = (data as Array<UpsellSku & { building_code: string | null }> | null) || [];
+  const all = ((data as Array<UpsellSku & {
+    building_code: string | null;
+    approved_at: string | null;
+    approved_name: string | null;
+    approved_description: string | null;
+  }> | null) || [])
+    .filter(s => s.approved_at != null
+      && s.name === s.approved_name
+      && s.description === s.approved_description);
   // Filter to building-specific OR universal entries
   const eligible = all.filter(s => s.building_code === null || s.building_code === reservation.building_code);
   const skus = new Map(eligible.map(s => [s.sku, s]));

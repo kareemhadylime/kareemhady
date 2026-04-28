@@ -20,13 +20,23 @@ export async function runPreArrivalDispatch(): Promise<{
   let skipped = 0;
   const errors: Array<{ reservation_id: string; error: string }> = [];
 
-  // Load all relevant templates upfront (one query)
+  // Load all relevant templates upfront (one query). Approval gate
+  // (added migration 0049 after the A1 Hospitality incident): a row
+  // can ONLY fire if enabled=true AND approved_at IS NOT NULL AND
+  // body == approved_body. The body==approved_body check defends
+  // against a race where someone edits the body between the trigger
+  // firing and the cron reading the row.
   const { data: tplRows } = await sb
     .from('beithady_pre_arrival_templates')
-    .select('building_code, body, enabled, hours_before')
-    .eq('enabled', true);
+    .select('building_code, body, enabled, hours_before, approved_at, approved_body')
+    .eq('enabled', true)
+    .not('approved_at', 'is', null);
   const tpls = new Map<string | 'fallback', { body: string; hours_before: number }>();
-  for (const t of (tplRows as Array<{ building_code: string | null; body: string; hours_before: number }> | null) || []) {
+  for (const t of (tplRows as Array<{
+    building_code: string | null; body: string; hours_before: number;
+    approved_at: string | null; approved_body: string | null;
+  }> | null) || []) {
+    if (!t.approved_at || t.body !== t.approved_body) continue;
     const k = t.building_code === null ? 'fallback' : t.building_code;
     tpls.set(k, { body: t.body, hours_before: t.hours_before });
   }
