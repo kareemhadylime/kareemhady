@@ -8,6 +8,7 @@ import {
   Megaphone,
   ShieldOff,
   CalendarRange,
+  Package,
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getEffectiveBeithadyRoles, visibleCategoriesFor, type BeithadyCategory } from '@/lib/beithady/auth';
@@ -80,6 +81,14 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
     accent: 'cyan',
     badge: { label: 'Phase J', tone: 'gold' },
   },
+  inventory: {
+    href: '/emails/beithady/inventory',
+    title: 'Inventory',
+    description: 'Multi-warehouse stock · Items + Vendors · Receiving + Dispensing · Welcome Tray Kits · Mobile Arabic checklist.',
+    icon: Package,
+    accent: 'emerald',
+    badge: { label: 'Phase M', tone: 'gold' },
+  },
 };
 
 // All categories now live — historical map kept for future phases.
@@ -92,6 +101,7 @@ const PHASE_PENDING: Record<BeithadyCategory, string | undefined> = {
   gallery: undefined,
   ads: undefined,
   operations: undefined,
+  inventory: undefined,
 };
 
 export default async function BeithadyHome() {
@@ -99,13 +109,14 @@ export default async function BeithadyHome() {
   const roles = user ? await getEffectiveBeithadyRoles(user) : [];
   const visible = visibleCategoriesFor(roles);
 
-  // Order: Financial → Analytics → CRM → Communication → Operations → Settings → Gallery → Ads
+  // Order: Financial → Analytics → CRM → Communication → Operations → Inventory → Settings → Gallery → Ads
   const order: BeithadyCategory[] = [
     'financial',
     'analytics',
     'crm',
     'communication',
     'operations',
+    'inventory',
     'settings',
     'gallery',
     'ads',
