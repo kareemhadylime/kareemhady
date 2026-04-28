@@ -12,7 +12,7 @@
 //   - Channel (airbnb2 / booking / ...) — first-class, not inferred
 //
 // We keep the existing BeithadyReviewAggregate output shape so the
-// /emails/beithady/[ruleId] page renders unchanged, and extend it with
+// /beithady/[ruleId] page renders unchanged, and extend it with
 // category-level aggregates under optional fields.
 
 import { supabaseAdmin } from '@/lib/supabase';

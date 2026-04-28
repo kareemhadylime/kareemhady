@@ -59,7 +59,7 @@ export function renderMarkdown(brief: Brief, baseUrl?: string): string {
   }
 
   const url = baseUrl
-    ? `${baseUrl}/emails/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
+    ? `${baseUrl}/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
     : null;
   if (url) {
     lines.push(`${t.view_full}: ${url}`);
@@ -99,7 +99,7 @@ export function renderHtml(brief: Brief, baseUrl?: string): string {
   }).join('');
 
   const url = baseUrl
-    ? `${baseUrl}/emails/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
+    ? `${baseUrl}/beithady/operations/morning-brief?role=${brief.role}&date=${brief.date_iso}`
     : null;
 
   const fontStack = isRtl

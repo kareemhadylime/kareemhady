@@ -10,6 +10,23 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '12mb',
     },
   },
+  // Backward-compat redirects after pulling Beit Hady out of the
+  // /emails/* legacy hierarchy. Old bookmarks or hardcoded links to
+  // /emails/beithady/* land on the new /beithady/* tree without a 404.
+  async redirects() {
+    return [
+      {
+        source: '/emails/beithady',
+        destination: '/beithady',
+        permanent: true,
+      },
+      {
+        source: '/emails/beithady/:path*',
+        destination: '/beithady/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

@@ -137,7 +137,7 @@ export async function sendWhatsAppFile(input: SendFileInput): Promise<SendWhatsA
 }
 
 // Optional helper: returns Green-API instance state. Used by the
-// settings card on /emails/beithady/communication/wa-casual to show
+// settings card on /beithady/communication/wa-casual to show
 // online/offline status without round-tripping a real send.
 export async function getGreenInstanceState(): Promise<
   | { ok: true; stateInstance: string; raw: unknown }

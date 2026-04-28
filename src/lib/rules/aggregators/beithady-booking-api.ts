@@ -3,7 +3,7 @@
 // mirror table (populated by src/lib/run-guesty-sync.ts).
 //
 // Returns the same BeithadyAggregateOutput shape as the email version so
-// the /emails/beithady/[ruleId] page renders unchanged. Email-only audit
+// the /beithady/[ruleId] page renders unchanged. Email-only audit
 // fields (parse_errors, airbnb_*, missing_from_guesty, guesty_not_in_airbnb)
 // are zeroed or emptied since they don't apply.
 

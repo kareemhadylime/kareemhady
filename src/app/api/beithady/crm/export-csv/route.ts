@@ -6,7 +6,7 @@ import { rowsToCsv } from '@/lib/beithady/crm/segments';
 import type { LoyaltyTier } from '@/lib/beithady/crm/loyalty';
 
 // Server-rendered CSV download. Honors the same filter querystring as
-// /emails/beithady/crm so the "Download CSV" button on the list page
+// /beithady/crm so the "Download CSV" button on the list page
 // just links here with the current params.
 
 export const dynamic = 'force-dynamic';

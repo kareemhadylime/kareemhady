@@ -113,7 +113,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
   },
 };
 
-// Sub-tabs of /emails/beithady/settings that are restricted to admins
+// Sub-tabs of /beithady/settings that are restricted to admins
 // even within the manager role's general 'settings: read' permission.
 export const ADMIN_ONLY_SETTINGS_SUBTABS = new Set([
   'integrations',  // credentials are admin-only
@@ -176,7 +176,7 @@ export async function requireBeithadyPermission(
   required: Permission = 'read'
 ): Promise<{ user: SessionUser; roles: BeithadyRole[] }> {
   const user = await getCurrentUser();
-  if (!user) redirect(`/login?next=/emails/beithady`);
+  if (!user) redirect(`/login?next=/beithady`);
   const roles = await getEffectiveBeithadyRoles(user);
   if (!rolesGrantPermission(roles, category, required)) notFound();
   return { user, roles };

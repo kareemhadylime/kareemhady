@@ -13,7 +13,7 @@
 //      Kept as-is for the reconciliation view.
 //
 // Output: the existing BeithadyPayoutAggregate shape is preserved so the
-// /emails/beithady/[ruleId] page renders unchanged. Email-only fields
+// /beithady/[ruleId] page renders unchanged. Email-only fields
 // (airbnb_payouts[], airbnb_line_items[] with bank IBAN etc.) are set to
 // safe zero/empty values; new numbers come from reservations + Stripe.
 

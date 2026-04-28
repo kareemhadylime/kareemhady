@@ -328,7 +328,7 @@ export default async function DomainRulesPage({
         {d === 'beithady' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Link
-              href="/emails/beithady/setup"
+              href="/beithady/setup"
               className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden lg:col-span-2"
             >
               <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 opacity-[0.08] blur-2xl pointer-events-none" />
@@ -358,7 +358,7 @@ export default async function DomainRulesPage({
             </Link>
 
             <Link
-              href="/emails/beithady/financials"
+              href="/beithady/financials"
               className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
             >
               <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 opacity-[0.08] blur-2xl pointer-events-none" />
@@ -385,7 +385,7 @@ export default async function DomainRulesPage({
             </Link>
 
             <Link
-              href="/emails/beithady/pricing"
+              href="/beithady/pricing"
               className="group ix-card p-5 flex items-center justify-between hover:shadow-md transition relative overflow-hidden"
             >
               <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-gradient-to-br from-emerald-500 to-indigo-500 opacity-[0.08] blur-2xl pointer-events-none" />

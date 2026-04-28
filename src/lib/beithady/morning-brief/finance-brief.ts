@@ -244,7 +244,7 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
         ...unpaid.slice(0, 8).map(r => ({
           primary: `${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
           secondary: `${r.channel || ''}${r.payment_balance_cents != null ? ` · $${Math.round((r.payment_balance_cents || 0) / 100).toLocaleString()}` : ''}${r.building_code ? ` · ${r.building_code}` : ''}`,
-          href: `/emails/beithady/operations/calendar?reservation=${r.reservation_id}`,
+          href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
         })),
       ] : [],
       empty_message: 'No unpaid reservations in the next 7 days. ✓',
