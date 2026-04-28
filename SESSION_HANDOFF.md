@@ -1,6 +1,55 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Phase Q plan drafted: Unified Inbox right-panel upgrade (no code, awaiting Q1–Q15)
+## ✅ Latest turn — Phase Q.0 pre-flight + Q.1 reservation chip SHIPPED (commits `92a17a9` + `023452c`)
+
+User said "Ok To all Defaults" → workflow doc S1+S2+S3 all locked at recommended path → auto-mode active → drafted workflow, then immediately shipped Q.0 + Q.1 sequential auto-deploys.
+
+### Q.0 — Pre-flight findings (commit `92a17a9`, doc-only) → [docs/PHASE_Q_PREFLIGHT.md](docs/PHASE_Q_PREFLIGHT.md)
+
+Read-only Supabase MCP probes:
+1. **`reservation_id` coverage = 99.7%** (6,720/6,741 open conversations); **0 orphans**. Fallback path is rare but real (21 stray Casual conversations).
+2. **Status distribution:** 3,160 confirmed · 2,929 inquiry · 594 cancelled · 32 closed · 4 declined · 1 reserved. Critical finding: **34 inquiry conversations have date spans that include today** — those are NOT in-house guests, they're prospective bookers asking about today. Locks Q.1 logic to **status-first then date-second** to avoid inquiry-as-in-house misclassification.
+3. **Source/platform distribution** (last 30d active): airbnb2 (167) · manual (78) · Booking.com (22) · website (5). Existing source pill in ThreadHeader (line 104-108) already covers the "messaging platform" surface.
+4. **Guesty `attachments[]` already plumbed** — `sendGuestyConversationPost` in `src/lib/guesty.ts:516-560` already accepts `attachments?: Array<{url, name, mime}>` parameter and forwards to `/communication/conversations/{id}/posts`. Composer just doesn't surface it. **Q.3.1 collapses into Q.3** — both wa_casual + guesty multi-attach ship in one commit.
+5. **`guesty_listings.raw` does NOT include pictures** — only 11 slim keys (`_id, accommodates, accountId, active, address, bedrooms, customFields, nickname, propertyType, tags, title`). **Library = `beithady_listing_assets` only** in V1 (Guesty pictures sync extension deferred to V2). Day 1 the library will be empty — composer must show "No photos in library for {listing} · Upload some" with inline upload CTA.
+6. **`beithady_guests` already has** `lifetime_stays · lifetime_nights · lifetime_spend_usd · vip · loyalty_tier · last_seen · language` — guest history badge needs no schema work.
+7. **Storage:** `beithady-wa-media` (20 MB, public) for chat attachments; `beithady-gallery-public` (50 MB, public) for the new listing library.
+8. **Vercel cron count 33/40**; Phase Q adds 0.
+
+Confidence raised 80% → 95%.
+
+### Q.1 — Reservation status chip + popout + mini-timeline + guest history (commit `023452c`, code)
+
+**5 new files + 2 edits** (8 files total, +508 lines):
+
+- **[src/lib/beithady/communication/reservation-status.ts](src/lib/beithady/communication/reservation-status.ts)** — pure-logic helper, client-safe (no `server-only`):
+  - `computeReservationVariant(input, hasReservationId)` returns `in_house | future | past | inquiry | cancelled | pending_sync | none`
+  - `computeStayProgress` returns `{current, total}` for "Night N of M"
+  - `fmtShortDate · fmtDateRange` — "Apr 12 → Apr 16"
+  - Cairo-tz today via `toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' })` matches Guesty's `check_in_date` wall-date format
+
+- **[src/lib/beithady/communication/inbox.ts](src/lib/beithady/communication/inbox.ts)** — extended `loadThread` to parallel-fetch reservation join + guest stats. Both new fields are nullable on `ThreadBundle` so existing consumers stay compatible.
+  - New types: `ThreadReservation` (12 fields) + `ThreadGuestStats` (7 fields)
+  - All fetches in `Promise.all` to keep right-panel open latency unchanged
+
+- **[src/app/beithady/communication/_components/reservation-status-chip.tsx](src/app/beithady/communication/_components/reservation-status-chip.tsx)** — server component. Variant→class+icon maps. **🟢 IN-HOUSE NOW pulses** (`animate-pulse`). Click → `/beithady/operations/calendar?reservation=<id>` (existing 10-tab `<ReservationDrawer>`, opens in new tab via `target="_blank"`).
+
+- **[src/app/beithady/communication/_components/reservation-mini-timeline.tsx](src/app/beithady/communication/_components/reservation-mini-timeline.tsx)** — Q.4 #1 strip. Date range · nights · guests · total paid + ADR · confirmation code. Hidden for inquiry/cancelled (chip already carries dates).
+
+- **[src/app/beithady/communication/_components/guest-history-badge.tsx](src/app/beithady/communication/_components/guest-history-badge.tsx)** — Q.4 #2. Returning-guest pill with stays count · total nights · VIP crown · loyalty tier dot. Hidden for first-stay guests.
+
+- **[src/app/beithady/communication/_components/no-reservation-fallback.tsx](src/app/beithady/communication/_components/no-reservation-fallback.tsx)** — fallback chip for the 21 cold-lead conversations. Deep-links to `https://app.guesty.com/inbox?search=<phone>` for staff to find/match.
+
+- **[src/app/beithady/communication/_components/thread-pane.tsx](src/app/beithady/communication/_components/thread-pane.tsx:97)** — `<ThreadHeader>` extended with two new flex rows under the name/SLA/source line: row 1 = chip + GuestHistoryBadge, row 2 = mini-timeline.
+
+**Type-check clean** (no Q.1 errors; pre-existing `@react-pdf/renderer` and `exceljs` errors unrelated).
+
+### Phase Q progress
+✅ Q.0 pre-flight (doc) · ✅ Q.1 reservation chip + popout + mini-timeline + guest history · ⏳ Q.2 templates V1 + variable resolver + 0053a/b · ⏳ Q.2.5 admin templates CRUD page · ⏳ Q.3 wa_casual + guesty multi-attach + library + 0053c (Q.3.1 collapsed in) · ⏳ Q.4 polish bundle + 0053d.
+
+Next sub-phase: **Q.2 templates V1**. Migrations 0053a (templates table + 8 seeds) + 0053b (listing_secrets for `{wifi_password}` resolution). Client-side variable resolver. New `<TemplatePicker>` popover next to paperclip in both composers.
+
+## 🟡 Earlier this session — Phase Q plan drafted: Unified Inbox right-panel upgrade (no code, awaiting Q1–Q15)
 
 User screenshot of `/beithady/communication/unified` thread pane → asked for 4 deliverables:
 1. Reservation status indicator (Confirmed / Cancelled / Inquiry · Future vs **In-house Now**) with click-to-popout
