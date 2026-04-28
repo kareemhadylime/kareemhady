@@ -1,6 +1,35 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase K.2 Cancellation risk + re-confirmation (commit `f889b2c`)
+## 🟢 Latest turn — Phase K.3 SOP & Knowledge Base shipped (commit `19123ce`)
+
+User confirmed → shipped end-to-end with 16 seed articles.
+
+**Migration `0046_beithady_sop_kb.sql`** (applied via MCP):
+- `beithady_sop_articles` — single table covering SOP / Checklist / KB. Fields: slug, title, summary, body_md (markdown), language (en/ar), kind, role (reception|guest_relations|housekeeping|maintenance|upselling|all), subcategory (transportation|excursions|f_b|affiliations|null), tags[], checklist_items jsonb, status (draft|published|archived), version, author/updated_by + timestamps.
+- `beithady_sop_acknowledgments` — read-receipts per (article, user, version) with unique constraint.
+- **16 seed articles** loaded:
+  - **Reception (3)**: shift handover · late check-in · lockout recovery
+  - **Guest Relations (3)**: complaint escalation matrix · modification requests · language barrier protocol
+  - **Housekeeping (3, Arabic)**: قائمة فحص تنظيف ما بين النزلاء · بروتوكول التنظيف العميق الشهري · إجراءات الإبلاغ عن الأضرار
+  - **Maintenance (3)**: A/C troubleshooting · plumbing emergency · smart-lock troubleshooting
+  - **Upselling (4)**: airport transfers + pricing · Pyramids excursion · grocery stocking F&B · hospital affiliations
+  - **All roles (1)**: VIP protocol with tier-specific perks
+
+**Library** [src/lib/beithady/sop](src/lib/beithady/sop/):
+- `md.ts` — minimal server-side markdown renderer (H1-3, bold, italic, code, lists, links). Trusts admin-authored input.
+- `queries.ts` — `listArticles({role, subcategory, kind, search})`, `getArticle(slug, currentUserId)` returns ack status + count, `listAllRoleCounts`, `ROLE_LABEL_EN/AR`, `SUBCATEGORY_LABEL`.
+
+**Pages:**
+- [/operations/sop](src/app/emails/beithady/operations/sop/page.tsx) — role tabs (with counts), upselling sub-category chips when filtered to upselling, kind chips (SOP/Checklist/KB), search. Article cards are dir-aware (RTL for Arabic content with AR badge).
+- [/operations/sop/[slug]](src/app/emails/beithady/operations/sop/[slug]/page.tsx) — article detail with markdown body (RTL + Cairo/Amiri font for Arabic), meta strip (version + tags + ack count + Mark-as-read button), interactive checklist panel for `kind=checklist`.
+
+**Server actions** in [actions.ts](src/app/emails/beithady/operations/sop/actions.ts): `acknowledgeArticleAction` (operations.read), `updateArticleBodyAction`, `createArticleAction` (both operations.full). Inline edit UI deferred to V2.
+
+**Operations sub-landing:** 6th card "SOP & Knowledge Base" (BookOpen icon, cyan accent, Phase K badge).
+
+**Phase K progress:** K.1 ✅ K.2 ✅ K.3 ✅ — done.
+
+## 🟢 Earlier this session — Phase K.2 Cancellation risk + re-confirmation (commit `f889b2c`)
 
 User picked Cancellation Risk next. Shipped end-to-end in one commit.
 
@@ -540,7 +569,8 @@ Order of phases shipped (oldest → newest):
 36. **Phase K.1 — Daily Morning Brief shipped** (`730f1f2`) — migration 0044 + 7 lib files + cron + web archive + recipients-management page + Operations card
 37. **Morning Brief — Arabic Ops + Finance payout forecasts** (`906f156`) — Ops brief now in Arabic with RTL HTML; Finance gains 2-day + month-end expected payout forecasts
 38. **Morning Brief — Test panel** (`3adaf81`) — Preview / Send test to me / Send NOW to all recipients buttons with spinner + result banners
-39. **Phase K.2 — Cancellation risk + re-confirm workflow** (`f889b2c`) — migration 0045 with rule-based 0-100 scorer on 8 signals, /operations/cancel-risk page with one-click WhatsApp re-confirm, GR Morning Brief gets at-risk section. Backfilled: 40 critical/6 high/5 medium reservations. K.3 KB/SOP queued next (this turn)
+39. **Phase K.2 — Cancellation risk + re-confirm workflow** (`f889b2c`) — migration 0045 + 0-100 scorer + /operations/cancel-risk page + WhatsApp re-confirm
+40. **Phase K.3 — SOP & Knowledge Base** (`19123ce`) — migration 0046 + 16 seed articles across 5 hospitality roles (3 in Arabic for Housekeeping) + library page with role tabs + article detail with markdown rendering + acknowledgement tracking (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
