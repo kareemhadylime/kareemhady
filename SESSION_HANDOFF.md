@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟡 Latest turn — Phase M coding: M.0 → M.6 SHIPPED (7 commits deployed), M.7 → M.14 remaining
+## 🟢 Most recent turn — Beithady dark-mode contrast fix (commit `c3cd679`)
+
+User screenshot of Multi-Calendar in dark mode: page title "Multi-Calendar" was nearly invisible, listing nicknames (BH-26-001 etc.) faded into the slate background, price-cell labels were barely legible. Root cause: Beit Hady brand defines `--bh-navy: #1E2D4A` and **28 admin pages** use it as inline `style={{ color: 'var(--bh-navy)' }}`. In dark mode that produces navy-on-slate-900 — WCAG fails everywhere.
+
+**Fix shape (CSS-only, zero TS edits to the 28 sites):** Scope a `--bh-navy` override to `.dark [data-bh-brand="true"]` so the token resolves to slate-100 (`#f1f5f9`) on every admin page in dark mode. Confirmed safe via `Grep` — no admin page uses `--bh-navy` as a `backgroundColor` (search returned 0 matches across `src/app/emails/beithady`). Public `r/beithady/*` pages (guest stay/csat token landing pages) don't carry `data-bh-brand`, so their printed/branded navy is preserved.
+
+**Forward-looking semantic tokens added** in [globals.css](src/app/globals.css): `--bh-heading`, `--bh-rail-text`, `--bh-body-strong` — all swap in dark mode independently. Wired the H1 in `BeithadyHeader` to `--bh-heading` and the listing rail nickname to `--bh-rail-text` for explicit semantics. The token swap on `--bh-navy` is the load-bearing fix; these are namespace polish.
+
+**Surgical bumps where the existing global `text-slate-500/600 → 400/300` lift wasn't enough:**
+- `BeithadyHeader` eyebrow (`text-slate-500` → added `dark:text-slate-300`).
+- `BeithadyHeader` subtitle (`dark:text-slate-300` → `dark:text-slate-200`).
+- `ListingRail` secondary line — building badge + price (`text-slate-500` → added `dark:text-slate-300`).
+- `CalendarGrid` price-cell overlay (`text-slate-400` → `text-slate-500 dark:text-slate-300 font-medium`).
+
+**Earlier this turn — stale-inquiry fade (`2738139`).** User screenshot showed BH-26-001 + BH-26-003 with what looked like duplicated/overlapping reservations on May 1. Diagnosis: not a bug, real data. Multiple Airbnb inquiries from different guests + same guest (Saad) inquiring on 2 units in the same building → 2 distinct `reservation_id`s. Only Ezekiel ever became confirmed. Spec from user: fade inquiries with no inbound/outbound message in last 48 h. Implemented client-side in `calendar-data.ts` using existing `beithady_conversations.last_inbound_at` / `last_outbound_at` (no migration). Stale inquiries render at 0.35 opacity in `reservation-bar.tsx` with tooltip suffix "· Stale inquiry (>48h silent)". Confirmed bookings unaffected.
+
+**Build hotfix (`5a078fa`).** Vercel build was already broken on main from M.3 commit `5024494`: `src/lib/beithady/inventory/warehouses.ts` had `import 'server-only'` at the top but exported types AND constants used by client components. Even with `import type`, runtime imports of constants pulled `'server-only'` into the client bundle → Turbopack rejected. Extracted types + constants into [src/lib/beithady/inventory/warehouses-shared.ts](src/lib/beithady/inventory/warehouses-shared.ts); `warehouses.ts` re-exports them for back-compat on the server side; both client components import from `-shared`. Canonical green again.
+
+## 🟡 Earlier this session — Phase M coding: M.0 → M.6 SHIPPED (7 commits deployed), M.7 → M.14 remaining
 
 Auto mode active. User confirmed defaults on C1/C2/C3 → green light to coding. Six sub-phases shipped this session, all auto-deployed to limeinc.vercel.app.
 
