@@ -28,19 +28,30 @@ function isValidSubcat(v: string | undefined): v is SopSubcategory {
 export default async function SopLandingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; sub?: string; kind?: string; q?: string }>;
+  searchParams: Promise<{ role?: string; sub?: string; kind?: string; q?: string; lang?: string }>;
 }) {
   await requireBeithadyPermission('operations', 'read');
   const sp = await searchParams;
   const role: SopRole | undefined = isValidRole(sp.role) ? sp.role : undefined;
   const sub: SopSubcategory | undefined = isValidSubcat(sp.sub) ? sp.sub : undefined;
   const kind = sp.kind === 'sop' || sp.kind === 'checklist' || sp.kind === 'kb' ? sp.kind : undefined;
+  const language: 'en' | 'ar' | undefined = sp.lang === 'en' || sp.lang === 'ar' ? sp.lang : undefined;
   const search = sp.q;
 
   const [articles, roleCounts] = await Promise.all([
-    listArticles({ role, subcategory: sub, kind, search }),
+    listArticles({ role, subcategory: sub, kind, language, search }),
     listAllRoleCounts(),
   ]);
+
+  const buildHref = (next: { lang?: 'en' | 'ar' | null }) => {
+    const params = new URLSearchParams();
+    if (role) params.set('role', role);
+    if (sub) params.set('sub', sub);
+    if (kind) params.set('kind', kind);
+    if (search) params.set('q', search);
+    if (next.lang === 'en' || next.lang === 'ar') params.set('lang', next.lang);
+    return `?${params.toString()}`;
+  };
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -106,8 +117,34 @@ export default async function SopLandingPage({
         </section>
       )}
 
-      {/* Kind chips + search */}
+      {/* Language + Kind chips + search */}
       <section className="ix-card p-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-[10px] uppercase tracking-wide text-slate-500">Lang:</span>
+        <Link
+          href={buildHref({ lang: null })}
+          className={`px-2.5 py-1 rounded-full ${!language
+            ? 'bg-emerald-600 text-white'
+            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+        >
+          All
+        </Link>
+        <Link
+          href={buildHref({ lang: 'en' })}
+          className={`px-2.5 py-1 rounded-full ${language === 'en'
+            ? 'bg-emerald-600 text-white'
+            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+        >
+          EN
+        </Link>
+        <Link
+          href={buildHref({ lang: 'ar' })}
+          className={`px-2.5 py-1 rounded-full ${language === 'ar'
+            ? 'bg-emerald-600 text-white'
+            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}
+        >
+          AR · العربية
+        </Link>
+        <span className="w-px h-4 bg-slate-300 dark:bg-slate-700 mx-1" />
         <span className="text-[10px] uppercase tracking-wide text-slate-500">Type:</span>
         <Link
           href={role ? `?role=${role}${sub ? `&sub=${sub}` : ''}${search ? `&q=${search}` : ''}` : '/emails/beithady/operations/sop'}

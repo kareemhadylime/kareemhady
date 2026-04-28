@@ -57,6 +57,7 @@ export async function listArticles(opts: {
   role?: SopRole;
   subcategory?: SopSubcategory;
   kind?: SopKind;
+  language?: 'en' | 'ar';
   search?: string;
 }): Promise<SopArticleListItem[]> {
   const sb = supabaseAdmin();
@@ -69,6 +70,7 @@ export async function listArticles(opts: {
   if (opts.role) q = q.in('role', [opts.role, 'all']);
   if (opts.subcategory) q = q.eq('subcategory', opts.subcategory);
   if (opts.kind) q = q.eq('kind', opts.kind);
+  if (opts.language) q = q.eq('language', opts.language);
   const { data } = await q;
   let rows = (data as SopArticleListItem[] | null) || [];
   if (opts.search) {
@@ -80,6 +82,21 @@ export async function listArticles(opts: {
     );
   }
   return rows;
+}
+
+// Find the counterpart-language article for a given slug. Convention:
+// English slugs are bare; Arabic slugs end with '-ar'. So "gr-complaint-
+// escalation" pairs with "gr-complaint-escalation-ar".
+export async function findCounterpart(slug: string): Promise<{ slug: string; language: 'en' | 'ar' } | null> {
+  const sb = supabaseAdmin();
+  const candidate = slug.endsWith('-ar') ? slug.replace(/-ar$/, '') : `${slug}-ar`;
+  const { data } = await sb
+    .from('beithady_sop_articles')
+    .select('slug, language')
+    .eq('slug', candidate)
+    .eq('status', 'published')
+    .maybeSingle();
+  return (data as { slug: string; language: 'en' | 'ar' } | null) || null;
 }
 
 export async function getArticle(slug: string, currentUserId?: string): Promise<SopArticleDetail | null> {

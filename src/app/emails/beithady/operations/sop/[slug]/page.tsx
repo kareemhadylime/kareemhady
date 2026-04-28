@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, FileText, ListChecks, HelpCircle, CheckCircle2 } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getCurrentUser } from '@/lib/auth';
-import { getArticle, ROLE_LABEL_EN, ROLE_LABEL_AR, SUBCATEGORY_LABEL } from '@/lib/beithady/sop/queries';
+import { getArticle, findCounterpart, ROLE_LABEL_EN, ROLE_LABEL_AR, SUBCATEGORY_LABEL } from '@/lib/beithady/sop/queries';
 import { renderMarkdown } from '@/lib/beithady/sop/md';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AcknowledgeButton } from './_acknowledge';
@@ -21,7 +21,10 @@ export default async function ArticleDetailPage({
   await requireBeithadyPermission('operations', 'read');
   const { slug } = await params;
   const user = await getCurrentUser();
-  const article = await getArticle(slug, user?.id);
+  const [article, counterpart] = await Promise.all([
+    getArticle(slug, user?.id),
+    findCounterpart(slug),
+  ]);
   if (!article) notFound();
 
   const Icon = KIND_ICON[article.kind];
@@ -54,6 +57,15 @@ export default async function ArticleDetailPage({
         }
         title={article.title}
         subtitle={article.summary || undefined}
+        right={counterpart ? (
+          <Link
+            href={`/emails/beithady/operations/sop/${counterpart.slug}`}
+            className="ix-btn-secondary !text-xs"
+            title={counterpart.language === 'ar' ? 'القراءة بالعربية' : 'Read in English'}
+          >
+            {counterpart.language === 'ar' ? '🇪🇬 العربية' : '🇬🇧 English'}
+          </Link>
+        ) : undefined}
       />
 
       {/* Meta strip */}
