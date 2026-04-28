@@ -132,7 +132,7 @@ export default async function GuestyWebhooksMonitor({
             <p className="text-[10px] mt-2">
               Setup: configure the webhook URL{' '}
               <code className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">
-                https://limeinc.vercel.app/api/webhook/guesty/conversation?secret=&lt;GUESTY_WEBHOOK_SECRET&gt;
+                https://limeinc.vercel.app/api/webhooks/guesty/conversation?secret=&lt;GUESTY_WEBHOOK_SECRET&gt;
               </code>
               {' '}in Guesty&apos;s webhook settings, subscribe to <code>reservation.messageReceived</code> and{' '}
               <code>reservation.messageSent</code>.
@@ -204,7 +204,7 @@ export default async function GuestyWebhooksMonitor({
           <li>Open <a href="https://app.guesty.com/settings/webhooks" target="_blank" rel="noreferrer" className="text-cyan-700 underline">Guesty → Settings → Webhooks</a>.</li>
           <li>Create a webhook with URL{' '}
             <code className="font-mono text-[10px] bg-slate-100 px-1 py-0.5 rounded break-all">
-              https://limeinc.vercel.app/api/webhook/guesty/conversation?secret=&lt;your secret&gt;
+              https://limeinc.vercel.app/api/webhooks/guesty/conversation?secret=&lt;your secret&gt;
             </code>
           </li>
           <li>Subscribe to events: <code className="font-mono text-[10px]">reservation.messageReceived</code> + <code className="font-mono text-[10px]">reservation.messageSent</code> (start narrow; add conversation/reservation events later if needed).</li>
@@ -212,7 +212,7 @@ export default async function GuestyWebhooksMonitor({
           <li>Once confirmed, fire the one-time backfill (clears any pre-webhook backlog):
             <br />
             <code className="font-mono text-[10px] bg-slate-100 px-1 py-0.5 rounded break-all">
-              curl -X POST &quot;https://limeinc.vercel.app/api/admin/guesty-backfill?secret=$CRON_SECRET&quot;
+              curl -X POST &quot;https://limeinc.vercel.app/api/cron/beithady-guesty-backfill?secret=$CRON_SECRET&quot;
             </code>
           </li>
         </ol>

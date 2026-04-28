@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (!checkAuth(req)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
-  const result = await runGuestySync('admin_backfill');
+  const result = await runGuestySync('manual');
   // After Guesty sync, propagate to Beit Hady tables
   try {
     const sb = supabaseAdmin();

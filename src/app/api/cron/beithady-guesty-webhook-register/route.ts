@@ -20,7 +20,7 @@ import { guestyFetch } from '@/lib/guesty';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const TARGET_PATH = '/api/webhook/guesty/conversation';
+const TARGET_PATH = '/api/webhooks/guesty/conversation';
 const DEFAULT_EVENTS = [
   'reservation.messageReceived',
   'reservation.messageSent',

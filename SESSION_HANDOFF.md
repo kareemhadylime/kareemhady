@@ -1,6 +1,23 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
+<<<<<<< Updated upstream
 ## 🟢 Most recent turn — M.15.2 SHIPPED: estimator landing page + Settings/Inventory hooks (commit `75507f8`)
+=======
+## 🟡 Latest turn — Generated GUESTY_WEBHOOK_SECRET for user (no code)
+
+User opened the Guesty Webhooks UI ready to add the endpoint, asked what `<your value>` was in the docs URL. Generated a fresh 64-char hex secret via Node crypto and walked them through the 2 required setup steps:
+
+1. **Set in Vercel env**: `GUESTY_WEBHOOK_SECRET=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94` (Production), then redeploy so it's picked up
+2. **Paste into Guesty webhook URL**: `https://limeinc.vercel.app/api/webhook/guesty/conversation?secret=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94`, subscribe to `reservation.messageReceived` + `reservation.messageSent`
+
+Sanity-check URL given: `GET .../conversation?secret=...` should return `auth_configured: true, auth_passed: true` once the env var is live in Vercel.
+
+User holds the secret now. After they configure both sides + send a Guesty test event, the verify page at `/beithady/communication/webhooks` should show a `processed` row within 2s. Then they should fire the one-time backfill (`/api/admin/guesty-backfill`) before May 1 to clear the pre-webhook backlog.
+
+No code this turn. Branch head still at `b1a17d5` (Phase O shipped + deployed).
+
+## ✅ Phase O SHIPPED — Guesty webhooks for real-time inbox
+>>>>>>> Stashed changes
 
 **New page**: [/beithady/inventory/rules/estimator](https://limeinc.vercel.app/beithady/inventory/rules/estimator) — matrix of 7 unit configurations. Columns: Configuration · Tier · Bedrooms · Bathrooms · Guests · Items · Listings using · Total per check-in (EGP) · Per guest. Click any row → `/[configId]` (M.15.3 builds the editor).
 
