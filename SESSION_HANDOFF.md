@@ -99,7 +99,30 @@ Verified the dispatch wouldn't be a no-op when it does fire:
 
 Cosmetic: comment in [pre-arrival.ts:17](src/lib/beithady/engagement/pre-arrival.ts:17) says "10:00 Cairo cron" but DST makes it 11:00 Cairo. No functional impact.
 
-**Recommended next step (user picks):** wait for the 08:00 UTC trigger and verify (preferred), manually `curl ...?force=1&secret=...` (user has the secret), or add a backup `0 9 * * *` cron entry. Awaiting decision.
+User picked option 1 (wait for natural fire) + said "deploy all amendments". The 5 commits (`f9e671d` finance owner-stays, `41475ad` GR audit, three handoff docs) were pushed to main and `vercel --prod` deployed cleanly. `pre_arrival_dispatch_run` audit row should appear after 08:00 UTC = ~Cairo 11:00.
+
+### Follow-up — Ops / Housekeeping brief audit (no code changes yet, awaiting clarifications)
+
+User flagged the Arabic Housekeeping brief from this morning's cron: "المغادرات اليوم (205)" / "الوصول اليوم (608)" with same Kevin Da Veiga reservation appearing 5×. Same root cause = view explosion (already fixed). Today's real numbers: 7 departures · 14 arrivals · 5 same-day flips · 0 open tasks · 0 new manual blocks · 30 long stays.
+
+User asked for a section-by-section audit ([ops-brief.ts](src/lib/beithady/morning-brief/ops-brief.ts)). Findings:
+
+**High-confidence fixes presented (A–E):**
+- A. Exclude `source_label='owner'` + `is_manual_block=true` from arrivals / departures / long-stays / same-day-flip-source.
+- B. Open tasks: align `limit(N)` and `slice(N)` (currently 20 vs 10 — wastes 10 fetched rows).
+- C. NULL nights → "—" instead of "0 ليالٍ".
+- D. Add nights to Departures secondary (parity with Arrivals).
+- E. Add "N ليالٍ متبقية" (nights remaining) to long-stay secondary.
+
+**Open clarifications (1–6):**
+1. Same-day flip — exclude pure block↔block flips, or count anyway?
+2. Open tasks: add freshness filter (due ≤7d OR overdue ≤14d) or keep all pending?
+3. Manual blocks section: only `start_date=today` (current) or expand to "active today"?
+4. Long stays: add "N nights remaining" suffix? (recommended)
+5. Section order: promote Same-day flips to #1 (most time-critical), then Departures → Arrivals → Long stays → Tasks → Blocks?
+6. Add a "Tomorrow's check-ins" prep section? (recommended)
+
+**Status:** waiting on user replies before any commit. The previous turn's deploy already shipped (5 commits), so the Ops brief audit work begins from a clean main.
 
 ## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
