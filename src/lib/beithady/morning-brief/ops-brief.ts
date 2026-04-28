@@ -123,6 +123,11 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   const ciTomorrow = (tomorrowCheckins as Res[] | null) || [];
   const tasks = (openTasks as Array<{ id: string; title: string; type: string; priority: string | null; status: string; due_at: string | null; building_code: string | null; reservation_id: string | null }> | null) || [];
   const blockRows = (blocks as Array<{ id: string; listing_id: string; start_date: string; end_date: string; reason: string; notes: string | null }> | null) || [];
+  // Segregate per user feedback: maintenance + other are operational
+  // (housekeeping/maintenance crew acts on them); owner_stay + hold
+  // are informational (no service required).
+  const opsBlocks = blockRows.filter(b => b.reason === 'maintenance' || b.reason === 'other');
+  const ownerBlocks = blockRows.filter(b => b.reason === 'owner_stay' || b.reason === 'hold');
   const ext = (extensions as Array<{ reservation_id: string; listing_nickname: string | null; guest_name: string | null; check_in_date: string; check_out_date: string; nights: number | null; building_code: string | null }> | null) || [];
 
   // Same-day flips: listings present in BOTH today's check-outs AND
@@ -195,14 +200,24 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       empty_message: 'لا توجد مهام مستحقة خلال ٧ أيام. عمل ممتاز.',
     },
     {
-      title: `حجوزات إدارية تبدأ اليوم (${blockRows.length})`,
-      emoji: '🔒',
-      items: blockRows.map(b => ({
+      title: `حجوزات صيانة / أخرى تبدأ اليوم (${opsBlocks.length})`,
+      emoji: '🔧',
+      items: opsBlocks.map(b => ({
+        primary: `${b.listing_id} · ${REASON_AR[b.reason] || b.reason}`,
+        secondary: `${b.start_date} ← ${b.end_date}${b.notes ? ` · ${b.notes}` : ''}`,
+        tag: { label: REASON_AR[b.reason] || b.reason, tone: 'amber' },
+      })),
+      empty_message: 'لا توجد حجوزات صيانة أو أخرى تبدأ اليوم.',
+    },
+    {
+      title: `إقامات المالك / حجوزات إدارية تبدأ اليوم (${ownerBlocks.length})`,
+      emoji: '🏠',
+      items: ownerBlocks.map(b => ({
         primary: `${b.listing_id} · ${REASON_AR[b.reason] || b.reason}`,
         secondary: `${b.start_date} ← ${b.end_date}${b.notes ? ` · ${b.notes}` : ''}`,
         tag: { label: REASON_AR[b.reason] || b.reason, tone: 'slate' },
       })),
-      empty_message: 'لا توجد حجوزات إدارية تبدأ اليوم.',
+      empty_message: 'لا توجد إقامات للمالك أو حجوزات إدارية تبدأ اليوم.',
     },
     {
       title: `تحضير الغد (${ciTomorrow.length})`,
@@ -228,6 +243,8 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       same_day_flips: sameDayFlips.length,
       open_tasks: tasks.length,
       manual_blocks: blockRows.length,
+      ops_blocks: opsBlocks.length,
+      owner_blocks: ownerBlocks.length,
       long_stays: ext.length,
       tomorrow_checkins: ciTomorrow.length,
     },
