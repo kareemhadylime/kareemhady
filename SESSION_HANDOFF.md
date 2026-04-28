@@ -1,23 +1,74 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-<<<<<<< Updated upstream
-## 🟢 Most recent turn — M.15.2 SHIPPED: estimator landing page + Settings/Inventory hooks (commit `75507f8`)
-=======
-## 🟡 Latest turn — Generated GUESTY_WEBHOOK_SECRET for user (no code)
+## ✅ Latest turn — Phase O webhook FULLY LIVE end-to-end (commit `fec8e48`)
 
-User opened the Guesty Webhooks UI ready to add the endpoint, asked what `<your value>` was in the docs URL. Generated a fresh 64-char hex secret via Node crypto and walked them through the 2 required setup steps:
+User configured Vercel env (`GUESTY_WEBHOOK_SECRET=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94`) but Guesty UI showed **"Operating in read-only mode"** tooltip on the Add Endpoint button — their plan/role can't add webhooks via dashboard.
 
-1. **Set in Vercel env**: `GUESTY_WEBHOOK_SECRET=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94` (Production), then redeploy so it's picked up
-2. **Paste into Guesty webhook URL**: `https://limeinc.vercel.app/api/webhook/guesty/conversation?secret=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94`, subscribe to `reservation.messageReceived` + `reservation.messageSent`
+### Workaround: programmatic webhook registration via Open API
 
-Sanity-check URL given: `GET .../conversation?secret=...` should return `auth_configured: true, auth_passed: true` once the env var is live in Vercel.
+Built a registrar earlier this turn that calls `POST https://open-api.guesty.com/v1/webhooks` using existing OAuth credentials (`GUESTY_CLIENT_ID/SECRET/ACCOUNT_ID`).
 
-User holds the secret now. After they configure both sides + send a Guesty test event, the verify page at `/beithady/communication/webhooks` should show a `processed` row within 2s. Then they should fire the one-time backfill (`/api/admin/guesty-backfill`) before May 1 to clear the pre-webhook backlog.
+### 🐛 404 bug discovered when user fired it
 
-No code this turn. Branch head still at `b1a17d5` (Phase O shipped + deployed).
+`/api/admin/guesty-webhook-register?secret=...` returned 404. Root cause: `src/proxy.ts` PUBLIC_PREFIXES allowlist gates `/api/admin/*` behind user-session auth. Same bug affected the original webhook receiver path — proxy expects `/api/webhooks/*` (plural) but I'd built `/api/webhook/*` (singular).
 
-## ✅ Phase O SHIPPED — Guesty webhooks for real-time inbox
->>>>>>> Stashed changes
+### Fix: 3 path moves + verify-page checklist update
+
+| Old (blocked by proxy) | New (in PUBLIC_PREFIXES) |
+|---|---|
+| `/api/webhook/guesty/conversation` | `/api/webhooks/guesty/conversation` ✅ |
+| `/api/admin/guesty-backfill` | `/api/cron/beithady-guesty-backfill` ✅ |
+| `/api/admin/guesty-webhook-register` | `/api/cron/beithady-guesty-webhook-register` ✅ |
+
+`TARGET_PATH` in registrar updated to plural `/webhooks/`. 3 occurrences updated in the verify page setup checklist. `runGuestySync('admin_backfill')` → `'manual'` to match existing trigger enum. `vercel.json` not touched — these are manual-fire-only endpoints.
+
+### Result: end-to-end success
+
+After deploy, fired registrar via curl with user's existing CRON_SECRET:
+
+```json
+{"ok":true,"status":"created","webhook":{
+  "_id":"69f1273ba228cc00142a09cf",
+  "accountId":"68342f589bf7f8c07ec2435c",
+  "events":["reservation.messageReceived","reservation.messageSent"],
+  "url":"https://limeinc.vercel.app/api/webhooks/guesty/conversation?secret=<redacted>"
+}}
+```
+
+Then fired backfill — runGuestySync returned: 90 listings · 6,958 reservations · 846 reviews · **6,367 conversations · 1,085 conversation posts** · 10 classified.
+
+### Inbox staleness BEFORE / AFTER
+
+| | Before this turn | After this turn |
+|---|---|---|
+| Most recent Guesty msg in `beithady_messages` | 17.4 hours old | **45 minutes old** ✅ |
+| Total Guesty messages | 1,311 | **1,567** (256 new caught up) |
+| Real-time path | nonexistent | live — webhook 69f1273b registered with both message events |
+
+### Architecture state going forward
+
+- Daily cron at `40 4 * * *` UTC continues as a safety net
+- Webhook receiver at `/api/webhooks/guesty/conversation` handles incoming events in <2s, fires `beithady_communication_ingest` RPC after each
+- Verify page at `/beithady/communication/webhooks` shows live event rows + 24h health stats
+- Manual backfill at `/api/cron/beithady-guesty-backfill` available anytime
+- CRON_SECRET unchanged: user's existing `e649b977...` is the canonical value (the fresh `4111360b...` I generated was NOT applied)
+
+### V2 polish for later
+
+- HMAC signature header validation (waiting on Guesty docs)
+- IP allowlist
+- Replay-from-events-table button on verify page
+- Optional `vercel.json` cron entry hitting `/api/cron/beithady-guesty-backfill` nightly as additional safety net
+
+### May 1 launch readiness
+
+None blocking. Suggest sending one test Guesty message to confirm verify page populates a `processed` row.
+
+## 🟢 Earlier this turn — Generated GUESTY_WEBHOOK_SECRET (no code)
+
+User opened the Guesty Webhooks UI ready to add the endpoint, asked what `<your value>` was in the URL placeholder. Generated `GUESTY_WEBHOOK_SECRET=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94` via Node crypto. Walked through 2 setup steps. User set it in Vercel env Production+Preview. (See above turn for the full follow-on path-move fix + successful registration.)
+
+## 🟡 Earlier sibling-worktree turn — M.15.2 SHIPPED: estimator landing page + Settings/Inventory hooks (commit `75507f8`)
 
 **New page**: [/beithady/inventory/rules/estimator](https://limeinc.vercel.app/beithady/inventory/rules/estimator) — matrix of 7 unit configurations. Columns: Configuration · Tier · Bedrooms · Bathrooms · Guests · Items · Listings using · Total per check-in (EGP) · Per guest. Click any row → `/[configId]` (M.15.3 builds the editor).
 
