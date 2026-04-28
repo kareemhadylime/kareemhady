@@ -124,6 +124,31 @@ User asked for a section-by-section audit ([ops-brief.ts](src/lib/beithady/morni
 
 **Status:** waiting on user replies before any commit. The previous turn's deploy already shipped (5 commits), so the Ops brief audit work begins from a clean main.
 
+### Follow-up — Ops brief audit shipped (commits `49af301` + `d8f78f4`, deployed)
+
+User answered: "1- Don't Understand · 2- 7 Days · 3- Keep Narrow · 4- Yes · 5- Yes · 6- Yes". Then: "Segregate between Manual Block Maintenance or Other & Owner Block."
+
+#1 dissolved once A applied — same-day flip detection runs over arrival/departure sets that already exclude owner+blocks, so a "block-to-block flip" can't enter the intersection.
+
+**Shipped (commit `49af301`):**
+- A. `source_label != 'owner'` + `is_manual_block != true` on arrivals / departures / long-stays / tomorrow-prep.
+- B. Open tasks freshness filter — overdue ≤7 d OR due in next 7 d. `limit` and `slice` aligned at 10.
+- C. NULL nights → "— ليالٍ".
+- D. Departures secondary now shows nights stayed (parity with Arrivals).
+- E. Long-stay items show "X ليالٍ متبقية" (nights remaining) before the date.
+- 5. Section order: Same-day flips → Departures → Arrivals → Long stays → Tasks → Blocks → **Tomorrow's prep**.
+- 6. NEW section: تحضير الغد (tomorrow's prep — heads-up for staging).
+
+**Shipped (commit `d8f78f4`, segregation request):**
+- Manual-blocks section split into two:
+  - **حجوزات صيانة / أخرى** (`reason IN ('maintenance','other')`) — operational priority, amber tag.
+  - **إقامات المالك / حجوزات إدارية** (`reason IN ('owner_stay','hold')`) — informational, slate tag.
+- `beithady_calendar_manual_blocks` is currently empty (0 rows) so this is preventive.
+
+**Predicted next-morning Ops brief:** 5 flips · 7 dep · 14 arr · 30 long stays · 0 tasks · 0 blocks (either bucket) · 5 prep.
+
+**Deploy:** both commits pushed to main and `vercel --prod` shipped. Production URL: https://brave-babbage-a566c2-4skw3ktys-lime-investments.vercel.app.
+
 ## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
 Two endpoints:
