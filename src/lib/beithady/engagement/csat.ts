@@ -2,7 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
-import { getRecentCheckouts, matchBeithadyGuest, mintToken } from './reservation-helpers';
+import { getRecentCheckouts, matchBeithadyGuest, mintToken, templateRender } from './reservation-helpers';
 
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
 
@@ -18,6 +18,29 @@ export async function runCsatDispatch(): Promise<{
   let sent = 0;
   let skipped = 0;
   const errors: Array<{ reservation_id: string; error: string }> = [];
+
+  // Approval gate (migration 0050): CSAT body is a DB template, not
+  // hardcoded. Refuse to fire if no enabled+approved template exists.
+  const { data: tplRows } = await sb
+    .from('beithady_pre_arrival_templates')
+    .select('building_code, body, approved_at, approved_body')
+    .eq('purpose', 'csat_survey')
+    .eq('enabled', true)
+    .not('approved_at', 'is', null);
+  const tpls = new Map<string | 'fallback', string>();
+  for (const t of (tplRows as Array<{ building_code: string | null; body: string; approved_at: string | null; approved_body: string | null }> | null) || []) {
+    if (!t.approved_at || t.body !== t.approved_body) continue;
+    const k = t.building_code === null ? 'fallback' : t.building_code;
+    tpls.set(k, t.body);
+  }
+  if (tpls.size === 0) {
+    await recordAudit({
+      module: 'communication',
+      action: 'csat_dispatch_blocked',
+      metadata: { reason: 'no_approved_template', considered: checkouts.length },
+    });
+    return { considered: checkouts.length, sent: 0, skipped: checkouts.length, errors: [] };
+  }
 
   for (const r of checkouts) {
     if (!r.id) { skipped++; continue; }
@@ -35,7 +58,15 @@ export async function runCsatDispatch(): Promise<{
     const expiresAt = new Date(Date.now() + 14 * 86400e3).toISOString();
     const url = `${PUBLIC_BASE}/r/beithady/csat/${token}`;
     const firstName = (guest.full_name || r.guest_name || 'there').split(' ')[0];
-    const body = `Hi ${firstName},\n\nThank you for staying with Beit Hady at ${r.listing_nickname || 'our apartment'}!\n\nQuick favour — how likely are you to recommend us to a friend? It takes 30 seconds:\n\n${url}\n\nWe read every response.\n\nBeit Hady team`;
+    const tplBody = (r.building_code && tpls.get(r.building_code)) || tpls.get('fallback');
+    if (!tplBody) { skipped++; continue; }
+    const body = templateRender(tplBody, {
+      guest_name: firstName,
+      listing: r.listing_nickname || 'our apartment',
+      check_in: r.check_in_date || '',
+      host_phone: '+201101300300',
+      survey_url: url,
+    });
 
     // Ensure wa_casual conversation
     const { data: convId, error: convErr } = await sb.rpc('beithady_ensure_wa_casual_conversation', {

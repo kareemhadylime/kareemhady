@@ -2,7 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
-import { getUpcomingArrivals, matchBeithadyGuest, mintToken } from './reservation-helpers';
+import { getUpcomingArrivals, matchBeithadyGuest, mintToken, templateRender } from './reservation-helpers';
 
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
 const BOARDING_TTL_DAYS = 30;
@@ -19,6 +19,29 @@ export async function runBoardingPassDispatch(): Promise<{
   let sent = 0;
   let skipped = 0;
   const errors: Array<{ reservation_id: string; error: string }> = [];
+
+  // Approval gate (migration 0050): boarding-pass body is a DB template,
+  // not hardcoded. Refuse to fire if no enabled+approved template exists.
+  const { data: tplRows } = await sb
+    .from('beithady_pre_arrival_templates')
+    .select('building_code, body, approved_at, approved_body')
+    .eq('purpose', 'boarding_pass')
+    .eq('enabled', true)
+    .not('approved_at', 'is', null);
+  const tpls = new Map<string | 'fallback', string>();
+  for (const t of (tplRows as Array<{ building_code: string | null; body: string; approved_at: string | null; approved_body: string | null }> | null) || []) {
+    if (!t.approved_at || t.body !== t.approved_body) continue;
+    const k = t.building_code === null ? 'fallback' : t.building_code;
+    tpls.set(k, t.body);
+  }
+  if (tpls.size === 0) {
+    await recordAudit({
+      module: 'communication',
+      action: 'boarding_pass_dispatch_blocked',
+      metadata: { reason: 'no_approved_template', considered: arrivals.length },
+    });
+    return { considered: arrivals.length, sent: 0, skipped: arrivals.length, errors: [] };
+  }
 
   for (const r of arrivals) {
     if (!r.id) { skipped++; continue; }
@@ -38,7 +61,15 @@ export async function runBoardingPassDispatch(): Promise<{
     const url = `${PUBLIC_BASE}/r/beithady/stay/${token}`;
 
     const firstName = (guest.full_name || r.guest_name || 'there').split(' ')[0];
-    const body = `Hi ${firstName},\n\nHere is your Beit Hady stay page — bookmark it for everything you need (gallery, wifi, contacts, requests):\n\n${url}\n\nSee you tomorrow at ${r.listing_nickname || 'your apartment'}!`;
+    const tplBody = (r.building_code && tpls.get(r.building_code)) || tpls.get('fallback');
+    if (!tplBody) { skipped++; continue; }
+    const body = templateRender(tplBody, {
+      guest_name: firstName,
+      listing: r.listing_nickname || 'your apartment',
+      check_in: r.check_in_date || '',
+      host_phone: '+201101300300',
+      stay_url: url,
+    });
 
     const { data: convId, error: convErr } = await sb.rpc('beithady_ensure_wa_casual_conversation', {
       p_phone_digits: guest.phone_e164.replace(/[^0-9]/g, ''),

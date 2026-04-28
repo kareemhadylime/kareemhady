@@ -8,6 +8,14 @@ import type { SlaBucket } from './sla';
 
 export type Channel = 'guesty' | 'wa_cloud' | 'wa_casual';
 
+export type InboxSort =
+  | 'sla_oldest'      // breach + age desc — oldest unanswered first (default)
+  | 'sla_newest'      // age asc — newest unanswered first
+  | 'recent_inbound'  // last_inbound_at desc — most recent guest message first
+  | 'recent_activity' // modified_at_external desc — last touched anywhere
+  | 'recent_outbound' // last_outbound_at desc — most recently replied first
+  | 'name_asc';       // guest_full_name asc
+
 export type InboxFilter = {
   channel?: Channel;
   search?: string;          // matches guest_full_name | guest_email | guest_phone | listing_nickname
@@ -16,6 +24,7 @@ export type InboxFilter = {
   slaBucket?: SlaBucket;    // 'red' to surface breaches
   unreadOnly?: boolean;
   state?: 'open' | 'closed' | 'all';
+  sort?: InboxSort;
 };
 
 export type InboxRow = {
@@ -81,12 +90,32 @@ export async function listInbox(opts: {
   if (f.state && f.state !== 'all') q = q.eq('state', f.state);
   else if (!f.state) q = q.eq('state', 'open');
 
-  // Sort: open + breach first by descending age, then by most recent activity.
-  q = q
-    .order('sla_breach', { ascending: false })
-    .order('sla_age_seconds', { ascending: false, nullsFirst: false })
-    .order('modified_at_external', { ascending: false, nullsFirst: false })
-    .range((page - 1) * pageSize, page * pageSize - 1);
+  const sort: InboxSort = f.sort || 'sla_oldest';
+  switch (sort) {
+    case 'sla_newest':
+      q = q.order('sla_age_seconds', { ascending: true, nullsFirst: false });
+      break;
+    case 'recent_inbound':
+      q = q.order('last_inbound_at', { ascending: false, nullsFirst: false });
+      break;
+    case 'recent_activity':
+      q = q.order('modified_at_external', { ascending: false, nullsFirst: false });
+      break;
+    case 'recent_outbound':
+      q = q.order('last_outbound_at', { ascending: false, nullsFirst: false });
+      break;
+    case 'name_asc':
+      q = q.order('guest_full_name', { ascending: true, nullsFirst: false });
+      break;
+    case 'sla_oldest':
+    default:
+      // Original behaviour: breach + oldest unreplied first
+      q = q
+        .order('sla_breach', { ascending: false })
+        .order('sla_age_seconds', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false });
+  }
+  q = q.range((page - 1) * pageSize, page * pageSize - 1);
 
   const { data, count } = await q;
   return {

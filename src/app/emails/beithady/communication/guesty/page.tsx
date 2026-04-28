@@ -19,10 +19,21 @@ type SearchParams = {
   building?: string;
   sla?: string;
   unread?: string;
+  sort?: string;
   send_error?: string;
   send_status?: string;
   fallback?: string;
   sent?: string;
+};
+
+const VALID_SORTS = ['sla_oldest', 'sla_newest', 'recent_inbound', 'recent_activity', 'recent_outbound', 'name_asc'] as const;
+const SORT_LABELS: Record<typeof VALID_SORTS[number], string> = {
+  sla_oldest: 'Oldest unanswered first (default)',
+  sla_newest: 'Newest unanswered first',
+  recent_inbound: 'Most recent guest message',
+  recent_activity: 'Most recent activity',
+  recent_outbound: 'Most recently replied',
+  name_asc: 'Guest name A→Z',
 };
 
 function parseFilter(sp: SearchParams): InboxFilter {
@@ -34,6 +45,9 @@ function parseFilter(sp: SearchParams): InboxFilter {
     f.slaBucket = sp.sla as SlaBucket;
   }
   if (sp.unread === '1') f.unreadOnly = true;
+  if (sp.sort && (VALID_SORTS as readonly string[]).includes(sp.sort)) {
+    f.sort = sp.sort as typeof VALID_SORTS[number];
+  }
   return f;
 }
 
@@ -44,6 +58,7 @@ function preserveQuery(sp: SearchParams): string {
   if (sp.building) params.push(`building=${encodeURIComponent(sp.building)}`);
   if (sp.sla) params.push(`sla=${encodeURIComponent(sp.sla)}`);
   if (sp.unread === '1') params.push('unread=1');
+  if (sp.sort) params.push(`sort=${encodeURIComponent(sp.sort)}`);
   return params.join('&');
 }
 
@@ -87,7 +102,7 @@ export default async function GuestyInboxPage({
       </section>
 
       {/* Filter form */}
-      <form className="ix-card p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
+      <form className="ix-card p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-sm">
         <input name="q" placeholder="Search guest, listing…" defaultValue={sp.q || ''} className="ix-input col-span-2" />
         <select name="source" defaultValue={sp.source || ''} className="ix-input">
           <option value="">Any source</option>
@@ -103,6 +118,12 @@ export default async function GuestyInboxPage({
           <option value="yellow">🟡 Yellow 1-4h</option>
           <option value="green">🟢 Green ≤ 1h</option>
           <option value="none">Replied (no SLA)</option>
+        </select>
+        <select name="sort" defaultValue={sp.sort || ''} className="ix-input" title="Sort order">
+          <option value="">Sort: {SORT_LABELS.sla_oldest}</option>
+          {VALID_SORTS.filter(s => s !== 'sla_oldest').map(s => (
+            <option key={s} value={s}>Sort: {SORT_LABELS[s]}</option>
+          ))}
         </select>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1">

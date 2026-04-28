@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getSetting } from '@/lib/beithady/settings';
@@ -15,7 +16,8 @@ export default async function BeithadyTemplatesPage() {
 
   const [tplRes, upsellRes, paused, pausedReason, pausedAt] = await Promise.all([
     sb.from('beithady_pre_arrival_templates')
-      .select('id, building_code, language, body, enabled, hours_before, approved_at, approved_by_user, approved_body, approver:app_users!approved_by_user(username)')
+      .select('id, purpose, building_code, language, body, enabled, hours_before, approved_at, approved_by_user, approved_body, approver:app_users!approved_by_user(username)')
+      .order('purpose', { ascending: true })
       .order('building_code', { ascending: true, nullsFirst: false }),
     sb.from('beithady_upsell_catalog')
       .select('id, sku, name, description, price_usd, enabled, approved_at, approved_by_user, approved_name, approved_description, approver:app_users!approved_by_user(username)')
@@ -27,6 +29,7 @@ export default async function BeithadyTemplatesPage() {
 
   type RawTpl = {
     id: string;
+    purpose: string;
     building_code: string | null;
     language: string;
     body: string;
@@ -38,6 +41,7 @@ export default async function BeithadyTemplatesPage() {
   };
   const templates = ((tplRes.data as RawTpl[] | null) || []).map(t => ({
     id: t.id,
+    purpose: t.purpose,
     building_code: t.building_code,
     language: t.language,
     body: t.body,
@@ -47,6 +51,9 @@ export default async function BeithadyTemplatesPage() {
     approved_body: t.approved_body,
     approver_username: Array.isArray(t.approver) ? t.approver[0]?.username || null : t.approver?.username || null,
   }));
+  const preArrival = templates.filter(t => t.purpose === 'pre_arrival');
+  const boardingPass = templates.filter(t => t.purpose === 'boarding_pass');
+  const csatSurvey = templates.filter(t => t.purpose === 'csat_survey');
 
   type RawUpsell = {
     id: string;
@@ -97,11 +104,35 @@ export default async function BeithadyTemplatesPage() {
           Pre-arrival templates
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-300 max-w-2xl">
-          Sent ~24 h before check-in by the <code>beithady-pre-arrival</code> cron. Bodies must use only verified facts — guests treat these as authoritative. The pre-arrival cron is currently STRIPPED from <code>vercel.json</code> so even an approved + enabled template won&apos;t fire until the schedule is restored.
+          Sent ~24 h before check-in by the <code>beithady-pre-arrival</code> cron. Variables: <code>{'{guest_name}'}</code> <code>{'{listing}'}</code> <code>{'{check_in}'}</code> <code>{'{host_phone}'}</code>.
         </p>
-        {templates.length === 0
+        {preArrival.length === 0
           ? <div className="ix-card p-6 text-sm text-slate-500">No pre-arrival templates configured.</div>
-          : <div className="space-y-3">{templates.map(t => <PreArrivalTemplateRow key={t.id} tpl={t} />)}</div>}
+          : <div className="space-y-3">{preArrival.map(t => <PreArrivalTemplateRow key={t.id} tpl={t} />)}</div>}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--bh-heading)' }}>
+          Boarding-pass templates
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-300 max-w-2xl">
+          Sent ~18 h before check-in by the <code>beithady-boarding-pass</code> cron with the guest&apos;s personal stay-page link. Variables: <code>{'{guest_name}'}</code> <code>{'{listing}'}</code> <code>{'{stay_url}'}</code> <code>{'{host_phone}'}</code>.
+        </p>
+        {boardingPass.length === 0
+          ? <div className="ix-card p-6 text-sm text-slate-500">No boarding-pass templates configured.</div>
+          : <div className="space-y-3">{boardingPass.map(t => <PreArrivalTemplateRow key={t.id} tpl={t} />)}</div>}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--bh-heading)' }}>
+          CSAT survey templates
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-300 max-w-2xl">
+          Sent ~24 h after check-out by the <code>beithady-csat-survey</code> cron with the guest&apos;s NPS survey link. Variables: <code>{'{guest_name}'}</code> <code>{'{listing}'}</code> <code>{'{survey_url}'}</code> <code>{'{host_phone}'}</code>.
+        </p>
+        {csatSurvey.length === 0
+          ? <div className="ix-card p-6 text-sm text-slate-500">No CSAT survey templates configured.</div>
+          : <div className="space-y-3">{csatSurvey.map(t => <PreArrivalTemplateRow key={t.id} tpl={t} />)}</div>}
       </section>
 
       <section className="space-y-3">
@@ -118,15 +149,11 @@ export default async function BeithadyTemplatesPage() {
 
       <section className="ix-card p-5 space-y-2">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--bh-heading)' }}>
-          Other guest-facing message bodies
+          Other senders
         </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-300 max-w-2xl">
-          Two senders (boarding-pass link, post-stay CSAT survey) currently use <strong>hardcoded message bodies in code</strong>, not DB templates — they will be migrated to this approval workflow in a follow-up. For now they are blocked by the global Outbound Pause and have been stripped from <code>vercel.json</code>.
-        </p>
         <ul className="text-xs space-y-1 ml-4 list-disc text-slate-700 dark:text-slate-200">
-          <li><code>beithady-boarding-pass</code> — &ldquo;Here is your Beit Hady stay page…&rdquo; (1.5h before check-in)</li>
-          <li><code>beithady-csat-survey</code> — &ldquo;Quick favour — how likely are you to recommend…&rdquo; (after check-out)</li>
-          <li><code>beithady-review-reply-queue</code> — auto-replies to public reviews (manual approval only)</li>
+          <li><code>beithady-review-reply-queue</code> — auto-replies to public reviews. Each reply requires explicit human approval before posting (no DB template).</li>
+          <li>AI auto-reply suggestions on incoming guest messages — controlled at <Link href="/emails/beithady/settings/ai-config" className="ix-link">AI configuration</Link>.</li>
         </ul>
       </section>
     </BeithadyShell>
