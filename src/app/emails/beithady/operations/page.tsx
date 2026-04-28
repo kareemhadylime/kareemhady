@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarRange, ClipboardList, Ticket, ChevronRight, Sunrise, AlertTriangle } from 'lucide-react';
+import { CalendarRange, ClipboardList, Ticket, ChevronRight, Sunrise, AlertTriangle, BookOpen } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -87,6 +87,14 @@ export default async function OperationsLanding() {
           description="AI-scored cancellation risk for upcoming bookings. One-click re-confirmation via WhatsApp."
           badge={{ label: 'Phase K', tone: 'gold' }}
           accent="violet"
+        />
+        <OpCard
+          href="/emails/beithady/operations/sop"
+          icon={BookOpen}
+          title="SOP & Knowledge Base"
+          description="Procedures + checklists + FAQs for Reception, Guest Relations, Housekeeping, Maintenance, and Upselling."
+          badge={{ label: 'Phase K', tone: 'gold' }}
+          accent="cyan"
         />
         <OpCard
           href="/emails/beithady/crm/tasks"
