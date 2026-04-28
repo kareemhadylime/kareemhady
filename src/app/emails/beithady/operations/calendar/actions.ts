@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { resolvePaymentForReservation } from '@/lib/beithady/operations/payment-resolver';
 import { blockGuestyAvailability, unblockGuestyAvailability } from '@/lib/beithady/operations/guesty-writes';
+import { sendWhatsApp } from '@/lib/whatsapp/green-api';
 
 async function writeAudit(
   actorUserId: string,
@@ -202,6 +203,57 @@ export async function recomputePaymentAction(input: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// =================================================================== Re-confirmation (Phase K.2 cancel-risk workflow)
+
+export async function sendReconfirmationAction(input: {
+  reservationId: string;
+  customMessage?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { user } = await requireBeithadyPermission('operations', 'full');
+  const sb = supabaseAdmin();
+  const { data: r } = await sb
+    .from('beithady_reservation_grid_v')
+    .select('reservation_id, listing_nickname, guest_name, guest_phone, check_in_date, check_out_date, nights')
+    .eq('reservation_id', input.reservationId)
+    .maybeSingle();
+  if (!r) return { ok: false, error: 'Reservation not found' };
+  const row = r as { listing_nickname: string | null; guest_name: string | null; guest_phone: string | null; check_in_date: string; check_out_date: string; nights: number | null };
+  if (!row.guest_phone) {
+    return { ok: false, error: 'No guest phone number on file' };
+  }
+  const phone = row.guest_phone.replace(/[^\d]/g, '');
+
+  const greet = row.guest_name ? `Hi ${row.guest_name}` : 'Hello';
+  const unit = row.listing_nickname ? ` at ${row.listing_nickname}` : '';
+  const message = input.customMessage
+    || `${greet}! Just confirming your upcoming stay${unit} from ${row.check_in_date} to ${row.check_out_date} (${row.nights} night${row.nights === 1 ? '' : 's'}). Reply YES to confirm, or message us if any of your plans have changed. — Beit Hady`;
+
+  const result = await sendWhatsApp({ to: phone, message });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await sb
+    .from('beithady_reservation_overrides')
+    .upsert({
+      reservation_id: input.reservationId,
+      last_reconfirmation_sent_at: new Date().toISOString(),
+      reconfirmation_response: 'no_response',
+      updated_by_user: user.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'reservation_id' });
+
+  await writeAudit(user.id, 'reconfirmation.send', input.reservationId, null, {
+    phone,
+    message_preview: message.slice(0, 80),
+  });
+
+  // Trigger immediate recompute so the score drops
+  await sb.rpc('beithady_calendar_recompute_cancel_risk', { p_reservation_id: input.reservationId });
+
+  revalidatePath('/emails/beithady/operations/cancel-risk');
+  revalidatePath('/emails/beithady/operations/calendar');
+  return { ok: true };
 }
 
 // =================================================================== Boarding pass

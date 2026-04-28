@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarRange, ClipboardList, Ticket, ChevronRight, Sunrise } from 'lucide-react';
+import { CalendarRange, ClipboardList, Ticket, ChevronRight, Sunrise, AlertTriangle } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -63,7 +63,7 @@ export default async function OperationsLanding() {
       </section>
 
       {/* Operations cards */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <OpCard
           href="/emails/beithady/operations/calendar"
           icon={CalendarRange}
@@ -79,6 +79,14 @@ export default async function OperationsLanding() {
           description="Daily 8am role-specific digest for Guest Relations, Ops, and Finance. Web archive + WhatsApp + email."
           badge={{ label: 'Phase K', tone: 'gold' }}
           accent="amber"
+        />
+        <OpCard
+          href="/emails/beithady/operations/cancel-risk"
+          icon={AlertTriangle}
+          title="At-risk Reservations"
+          description="AI-scored cancellation risk for upcoming bookings. One-click re-confirmation via WhatsApp."
+          badge={{ label: 'Phase K', tone: 'gold' }}
+          accent="violet"
         />
         <OpCard
           href="/emails/beithady/crm/tasks"

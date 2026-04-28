@@ -24,6 +24,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
     { data: prearrivalPending },
     { data: yesterdayCsat },
     { data: lateThreads },
+    { data: atRiskRows },
   ] = await Promise.all([
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_nickname, building_code, channel, guest_name, nights, loyalty_tier, is_vip')
@@ -58,6 +59,13 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       .eq('sla_breach', true)
       .order('sla_age_seconds', { ascending: false })
       .limit(10),
+    // At-risk re-confirms (Phase K.2): score ≥ 70, arriving in next 14d,
+    // and not re-confirmed in last 24h.
+    sb.from('beithady_reservation_overrides')
+      .select('reservation_id, cancel_risk_score, last_reconfirmation_sent_at')
+      .gte('cancel_risk_score', 70)
+      .order('cancel_risk_score', { ascending: false })
+      .limit(20),
   ]);
 
   type ArrivalRow = { reservation_id: string; listing_nickname: string | null; building_code: string | null; channel: string | null; guest_name: string | null; nights: number | null; loyalty_tier: string | null; is_vip: boolean | null };
@@ -67,6 +75,34 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
   const pre = (prearrivalPending as Array<{ reservation_id: string; listing_nickname: string | null; guest_name: string | null }> | null) || [];
   const csat = (yesterdayCsat as Array<{ id: string; rating: number | null; comment: string | null; building_code: string | null }> | null) || [];
   const late = (lateThreads as Array<{ id: string; channel: string; listing_nickname: string | null; guest_full_name: string | null; sla_age_seconds: number | null }> | null) || [];
+
+  // Hydrate at-risk with reservation details from the grid view
+  const atRiskOverrides = (atRiskRows as Array<{ reservation_id: string; cancel_risk_score: number; last_reconfirmation_sent_at: string | null }> | null) || [];
+  const recentlyReconfirmed = new Set(
+    atRiskOverrides
+      .filter(o => o.last_reconfirmation_sent_at && new Date(o.last_reconfirmation_sent_at) > new Date(Date.now() - 24 * 3600 * 1000))
+      .map(o => o.reservation_id)
+  );
+  const candidateIds = atRiskOverrides
+    .filter(o => !recentlyReconfirmed.has(o.reservation_id))
+    .map(o => o.reservation_id);
+  const fourteenDaysFromToday = new Date(dateIso + 'T00:00:00');
+  fourteenDaysFromToday.setDate(fourteenDaysFromToday.getDate() + 14);
+  const fourteenDaysFromTodayIso = fourteenDaysFromToday.toISOString().slice(0, 10);
+  const { data: atRiskDetail } = candidateIds.length > 0
+    ? await sb.from('beithady_reservation_grid_v')
+        .select('reservation_id, listing_nickname, building_code, guest_name, channel, check_in_date, nights, payment_status')
+        .in('reservation_id', candidateIds)
+        .gte('check_in_date', dateIso)
+        .lte('check_in_date', fourteenDaysFromTodayIso)
+        .neq('status', 'canceled')
+    : { data: [] };
+  const atRiskScoreById = new Map(atRiskOverrides.map(o => [o.reservation_id, o.cancel_risk_score]));
+  type AtRiskDetail = { reservation_id: string; listing_nickname: string | null; building_code: string | null; guest_name: string | null; channel: string | null; check_in_date: string; nights: number | null; payment_status: string | null };
+  const atRiskRowsHydrated = ((atRiskDetail as AtRiskDetail[] | null) || [])
+    .filter(r => atRiskScoreById.has(r.reservation_id))
+    .sort((a, b) => (atRiskScoreById.get(b.reservation_id) || 0) - (atRiskScoreById.get(a.reservation_id) || 0))
+    .slice(0, 8);
 
   const isVipFlag = (r: { is_vip: boolean | null; loyalty_tier: string | null }) =>
     r.is_vip || ['platinum', 'gold', 'vip'].includes((r.loyalty_tier || '').toLowerCase());
@@ -104,6 +140,17 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
         href: `/emails/beithady/operations/calendar?reservation=${r.reservation_id}`,
       })),
       empty_message: 'All tomorrow\'s arrivals have been messaged. ✓',
+    },
+    {
+      title: 'At-risk re-confirms (cancel-risk ≥70, ≤14d)',
+      emoji: '🚨',
+      items: atRiskRowsHydrated.map(r => ({
+        primary: `${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+        secondary: `${r.channel || ''}${r.payment_status ? ` · ${r.payment_status}` : ''}${r.building_code ? ` · ${r.building_code}` : ''} · risk ${atRiskScoreById.get(r.reservation_id)}`,
+        tag: { label: 'Re-confirm', tone: 'red' },
+        href: `/emails/beithady/operations/cancel-risk`,
+      })),
+      empty_message: 'No high-risk reservations need re-confirmation in the next 14 days. ✓',
     },
     {
       title: 'Late SLA breaches',
@@ -157,6 +204,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       sla_breaches: late.length,
       csat_yesterday: csat.length,
       csat_low: csat.filter(c => (c.rating || 0) <= 6).length,
+      at_risk_reconfirms: atRiskRowsHydrated.length,
     },
   };
 }
