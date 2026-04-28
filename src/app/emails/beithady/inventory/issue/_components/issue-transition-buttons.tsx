@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, CheckCircle2, XCircle, FileCheck2, AlertCircle } from 'lucide-react';
 import { submitIssueAction, approveIssueAction, rejectIssueAction, postIssueAction } from '../actions';
-import type { IssueStatus } from '@/lib/beithady/inventory/issue';
+import type { IssueStatus } from '@/lib/beithady/inventory/issue-shared';
 
 export function IssueTransitionButtons({
   issueId, status, requiredApprovers, canApprove,

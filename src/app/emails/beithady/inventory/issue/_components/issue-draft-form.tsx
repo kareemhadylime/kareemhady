@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2, AlertCircle, FileCheck2 } from 'lucide-react';
 import { createIssueDraftAction } from '../actions';
-import { ISSUE_TYPE_LABEL, type IssueType } from '@/lib/beithady/inventory/issue';
+import { ISSUE_TYPE_LABEL, type IssueType } from '@/lib/beithady/inventory/issue-shared';
 
 type WarehouseOpt = { id: string; label: string; building_code: string | null };
 type ItemOpt = { id: string; sku: string; name_en: string; uom: string; total_on_hand: number };
