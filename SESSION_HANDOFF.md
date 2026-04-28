@@ -49,6 +49,37 @@ Data check: only 3 rows in the entire system have `source='owner'` (all manual c
 
 **Status:** committed locally on `claude/brave-babbage-a566c2`. The push to main was blocked by a permission rule on this run (the two earlier pushes today went through). Awaiting user approval on whether to push + redeploy or hold the change locally — purely preventive value, no urgency.
 
+### Follow-up — Guest Relations brief audit + fixes (commit `41475ad`, **NOT YET DEPLOYED**)
+
+User flagged the 8 AM GR WhatsApp brief: same VIP "Ayman ELmadany" reservation appearing 5×, "+ 600 more" overflow line. Root cause = same view explosion fix already shipped (migration 0047). That GR run happened before the migration landed; the brief code itself also needed audit.
+
+User said "all" + "A to D" → applied every change in one commit ([gr-brief.ts](src/lib/beithady/morning-brief/gr-brief.ts)):
+
+**High-confidence (A-D):**
+- A. Excluded `source_label='owner'` + `is_manual_block=true` from 5 reservation-grid queries (calendar blocks aren't guest events).
+- B. CSAT `created_at` filter switched to Cairo-TZ instants via inlined `cairoStartOfDayUtc` (was UTC → clipped 2-3 h off each end of the wall day).
+- C. CSAT average ignores null ratings (comment-only responses no longer pulled avg toward 0).
+- D. NULL `nights` renders as "—" instead of "0 nights".
+
+**Clarifications 1-6:**
+1. Pre-arrival expanded to today + tomorrow (catches late-afternoon same-day arrivals where AM message was missed).
+2. VIP window expanded to today → today+3 (today's VIPs now visible in the dedicated section, not just generic Arrivals).
+3. Late SLA capped at 48 h freshness — see "discoveries" below.
+4. Departures secondary line now shows channel + nights (parity with Arrivals).
+5. Section order: Arrivals → **VIP** → Departures → Pre-arrival → At-risk → Late SLA → CSAT.
+6. All section titles now include counts (e.g., "Arrivals today (14)"), matching Finance.
+
+**Tomorrow's brief expected counts (post-fix, post-deploy):**
+14 arrivals · 0 VIP next 3d · 7 departures · 19 pre-arrival pending (today+tomorrow) · ? at-risk · 10 late-SLA (48h) · 0 CSAT yesterday.
+
+**🔴 Two upstream data issues discovered while auditing — flagged for separate decision:**
+
+1. **`beithady_pre_arrival_messages` table is empty (0 rows total).** That's why all 309 of this month's check-ins show `prearrival_sent_at IS NULL`. The Phase F pre-arrival sender either wasn't deployed, or it sends without writing to this table. Until that's fixed, the "Pre-arrival not sent" section will show ~all upcoming check-ins as needing a message — noisy but accurate signal that the auto-sender is non-functional.
+
+2. **2,110 of 2,139 `sla_breach=true` conversations are >1 week old.** The breach flag isn't being flipped back to false when conversations resolve. The 48 h cap I added stops the brief from being useless, but the underlying flag-lifecycle bug needs cleanup (either a worker that re-evaluates, or flipping the flag on the next message in the thread).
+
+**Status:** committed locally. Two prior commits also still local (`f9e671d` finance owner-stays, `41475ad` GR audit). All three need a single push to main + `vercel --prod`. Awaiting user approval — earlier push attempt was blocked by the harness today.
+
 ## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
 Two endpoints:
