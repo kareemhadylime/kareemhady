@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Latest turn — Finance Morning Brief: critical bug fix
+## 🟡 Latest turn — Phase L Budget + Consumables plan drafted (no code)
+
+User asked to start budgeting + operational control around consumables, amenities, and welcome tray, sourced from Amazon Egypt, with a per-check-in cost engine + Arabic housekeeping checklist. **Plan-only turn**, awaiting answers before coding.
+
+**Plan I sent for review:**
+
+**Industry research (deep):** consumables should run 6-9% of cleaning fee charged to guest. Egypt-specific brands + ballpark Amazon EG prices listed for 12+ SKUs (Fine 12-roll mega ~280 EGP, Lipton 100-pack ~80 EGP, Nestle Pure Life 12-pack ~85 EGP, etc.). Bake in 12-15% loss factor on amenities. Sample 7-night 4-guest 2BR/2BA stay → ~445 EGP (~$9 USD) consumables vs $25 cleaning fee = 36% margin.
+
+**9 functional surfaces:** Catalog · Consumption Rules matrix · Unit Profiles · Per-Checkin Cost calculator · 30-day Forecast · Auto Purchase List · Stock on Hand · Welcome-Tray Templates (tier-based) · **Arabic Housekeeping Checklist** (mobile-first, photo proof, posts back to consumption).
+
+**8 DB tables proposed:**
+- `beithady_consumables_catalog`, `beithady_unit_profiles`, `beithady_consumption_rules`, `beithady_consumables_stock`, `beithady_welcome_tray_templates`, `beithady_consumables_purchase_orders`, `beithady_housekeeping_checklists`, `beithady_consumables_price_history`
+
+**Sub-phases (~7-8 commits):** L.1 migration + 50-80 baseline SKUs · L.2 Catalog page + Amazon URL paste · L.3 Rules matrix · L.4 Cost + Forecast · L.5 Purchase List · L.6 Stock · L.7 Welcome Tray Templates · L.8 Arabic mobile checklist.
+
+**12 improvement suggestions** beyond the brief (tier-based welcome trays, photo evidence, bulk-pack discount logic, seasonal Ramadan tray, per-channel profitability, multi-location stock, consumption variance report, etc.).
+
+**11 open questions** blocking workflow phase:
+1. Cleaner accounts — login or passwordless phone flow?
+2. Photo bucket — reuse Phase D `beithady-gallery` or new `beithady-housekeeping`?
+3. Stock locations — single warehouse or per-building cabinets?
+4. Procurement — manual after approval or Amazon affiliate API integration?
+5. Loss factor — hardcode 12% or per-item editable?
+6. Currency — EGP only or also USD via fx_rates?
+7. Photo upload size cap?
+8. Checklist trigger — auto on checkout event or manual from drawer?
+9. VIP welcome-tray photo — all stays or Gold+ only?
+10. Price refresh cadence — admin manual monthly or scraper?
+11. Seed scope — 50-60 SKUs (broad) or ~25 SKUs (tight)?
+
+User can answer per-question or say "default the questions and proceed" for sensible V1 defaults.
+
+Confidence: 85% on structure / DB shape / rule algebra / Arabic UX direction; 70% on photo storage + multi-location + cleaner identity + procurement integration depth (Q1-Q4 + Q11).
+
+> Note: while I was drafting Phase L, a sibling worktree shipped a series of audit fixes to the Morning Brief (Finance row-explosion fix via `LEFT JOIN LATERAL` in migration 0047, Cairo-TZ accrual revenue, Ops brief owner-stay/manual-block exclusions, manual-block segregation by reason, an admin audit-resend WhatsApp endpoint at `/api/cron/beithady-send-test-briefs`). Those landed in commits `41475ad`, `49af301`, `d8f78f4`, `bcc5b69`, `dab6499`, `047ea78`. They're documented in detail in the sections below — not my work this session.
+
+## 🟢 Earlier — Finance Morning Brief: critical bug fix (sibling worktree)
 
 User flagged WhatsApp Finance brief on 2026-04-28 showed wildly inflated numbers — 412 bookings yesterday, 1000 MTD, 607 check-ins next 2 days, identical $154 BH-435-101 rows repeating 3×. Asked for deep diagnosis and fix.
 
@@ -770,7 +806,8 @@ Order of phases shipped (oldest → newest):
 39. **Phase K.2 — Cancellation risk + re-confirm workflow** (`f889b2c`) — migration 0045 + 0-100 scorer + /operations/cancel-risk page + WhatsApp re-confirm
 40. **Phase K.3 — SOP & Knowledge Base** (`19123ce`) — migration 0046 + 16 seed articles across 5 hospitality roles + library page + acknowledgement tracking
 41. **SOP/KB — Arabic GR + Maintenance + lang filter** (`68b32f0`) — 6 new Arabic counterpart articles + lang filter + EN↔AR counterpart link
-42. **SOP/KB — A4 PDF export** (`61c9063`) — react-pdf renderer (brand-styled, A4, RTL-aware) + 2 API routes (per-article, per-role bundle with TOC) + download buttons on article detail + landing pages (this turn)
+42. **SOP/KB — A4 PDF export** (`61c9063`) — react-pdf renderer + 2 API routes + download buttons
+43. **Phase L plan drafted** (no commit) — Budget + Consumables + Welcome Tray + Arabic Housekeeping Checklist; 9 surfaces, 8 DB tables, 7-8 commit scope, 11 open questions awaiting user (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
