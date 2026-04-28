@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BookOpen, Search, FileText, ListChecks, HelpCircle, ChevronRight } from 'lucide-react';
+import { BookOpen, Search, FileText, ListChecks, HelpCircle, ChevronRight, Download } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listArticles, listAllRoleCounts, ROLE_LABEL_EN, SUBCATEGORY_LABEL, type SopRole, type SopSubcategory, type SopKind } from '@/lib/beithady/sop/queries';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
@@ -62,6 +62,15 @@ export default async function SopLandingPage({
         eyebrow="Beit Hady · Operations"
         title="SOP & Knowledge Base"
         subtitle={`${articles.length} article${articles.length === 1 ? '' : 's'} across Reception, Guest Relations, Housekeeping, Maintenance, and Upselling.`}
+        right={role ? (
+          <a
+            href={`/api/beithady/sop/role/${role}/pdf${language ? `?lang=${language}` : ''}`}
+            className="ix-btn-primary !text-xs"
+            title={`Download ${ROLE_LABEL_EN[role]} bundle as A4 PDF`}
+          >
+            <Download size={12} /> Download {ROLE_LABEL_EN[role]} bundle
+          </a>
+        ) : undefined}
       />
 
       {/* Role tabs */}

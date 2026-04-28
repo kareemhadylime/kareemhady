@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, FileText, ListChecks, HelpCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, FileText, ListChecks, HelpCircle, CheckCircle2, Download } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getCurrentUser } from '@/lib/auth';
 import { getArticle, findCounterpart, ROLE_LABEL_EN, ROLE_LABEL_AR, SUBCATEGORY_LABEL } from '@/lib/beithady/sop/queries';
@@ -57,15 +57,26 @@ export default async function ArticleDetailPage({
         }
         title={article.title}
         subtitle={article.summary || undefined}
-        right={counterpart ? (
-          <Link
-            href={`/emails/beithady/operations/sop/${counterpart.slug}`}
-            className="ix-btn-secondary !text-xs"
-            title={counterpart.language === 'ar' ? 'القراءة بالعربية' : 'Read in English'}
-          >
-            {counterpart.language === 'ar' ? '🇪🇬 العربية' : '🇬🇧 English'}
-          </Link>
-        ) : undefined}
+        right={
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/beithady/sop/article/${article.slug}/pdf`}
+              className="ix-btn-secondary !text-xs"
+              title="Download A4 PDF"
+            >
+              <Download size={11} /> PDF
+            </a>
+            {counterpart && (
+              <Link
+                href={`/emails/beithady/operations/sop/${counterpart.slug}`}
+                className="ix-btn-secondary !text-xs"
+                title={counterpart.language === 'ar' ? 'القراءة بالعربية' : 'Read in English'}
+              >
+                {counterpart.language === 'ar' ? '🇪🇬 العربية' : '🇬🇧 English'}
+              </Link>
+            )}
+          </div>
+        }
       />
 
       {/* Meta strip */}
