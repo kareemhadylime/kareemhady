@@ -1,24 +1,102 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Latest turn — Operations Calendar: auto-fade stale inquiries (commits `2738139` + `5a078fa`)
+## 🟡 Latest turn — Phase M coding: M.0 → M.6 SHIPPED (7 commits deployed), M.7 → M.14 remaining
 
-User flagged BH-26-001 + BH-26-003 showing what looked like duplicated/overlapping reservations on May 1. Diagnosis turned out to be **not a bug, just real data**: 4 different Airbnb guests (Saad, Talal, Nadya, Noha) all sent inquiries for overlapping May 1-9 dates on those two units, plus the same human "Saad" inquired on both BH-26-001 *and* BH-26-003 to compare — two distinct `reservation_id`s for the same person. Only Ezekiel Enejeta (May 2-6) ever became confirmed. The diagonal-stripe pattern in [reservation-bar.tsx:62](src/app/emails/beithady/operations/calendar/_components/reservation-bar.tsx:62) is the inquiry indicator, not a duplicate marker. Visual stacking from `position: absolute` hides bars behind each other when they overlap.
+Auto mode active. User confirmed defaults on C1/C2/C3 → green light to coding. Six sub-phases shipped this session, all auto-deployed to limeinc.vercel.app.
 
-**User direction:** "Inquiry should expire within 48 Hrs of no Communication — Auto Fade Inquiries". Spec aligned with the existing data: `beithady_conversations.last_inbound_at` + `last_outbound_at` already cache the last message timestamps per reservation. Verified against the 7 visible inquiries: 6 are stale (>48 h since last message; range 64h–156h), 1 is fresh (Lojain, 17h).
+### Shipped this session
 
-**Implementation (`2738139`):** client-side, no migration. After fetching reservations in `calendar-data.ts`, query `beithady_conversations` for the inquiry-only IDs (single `.in()` lookup), pick `GREATEST(last_inbound_at, last_outbound_at)`, and mark `is_stale_inquiry = true` when older than 48 h. New fields `last_communication_at` and `is_stale_inquiry` on `CalendarReservation` type. `reservation-bar.tsx` drops opacity to **0.35** for stale inquiries (active inquiries stay at 1.0; cancelled stays at 0.4). Tooltip suffix " · Stale inquiry (>48h silent)" so hover reveals the reason. `reservation-detail.ts` sets the new fields to default `null` / `false` when building the drawer payload.
+| Sub | Commit | Deploy | Scope |
+|---|---|---|---|
+| M.0 | `05ff5b4` | ✅ | Pre-flight findings doc ([docs/PHASE_M_PREFLIGHT.md](docs/PHASE_M_PREFLIGHT.md)) — 6 read-only investigations |
+| M.1 | `85e1e2a` | ✅ | Migration 0048a (role enum extension: `warehouse_manager` + `housekeeper`) + 0048b (14 tables + 4 line-item children + seeds) + auth.ts updated with `inventory` BeithadyCategory + 7-role × 9-category permission matrix |
+| M.2 | `117f668` | ✅ | 9th Beithady launcher tile (Package icon, emerald) + sub-landing with KPI snapshot + 9 tab cards + 3 quick-link cards + 12 stub pages routing to a shared `<InventoryComingSoon />` component + `beithady-inventory` storage bucket created (private, 10MB cap, image+pdf MIME) |
+| M.3 | `5024494` | ✅ | Warehouses CRUD + tree view + PIN rotation. Lib at `src/lib/beithady/inventory/warehouses.ts` (listAll, buildTree, fetchStats, getWarehousePin). 4 server actions (create/update/toggleActive/rotatePin). Tree panel renders by-building, recursive sub-warehouses. Cycle detection on parent edits. Block deactivation if non-zero stock. PIN reveal-once banner |
+| M.4 | `8f24af0` | ✅ | Items Catalog + Excel template + bulk import. Added `exceljs ^4.4.0` dep. Lib `catalog.ts` (listItems with category+vendor+stock joins) + `excel.ts` (template generator with 4 sheets, parser with per-row validation). 5 server actions. Items table with low-stock chip, batch/expiry/owner/asset flag pills. Two-step import modal (upload → preview with willCreate/willUpdate/errors → commit). Template route at `/api/beithady/inventory/items/template` |
+| M.5 | `dba972f` | ✅ | Vendors / Registration tab with KYC workflow. Lib `vendors.ts` (listVendors with item-count + GRN aggregates, getVendorPriceHistory). 6 server actions: create/update + 4 status transitions (submitForKyc/approve/suspend/reactivate). Auto-approval if creator is admin (Risk #9). Admin-only approve action requires manager+ role. Status filter chips with per-status counts. 5-section vendor form (Identity / Legal & tax / Commercial / Contact / Banking + Categories multi-select). Per-row 3-dot actions menu with status-aware transitions |
+| M.6 | `871b956` | ⏳ | Stock view + transaction ledger drill-in. Lib `stock.ts` (listStockBalances drives off items table so zero-stock items still surface; cross-warehouse aggregation for low/stockout filters; getItemLedger for drill-in). Stock page with KPI strip + 5-filter form + colored on-hand column. Right-slideover ledger drawer with type pills + signed Δ qty + doc/ref column. **REBASE NEEDED** on top of sibling commits `5a078fa` (warehouses-shared split — already applied to repo) + `2738139` (stale inquiry fade) before merging. |
 
-**Build hotfix (`5a078fa`):** Vercel build was already broken on main (sibling worktree's M.3 commit `5024494`). `src/lib/beithady/inventory/warehouses.ts` had `import 'server-only'` at the top but exported types AND constants (`CATEGORY_TAG_LABEL`, `BEITHADY_BUILDING_CODES`) consumed by client components `warehouse-form-button.tsx` + `warehouse-tree-panel.tsx`. Even with `import type`, the runtime imports of the constants pulled `'server-only'` into the client bundle → Turbopack rejected. Fix: extracted types + constants into [src/lib/beithady/inventory/warehouses-shared.ts](src/lib/beithady/inventory/warehouses-shared.ts) (no `server-only`); `warehouses.ts` re-exports them for back-compat on the server side; both client components updated to import from `-shared`. Confirmed green on canonical `limeinc.vercel.app`.
+### M.0 pre-flight findings that shaped M.1+ (full doc at [docs/PHASE_M_PREFLIGHT.md](docs/PHASE_M_PREFLIGHT.md))
 
-**Behavior expected on next page load** for the user's screenshot view (BH-26-001 + BH-26-003 in Mon Apr 27 window):
-- BH-26-001: Hanaa A.Haleem (confirmed) full opacity, Talal + Saad inquiries fade to 0.35 → confirmed booking now visually dominant.
-- BH-26-003: Tariq + Ezekiel (both confirmed) full opacity, 5 stale inquiries (Nadya, Saad, Noha, Raul, Lojain*) fade to 0.35. *Lojain was 17h fresh at audit time — will fade ~31h from now if no host reply lands.
+1. **Currency**: All 4 active Beithady buildings (BH-26/73/435/OK) are Egypt-only. Q9 V1 scope (EGP+USD) confirmed. No AED columns in V1.
+2. **BH-34**: 0 listings in Guesty (upcoming building). Per Q15 = yes, seed warehouse Day 1 anyway.
+3. **Phase F task table**: `beithady_tasks.id` is **uuid** → `beithady_inventory_issues.ref_task_id` is uuid with `ON DELETE SET NULL`.
+4. **Phase E classifier reusability**: `src/lib/beithady/ai/classify.ts` Anthropic SDK haiku-4-5 pattern — reusable for M.13 WA inbound parser.
+5. **Settings PIN convention**: greenfield. Introduced `inventory_pin_WH-XX` keys in `beithady_settings` (random 6-digit at seed; rotatable from M.3 UI).
+6. **fx_rates schema**: `rate_date · base · quote · rate · source · fetched_at`. Nightly fx-snap helper (TODO M.11) will denormalise `default_cost_usd` onto items.
 
-**Not changed (deliberate):** `statusDotFor` still treats stale inquiries as upcoming reservations for row dot color. Bar fade is the user-visible signal; dot logic is a separate concern. Easy to extend if the user wants stale inquiries excluded from the dot too.
+### 🔴 Architecture finding from M.0 that changed M.8 plan
 
-**Threshold:** hardcoded 48 h via `stalenessHours = 48` in `calendar-data.ts`. If the user wants to make it configurable per-role or per-channel later, surface as a row in `beithady_settings` (e.g. `inquiry_stale_hours`) and read at fetch time.
+`guesty_reservations.status` has NO `checked_in` state — only `confirmed/inquiry/canceled/closed/declined/reserved`. There's no state-transition signal to listen on. **Auto-issue trigger MUST be daily cron** (Cairo ~14:00) scanning `status='confirmed' AND check_in_date <= today AND not_yet_issued_today`, NOT realtime event subscription. Idempotency baked in via UNIQUE index `uniq_bit_reservation_hold ON beithady_inventory_transactions(ref_reservation_id, item_id, warehouse_id) WHERE type='reservation_hold'`.
 
-## 🟢 Earlier this session — Phase M.0 pre-flight findings + signed-off workflow → coding begun
+### Database state after M.1
+
+19 inventory tables created via migration 0048b (applied via Supabase MCP):
+- 14 main: warehouses, categories, uoms, vendors, items, stock, transactions, grns, issues, purchase_orders, kits, approval_rules, count_sessions, consumption_rules
+- 5 line-item children: grn_lines, issue_lines, po_lines, kit_components, count_lines
+
+Seeds populated:
+- 7 categories (consumables/linen/fnb/chemicals/maintenance/welcome_tray/assets) with bilingual EN+AR labels + default UoM/batch/expiry per category
+- 8 UoMs (pcs/roll/pack/box/kg/g/L/mL) with measure_kind taxonomy
+- 6 main warehouses (BH-26/73/435/OK/34/OTHER) with random 6-digit PINs in `beithady_settings`
+- 1 dummy approved vendor (VEN-AMAZON-EG) so first GRN test isn't KYC-blocked
+- 10 approval rules (Q4 thresholds: GRN >5K warehouse_mgr, GRN >25K finance, Issue >1K warehouse_mgr, PO >10K finance, all damage_writeoff → manager+finance, all owner_request → manager, all adjustments → warehouse_manager, count variance >10% → warehouse_manager, transfer >5K → warehouse_manager)
+
+Storage bucket `beithady-inventory` (private, 10MB, image/png|jpeg|webp + pdf).
+
+### Locked answers (recap from workflow phase)
+
+Q0=design integration · Q1=hybrid · Q2=weighted-avg · Q3=per-item batch+expiry flags · Q4=5K/25K/1K/10K EGP defaults · Q5=new roles warehouse_manager+housekeeper · Q6=building-PIN V1 · Q7=Item Master Excel only V1 · Q8=new bucket · Q9=EGP+USD V1 · Q10=owner-billable V2 · Q11=auto-issue V1 (daily cron not realtime per #6) · Q12=mobile Arabic V1 · Q13=WA inbound V1 · Q14=consumables only V1 · Q15=all 5 buildings + OTHER
+
+C1=as-listed (M.5 vendors before M.7 GRN) · C2=PIN+name session · C3=7 categories + 8 UoMs
+
+### Sibling worktree activity this session
+
+- `2738139` Operations Calendar: auto-fade stale inquiries >48h silent — touched `calendar-data.ts`, no overlap with inventory work
+- `5a078fa` **Build hotfix**: split `warehouses.ts` types/constants out into `warehouses-shared.ts` because client components were transitively pulling `'server-only'` into the bundle via const re-exports. Critical fix — without it the canonical Vercel build was red on the M.3 commit. Pattern locked in: anything imported by client components MUST live in a non-`server-only` module. Applied to my warehouses lib retroactively.
+- `73d08e2` SESSION_HANDOFF doc-only
+
+### Remaining sub-phases (~8 commits)
+
+| Sub | Scope | Est commits |
+|---|---|---|
+| M.7 | GRN + approval + posting engine (Tab 6) — writes transactions, recomputes weighted-avg cost, DB advisory lock per item_id during posting (Risk #2) | 1 |
+| M.8 | Issue with 6 types + Kits + auto-rules engine + daily cron at Cairo 14:00 (Tab 7 + `/inventory/rules`) | 2 |
+| M.9 | Transfers (Out → In pair, in-transit visibility) | 0.5 |
+| M.10 | Counts & Adjustments (cycle + physical, variance → adjustment) | 0.5 |
+| M.11 | Dashboard (Tab 1) — KPI cards + per-checkin cost widget + 30-day forecast + reorder alerts + stockout-risk + nightly fx-snap helper + cron `beithady-inventory-rollup` every 30 min | 1 |
+| M.12 | Mobile cleaner app `/inventory/m` — Arabic RTL + building-PIN gate + named session (C2) + photo capture + posts back as Issue type=mobile_pin | 1 |
+| M.13 | WhatsApp inbound reorder — green-api webhook handler + Phase E classifier reuse for inventory item extraction + draft Issue/PO creation + manager approval ping | 1 |
+| M.14 | Morning Brief integration (stockout-risk section) + WhatsApp approval push notifications + final polish | 0.5 |
+
+Currently 7/15 commits done (~47%). Branch: `claude/romantic-meninsky-05e511`.
+
+### IMPORTANT lessons learned
+
+- **`server-only` rule**: anything that client components import (types AND const values) MUST live in a non-`server-only` module. Use `<lib>-shared.ts` convention. The sibling commit `5a078fa` had to apply this fix retroactively to my M.3 work — locked in for all future inventory libs.
+- **Rebase discipline**: sibling worktrees ship to main mid-session. Always `git fetch + rebase` before push, not after. `.claude/settings.local.json` conflicts are noise — resolve with `--theirs`.
+
+### File map (where things live)
+
+- Migrations: `supabase/migrations/0048a_beithady_inventory_role_enum.sql` + `0048b_beithady_inventory_tables.sql`
+- Lib: `src/lib/beithady/inventory/{warehouses,catalog,excel,vendors}.ts`
+- Pages: `src/app/emails/beithady/inventory/{page,warehouses,items,vendors,...}/page.tsx`
+- Server actions: `src/app/emails/beithady/inventory/{warehouses,items,vendors}/actions.ts`
+- API: `src/app/api/beithady/inventory/items/template/route.ts`
+- Audit: `src/lib/beithady/audit.ts` extended `AuditModule` with 'inventory' (+'operations')
+- Auth: `src/lib/beithady/auth.ts` extended with new roles + `inventory` BeithadyCategory
+
+## 🟢 Earlier this session (sibling worktree) — Operations Calendar: auto-fade stale inquiries (`2738139` + `5a078fa`)
+
+User flagged BH-26-001 + BH-26-003 showing what looked like duplicated/overlapping reservations on May 1. Diagnosis: not a bug, just real data — 4 different Airbnb guests (Saad, Talal, Nadya, Noha) sent inquiries for overlapping May 1-9 dates on those two units.
+
+**User direction:** "Inquiry should expire within 48 Hrs of no Communication — Auto Fade Inquiries". Verified against the 7 visible inquiries: 6 stale (>48 h since last message; range 64h–156h), 1 fresh (Lojain, 17h).
+
+**Implementation (`2738139`):** client-side, no migration. Query `beithady_conversations` for inquiry IDs (single `.in()` lookup), pick `GREATEST(last_inbound_at, last_outbound_at)`, mark `is_stale_inquiry = true` when older than 48 h. New fields on `CalendarReservation`. `reservation-bar.tsx` drops opacity to **0.35** for stale inquiries (active=1.0; cancelled=0.4). Tooltip suffix " · Stale inquiry (>48h silent)". Threshold `stalenessHours = 48` hardcoded — surface to `beithady_settings.inquiry_stale_hours` if needs to be configurable.
+
+**Build hotfix (`5a078fa`):** Vercel build was red on M.3 commit `5024494`. `warehouses.ts` had `import 'server-only'` but exported types AND constants consumed by client components — Turbopack rejected. Fix: extracted into `warehouses-shared.ts` (no `server-only`), `warehouses.ts` re-exports for back-compat, client components updated. Confirmed green on canonical `limeinc.vercel.app`. (Pattern recorded as a lesson learned above.)
+
+## 🟢 Earlier — Phase M.0 pre-flight findings + signed-off workflow → coding begun
 
 User said "Confirmed Default" on C1/C2/C3 → green light to coding. M.0 read-only investigations executed via Supabase MCP + grep:
 
