@@ -1,16 +1,45 @@
-import { InventoryComingSoon } from '../_components/coming-soon';
+import { readMobileSession, listBuildingChoices } from '@/lib/beithady/inventory/mobile-pin';
+import { listItems } from '@/lib/beithady/inventory/catalog';
+import { listStockBalances } from '@/lib/beithady/inventory/stock';
+import { MobilePinLogin } from './_components/mobile-pin-login';
+import { MobileHome } from './_components/mobile-home';
 
 export const dynamic = 'force-dynamic';
 
-// Mobile cleaner app — PIN-gated, NOT role-gated. requireBeithadyPermission
-// is intentionally not called here; M.12 ships the PIN-validation entry flow.
+// PIN-gated, NOT role-gated. Anyone with the building PIN can use it.
 export default async function InventoryMobileEntry() {
-  return (
-    <InventoryComingSoon
-      title="Mobile cleaner app"
-      subtitle="Arabic RTL · building-shared 6-digit PIN gate · big buttons · photo capture."
-      phase="M.12"
-      description="The cleaner-facing tablet app. Auth = building PIN (seeded in M.1, rotatable from settings). Per-session free-text name capture for audit trail. Posts back as inventory_issue rows tagged created_via='mobile_pin'."
-    />
-  );
+  const session = await readMobileSession();
+
+  if (!session) {
+    const buildings = await listBuildingChoices();
+    return <MobilePinLogin buildings={buildings} />;
+  }
+
+  // Authenticated session — load context
+  const [items, stock] = await Promise.all([
+    listItems({ status: 'active' }),
+    listStockBalances({ warehouseId: session.warehouseId, status: 'in_stock' }),
+  ]);
+
+  // Per-item current on-hand at THIS warehouse only
+  const onHandHere = new Map<string, number>();
+  for (const s of stock) {
+    if (s.warehouse_id === session.warehouseId) {
+      onHandHere.set(s.item_id, (onHandHere.get(s.item_id) || 0) + s.qty_on_hand);
+    }
+  }
+
+  const itemsForPicker = items
+    .map(it => ({
+      id: it.id,
+      sku: it.sku,
+      name_en: it.name_en,
+      name_ar: it.name_ar,
+      uom: it.uom,
+      on_hand: onHandHere.get(it.id) || 0,
+    }))
+    .filter(it => it.on_hand > 0)
+    .sort((a, b) => a.name_ar.localeCompare(b.name_ar, 'ar'));
+
+  return <MobileHome session={session} items={itemsForPicker} />;
 }
