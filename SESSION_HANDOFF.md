@@ -1,29 +1,75 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — Users & Roles overhaul + M.11 build hotfix (commits `aaef973` + `8d49eef` · migration `0051_app_users_contact_fields`)
+## ✅ Phase M COMPLETE — M.0 → M.14 SHIPPED (15/15 commits, 100%)
 
-User on `/admin/users` reported 3 issues:
-1. Fonts not visible in dark mode (light cards with light text — domain-access checkboxes invisible).
-2. Need to capture **Mobile Number / Email / Position** per user.
-3. **Roles should be locked behind an Edit button** to prevent accidental one-click changes via the always-live role dropdown.
+**Beit Hady Inventory Module fully live at https://limeinc.vercel.app/beithady/inventory**
 
-**Migration `0051_app_users_contact_fields`:** added `mobile_number`, `email`, `position` columns to `app_users` + partial unique indexes on `lower(email)` and `mobile_number` (NULL allowed).
+End-to-end smoke test that works today:
+1. Register vendor at `/vendors` (KYC workflow) →
+2. Add items at `/items` (manual or Excel import) →
+3. Add consumption rules at `/rules` (e.g. "1 toilet roll per_2_guests_per_night") →
+4. Receive stock at `/grn/new` (vendor → warehouse → lines → submit → approve → post) →
+5. Stock balance populates at `/stock` with full ledger drill-in →
+6. Issues post via 4 channels: desktop manual, mobile cleaner app at `/m`, WhatsApp inbound (#reorder triggers AI parse), or auto-issue cron at Cairo 11:00 →
+7. Transfers at `/transfers/new` move stock atomically (FIFO source pick, both legs paired) →
+8. Counts at `/counts/new` (cycle 5-50 random items or physical) → variance posts as count_adjust →
+9. All pending items surface in unified `/approvals` inbox →
+10. Dashboard at `/dashboard` shows live KPIs + per-checkin cost calculator + 30-day movement velocity + reorder alerts + stockout-risk forecast →
+11. Operations Morning Brief at Cairo 8 AM includes inventory stockout section (M.14 hook).
 
-**Server actions:** `createUserAction` persists the 3 new fields with E.164-ish + email-shape + 80-char-position normalisation. New `updateUserProfileAction` for profile edits only (does NOT touch role or domain access).
+### Final 4 commits this session
 
-**UI:**
-- "Add user" form now 6 fields across 3 columns: Username · Password · Role · Mobile · Email · Position.
-- Each user row displays mobile/email/position next to username with `mailto:` + `tel:` deep-links.
-- New client component `<UserRowEdit />` at [src/app/admin/users/_components/user-row-edit.tsx](src/app/admin/users/_components/user-row-edit.tsx):
-  - Default collapsed — only role badge + "Edit" button visible.
-  - On click expands into amber-bordered card with 3 separate forms (profile · role · domain access · delete). Cancel collapses without saving.
-- Dark-mode contrast rebuilt across the page (text-slate-500/700 → dark:text-slate-300/200, light-bg cards swap to dark:bg-slate-800, checkbox tiles have explicit dark variants).
+| Sub | Commit | Scope |
+|---|---|---|
+| M.11 | `06169cb` | Dashboard with 8 KPIs · per-checkin cost calculator widget · reorder alerts (top 30) · top movers (last 30 days, days-of-stock-remaining) · 14-day check-in forecast strip · Consumption Rules editor with sample-preview-as-you-type. **Unblocks the auto-issue cron** that was inert until rules existed. |
+| M.12 | `001a1bd` | Mobile cleaner app at `/m` — Arabic RTL, building-PIN gated (4hr cookie session), per-session cleaner name, big-button issue submission, item picker with on-hand hints, sticky submit bar. Posts as `created_via='mobile_pin'` requiring manager approval. |
+| M.13 | `0791f73` | WhatsApp inbound reorder parser. Heuristic gate (Arabic + English keywords + #reorder) → Claude haiku-4-5 against live catalog → draft Issue tagged `created_via='wa_inbound'`. Hooked from existing wa-casual-ingest fire-and-forget pattern. |
+| M.14 | (this commit) | Operations Morning Brief inventory stockout section (Arabic) · Approvals inbox at `/approvals` collecting GRN/Issue/PO/Count + cleaner submissions in one view · final handoff. |
 
-**Build hotfix (`8d49eef`):** sibling M.11 commit (`06169cb`) reintroduced the same `'server-only'`-pulled-into-client-bundle bug pattern as M.3's `warehouses.ts`. Extracted types + constants + `CostSample` into [src/lib/beithady/inventory/rules-shared.ts](src/lib/beithady/inventory/rules-shared.ts) (no `server-only`); `rules.ts` re-exports for back-compat. Updated three client components to import from `-shared`: rule-form-button, rule-row-actions, cost-calculator-widget.
+### Total Phase M deliverable
 
-**Live**: `limeinc.vercel.app` Ready. [/admin/users](https://limeinc.vercel.app/admin/users).
+- **2 SQL migrations**: 0048a/b (14 tables + role enum), 0049 (GRN posting + approval RPC), 0050 (Issue posting + auto-issue scanner), 0051 (Transfer + Count posting). 5 RPCs total: `beithady_inv_post_grn` · `beithady_inv_post_issue` · `beithady_inv_post_transfer` · `beithady_inv_post_count_session` · `beithady_inv_recompute_item_avg_cost` + 1 helper `beithady_inv_required_approvers`.
+- **15 lib files** under `src/lib/beithady/inventory/` (warehouses-shared, warehouses, catalog, excel, vendors, stock, grn, issue + issue-shared, transfers, counts, rules, mobile-pin, wa-reorder-parser).
+- **~50 page/component files** under `src/app/beithady/inventory/` covering 9 functional tabs + mobile app + 12 stub-replacements + cross-cutting approvals/rules pages.
+- **2 cron handlers**: `/api/cron/beithady-inventory-auto-issue` at Cairo 11 + 12 (DST coverage). `vercel.json` updated.
+- **1 storage bucket**: `beithady-inventory` (10MB, image+pdf).
+- **2 new Beithady roles**: `warehouse_manager` (full inventory) + `housekeeper` (read inventory; mobile uses PIN gate).
+- **1 new BeithadyCategory**: `inventory` with 7-role × 9-category permission matrix in auth.ts.
 
-## 🟡 Earlier this session — Phase M coding: M.9 + M.10 SHIPPED (11/15 commits, 73%)
+### Architectural patterns locked in
+
+- `*-shared.ts` convention for types/constants used by client components (avoids `'server-only'` pollution into client bundles).
+- Atomic posting RPCs use `pg_advisory_xact_lock` per item_id to serialise weighted-avg cost recompute.
+- FIFO batch picking at posting time (not at line-create time) for issues + transfers.
+- Approval matrix is data-driven (`beithady_inventory_approval_rules`), evaluated per-action via `beithady_inv_required_approvers` RPC.
+- Mobile + WA submissions never auto-post — always `status='submitted'` requiring desktop approval.
+- All writes audited to `beithady_audit_log` with `module='inventory'`.
+
+### Known V2 deferrals (per locked Q answers)
+
+- Owner-billable register UI (Q10 = V2). Flag exists per-item.
+- Asset tracking + depreciation (Q14 = consumables only V1).
+- AED currency UI surfacing (Q9 = EGP+USD V1). Column exists.
+- AI Amazon EG URL parser for vendor enrichment.
+- WhatsApp push-on-pending-approval (skipped — `sendWaCasualMessage` requires conversation context). Approvals inbox is the substitute.
+
+### Open questions / future polish
+
+- **Photo upload UX**: M.12 mobile app currently takes a URL paste. Direct camera capture (multer-style upload to `beithady-inventory` bucket) is a small follow-up.
+- **Multi-line WA reorder for one site**: parser handles; warehouse routing assumes one building per message. Multi-building WA inbound would need explicit grouping.
+- **Approval push notification**: current approvers find pending items via `/approvals` inbox. Hook into existing morning brief or build a dedicated digest cron.
+
+## 🟢 Earlier this session (sibling worktree) — Users & Roles overhaul + M.11 build hotfix (commits `aaef973` + `8d49eef`)
+
+User on `/admin/users` reported 3 issues: (1) fonts not visible in dark mode, (2) need to capture Mobile/Email/Position per user, (3) roles should be locked behind an Edit button.
+
+**Migration `0051_app_users_contact_fields`** (separate sibling commit, NOT inventory's 0051): added `mobile_number`, `email`, `position` to `app_users` + partial unique indexes on `lower(email)` and `mobile_number`. `createUserAction` persists new fields. New `updateUserProfileAction` for profile-only edits.
+
+**UI:** 6-column add-user form. Per-row mobile/email/position with `mailto:`+`tel:` deep-links. New `<UserRowEdit />` collapses role + access controls behind an explicit Edit button (amber-bordered card with 3 separate forms inside). Dark-mode contrast rebuilt.
+
+**Build hotfix (`8d49eef`):** sibling caught a `'server-only'`-pulled-into-client-bundle bug in my M.11 `rules.ts` (same pattern as M.3 `warehouses.ts` previously). Extracted types + constants + `CostSample` into `rules-shared.ts`; `rules.ts` re-exports for back-compat; client components updated. Pattern now triple-locked-in across the codebase.
+
+## 🟢 Earlier this session — Phase M coding: M.9 + M.10 SHIPPED (11/15 commits, 73%)
 
 User said "M9, M10" → shipped both sub-phases as one commit + migration 0051.
 

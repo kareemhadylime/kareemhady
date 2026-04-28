@@ -1,7 +1,45 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase';
 import { addDays as addDaysCairo } from '@/lib/beithady-daily-report/cairo-dates';
 import type { Brief, BriefSection } from './types';
+
+// M.14: build the inventory stockout-risk section. Lifted out so the
+// sections array can stay declarative.
+async function buildStockoutSection(sb: SupabaseClient): Promise<BriefSection> {
+  const { data: stockRows } = await sb
+    .from('beithady_inventory_stock')
+    .select('item_id, qty_on_hand');
+  const totals = new Map<string, number>();
+  for (const r of (stockRows as Array<{ item_id: string; qty_on_hand: number }> | null) || []) {
+    totals.set(r.item_id, (totals.get(r.item_id) || 0) + Number(r.qty_on_hand || 0));
+  }
+  const { data: items } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku, name_ar, name_en, min_qty, uom')
+    .eq('active', true);
+  const lowStock = ((items as Array<{
+    id: string; sku: string; name_ar: string; name_en: string; min_qty: number; uom: string;
+  }> | null) || [])
+    .map(it => ({ ...it, on_hand: totals.get(it.id) || 0 }))
+    .filter(it => it.on_hand < Number(it.min_qty || 0))
+    .sort((a, b) => a.on_hand - b.on_hand)
+    .slice(0, 10);
+  return {
+    title: `أصناف قاربت على النفاد (${lowStock.length})`,
+    emoji: '📦',
+    items: lowStock.map(it => ({
+      primary: `${it.name_ar || it.name_en} (${it.sku})`,
+      secondary: it.on_hand === 0
+        ? `نفد المخزون · الحد الأدنى ${it.min_qty} ${it.uom}`
+        : `متبقي ${it.on_hand} ${it.uom} · الحد الأدنى ${it.min_qty}`,
+      tag: it.on_hand === 0
+        ? { label: 'نفد', tone: 'red' as const }
+        : { label: 'منخفض', tone: 'amber' as const },
+    })),
+    empty_message: 'مستويات المخزون مطمئنة. لا حاجة لإعادة طلب فورية.',
+  };
+}
 
 // Operations & Housekeeping brief — what crew + ops manager need at 8am.
 // Rendered in Arabic per user request (RTL).
@@ -229,6 +267,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       })),
       empty_message: 'لا وصولات غدًا. يمكن للطاقم التخطيط بحرية.',
     },
+    await buildStockoutSection(sb),
   ];
 
   return {
