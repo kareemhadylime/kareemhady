@@ -41,10 +41,10 @@ export function ListingRail({ row, windowStart }: { row: CalendarRow; windowStar
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--bh-navy)' }}>
+        <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--bh-rail-text)' }}>
           {row.nickname}
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-slate-500">
+        <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-300">
           {row.building_code && (
             <span className="px-1 py-px bg-slate-100 dark:bg-slate-800 rounded">
               {row.building_code === 'OTHER' ? 'Other' : row.building_code}

@@ -157,7 +157,7 @@ export function CalendarGrid({ data, density = 'price' }: { data: CalendarGridDa
                         style={overlay.tint ? { backgroundColor: overlay.tint } : undefined}
                       >
                         {overlay.label && (
-                          <span className="text-slate-400">{overlay.label}</span>
+                          <span className="text-slate-500 dark:text-slate-300 font-medium">{overlay.label}</span>
                         )}
                       </div>
                     );

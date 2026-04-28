@@ -81,18 +81,18 @@ export function BeithadyHeader({
         )}
         <div>
           {eyebrow && (
-            <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-300 font-medium">
               {eyebrow}
             </p>
           )}
           <h1
             className="text-3xl font-bold tracking-tight"
-            style={{ color: 'var(--bh-navy)', fontFamily: 'var(--font-sans), Cormorant Garamond, Playfair Display, ui-serif, Georgia, serif' }}
+            style={{ color: 'var(--bh-heading)', fontFamily: 'var(--font-sans), Cormorant Garamond, Playfair Display, ui-serif, Georgia, serif' }}
           >
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+            <p className="text-sm text-slate-600 dark:text-slate-200 mt-1">
               {subtitle}
             </p>
           )}

@@ -40,12 +40,30 @@
   --bh-blue:  #5F7397;
   --bh-cream: #F5F1E8;
   --bh-gold:  #D4A93A;
+  /* Text-role tokens that flip in dark mode. Use these (NOT --bh-navy)
+     for any inline `style={{ color: ... }}` on titles, headings, list
+     row labels, etc. --bh-navy stays fixed because it's also a brand
+     button background. */
+  --bh-heading:    #1E2D4A;   /* page titles, section headings */
+  --bh-rail-text:  #1E2D4A;   /* listing rail nicknames, strong row labels */
+  --bh-body-strong: #334155;  /* slate-700 — body text emphasis */
+}
+.dark {
+  --bh-heading:    #f1f5f9;   /* slate-100 */
+  --bh-rail-text:  #e2e8f0;   /* slate-200 */
+  --bh-body-strong: #cbd5e1;  /* slate-300 */
 }
 [data-bh-brand="true"] {
   background-color: var(--bh-cream);
 }
 .dark [data-bh-brand="true"] {
   background-color: #0e172a;
+  /* Admin-side dark mode: text usages of --bh-navy (page titles, list
+     row labels, helper text everywhere) need a light foreground.
+     Confirmed safe via grep — no admin page uses --bh-navy as a
+     background. Public r/beithady/* pages don't carry data-bh-brand,
+     so their printed/branded styling is preserved. */
+  --bh-navy: #f1f5f9;   /* slate-100 */
 }
 
 html, body {
