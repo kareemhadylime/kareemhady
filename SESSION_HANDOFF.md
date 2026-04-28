@@ -149,6 +149,20 @@ User answered: "1- Don't Understand · 2- 7 Days · 3- Keep Narrow · 4- Yes · 
 
 **Deploy:** both commits pushed to main and `vercel --prod` shipped. Production URL: https://brave-babbage-a566c2-4skw3ktys-lime-investments.vercel.app.
 
+### Follow-up — Audit-resend admin endpoint (commit `dab6499`, deployed)
+
+User asked: "One Time - Resend To me All Briefs Again by Whatsapp Now to Audit". Built and deployed a one-shot admin endpoint that bypasses the test-panel's three-click flow:
+
+`GET /api/admin/beithady/send-test-briefs?to=<digits>&secret=<CRON_SECRET>`
+
+Builds GR + Ops + Finance briefs for today (Cairo TZ), renders WhatsApp markdown, sends each to the supplied number tagged `[AUDIT TEST · <role>]`. Doesn't write to the delivery log so the regular daily cron is unaffected. Auth via CRON_SECRET (Bearer header or `secret` query param).
+
+User's WhatsApp on file (from `app_users.whatsapp` for `kareemhady`): `201222109899`.
+
+**Could not auto-fire** because pulling `CRON_SECRET` from Vercel env was blocked (correctly — secret exfiltration guardrail). User needs to run the curl themselves OR use the test-panel UI buttons. Provided both options.
+
+**Status awaiting:** user to fire the curl with their secret. Once fired, they'll get 3 WhatsApp messages with the post-fix brief content for audit. No further code changes pending until they review.
+
 ## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
 Two endpoints:
