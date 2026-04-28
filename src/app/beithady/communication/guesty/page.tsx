@@ -7,10 +7,13 @@ import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell'
 import { ChannelTabs } from '../_components/channel-tabs';
 import { SidebarList } from '../_components/sidebar-list';
 import { ThreadPane } from '../_components/thread-pane';
+import { StatLink, buildStatHref, VALID_SORTS, SORT_LABELS } from '../_components/stat-link';
 import type { SlaBucket } from '@/lib/beithady/communication/sla';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const BASE_PATH = '/beithady/communication/guesty';
 
 type SearchParams = {
   c?: string;
@@ -19,21 +22,12 @@ type SearchParams = {
   building?: string;
   sla?: string;
   unread?: string;
+  breach?: string;
   sort?: string;
   send_error?: string;
   send_status?: string;
   fallback?: string;
   sent?: string;
-};
-
-const VALID_SORTS = ['sla_oldest', 'sla_newest', 'recent_inbound', 'recent_activity', 'recent_outbound', 'name_asc'] as const;
-const SORT_LABELS: Record<typeof VALID_SORTS[number], string> = {
-  sla_oldest: 'Oldest unanswered first (default)',
-  sla_newest: 'Newest unanswered first',
-  recent_inbound: 'Most recent guest message',
-  recent_activity: 'Most recent activity',
-  recent_outbound: 'Most recently replied',
-  name_asc: 'Guest name A→Z',
 };
 
 function parseFilter(sp: SearchParams): InboxFilter {
@@ -45,6 +39,7 @@ function parseFilter(sp: SearchParams): InboxFilter {
     f.slaBucket = sp.sla as SlaBucket;
   }
   if (sp.unread === '1') f.unreadOnly = true;
+  if (sp.breach === '1') f.breachOnly = true;
   if (sp.sort && (VALID_SORTS as readonly string[]).includes(sp.sort)) {
     f.sort = sp.sort as typeof VALID_SORTS[number];
   }
@@ -58,6 +53,7 @@ function preserveQuery(sp: SearchParams): string {
   if (sp.building) params.push(`building=${encodeURIComponent(sp.building)}`);
   if (sp.sla) params.push(`sla=${encodeURIComponent(sp.sla)}`);
   if (sp.unread === '1') params.push('unread=1');
+  if (sp.breach === '1') params.push('breach=1');
   if (sp.sort) params.push(`sort=${encodeURIComponent(sp.sort)}`);
   return params.join('&');
 }
@@ -92,13 +88,13 @@ export default async function GuestyInboxPage({
       <ChannelTabs active="guesty" />
 
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-        <Stat label="Open" value={stats.open} />
-        <Stat label="Unread" value={stats.unread} accent="rose" />
-        <Stat label="🔴 > 12h" value={stats.red} accent="rose" />
-        <Stat label="🟠 4-12h" value={stats.orange} accent="amber" />
-        <Stat label="🟡 1-4h" value={stats.yellow} accent="yellow" />
-        <Stat label="🟢 ≤ 1h" value={stats.green} accent="emerald" />
-        <Stat label="Breach" value={stats.breach} accent="rose" />
+        <StatLink label="Open" value={stats.open} href={buildStatHref(BASE_PATH, sp, { sla: null, unread: null, breachOnly: null })} active={!sp.sla && sp.unread !== '1' && sp.breach !== '1'} />
+        <StatLink label="Unread" value={stats.unread} accent="rose" href={buildStatHref(BASE_PATH, sp, { unread: true })} active={sp.unread === '1'} />
+        <StatLink label="🔴 > 12h" value={stats.red} accent="rose" href={buildStatHref(BASE_PATH, sp, { sla: 'red' })} active={sp.sla === 'red'} />
+        <StatLink label="🟠 4-12h" value={stats.orange} accent="amber" href={buildStatHref(BASE_PATH, sp, { sla: 'orange' })} active={sp.sla === 'orange'} />
+        <StatLink label="🟡 1-4h" value={stats.yellow} accent="yellow" href={buildStatHref(BASE_PATH, sp, { sla: 'yellow' })} active={sp.sla === 'yellow'} />
+        <StatLink label="🟢 ≤ 1h" value={stats.green} accent="emerald" href={buildStatHref(BASE_PATH, sp, { sla: 'green' })} active={sp.sla === 'green'} />
+        <StatLink label="Breach" value={stats.breach} accent="rose" href={buildStatHref(BASE_PATH, sp, { breachOnly: true })} active={sp.breach === '1'} />
       </section>
 
       {/* Filter form */}
@@ -173,20 +169,3 @@ export default async function GuestyInboxPage({
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: number; accent?: 'rose' | 'amber' | 'yellow' | 'emerald' }) {
-  const cls = accent === 'rose'
-    ? 'text-rose-700 dark:text-rose-300'
-    : accent === 'amber'
-      ? 'text-amber-700 dark:text-amber-300'
-      : accent === 'yellow'
-        ? 'text-yellow-700 dark:text-yellow-300'
-        : accent === 'emerald'
-          ? 'text-emerald-700 dark:text-emerald-300'
-          : 'text-slate-700 dark:text-slate-200';
-  return (
-    <div className="ix-card p-3 text-center">
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`text-lg font-bold tabular-nums ${cls}`}>{value.toLocaleString()}</div>
-    </div>
-  );
-}

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles, CalendarPlus } from 'lucide-react';
+import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles, CalendarPlus, Type, Mic, Paperclip, Check, Ban } from 'lucide-react';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { ThreadBundle } from '@/lib/beithady/communication/inbox';
 import { SlaPill } from './sla-pill';
@@ -56,6 +56,7 @@ export function ThreadPane({
             channel={header.channel}
           />
         )}
+        <ChannelCapabilityHint channel={header.channel} source={header.source || null} />
         {header.channel === 'guesty' ? (
           <GuestyComposer
             conversationId={header.id}
@@ -66,6 +67,7 @@ export function ThreadPane({
             initialStatus={composerHints?.send_status}
             initialFallbackUrl={composerHints?.fallback_url}
             initialSent={composerHints?.sent}
+            channelSource={header.source || null}
           />
         ) : header.channel === 'wa_casual' ? (
           <WaCasualComposer
@@ -218,6 +220,68 @@ function Attachments({ attachments, inbound }: { attachments: unknown; inbound: 
         );
       })}
     </div>
+  );
+}
+
+// Capability matrix per user spec:
+//   Airbnb (via Guesty)     → text + attachments  (Airbnb does not support voice)
+//   Booking.com (via Guesty)→ text + attachments
+//   SMS (via Guesty)        → text only
+//   Email (via Guesty)      → text + attachments  (no voice)
+//   WhatsApp (via Guesty)   → text + voice + attachments
+//   wa_casual (Green-API)   → text + voice + attachments  (currently only one with full upload pipe)
+//   wa_cloud (WABA)         → text + voice + attachments  (when WABA configured)
+function channelCaps(channel: string, source: string | null): { text: boolean; voice: boolean; attach: boolean; note: string } {
+  const src = (source || '').toLowerCase();
+  if (channel === 'wa_casual') return { text: true, voice: true, attach: true, note: 'Green-API · text · voice · attachments' };
+  if (channel === 'wa_cloud')  return { text: true, voice: true, attach: true, note: 'WABA · text · voice · attachments (template-gated outside 24h window)' };
+  if (channel === 'guesty') {
+    if (src.includes('sms'))      return { text: true, voice: false, attach: false, note: 'SMS · text only' };
+    if (src.includes('email'))    return { text: true, voice: false, attach: true,  note: 'Email · text + attachments' };
+    if (src.includes('airbnb'))   return { text: true, voice: false, attach: true,  note: 'Airbnb · text + attachments (voice not supported)' };
+    if (src.includes('booking'))  return { text: true, voice: false, attach: true,  note: 'Booking.com · text + attachments' };
+    if (src.includes('whatsapp')) return { text: true, voice: true,  attach: true,  note: 'WhatsApp via Guesty · text · voice · attachments' };
+    return { text: true, voice: false, attach: true, note: 'Guesty · text + attachments' };
+  }
+  return { text: true, voice: false, attach: false, note: 'Text only' };
+}
+
+function ChannelCapabilityHint({ channel, source }: { channel: string; source: string | null }) {
+  const caps = channelCaps(channel, source);
+  // Voice + attach upload pipes are only fully wired for wa_casual today.
+  // Other channels show the spec but the capability is informational
+  // until the corresponding sender is implemented.
+  const voiceLive = channel === 'wa_casual';
+  const attachLive = channel === 'wa_casual';
+  return (
+    <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-300 font-medium flex items-center gap-2 flex-wrap">
+      <span>This channel supports:</span>
+      <CapBadge icon={<Type size={10} />} label="Text" allowed={caps.text} live />
+      <CapBadge icon={<Mic size={10} />} label="Voice" allowed={caps.voice} live={voiceLive} />
+      <CapBadge icon={<Paperclip size={10} />} label="Attachments" allowed={caps.attach} live={attachLive} />
+    </div>
+  );
+}
+
+function CapBadge({ icon, label, allowed, live }: { icon: React.ReactNode; label: string; allowed: boolean; live: boolean }) {
+  if (!allowed) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 line-through" title={`${label} not supported on this channel`}>
+        {icon} {label} <Ban size={10} />
+      </span>
+    );
+  }
+  if (!live) {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title={`${label} allowed by channel — sender not yet wired (Phase C.4)`}>
+        {icon} {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" title={`${label} live`}>
+      {icon} {label} <Check size={10} />
+    </span>
   );
 }
 

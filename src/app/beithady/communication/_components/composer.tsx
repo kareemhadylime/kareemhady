@@ -21,6 +21,7 @@ export function GuestyComposer({
   initialStatus,
   initialFallbackUrl,
   initialSent,
+  channelSource,
 }: {
   conversationId: string;
   guestyExternalId: string;
@@ -30,7 +31,15 @@ export function GuestyComposer({
   initialStatus?: string;
   initialFallbackUrl?: string;
   initialSent?: boolean;
+  /** Source of the underlying conversation (airbnb / booking.com / etc.).
+   *  Used to gate which module-hint chips are shown — e.g. Airbnb / Booking
+   *  conversations have no SMS module so we hide that chip. */
+  channelSource?: string | null;
 }) {
+  const src = (channelSource || '').toLowerCase();
+  // SMS module hint is irrelevant on Airbnb / Booking / WhatsApp threads —
+  // those don't have an SMS sub-channel inside Guesty.
+  const showSmsChip = !src.includes('airbnb') && !src.includes('booking');
   const [body, setBody] = useState('');
   const [moduleHint, setModuleHint] = useState<ChannelHint>(defaultModule);
   const [submitting, setSubmitting] = useState(false);
@@ -98,13 +107,15 @@ export function GuestyComposer({
           current={moduleHint}
           onChange={setModuleHint}
         />
-        <ChannelChip
-          icon={Phone}
-          label="SMS"
-          value="sms"
-          current={moduleHint}
-          onChange={setModuleHint}
-        />
+        {showSmsChip && (
+          <ChannelChip
+            icon={Phone}
+            label="SMS"
+            value="sms"
+            current={moduleHint}
+            onChange={setModuleHint}
+          />
+        )}
         <input type="hidden" name="module" value={moduleHint} />
       </div>
 

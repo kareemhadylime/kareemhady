@@ -23,6 +23,7 @@ export type InboxFilter = {
   source?: string;          // airbnb | booking.com | direct | ...
   slaBucket?: SlaBucket;    // 'red' to surface breaches
   unreadOnly?: boolean;
+  breachOnly?: boolean;     // sla_breach=true (any bucket past the breach threshold)
   state?: 'open' | 'closed' | 'all';
   sort?: InboxSort;
 };
@@ -87,6 +88,7 @@ export async function listInbox(opts: {
     else q = q.eq('sla_bucket', f.slaBucket);
   }
   if (f.unreadOnly) q = q.gt('unread_count', 0);
+  if (f.breachOnly) q = q.eq('sla_breach', true);
   if (f.state && f.state !== 'all') q = q.eq('state', f.state);
   else if (!f.state) q = q.eq('state', 'open');
 

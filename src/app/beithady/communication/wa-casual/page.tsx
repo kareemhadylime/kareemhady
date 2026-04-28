@@ -8,16 +8,21 @@ import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell'
 import { ChannelTabs } from '../_components/channel-tabs';
 import { SidebarList } from '../_components/sidebar-list';
 import { ThreadPane } from '../_components/thread-pane';
+import { StatLink, buildStatHref, VALID_SORTS, SORT_LABELS } from '../_components/stat-link';
 import type { SlaBucket } from '@/lib/beithady/communication/sla';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const BASE_PATH = '/beithady/communication/wa-casual';
 
 type SearchParams = {
   c?: string;
   q?: string;
   sla?: string;
   unread?: string;
+  breach?: string;
+  sort?: string;
   send_error?: string;
   send_status?: string;
   fallback?: string;
@@ -31,6 +36,10 @@ function parseFilter(sp: SearchParams): InboxFilter {
     f.slaBucket = sp.sla as SlaBucket;
   }
   if (sp.unread === '1') f.unreadOnly = true;
+  if (sp.breach === '1') f.breachOnly = true;
+  if (sp.sort && (VALID_SORTS as readonly string[]).includes(sp.sort)) {
+    f.sort = sp.sort as typeof VALID_SORTS[number];
+  }
   return f;
 }
 
@@ -94,16 +103,16 @@ export default async function WaCasualPage({
       )}
 
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-        <Stat label="Open" value={stats.open} />
-        <Stat label="Unread" value={stats.unread} accent="rose" />
-        <Stat label="🔴 > 12h" value={stats.red} accent="rose" />
-        <Stat label="🟠 4-12h" value={stats.orange} accent="amber" />
-        <Stat label="🟡 1-4h" value={stats.yellow} accent="yellow" />
-        <Stat label="🟢 ≤ 1h" value={stats.green} accent="emerald" />
-        <Stat label="Breach" value={stats.breach} accent="rose" />
+        <StatLink label="Open" value={stats.open} href={buildStatHref(BASE_PATH, sp, { sla: null, unread: null, breachOnly: null })} active={!sp.sla && sp.unread !== '1' && sp.breach !== '1'} />
+        <StatLink label="Unread" value={stats.unread} accent="rose" href={buildStatHref(BASE_PATH, sp, { unread: true })} active={sp.unread === '1'} />
+        <StatLink label="🔴 > 12h" value={stats.red} accent="rose" href={buildStatHref(BASE_PATH, sp, { sla: 'red' })} active={sp.sla === 'red'} />
+        <StatLink label="🟠 4-12h" value={stats.orange} accent="amber" href={buildStatHref(BASE_PATH, sp, { sla: 'orange' })} active={sp.sla === 'orange'} />
+        <StatLink label="🟡 1-4h" value={stats.yellow} accent="yellow" href={buildStatHref(BASE_PATH, sp, { sla: 'yellow' })} active={sp.sla === 'yellow'} />
+        <StatLink label="🟢 ≤ 1h" value={stats.green} accent="emerald" href={buildStatHref(BASE_PATH, sp, { sla: 'green' })} active={sp.sla === 'green'} />
+        <StatLink label="Breach" value={stats.breach} accent="rose" href={buildStatHref(BASE_PATH, sp, { breachOnly: true })} active={sp.breach === '1'} />
       </section>
 
-      <form className="ix-card p-3 grid grid-cols-2 lg:grid-cols-5 gap-2 text-sm">
+      <form className="ix-card p-3 grid grid-cols-2 lg:grid-cols-6 gap-2 text-sm">
         <input name="q" placeholder="Search guest, phone…" defaultValue={sp.q || ''} className="ix-input col-span-2" />
         <select name="sla" defaultValue={sp.sla || ''} className="ix-input">
           <option value="">Any SLA</option>
@@ -112,6 +121,12 @@ export default async function WaCasualPage({
           <option value="yellow">🟡 Yellow 1-4h</option>
           <option value="green">🟢 Green ≤ 1h</option>
           <option value="none">Replied (no SLA)</option>
+        </select>
+        <select name="sort" defaultValue={sp.sort || ''} className="ix-input" title="Sort order">
+          <option value="">Sort: {SORT_LABELS.sla_oldest}</option>
+          {VALID_SORTS.filter(s => s !== 'sla_oldest').map(s => (
+            <option key={s} value={s}>Sort: {SORT_LABELS[s]}</option>
+          ))}
         </select>
         <label className="flex items-center gap-1">
           <input type="checkbox" name="unread" value="1" defaultChecked={sp.unread === '1'} />
@@ -163,20 +178,3 @@ export default async function WaCasualPage({
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: number; accent?: 'rose' | 'amber' | 'yellow' | 'emerald' }) {
-  const cls = accent === 'rose'
-    ? 'text-rose-700 dark:text-rose-300'
-    : accent === 'amber'
-      ? 'text-amber-700 dark:text-amber-300'
-      : accent === 'yellow'
-        ? 'text-yellow-700 dark:text-yellow-300'
-        : accent === 'emerald'
-          ? 'text-emerald-700 dark:text-emerald-300'
-          : 'text-slate-700 dark:text-slate-200';
-  return (
-    <div className="ix-card p-3 text-center">
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={`text-lg font-bold tabular-nums ${cls}`}>{value.toLocaleString()}</div>
-    </div>
-  );
-}
