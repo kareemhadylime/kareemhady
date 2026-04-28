@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟡 Latest turn — Phase M.0 pre-flight findings + signed-off workflow → coding begun
+## 🟢 Latest turn — Operations Calendar: auto-fade stale inquiries (commits `2738139` + `5a078fa`)
+
+User flagged BH-26-001 + BH-26-003 showing what looked like duplicated/overlapping reservations on May 1. Diagnosis turned out to be **not a bug, just real data**: 4 different Airbnb guests (Saad, Talal, Nadya, Noha) all sent inquiries for overlapping May 1-9 dates on those two units, plus the same human "Saad" inquired on both BH-26-001 *and* BH-26-003 to compare — two distinct `reservation_id`s for the same person. Only Ezekiel Enejeta (May 2-6) ever became confirmed. The diagonal-stripe pattern in [reservation-bar.tsx:62](src/app/emails/beithady/operations/calendar/_components/reservation-bar.tsx:62) is the inquiry indicator, not a duplicate marker. Visual stacking from `position: absolute` hides bars behind each other when they overlap.
+
+**User direction:** "Inquiry should expire within 48 Hrs of no Communication — Auto Fade Inquiries". Spec aligned with the existing data: `beithady_conversations.last_inbound_at` + `last_outbound_at` already cache the last message timestamps per reservation. Verified against the 7 visible inquiries: 6 are stale (>48 h since last message; range 64h–156h), 1 is fresh (Lojain, 17h).
+
+**Implementation (`2738139`):** client-side, no migration. After fetching reservations in `calendar-data.ts`, query `beithady_conversations` for the inquiry-only IDs (single `.in()` lookup), pick `GREATEST(last_inbound_at, last_outbound_at)`, and mark `is_stale_inquiry = true` when older than 48 h. New fields `last_communication_at` and `is_stale_inquiry` on `CalendarReservation` type. `reservation-bar.tsx` drops opacity to **0.35** for stale inquiries (active inquiries stay at 1.0; cancelled stays at 0.4). Tooltip suffix " · Stale inquiry (>48h silent)" so hover reveals the reason. `reservation-detail.ts` sets the new fields to default `null` / `false` when building the drawer payload.
+
+**Build hotfix (`5a078fa`):** Vercel build was already broken on main (sibling worktree's M.3 commit `5024494`). `src/lib/beithady/inventory/warehouses.ts` had `import 'server-only'` at the top but exported types AND constants (`CATEGORY_TAG_LABEL`, `BEITHADY_BUILDING_CODES`) consumed by client components `warehouse-form-button.tsx` + `warehouse-tree-panel.tsx`. Even with `import type`, the runtime imports of the constants pulled `'server-only'` into the client bundle → Turbopack rejected. Fix: extracted types + constants into [src/lib/beithady/inventory/warehouses-shared.ts](src/lib/beithady/inventory/warehouses-shared.ts) (no `server-only`); `warehouses.ts` re-exports them for back-compat on the server side; both client components updated to import from `-shared`. Confirmed green on canonical `limeinc.vercel.app`.
+
+**Behavior expected on next page load** for the user's screenshot view (BH-26-001 + BH-26-003 in Mon Apr 27 window):
+- BH-26-001: Hanaa A.Haleem (confirmed) full opacity, Talal + Saad inquiries fade to 0.35 → confirmed booking now visually dominant.
+- BH-26-003: Tariq + Ezekiel (both confirmed) full opacity, 5 stale inquiries (Nadya, Saad, Noha, Raul, Lojain*) fade to 0.35. *Lojain was 17h fresh at audit time — will fade ~31h from now if no host reply lands.
+
+**Not changed (deliberate):** `statusDotFor` still treats stale inquiries as upcoming reservations for row dot color. Bar fade is the user-visible signal; dot logic is a separate concern. Easy to extend if the user wants stale inquiries excluded from the dot too.
+
+**Threshold:** hardcoded 48 h via `stalenessHours = 48` in `calendar-data.ts`. If the user wants to make it configurable per-role or per-channel later, surface as a row in `beithady_settings` (e.g. `inquiry_stale_hours`) and read at fetch time.
+
+## 🟢 Earlier this session — Phase M.0 pre-flight findings + signed-off workflow → coding begun
 
 User said "Confirmed Default" on C1/C2/C3 → green light to coding. M.0 read-only investigations executed via Supabase MCP + grep:
 
