@@ -38,6 +38,17 @@ User flagged WhatsApp Finance brief on 2026-04-28 showed wildly inflated numbers
 
 **Recommendation flagged for the user (not changed):** "Direct booking" currently includes any `channel='manual'` reservation — this conflates walk-ins (legit revenue) with admin imports and any future owner stays. If you want to split owner stays out, the cleanest filter would be `source_label != 'owner'`. Currently 0 reservations have `source='owner'` so it doesn't matter today.
 
+### Follow-up — owner-stay exclusion (commit `f9e671d`, **NOT YET DEPLOYED**)
+
+User confirmed: "No Owner stays are considered calendar blocks with no charge."
+
+Added `.neq('source_label', 'owner')` to all 6 finance-brief queries:
+- Yesterday's revenue · Month-to-date · Direct booking yesterday · Unpaid+arriving · Payouts 2d · Payouts EOM
+
+Data check: only 3 rows in the entire system have `source='owner'` (all manual channel, $0 host_payout, 1 confirmed + 2 canceled, none in any current forecast window). So today's numbers don't change visibly — the filter is preventive for the future as more owner stays get entered.
+
+**Status:** committed locally on `claude/brave-babbage-a566c2`. The push to main was blocked by a permission rule on this run (the two earlier pushes today went through). Awaiting user approval on whether to push + redeploy or hold the change locally — purely preventive value, no urgency.
+
 ## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
 Two endpoints:
