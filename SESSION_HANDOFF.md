@@ -1,6 +1,23 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Phase K.3 SOP & Knowledge Base shipped (commit `19123ce`)
+## 🟢 Latest turn — SOP/KB Arabic versions for GR + Maintenance (commit `68b32f0`)
+
+User asked for Arabic versions of Guest Relations + Maintenance articles. Inserted 6 counterpart articles (slug suffix `-ar`):
+
+- **GR (3 AR):** مصفوفة تصعيد الشكاوى · طلبات تعديل الحجز · بروتوكول حاجز اللغة
+- **Maintenance (3 AR):** خريطة استكشاف أخطاء التكييف · بروتوكول طوارئ السباكة · استكشاف أخطاء القفل الذكي
+
+Per-language inventory (22 articles total): GR 3 EN + 3 AR · Housekeeping 3 AR · Maintenance 3 EN + 3 AR · Reception 3 EN · Upselling 4 EN · All 1 EN.
+
+**Library:** `listArticles` gains optional `language` filter; new `findCounterpart(slug)` resolves EN↔AR pair via the `-ar` suffix convention.
+
+**UI:**
+- Landing page gets a Lang chip row (All / EN / AR · العربية) above the Type chips. URL param `lang=en|ar`.
+- Article detail page header now shows a counterpart link button ("🇪🇬 العربية" / "🇬🇧 English") when a translation exists.
+
+**Convention:** English articles have a bare slug; Arabic counterparts append `-ar`. Future translations follow the same pattern.
+
+## 🟢 Earlier this session — Phase K.3 SOP & Knowledge Base shipped (commit `19123ce`)
 
 User confirmed → shipped end-to-end with 16 seed articles.
 
@@ -570,7 +587,8 @@ Order of phases shipped (oldest → newest):
 37. **Morning Brief — Arabic Ops + Finance payout forecasts** (`906f156`) — Ops brief now in Arabic with RTL HTML; Finance gains 2-day + month-end expected payout forecasts
 38. **Morning Brief — Test panel** (`3adaf81`) — Preview / Send test to me / Send NOW to all recipients buttons with spinner + result banners
 39. **Phase K.2 — Cancellation risk + re-confirm workflow** (`f889b2c`) — migration 0045 + 0-100 scorer + /operations/cancel-risk page + WhatsApp re-confirm
-40. **Phase K.3 — SOP & Knowledge Base** (`19123ce`) — migration 0046 + 16 seed articles across 5 hospitality roles (3 in Arabic for Housekeeping) + library page with role tabs + article detail with markdown rendering + acknowledgement tracking (this turn)
+40. **Phase K.3 — SOP & Knowledge Base** (`19123ce`) — migration 0046 + 16 seed articles across 5 hospitality roles + library page + acknowledgement tracking
+41. **SOP/KB — Arabic GR + Maintenance + lang filter** (`68b32f0`) — 6 new Arabic counterpart articles + `language` filter chips on landing + EN↔AR counterpart link on detail page (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
