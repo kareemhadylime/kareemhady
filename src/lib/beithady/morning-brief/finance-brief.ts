@@ -1,32 +1,41 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import { reportPeriodWindow, addDays as addDaysCairo, endOfMonth } from '@/lib/beithady-daily-report/cairo-dates';
 import type { Brief, BriefSection } from './types';
 
 // Finance & Accounting brief — what finance needs at 8am.
+//
+// Semantics
+// ---------
+// - "Yesterday's revenue" = bookings CREATED yesterday Cairo (accrual basis).
+//   Earlier versions filtered on check_in_date which counts arrivals, not
+//   sales. Switched to created_at_odoo (= raw.createdAt) on 2026-04-28.
+// - "Month-to-date" = bookings CREATED so far this Cairo month. Same
+//   accrual semantics.
+// - "Expected payouts" = confirmed reservations whose CHECK-IN falls in
+//   the window. host_payout is in the reservation's local currency
+//   (Booking/Airbnb pre-collect; we display the per-currency mix).
+// - "Direct booking revenue yesterday" = channel='manual' bookings created
+//   yesterday. (channel-meta labels manual=Direct; this catches walk-ins,
+//   phone bookings, and admin-imported direct deals — same as the
+//   calendar grid's Direct chip.)
 
 export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
   const sb = supabaseAdmin();
-  const yesterday = new Date(dateIso + 'T00:00:00');
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayIso = yesterday.toISOString().slice(0, 10);
-  const sevenDays = new Date(dateIso + 'T00:00:00');
-  sevenDays.setDate(sevenDays.getDate() + 7);
-  const sevenDaysIso = sevenDays.toISOString().slice(0, 10);
+  const period = reportPeriodWindow(dateIso);
 
-  // Month-to-date date math
-  const mtdStart = new Date(dateIso + 'T00:00:00');
-  mtdStart.setDate(1);
-  const mtdStartIso = mtdStart.toISOString().slice(0, 10);
+  const yesterdayStartUtc = period.period_start_iso;            // 00:00 Cairo (yesterday) as UTC ISO
+  const yesterdayEndUtc = cairoStartOfNextDayUtc(period.yesterday); // exclusive upper bound (= today 00:00 Cairo)
 
-  // Payout forecast windows (J.7 stripe + channel logic for paid status,
-  // here we use confirmed reservations whose check-in falls in the window
-  // as a proxy for "expected payout this period").
-  const next2 = new Date(dateIso + 'T00:00:00');
-  next2.setDate(next2.getDate() + 2);
-  const next2Iso = next2.toISOString().slice(0, 10);
-  const monthEnd = new Date(dateIso + 'T00:00:00');
-  monthEnd.setMonth(monthEnd.getMonth() + 1, 0); // last day of current month
-  const monthEndIso = monthEnd.toISOString().slice(0, 10);
+  const mtdStartUtc = cairoStartOfDayUtc(period.mtd_start);
+  // MTD upper bound = start of (today + 1) Cairo, so "today" itself is included.
+  const mtdEndUtc = cairoStartOfNextDayUtc(dateIso);
+
+  // Payout forecast windows (check-in based)
+  const next2Iso = addDaysCairo(dateIso, 2);
+  const monthEndIso = endOfMonth(dateIso);
+  // 7d window for unpaid+arriving
+  const sevenDaysIso = addDaysCairo(dateIso, 7);
 
   const [
     { data: yesterdayBookings },
@@ -36,29 +45,32 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
     { data: payouts2d },
     { data: payoutsMonth },
   ] = await Promise.all([
-    // Bookings created yesterday (revenue accrual)
+    // Bookings CREATED yesterday Cairo (accrual). Excludes cancellations.
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, host_payout, commission, fare_accommodation, channel, currency, building_code, check_in_date')
-      .gte('check_in_date', yesterdayIso)
-      .lte('check_in_date', yesterdayIso),
-    // Month-to-date bookings (by check-in date)
-    sb.from('beithady_reservation_grid_v')
-      .select('host_payout, commission, currency, channel')
-      .gte('check_in_date', mtdStartIso)
-      .lte('check_in_date', dateIso)
+      .select('reservation_id, host_payout, commission, fare_accommodation, channel, currency, building_code, check_in_date, created_at_odoo')
+      .gte('created_at_odoo', yesterdayStartUtc)
+      .lt('created_at_odoo', yesterdayEndUtc)
       .neq('status', 'canceled'),
-    // Unpaid + arriving in next 7 days
+    // Month-to-date by booking creation (Cairo TZ)
+    sb.from('beithady_reservation_grid_v')
+      .select('host_payout, commission, currency, channel, created_at_odoo')
+      .gte('created_at_odoo', mtdStartUtc)
+      .lt('created_at_odoo', mtdEndUtc)
+      .neq('status', 'canceled'),
+    // Unpaid + arriving in next 7 days (check-in based, this is correct)
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_nickname, building_code, guest_name, check_in_date, payment_balance_cents, payment_currency, channel')
       .eq('flagged_unpaid', true)
       .gte('check_in_date', dateIso)
       .lte('check_in_date', sevenDaysIso)
+      .neq('status', 'canceled')
       .order('check_in_date'),
-    // New direct bookings yesterday (manual channel)
+    // Direct bookings created yesterday (channel=manual matches the
+    // Direct chip in calendar-data.ts / channel-meta.ts).
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, host_payout, commission, currency, listing_nickname')
-      .gte('check_in_date', yesterdayIso)
-      .lte('check_in_date', yesterdayIso)
+      .select('reservation_id, host_payout, commission, currency, listing_nickname, created_at_odoo')
+      .gte('created_at_odoo', yesterdayStartUtc)
+      .lt('created_at_odoo', yesterdayEndUtc)
       .eq('channel', 'manual')
       .neq('status', 'canceled'),
     // Expected payouts (next 2 days): confirmed reservations checking in
@@ -84,17 +96,47 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
   const payouts2 = (payouts2d as Array<{ reservation_id: string; host_payout: number | string | null; channel: string | null; currency: string; listing_nickname: string | null; building_code: string | null; check_in_date: string }> | null) || [];
   const payoutsM = (payoutsMonth as Array<{ host_payout: number | string | null; channel: string | null; currency: string; check_in_date: string }> | null) || [];
 
-  // Sums (in USD; for V1 we don't FX-convert — flag the mix)
-  const sumPayout = (rows: Array<{ host_payout: number | string | null; commission: number | string | null }>) =>
-    rows.reduce((s, r) => s + (Number(r.host_payout || 0) + Number(r.commission || 0)), 0);
+  // ---- Per-currency aggregation helpers ----
+  // Avoid summing across currencies: USD + AED + EGP must stay separate.
+  type CcyTotals = Map<string, number>;
+  const sumByCcy = <T extends { currency: string; host_payout: number | string | null; commission?: number | string | null }>(
+    rows: T[],
+    includeCommission = true,
+  ): CcyTotals => {
+    const out = new Map<string, number>();
+    for (const r of rows) {
+      const k = r.currency || 'USD';
+      const v = Number(r.host_payout || 0) + (includeCommission ? Number(r.commission || 0) : 0);
+      out.set(k, (out.get(k) || 0) + v);
+    }
+    return out;
+  };
+  const formatCcy = (totals: CcyTotals): string => {
+    const entries = Array.from(totals.entries()).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) return '$0';
+    return entries.map(([k, v]) => `${formatMoney(v, k)}`).join(' + ');
+  };
+  const formatMoney = (v: number, ccy: string): string => {
+    const rounded = Math.round(v).toLocaleString();
+    if (ccy === 'USD') return `$${rounded}`;
+    return `${rounded} ${ccy}`;
+  };
 
-  const yesterdayTotal = sumPayout(yest);
-  const mtdTotal = sumPayout(mtd);
-  const directTotal = sumPayout(direct);
+  const yestCcy = sumByCcy(yest, true);
+  const mtdCcy = sumByCcy(mtd, true);
+  const directCcy = sumByCcy(direct, true);
 
-  // Channel breakdown for yesterday
+  // For the summary numeric, fall back to USD-equivalent best-effort:
+  // we report only the USD bucket (don't conflate with AED). The
+  // per-ccy line in the section text shows the full mix.
+  const yesterdayUsd = yestCcy.get('USD') || 0;
+  const mtdUsd = mtdCcy.get('USD') || 0;
+  const directUsd = directCcy.get('USD') || 0;
+
+  // Channel breakdown for yesterday (by USD only, to keep the line clean)
   const yestByChannel = new Map<string, number>();
   for (const r of yest) {
+    if ((r.currency || 'USD') !== 'USD') continue;
     const k = r.channel || 'unknown';
     yestByChannel.set(k, (yestByChannel.get(k) || 0) + Number(r.host_payout || 0) + Number(r.commission || 0));
   }
@@ -103,26 +145,20 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
     .map(([k, v]) => `${k}: $${Math.round(v).toLocaleString()}`)
     .join(' · ');
 
-  // Currency mix
-  const yestByCcy = new Map<string, number>();
-  for (const r of mtd) {
-    const k = r.currency || 'USD';
-    yestByCcy.set(k, (yestByCcy.get(k) || 0) + Number(r.host_payout || 0) + Number(r.commission || 0));
-  }
-  const ccyLines = Array.from(yestByCcy.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => `${k}: ${Math.round(v).toLocaleString()}`)
-    .join(' · ');
-
-  // Unpaid total
+  // Unpaid total (in cents per row's payment_currency — most are USD;
+  // we sum cents and divide by 100 in the same currency bucket).
   const unpaidTotalCents = unpaid.reduce((s, r) => s + (r.payment_balance_cents || 0), 0);
 
-  // Payout forecast totals (host_payout only — what we actually receive)
-  const payouts2Total = payouts2.reduce((s, r) => s + Number(r.host_payout || 0), 0);
-  const payoutsMonthTotal = payoutsM.reduce((s, r) => s + Number(r.host_payout || 0), 0);
-  // Group 2-day payouts by channel for the breakdown line
+  // Payout forecast: per-currency (no FX conversion in V1)
+  const payouts2Ccy = sumByCcy(payouts2 as Array<{ currency: string; host_payout: number | string | null }>, false);
+  const payoutsMCcy = sumByCcy(payoutsM as Array<{ currency: string; host_payout: number | string | null }>, false);
+  const payouts2UsdTotal = payouts2Ccy.get('USD') || 0;
+  const payoutsMUsdTotal = payoutsMCcy.get('USD') || 0;
+
+  // Group 2-day payouts by channel for the breakdown line (USD only)
   const payouts2ByChannel = new Map<string, number>();
   for (const r of payouts2) {
+    if ((r.currency || 'USD') !== 'USD') continue;
     const k = r.channel || 'unknown';
     payouts2ByChannel.set(k, (payouts2ByChannel.get(k) || 0) + Number(r.host_payout || 0));
   }
@@ -137,8 +173,8 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '💰',
       items: [
         {
-          primary: `$${Math.round(yesterdayTotal).toLocaleString()} accrued`,
-          secondary: yestChannelLines || 'No channel mix',
+          primary: `${formatCcy(yestCcy)} accrued`,
+          secondary: yestChannelLines || (yestCcy.size > 1 ? 'Multi-currency mix above' : 'No channel mix'),
           tag: yest.length === 0
             ? { label: 'Quiet day', tone: 'slate' }
             : { label: `${yest.length} new`, tone: 'green' },
@@ -150,8 +186,10 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '📊',
       items: [
         {
-          primary: `$${Math.round(mtdTotal).toLocaleString()} MTD across ${mtd.length} bookings`,
-          secondary: `Currency mix: ${ccyLines || 'USD only'}`,
+          primary: `${formatCcy(mtdCcy)} MTD across ${mtd.length} bookings`,
+          secondary: mtdCcy.size > 1
+            ? 'Per currency above (no FX conversion).'
+            : 'USD only',
         },
       ],
     },
@@ -160,13 +198,13 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '⏱',
       items: payouts2.length > 0 ? [
         {
-          primary: `$${Math.round(payouts2Total).toLocaleString()} accruing across ${payouts2.length} confirmed check-in${payouts2.length === 1 ? '' : 's'}`,
+          primary: `${formatCcy(payouts2Ccy)} accruing across ${payouts2.length} confirmed check-in${payouts2.length === 1 ? '' : 's'}`,
           secondary: payouts2ChannelLine || '—',
           tag: { label: 'Forecast', tone: 'cyan' },
         },
         ...payouts2.slice(0, 8).map(r => ({
           primary: `${r.check_in_date} · ${r.listing_nickname || '—'}`,
-          secondary: `${r.channel || ''} · $${Math.round(Number(r.host_payout || 0)).toLocaleString()}${r.building_code ? ` · ${r.building_code}` : ''}`,
+          secondary: `${r.channel || ''} · ${formatMoney(Number(r.host_payout || 0), r.currency || 'USD')}${r.building_code ? ` · ${r.building_code}` : ''}`,
         })),
       ] : [],
       empty_message: 'No confirmed check-ins in the next 2 days.',
@@ -176,7 +214,7 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '📅',
       items: payoutsM.length > 0 ? [
         {
-          primary: `$${Math.round(payoutsMonthTotal).toLocaleString()} forecast through ${monthEndIso}`,
+          primary: `${formatCcy(payoutsMCcy)} forecast through ${monthEndIso}`,
           secondary: `${payoutsM.length} confirmed reservation${payoutsM.length === 1 ? '' : 's'}. Assumes channel pre-collection (Airbnb/Booking) and clears within their normal payout window.`,
           tag: { label: 'Forecast', tone: 'cyan' },
         },
@@ -205,7 +243,7 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '🎯',
       items: direct.length > 0
         ? [{
-            primary: `$${Math.round(directTotal).toLocaleString()} from ${direct.length} direct booking${direct.length === 1 ? '' : 's'}`,
+            primary: `${formatCcy(directCcy)} from ${direct.length} direct booking${direct.length === 1 ? '' : 's'}`,
             secondary: direct.map(d => d.listing_nickname).filter(Boolean).slice(0, 5).join(' · '),
             tag: { label: 'No commission', tone: 'green' },
           }]
@@ -222,19 +260,50 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
     sections,
     summary: {
       yesterday_bookings: yest.length,
-      yesterday_revenue_usd: Math.round(yesterdayTotal),
-      mtd_revenue_usd: Math.round(mtdTotal),
+      yesterday_revenue_usd: Math.round(yesterdayUsd),
+      mtd_revenue_usd: Math.round(mtdUsd),
       mtd_bookings: mtd.length,
       unpaid_arriving: unpaid.length,
       unpaid_balance_usd: Math.round(unpaidTotalCents / 100),
       direct_bookings_yesterday: direct.length,
-      direct_revenue_usd: Math.round(directTotal),
+      direct_revenue_usd: Math.round(directUsd),
       payouts_2d_count: payouts2.length,
-      payouts_2d_usd: Math.round(payouts2Total),
+      payouts_2d_usd: Math.round(payouts2UsdTotal),
       payouts_month_count: payoutsM.length,
-      payouts_month_usd: Math.round(payoutsMonthTotal),
+      payouts_month_usd: Math.round(payoutsMUsdTotal),
     },
   };
+}
+
+// Returns the UTC ISO timestamp of "00:00:00 Cairo" on the given Cairo
+// calendar date. Inlined here (not exported from cairo-dates.ts) to keep
+// the helper change minimal.
+function cairoStartOfDayUtc(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const naiveUtc = Date.UTC(y, m - 1, d, 0, 0, 0);
+  const cairoLocal = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Cairo', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(naiveUtc));
+  const lookup = Object.fromEntries(cairoLocal.map(p => [p.type, p.value]));
+  const cairoMs = Date.UTC(
+    parseInt(lookup.year, 10),
+    parseInt(lookup.month, 10) - 1,
+    parseInt(lookup.day, 10),
+    parseInt((lookup.hour === '24' ? '0' : lookup.hour) || '0', 10),
+    parseInt(lookup.minute || '0', 10),
+    parseInt(lookup.second || '0', 10),
+  );
+  const offsetMs = cairoMs - naiveUtc;
+  return new Date(naiveUtc - offsetMs).toISOString();
+}
+
+function cairoStartOfNextDayUtc(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d));
+  next.setUTCDate(next.getUTCDate() + 1);
+  return cairoStartOfDayUtc(next.toISOString().slice(0, 10));
 }
 
 function cairoLabel(iso: string): string {

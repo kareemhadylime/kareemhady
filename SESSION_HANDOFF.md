@@ -1,6 +1,44 @@
-# Kareemhady — Session Handoff (2026-04-27)
+# Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Latest turn — SOP/KB A4 PDF export (commit `61c9063`)
+## 🟢 Latest turn — Finance Morning Brief: critical bug fix
+
+User flagged WhatsApp Finance brief on 2026-04-28 showed wildly inflated numbers — 412 bookings yesterday, 1000 MTD, 607 check-ins next 2 days, identical $154 BH-435-101 rows repeating 3×. Asked for deep diagnosis and fix.
+
+**Root cause: `beithady_reservation_grid_v` row explosion**
+- The view's LEFT JOIN on `beithady_guests` matched on `email OR phone`. There are **202 guest profiles** carrying placeholder email `booking@beithady.com` (Booking.com's masked-contact convention) and **204 reservations** using the same placeholder. Every placeholder reservation cross-joined to all 202 guest rows.
+- Whole-view damage: **48,005 view rows for 6,951 distinct reservations (~6.9× inflation)**. Three reservations alone exploded to 202 rows each.
+- Side joins (`beithady_pre_arrival_messages`, `beithady_boarding_passes`) were currently 1:1 but had no structural guarantee — they'd start exploding the day a reservation gets two pre-arrival queue rows.
+
+**Fix #1 — Migration `0047_beithady_grid_view_dedupe.sql`** (applied via MCP):
+- Replaced 3 of the 4 LEFT JOINs with `LEFT JOIN LATERAL … LIMIT 1`, ordered deterministically (most-engaged guest profile / most-recent boarding pass / most-recent pre-arrival message).
+- For `beithady_guests`, added an exclusion list for known placeholder emails (`booking@beithady.com`, `noreply@guesty.com`, `guest@airbnb.com`) so placeholder reservations don't get a stranger's loyalty profile attached. Easy to extend.
+- Appended `created_at_odoo` (timestamptz) at the end of the column list — needed for accrual-basis revenue queries. (Postgres rejected mid-list insertion under CREATE OR REPLACE; appending preserves all 46 existing column positions.)
+- Post-fix verification: view rows = 6,951 = distinct reservations = base table rows (perfect 1:1).
+
+**Fix #2 — `src/lib/beithady/morning-brief/finance-brief.ts`** rewrite:
+- "Yesterday's revenue" + "Month-to-date" now filter by **`created_at_odoo`** (booking creation timestamp, accrual basis), not `check_in_date` (which counted arrivals, not sales).
+- Cairo-timezone correctness via existing `cairoWallToUtc` helper from `cairo-dates.ts` (DST-safe).
+- Yesterday query now also has `.neq('status','canceled')` (was missing → cancellations were inflating the count further).
+- **Per-currency aggregation** — USD and AED are kept in separate buckets and rendered as "$X + Y AED" rather than summed as if interchangeable. The summary's `*_revenue_usd` fields report only the USD portion.
+- Direct-booking filter remains `channel='manual'` (matches `channel-meta.ts` "Direct" label and the calendar grid's Direct chip — captures walk-ins, phone bookings, admin-imported direct deals).
+- "Through month-end" forecast now uses `endOfMonth(dateIso)` from `cairo-dates.ts`.
+
+**Before / after numbers (2026-04-28 brief):**
+| Metric | Before (buggy) | After (fixed) |
+|---|---|---|
+| Yesterday's revenue | 412 bookings · $83,384 | 22 bookings · $12,937 USD |
+| MTD | 1000 bookings · $622,894 | 393 bookings · $295,457 (USD + AED mix) |
+| Direct yesterday | (inflated) | 4 bookings · $5,731 |
+| Payouts next 2 days | 607 check-ins · $595,179 | 13 check-ins · $4,842 |
+| Payouts EOM | 607 · $595,179 | 13 · $4,842 (today is 2 days before EOM) |
+
+**Side benefits** (view fix is system-wide):
+- Calendar grid (`calendar-data.ts`), reservation drawer (`reservation-detail.ts`), GR/Ops morning briefs, and cancel-risk all consume the same view → all benefit from the dedup automatically.
+- Three reservations were rendering as 202 duplicate calendar bars; now each appears once.
+
+**Recommendation flagged for the user (not changed):** "Direct booking" currently includes any `channel='manual'` reservation — this conflates walk-ins (legit revenue) with admin imports and any future owner stays. If you want to split owner stays out, the cleanest filter would be `source_label != 'owner'`. Currently 0 reservations have `source='owner'` so it doesn't matter today.
+
+## 🟢 Earlier — SOP/KB A4 PDF export (commit `61c9063`)
 
 Two endpoints:
 - `GET /api/beithady/sop/article/[slug]/pdf` — single article download
@@ -18,7 +56,7 @@ Two endpoints:
 - Single: `beithady-sop-{slug}.pdf`
 - Bundle: `beithady-sop-{role}[-{lang}].pdf` (e.g. `beithady-sop-housekeeping-ar.pdf`)
 
-## 🟢 Earlier this session — SOP/KB Arabic versions for GR + Maintenance (commit `68b32f0`)
+## 🟢 Earlier — SOP/KB Arabic versions for GR + Maintenance (commit `68b32f0`)
 
 User asked for Arabic versions of Guest Relations + Maintenance articles. Inserted 6 counterpart articles (slug suffix `-ar`):
 
