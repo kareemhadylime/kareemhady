@@ -18,7 +18,7 @@ User screenshot of Multi-Calendar in dark mode: page title "Multi-Calendar" was 
 
 **Build hotfix (`5a078fa`).** Vercel build was already broken on main from M.3 commit `5024494`: `src/lib/beithady/inventory/warehouses.ts` had `import 'server-only'` at the top but exported types AND constants used by client components. Even with `import type`, runtime imports of constants pulled `'server-only'` into the client bundle → Turbopack rejected. Extracted types + constants into [src/lib/beithady/inventory/warehouses-shared.ts](src/lib/beithady/inventory/warehouses-shared.ts); `warehouses.ts` re-exports them for back-compat on the server side; both client components import from `-shared`. Canonical green again.
 
-## 🟡 Earlier this session — Phase M coding: M.0 → M.6 SHIPPED (7 commits deployed), M.7 → M.14 remaining
+## 🟡 Earlier this session — Phase M coding: M.0 → M.8 SHIPPED (9 commits deployed), M.9 → M.14 remaining
 
 Auto mode active. User confirmed defaults on C1/C2/C3 → green light to coding. Six sub-phases shipped this session, all auto-deployed to limeinc.vercel.app.
 
@@ -32,7 +32,9 @@ Auto mode active. User confirmed defaults on C1/C2/C3 → green light to coding.
 | M.3 | `5024494` | ✅ | Warehouses CRUD + tree view + PIN rotation. Lib at `src/lib/beithady/inventory/warehouses.ts` (listAll, buildTree, fetchStats, getWarehousePin). 4 server actions (create/update/toggleActive/rotatePin). Tree panel renders by-building, recursive sub-warehouses. Cycle detection on parent edits. Block deactivation if non-zero stock. PIN reveal-once banner |
 | M.4 | `8f24af0` | ✅ | Items Catalog + Excel template + bulk import. Added `exceljs ^4.4.0` dep. Lib `catalog.ts` (listItems with category+vendor+stock joins) + `excel.ts` (template generator with 4 sheets, parser with per-row validation). 5 server actions. Items table with low-stock chip, batch/expiry/owner/asset flag pills. Two-step import modal (upload → preview with willCreate/willUpdate/errors → commit). Template route at `/api/beithady/inventory/items/template` |
 | M.5 | `dba972f` | ✅ | Vendors / Registration tab with KYC workflow. Lib `vendors.ts` (listVendors with item-count + GRN aggregates, getVendorPriceHistory). 6 server actions: create/update + 4 status transitions (submitForKyc/approve/suspend/reactivate). Auto-approval if creator is admin (Risk #9). Admin-only approve action requires manager+ role. Status filter chips with per-status counts. 5-section vendor form (Identity / Legal & tax / Commercial / Contact / Banking + Categories multi-select). Per-row 3-dot actions menu with status-aware transitions |
-| M.6 | `871b956` | ⏳ | Stock view + transaction ledger drill-in. Lib `stock.ts` (listStockBalances drives off items table so zero-stock items still surface; cross-warehouse aggregation for low/stockout filters; getItemLedger for drill-in). Stock page with KPI strip + 5-filter form + colored on-hand column. Right-slideover ledger drawer with type pills + signed Δ qty + doc/ref column. **REBASE NEEDED** on top of sibling commits `5a078fa` (warehouses-shared split — already applied to repo) + `2738139` (stale inquiry fade) before merging. |
+| M.6 | `5046e0a` | ✅ | Stock view + transaction ledger drill-in. Lib `stock.ts` drives off items so zero-stock items still surface; cross-warehouse aggregation for low/stockout; getItemLedger for drill-in. Right-slideover ledger drawer with type pills + signed Δ qty + doc/ref column. |
+| M.7 | `eeb1597` | ✅ | **Receiving (GRN) + atomic posting engine**. Migration 0049 with 3 RPCs: `beithady_inv_recompute_item_avg_cost` (weighted avg), `beithady_inv_post_grn` (THE LOAD-BEARING RPC — pg_advisory_xact_lock per item, upsert stock, write immutable transactions, recompute avg_cost), `beithady_inv_required_approvers` (reads approval_rules, returns distinct roles). 5 server actions: createDraft/submit/approve/reject/post. State-machine: draft→submitted→pending_approval→approved→posted (immutable). Auto-approve when no rule matches. List page with status chips, detail page with line table + workflow buttons, /new with editable line table that filters items by selected vendor. |
+| M.8 | `ad50380` | ✅ | **Issue dispensing + 6 types + FIFO posting + auto-issue cron engine**. Migration 0050 with 2 RPCs: `beithady_inv_post_issue` (FIFO batch picking — oldest expiry first, NULLS LAST, then earliest movement; advisory locks per item; raises EXCEPTION on insufficient stock), `beithady_inv_pending_auto_issues(window_days)` (returns reservations checking in today + yesterday catch-up with no existing reservation_hold transaction). Lib `issue.ts` with full rules engine `computeAutoIssueLines`: scope precedence (listing > building > global), formula kinds (per_guest_per_night × G × N · per_night × N · per_2_guests_per_night · per_checkin · fixed_per_stay), 12% loss factor cushion, ceil to 0.01. 5 server actions same shape as GRN. Cron handler at `/api/cron/beithady-inventory-auto-issue` (Cairo-hour gate 13-16, ?force=1 bypass) creates auto-issues with status=approved, posts via RPC, audits run with full counters. vercel.json: 2 entries at 11:00 + 12:00 UTC for DST safety. **20 reservations would fire today** (10 today + 10 yesterday catch-up) once consumption_rules are seeded (rules editor UI deferred to M.11). |
 
 ### M.0 pre-flight findings that shaped M.1+ (full doc at [docs/PHASE_M_PREFLIGHT.md](docs/PHASE_M_PREFLIGHT.md))
 
@@ -74,20 +76,18 @@ C1=as-listed (M.5 vendors before M.7 GRN) · C2=PIN+name session · C3=7 categor
 - `5a078fa` **Build hotfix**: split `warehouses.ts` types/constants out into `warehouses-shared.ts` because client components were transitively pulling `'server-only'` into the bundle via const re-exports. Critical fix — without it the canonical Vercel build was red on the M.3 commit. Pattern locked in: anything imported by client components MUST live in a non-`server-only` module. Applied to my warehouses lib retroactively.
 - `73d08e2` SESSION_HANDOFF doc-only
 
-### Remaining sub-phases (~8 commits)
+### Remaining sub-phases (~5 commits, M.9 → M.14)
 
-| Sub | Scope | Est commits |
-|---|---|---|
-| M.7 | GRN + approval + posting engine (Tab 6) — writes transactions, recomputes weighted-avg cost, DB advisory lock per item_id during posting (Risk #2) | 1 |
-| M.8 | Issue with 6 types + Kits + auto-rules engine + daily cron at Cairo 14:00 (Tab 7 + `/inventory/rules`) | 2 |
-| M.9 | Transfers (Out → In pair, in-transit visibility) | 0.5 |
-| M.10 | Counts & Adjustments (cycle + physical, variance → adjustment) | 0.5 |
-| M.11 | Dashboard (Tab 1) — KPI cards + per-checkin cost widget + 30-day forecast + reorder alerts + stockout-risk + nightly fx-snap helper + cron `beithady-inventory-rollup` every 30 min | 1 |
-| M.12 | Mobile cleaner app `/inventory/m` — Arabic RTL + building-PIN gate + named session (C2) + photo capture + posts back as Issue type=mobile_pin | 1 |
-| M.13 | WhatsApp inbound reorder — green-api webhook handler + Phase E classifier reuse for inventory item extraction + draft Issue/PO creation + manager approval ping | 1 |
-| M.14 | Morning Brief integration (stockout-risk section) + WhatsApp approval push notifications + final polish | 0.5 |
+| Sub | Scope | Est commits | Notes for picker-up |
+|---|---|---|---|
+| M.9 | Transfers (Out → In pair, in-transit visibility) | 0.5 | Reuses Issue type=transfer_out + companion GRN at destination warehouse. Pair via `ref_transfer_id` (already on issues). Likely thin: a /transfers page that creates the pair atomically and shows in-transit |
+| M.10 | Counts & Adjustments (cycle + physical, variance → adjustment) | 0.5 | beithady_inventory_count_sessions has generated `variance_qty` column already. Need: schedule session UI (random subset for cycle, full warehouse for physical), counted_qty entry, variance approval, adjustment posting via new RPC `beithady_inv_post_count` (writes type=count_adjust transactions) |
+| M.11 | Dashboard (Tab 1) + consumption rules editor + nightly fx-snap + rollup cron | 1.5 | Real KPI population (replace M.2's snapshot calc with denormalised rollup). Rules editor at `/inventory/rules` is the missing piece for M.8 auto-issue to actually fire. Cron fx-snap = `usd_to_egp` from fx_rates → items.default_cost_usd. Rollup cron every 30 min refreshes a `beithady_inventory_dashboard_v` view |
+| M.12 | Mobile cleaner app `/inventory/m` | 1 | Arabic RTL + Cairo font + building-PIN form (key `inventory_pin_WH-BHXX-MAIN`) + named session text field + big-button issue/count flows + photo capture (uploads to `beithady-inventory` bucket). Posts back as Issue with `created_via='mobile_pin'` + `cleaner_session_name` populated |
+| M.13 | WhatsApp inbound reorder | 1 | Green-API webhook handler (extend existing `beithady-wa-casual` webhook). AI parser reuses `src/lib/beithady/ai/classify.ts` pattern with new categories `inventory_reorder_request` extracting items[]+qty[]. Creates draft Issue/PO with status=`pending_approval` + `created_via='wa_inbound'` |
+| M.14 | Morning Brief integration + WA approval push + final polish | 0.5 | Add stockout-risk section to ops-brief.ts. Approvers get a WhatsApp ping when their queue grows (re-uses Phase C wa-casual sender). Final SESSION_HANDOFF + Phase M wrap commit |
 
-Currently 7/15 commits done (~47%). Branch: `claude/romantic-meninsky-05e511`.
+Currently 9/15 commits done (~60%). Branch: `claude/romantic-meninsky-05e511`. Head: `ad50380`.
 
 ### IMPORTANT lessons learned
 
@@ -96,13 +96,34 @@ Currently 7/15 commits done (~47%). Branch: `claude/romantic-meninsky-05e511`.
 
 ### File map (where things live)
 
-- Migrations: `supabase/migrations/0048a_beithady_inventory_role_enum.sql` + `0048b_beithady_inventory_tables.sql`
-- Lib: `src/lib/beithady/inventory/{warehouses,catalog,excel,vendors}.ts`
-- Pages: `src/app/emails/beithady/inventory/{page,warehouses,items,vendors,...}/page.tsx`
-- Server actions: `src/app/emails/beithady/inventory/{warehouses,items,vendors}/actions.ts`
-- API: `src/app/api/beithady/inventory/items/template/route.ts`
+- Migrations: `supabase/migrations/0048a_beithady_inventory_role_enum.sql` · `0048b_beithady_inventory_tables.sql` (14 tables + seeds) · `0049_beithady_inventory_posting_rpcs.sql` (GRN posting + approval matrix RPCs) · `0050_beithady_inventory_issue_posting.sql` (Issue FIFO posting + auto-issue scanner)
+- Lib: `src/lib/beithady/inventory/{warehouses,warehouses-shared,catalog,excel,vendors,stock,grn,issue}.ts`
+- Pages: `src/app/emails/beithady/inventory/{page,warehouses,items,vendors,stock,grn,issue,...}/page.tsx` + `[id]/page.tsx` + `new/page.tsx` + `_components/*`
+- Server actions: `src/app/emails/beithady/inventory/{warehouses,items,vendors,grn,issue}/actions.ts`
+- API: `src/app/api/beithady/inventory/items/template/route.ts` (Excel template) · `src/app/api/cron/beithady-inventory-auto-issue/route.ts` (Cairo 14:00 daily)
 - Audit: `src/lib/beithady/audit.ts` extended `AuditModule` with 'inventory' (+'operations')
 - Auth: `src/lib/beithady/auth.ts` extended with new roles + `inventory` BeithadyCategory
+- vercel.json: 2 new cron entries (UTC 11:00 + 12:00 = Cairo 14:00 DST-safe)
+
+### What works end-to-end RIGHT NOW (smoke test the picker-up can run)
+
+1. Visit `/emails/beithady/inventory` → 9 tab cards, all clickable
+2. Visit `/inventory/warehouses` → 6 main warehouses listed by building
+3. Visit `/inventory/items` → empty initially; click "Add item" or "Excel template" → fill → import
+4. Visit `/inventory/vendors` → 1 seeded VEN-AMAZON-EG; click "Register vendor" for new
+5. Visit `/inventory/grn/new` → pick vendor + warehouse + add lines → "Save as draft"
+6. On detail page → "Submit" → routes through approval matrix → "Approve" (if needed) → "Post to ledger"
+7. Stock page now shows the received qty + avg_cost recomputed
+8. Click any SKU → ledger drawer shows the receipt transaction
+9. `/inventory/issue/new` → pick type + warehouse + lines → submit → approve → post (FIFO picks the cost from received batches)
+10. Stock decrements; ledger shows the issue transaction
+11. Cron `/api/cron/beithady-inventory-auto-issue?force=1` (with Bearer secret) — fires NOW even outside Cairo window. With 0 consumption_rules seeded today it returns `skipped_no_rules: 20`
+
+### Open questions for the next session (none blocking, just FYI)
+
+- Should M.10 counts UI surface a "ABC analysis" hint to suggest which items to cycle-count this week? (Improvement #14 from the plan)
+- M.11 nightly fx-snap: pull from existing `fx_rates` cron or write a new `beithady-inventory-fx-snap` cron at ~03:00 UTC? Latter is cleaner.
+- M.13 WA parser confidence threshold: auto-create as draft (current plan) or auto-post if confidence > 0.95? Recommend always-draft for V1 safety.
 
 ## 🟢 Earlier this session (sibling worktree) — Operations Calendar: auto-fade stale inquiries (`2738139` + `5a078fa`)
 
