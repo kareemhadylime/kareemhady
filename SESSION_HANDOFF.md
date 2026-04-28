@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟡 Most recent turn — Phase M.15 workflow drafted: Q1–Q15 locked, awaiting S1–S3 sign-off (no code)
+## 🟢 Most recent turn — M.15.0 pre-flight + M.15.1 foundation SHIPPED (commits `4df2c9e` + `c2f4b06`)
+
+User said "default" → S1/S2/S3 all accepted recommendations → green light coding. **Two commits shipped** in this turn covering the first two M.15 sub-phases.
+
+### M.15.0 — Pre-flight findings (commit `4df2c9e`, doc-only)
+
+Read-only audits via Supabase MCP + grep, written to [docs/PHASE_M15_PREFLIGHT.md](docs/PHASE_M15_PREFLIGHT.md):
+
+1. **Bedrooms coverage 72%** (58/81 active BH-* listings have bedrooms in pricelabs). The 23 unknowns are all BH-73 MTL parents — Phase J's `mtl.ts` already handles fallback to children, so listing-config-sync cron reuses that.
+2. **Bathrooms coverage 0%** 🔴 — neither pricelabs nor `guesty_listings.raw` exposes bathroom counts. All manual entry. M.15.1 added `needs_review` flag on `_listing_unit_config` to flag every listing until admin verifies.
+3. **`_consumption_rules` is empty** (0 rows) — no collision risk for new `unit_config` scope + 4 new formula_kind values.
+4. **`amazon_eg_url` already exists** on `_items` (M.4) — migration 0052c uses `ADD COLUMN IF NOT EXISTS` for the 10 additional amazon_eg_* columns.
+5. **Vercel cron count 33 → 36** after M.15.5. Pro plan allows 40, 4 headroom.
+6. **MTL polarity reminder** — unit_config sync must run on bookable atoms only (use `isBookableAtom()` from `mtl.ts`).
+
+### M.15.1 — Foundation (commit `c2f4b06`, code)
+
+**4 migrations applied via Supabase MCP + written to `supabase/migrations/` for repo history:**
+
+- **0052a_unit_configurations** — new `beithady_inventory_unit_configurations` (id, code unique, name_en/ar, bedrooms int 0-6, bathrooms numeric(3,1) 0.5-6.0, guest_capacity, tier enum standard/premium/vip, notes, active) + `beithady_inventory_listing_unit_config` (listing→config mapping with auto/manual source + needs_review flag).
+- **0052b_consumption_rules_unit_config** — extends scope CHECK to include `'unit_config'`; adds 4 new formula_kind values (`per_bedroom_per_checkin`, `per_bathroom_per_checkin`, `per_guest_per_checkin`, `fractional_per_checkin`); creates `beithady_inventory_listing_overrides` table (Q11 layer with qty_override, reason, unique on listing_id+item_id).
+- **0052c_amazon_eg_sourcing** — extends `_items` with 10 amazon_eg_* columns (price_egp, rating, review_count, is_bulk_pack, pack_size, image_url, in_stock, last_checked_at, last_status enum, alternatives jsonb); creates `beithady_inventory_amazon_eg_price_snapshots` for weekly trend tracking.
+- **0052d_seed_unit_configs_categories_uoms_items_rules** — seeds:
+  - 2 new categories: `sanitary` + `branded` (per Q13)
+  - 4 new UoMs: `bottle`, `can`, `sachet`, `pair`
+  - **7 unit configurations** matching real BH-26/73/435/OK shapes (Studio + 1BR/1BA + 1BR/1.5BA + 2BR/2BA + 2BR/2.5BA Premium + 3BR/2BA + 3BR/3BA Premium)
+  - **30 consumable items** grouped: Cleaning(8 incl. Glance/Pledge/anti-flies per Q14) + Sanitary(8) + Tray(7) + Linen(3) + Branded(4)
+  - **30 global default consumption rules** — formula_kind handles per-bedroom/bathroom/guest scaling, no per-config rule explosion needed.
+
+**Types-shared file** [`src/lib/beithady/inventory/estimator-shared.ts`](src/lib/beithady/inventory/estimator-shared.ts) — mirrors warehouses-shared / rules-shared split pattern (no `server-only` import). Holds `UnitConfiguration · RuleScope · FormulaKind · FORMULA_KIND_LABEL · SCOPE_LABEL · TIER_LABEL · AmazonEgCandidate · AMAZON_EG_URL_PATTERN · scoreAmazonCandidate() · EstimatorOutput · EstimatorLine · ESTIMATOR_GROUP_LABEL · categoryToGroup() · formulaMultiplier() · COST_IMPACT_ALERT_THRESHOLD · shouldAlertOnCostImpact()`. Client-safe so future client components can pull directly.
+
+**Verified counts:** 7 unit_configs + 30 items + 30 rules + 9 categories (2 added). Type-check clean. Canonical `limeinc.vercel.app` Ready (2m).
+
+### Phase M.15 progress
+✅ M.15.0 pre-flight · ✅ M.15.1 migrations + types-shared · ⏳ M.15.2 Settings card + Inventory tab + estimator landing page · ⏳ M.15.3 Config detail + line CRUD + listing override · ⏳ M.15.4 AI Amazon EG sourcer · ⏳ M.15.5 Forecast view + 3 cron handlers + checklist hook.
+
+## 🟡 Earlier this session — Phase M.15 workflow drafted: Q1–Q15 locked, awaiting S1–S3 sign-off (no code)
 
 User answered all 15 plan-phase questions. Workflow phase sent for review per standing process (Plan → 95% → Workflow → 95% → Code). **No code this turn.**
 
