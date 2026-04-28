@@ -45,18 +45,21 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
     { data: payouts2d },
     { data: payoutsMonth },
   ] = await Promise.all([
-    // Bookings CREATED yesterday Cairo (accrual). Excludes cancellations.
+    // Bookings CREATED yesterday Cairo (accrual). Excludes cancellations
+    // AND owner stays (which are calendar blocks with no charge).
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, host_payout, commission, fare_accommodation, channel, currency, building_code, check_in_date, created_at_odoo')
       .gte('created_at_odoo', yesterdayStartUtc)
       .lt('created_at_odoo', yesterdayEndUtc)
-      .neq('status', 'canceled'),
-    // Month-to-date by booking creation (Cairo TZ)
+      .neq('status', 'canceled')
+      .neq('source_label', 'owner'),
+    // Month-to-date by booking creation (Cairo TZ). Same exclusions.
     sb.from('beithady_reservation_grid_v')
       .select('host_payout, commission, currency, channel, created_at_odoo')
       .gte('created_at_odoo', mtdStartUtc)
       .lt('created_at_odoo', mtdEndUtc)
-      .neq('status', 'canceled'),
+      .neq('status', 'canceled')
+      .neq('source_label', 'owner'),
     // Unpaid + arriving in next 7 days (check-in based, this is correct)
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_nickname, building_code, guest_name, check_in_date, payment_balance_cents, payment_currency, channel')
@@ -64,28 +67,36 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       .gte('check_in_date', dateIso)
       .lte('check_in_date', sevenDaysIso)
       .neq('status', 'canceled')
+      .neq('source_label', 'owner')
       .order('check_in_date'),
-    // Direct bookings created yesterday (channel=manual matches the
-    // Direct chip in calendar-data.ts / channel-meta.ts).
+    // Direct bookings created yesterday: channel=manual (= Direct in
+    // channel-meta.ts) MINUS owner stays. Owner stays are calendar
+    // blocks with no charge, not revenue, so they're excluded from
+    // direct-booking revenue counts. Walk-ins, phone bookings, and
+    // website-direct bookings remain.
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, host_payout, commission, currency, listing_nickname, created_at_odoo')
+      .select('reservation_id, host_payout, commission, currency, listing_nickname, source_label, created_at_odoo')
       .gte('created_at_odoo', yesterdayStartUtc)
       .lt('created_at_odoo', yesterdayEndUtc)
       .eq('channel', 'manual')
+      .neq('source_label', 'owner')
       .neq('status', 'canceled'),
-    // Expected payouts (next 2 days): confirmed reservations checking in
+    // Expected payouts (next 2 days): confirmed reservations checking in.
+    // Owner stays excluded — they're zero-charge blocks, not payouts.
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, host_payout, channel, currency, listing_nickname, building_code, check_in_date')
       .gte('check_in_date', dateIso)
       .lte('check_in_date', next2Iso)
       .eq('status', 'confirmed')
+      .neq('source_label', 'owner')
       .order('check_in_date'),
-    // Expected payouts (until month end): confirmed reservations checking in
+    // Expected payouts (until month end): confirmed reservations checking in.
     sb.from('beithady_reservation_grid_v')
       .select('host_payout, channel, currency, check_in_date')
       .gte('check_in_date', dateIso)
       .lte('check_in_date', monthEndIso)
-      .eq('status', 'confirmed'),
+      .eq('status', 'confirmed')
+      .neq('source_label', 'owner'),
   ]);
 
   type RevRow = { reservation_id: string; host_payout: number | string | null; commission: number | string | null; fare_accommodation: number | string | null; channel: string | null; currency: string; building_code: string | null; check_in_date: string };
