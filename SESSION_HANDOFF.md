@@ -1,164 +1,48 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — Strip 'Emails' breadcrumb segment from every page (commit `7c1a6f3`)
+## 🟡 Latest turn — Phase M coding: M.9 + M.10 SHIPPED (11/15 commits, 73%)
 
-User screenshot of `/emails/personal` showed breadcrumb `Lime Investments > Emails > Personal`. Asked: "why emails are still there in header?"
+User said "M9, M10" → shipped both sub-phases as one commit + migration 0051.
 
-The prior URL refactor moved Beit Hady out of `/emails/*` but left the breadcrumb scaffolding on the legacy `/emails/[domain]` pages (Personal, FMPLUS, VoltAuto, Lime, Kika sub-pages, Boat Rental admin) untouched. Three pages inside the moved Beit Hady tree (financials, pricing, setup) also still had a hardcoded `<Link href="/emails">Emails</Link>` segment in their breadcrumbs from before the refactor.
+### M.9 — Transfers
 
-**Fix:** stripped the middle 'Emails' (and 'Domains' on the setup page) segment from every breadcrumb across 13 files via a Python regex pass. URLs themselves untouched on the legacy `/emails/[domain]` tree — backward-compat preserved. The `/emails/beithady/* → /beithady/*` redirect from the prior commit still applies.
+Migration 0051: `beithady_inv_post_transfer(src, dst, lines jsonb, actor)` — atomic Out/In with FIFO source picking. Generates one transfer_id (uuid) shared across paired transfer_out + transfer_in transactions. Both legs commit or both roll back.
 
-Files touched:
-- `src/app/emails/[domain]/page.tsx`, `[domain]/[ruleId]/page.tsx`
-- `src/app/emails/boat-rental/admin/layout.tsx`
-- `src/app/emails/kika/{exec,financials,history,inventory,inventory/raw-materials,sales,setup}/page.tsx`
-- `src/app/beithady/{financials,pricing,setup}/page.tsx` (stragglers from prior refactor)
+- `src/lib/beithady/inventory/transfers.ts` — listTransfers (groups transactions by doc_id, normalises Supabase array-shape joins), getTransfer (joins both legs)
+- `src/app/emails/beithady/inventory/transfers/actions.ts` — postTransferAction with approval gate (transfer >5K EGP needs warehouse_manager per seeded matrix)
+- `transfers/page.tsx` list · `transfers/new/page.tsx` form · `transfers/[id]/page.tsx` detail
+- `_components/transfer-form.tsx` — source/dest pickers (with available-at-source live hints + insufficient-stock warning), per-line batch selector (FIFO default), posts immediately on submit (no draft state for transfers)
 
-Breadcrumbs now read `Lime Investments > <Domain>` instead of `Lime Investments > Emails > <Domain>`.
+### M.10 — Counts & Adjustments
 
-Type-check clean. Canonical `limeinc.vercel.app` Ready (2m).
+Migration 0051: `beithady_inv_post_count_session(session_id, actor)` — walks count_lines, writes count_adjust transactions for non-zero variances, updates stock to counted_qty, recomputes avg_cost.
 
-## 🟢 Earlier this turn — Beit Hady out of `/emails/*` URL hierarchy (commit `a836385`)
+- `src/lib/beithady/inventory/counts.ts` — listCountSessions (with progress count), getCountSession (with bilingual item names), COUNT_STATUS_LABEL
+- `src/app/emails/beithady/inventory/counts/actions.ts` — 6 actions:
+  - createCountSessionAction (cycle = random subset 5-50 items via Fisher-Yates; physical = all stocked items)
+  - saveCountedQtyAction (bulk update + auto-promote status to in_progress + records cleaner_session_name)
+  - submitCountForApprovalAction (computes variance_pct, routes via matrix — >10% needs warehouse_manager)
+  - approveCountAction · postCountAction (calls RPC) · cancelCountAction
+- `counts/page.tsx` list with progress column · `counts/new/page.tsx` (cycle vs physical radio + sample size for cycle) · `counts/[id]/page.tsx` detail
+- `_components/count-session-form.tsx` + `count-entry-panel.tsx`:
+  - Live variance % preview as cleaner types (rose if >10%, amber if >0)
+  - Cleaner / counter name field (named session per Q6/C2)
+  - Workflow buttons appear contextually based on status: Save (always for editable) / Submit (after all counted) / Approve (canApprove + pending) / Post (after approved) / Cancel (any non-terminal)
+  - Submit blocked until all lines have counted_qty filled
 
-User: "Remove emails from the hierarchy `emails/beithady/settings/templates`. Emails should not be the landing page or mentioned in the hierarchy."
+End-to-end smoke test now possible: Receive (GRN) → Stock populated → Issue/Transfer → Stock decrements → Count → Variance written as count_adjust transaction → Stock matches reality.
 
-The `/emails/*` prefix was a legacy artefact from when the platform was just a domain-scoped digest tool. Beit Hady has long since outgrown that framing — it's a full ops suite, not an email tab. Refactor:
+**TS gotcha resolved**: Supabase JS client types `!inner` joins as **arrays** even though they yield single objects — `transfers.ts` had to normalise via `Array.isArray(r.warehouse) ? r.warehouse[0] : r.warehouse` casting through `unknown`. Pattern locked in for future joins.
 
-1. **`git mv src/app/emails/beithady → src/app/beithady`** — 159 files relocated (history preserved).
-2. **Bulk-rewrote 361 internal hrefs** from `/emails/beithady` → `/beithady` across 100 source files (page hrefs, `revalidatePath()`, `redirect()`, morning-brief renderers, aggregators, whatsapp helpers, BeithadyShell breadcrumbs).
-3. **`next.config.ts`** — permanent (308) redirects `/emails/beithady` → `/beithady` and `/emails/beithady/:path*` → `/beithady/:path*`. Old bookmarks + WhatsApp brief links + cached deep links keep working without 404s.
-4. **Home page (`/`)** — Beithady portfolio card now links directly to `/beithady`. Other tiles (kika / personal / fmplus / voltauto / boat-rental) keep their existing `/emails/[domain]` route unchanged since those legacy domain landings still apply.
+## 🟢 Earlier this session — Phase M status check (no code, awaiting direction on next sub-phase)
 
-**No DB changes. No cron changes.** `vercel.json` cron entries point to `/api/*` routes — unaffected. Auth flow unchanged. Type-check clean. Canonical `limeinc.vercel.app` deployed Ready.
+User asked "where are we, what's missing". Sent a status report showing the M.0-M.8 ship table (9/15 commits done, ~60%), the 5 remaining sub-phases (M.9-M.14, ~5 commits), and called out one critical gap:
 
-**Verify live**: https://limeinc.vercel.app/beithady/settings/templates loads cleanly. https://limeinc.vercel.app/emails/beithady/settings/templates 308-redirects to the new URL.
+**M.11 Dashboard ships the Consumption Rules editor** — without it the M.8 auto-issue cron has nothing to fire (returned `skipped_no_rules: 20` when force-tested). Plumbing is in place, just no rules data yet.
 
-**Files NOT touched** (intentional):
-- `src/app/emails/[domain]/page.tsx` — legacy domain landing for non-Beithady portfolio entries; still serves kika/fmplus/voltauto/personal.
-- `src/app/admin/rules/actions.ts` — `revalidatePath('/emails')` calls target the legacy index, not Beithady.
+Asked the user whether to jump to M.11 next (unblocks auto-issue) or do M.9 (transfers) + M.10 (counts) first to keep the original order. User chose M9+M10.
 
-## 🟢 Earlier this turn — Boarding-pass + CSAT into approval workflow, inbox sort, SLA pill explanation (commit `477a187` · migration `0050_unify_outbound_templates`)
-
-User followed up the templates rebuild with three asks: "What is the number of Days in Red on the right? Also how to sort messages? Boarding-pass + CSAT senders add DB templates in the same approval cycle."
-
-**Answer to "595d / 410d / 377d":** SLA age — days since the guest's last *unanswered* message arrived. Tooltip + label come from [src/app/emails/beithady/communication/_components/sla-pill.tsx](src/app/emails/beithady/communication/_components/sla-pill.tsx) → [`formatAge()`](src/lib/beithady/communication/sla.ts) (`<60s → Ns`, `<60m → Nm`, `<24h → Nh`, else → `Nd`). High counts come from old Airbnb inquiries that were never replied to (mostly legitimate dead-letter cases — declined inquiries that don't actually need a host reply but still register as SLA-breach). Documented for the user in this turn's response.
-
-**Sort dropdown:** added to the Guesty Inbox filter row. Six options:
-1. Oldest unanswered first (default — original behaviour)
-2. Newest unanswered first
-3. Most recent guest message
-4. Most recent activity (any direction)
-5. Most recently replied
-6. Guest name A→Z
-
-URL param `sort=...`. New `InboxSort` type in [src/lib/beithady/communication/inbox.ts](src/lib/beithady/communication/inbox.ts); each option maps to a single `.order()` call against the appropriate column. WA Casual + WA Cloud + Unified inboxes share the same `listInbox` library so the sort works there too once the param is added on those pages (their UIs use the same form pattern; mirror after first user feedback if needed).
-
-**Migration `0050_unify_outbound_templates`:**
-- Adds `purpose text NOT NULL DEFAULT 'pre_arrival' CHECK IN ('pre_arrival','boarding_pass','csat_survey')` to `beithady_pre_arrival_templates`. Table name kept (avoids breaking existing imports).
-- Seeds 1 default boarding-pass template + 1 default CSAT template — both with neutral Beit Hady-only bodies. enabled=false, approved_at=NULL.
-
-**Sender refactor (no more hardcoded bodies):**
-- [boarding-pass.ts](src/lib/beithady/engagement/boarding-pass.ts) and [csat.ts](src/lib/beithady/engagement/csat.ts) now load their body from `beithady_pre_arrival_templates` filtered by `purpose=` + `enabled=true` + `approved_at IS NOT NULL` + JS check `body === approved_body`.
-- If no approved template exists, the cron writes a `*_dispatch_blocked` audit row (`reason: 'no_approved_template'`) and skips every reservation. Defense-in-depth alongside the existing global `isOutboundPaused()` check + cron-removed-from-vercel.json.
-- New variables supported: `{stay_url}` for boarding-pass, `{survey_url}` for CSAT (in addition to `{guest_name}`, `{listing}`, `{check_in}`, `{host_phone}`).
-
-**Templates UI now grouped into 3 sections:**
-- Pre-arrival templates (5 rows — one per building + 1 default)
-- Boarding-pass templates (1 default; multi-building support if you create more rows later)
-- CSAT survey templates (1 default; same)
-- "Other senders" section narrowed to review-reply-queue + AI auto-reply (the only two remaining surfaces that don't use DB templates).
-
-Each section keeps the same Edit body → Save → Approve → Enable workflow. Variables hint per section lists the placeholders that purpose supports.
-
-**Test it:** open [/emails/beithady/settings/templates](https://limeinc.vercel.app/emails/beithady/settings/templates) — three sections. Pre-arrival has 5 rows from the original seed (sanitized to neutral Beit Hady text), boarding-pass + CSAT now have 1 row each (also neutral). All disabled + unapproved by default. Approving the boarding-pass template + enabling it is required before the cron can fire (and the cron itself is still stripped from `vercel.json` — separate explicit re-add step).
-
-## 🟢 Earlier this session — Template approval workflow + Communication kill-switch UI (commit `3146e2f` · migration `0049_template_approval_workflow`)
-
-User followed up the emergency stop with sharp questions: "Where is the log of sent messages? There should be a kill control switch for Communication. Where is the kill switch for AI? Where did he get the info for Roof Top? Per-template review before flipping — where are these templates created, reviewed, approved? **Only Branding is Beithady, No A1, nothing else.**"
-
-**Answers ledger:**
-| Question | Where it lives now |
-|---|---|
-| Message log | `/emails/beithady/communication/{guesty,wa-casual,wa-cloud,unified}` — these are the canonical inboxes (one row per send in `beithady_messages`). |
-| Communication kill switch UI | NEW — `/emails/beithady/communication` landing has a banner + a one-click panel at `/emails/beithady/settings/templates`. |
-| AI kill switch UI | Already existed at `/emails/beithady/settings/ai-config` (confidence threshold + global toggle + VIP digest toggle). |
-| Templates review/approval UI | NEW — `/emails/beithady/settings/templates` replaces the "Phase C / F coming up" stub. |
-| Source of "rooftop / pool / gym / breakfast 7-11am" | Hardcoded in seed migration `0039_beithady_engagement.sql:122` (BH-435 row). Plausible-sounding fabricated content from a prior session. **Stripped this turn.** |
-
-**Sanitization (DB):** All 5 pre-arrival template bodies replaced with one neutral Beit Hady-only template:
-> *"Hi {guest_name}, Welcome — your apartment {listing} is ready for {check_in}. If you need anything before or during your stay, the Beit Hady host team is on call 24/7 at {host_phone}. Safe travels. Beit Hady team"*
-
-No A1, no specific amenities, no wifi names, no door codes, no parking instructions, no thermostat claims. All rows kept disabled + unapproved. Audit row written.
-
-**Migration `0049_template_approval_workflow`** (applied via Supabase MCP):
-- Adds `approved_by_user uuid REFERENCES app_users(id)`, `approved_at timestamptz`, `approved_body text` to `beithady_pre_arrival_templates`.
-- Adds same columns + `approved_name text` + `approved_description text` to `beithady_upsell_catalog`.
-- Trigger `trg_clear_*_approval` on both tables: any UPDATE that touches `body` (or `name`/`description` on upsell) clears the approval AND sets `enabled=false`. Forces re-review on every edit.
-- Backfill leaves every existing row at `approved_at = NULL` (i.e., nothing is approved by default).
-
-**Sender approval gates wired** in code:
-- [`src/lib/beithady/engagement/pre-arrival.ts`](src/lib/beithady/engagement/pre-arrival.ts): SQL filter `enabled=true AND approved_at IS NOT NULL` + JS guard `body === approved_body` (defends against trigger races).
-- [`src/lib/beithady/engagement/upsell.ts`](src/lib/beithady/engagement/upsell.ts): same shape on `beithady_upsell_catalog` checking `name === approved_name` AND `description === approved_description`.
-- Boarding-pass + CSAT senders use **hardcoded message bodies in code, not DB templates** — flagged in the new templates UI as a follow-up. For now they remain locked by (a) cron schedule removal in `vercel.json` and (b) the global `isOutboundPaused()` check in `sendWaCasualMessage`/`sendGuestyMessage`. Migration to DB-templated bodies is a follow-up.
-
-**New UI pieces:**
-- [`/emails/beithady/settings/templates/page.tsx`](src/app/emails/beithady/settings/templates/page.tsx) — replaces the "Phase C / F coming up" stub. Shows the global outbound kill-switch panel at the top, then lists every pre-arrival template + every upsell catalog item. Per-row Save / Approve / Enable + status pill (Live / Approved-disabled / Edited-needs-re-approval / Pending-review). Variables hint shown under each editor.
-- `OutboundKillSwitch` client component — Pause flips `beithady_outbound_paused = true` + `_reason` + `_at`; Resume requires explicit confirmation with reminder of the pre-conditions (review templates, re-add cron schedules). Audit row on every flip.
-- [`/emails/beithady/communication/page.tsx`](src/app/emails/beithady/communication/page.tsx) — replaces the redirect with a real card-based landing: kill-switch banner when paused, 4 inbox channel cards (the message log), 2 control cards (templates + AI config).
-- All buttons gated server-side by `requireBeithadyPermission('settings', 'full')`. Read-only viewers see status but cannot edit/approve/enable.
-
-**Server actions** in [`templates/actions.ts`](src/app/emails/beithady/settings/templates/actions.ts):
-- `updatePreArrivalBodyAction` / `approvePreArrivalTemplateAction` / `setPreArrivalEnabledAction` (refuses to enable if `approved_at IS NULL` or `body !== approved_body`)
-- `updateUpsellAction` / `approveUpsellAction` / `setUpsellEnabledAction` (same refusal logic)
-- `setOutboundPausedAction(paused, reason)` — writes the 3 settings rows + audit
-- Every action records before/after in `beithady_audit_log`
-
-**To resume sending (when ready):** open `/emails/beithady/settings/templates` → review each template body → click Approve → click Enable. Then either click "Resume outbound communication" on the kill-switch panel OR open the Communication landing. Crons in `vercel.json` are still stripped — to fully restore the auto-fire flow, the cron schedules also need to be re-added (see vercel.json). The kill switch + approval gates ensure that even if a cron fires, only approved templates can deliver.
-
-**Live URL:** https://limeinc.vercel.app — Ready, build green. Go to `/emails/beithady/settings/templates` to see the workflow.
-
-## 🔴 Earlier this session — EMERGENCY: All guest-facing automated messaging KILLED (commits `474d3f7` + `e240af3`)
-
-User flagged a screenshot of an unauthorized WhatsApp pre-arrival message sent to guest **Nour** at **BH-435-202** today. Message body started "Hi Nour, Welcome to **A1 Hospitality** at BH-435-202 — check-in 2026-04-28…" and signed off "A1 Hospitality · Beit Hady team". User had not approved the send and asked: *"what is Coming From A1"* and explicitly directed: **"Stop all messages to guests immediately"**.
-
-**Source of the "A1 Hospitality" branding:** seeded directly in [supabase/migrations/0039_beithady_engagement.sql:122](supabase/migrations/0039_beithady_engagement.sql:122) as the BH-435 pre-arrival template. The Phase F cron `/api/cron/beithady-pre-arrival` fired at 08:00 UTC = 11:00 Cairo today and dispatched it.
-
-**🔴 Forensic finding — 4 auto-fire crons sent guest WhatsApp today, not just pre-arrival.** `SELECT … FROM beithady_messages WHERE direction='outbound' AND created_at >= NOW()-INTERVAL '8 hours'` revealed 18+ messages dispatched via `wa_casual` (Green-API) across:
-
-| Cron path | Fired (Cairo) | Volume today | Body shape |
-|---|---|---|---|
-| `beithady-pre-arrival` | 11:00 | 4+ | "Welcome to A1 Hospitality at {listing}…" |
-| `beithady-boarding-pass` | 11:30 | 2+ | "Here is your Beit Hady stay page…" |
-| `beithady-upsell-offer` | 13:00 | 3+ | "Your stay at {listing} is coming up. A few extras…" |
-| `beithady-csat-survey` | 16:00 | 14+ | "Thank you for staying with Beit Hady at {listing}! Quick favour — how likely are you to recommend…" (NPS) |
-
-Separate data-integrity bug noticed: every one of those rows has `is_automatic = false` despite being cron-fired by `runPreArrivalDispatch` / `runBoardingPassDispatch` / `runUpsellOfferDispatch` / `runCsatSurveyDispatch`. The senders mark sends as agent-initiated. Not an emergency, but worth fixing — surfaces in audit + UI as if a human typed each message.
-
-**Three-layer kill engaged + deployed:**
-
-**Layer 1 — DB-level data-source disable** (immediate, no deploy needed; fully reversible by flipping flags back):
-- `beithady_settings.ai_auto_reply_enabled = false` (Phase E gate)
-- `beithady_settings.vip_digest_enabled = false`
-- `beithady_settings.beithady_outbound_paused = true` (NEW global flag)
-- `beithady_settings.beithady_outbound_paused_reason / _at` — forensic context
-- All 5 rows in `beithady_pre_arrival_templates.enabled = false`
-- All 7 rows in `beithady_upsell_catalog.enabled = false`
-- Audit row written: `action='outbound_killswitch_engaged' @ 2026-04-28 16:28 UTC`
-
-**Layer 2 — Vercel cron schedules removed** ([vercel.json](vercel.json)) for 5 guest-facing routes: `beithady-pre-arrival`, `beithady-boarding-pass`, `beithady-upsell-offer`, `beithady-csat-survey`, `beithady-review-reply-queue`. Internal data-sync crons preserved (CRM/comm/SLA/market-fetch/ads/operations-recompute/morning-brief/late-reply-digest — those don't send to guests, or send to staff only).
-
-**Layer 3 — Defense-in-depth in code:** new helper `isOutboundPaused()` in [src/lib/beithady/settings.ts](src/lib/beithady/settings.ts) reads the flag. Both [src/lib/beithady/communication/send-wa-casual.ts](src/lib/beithady/communication/send-wa-casual.ts) and [src/lib/beithady/communication/send-guesty.ts](src/lib/beithady/communication/send-guesty.ts) now check it as the very first line of `sendWaCasualMessage` / `sendGuestyMessage`. When true → audit row written + return `{ ok: false, status: 503, error: 'outbound_paused' }` **before** touching the WhatsApp / Guesty providers. AI auto-reply pipeline ([src/lib/beithady/ai/gate.ts](src/lib/beithady/ai/gate.ts)) was untouched because it routes every reply through those two helpers — kill switch covers it transitively.
-
-**Build hotfix piggy-backed (`e240af3`):** M.8's [src/lib/beithady/inventory/issue.ts](src/lib/beithady/inventory/issue.ts) had the same `import 'server-only'` + runtime-constants leak that M.3's `warehouses.ts` had (the constants `ISSUE_TYPE_LABEL` / `ISSUE_STATUS_LABEL` are imported by client component `issue-draft-form.tsx`). Extracted shared types/constants into `issue-shared.ts`; `issue.ts` re-exports them for back-compat on the server side. Both client components updated. Pattern is now established: every server-only inventory lib that wants to share constants with client components needs the `-shared.ts` companion file.
-
-**Disengage instructions:** flipping `beithady_outbound_paused = false` in `beithady_settings` is the single most powerful kill — but to actually deliver guests must also re-enable templates/catalog AND re-add the cron schedules in `vercel.json`. **Recommend per-template review before re-enabling**, especially the BH-435 "A1 Hospitality" template which is the one that triggered this incident. The "A1 Hospitality" branding itself looks like an accidental seed — Beit Hady is the parent brand and A1 Hospitality is one of the building owners (per memory: A1HOSPITALITY owns BH-435), so it's not necessarily wrong, but it shouldn't be the sender voice on a guest pre-arrival.
-
-**What still needs the user's attention:**
-1. Decide whether the "A1 Hospitality" template body is the message you want guests to see, or if it should be Beit Hady-only branded.
-2. Decide whether to flip `is_automatic = true` on cron-fired messages (audit trail clarity).
-3. Decide a re-enable path: probably (a) review each pre-arrival template body, (b) review each upsell-catalog item, (c) flip `beithady_outbound_paused = false`, (d) restore selected crons in `vercel.json` one by one.
-
-## 🟢 Earlier this turn — Beithady dark-mode contrast fix (commit `c3cd679`)
+## 🟢 Earlier this session — Beithady dark-mode contrast fix (commit `c3cd679`)
 
 User screenshot of Multi-Calendar in dark mode: page title "Multi-Calendar" was nearly invisible, listing nicknames (BH-26-001 etc.) faded into the slate background, price-cell labels were barely legible. Root cause: Beit Hady brand defines `--bh-navy: #1E2D4A` and **28 admin pages** use it as inline `style={{ color: 'var(--bh-navy)' }}`. In dark mode that produces navy-on-slate-900 — WCAG fails everywhere.
 
