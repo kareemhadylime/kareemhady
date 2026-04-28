@@ -8,6 +8,7 @@ import {
   Tag,
   ListPlus,
   History,
+  ShoppingBag,
 } from 'lucide-react';
 import { requireBeithadyPermission, canAccessSettingsSubtab, getEffectiveBeithadyRoles } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
@@ -113,6 +114,17 @@ const SUBTABS: Subtab[] = [
       description: 'Every CRM edit · auto-sent reply · ad publish · gallery upload · settings change — searchable.',
       icon: History,
       accent: 'slate',
+    },
+  },
+  {
+    slug: 'housekeeping-estimator',
+    tile: {
+      href: '/beithady/inventory/rules/estimator',
+      title: 'Housekeeping Estimator',
+      description: 'Per-unit setup matrix scaling with bedrooms · bathrooms · guests. Sourced from Amazon EG with bulk-aware AI scoring.',
+      icon: ShoppingBag,
+      accent: 'emerald',
+      badge: { label: 'M.15', tone: 'gold' },
     },
   },
 ];

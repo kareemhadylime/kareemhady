@@ -13,6 +13,7 @@ import {
   Smartphone,
   ShieldCheck,
   ScrollText,
+  ShoppingBag,
 } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
@@ -210,6 +211,14 @@ export default async function InventoryLanding() {
           description="Cycle counts (weekly subset) · Physical counts (quarterly). Variance → adjustment with reason code."
           accent="cyan"
           badge={{ label: 'M.10', tone: 'gold' }}
+        />
+        <InvCard
+          href="/beithady/inventory/rules/estimator"
+          icon={ShoppingBag}
+          title="Housekeeping Setup"
+          description="Per-unit estimator matrix · 7 unit configurations · 30 consumables · Amazon EG sourced prices."
+          accent="emerald"
+          badge={{ label: 'M.15', tone: 'gold' }}
         />
       </section>
 
