@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendGuestyConversationPost } from '@/lib/guesty';
 import { recordAudit } from '@/lib/beithady/audit';
+import { isOutboundPaused } from '@/lib/beithady/settings';
 
 // Server-side wrapper around sendGuestyConversationPost. Persists the
 // outbound message into beithady_messages (channel=guesty, direction=
@@ -22,6 +23,20 @@ export type SendGuestyResult =
   | { ok: false; status: number; error: string; fallbackUrl?: string };
 
 export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuestyResult> {
+  // Global emergency kill switch. Refuse the send before touching the
+  // provider so a single beithady_settings flip stops every sender path.
+  if (await isOutboundPaused()) {
+    await recordAudit({
+      actor_user_id: args.agentUserId,
+      module: 'communication',
+      action: 'send_guesty_blocked_killswitch',
+      target_type: 'conversation',
+      target_id: args.beithadyConversationId,
+      metadata: { reason: 'beithady_outbound_paused=true', body_length: args.body.length },
+    });
+    return { ok: false, status: 503, error: 'outbound_paused' };
+  }
+
   const sb = supabaseAdmin();
 
   // Resolve the beithady conversation to its Guesty external id.

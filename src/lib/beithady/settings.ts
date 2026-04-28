@@ -63,3 +63,13 @@ export async function isAiAutoReplyEnabled(): Promise<boolean> {
 export async function isVipDigestEnabled(): Promise<boolean> {
   return getSetting<boolean>('vip_digest_enabled', true);
 }
+
+// Global emergency kill-switch for outbound guest messaging. When true,
+// every guest-facing sender (send-wa-casual, send-guesty, future SMTP)
+// MUST refuse to send and return an error. Engaged by the operator
+// directly in beithady_settings; disengage by flipping back to false.
+// Last engaged 2026-04-28 after an unauthorized A1 Hospitality
+// pre-arrival dispatch — see beithady_outbound_paused_reason.
+export async function isOutboundPaused(): Promise<boolean> {
+  return getSetting<boolean>('beithady_outbound_paused', false);
+}
