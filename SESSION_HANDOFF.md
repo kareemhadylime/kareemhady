@@ -1,6 +1,10 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — M.15.0 pre-flight + M.15.1 foundation SHIPPED (commits `4df2c9e` + `c2f4b06`)
+## ✅ Phase O SHIPPED — Guesty webhooks for real-time inbox
+
+(See full Phase O entry below — moved here on rebase against the sibling Phase M.15 work.)
+
+## 🟢 Earlier this session (sibling worktree) — M.15.0 pre-flight + M.15.1 foundation SHIPPED (commits `4df2c9e` + `c2f4b06`)
 
 User said "default" → S1/S2/S3 all accepted recommendations → green light coding. **Two commits shipped** in this turn covering the first two M.15 sub-phases.
 
@@ -130,6 +134,136 @@ User on Unified Inbox screenshot asked for three things:
 5. **GuestyComposer** now accepts `channelSource` prop. SMS chip auto-hidden on Airbnb / Booking threads (no SMS sub-channel there).
 
 **Note:** voice + attach upload pipes are only fully wired for `wa_casual` today. Other channels show the capability *spec* — actual sender wiring needs the Guesty media API + WABA (Phase C.4).
+
+## ✅ Phase O — Guesty webhooks for real-time inbox (full detail)
+
+User picked **Option C** from the inbox-staleness diagnosis (last turn). Team starts using the app **2026-05-01** so we have 2 days runway. Built end-to-end with admin verify page + backfill endpoint + setup doc baked into the UI.
+
+### What landed
+
+**Migration `0052_guesty_webhook_events`** (applied via MCP):
+- `guesty_webhook_events` table — every Guesty webhook POST persists here BEFORE processing for forensics + replay + idempotency
+- `unique_key` partial UNIQUE index does dedup (e.g. `reservation.messageReceived:<message_id>`)
+- Status enum: `received → processed | duplicate | ignored | error | unauthorized`
+
+**`src/lib/guesty-webhook.ts`** — handler library:
+- `processGuestyWebhook(payload, headers)` → returns `WebhookProcessResult`
+- Payload parsing tolerant to Guesty's `_id` vs `id` variance + nested `conversation.thread`/`message`
+- Per-event-type idempotency key derivation (message events use `message._id`; conversation events use `conversation._id + createdAt`; reservation events use `reservationId + createdAt`)
+- `reservation.messageReceived` + `reservation.messageSent` → upsert into `guesty_conversation_posts` + bump `guesty_conversations.last_message_*` timestamps
+- `conversation.created` + `conversation.updated` → upsert into `guesty_conversations` (drops null fields so daily-pull richer data isn't overwritten)
+- `reservation.*` events → currently `ignored` (deferred to daily pull; no inbox impact)
+- Anything unrecognised → `ignored` with audit row
+- After successful processing: fires `beithady_communication_ingest` RPC → propagates to `beithady_messages` so Unified Inbox sees the change within ~2s
+
+**`src/app/api/webhook/guesty/conversation/route.ts`** — public endpoint:
+- POST: shared-secret auth via `?secret=<GUESTY_WEBHOOK_SECRET>` query param
+- GET: healthcheck Guesty's UI uses to verify URL liveness; returns `auth_configured` + `auth_passed`
+- ALWAYS returns 200 — even on internal errors. Errors land in `guesty_webhook_events.status='error'` for review. Prevents Guesty retry storms.
+- Unauthorized POSTs are logged for forensics before returning 401
+
+**`src/app/api/admin/guesty-backfill/route.ts`** — one-shot:
+- POST/GET with `Bearer $CRON_SECRET` or `?secret=`
+- Calls existing `runGuestySync('admin_backfill')` to clear pre-webhook backlog (the 16h stale window from the last turn's diagnosis)
+- After Guesty sync: fires `beithady_communication_ingest` + `beithady_communication_sla_recompute` so the Unified Inbox catches up immediately
+
+**`src/app/beithady/communication/webhooks/page.tsx`** — admin verify dashboard:
+- Health card (green if last event <24h, amber otherwise) with deep-link to Guesty webhooks settings
+- 24h stats: total / processed / errors / unauthorized
+- Filter chips by status + by event_name (Inbound msgs, Outbound msgs)
+- Per-event row: when, event_name, status pill, reservation/conversation/message ID truncates, processing latency in ms, error message
+- Empty state shows the Setup checklist
+- 6-step setup checklist baked into the page (no separate doc needed)
+
+### Setup steps for the team (in the page UI)
+
+1. Set `GUESTY_WEBHOOK_SECRET` in Vercel env (`openssl rand -hex 32`)
+2. Open Guesty → Settings → Webhooks
+3. Create webhook URL: `https://limeinc.vercel.app/api/webhook/guesty/conversation?secret=<value>`
+4. Subscribe to `reservation.messageReceived` + `reservation.messageSent` (start narrow)
+5. Send test from Guesty's webhook UI → refresh `/beithady/communication/webhooks` → row should appear within 2s with status=processed
+6. Fire one-time backfill: `curl -X POST "https://limeinc.vercel.app/api/admin/guesty-backfill?secret=$CRON_SECRET"`
+
+### Architecture notes locked in
+
+- **Guesty doesn't publicly document HMAC headers** — verified via WebFetch against open-api-docs.guesty.com. Used shared-secret URL param as primary auth (Guesty webhook subscriptions support arbitrary query params on the URL).
+- TODO marker in code: swap to header-based HMAC if/when Guesty publishes the spec.
+- **Idempotency-first design**: every POST writes to `guesty_webhook_events` BEFORE processing, so Guesty retries are safe (duplicate rows return `ok:true, status:'duplicate'`).
+- **Always-2xx response policy** prevents Guesty retry storms on internal errors. Operators replay errored events from the verify page (replay endpoint TBD as polish).
+- **Reservation events deliberately deferred** to keep the webhook scope tight to what the inbox needs. Adding `reservation.*` later is a 5-line change in `processGuestyWebhook`.
+
+### What's NOT done (intentional V2 polish)
+
+- HMAC signature header validation (waiting on Guesty docs)
+- IP allowlist (Guesty doesn't publish their range publicly)
+- Replay-from-events-table button on the admin page (just a UI nicety; raw replay possible via DB)
+- Webhook auto-creation via Guesty Open API (manual setup is one-time, faster than building the API caller)
+
+### Blocking notes for go-live (May 1)
+
+1. Set `GUESTY_WEBHOOK_SECRET` in Vercel **Production** env before May 1
+2. Configure the webhook in Guesty UI before May 1
+3. Run the backfill ONCE before May 1 (clears today's 16h+ backlog so first day of use shows correct history)
+4. Optional: add a Vercel cron entry that hits `/api/admin/guesty-backfill` as a safety net (e.g. nightly) so any missed webhooks never accumulate
+
+## 🟢 Earlier — Inbox-staleness diagnosis (resulted in Phase O)
+
+User showed Guesty UI with messages from 1m ago / 42m ago / 37m ago / 2h ago etc., next to Beit Hady Unified Inbox where the newest message was 17h old. Asked where the rest are.
+
+**Root cause found via DB inspection (no code touched):**
+
+```
+Guesty (live) → /api/cron/guesty (DAILY 04:40 UTC ⚠ BOTTLENECK)
+              → guesty_conversation_posts
+              → /api/cron/beithady-comm-sync (every 5 min ✅)
+              → beithady_messages → Unified Inbox UI
+```
+
+The Beit Hady comm-sync cron is **healthy** — every 5 min, status=success, but reports `conversations_upserted=0, messages_upserted=0` because the upstream `guesty_conversation_posts` table hasn't been updated in 16h. Verified via `beithady_comm_sync_runs` (12 most recent rows all success+0/0) and `MAX(synced_at) FROM guesty_conversation_posts = 04:42 UTC today`.
+
+The Guesty pull at `40 4 * * *` UTC is **once a day** because it does heavy work — listings + 365d reservations + ~15K conversations + posts + AI classification — typically ~60s. Wasn't designed for real-time inbox updates.
+
+**3 fix options sent to user, awaiting choice:**
+
+- **A. Lightweight inbox-only Guesty cron** (recommended, ~30 min):
+  New `/api/cron/guesty-inbox` that ONLY pulls conversations modified in last 2 hours + their new posts. Skips listings/reservations/classification. Schedule `*/5 * * * *`. Safe, isolated.
+
+- **B. Move full Guesty cron to every 15 min**:
+  Heavier. ~96 min/day of compute against Guesty rate limits. Risk of quota issues.
+
+- **C. Guesty webhooks** (real-time, ~2-3 hr):
+  Configure Guesty `conversation.modified` push to `/api/webhook/guesty/conversation`. Best long-term. Phase O candidate.
+
+Recommendation: **A now** to unblock inbox same-day, **C later** as Phase O.
+
+No code this turn. Branch head still at `cf708f1` (Phase M complete). User picks fix approach next turn.
+
+## 🟡 Earlier — "what's next" planning chat (no code)
+
+User asked what was next on the plan, said they'd test Phase M later. Sent a backlog snapshot from earlier handoff sections, organised into 3 buckets:
+
+**V2 hooks already in DB** (small follow-ups, columns/flags exist):
+- Owner-billable register UI (Q10 deferred) → needs page + Financial module hook for monthly owner statements
+- Asset tracking + depreciation (Q14 deferred) → `is_asset` + `serial_tracked` columns ready
+- AED currency UI surfacing (Q9 deferred) → column exists vendor + item-side
+- AI Amazon EG URL parser → paste URL on Items page, AI fills SKU/photo/cost (reuses Phase E + M.13 parser pattern)
+- Direct camera capture in mobile cleaner app → upload to `beithady-inventory` bucket (currently URL paste)
+- WhatsApp push-on-pending-approval → blocked on green-api sender accepting user-targeting (not just conversation-targeting); Approvals inbox is the substitute today
+
+**Strategic options from earlier session backlog** (none drafted):
+- K.4 Pricing recommender (PriceLabs auto-suggest)
+- K.5 Direct-booking funnel landing page
+- Owner Portal (Phase N candidate)
+- AI cancellation prediction ML upgrade (Phase K.2 has rule-based today)
+
+**Cross-system integration debt**:
+- `beithady_pre_arrival_messages` table empty bug noted in earlier handoff — Phase F cron needs investigation
+- 2,110 stale `sla_breach=true` flags never reset — flag-lifecycle bug noted but not fixed
+- Owner P&L cross-company join from Odoo `[5,10]` with intercompany eliminations (per memory file)
+
+**My recommendation: Phase N — Owner Portal** as the highest leverage. Uses everything Phase J/K/M built, unlocks new revenue conversation, all data already present.
+
+User said "test later" — no code this turn, just a backlog inventory. Awaiting direction on what to draft next.
 
 ## ✅ Phase M COMPLETE — M.0 → M.14 SHIPPED (15/15 commits, 100%)
 
