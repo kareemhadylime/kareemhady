@@ -1,6 +1,29 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟡 Latest turn — Phase M coding: M.9 + M.10 SHIPPED (11/15 commits, 73%)
+## 🟢 Most recent turn — Users & Roles overhaul + M.11 build hotfix (commits `aaef973` + `8d49eef` · migration `0051_app_users_contact_fields`)
+
+User on `/admin/users` reported 3 issues:
+1. Fonts not visible in dark mode (light cards with light text — domain-access checkboxes invisible).
+2. Need to capture **Mobile Number / Email / Position** per user.
+3. **Roles should be locked behind an Edit button** to prevent accidental one-click changes via the always-live role dropdown.
+
+**Migration `0051_app_users_contact_fields`:** added `mobile_number`, `email`, `position` columns to `app_users` + partial unique indexes on `lower(email)` and `mobile_number` (NULL allowed).
+
+**Server actions:** `createUserAction` persists the 3 new fields with E.164-ish + email-shape + 80-char-position normalisation. New `updateUserProfileAction` for profile edits only (does NOT touch role or domain access).
+
+**UI:**
+- "Add user" form now 6 fields across 3 columns: Username · Password · Role · Mobile · Email · Position.
+- Each user row displays mobile/email/position next to username with `mailto:` + `tel:` deep-links.
+- New client component `<UserRowEdit />` at [src/app/admin/users/_components/user-row-edit.tsx](src/app/admin/users/_components/user-row-edit.tsx):
+  - Default collapsed — only role badge + "Edit" button visible.
+  - On click expands into amber-bordered card with 3 separate forms (profile · role · domain access · delete). Cancel collapses without saving.
+- Dark-mode contrast rebuilt across the page (text-slate-500/700 → dark:text-slate-300/200, light-bg cards swap to dark:bg-slate-800, checkbox tiles have explicit dark variants).
+
+**Build hotfix (`8d49eef`):** sibling M.11 commit (`06169cb`) reintroduced the same `'server-only'`-pulled-into-client-bundle bug pattern as M.3's `warehouses.ts`. Extracted types + constants + `CostSample` into [src/lib/beithady/inventory/rules-shared.ts](src/lib/beithady/inventory/rules-shared.ts) (no `server-only`); `rules.ts` re-exports for back-compat. Updated three client components to import from `-shared`: rule-form-button, rule-row-actions, cost-calculator-widget.
+
+**Live**: `limeinc.vercel.app` Ready. [/admin/users](https://limeinc.vercel.app/admin/users).
+
+## 🟡 Earlier this session — Phase M coding: M.9 + M.10 SHIPPED (11/15 commits, 73%)
 
 User said "M9, M10" → shipped both sub-phases as one commit + migration 0051.
 
