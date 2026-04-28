@@ -1,10 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## ✅ Phase O SHIPPED — Guesty webhooks for real-time inbox
+## 🟢 Most recent turn — M.15.2 SHIPPED: estimator landing page + Settings/Inventory hooks (commit `75507f8`)
 
-(See full Phase O entry below — moved here on rebase against the sibling Phase M.15 work.)
+**New page**: [/beithady/inventory/rules/estimator](https://limeinc.vercel.app/beithady/inventory/rules/estimator) — matrix of 7 unit configurations. Columns: Configuration · Tier · Bedrooms · Bathrooms · Guests · Items · Listings using · Total per check-in (EGP) · Per guest. Click any row → `/[configId]` (M.15.3 builds the editor).
 
-## 🟢 Earlier this session (sibling worktree) — M.15.0 pre-flight + M.15.1 foundation SHIPPED (commits `4df2c9e` + `c2f4b06`)
+**Server-side estimator engine** at [src/lib/beithady/inventory/estimator.ts](src/lib/beithady/inventory/estimator.ts):
+- `listUnitConfigurations` / `getUnitConfiguration` / `getUnitConfigurationByCode`
+- `countListingsPerConfig` (for "12 listings using this config")
+- `listUnitConfigSummaries` (matrix-page totals)
+- **`computeEstimatorOutput(unitConfigId, listingId?)`** — the heart of M.15:
+  - Resolves rules with most-specific-wins ladder: `listing > unit_config > category > building > global`
+  - Applies `formulaMultiplier` from estimator-shared (per_bedroom / per_bathroom / per_guest / fixed / fractional)
+  - Applies `loss_factor_pct` to get effective qty
+  - Layers per-listing override on top (Q11)
+  - Computes Amazon-EG price-per-pack-unit when available, else falls back to `default_cost_egp`
+  - Groups lines by `EstimatorCategoryGroup` (cleaning · sanitary · tray · linen · branded · misc)
+  - Returns totals_by_group + grand total + per-guest amortized
+
+**Settings hook** — new card on `/beithady/settings`: "Housekeeping Estimator · per-unit setup matrix + Amazon EG sourcing" → estimator landing.
+
+**Inventory hook** — new 10th InvCard on `/beithady/inventory`: "Housekeeping Setup · Per-unit estimator matrix · 7 unit configurations · 30 consumables" → same destination.
+
+**Bathroom-coverage banner** on the matrix prominently flags the M.15.0 pre-flight finding: pricelabs/Guesty don't expose bathroom counts, so every listing is auto-assigned by bedroom only and needs admin verification via the per-listing override panel (M.15.3).
+
+**Build risk avoided** — page imports types/helpers from `estimator-shared` (client-safe) and server queries from `estimator.ts` (server-only) on the server side. No client component pulls server-only directly. Mirrors warehouses-shared / rules-shared pattern from M.3 + M.11 hotfixes.
+
+**Live**: canonical Ready. [/beithady/inventory/rules/estimator](https://limeinc.vercel.app/beithady/inventory/rules/estimator).
+
+### Phase M.15 progress
+✅ M.15.0 pre-flight · ✅ M.15.1 migrations + types-shared · ✅ M.15.2 landing page + Settings/Inventory hooks · ⏳ M.15.3 Config detail + line CRUD + listing override · ⏳ M.15.4 AI Amazon EG sourcer · ⏳ M.15.5 Forecast view + 3 cron handlers + checklist hook.
+
+### Note: sibling worktree shipped Phase O (Guesty webhooks) in parallel
+Phase O ships real-time inbox via Guesty webhook + admin verify + backfill (commit `b1a17d5` on origin/main, separate worktree). Independent feature, no conflict with M.15 work.
+
+## 🟢 Earlier this session — M.15.0 pre-flight + M.15.1 foundation SHIPPED (commits `4df2c9e` + `c2f4b06`)
 
 User said "default" → S1/S2/S3 all accepted recommendations → green light coding. **Two commits shipped** in this turn covering the first two M.15 sub-phases.
 
