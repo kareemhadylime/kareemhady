@@ -197,6 +197,8 @@ export async function getReservationDetail(reservationId: string): Promise<Reser
     boarding_viewed_at: r.boarding_viewed_at,
     prearrival_sent_at: r.prearrival_sent_at,
     is_manual_block: r.is_manual_block,
+    last_communication_at: null,
+    is_stale_inquiry: false,
   };
 
   const guestId = r.beithady_guest_id;

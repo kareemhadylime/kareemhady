@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "mcp__f6afcc50-71af-4679-98a5-f8e7338a72ed__execute_sql"
+      "mcp__f6afcc50-71af-4679-98a5-f8e7338a72ed__execute_sql",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

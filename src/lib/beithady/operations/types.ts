@@ -60,6 +60,10 @@ export type CalendarReservation = {
   prearrival_sent_at: string | null;
   // Manual block flag
   is_manual_block: boolean | null;
+  // Latest inbound/outbound message timestamp on the linked conversation.
+  // Used by the bar renderer to fade stale inquiries (>48 h silent).
+  last_communication_at: string | null;
+  is_stale_inquiry: boolean;
 };
 
 export type AnomalySnapshot = {

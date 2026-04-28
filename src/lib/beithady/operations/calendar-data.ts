@@ -256,6 +256,34 @@ export async function getCalendarGridData(opts: {
   }
 
   const { data: resRows } = await resQ;
+
+  // 4b. Last communication per reservation — used to fade stale inquiries
+  //     (≥48 h since last inbound/outbound message). Only inquiries are
+  //     candidates for fading; confirmed/canceled bars render unchanged.
+  const stalenessHours = 48;
+  const resIdsForComm = ((resRows as Array<{ reservation_id: string; status: string | null }> | null) || [])
+    .filter(r => r.status === 'inquiry')
+    .map(r => r.reservation_id);
+  const { data: convRows } = resIdsForComm.length > 0
+    ? await sb
+        .from('beithady_conversations')
+        .select('reservation_id, last_inbound_at, last_outbound_at')
+        .in('reservation_id', resIdsForComm)
+    : { data: [] };
+  const lastCommByRes = new Map<string, string>();
+  for (const c of (convRows as Array<{
+    reservation_id: string | null;
+    last_inbound_at: string | null;
+    last_outbound_at: string | null;
+  }> | null) || []) {
+    if (!c.reservation_id) continue;
+    const candidates = [c.last_inbound_at, c.last_outbound_at]
+      .filter((t): t is string => Boolean(t))
+      .sort();
+    const latest = candidates[candidates.length - 1];
+    if (latest) lastCommByRes.set(c.reservation_id, latest);
+  }
+  const staleCutoffMs = Date.now() - stalenessHours * 3600 * 1000;
   type DBRes = {
     reservation_id: string;
     confirmation_code: string | null;
@@ -294,6 +322,10 @@ export async function getCalendarGridData(opts: {
 
   const reservations: CalendarReservation[] = ((resRows as DBRes[] | null) || []).map(r => {
     const meta = channelMeta(r.channel);
+    const lastComm = lastCommByRes.get(r.reservation_id) || null;
+    const isStaleInquiry = r.status === 'inquiry'
+      && lastComm != null
+      && new Date(lastComm).getTime() < staleCutoffMs;
     return {
       reservation_id: r.reservation_id,
       confirmation_code: r.confirmation_code,
@@ -330,6 +362,8 @@ export async function getCalendarGridData(opts: {
       boarding_viewed_at: r.boarding_viewed_at,
       prearrival_sent_at: r.prearrival_sent_at,
       is_manual_block: r.is_manual_block,
+      last_communication_at: lastComm,
+      is_stale_inquiry: isStaleInquiry,
     };
   });
 

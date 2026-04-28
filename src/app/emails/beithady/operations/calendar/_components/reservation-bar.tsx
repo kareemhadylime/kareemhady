@@ -37,6 +37,7 @@ export function ReservationBar({
 
   const isCancelled = res.status === 'canceled';
   const isInquiry = res.status === 'inquiry';
+  const isStaleInquiry = isInquiry && res.is_stale_inquiry === true;
   const bg = res.channel_color;
   const fg = '#fff';
   const onClick = () => {
@@ -49,7 +50,7 @@ export function ReservationBar({
     <button
       type="button"
       onClick={onClick}
-      title={`${res.guest_name || 'Guest'} · ${res.channel_label} · ${res.check_in_date} → ${res.check_out_date}`}
+      title={`${res.guest_name || 'Guest'} · ${res.channel_label} · ${res.check_in_date} → ${res.check_out_date}${isStaleInquiry ? ' · Stale inquiry (>48h silent)' : ''}`}
       className="absolute group rounded shadow-sm overflow-hidden text-left pointer-events-auto outline-none focus:ring-2 focus:ring-[var(--bh-gold)]"
       style={{
         left: `${leftPct}%`,
@@ -58,7 +59,7 @@ export function ReservationBar({
         bottom: '4px',
         background: bg,
         color: fg,
-        opacity: isCancelled ? 0.4 : 1,
+        opacity: isCancelled ? 0.4 : isStaleInquiry ? 0.35 : 1,
         backgroundImage: isInquiry
           ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.0) 0 6px, rgba(255,255,255,0.18) 6px 12px)'
           : isCancelled
