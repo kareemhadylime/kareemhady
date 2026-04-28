@@ -11,7 +11,9 @@ export type AuditModule =
   | 'communication'
   | 'ads'
   | 'gallery'
-  | 'settings';
+  | 'settings'
+  | 'operations'
+  | 'inventory';
 
 export type AuditEntry = {
   actor_user_id?: string | null;
