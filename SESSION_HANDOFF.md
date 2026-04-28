@@ -1,6 +1,47 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — Beithady dark-mode contrast fix (commit `c3cd679`)
+## 🔴 EMERGENCY this turn — All guest-facing automated messaging KILLED (commits `474d3f7` + `e240af3`)
+
+User flagged a screenshot of an unauthorized WhatsApp pre-arrival message sent to guest **Nour** at **BH-435-202** today. Message body started "Hi Nour, Welcome to **A1 Hospitality** at BH-435-202 — check-in 2026-04-28…" and signed off "A1 Hospitality · Beit Hady team". User had not approved the send and asked: *"what is Coming From A1"* and explicitly directed: **"Stop all messages to guests immediately"**.
+
+**Source of the "A1 Hospitality" branding:** seeded directly in [supabase/migrations/0039_beithady_engagement.sql:122](supabase/migrations/0039_beithady_engagement.sql:122) as the BH-435 pre-arrival template. The Phase F cron `/api/cron/beithady-pre-arrival` fired at 08:00 UTC = 11:00 Cairo today and dispatched it.
+
+**🔴 Forensic finding — 4 auto-fire crons sent guest WhatsApp today, not just pre-arrival.** `SELECT … FROM beithady_messages WHERE direction='outbound' AND created_at >= NOW()-INTERVAL '8 hours'` revealed 18+ messages dispatched via `wa_casual` (Green-API) across:
+
+| Cron path | Fired (Cairo) | Volume today | Body shape |
+|---|---|---|---|
+| `beithady-pre-arrival` | 11:00 | 4+ | "Welcome to A1 Hospitality at {listing}…" |
+| `beithady-boarding-pass` | 11:30 | 2+ | "Here is your Beit Hady stay page…" |
+| `beithady-upsell-offer` | 13:00 | 3+ | "Your stay at {listing} is coming up. A few extras…" |
+| `beithady-csat-survey` | 16:00 | 14+ | "Thank you for staying with Beit Hady at {listing}! Quick favour — how likely are you to recommend…" (NPS) |
+
+Separate data-integrity bug noticed: every one of those rows has `is_automatic = false` despite being cron-fired by `runPreArrivalDispatch` / `runBoardingPassDispatch` / `runUpsellOfferDispatch` / `runCsatSurveyDispatch`. The senders mark sends as agent-initiated. Not an emergency, but worth fixing — surfaces in audit + UI as if a human typed each message.
+
+**Three-layer kill engaged + deployed:**
+
+**Layer 1 — DB-level data-source disable** (immediate, no deploy needed; fully reversible by flipping flags back):
+- `beithady_settings.ai_auto_reply_enabled = false` (Phase E gate)
+- `beithady_settings.vip_digest_enabled = false`
+- `beithady_settings.beithady_outbound_paused = true` (NEW global flag)
+- `beithady_settings.beithady_outbound_paused_reason / _at` — forensic context
+- All 5 rows in `beithady_pre_arrival_templates.enabled = false`
+- All 7 rows in `beithady_upsell_catalog.enabled = false`
+- Audit row written: `action='outbound_killswitch_engaged' @ 2026-04-28 16:28 UTC`
+
+**Layer 2 — Vercel cron schedules removed** ([vercel.json](vercel.json)) for 5 guest-facing routes: `beithady-pre-arrival`, `beithady-boarding-pass`, `beithady-upsell-offer`, `beithady-csat-survey`, `beithady-review-reply-queue`. Internal data-sync crons preserved (CRM/comm/SLA/market-fetch/ads/operations-recompute/morning-brief/late-reply-digest — those don't send to guests, or send to staff only).
+
+**Layer 3 — Defense-in-depth in code:** new helper `isOutboundPaused()` in [src/lib/beithady/settings.ts](src/lib/beithady/settings.ts) reads the flag. Both [src/lib/beithady/communication/send-wa-casual.ts](src/lib/beithady/communication/send-wa-casual.ts) and [src/lib/beithady/communication/send-guesty.ts](src/lib/beithady/communication/send-guesty.ts) now check it as the very first line of `sendWaCasualMessage` / `sendGuestyMessage`. When true → audit row written + return `{ ok: false, status: 503, error: 'outbound_paused' }` **before** touching the WhatsApp / Guesty providers. AI auto-reply pipeline ([src/lib/beithady/ai/gate.ts](src/lib/beithady/ai/gate.ts)) was untouched because it routes every reply through those two helpers — kill switch covers it transitively.
+
+**Build hotfix piggy-backed (`e240af3`):** M.8's [src/lib/beithady/inventory/issue.ts](src/lib/beithady/inventory/issue.ts) had the same `import 'server-only'` + runtime-constants leak that M.3's `warehouses.ts` had (the constants `ISSUE_TYPE_LABEL` / `ISSUE_STATUS_LABEL` are imported by client component `issue-draft-form.tsx`). Extracted shared types/constants into `issue-shared.ts`; `issue.ts` re-exports them for back-compat on the server side. Both client components updated. Pattern is now established: every server-only inventory lib that wants to share constants with client components needs the `-shared.ts` companion file.
+
+**Disengage instructions:** flipping `beithady_outbound_paused = false` in `beithady_settings` is the single most powerful kill — but to actually deliver guests must also re-enable templates/catalog AND re-add the cron schedules in `vercel.json`. **Recommend per-template review before re-enabling**, especially the BH-435 "A1 Hospitality" template which is the one that triggered this incident. The "A1 Hospitality" branding itself looks like an accidental seed — Beit Hady is the parent brand and A1 Hospitality is one of the building owners (per memory: A1HOSPITALITY owns BH-435), so it's not necessarily wrong, but it shouldn't be the sender voice on a guest pre-arrival.
+
+**What still needs the user's attention:**
+1. Decide whether the "A1 Hospitality" template body is the message you want guests to see, or if it should be Beit Hady-only branded.
+2. Decide whether to flip `is_automatic = true` on cron-fired messages (audit trail clarity).
+3. Decide a re-enable path: probably (a) review each pre-arrival template body, (b) review each upsell-catalog item, (c) flip `beithady_outbound_paused = false`, (d) restore selected crons in `vercel.json` one by one.
+
+## 🟢 Earlier this turn — Beithady dark-mode contrast fix (commit `c3cd679`)
 
 User screenshot of Multi-Calendar in dark mode: page title "Multi-Calendar" was nearly invisible, listing nicknames (BH-26-001 etc.) faded into the slate background, price-cell labels were barely legible. Root cause: Beit Hady brand defines `--bh-navy: #1E2D4A` and **28 admin pages** use it as inline `style={{ color: 'var(--bh-navy)' }}`. In dark mode that produces navy-on-slate-900 — WCAG fails everywhere.
 
