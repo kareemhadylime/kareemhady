@@ -36,6 +36,8 @@
     { "path": "/api/cron/beithady-review-reply-queue", "schedule": "0 1 * * *" },
     { "path": "/api/cron/beithady-operations-recompute", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/beithady-morning-brief", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/beithady-morning-brief", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/beithady-morning-brief", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/beithady-inventory-auto-issue", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/beithady-inventory-auto-issue", "schedule": "0 12 * * *" }
   ]
 }
