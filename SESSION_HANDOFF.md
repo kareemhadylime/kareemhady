@@ -1,6 +1,32 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — Morning Brief test panel (commit `3adaf81`)
+## 🟢 Latest turn — Phase K.2 Cancellation risk + re-confirmation (commit `f889b2c`)
+
+User picked Cancellation Risk next. Shipped end-to-end in one commit.
+
+**Migration `0045_beithady_cancel_risk.sql`** (applied via MCP):
+- `beithady_reservation_overrides` gains `cancel_risk_score (0-100)`, `cancel_risk_breakdown jsonb`, `last_reconfirmation_sent_at`, `reconfirmation_response`
+- New RPC `beithady_calendar_recompute_cancel_risk` — rule-based scorer joining reservations + overrides + guests + conversations
+- `beithady_calendar_recompute_all_active` extended to call cancel risk too (every-30-min cron picks it up)
+- Initial backfill on 73 active future reservations: **40 critical (70+) · 6 high (50-69) · 5 medium · 22 below 30**
+
+**Scoring signals (additive, clamped 0..100):**
+- Inquiry status +30 · long lead time +5..+20 · unpaid+imminent +25 · channel (Booking +15, Direct +5) · first-time +15 / returning -20 · silence +5..+15 · recent re-confirm -25 · cancelled/past = 0
+
+**Page** `/operations/cancel-risk`:
+- Min-score filter (30/50/70) + window (7/14/21/30d) URL chips
+- Stats cards: Critical / High / Avg score / Re-confirmed last 7d
+- Table: score pill · check-in date · listing link · guest (+VIP) · channel · signal chips (rose for adds, emerald for subtracts) · re-confirm button per row
+
+**Re-confirm button (one-click):** server action validates phone → sends templated WhatsApp ("Hi {name}! Just confirming your stay at {listing}…") → persists `last_reconfirmation_sent_at` → writes audit → immediately re-runs cancel-risk RPC so the score drops by 25.
+
+**GR Morning Brief integration:** new "At-risk re-confirms (cancel-risk ≥70, ≤14d)" section between Pre-arrival and Late-SLA. Top 8 by score, drops any re-confirmed in last 24h. Tag = red "Re-confirm" linking to the page.
+
+**Operations sub-landing:** 5th card "At-risk Reservations" (AlertTriangle icon, violet accent, Phase K badge).
+
+**Phase K progress:** K.1 ✅ K.2 ✅ — **K.3 next: Knowledge Base / SOP / Checklists for Hospitality Roles** (Reception · Guest Relation/Reservation · Housekeeping · Maintenance · Upselling Teams: Transportation, Excursions, F&B, Affiliations).
+
+## 🟢 Earlier this session — Morning Brief test panel (commit `3adaf81`)
 
 User asked for a test button with processing indication + result display.
 
@@ -513,7 +539,8 @@ Order of phases shipped (oldest → newest):
 35. **Phase K.1 Daily Morning Brief plan drafted** (no commit) — 3 role-specific briefs spec
 36. **Phase K.1 — Daily Morning Brief shipped** (`730f1f2`) — migration 0044 + 7 lib files + cron + web archive + recipients-management page + Operations card
 37. **Morning Brief — Arabic Ops + Finance payout forecasts** (`906f156`) — Ops brief now in Arabic with RTL HTML; Finance gains 2-day + month-end expected payout forecasts
-38. **Morning Brief — Test panel** (`3adaf81`) — Preview / Send test to me / Send NOW to all recipients buttons with spinner + per-action processing pill + emerald/rose result banners showing duration, recipients, delivery counts, errors, and inline HTML preview iframe (this turn)
+38. **Morning Brief — Test panel** (`3adaf81`) — Preview / Send test to me / Send NOW to all recipients buttons with spinner + result banners
+39. **Phase K.2 — Cancellation risk + re-confirm workflow** (`f889b2c`) — migration 0045 with rule-based 0-100 scorer on 8 signals, /operations/cancel-risk page with one-click WhatsApp re-confirm, GR Morning Brief gets at-risk section. Backfilled: 40 critical/6 high/5 medium reservations. K.3 KB/SOP queued next (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
