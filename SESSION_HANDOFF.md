@@ -1,6 +1,25 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — Boarding-pass + CSAT into approval workflow, inbox sort, SLA pill explanation (commit `477a187` · migration `0050_unify_outbound_templates`)
+## 🟢 Most recent turn — Beit Hady out of `/emails/*` URL hierarchy (commit `a836385`)
+
+User: "Remove emails from the hierarchy `emails/beithady/settings/templates`. Emails should not be the landing page or mentioned in the hierarchy."
+
+The `/emails/*` prefix was a legacy artefact from when the platform was just a domain-scoped digest tool. Beit Hady has long since outgrown that framing — it's a full ops suite, not an email tab. Refactor:
+
+1. **`git mv src/app/emails/beithady → src/app/beithady`** — 159 files relocated (history preserved).
+2. **Bulk-rewrote 361 internal hrefs** from `/emails/beithady` → `/beithady` across 100 source files (page hrefs, `revalidatePath()`, `redirect()`, morning-brief renderers, aggregators, whatsapp helpers, BeithadyShell breadcrumbs).
+3. **`next.config.ts`** — permanent (308) redirects `/emails/beithady` → `/beithady` and `/emails/beithady/:path*` → `/beithady/:path*`. Old bookmarks + WhatsApp brief links + cached deep links keep working without 404s.
+4. **Home page (`/`)** — Beithady portfolio card now links directly to `/beithady`. Other tiles (kika / personal / fmplus / voltauto / boat-rental) keep their existing `/emails/[domain]` route unchanged since those legacy domain landings still apply.
+
+**No DB changes. No cron changes.** `vercel.json` cron entries point to `/api/*` routes — unaffected. Auth flow unchanged. Type-check clean. Canonical `limeinc.vercel.app` deployed Ready.
+
+**Verify live**: https://limeinc.vercel.app/beithady/settings/templates loads cleanly. https://limeinc.vercel.app/emails/beithady/settings/templates 308-redirects to the new URL.
+
+**Files NOT touched** (intentional):
+- `src/app/emails/[domain]/page.tsx` — legacy domain landing for non-Beithady portfolio entries; still serves kika/fmplus/voltauto/personal.
+- `src/app/admin/rules/actions.ts` — `revalidatePath('/emails')` calls target the legacy index, not Beithady.
+
+## 🟢 Earlier this turn — Boarding-pass + CSAT into approval workflow, inbox sort, SLA pill explanation (commit `477a187` · migration `0050_unify_outbound_templates`)
 
 User followed up the templates rebuild with three asks: "What is the number of Days in Red on the right? Also how to sort messages? Boarding-pass + CSAT senders add DB templates in the same approval cycle."
 
