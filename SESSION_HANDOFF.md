@@ -1,6 +1,167 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟡 Latest turn — Phase L Budget + Consumables plan drafted (no code)
+## 🟡 Latest turn — Phase M.0 pre-flight findings + signed-off workflow → coding begun
+
+User said "Confirmed Default" on C1/C2/C3 → green light to coding. M.0 read-only investigations executed via Supabase MCP + grep:
+
+**6 findings (full doc at [docs/PHASE_M_PREFLIGHT.md](docs/PHASE_M_PREFLIGHT.md)):**
+1. **Currency**: All 4 active Beithady buildings (BH-26/73/435/OK) are Egypt-only. No AED data anywhere. Q9 V1 scope (EGP+USD) confirmed correct.
+2. **BH-34**: 0 listings in Guesty (likely upcoming). Per Q15 = yes, seed warehouse Day 1 anyway (inventory not coupled to reservations).
+3. **Phase F task table**: `beithady_tasks` exists. `id` is **uuid** (not text). M.8 issue.ref_task_id must be uuid with `ON DELETE SET NULL`.
+4. **Phase E classifier reusability**: `src/lib/beithady/ai/classify.ts` uses Anthropic SDK haiku-4-5 with structured JSON return. Pattern reusable for M.13 WA inbound reorder parser.
+5. **Settings PIN convention**: greenfield — no `*_BH-XX` keys exist. Will introduce `inventory_pin_BH-XX`.
+6. **fx_rates schema**: `rate_date · base · quote · rate · source · fetched_at`. Nightly fx-snap helper will denormalise `default_cost_usd` onto items to avoid per-query joins.
+
+**🔴 IMPORTANT M.8 architecture change uncovered:** `guesty_reservations.status` has NO `checked_in` state — only `confirmed/inquiry/canceled/closed/declined/reserved`. There's no state-transition signal to listen on. **Auto-issue trigger must be daily cron (Cairo ~14:00) scanning `status='confirmed' AND check_in_date <= today AND not_yet_issued_today`**, NOT realtime event subscription. Idempotency via unique constraint on `(reservation_id, kind, item_id)` for type=`reservation_hold` transactions.
+
+**Locked column choices for M.1 migration:**
+- Currency: `default_cost_egp · default_cost_usd · currency text DEFAULT 'EGP'`. No AED V1.
+- Warehouse seed: 6 (BH-26/73/435/OK/34 + OTHER)
+- Issue→Task FK: uuid + ON DELETE SET NULL
+- Auto-issue: daily cron + DB unique constraint
+- Mobile PIN: `inventory_pin_BH-XX` in `beithady_settings`
+
+**M.0 deliverable:** [docs/PHASE_M_PREFLIGHT.md](docs/PHASE_M_PREFLIGHT.md) doc-only commit. Next turn ships M.1 migration `0048_beithady_inventory.sql` (14 tables + role enum extension + 6 seed warehouses + 7 categories + 8 UoMs + 1 dummy approved vendor + approval matrix).
+
+## 🟢 Earlier this session — Phase M Inventory Module workflow phase drafted (no code, awaiting C1/C2/C3)
+
+User answered Q0–Q15 plus added a new requirement: **Vendor Registration as a dedicated tab**. Per standing process: Plan ✅ → Workflow (this turn) → Code (next turn after sign-off). No code this turn.
+
+**Locked V1 scope from user answers:**
+- Q0: Design Integration (NOT subsume) — Phase L stays as conceptual lens; M owns ALL stock tables; L's UI reads M's tables (zero duplicate stock)
+- Q1: Hybrid sub-warehouse model (locational tree + categorical tag column)
+- Q2: Weighted Average costing
+- Q3: Per-item batch+expiry flag, auto-on for F&B + Chemicals
+- Q4: Default approval thresholds 5K/25K/1K/10K EGP
+- Q5: New roles `warehouse_manager` + `housekeeper` added to BeithadyRole enum
+- Q6: Building-shared 6-digit PIN V1 (per-cleaner login V2)
+- Q7: Excel V1 = Item Master only (GRN/Counts V2)
+- Q8: New `beithady-inventory` storage bucket (clean separation)
+- Q9: EGP + USD V1, AED V2
+- Q10: Owner-billable register V2
+- Q11: Auto-issue on check-in V1 (rules engine via cron poller, not realtime)
+- Q12: Mobile cleaner app + Arabic checklist V1
+- Q13: WhatsApp inbound reorder V1 (changed from rec V2 — green-api webhook + Phase E AI parser + draft Issue/PO)
+- Q14: Consumables only V1 (asset-tracking columns exist but no depreciation logic)
+- Q15: All 5 buildings (BH-26/73/435/OK/34) get warehouses Day 1, plus OTHER bucket
+
+**Q0 architecture sent (Phase L↔M coexistence):** Phase L disappears as a build phase. Its features ship as widgets/views layered on M tables:
+- Consumables Catalog → M Tab 3 filtered to category=Consumables
+- Consumption Rules matrix → M `_consumption_rules` table at `/inventory/rules`
+- Per-Checkin Cost Calculator + 30-day Forecast → widgets on M Tab 1 Dashboard
+- Auto Purchase List → M Tab 1 "Reorder Alerts" panel
+- Stock on Hand → M Tab 5 filtered to Consumables
+- Welcome-Tray Templates → M `_kits` table (already in plan)
+- Arabic Housekeeping Checklist → M.12 mobile app `/inventory/m`
+
+**Final 9 tabs (Vendor Registration is new Tab 4):**
+1. Dashboard (KPIs + per-checkin cost + forecast + reorder + stockout risk + approvals badge)
+2. Warehouses (tree view + CRUD)
+3. Items / Catalog (master + Excel + AI Amazon-URL paste)
+4. **Vendors / Registration** — NEW dedicated tab (KYC workflow + payment terms + banking + price-history graph)
+5. Stock (balance per item × warehouse × batch + ledger drill-in)
+6. Receiving / GRN
+7. Dispensing / Issue (6 types + Kits + auto-rules)
+8. Transfers (Out → In pair)
+9. Counts & Adjustments
+
+Plus sub-routes: `/inventory/rules`, `/inventory/approvals`, `/inventory/m`.
+
+**Final data model — 14 tables + 4 line-item children** (migration `0048_beithady_inventory.sql`):
+`_warehouses` (parent_id self-ref + category_tag) · `_categories` (hierarchical) · `_items` (sku, name_en/ar, batch+expiry flags, owner_billable, is_asset, costing) · `_vendors` (was _suppliers; KYC status, tax_id, banking, payment_terms, amazon_eg URL) · `_stock` (item × warehouse × batch composite PK) · `_transactions` (immutable ledger) · `_grns` + `_grn_lines` · `_issues` + `_issue_lines` · `_purchase_orders` + `_po_lines` · `_kits` + `_kit_components` · `_approval_rules` (configurable matrix) · `_count_sessions` + `_count_lines` · `_consumption_rules` (Phase L rules engine: per_guest_per_night, per_night, per_2_guests_per_night, fixed_per_stay, with loss_factor_pct).
+
+**Permission matrix update sent:** add 2 roles. warehouse_manager = full inventory + read on operations/crm. housekeeper = read inventory only (mobile app is PIN-gated, not role-gated; PIN stored in `beithady_settings` keyed `inventory_pin_BH-XX`).
+
+**Sub-phase plan (15 commits, M.0 → M.14):**
+M.0 pre-flight (1c) → M.1 migration 0048 + role enum + 5 seed warehouses (1c) → M.2 launcher tile + sub-landing + bucket creation (1c) → M.3 warehouses CRUD + tree (1c) → M.4 items catalog + Excel template gen + import (2c) → **M.5 vendors registration + Amazon EG URL parser + price history (1c)** → M.6 stock view + ledger (1c) → M.7 GRN + PO match + QC photos + approval + posting engine (1c) → M.8 issue + 6 types + Kits + auto-rules engine on check-in cron poller (2c) → M.9 transfers (0.5c) → M.10 counts (0.5c) → M.11 dashboard + per-checkin cost widget + forecast + reorder alerts + stockout risk + cron `beithady-inventory-rollup` 30min (1c) → M.12 mobile cleaner app `/inventory/m` Arabic RTL + PIN gate (1c) → M.13 WhatsApp inbound reorder webhook + Phase E parser reuse (1c) → M.14 Operations Morning Brief stockout-risk integration + WA approval push (0.5c).
+
+**M.0 pre-flight scope (6 read-only checks):** BH-OK/BH-34 currency · Phase F task→item linkage point · Phase E classifier reusable interface · existing `beithady_settings` PIN convention · `fx_rates` schema for EGP↔USD · reservation check-in event source (Phase J state-transition signal vs cron-polling `guesty_reservations`).
+
+**10-item risk register sent:** auto-issue idempotency (unique constraint on `reservation_id, kind, item_id` for type=reservation_hold), weighted-avg race condition (DB advisory lock per item), WhatsApp parser misclassification (always create as draft, never auto-post), mobile PIN brute-force (5/15min/IP rate-limit), Excel partial commit (transaction wrap), photo storage cost (10MB cap + quarterly cleanup of count session photos >12mo), Phase L user expectations (deep-link chips), new role enum impact (additive), vendor KYC blocking first GRN (seed 1 dummy approved vendor + admin auto-approve), reservation FK on issues (ON DELETE SET NULL).
+
+**3 confirmation questions blocking coding (C1/C2/C3):**
+- C1 — Sub-phase ordering: M.5 Vendors before M.7 GRN OK? [rec yes; alt = stub vendor selector in M.7]
+- C2 — Mobile cleaner identity V1: PIN-only or PIN + free-text name field per session for audit trail? [rec PIN + name]
+- C3 — Seed 7 root categories (Consumables/Linen/F&B/Chemicals/Maintenance Parts/Welcome Tray Items/Assets) + 8 UoMs (pcs/roll/pack/kg/g/L/mL/box)? [confirm or amend]
+
+**Confidence: 93%** on structure / DB shape / workflow algebra / Phase L integration / sub-phase sequencing. Last 2% recovers after C1/C2/C3 + M.0 pre-flight findings.
+
+User can answer C1/C2/C3 individually or say "default + proceed" — next turn ships M.0 pre-flight + M.1 migration as first real code.
+
+## 🟢 Earlier — Phase M Inventory Module plan drafted (no code, supersedes/subsumes Phase L)
+
+User asked to start a complete Inventory Module — multi-warehouse (main + sub per building), item master with manual entry + Excel import, Receiving (GRN), Dispensing (Issue), and Approval workflows. Per user's standing process: **Plan → 95% confidence → Workflow → 95% → Code**. This turn is **plan-only**, awaiting answers.
+
+**Critical alignment flagged up front:** the Phase L draft (last turn) overlaps heavily — proposed its own `beithady_consumables_stock` + `beithady_consumables_purchase_orders`. Building Phase M separately would create two parallel stock systems. Strong recommendation: **Phase M subsumes Phase L** (Phase L's catalog → Item Master, stock → Stock Ledger, purchase list → Reorder, consumption rules → Auto-Issue Rules, welcome tray templates → Issue Kits, Arabic checklist → Mobile cleaner app). Net = same combined scope, single backbone, 13 tables instead of 8+11=19. **Q0 below confirms this.**
+
+**Plan I sent the user:**
+
+**Module placement:** new top-level Beithady tile "Inventory" (9th card next to Operations) at `/emails/beithady/inventory`. New permission category `'inventory'` in `auth.ts` (admin/manager/ops=full, finance=read, GR=none, new housekeeping role TBD).
+
+**8 tabs:**
+1. Dashboard — KPI cards (stock value, items below reorder, pending GRNs/Issues, stockouts, expiring), top movers, anomaly strip
+2. Warehouses — tree view per building → main + sub-warehouses, manager assignment, geo
+3. Items (Catalog) — Item Master with manual add OR Excel import (downloadable .xlsx template)
+4. Stock — per-item × per-warehouse on-hand + value + ledger drill-in
+5. Receiving (GRN) — supplier match → PO match (or direct) → lines with batch/expiry/QC photos → approval routing → posting
+6. Dispensing (Issue) — types: per_reservation (auto-rules), maintenance_task (Phase F), welcome_tray (kit), owner_request, damage_writeoff, transfer_out
+7. Transfers — warehouse-to-warehouse 2-step (Out → In) with in-transit visibility
+8. Counts & Adjustments — cycle counts (weekly subset) + full physical (quarterly), variance → adjustment with reason
+
+**Cross-cutting:** Approvals inbox (badge), Reorder alerts panel, Audit log integration with `beithady_audit_log`.
+
+**Workflows detailed:** GRN state machine (Draft → Submitted → [opt] Pending Approval → Approved → Posted, immutable after), Issue state machine (same shape, types differ in approval routing), Approval matrix configurable in Settings (DB-backed), WhatsApp ping to approvers via Phase C.
+
+**Data model — 13 tables:** `beithady_inventory_warehouses` (parent_id self-ref) · `_items` · `_categories` · `_suppliers` · `_stock` (item × warehouse × batch) · `_transactions` (immutable ledger) · `_grns` (+ lines) · `_issues` (+ lines) · `_purchase_orders` (+ lines) · `_kits` (Welcome Tray templates) · `_approval_rules` · `_count_sessions` (+ lines) · `_consumption_rules` (Phase L rules engine).
+
+**20 suggested improvements over vanilla:**
+1. Mobile-first cleaner app `/emails/beithady/inventory/m` (Arabic, building-PIN, photo capture)
+2. WhatsApp inbound reorder ("BH-26 ran out: tissues, soap" → AI parses → draft Issue)
+3. Auto-issue on check-in via consumption rules
+4. Welcome Tray auto-fire for Gold+ tiers with photo evidence
+5. Dynamic reorder point (consumption velocity × upcoming reservation density × supplier lead-time)
+6. Stockout-risk dashboard tied to calendar + surfaces in Morning Brief
+7. Per-building P&L allocation honoring intercompany model (BH-435 25% mgmt fee, others turnkey)
+8. Vendor price-history graph (every GRN line writes price history)
+9. Bulk-pack discount logic surfaced in PO line entry
+10. Owner-billable register feeding monthly owner statements (Financial hook)
+11. Photo evidence everywhere (GRN, damage, welcome tray placement, monthly counts)
+12. Barcode/QR per warehouse bin with mobile scan
+13. Seasonal kits (Ramadan tray, Christmas tray) auto-active in date window
+14. Cycle-count gamification (random 5-item daily count, photo, leaderboard)
+15. Forecast accuracy report (rules predicted vs actual issued, monthly)
+16. Multi-currency native (EGP/USD/AED) via `fx_rates`
+17. Realtime stock badge (Supabase Realtime)
+18. AI-assisted item creation (paste Amazon EG URL → auto-fill SKU/cost/photo)
+19. "Order from Amazon" deep links from low-stock alerts
+20. Dispense-on-departure scrub (mandatory checklist confirms per-reservation issued items consumed/replaced; variance = damage candidate)
+
+**16 open questions blocking workflow phase (Q0 + Q1–Q15):**
+- Q0 (CRITICAL) — Subsume Phase L? [recommended Yes]
+- Q1 — Sub-warehouse model: locational / categorical / hybrid? [rec hybrid]
+- Q2 — Costing method: FIFO / weighted-average / last-cost? [rec weighted-avg]
+- Q3 — Batch + expiry tracking? [rec per-item flag, auto-on for F&B + Chemicals]
+- Q4 — 4 approval thresholds in EGP? [defaults 5K/25K/1K/10K]
+- Q5 — Approver identity: new roles (warehouse_manager + housekeeper) / reuse ops / single inventory_manager? [rec new roles]
+- Q6 — Cleaner identity: per-cleaner login / building-PIN / phone+OTP / no login? [rec building-PIN V1, per-cleaner V2]
+- Q7 — Excel import scope V1: Item Master only / + GRN / + Counts? [rec Item Master only]
+- Q8 — Photo storage: new bucket / reuse gallery / reuse wa-media? [rec new bucket]
+- Q9 — Currency scope: EGP only / EGP+USD / +AED? [rec EGP+USD V1]
+- Q10 — Owner-billable items V1? [rec V2]
+- Q11 — Auto-issue on check-in V1? [rec V1 — biggest operational win]
+- Q12 — Mobile cleaner app + Arabic checklist V1? [rec V1 — was Phase L flagship]
+- Q13 — WhatsApp inbound reorder V1? [rec V2]
+- Q14 — Asset tracking depth (TVs/microwaves)? [rec consumables only V1, assets V2]
+- Q15 — Building list confirmation: BH-26/73/435/OK/34 + OTHER, all get warehouses Day 1?
+
+**Sub-phase shape (~10 commits, won't lock until Q0–Q15 answered):**
+M.0 pre-flight · M.1 migration `0048_beithady_inventory.sql` 13 tables · M.2 launcher + sub-landing · M.3 warehouses CRUD · M.4 items + Excel import (2c) · M.5 stock view + ledger · M.6 GRN + approval · M.7 issue + kits + auto-issue rules (2c) · M.8 transfers · M.9 counts · M.10 dashboard + reorder alerts + approvals inbox + cron · M.11 mobile Arabic app (if Q12=V1).
+
+**Confidence: 78%** on structure / DB shape / workflow algebra. Lower because Q0 (Phase L subsumption), Q5 (new roles), Q6 (cleaner identity), and Q14 (asset scope) materially change shape. Will hit 95% after answers.
+
+User can answer per-question or say "default the questions and proceed" for sensible V1 defaults. No code this turn. Workflow phase blocks on these answers.
+
+## 🟢 Earlier — Phase L Budget + Consumables plan drafted (no code, now subsumed by Phase M)
 
 User asked to start budgeting + operational control around consumables, amenities, and welcome tray, sourced from Amazon Egypt, with a per-check-in cost engine + Arabic housekeeping checklist. **Plan-only turn**, awaiting answers before coding.
 
