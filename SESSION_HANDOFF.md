@@ -1,6 +1,38 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — Inbox UX upgrade: clickable stats + sort everywhere + channel-aware composer hint (commit `30d5507` → `fb829b9` after rebase)
+## 🟡 Most recent turn — Phase M.15 plan drafted: Housekeeping Estimator + Amazon EG Auto-Sourcing (no code, awaiting Q1–Q15)
+
+User asked to plan a new module that estimates housekeeping/refreshing items per check-in based on **unit configuration** (bedrooms × bathrooms × guest count), pulls candidate products from **Amazon Egypt via AI** (price/rating/bulk balance), and feeds the existing inventory + budget + stock + checklist surfaces. Per standing process — Plan → 95% confidence → Workflow → 95% → Code. **This turn was plan-only; no files written.**
+
+**Plan I sent the user (full version in chat):**
+
+**Module placement** — dual-link to single canonical home: `/beithady/inventory/rules/estimator`. Settings card + 11th inventory tab both deep-link there.
+
+**What already exists (don't rebuild):** `_consumption_rules` (M.1) for per-item formulas · `_kits` + `_kit_components` (M.1) for tray templates · Per-Checkin Cost calculator on `/inventory/dashboard` (M.11) · `/inventory/rules` rule CRUD (M.11) · Phase E AI classifier (Anthropic haiku-4-5 pattern reusable for Amazon EG sourcing) · `pricelabs_listings.bedrooms`.
+
+**What's new:**
+1. **Unit Configuration Profiles** — new `beithady_inventory_unit_configurations` table (bedrooms int + bathrooms numeric(3,1) + guest_capacity + tier + notes). Seeded from real BH-26/73/435/OK configs (1BR/1BA, 1BR/1.5BA, 2BR/2BA, 2BR/2.5BA, 3BR/2BA, 3BR/3BA, Studio).
+2. **Estimator Lines** — Q8 dependent (new table OR extend `_consumption_rules` with `unit_config` scope value). Recommended: extend rules, single source of truth.
+3. **Items table extension** — ALTER `_items` ADD `amazon_eg_url · amazon_eg_price_egp · amazon_eg_rating · amazon_eg_review_count · amazon_eg_is_bulk_pack · amazon_eg_pack_size · amazon_eg_last_checked_at · amazon_eg_alternatives jsonb`.
+4. **Price snapshots** — new `beithady_amazon_eg_price_snapshots` for trend tracking.
+5. **AI Amazon EG Sourcer** — `findAmazonEgCandidates(description, qty)` server action. Anthropic haiku-4-5 + `web_search` tool scoped to `amazon.eg`. Score formula: `(rating × 20) + (log(reviews+1) × 5) - (price_per_unit × 0.1) + (bulk ? 10 : 0)`. Auto-picks top score OR shows top 3.
+6. **Output view** — per-config printable list grouped by Cleaning · Sanitary · Tray · Linen · Misc. Columns: Description · Qty · Unit Price EGP · Line Total · Source. Footer: total per check-in, per-guest amortized, per-night amortized.
+
+**Hooks:** Inventory (estimator → seeds rules) · Budget (Σ check-ins × config total = expected consumption · variance flag) · Stock (par level = Σ qty × upcoming 14d check-ins) · Mobile cleaner checklist (M.12) · Operations Morning Brief stockout-risk section.
+
+**10 suggested improvements** — Seasonal variants (Ramadan tray) · Tier-based bumps (Standard→Premium→VIP) · Length-of-stay scaling · Per-channel adjustment (Airbnb gets higher tier) · Damage/loss factor by item type · Inline product photos · Bulk-buy decision aid · 30-day forecast · Industry cost benchmark · Auto-archive discontinued items.
+
+**15 open questions blocking workflow phase** — module placement (Q1) · bedroom/bathroom source (Q2) · half-bath granularity (Q3) · **AI sourcing approach (Q4 — major: Anthropic web_search vs Amazon PA-API vs Keepa)** · re-check cadence (Q5) · currency (Q6) · scope — consumables only / +linen / +hard-goods (Q7) · **estimator lines = new table OR extend consumption_rules (Q8 — major)** · tray amenities fixed/variable/hybrid (Q9) · approval workflow (Q10) · per-listing override (Q11) · historical data import (Q12) · branded items category (Q13) · fractional qty for shared chemicals (Q14) · owner-billable flag (Q15).
+
+**Sub-phase shape (~6 commits, locks after Q1–Q15):** M.15.0 pre-flight (bedroom/bathroom data audit + Anthropic web_search probe against amazon.eg) · M.15.1 migration · M.15.2 settings tab + inventory tab + landing · M.15.3 configuration editor + line CRUD · M.15.4 AI Amazon EG sourcer · M.15.5 forecast view + budget/stock/checklist hooks + weekly price refresh cron.
+
+**8-item risk register** — Amazon EG anti-bot blocks scraper (fallback to manual URL paste) · Anthropic web_search Egypt coverage gap · reorder alert flood (debounce + group by vendor) · consumption rule explosion (15 configs × 50 items × 4 buildings = 3,000+ rows; seed with defaults + bulk-edit) · currency volatility · missing bathroom count · owner-driven amenity preferences (per-listing override layer) · AI hallucinated Amazon URLs (URL pattern validation + HEAD-request 200-check before persist).
+
+**Confidence: ~75%** — materially affected by Q4 (AI sourcing approach) + Q8 (data model). Hits 95% after answers + 30-min M.15.0 pre-flight probe.
+
+User can answer per-question or say "default + proceed" for the recommended path on all 15 questions. No code this turn. Workflow phase locks after answers.
+
+## 🟢 Earlier this session — Inbox UX upgrade: clickable stats + sort everywhere + channel-aware composer hint (commit `30d5507` → `fb829b9` after rebase)
 
 User on Unified Inbox screenshot asked for three things:
 1. **Where is the messages sorting options?** — sort dropdown was on Guesty only, missing on wa-casual / unified.
