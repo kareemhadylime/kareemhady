@@ -58,7 +58,7 @@ export function BeithadyHeader({
   right,
   showWordmark = false,
 }: {
-  eyebrow?: string;
+  eyebrow?: React.ReactNode;
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
