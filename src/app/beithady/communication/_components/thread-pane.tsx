@@ -6,6 +6,10 @@ import { SlaPill } from './sla-pill';
 import { GuestyComposer } from './composer';
 import { WaCasualComposer } from './wa-casual-composer';
 import { SuggestionStrip, type Suggestion } from './suggestion-strip';
+import { ReservationStatusChip } from './reservation-status-chip';
+import { ReservationMiniTimeline } from './reservation-mini-timeline';
+import { GuestHistoryBadge } from './guest-history-badge';
+import { NoReservationFallback } from './no-reservation-fallback';
 
 export type ThreadComposerHints = {
   send_error?: string;
@@ -120,7 +124,21 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
+          {/* Q.1 — Reservation status chip + guest history.
+              When a reservation is linked → status chip + mini-timeline
+              When no reservation linked → fallback chip to search Guesty */}
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            {h.reservation_id ? (
+              <ReservationStatusChip reservation={bundle.reservation} hasReservationId={true} />
+            ) : (
+              <NoReservationFallback header={h} />
+            )}
+            <GuestHistoryBadge stats={bundle.guestStats} />
+          </div>
+          <div className="mt-1.5">
+            <ReservationMiniTimeline reservation={bundle.reservation} />
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500 mt-1.5 flex-wrap">
             {h.guest_email && (
               <span className="inline-flex items-center gap-1"><AtSign size={11} /> {h.guest_email}</span>
             )}

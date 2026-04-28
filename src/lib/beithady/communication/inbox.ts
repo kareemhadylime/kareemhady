@@ -152,9 +152,42 @@ export type ThreadHeader = InboxRow & {
   reservation_id: string | null;
 };
 
+// Q.1 — reservation summary attached to the thread bundle. Computed via
+// the conv.reservation_id → guesty_reservations join. Null when the
+// conversation has no linked reservation (cold lead) or when the join
+// misses (orphan, very rare per Q.0 — 0 cases observed).
+export type ThreadReservation = {
+  id: string;
+  status: string | null;
+  source: string | null;
+  confirmation_code: string | null;
+  platform_confirmation_code: string | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  nights: number | null;
+  guests: number | null;
+  currency: string | null;
+  guest_paid: number | null;
+  host_payout: number | null;
+};
+
+// Q.1 — guest history snapshot for the inline badge. All sourced from
+// beithady_guests directly per Q.0.5.
+export type ThreadGuestStats = {
+  lifetime_stays: number;
+  lifetime_nights: number;
+  lifetime_spend_usd: number | null;
+  vip: boolean;
+  loyalty_tier: string | null;
+  last_seen: string | null;
+  language: string | null;
+};
+
 export type ThreadBundle = {
   header: ThreadHeader;
   messages: ThreadMessage[];
+  reservation: ThreadReservation | null;
+  guestStats: ThreadGuestStats | null;
 };
 
 export async function loadThread(conversationId: string): Promise<ThreadBundle | null> {
@@ -166,18 +199,43 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
     .maybeSingle();
   if (!conv) return null;
 
-  const { data: msgs } = await sb
-    .from('beithady_messages')
-    .select(
-      'id, channel, external_id, direction, module_type, module_subject, body, is_automatic, from_full_name, from_type, template_name, attachments, ai_classification, ai_used_for_auto_send, sent_at, created_at'
-    )
-    .eq('conversation_id', conversationId)
-    .order('sent_at', { ascending: true, nullsFirst: false })
-    .limit(500);
+  const header = conv as ThreadHeader;
+
+  // Parallel fetch: messages + reservation join + guest history. None
+  // depend on each other so they run together to keep the right-panel
+  // open latency unchanged.
+  const [msgsRes, resRes, guestRes] = await Promise.all([
+    sb
+      .from('beithady_messages')
+      .select(
+        'id, channel, external_id, direction, module_type, module_subject, body, is_automatic, from_full_name, from_type, template_name, attachments, ai_classification, ai_used_for_auto_send, sent_at, created_at'
+      )
+      .eq('conversation_id', conversationId)
+      .order('sent_at', { ascending: true, nullsFirst: false })
+      .limit(500),
+    header.reservation_id
+      ? sb
+          .from('guesty_reservations')
+          .select(
+            'id, status, source, confirmation_code, platform_confirmation_code, check_in_date, check_out_date, nights, guests, currency, guest_paid, host_payout'
+          )
+          .eq('id', header.reservation_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    header.guest_id
+      ? sb
+          .from('beithady_guests')
+          .select('lifetime_stays, lifetime_nights, lifetime_spend_usd, vip, loyalty_tier, last_seen, language')
+          .eq('id', header.guest_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   return {
-    header: conv as ThreadHeader,
-    messages: (msgs as ThreadMessage[] | null) || [],
+    header,
+    messages: (msgsRes.data as ThreadMessage[] | null) || [],
+    reservation: (resRes.data as ThreadReservation | null) || null,
+    guestStats: (guestRes.data as ThreadGuestStats | null) || null,
   };
 }
 

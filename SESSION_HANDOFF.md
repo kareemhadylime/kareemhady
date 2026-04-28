@@ -1,6 +1,57 @@
-# Kareemhady — Session Handoff (2026-04-28)
+# Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Phase O webhook FULLY LIVE end-to-end (commit `fec8e48`)
+## 🟡 Latest turn — Phase Q plan drafted: Unified Inbox right-panel upgrade (no code, awaiting Q1–Q15)
+
+User screenshot of `/beithady/communication/unified` thread pane → asked for 4 deliverables:
+1. Reservation status indicator (Confirmed / Cancelled / Inquiry · Future vs **In-house Now**) with click-to-popout
+2. Templates button next to attachment icon
+3. Attachment upgrade — multi-select pictures · device / camera / **listing library by Building & Sub Unit**
+4. Suggest other improvements
+
+Per standing process: Plan → 95% → Workflow → 95% → Code. **No code this turn.**
+
+### What I sent
+
+**Plan (full version in chat):**
+
+**Q.1 reservation chip** — read `beithady_conversations.reservation_id` → JOIN `guesty_reservations` (already linked, no migration). Chip variants: 🟢 IN-HOUSE NOW (today between check_in_date & check_out_date) · 🔵 Confirmed Future · ⚪ Past · 🟡 Inquiry (with requested dates) · ❌ Cancelled. Sort priority for "more urgent" surfacing: In-house > Inquiry > Confirmed Future > Cancelled > Past. Pulse animation when In-house + SLA breach.
+
+**Popout — 3 options:** A) Link to `/beithady/operations/calendar?reservation=<id>` reusing existing 10-tab `<ReservationDrawer>` (recommended — zero risk, mirrors morning-brief / cancel-risk cross-link pattern) · B) Refactor drawer to portable, mount inside inbox · C) Build lightweight modal.
+
+**Q.2 templates** — new table `beithady_message_templates` (name, channel[], source_filter[], language en/ar/auto, category, body with `{guest_name}` `{check_in_date}` etc. placeholders, sort_order, active). UI: 📋 icon next to paperclip → category-tabbed popover → click inserts into textarea with cursor at first unresolved `{var}`. WABA caveat: outside 24h window only Meta-approved templates can fire on `wa_cloud` — split into Q.2a (free-text, this round) and Q.2b (Meta WABA picker, after WABA provisioning). 8 seed templates: pre-arrival WhatsApp EN+AR, wifi+checkin, quiet hours, checkout, no-availability, inquiry follow-up, late checkout (loyalty perk), negative-review pre-empt apology.
+
+**Q.3 attachments** — paperclip becomes dropdown: 📁 Device (multi-select with thumbnail preview + drag-reorder) · 📷 Camera (`capture="environment"` on mobile, falls back desktop) · 🏢 Listing library (Building → Sub Unit → multi-select photos). Library data sources: `guesty_listings.raw.pictures[]` (auto-updating Guesty-managed) + new optional `beithady_listing_assets` table for staff-uploaded extras (wifi card, gate code, parking diagram). Reuse `beithady-wa-media` Supabase Storage bucket. Channel reality: today only `wa_casual` has working attach pipe; Q.3 extends Guesty composer too (Airbnb + WhatsApp + Email modules support media — needs Guesty media-URL field probe). SMS hides the button. Multi-image on Green-API: N sequential posts (no album support), single shared caption on first.
+
+**Q.4 polish bundle (15 suggestions, V1 cut: #1+#2+#3+#5+#6+#12+#13):**
+1. Reservation mini-timeline strip (check-in · nights · total paid · ADR)
+2. Guest history badge (5th stay · 23 nights total · last Feb)
+3. Internal notes panel (staff-only, new `beithady_conversation_notes`)
+4. Snooze conversation
+5. Mark resolved + close-with-reason dropdown (resolved/spam/no-response/booked)
+6. Translate inline AR↔EN (Anthropic haiku-4-5)
+7. Voice message transcription (Whisper)
+8. Schedule send
+9. Building announcement broadcast
+10. Reservation status timeline in popout
+11. Listing photo hover preview
+12. AI suggestion accept-and-edit
+13. Bulk mark-read · keyboard shortcuts (j/k/r/e)
+14. Conversation pin
+15. Cross-channel guest merge
+
+### Sub-phase commit shape (~5 commits)
+
+Q.0 doc-only pre-flight (audit reservation_id coverage + Guesty media probe + template seed lock) · Q.1 reservation chip + popout · Q.2 templates V1 + variable resolver · Q.3 multi-attach + library + Guesty composer attach · Q.4 polish bundle.
+
+### 15 questions blocking workflow phase
+
+Q1 popout option (rec A) · Q2 no-reservation fallback button · Q3 in-house definition (rec inclusive only) · Q4 seed 8 vs admin CRUD first (rec seed) · Q5 template variable list lock · Q6 wifi_password storage location (rec new `beithady_listing_secrets`) · Q7 library sources Guesty-only or both (rec both) · Q8 multi-image as N sequential posts (rec yes) · Q9 wa_casual-only Q.3 with Guesty in Q.3.1 (rec split risk) · Q10 translate placement (rec below original, dismissible) · Q11 internal notes staff-only (rec yes) · Q12 schedule send defer to V2 (rec yes) · Q13 Q.4 cut confirm · Q14 permissions reuse `communication:full` (rec yes) · Q15 audit log scope (rec yes for sends + template-applied; no for popout opens).
+
+**Confidence ~80%** — rest after Q.0 pre-flight + user Q1–Q15 answers (esp. Q4 templates scope, Q9 Guesty attach risk, Q13 polish cut).
+
+User can answer per-question or "default + proceed" for recommended path → next turn locks workflow doc → turn after that ships Q.0 + Q.1.
+
+## ✅ Earlier turn — Phase O webhook FULLY LIVE end-to-end (commit `fec8e48`)
 
 User configured Vercel env (`GUESTY_WEBHOOK_SECRET=70ada40491661bbebee18518495f137e0482a330403fec91d0ad41f16163bf94`) but Guesty UI showed **"Operating in read-only mode"** tooltip on the Add Endpoint button — their plan/role can't add webhooks via dashboard.
 
