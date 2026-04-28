@@ -13,6 +13,31 @@ async function requireAdmin() {
   return me;
 }
 
+// Normalise a mobile number to E.164-ish (strip everything except + and digits).
+// Empty string returns null so the partial-unique index allows NULL.
+function normaliseMobile(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const cleaned = trimmed.replace(/[^\d+]/g, '');
+  return cleaned || null;
+}
+
+function normaliseEmail(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return null;
+  // Light validation; the DB unique index enforces collision protection.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function normalisePosition(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim().slice(0, 80);
+  return trimmed || null;
+}
+
 export async function createUserAction(formData: FormData) {
   const me = await requireAdmin();
   const username = String(formData.get('username') || '')
@@ -20,6 +45,9 @@ export async function createUserAction(formData: FormData) {
     .toLowerCase();
   const password = String(formData.get('password') || '');
   const role = String(formData.get('role') || 'viewer');
+  const mobile_number = normaliseMobile(String(formData.get('mobile_number') || ''));
+  const email = normaliseEmail(String(formData.get('email') || ''));
+  const position = normalisePosition(String(formData.get('position') || ''));
   if (!username || password.length < 8) return;
   if (!['admin', 'editor', 'viewer'].includes(role)) return;
 
@@ -28,9 +56,11 @@ export async function createUserAction(formData: FormData) {
     username,
     password_hash: hashPassword(password),
     role,
+    mobile_number,
+    email,
+    position,
   });
   revalidatePath('/admin/users');
-  // Avoid unused-var lint on `me`.
   void me;
 }
 
@@ -41,6 +71,24 @@ export async function updateUserAction(formData: FormData) {
   if (!id || !['admin', 'editor', 'viewer'].includes(role)) return;
   const sb = supabaseAdmin();
   await sb.from('app_users').update({ role }).eq('id', id);
+  revalidatePath('/admin/users');
+}
+
+// Profile-only update — does NOT touch role or domain access.
+// Used by the unlocked Edit panel for mobile/email/position.
+export async function updateUserProfileAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('id') || '');
+  if (!id) return;
+  const mobile_number = normaliseMobile(String(formData.get('mobile_number') || ''));
+  const email = normaliseEmail(String(formData.get('email') || ''));
+  const position = normalisePosition(String(formData.get('position') || ''));
+  const sb = supabaseAdmin();
+  await sb.from('app_users').update({
+    mobile_number,
+    email,
+    position,
+  }).eq('id', id);
   revalidatePath('/admin/users');
 }
 
