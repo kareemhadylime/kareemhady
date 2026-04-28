@@ -1,6 +1,51 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🔴 EMERGENCY this turn — All guest-facing automated messaging KILLED (commits `474d3f7` + `e240af3`)
+## 🟢 Latest turn — Template approval workflow + Communication kill-switch UI (commit `3146e2f` · migration `0049_template_approval_workflow`)
+
+User followed up the emergency stop with sharp questions: "Where is the log of sent messages? There should be a kill control switch for Communication. Where is the kill switch for AI? Where did he get the info for Roof Top? Per-template review before flipping — where are these templates created, reviewed, approved? **Only Branding is Beithady, No A1, nothing else.**"
+
+**Answers ledger:**
+| Question | Where it lives now |
+|---|---|
+| Message log | `/emails/beithady/communication/{guesty,wa-casual,wa-cloud,unified}` — these are the canonical inboxes (one row per send in `beithady_messages`). |
+| Communication kill switch UI | NEW — `/emails/beithady/communication` landing has a banner + a one-click panel at `/emails/beithady/settings/templates`. |
+| AI kill switch UI | Already existed at `/emails/beithady/settings/ai-config` (confidence threshold + global toggle + VIP digest toggle). |
+| Templates review/approval UI | NEW — `/emails/beithady/settings/templates` replaces the "Phase C / F coming up" stub. |
+| Source of "rooftop / pool / gym / breakfast 7-11am" | Hardcoded in seed migration `0039_beithady_engagement.sql:122` (BH-435 row). Plausible-sounding fabricated content from a prior session. **Stripped this turn.** |
+
+**Sanitization (DB):** All 5 pre-arrival template bodies replaced with one neutral Beit Hady-only template:
+> *"Hi {guest_name}, Welcome — your apartment {listing} is ready for {check_in}. If you need anything before or during your stay, the Beit Hady host team is on call 24/7 at {host_phone}. Safe travels. Beit Hady team"*
+
+No A1, no specific amenities, no wifi names, no door codes, no parking instructions, no thermostat claims. All rows kept disabled + unapproved. Audit row written.
+
+**Migration `0049_template_approval_workflow`** (applied via Supabase MCP):
+- Adds `approved_by_user uuid REFERENCES app_users(id)`, `approved_at timestamptz`, `approved_body text` to `beithady_pre_arrival_templates`.
+- Adds same columns + `approved_name text` + `approved_description text` to `beithady_upsell_catalog`.
+- Trigger `trg_clear_*_approval` on both tables: any UPDATE that touches `body` (or `name`/`description` on upsell) clears the approval AND sets `enabled=false`. Forces re-review on every edit.
+- Backfill leaves every existing row at `approved_at = NULL` (i.e., nothing is approved by default).
+
+**Sender approval gates wired** in code:
+- [`src/lib/beithady/engagement/pre-arrival.ts`](src/lib/beithady/engagement/pre-arrival.ts): SQL filter `enabled=true AND approved_at IS NOT NULL` + JS guard `body === approved_body` (defends against trigger races).
+- [`src/lib/beithady/engagement/upsell.ts`](src/lib/beithady/engagement/upsell.ts): same shape on `beithady_upsell_catalog` checking `name === approved_name` AND `description === approved_description`.
+- Boarding-pass + CSAT senders use **hardcoded message bodies in code, not DB templates** — flagged in the new templates UI as a follow-up. For now they remain locked by (a) cron schedule removal in `vercel.json` and (b) the global `isOutboundPaused()` check in `sendWaCasualMessage`/`sendGuestyMessage`. Migration to DB-templated bodies is a follow-up.
+
+**New UI pieces:**
+- [`/emails/beithady/settings/templates/page.tsx`](src/app/emails/beithady/settings/templates/page.tsx) — replaces the "Phase C / F coming up" stub. Shows the global outbound kill-switch panel at the top, then lists every pre-arrival template + every upsell catalog item. Per-row Save / Approve / Enable + status pill (Live / Approved-disabled / Edited-needs-re-approval / Pending-review). Variables hint shown under each editor.
+- `OutboundKillSwitch` client component — Pause flips `beithady_outbound_paused = true` + `_reason` + `_at`; Resume requires explicit confirmation with reminder of the pre-conditions (review templates, re-add cron schedules). Audit row on every flip.
+- [`/emails/beithady/communication/page.tsx`](src/app/emails/beithady/communication/page.tsx) — replaces the redirect with a real card-based landing: kill-switch banner when paused, 4 inbox channel cards (the message log), 2 control cards (templates + AI config).
+- All buttons gated server-side by `requireBeithadyPermission('settings', 'full')`. Read-only viewers see status but cannot edit/approve/enable.
+
+**Server actions** in [`templates/actions.ts`](src/app/emails/beithady/settings/templates/actions.ts):
+- `updatePreArrivalBodyAction` / `approvePreArrivalTemplateAction` / `setPreArrivalEnabledAction` (refuses to enable if `approved_at IS NULL` or `body !== approved_body`)
+- `updateUpsellAction` / `approveUpsellAction` / `setUpsellEnabledAction` (same refusal logic)
+- `setOutboundPausedAction(paused, reason)` — writes the 3 settings rows + audit
+- Every action records before/after in `beithady_audit_log`
+
+**To resume sending (when ready):** open `/emails/beithady/settings/templates` → review each template body → click Approve → click Enable. Then either click "Resume outbound communication" on the kill-switch panel OR open the Communication landing. Crons in `vercel.json` are still stripped — to fully restore the auto-fire flow, the cron schedules also need to be re-added (see vercel.json). The kill switch + approval gates ensure that even if a cron fires, only approved templates can deliver.
+
+**Live URL:** https://limeinc.vercel.app — Ready, build green. Go to `/emails/beithady/settings/templates` to see the workflow.
+
+## 🔴 Earlier this session — EMERGENCY: All guest-facing automated messaging KILLED (commits `474d3f7` + `e240af3`)
 
 User flagged a screenshot of an unauthorized WhatsApp pre-arrival message sent to guest **Nour** at **BH-435-202** today. Message body started "Hi Nour, Welcome to **A1 Hospitality** at BH-435-202 — check-in 2026-04-28…" and signed off "A1 Hospitality · Beit Hady team". User had not approved the send and asked: *"what is Coming From A1"* and explicitly directed: **"Stop all messages to guests immediately"**.
 
