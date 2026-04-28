@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-27)
 
-## 🟢 Latest turn — SOP/KB Arabic versions for GR + Maintenance (commit `68b32f0`)
+## 🟢 Latest turn — SOP/KB A4 PDF export (commit `61c9063`)
+
+Two endpoints:
+- `GET /api/beithady/sop/article/[slug]/pdf` — single article download
+- `GET /api/beithady/sop/role/[role]/pdf?lang=en|ar` — full role bundle with cover page + table of contents + one A4 page per article
+
+**PDF renderer** [src/lib/beithady/sop/pdf.tsx](src/lib/beithady/sop/pdf.tsx) uses `@react-pdf/renderer` (already a project dep from the daily-report). Reuses the Beit Hady brand palette + logo from `public/brand/beithady/logo-stacked.jpg`. Markdown blocks (H1-3, paragraphs, ordered + unordered lists) are parsed into react-pdf primitives. Inline syntax (`**bold**`, `*italic*`, `` `code` ``) is stripped for PDF compatibility. Running footer with `page X/Y` numbering on every page.
+
+**Arabic support:** registers Cairo from Google Fonts CDN at first render. RTL articles render right-aligned with reversed list markers + Arabic-aware fontFamily. Falls back to Helvetica if registration fails — Arabic glyphs would render as missing boxes in that case. To guarantee offline-correct Arabic, drop a TTF into `public/fonts/` and switch `Font.register` to a local file path.
+
+**UI:**
+- Article detail page header gets a "PDF" download button next to the EN/AR counterpart link.
+- SOP landing page header shows a "Download {Role} bundle" primary button when a role tab is selected. Honors the current `lang` filter, so AR-only or EN-only bundles can be exported.
+
+**File names:**
+- Single: `beithady-sop-{slug}.pdf`
+- Bundle: `beithady-sop-{role}[-{lang}].pdf` (e.g. `beithady-sop-housekeeping-ar.pdf`)
+
+## 🟢 Earlier this session — SOP/KB Arabic versions for GR + Maintenance (commit `68b32f0`)
 
 User asked for Arabic versions of Guest Relations + Maintenance articles. Inserted 6 counterpart articles (slug suffix `-ar`):
 
@@ -588,7 +606,8 @@ Order of phases shipped (oldest → newest):
 38. **Morning Brief — Test panel** (`3adaf81`) — Preview / Send test to me / Send NOW to all recipients buttons with spinner + result banners
 39. **Phase K.2 — Cancellation risk + re-confirm workflow** (`f889b2c`) — migration 0045 + 0-100 scorer + /operations/cancel-risk page + WhatsApp re-confirm
 40. **Phase K.3 — SOP & Knowledge Base** (`19123ce`) — migration 0046 + 16 seed articles across 5 hospitality roles + library page + acknowledgement tracking
-41. **SOP/KB — Arabic GR + Maintenance + lang filter** (`68b32f0`) — 6 new Arabic counterpart articles + `language` filter chips on landing + EN↔AR counterpart link on detail page (this turn)
+41. **SOP/KB — Arabic GR + Maintenance + lang filter** (`68b32f0`) — 6 new Arabic counterpart articles + lang filter + EN↔AR counterpart link
+42. **SOP/KB — A4 PDF export** (`61c9063`) — react-pdf renderer (brand-styled, A4, RTL-aware) + 2 API routes (per-article, per-role bundle with TOC) + download buttons on article detail + landing pages (this turn)
 
 User has standing authorization for direct pushes to main ("Always Direct Push") — all phases land on `limeinc.vercel.app` automatically via Vercel's GitHub integration.
 
