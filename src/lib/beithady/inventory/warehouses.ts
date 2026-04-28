@@ -1,43 +1,19 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import type { WarehouseRow, WarehouseTreeNode } from './warehouses-shared';
 
-export type WarehouseRow = {
-  id: string;
-  code: string;
-  name_en: string;
-  name_ar: string;
-  building_code: string | null;
-  parent_id: string | null;
-  category_tag: 'linen' | 'fnb' | 'maintenance' | 'chemicals' | 'general' | 'welcome_tray' | null;
-  manager_user_id: string | null;
-  address_line: string | null;
-  geo_lat: number | null;
-  geo_lng: number | null;
-  pin_code: string | null;
-  active: boolean;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WarehouseTreeNode = WarehouseRow & {
-  children: WarehouseTreeNode[];
-  item_count?: number;
-  stock_value_egp?: number;
-};
-
-// Building codes Beit Hady tracks. Mirrors operations module / Q15.
-export const BEITHADY_BUILDING_CODES = ['BH-26', 'BH-73', 'BH-435', 'BH-OK', 'BH-34', 'OTHER'] as const;
-export type BeithadyBuildingCode = (typeof BEITHADY_BUILDING_CODES)[number];
-
-export const CATEGORY_TAG_LABEL: Record<NonNullable<WarehouseRow['category_tag']>, { en: string; ar: string }> = {
-  general: { en: 'General', ar: 'عام' },
-  linen: { en: 'Linen', ar: 'مفروشات' },
-  fnb: { en: 'F&B', ar: 'مأكولات ومشروبات' },
-  chemicals: { en: 'Chemicals', ar: 'مواد كيميائية' },
-  maintenance: { en: 'Maintenance', ar: 'صيانة' },
-  welcome_tray: { en: 'Welcome Tray', ar: 'صينية الترحيب' },
-};
+// Re-export shared types/constants so existing server-side imports
+// (`@/lib/beithady/inventory/warehouses`) continue to work unchanged.
+// Client components should import from `./warehouses-shared` directly.
+export type {
+  WarehouseRow,
+  WarehouseTreeNode,
+  BeithadyBuildingCode,
+} from './warehouses-shared';
+export {
+  BEITHADY_BUILDING_CODES,
+  CATEGORY_TAG_LABEL,
+} from './warehouses-shared';
 
 export async function listAllWarehouses(opts: { includeInactive?: boolean } = {}): Promise<WarehouseRow[]> {
   const sb = supabaseAdmin();

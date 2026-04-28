@@ -4,8 +4,8 @@ import { useState } from 'react';
 import {
   Warehouse, ChevronDown, ChevronRight, Edit3, Power, KeyRound, Plus, MapPin,
 } from 'lucide-react';
-import type { WarehouseTreeNode } from '@/lib/beithady/inventory/warehouses';
-import { CATEGORY_TAG_LABEL } from '@/lib/beithady/inventory/warehouses';
+import type { WarehouseTreeNode } from '@/lib/beithady/inventory/warehouses-shared';
+import { CATEGORY_TAG_LABEL } from '@/lib/beithady/inventory/warehouses-shared';
 import { WarehouseFormButton } from './warehouse-form-button';
 import { toggleWarehouseActiveAction, rotatePinAction } from '../actions';
 

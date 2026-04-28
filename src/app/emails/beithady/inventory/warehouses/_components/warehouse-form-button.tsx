@@ -2,11 +2,11 @@
 
 import { useState, useTransition, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import type { WarehouseRow } from '@/lib/beithady/inventory/warehouses';
+import type { WarehouseRow } from '@/lib/beithady/inventory/warehouses-shared';
 import {
   BEITHADY_BUILDING_CODES,
   CATEGORY_TAG_LABEL,
-} from '@/lib/beithady/inventory/warehouses';
+} from '@/lib/beithady/inventory/warehouses-shared';
 import { createWarehouseAction, updateWarehouseAction, type WarehouseFormInput } from '../actions';
 
 type ParentOption = { id: string; code: string; name_en: string; building_code: string | null };
