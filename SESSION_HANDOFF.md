@@ -1,5 +1,40 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
+## 🟢 Most recent turn — Inbox UX upgrade: clickable stats + sort everywhere + channel-aware composer hint (commit `30d5507` → `fb829b9` after rebase)
+
+User on Unified Inbox screenshot asked for three things:
+1. **Where is the messages sorting options?** — sort dropdown was on Guesty only, missing on wa-casual / unified.
+2. **Where is the Attachment + Voice Recording in the chat box?** — wants per-channel capability (Airbnb=attach, SMS=text-only, WhatsApp/Email=all).
+3. **Dashboard Boxes Should be clickable with Direct Filter Below.**
+
+**Shipped in one commit:**
+
+1. **Clickable stat tiles** — new shared `<StatLink>` at [src/app/beithady/communication/_components/stat-link.tsx](src/app/beithady/communication/_components/stat-link.tsx). Wired into Guesty + WA Casual + Unified pages. Click any tile sets the URL filter:
+   - Open → clears sla / unread / breach
+   - Unread → `unread=1`
+   - 🔴 > 12h / 🟠 4-12h / 🟡 1-4h / 🟢 ≤ 1h → `sla=red|orange|yellow|green`
+   - Breach → `breach=1` (NEW filter — `sla_breach=true`)
+   Active tile gets a coloured border; `q / sort / source / building` carry forward.
+
+2. **Sort dropdown** added to WA Casual + Unified (Guesty already had it last turn). Shared `VALID_SORTS` + `SORT_LABELS` lifted into `stat-link.tsx`. 6 options: Oldest unanswered (default) · Newest unanswered · Most recent guest message · Most recent activity · Most recently replied · Guest name A→Z.
+
+3. **`breachOnly` filter** added to `InboxFilter` in [src/lib/beithady/communication/inbox.ts](src/lib/beithady/communication/inbox.ts) — supports the Breach tile.
+
+4. **Channel-aware capability hint** above every composer (`<ChannelCapabilityHint />` in [thread-pane.tsx](src/app/beithady/communication/_components/thread-pane.tsx)). Matrix per user spec:
+   - Airbnb (Guesty) → text + attachments (no voice — Airbnb constraint)
+   - Booking.com → text + attachments
+   - SMS → text only
+   - Email → text + attachments
+   - WhatsApp via Guesty → text + voice + attachments
+   - wa_casual → text + voice + attachments (LIVE today via Green-API)
+   - wa_cloud (WABA) → text + voice + attachments (when WABA up)
+
+   Each capability shows as a coloured badge: emerald=live, amber=allowed-but-sender-not-yet-wired (Phase C.4), struck-through grey=not supported by channel.
+
+5. **GuestyComposer** now accepts `channelSource` prop. SMS chip auto-hidden on Airbnb / Booking threads (no SMS sub-channel there).
+
+**Note:** voice + attach upload pipes are only fully wired for `wa_casual` today. Other channels show the capability *spec* — actual sender wiring needs the Guesty media API + WABA (Phase C.4).
+
 ## ✅ Phase M COMPLETE — M.0 → M.14 SHIPPED (15/15 commits, 100%)
 
 **Beit Hady Inventory Module fully live at https://limeinc.vercel.app/beithady/inventory**
