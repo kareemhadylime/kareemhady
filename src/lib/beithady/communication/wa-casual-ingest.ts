@@ -262,6 +262,32 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
         console.warn('[wa-casual-ingest] auto-reply failed:', e);
       }
     })();
+
+    // Phase M.13: detect inbound inventory reorder requests from cleaners.
+    // Heuristic gate first (no API call) → AI parse if matched → draft Issue
+    // tagged created_via='wa_inbound' for manager approval.
+    if (typeof body === 'string' && body.length > 0) {
+      void (async () => {
+        try {
+          const { looksLikeReorder, parseReorderMessage, createReorderDraftFromWa } =
+            await import('@/lib/beithady/inventory/wa-reorder-parser');
+          if (!looksLikeReorder(body)) return;
+          const parsed = await parseReorderMessage(body);
+          if (parsed.items.length === 0) return;
+          await createReorderDraftFromWa({
+            parsed,
+            sender_phone: phoneDigits,
+            sender_name: senderName,
+            conversation_id: conversationId,
+            message_id: newMessageId,
+            raw_body: body,
+          });
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[wa-casual-ingest] inventory reorder parse failed:', e);
+        }
+      })();
+    }
   }
 
   return {
