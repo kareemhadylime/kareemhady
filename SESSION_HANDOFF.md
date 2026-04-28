@@ -1,6 +1,34 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟡 Most recent turn — Phase M.15 plan drafted: Housekeeping Estimator + Amazon EG Auto-Sourcing (no code, awaiting Q1–Q15)
+## 🟡 Most recent turn — Phase M.15 workflow drafted: Q1–Q15 locked, awaiting S1–S3 sign-off (no code)
+
+User answered all 15 plan-phase questions. Workflow phase sent for review per standing process (Plan → 95% → Workflow → 95% → Code). **No code this turn.**
+
+**Locked answers (full table in chat):**
+- Q1 Both placements · Q2 Pricelabs OR Guesty for bedroom/bathroom data · Q3 Half-bath granularity yes (numeric(3,1)) · Q4 Anthropic web_search YES + always availability-check on amazon.eg · Q5 On-demand + weekly cron for items issued >5×/30d · Q6 EGP only V1, no UAE · Q7 Consumables only V1, linen+hard-goods V2 · Q8 Extend `_consumption_rules` with `unit_config` scope value (single source of truth, no parallel estimator_lines table) · Q9 Hybrid kit baseline + per_guest topup · Q10 Free edit + >20% cost-impact alert · Q11 Per-listing override layer · Q12 Defer historical mining V2 · Q13 Branded items separate category · Q14 Fractional qty + ADD: Glance window cleaner, Pledge wood polish, anti-flies spray · Q15 No owner-billable V1.
+
+**Workflow doc sent (12 sections):**
+1. Locked answers recap
+2. Final DB schema — 4 migrations: `0052a_unit_configurations.sql` (configs + listing_unit_config), `0052b_consumption_rules_unit_config.sql` (extend rules scope + 4 new formula_kinds: `per_bedroom_per_checkin`, `per_bathroom_per_checkin`, `per_guest_per_checkin`, `fractional_per_checkin`; new `_listing_overrides` table), `0052c_amazon_eg_sourcing.sql` (8 new columns on `_items` + `_amazon_eg_price_snapshots` table), `0052d_seed_unit_configs_and_consumables.sql`
+3. Seed data — 7 unit configs (Studio/1BR/1BR-1.5BA/2BR-2BA/2BR-2.5BA Premium/3BR-2BA/3BR-3BA Premium) + 30 consumable items grouped Cleaning(8) · Sanitary(8) · Tray(7) · Linen(3) · Branded(4)
+4. Server actions inventory — 14 actions including `findAmazonEgCandidatesAction` (Anthropic web_search), `applyAmazonEgCandidateAction`, `bulkApplyConfigToListingsAction`, `upsertListingOverrideAction`, `getEstimatorOutput`, `computeReorderRequirements`, weekly cron handler
+5. UI routes — `/beithady/inventory/rules/estimator` landing matrix · `/[configId]` config detail · `/listing/[listingId]` override view · `/forecast` 30-day demand projection · Settings card + Inventory tab links
+6. AI Amazon EG sourcing flow detailed — Anthropic haiku-4-5 + web_search tool · URL pattern validation `^https://www\.amazon\.eg/(dp|gp/product)/[A-Z0-9]{10}` · HEAD-request availability check · scoring formula `(rating × 20) + (log10(reviews+1) × 5) - (price_per_unit × 0.1) + (bulk ? 10 : 0) + (in_stock ? 5 : -50)` · top-5 sorted, auto-pick or manual choose
+7. Cost-impact alert — banner + confirm-required when single edit shifts unit_config total >20%, audit logs the delta
+8. Cron schedules — `0 4 * * 1` UTC weekly Amazon refresh · `0 3 * * *` daily listing-config sync · `30 5 * * *` daily reorder alerts
+9. Edge case behavior matrix — 11 cases including missing bathrooms, 404 URLs, OOS, fractional qty, override conflicts, AI hallucinated URLs
+10. Sub-phase commit sequence — 6 commits: M.15.0 doc-only pre-flight · M.15.1 migration + types-shared · M.15.2 settings/inventory tabs + estimator landing · M.15.3 config detail + line CRUD + listing override · M.15.4 AI sourcer + manual paste fallback · M.15.5 forecast + budget hook + 2 crons
+11. Pre-flight checks (M.15.0) — bedrooms/bathrooms data audit, Anthropic web_search probe against amazon.eg, URL pattern audit, branded items vendor confirmation, existing `_consumption_rules` collision check, Vercel cron limit
+12. Test plan — 9 test scenarios covering create config, >20% cost banner, AI re-source, listing override, weekly cron, OOS handling, new listing auto-assign, forecast aggregation, cleaner checklist hook
+
+**3 sign-off questions blocking coding phase:**
+- S1 — Workflow scope as drafted? (rec: ship)
+- S2 — Sub-phase ordering OK (M.15.0 doc → M.15.1 migration → … sequential auto-deploys)? (rec: yes, mirrors Phase M cadence)
+- S3 — AI sourcing fallback when Anthropic web_search returns nothing — (a) require manual URL paste or (b) fall back to Anthropic general knowledge? (rec: a — strict to avoid hallucinations)
+
+**Confidence: ~92%** post-Q1–Q15 answers. Last 3% recovers after M.15.0 pre-flight findings (mainly Anthropic web_search reliability against amazon.eg). User can answer S1/S2/S3 individually or say "default + proceed" → next turn ships M.15.0 doc commit + M.15.1 migration as first real code.
+
+## 🟡 Earlier this session — Phase M.15 plan drafted: Housekeeping Estimator + Amazon EG Auto-Sourcing (no code, awaiting Q1–Q15)
 
 User asked to plan a new module that estimates housekeeping/refreshing items per check-in based on **unit configuration** (bedrooms × bathrooms × guest count), pulls candidate products from **Amazon Egypt via AI** (price/rating/bulk balance), and feeds the existing inventory + budget + stock + checklist surfaces. Per standing process — Plan → 95% confidence → Workflow → 95% → Code. **This turn was plan-only; no files written.**
 
