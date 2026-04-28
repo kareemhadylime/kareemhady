@@ -14,6 +14,8 @@ export const BEITHADY_ROLES = [
   'ops',
   'manager',
   'admin',
+  'warehouse_manager',         // Phase M — owns Inventory category
+  'housekeeper',               // Phase M — limited mobile-app access via PIN gate
 ] as const;
 export type BeithadyRole = (typeof BEITHADY_ROLES)[number];
 
@@ -25,7 +27,8 @@ export type BeithadyCategory =
   | 'settings'
   | 'gallery'
   | 'ads'
-  | 'operations';
+  | 'operations'
+  | 'inventory';               // Phase M
 
 export type Permission = 'none' | 'read' | 'full';
 
@@ -40,6 +43,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     gallery: 'full',
     ads: 'none',
     operations: 'read',
+    inventory: 'none',
   },
   finance: {
     financial: 'full',
@@ -50,6 +54,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     gallery: 'read',
     ads: 'none',
     operations: 'read',
+    inventory: 'read',         // sees stock value + approves PO/GRN > finance threshold
   },
   ops: {
     financial: 'read',
@@ -60,6 +65,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     gallery: 'full',
     ads: 'none',
     operations: 'full',        // operations role owns this category
+    inventory: 'full',
   },
   manager: {
     financial: 'full',
@@ -70,6 +76,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     gallery: 'full',
     ads: 'full',
     operations: 'full',
+    inventory: 'full',
   },
   admin: {
     financial: 'full',
@@ -80,6 +87,29 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     gallery: 'full',
     ads: 'full',
     operations: 'full',
+    inventory: 'full',
+  },
+  warehouse_manager: {
+    financial: 'none',
+    analytics: 'read',
+    crm: 'read',
+    communication: 'none',
+    settings: 'read',
+    gallery: 'none',
+    ads: 'none',
+    operations: 'read',        // sees calendar + tasks (needed for issue context)
+    inventory: 'full',
+  },
+  housekeeper: {
+    financial: 'none',
+    analytics: 'none',
+    crm: 'none',
+    communication: 'none',
+    settings: 'none',
+    gallery: 'none',
+    ads: 'none',
+    operations: 'none',
+    inventory: 'read',         // mobile app uses PIN gate, not role gate, for write actions
   },
 };
 
@@ -164,6 +194,7 @@ export function visibleCategoriesFor(roles: BeithadyRole[]): BeithadyCategory[] 
     'gallery',
     'ads',
     'operations',
+    'inventory',
   ];
   return all.filter(c => rolesGrantPermission(roles, c, 'read'));
 }
