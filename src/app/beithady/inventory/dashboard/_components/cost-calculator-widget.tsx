@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Calculator, AlertCircle } from 'lucide-react';
 import { computeCostSampleAction } from '../actions';
-import type { CostSample } from '@/lib/beithady/inventory/rules';
+import type { CostSample } from '@/lib/beithady/inventory/rules-shared';
 
 const SAMPLE_BUILDINGS = ['BH-26', 'BH-73', 'BH-435', 'BH-OK', 'BH-34', 'OTHER'];
 

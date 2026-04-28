@@ -2,7 +2,7 @@
 
 import { useTransition, useState } from 'react';
 import { Power, Trash2 } from 'lucide-react';
-import type { ConsumptionRuleListRow } from '@/lib/beithady/inventory/rules';
+import type { ConsumptionRuleListRow } from '@/lib/beithady/inventory/rules-shared';
 import { toggleRuleActiveAction, deleteRuleAction } from '../actions';
 import { RuleFormButton } from './rule-form-button';
 

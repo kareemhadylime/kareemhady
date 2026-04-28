@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { FORMULA_KIND_LABEL, SCOPE_LABEL, type RuleScope, type FormulaKind, type ConsumptionRuleListRow } from '@/lib/beithady/inventory/rules';
+import { FORMULA_KIND_LABEL, SCOPE_LABEL, type RuleScope, type FormulaKind, type ConsumptionRuleListRow } from '@/lib/beithady/inventory/rules-shared';
 import { createRuleAction, updateRuleAction, type RuleFormInput } from '../actions';
 
 type ItemOpt = { id: string; label: string };
