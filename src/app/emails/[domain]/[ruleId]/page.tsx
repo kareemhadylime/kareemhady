@@ -198,8 +198,6 @@ export default async function RuleOutputDetailPage({
   return (
     <>
       <TopNav>
-        <Link href="/emails" className="ix-link">Emails</Link>
-        <ChevronRight size={14} className="text-slate-400" />
         <Link href={`/emails/${domain}`} className="ix-link">{domainLabel}</Link>
         <ChevronRight size={14} className="text-slate-400" />
         <span className="truncate max-w-[200px]">{rule.name}</span>

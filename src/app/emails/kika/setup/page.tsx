@@ -106,10 +106,6 @@ export default async function KikaSetupPage({
       <TopNav />
       <div className="mx-auto max-w-5xl px-4 py-8">
         <nav className="mb-4 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-          <Link href="/emails" className="hover:text-pink-700 dark:hover:text-pink-400">
-            Domains
-          </Link>
-          <ChevronRight className="h-3 w-3" />
           <Link
             href="/emails/kika"
             className="hover:text-pink-700 dark:hover:text-pink-400"

@@ -122,8 +122,6 @@ export default async function KikaSalesPage({
   return (
     <>
       <TopNav>
-        <Link href="/emails" className="ix-link">Emails</Link>
-        <ChevronRight size={14} className="text-slate-400" />
         <Link href="/emails/kika" className="ix-link">KIKA</Link>
         <ChevronRight size={14} className="text-slate-400" />
         <span>Sales</span>

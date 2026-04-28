@@ -81,10 +81,6 @@ export default async function PricingPage({
   return (
     <>
       <TopNav>
-        <Link href="/emails" className="ix-link">
-          Emails
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
         <Link href="/beithady" className="ix-link">
           BEITHADY
         </Link>

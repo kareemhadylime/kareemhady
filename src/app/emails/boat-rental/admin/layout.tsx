@@ -15,8 +15,6 @@ export default async function BoatRentalAdminLayout({
   return (
     <>
       <TopNav>
-        <Link href="/emails" className="ix-link">Emails</Link>
-        <ChevronRight size={14} className="text-slate-400" />
         <Link href="/emails/boat-rental" className="ix-link">Boat Rental</Link>
         <ChevronRight size={14} className="text-slate-400" />
         <PortalSwitcher current="admin" available={portals} />

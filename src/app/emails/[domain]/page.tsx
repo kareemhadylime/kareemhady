@@ -131,8 +131,6 @@ export default async function DomainRulesPage({
   return (
     <>
       <TopNav>
-        <Link href="/emails" className="ix-link">Emails</Link>
-        <ChevronRight size={14} className="text-slate-400" />
         <span>{label}</span>
       </TopNav>
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">

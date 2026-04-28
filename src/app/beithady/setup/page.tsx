@@ -102,8 +102,6 @@ export default async function BeithadySetupPage({
       <TopNav />
       <div className="mx-auto max-w-5xl px-4 py-8">
         <nav className="mb-4 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-          <Link href="/emails" className="hover:text-cyan-700 dark:hover:text-cyan-400">Domains</Link>
-          <ChevronRight className="h-3 w-3" />
           <Link href="/beithady" className="hover:text-cyan-700 dark:hover:text-cyan-400">Beithady</Link>
           <ChevronRight className="h-3 w-3" />
           <span className="text-slate-700 dark:text-slate-200">Setup</span>
