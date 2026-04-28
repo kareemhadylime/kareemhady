@@ -1,6 +1,41 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Latest turn — Template approval workflow + Communication kill-switch UI (commit `3146e2f` · migration `0049_template_approval_workflow`)
+## 🟢 Most recent turn — Boarding-pass + CSAT into approval workflow, inbox sort, SLA pill explanation (commit `477a187` · migration `0050_unify_outbound_templates`)
+
+User followed up the templates rebuild with three asks: "What is the number of Days in Red on the right? Also how to sort messages? Boarding-pass + CSAT senders add DB templates in the same approval cycle."
+
+**Answer to "595d / 410d / 377d":** SLA age — days since the guest's last *unanswered* message arrived. Tooltip + label come from [src/app/emails/beithady/communication/_components/sla-pill.tsx](src/app/emails/beithady/communication/_components/sla-pill.tsx) → [`formatAge()`](src/lib/beithady/communication/sla.ts) (`<60s → Ns`, `<60m → Nm`, `<24h → Nh`, else → `Nd`). High counts come from old Airbnb inquiries that were never replied to (mostly legitimate dead-letter cases — declined inquiries that don't actually need a host reply but still register as SLA-breach). Documented for the user in this turn's response.
+
+**Sort dropdown:** added to the Guesty Inbox filter row. Six options:
+1. Oldest unanswered first (default — original behaviour)
+2. Newest unanswered first
+3. Most recent guest message
+4. Most recent activity (any direction)
+5. Most recently replied
+6. Guest name A→Z
+
+URL param `sort=...`. New `InboxSort` type in [src/lib/beithady/communication/inbox.ts](src/lib/beithady/communication/inbox.ts); each option maps to a single `.order()` call against the appropriate column. WA Casual + WA Cloud + Unified inboxes share the same `listInbox` library so the sort works there too once the param is added on those pages (their UIs use the same form pattern; mirror after first user feedback if needed).
+
+**Migration `0050_unify_outbound_templates`:**
+- Adds `purpose text NOT NULL DEFAULT 'pre_arrival' CHECK IN ('pre_arrival','boarding_pass','csat_survey')` to `beithady_pre_arrival_templates`. Table name kept (avoids breaking existing imports).
+- Seeds 1 default boarding-pass template + 1 default CSAT template — both with neutral Beit Hady-only bodies. enabled=false, approved_at=NULL.
+
+**Sender refactor (no more hardcoded bodies):**
+- [boarding-pass.ts](src/lib/beithady/engagement/boarding-pass.ts) and [csat.ts](src/lib/beithady/engagement/csat.ts) now load their body from `beithady_pre_arrival_templates` filtered by `purpose=` + `enabled=true` + `approved_at IS NOT NULL` + JS check `body === approved_body`.
+- If no approved template exists, the cron writes a `*_dispatch_blocked` audit row (`reason: 'no_approved_template'`) and skips every reservation. Defense-in-depth alongside the existing global `isOutboundPaused()` check + cron-removed-from-vercel.json.
+- New variables supported: `{stay_url}` for boarding-pass, `{survey_url}` for CSAT (in addition to `{guest_name}`, `{listing}`, `{check_in}`, `{host_phone}`).
+
+**Templates UI now grouped into 3 sections:**
+- Pre-arrival templates (5 rows — one per building + 1 default)
+- Boarding-pass templates (1 default; multi-building support if you create more rows later)
+- CSAT survey templates (1 default; same)
+- "Other senders" section narrowed to review-reply-queue + AI auto-reply (the only two remaining surfaces that don't use DB templates).
+
+Each section keeps the same Edit body → Save → Approve → Enable workflow. Variables hint per section lists the placeholders that purpose supports.
+
+**Test it:** open [/emails/beithady/settings/templates](https://limeinc.vercel.app/emails/beithady/settings/templates) — three sections. Pre-arrival has 5 rows from the original seed (sanitized to neutral Beit Hady text), boarding-pass + CSAT now have 1 row each (also neutral). All disabled + unapproved by default. Approving the boarding-pass template + enabling it is required before the cron can fire (and the cron itself is still stripped from `vercel.json` — separate explicit re-add step).
+
+## 🟢 Earlier this session — Template approval workflow + Communication kill-switch UI (commit `3146e2f` · migration `0049_template_approval_workflow`)
 
 User followed up the emergency stop with sharp questions: "Where is the log of sent messages? There should be a kill control switch for Communication. Where is the kill switch for AI? Where did he get the info for Roof Top? Per-template review before flipping — where are these templates created, reviewed, approved? **Only Branding is Beithady, No A1, nothing else.**"
 
