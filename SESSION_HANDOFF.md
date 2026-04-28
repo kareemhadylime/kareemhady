@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-28)
 
-## 🟢 Most recent turn — Beit Hady out of `/emails/*` URL hierarchy (commit `a836385`)
+## 🟢 Most recent turn — Strip 'Emails' breadcrumb segment from every page (commit `7c1a6f3`)
+
+User screenshot of `/emails/personal` showed breadcrumb `Lime Investments > Emails > Personal`. Asked: "why emails are still there in header?"
+
+The prior URL refactor moved Beit Hady out of `/emails/*` but left the breadcrumb scaffolding on the legacy `/emails/[domain]` pages (Personal, FMPLUS, VoltAuto, Lime, Kika sub-pages, Boat Rental admin) untouched. Three pages inside the moved Beit Hady tree (financials, pricing, setup) also still had a hardcoded `<Link href="/emails">Emails</Link>` segment in their breadcrumbs from before the refactor.
+
+**Fix:** stripped the middle 'Emails' (and 'Domains' on the setup page) segment from every breadcrumb across 13 files via a Python regex pass. URLs themselves untouched on the legacy `/emails/[domain]` tree — backward-compat preserved. The `/emails/beithady/* → /beithady/*` redirect from the prior commit still applies.
+
+Files touched:
+- `src/app/emails/[domain]/page.tsx`, `[domain]/[ruleId]/page.tsx`
+- `src/app/emails/boat-rental/admin/layout.tsx`
+- `src/app/emails/kika/{exec,financials,history,inventory,inventory/raw-materials,sales,setup}/page.tsx`
+- `src/app/beithady/{financials,pricing,setup}/page.tsx` (stragglers from prior refactor)
+
+Breadcrumbs now read `Lime Investments > <Domain>` instead of `Lime Investments > Emails > <Domain>`.
+
+Type-check clean. Canonical `limeinc.vercel.app` Ready (2m).
+
+## 🟢 Earlier this turn — Beit Hady out of `/emails/*` URL hierarchy (commit `a836385`)
 
 User: "Remove emails from the hierarchy `emails/beithady/settings/templates`. Emails should not be the landing page or mentioned in the hierarchy."
 
