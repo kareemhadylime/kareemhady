@@ -4,6 +4,7 @@ import { Send, Paperclip, AlertTriangle, Sparkles, Loader2, AlertCircle } from '
 import { sendWaCasualMessageAction, sendWaCasualVoiceAction } from '../actions';
 import { VoiceRecorder } from './voice-recorder';
 import { TemplatePicker } from './template-picker';
+import { AttachmentMenu } from './attachment-menu';
 import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 const MAX_LEN = 4000;
@@ -15,6 +16,7 @@ export function WaCasualComposer({
   initialSent,
   templates,
   templateContext,
+  buildingCode,
 }: {
   conversationId: string;
   killSwitchOn: boolean;
@@ -22,6 +24,7 @@ export function WaCasualComposer({
   initialSent?: boolean;
   templates?: Template[];
   templateContext?: TemplateContext;
+  buildingCode?: string | null;
 }) {
   const [body, setBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -107,14 +110,19 @@ export function WaCasualComposer({
           </div>
         )}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <VoiceRecorder onSend={onVoiceSend} disabled={voiceSending} />
             {voiceSending && (
               <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                 <Loader2 size={11} className="animate-spin" /> uploading voice…
               </span>
             )}
-            <FileAttachButton conversationId={conversationId} disabled={submitting} />
+            <AttachmentMenu
+              conversationId={conversationId}
+              channel="wa_casual"
+              buildingCode={buildingCode || null}
+              caption={body}
+            />
             {templates && templates.length > 0 && templateContext && (
               <TemplatePicker
                 templates={templates}

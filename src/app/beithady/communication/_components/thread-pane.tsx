@@ -101,6 +101,7 @@ export function ThreadPane({
                 channelSource={header.source || null}
                 templates={templates}
                 templateContext={templateContext}
+                buildingCode={header.building_code}
               />
             ) : header.channel === 'wa_casual' ? (
               <WaCasualComposer
@@ -110,6 +111,7 @@ export function ThreadPane({
                 initialSent={composerHints?.sent}
                 templates={templates}
                 templateContext={templateContext}
+                buildingCode={header.building_code}
               />
             ) : (
               <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />

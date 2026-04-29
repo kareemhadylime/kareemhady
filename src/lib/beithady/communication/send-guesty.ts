@@ -16,6 +16,9 @@ export type SendGuestyArgs = {
   subject?: string;
   agentUserId: string | null;
   agentDisplayName?: string | null;
+  // Phase Q.3 — multi-attachment support per Q.0 finding (Guesty Open API
+  // already accepts attachments[] on conversation-posts).
+  attachments?: Array<{ url: string; name: string; mime: string }>;
 };
 
 export type SendGuestyResult =
@@ -64,6 +67,7 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     type: 'message',
     module: args.module,
     subject: args.subject,
+    attachments: args.attachments,
   });
 
   if (!result.ok) {

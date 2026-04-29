@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Send, ExternalLink, AlertTriangle, Sparkles, AtSign, MessageCircle, Phone, AlertCircle } from 'lucide-react';
 import { sendGuestyMessageAction } from '../actions';
 import { TemplatePicker } from './template-picker';
+import { AttachmentMenu } from './attachment-menu';
 import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 // Reply composer for Guesty conversations. Text-only for Phase C.2;
@@ -26,6 +27,7 @@ export function GuestyComposer({
   channelSource,
   templates,
   templateContext,
+  buildingCode,
 }: {
   conversationId: string;
   guestyExternalId: string;
@@ -41,6 +43,7 @@ export function GuestyComposer({
   channelSource?: string | null;
   templates?: Template[];
   templateContext?: TemplateContext;
+  buildingCode?: string | null;
 }) {
   const src = (channelSource || '').toLowerCase();
   // SMS module hint is irrelevant on Airbnb / Booking / WhatsApp threads —
@@ -147,8 +150,15 @@ export function GuestyComposer({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <AttachmentMenu
+            conversationId={conversationId}
+            channel="guesty"
+            buildingCode={buildingCode || null}
+            caption={body}
+            module={moduleHint}
+          />
           {templates && templates.length > 0 && templateContext && (
             <TemplatePicker
               templates={templates}
