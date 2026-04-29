@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Smartphone, ExternalLink, Search, Activity } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
-import { listInbox, loadThread, getInboxStats, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
 import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { ChannelTabs } from '../_components/channel-tabs';
@@ -58,11 +58,12 @@ export default async function WaCasualPage({
   const ready = enabled && configured;
 
   const filter = parseFilter(sp);
-  const [inbox, stats, thread, pendingSuggestion] = await Promise.all([
+  const [inbox, stats, thread, pendingSuggestion, archiveCount] = await Promise.all([
     listInbox({ filter, page: 1, pageSize: 50 }),
     getInboxStats('wa_casual'),
     sp.c ? loadThread(sp.c) : Promise.resolve(null),
     sp.c ? getPendingSuggestion(sp.c) : Promise.resolve(null),
+    getArchiveTotalCount('wa_casual'),
   ]);
 
   return (
@@ -81,7 +82,7 @@ export default async function WaCasualPage({
         }
       />
 
-      <ChannelTabs active="wa-casual" />
+      <ChannelTabs active="wa-casual" archiveCount={archiveCount} />
 
       {!ready && (
         <div className="ix-card p-6 max-w-3xl mx-auto space-y-3 border-amber-200 dark:border-amber-800">

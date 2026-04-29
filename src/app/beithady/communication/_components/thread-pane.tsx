@@ -10,6 +10,7 @@ import { ReservationStatusChip } from './reservation-status-chip';
 import { ReservationMiniTimeline } from './reservation-mini-timeline';
 import { GuestHistoryBadge } from './guest-history-badge';
 import { NoReservationFallback } from './no-reservation-fallback';
+import { ArchivedBanner } from './archived-banner';
 
 export type ThreadComposerHints = {
   send_error?: string;
@@ -53,39 +54,53 @@ export function ThreadPane({
       </div>
 
       <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-3 bg-white dark:bg-slate-900">
-        {pendingSuggestion && (
-          <SuggestionStrip
-            conversationId={header.id}
-            suggestion={pendingSuggestion}
-            channel={header.channel}
-          />
-        )}
-        <ChannelCapabilityHint channel={header.channel} source={header.source || null} />
-        {header.channel === 'guesty' ? (
-          <GuestyComposer
-            conversationId={header.id}
-            guestyExternalId={header.external_id}
-            defaultModule={header.source && /airbnb|booking/.test(header.source) ? 'whatsapp' : 'whatsapp'}
-            killSwitchOn={!!header.ai_kill_switch}
-            initialError={composerHints?.send_error}
-            initialStatus={composerHints?.send_status}
-            initialFallbackUrl={composerHints?.fallback_url}
-            initialSent={composerHints?.sent}
-            channelSource={header.source || null}
-          />
-        ) : header.channel === 'wa_casual' ? (
-          <WaCasualComposer
-            conversationId={header.id}
-            killSwitchOn={!!header.ai_kill_switch}
-            initialError={composerHints?.send_error}
-            initialSent={composerHints?.sent}
-          />
+        {/* R.2 — when archived, replace composer with restore banner. */}
+        {header.archived_at ? (
+          <ArchivedBanner header={header} returnTo={archiveReturnTo(header.id)} />
         ) : (
-          <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />
+          <>
+            {pendingSuggestion && (
+              <SuggestionStrip
+                conversationId={header.id}
+                suggestion={pendingSuggestion}
+                channel={header.channel}
+              />
+            )}
+            <ChannelCapabilityHint channel={header.channel} source={header.source || null} />
+            {header.channel === 'guesty' ? (
+              <GuestyComposer
+                conversationId={header.id}
+                guestyExternalId={header.external_id}
+                defaultModule={header.source && /airbnb|booking/.test(header.source) ? 'whatsapp' : 'whatsapp'}
+                killSwitchOn={!!header.ai_kill_switch}
+                initialError={composerHints?.send_error}
+                initialStatus={composerHints?.send_status}
+                initialFallbackUrl={composerHints?.fallback_url}
+                initialSent={composerHints?.sent}
+                channelSource={header.source || null}
+              />
+            ) : header.channel === 'wa_casual' ? (
+              <WaCasualComposer
+                conversationId={header.id}
+                killSwitchOn={!!header.ai_kill_switch}
+                initialError={composerHints?.send_error}
+                initialSent={composerHints?.sent}
+              />
+            ) : (
+              <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />
+            )}
+          </>
         )}
       </div>
     </div>
   );
+}
+
+// Build a return-to URL for archive-banner restore actions. Restoring
+// from inside a month-detail view should kick the user back to the
+// active inbox so the restored conversation lands where they expect.
+function archiveReturnTo(_conversationId: string): string {
+  return '/beithady/communication/unified';
 }
 
 function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {

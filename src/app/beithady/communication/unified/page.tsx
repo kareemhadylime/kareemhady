@@ -1,6 +1,6 @@
 import { Layers, Search } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listInbox, loadThread, getInboxStats, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
 import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { ChannelTabs } from '../_components/channel-tabs';
@@ -60,11 +60,12 @@ export default async function UnifiedInboxPage({
   const sp = await searchParams;
   const filter = parseFilter(sp);
 
-  const [inbox, stats, thread, pendingSuggestion] = await Promise.all([
+  const [inbox, stats, thread, pendingSuggestion, archiveCount] = await Promise.all([
     listInbox({ filter, page: 1, pageSize: 50 }),
     getInboxStats(),
     sp.c ? loadThread(sp.c) : Promise.resolve(null),
     sp.c ? getPendingSuggestion(sp.c) : Promise.resolve(null),
+    getArchiveTotalCount(),
   ]);
 
   return (
@@ -78,7 +79,7 @@ export default async function UnifiedInboxPage({
         subtitle="Every channel in one feed — Guesty + WhatsApp Cloud + WhatsApp Casual. Sorted by SLA breach severity."
       />
 
-      <ChannelTabs active="unified" />
+      <ChannelTabs active="unified" archiveCount={archiveCount} />
 
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
         <StatLink label="Open" value={stats.open} href={buildStatHref(BASE_PATH, sp, { sla: null, unread: null, breachOnly: null })} active={!sp.sla && sp.unread !== '1' && sp.breach !== '1'} />

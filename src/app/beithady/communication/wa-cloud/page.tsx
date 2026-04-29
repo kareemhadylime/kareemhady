@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Bot, Sparkles, ExternalLink } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
+import { getArchiveTotalCount } from '@/lib/beithady/communication/inbox';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { ChannelTabs } from '../_components/channel-tabs';
 
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function WaCloudPage() {
   await requireBeithadyPermission('communication', 'read');
+  const archiveCount = await getArchiveTotalCount();
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -20,7 +22,7 @@ export default async function WaCloudPage() {
         subtitle="Business-grade messaging via Meta WhatsApp Business Cloud API. Templates, 24h-window discipline, AI auto-reply target."
       />
 
-      <ChannelTabs active="wa-cloud" />
+      <ChannelTabs active="wa-cloud" archiveCount={archiveCount} />
 
       <div className="ix-card p-10 text-center max-w-3xl mx-auto space-y-3">
         <div className="w-12 h-12 rounded-xl mx-auto inline-flex items-center justify-center bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">

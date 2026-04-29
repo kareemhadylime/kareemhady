@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Search, AlertTriangle, Mail } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listInbox, loadThread, getInboxStats, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
 import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { ChannelTabs } from '../_components/channel-tabs';
@@ -67,11 +67,12 @@ export default async function GuestyInboxPage({
   const sp = await searchParams;
   const filter = parseFilter(sp);
 
-  const [inbox, stats, thread, pendingSuggestion] = await Promise.all([
+  const [inbox, stats, thread, pendingSuggestion, archiveCount] = await Promise.all([
     listInbox({ filter, page: 1, pageSize: 50 }),
     getInboxStats('guesty'),
     sp.c ? loadThread(sp.c) : Promise.resolve(null),
     sp.c ? getPendingSuggestion(sp.c) : Promise.resolve(null),
+    getArchiveTotalCount('guesty'),
   ]);
 
   return (
@@ -85,7 +86,7 @@ export default async function GuestyInboxPage({
         subtitle="Airbnb · Booking.com · Direct · Vrbo. Read mirror live; reply composer ships in Phase C.2."
       />
 
-      <ChannelTabs active="guesty" />
+      <ChannelTabs active="guesty" archiveCount={archiveCount} />
 
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
         <StatLink label="Open" value={stats.open} href={buildStatHref(BASE_PATH, sp, { sla: null, unread: null, breachOnly: null })} active={!sp.sla && sp.unread !== '1' && sp.breach !== '1'} />
