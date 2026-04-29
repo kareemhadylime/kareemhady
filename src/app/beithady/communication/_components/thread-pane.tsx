@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles, CalendarPlus, Type, Mic, Paperclip, Check, Ban } from 'lucide-react';
+import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles, CalendarPlus, Type, Mic, Paperclip, Check, Ban, Image as ImageIcon, FileQuestion } from 'lucide-react';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { ThreadBundle } from '@/lib/beithady/communication/inbox';
 import { SlaPill } from './sla-pill';
@@ -77,7 +77,13 @@ export function ThreadPane({
           </div>
         ) : (
           <>
-            {messages.map(m => <Bubble key={m.id} m={m} />)}
+            {messages.map(m => (
+              <Bubble
+                key={m.id}
+                m={m}
+                guestyExternalId={header.channel === 'guesty' ? header.external_id : null}
+              />
+            ))}
             <div data-thread-tail={header.id} aria-hidden />
           </>
         )}
@@ -240,13 +246,51 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
   );
 }
 
-function Bubble({ m }: { m: ThreadBundle['messages'][number] }) {
+// Channels that frequently send rich-card / image / location / file messages
+// where Guesty's webhook delivers `body: ""` because the content lives only
+// on the channel's CDN (Airbnb/Booking/etc.), not in our DB. We render a
+// clickable placeholder that deep-links to Guesty's inbox UI for the
+// original media.
+const MEDIA_LIKELY_MODULES = new Set([
+  'airbnb', 'airbnb2', 'bookingCom', 'booking.com', 'booking', 'whatsapp', 'sms', 'email',
+]);
+
+function bodyIsEffectivelyEmpty(body: string | null | undefined): boolean {
+  if (!body) return true;
+  return body.replace(/\s+/g, '').length === 0;
+}
+
+function hasNoLocalAttachments(attachments: unknown): boolean {
+  if (!attachments) return true;
+  if (!Array.isArray(attachments)) return true;
+  return attachments.length === 0;
+}
+
+function Bubble({
+  m,
+  guestyExternalId,
+}: {
+  m: ThreadBundle['messages'][number];
+  guestyExternalId: string | null;
+}) {
   const inbound = m.direction === 'inbound';
   const tone = inbound
     ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
     : 'bg-slate-700 text-white border-slate-700';
   const channel = m.channel;
   const ChIcon = channel === 'guesty' ? Mail : channel === 'wa_cloud' ? Bot : Smartphone;
+
+  // Phase Q.4 follow-up — placeholder for media/rich-card messages whose
+  // body Guesty doesn't deliver via webhook. Click → opens Guesty inbox
+  // for this conversation in a new tab so the agent can view the original.
+  const moduleKey = (m.module_type || '').toLowerCase();
+  const looksLikeMedia =
+    bodyIsEffectivelyEmpty(m.body) &&
+    hasNoLocalAttachments(m.attachments) &&
+    MEDIA_LIKELY_MODULES.has(moduleKey);
+  const guestyDeepLink = guestyExternalId
+    ? `https://app.guesty.com/inbox/${guestyExternalId}`
+    : null;
 
   return (
     <div data-thread-msg-id={m.id} className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
@@ -270,12 +314,78 @@ function Bubble({ m }: { m: ThreadBundle['messages'][number] }) {
           </div>
         )}
         <Attachments attachments={m.attachments} inbound={inbound} />
-        <div className="whitespace-pre-wrap text-sm">{m.body || <em className="opacity-60">(empty)</em>}</div>
+        {looksLikeMedia ? (
+          <MediaPlaceholder
+            href={guestyDeepLink}
+            inbound={inbound}
+            moduleKey={moduleKey}
+          />
+        ) : (
+          <div className="whitespace-pre-wrap text-sm">
+            {m.body || <em className="opacity-60">(empty)</em>}
+          </div>
+        )}
         <div className={`text-[10px] mt-1 ${inbound ? 'text-slate-400' : 'text-slate-300'}`}>
           {fmtCairoDateTime(m.sent_at || m.created_at)}
         </div>
       </div>
     </div>
+  );
+}
+
+function MediaPlaceholder({
+  href,
+  inbound,
+  moduleKey,
+}: {
+  href: string | null;
+  inbound: boolean;
+  moduleKey: string;
+}) {
+  const isAirbnb = /airbnb/i.test(moduleKey);
+  const isBooking = /booking/i.test(moduleKey);
+  const label = isAirbnb
+    ? 'Airbnb media or rich card'
+    : isBooking
+      ? 'Booking.com media or rich card'
+      : 'Media message';
+  const sub = 'Body not delivered by webhook · click to view original';
+  const Inner = (
+    <div className={`rounded-lg border-2 border-dashed px-3 py-2.5 flex items-start gap-2 ${
+      inbound
+        ? 'border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/40'
+        : 'border-slate-400/50 bg-slate-600/40'
+    }`}>
+      <div className={`shrink-0 mt-0.5 ${inbound ? 'text-slate-500' : 'text-slate-300'}`}>
+        {isAirbnb || isBooking ? <ImageIcon size={16} /> : <FileQuestion size={16} />}
+      </div>
+      <div className="text-sm flex-1 min-w-0">
+        <div className={`font-medium ${inbound ? 'text-slate-700 dark:text-slate-200' : 'text-white'}`}>
+          {label}
+        </div>
+        <div className={`text-[11px] mt-0.5 ${inbound ? 'text-slate-500' : 'text-slate-300'}`}>
+          {sub}
+        </div>
+      </div>
+      {href && (
+        <ExternalLink
+          size={13}
+          className={`shrink-0 mt-1 ${inbound ? 'text-slate-400' : 'text-slate-300'}`}
+        />
+      )}
+    </div>
+  );
+  if (!href) return Inner;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block hover:opacity-90 transition cursor-pointer"
+      title="Open this conversation in Guesty to view the original media"
+    >
+      {Inner}
+    </a>
   );
 }
 
