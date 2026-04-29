@@ -147,6 +147,15 @@ body {
   .ix-link {
     @apply text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline;
   }
+  /* Brief tinted background flash to draw the eye after a hash-anchor
+     scroll lands on a row (e.g. deep-link from estimator → items). */
+  .ix-flash-highlight {
+    animation: ix-flash 2.4s ease-out;
+  }
+  @keyframes ix-flash {
+    0%   { background-color: rgba(16, 185, 129, 0.22); }
+    100% { background-color: transparent; }
+  }
 }
 
 /* Boat Catalogue print sheet — single A4 portrait page. The page

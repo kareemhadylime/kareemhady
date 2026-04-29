@@ -188,9 +188,11 @@ export function ItemFormButton({
                 <input type="text" value={form.barcode || ''} onChange={e => update('barcode', e.target.value || null)} className="ix-input w-full font-mono" />
               </Field>
 
-              <Field label="Amazon EG URL">
-                <input type="url" value={form.amazon_eg_url || ''} onChange={e => update('amazon_eg_url', e.target.value || null)} className="ix-input w-full" placeholder="https://www.amazon.eg/dp/..." />
-              </Field>
+              {/*
+                Amazon EG URL is intentionally NOT editable here — managed in
+                the Source column on the items list (per-row Accept / Change),
+                so a single source of truth drives unit-config budget rollups.
+              */}
 
               <Field label="Description">
                 <textarea value={form.description || ''} onChange={e => update('description', e.target.value || null)} rows={2} className="ix-input w-full" />

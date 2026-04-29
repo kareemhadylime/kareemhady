@@ -131,13 +131,18 @@ export default async function EstimatorConfigDetailPage({
       <section className="ix-card p-3 border-cyan-200 dark:border-cyan-800 bg-cyan-50/40 dark:bg-cyan-950/20">
         <div className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-200">
           <Info size={14} className="text-cyan-600 dark:text-cyan-300 shrink-0 mt-0.5" />
-          <div>
-            <strong className="text-cyan-700 dark:text-cyan-200">Editing lines:</strong>{' '}
-            quantities and formulas live in the consumption-rules table. To override a value for this configuration only, add a new rule with scope <code>unit_config</code> and scope-value <code className="font-mono">{config.id}</code> on the{' '}
-            <Link href="/beithady/inventory/rules" className="ix-link underline">
-              consumption rules page
-            </Link>
-            . Per-listing tweaks use the listing override panel (M.15.3, ships next).
+          <div className="space-y-1">
+            <div>
+              <strong className="text-cyan-700 dark:text-cyan-200">Quantities + formulas:</strong>{' '}
+              live in the consumption-rules table. To override a value for this configuration only, add a new rule with scope <code>unit_config</code> and scope-value <code className="font-mono">{config.id}</code> on the{' '}
+              <Link href="/beithady/inventory/rules" className="ix-link underline">consumption rules page</Link>.
+            </div>
+            <div>
+              <strong className="text-cyan-700 dark:text-cyan-200">Item source URL + unit cost:</strong>{' '}
+              edit on the{' '}
+              <Link href="/beithady/inventory/items" className="ix-link underline">items page</Link>
+              {' '}— each item has Accept / Change next to its Amazon EG link. One change cascades into every unit-config budget. Click any item below to jump straight to its row.
+            </div>
           </div>
         </div>
       </section>
@@ -242,21 +247,21 @@ function LineRow({ l }: { l: EstimatorLine }) {
 
   // Direct Amazon EG link if the item has a sourced product URL,
   // otherwise fall through to a search-by-name URL so the user can
-  // always one-click out to a buy page.
+  // always one-click out to a buy page. Used by the Source column below;
+  // the item-name cell is its own deep-link to the items page editor.
   const buyHref = l.amazon_eg_url || buildAmazonSearchUrl(l.item_name_en);
   const isDirectMatch = !!l.amazon_eg_url;
-  const buyTitle = isDirectMatch
-    ? `Open product on Amazon EG${amazonMeta ? ` · ${amazonMeta.en}` : ''}`
-    : `Search Amazon EG for "${l.item_name_en}"`;
 
   return (
     <tr className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
       <td className="py-2 px-3">
-        <a
-          href={buyHref}
-          target="_blank"
-          rel="noreferrer noopener"
-          title={buyTitle}
+        {/*
+          Item name links to the Items page anchor — that's where source URL
+          / unit cost is owned. Source column below is the buy-now click.
+        */}
+        <Link
+          href={`/beithady/inventory/items#item-${l.item_id}`}
+          title={`Edit ${l.item_sku} on the items page`}
           className="block group"
         >
           <div className="font-mono text-[11px] text-slate-700 dark:text-slate-200 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
@@ -265,7 +270,7 @@ function LineRow({ l }: { l: EstimatorLine }) {
           <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[220px] group-hover:underline">
             {l.item_name_en}
           </div>
-        </a>
+        </Link>
       </td>
       <td className="py-2 px-3 text-[11px] text-slate-600 dark:text-slate-300">
         {FORMULA_KIND_LABEL[l.formula_kind]}
