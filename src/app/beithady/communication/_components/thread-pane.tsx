@@ -82,6 +82,9 @@ export function ThreadPane({
                 key={m.id}
                 m={m}
                 guestyExternalId={header.channel === 'guesty' ? header.external_id : null}
+                guestPhone={header.guest_phone}
+                guestName={header.guest_full_name}
+                guestEmail={header.guest_email}
               />
             ))}
             <div data-thread-tail={header.id} aria-hidden />
@@ -268,10 +271,16 @@ function hasNoLocalAttachments(attachments: unknown): boolean {
 
 function Bubble({
   m,
-  guestyExternalId,
+  guestyExternalId: _guestyExternalId,
+  guestPhone,
+  guestName,
+  guestEmail,
 }: {
   m: ThreadBundle['messages'][number];
   guestyExternalId: string | null;
+  guestPhone: string | null;
+  guestName: string | null;
+  guestEmail: string | null;
 }) {
   const inbound = m.direction === 'inbound';
   const tone = inbound
@@ -281,16 +290,22 @@ function Bubble({
   const ChIcon = channel === 'guesty' ? Mail : channel === 'wa_cloud' ? Bot : Smartphone;
 
   // Phase Q.4 follow-up — placeholder for media/rich-card messages whose
-  // body Guesty doesn't deliver via webhook. Click → opens Guesty inbox
-  // for this conversation in a new tab so the agent can view the original.
+  // body Guesty doesn't deliver via webhook.
+  //
+  // V1 used a direct /inbox/<conversation_id> link, but Guesty 403s on
+  // those for many user roles ("You don't have access to this page").
+  // Switched to a search-by-phone/name URL — same pattern as the
+  // NoReservationFallback component — which works in any logged-in
+  // Guesty session that has read access to the conversation at all.
   const moduleKey = (m.module_type || '').toLowerCase();
   const looksLikeMedia =
     bodyIsEffectivelyEmpty(m.body) &&
     hasNoLocalAttachments(m.attachments) &&
     MEDIA_LIKELY_MODULES.has(moduleKey);
-  const guestyDeepLink = guestyExternalId
-    ? `https://app.guesty.com/inbox/${guestyExternalId}`
-    : null;
+  const searchTerm = guestPhone || guestEmail || guestName;
+  const guestyDeepLink = searchTerm
+    ? `https://app.guesty.com/inbox?search=${encodeURIComponent(searchTerm)}`
+    : 'https://app.guesty.com/inbox';
 
   return (
     <div data-thread-msg-id={m.id} className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
@@ -382,7 +397,7 @@ function MediaPlaceholder({
       target="_blank"
       rel="noopener noreferrer"
       className="block hover:opacity-90 transition cursor-pointer"
-      title="Open this conversation in Guesty to view the original media"
+      title="Search this guest in Guesty inbox to view the original media"
     >
       {Inner}
     </a>
