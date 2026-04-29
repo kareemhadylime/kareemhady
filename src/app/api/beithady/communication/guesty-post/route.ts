@@ -61,16 +61,62 @@ function classifyByExt(ext: string): { mime: string; kind: ExtractedAttachment['
 // Resolve a Guesty attachment storage path into an absolute CDN URL.
 // Verified shape from beithady_messages.raw (real photo upload by guest):
 //   { attachmentUrl: "production/<accountId>/png/<hash>_<filename>.png", type: "png" }
-// Guesty serves these via app-public-cdn.guesty.com.
-function absoluteAttachmentUrl(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-  // Strip any leading slashes to keep the join clean
-  const clean = raw.replace(/^\/+/, '');
-  return `https://app-public-cdn.guesty.com/${clean}`;
+//
+// Guesty's CDN hostname isn't documented publicly so we probe a list of
+// candidates with HEAD requests and cache the first one that returns 2xx.
+// Cache lives at module scope = warm Lambda lifetime; cold-start re-probes.
+
+const CDN_CANDIDATES = [
+  'https://assets.guesty.com',
+  'https://app-public-cdn.guesty.com',
+  'https://public-cdn.guesty.com',
+  'https://cdn.guesty.com',
+  'https://media.guesty.com',
+  'https://files.guesty.com',
+  'https://guesty-app-public.s3.amazonaws.com',
+  'https://guesty-prod-uploads.s3.amazonaws.com',
+];
+
+let cachedCdnBase: string | null = null;
+let cdnProbeInFlight: Promise<string | null> | null = null;
+
+async function probeCdn(samplePath: string): Promise<string | null> {
+  if (cachedCdnBase) return cachedCdnBase;
+  if (cdnProbeInFlight) return cdnProbeInFlight;
+  cdnProbeInFlight = (async () => {
+    for (const base of CDN_CANDIDATES) {
+      const url = `${base}/${samplePath}`;
+      try {
+        const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+          cachedCdnBase = base;
+          // eslint-disable-next-line no-console
+          console.log(`[guesty-cdn] probe success: ${base}`);
+          return base;
+        }
+      } catch {
+        // try next
+      }
+    }
+    return null;
+  })();
+  const result = await cdnProbeInFlight;
+  cdnProbeInFlight = null;
+  return result;
 }
 
-function deriveAttachments(post: GuestyPost): ExtractedAttachment[] {
+async function absoluteAttachmentUrl(raw: string | null | undefined): Promise<string | null> {
+  if (!raw) return null;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  const clean = raw.replace(/^\/+/, '');
+  // Probe (cached) — returns the hostname that works. Falls back to the
+  // first candidate if nothing returns 2xx so the client still gets a URL
+  // it can attempt and we can iterate based on the response.
+  const base = (await probeCdn(clean)) || CDN_CANDIDATES[0];
+  return `${base}/${clean}`;
+}
+
+async function deriveAttachments(post: GuestyPost): Promise<ExtractedAttachment[]> {
   const out: ExtractedAttachment[] = [];
 
   if (Array.isArray(post.attachments)) {
@@ -82,7 +128,7 @@ function deriveAttachments(post: GuestyPost): ExtractedAttachment[] {
         : typeof a.downloadUrl === 'string' ? a.downloadUrl
         : null;
       const relUrl = typeof a.attachmentUrl === 'string' ? a.attachmentUrl : null;
-      const url = directUrl || absoluteAttachmentUrl(relUrl);
+      const url = directUrl || (await absoluteAttachmentUrl(relUrl));
       if (!url) continue;
 
       const ext = typeof a.type === 'string' ? a.type : '';
@@ -174,7 +220,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'no_posts_found' }, { status: 404 });
     }
 
-    const attachments = deriveAttachments(target);
+    const attachments = await deriveAttachments(target);
+    // DEBUG mode: include the raw target post so we can inspect what
+    // URL fields Guesty actually returns. Trigger with ?debug=1.
+    const debugMode = req.nextUrl.searchParams.get('debug') === '1';
     return NextResponse.json({
       ok: true,
       post: {
@@ -186,6 +235,7 @@ export async function GET(req: NextRequest) {
         createdAt: target.createdAt || null,
         attachments,
       },
+      ...(debugMode ? { _raw_target: target, _raw_first_post: posts[0] } : {}),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
