@@ -1,6 +1,27 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Server-side attachment proxy (CDN requires auth, public GETs 400)
+## 🟡 Latest turn — Proxy v2: try 7 Guesty Open API + CDN candidates (Bearer didn't unlock CDN either)
+
+User reported v1 proxy returned `all_hosts_failed` with status 400 on every CDN candidate. Bearer token works against `open-api.guesty.com/v1/...` (every other Guesty API call uses it) but does NOT work against `assets.guesty.com`. So the CDN-direct path is dead.
+
+**Expanded proxy in `src/app/api/beithady/communication/guesty-attachment/route.ts`:**
+
+V3 endpoint now passes `attachmentId`, `postId`, `conversationId` query params alongside `path`. `ExtractedAttachment` type extended with those optional fields. Validated via `ID_PATTERN = /^[a-zA-Z0-9_-]+$/`.
+
+**Proxy tries 7 candidates in priority order:**
+1. `/v1/communication/conversations/{convId}/posts/{postId}/attachments/{attId}` (Bearer)
+2. Same + `/download` suffix (Bearer)
+3. `/v1/communication/attachments/{attId}` (Bearer)
+4. `/v1/attachments/{attId}` (Bearer)
+5. `/v1/<storage-path>` (Bearer)
+6. `assets.guesty.com/<path>` (NO auth — maybe public after all)
+7. `app-public-cdn.guesty.com/<path>` (NO auth)
+
+**Smart JSON handling:** if any candidate returns `application/json` instead of binary, parse for `{ url | downloadUrl | signedUrl | data.url }` and **follow the signed URL server-side** with no auth (typical pre-signed S3 URL pattern), then stream the actual binary back. Covers both "API returns binary" and "API returns signed CDN URL" scenarios.
+
+**Failure response upgraded:** 502 now includes `attempts[]` array with `{label, url, status, body}` per candidate. So if all 7 still fail, the diagnostic JSON shows exactly which endpoints Guesty exposes and what they complain about — actionable data for the next iteration.
+
+## ✅ Earlier turn — Server-side attachment proxy V1 (CDN requires auth, public GETs 400)
 
 User pasted the `?debug=1` response from V3 endpoint. Two findings:
 
