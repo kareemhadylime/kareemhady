@@ -1,6 +1,49 @@
-# Kareemhady — Session Handoff (2026-04-29)
+# Kareemhady — Session Handoff (2026-04-30)
 
-## 🔴 Latest turn — Guesty attachment proxy: 11 Open-API candidates all 4xx; 4 internal-app candidates added + graceful UI fallback shipped
+## 🟡 Latest turn — Phase C.5 "Channel Switcher" — plan + workflow drafted, awaiting workflow sign-off (no commits this turn)
+
+User asked for ability to switch outbound transport mid-thread to **Green WP / WABA / Email / SMS** with a "no info → revert" guardrail when guest contact field is missing. Process: Plan → Q&A → Workflow → review → Code (per user's "95% confidence per phase" rule).
+
+**Plan delivered + answered:** 10 clarifying questions (Q1–Q10) + 12 improvement suggestions. User replied **"Yes to all"** — adopting every recommended default and improvement.
+
+**Confirmed scope (Phase C.5):**
+- Email/SMS sends route through Guesty's `module=email|sms` field (path Q2-a — defer standalone Resend/Twilio providers)
+- One-shot send + optional "Remember for this conversation" checkbox (Q3-c)
+- Cross-channel sends inject into the current thread with a "via X" badge (Q4-a) — single-thread view preserved
+- WABA button **visible-but-disabled** until C.4 ships (Q5-a) with stub `sendWaCloudMessage` returning 501
+- WABA outside-24h enforcement is a banner, not auto-popping the template picker (Q6-b)
+- Manual revert only on no-info banner (Q8-c) — no auto-revert timer
+- Existing `'communication':'full'` permission gates the action (Q9)
+- Audit logs metadata only — no message bodies (Q10)
+- All 12 improvements in: live availability badges, channel score per guest, smart default, template-aware switching, phone/email validators, CRM `?focus=` deep-link, cost/risk hints, audit filter, K.2 cancel-fallback hookup, multi-channel "+Email backup," `Alt+1/2/3/4` shortcuts, capability matrix one-liner
+
+**Workflow drafted (sent for review, awaiting "go"):**
+- 8 pre-flight investigations (PF1 = Guesty cross-module probe is the only at-risk one — proposed running it as a one-shot test post into a real thread)
+- 6 commits, each independently deployable: migration → library → server action → UI components → wire-in → cross-cutting (WABA gating + multi-channel + bulk hookup)
+- Migration `0047_beithady_channel_switch.sql` adds `preferred_outbound_channel` + `preferred_outbound_set_at` to `beithady_conversations` and `was_channel_switched` + `original_thread_channel` to `beithady_messages`
+- Risk register: 10 risks identified, R1 (Guesty cross-module rejection on Airbnb-native conv) is highest — mitigation = hide Email/SMS buttons on Airbnb/Booking threads if PF1 fails
+- Test plan: typecheck + build per commit, 10 manual end-to-end scenarios after Commit 6
+- Estimate: ~5.5 hours of focused work, 1 working session
+
+**Files I will touch (preview only — no edits this turn):**
+- NEW: `src/lib/beithady/communication/channel-switch.ts`
+- NEW: `src/app/beithady/communication/_components/channel-switcher.tsx`
+- NEW: `supabase/migrations/0047_beithady_channel_switch.sql`
+- MODIFY: `thread-pane.tsx`, `composer.tsx`, `wa-casual-composer.tsx`, `actions.ts`, `inbox.ts`
+
+**Architecture context I confirmed by reading:**
+- `thread-pane.tsx` routes composer by `header.channel` (guesty / wa_casual / wa_cloud-stub) — needs to key on `effectiveChannel` instead
+- `composer.tsx` already has a "Channel hint" chip group (WhatsApp/Email/SMS) — but only switches Guesty's internal `module` field, not the transport. Will be promoted into a true cross-channel switcher.
+- `send-guesty.ts` accepts `module: 'email' | 'sms' | 'whatsapp' | 'log'` — already routable via Guesty Open API
+- `send-wa-casual.ts` (Green-API) requires E.164 phone — uses `external_id` of conversation today; needs to accept arbitrary phone for cross-channel
+- `meta_waba` provider slot exists in `src/lib/credentials.ts` but **no send function** — stubbed return 501
+- Email/SMS as standalone (Resend/Twilio) does NOT exist — out of scope for C.5
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c` worktree, clean. No commits this turn.
+
+**Next user action:** Confirm workflow + answer "run PF1 as live Guesty probe yes/no" + any commit resequencing. Then I execute pre-flights → Commit 1 → 6 with auto-deploy after each.
+
+## 🔴 Earlier turn — Guesty attachment proxy: 11 Open-API candidates all 4xx; 4 internal-app candidates added + graceful UI fallback shipped
 
 User confirmed real-photo placeholders STILL fail after the POST-signing iteration. Final diagnostic:
 
