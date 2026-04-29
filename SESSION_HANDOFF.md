@@ -1,6 +1,70 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Phase R fully shipped end-to-end (commits `81319e8` → `63b1087`, 5 sequential auto-deploys)
+## ✅ Latest turn — Phase Q FULLY shipped (Q.2 → Q.2.5 → Q.3 → Q.4, 4 commits + deploys)
+
+User said "Continue" → auto-mode → resumed from where Phase Q paused (Q.0 + Q.1 already live as reservation chip + popout) and shipped the remaining four sub-phases sequentially.
+
+### Phase Q commit ledger (full)
+
+| # | Commit | Sub-phase | What shipped |
+|---|---|---|---|
+| Q.0 | `92a17a9` (earlier session) | pre-flight doc | `docs/PHASE_Q_PREFLIGHT.md` — coverage probes, Guesty attachments[] discovery, listing.raw shape |
+| Q.1 | `023452c` (earlier session) | reservation chip + popout | ReservationStatusChip · ReservationMiniTimeline · GuestHistoryBadge · NoReservationFallback · loadThread reservation+guest joins |
+| **Q.2** | `320a903` | templates V1 + listing secrets | Migration 0053a · 8 seed templates · templates-shared.ts client-safe resolver · `<TemplatePicker>` popover · variable resolver wired into both composers · block-send guard for unresolved {var} |
+| **Q.2.5** | `c157583` | admin templates CRUD | `/beithady/communication/admin/templates` page · table with active toggle/edit/delete · `<TemplateFormDialog>` · 4 server actions |
+| **Q.3** | `43bfdb8` | multi-attach + library | Migration 0053c (beithady_listing_assets) · `<AttachmentMenu>` (device/camera/library) · `<LibraryPicker>` (building → unit → photos 2-step modal) · sendWaCasualMultiAttachAction (5 files, caption on first) · sendGuestyMultiAttachAction (uses existing attachments[] field per Q.0) · uploadListingAssetAction (admin) · 3 API routes for picker |
+| **Q.4** | `945f5e9` | polish bundle | Migration 0053d (beithady_conversation_notes + resolved fields on beithady_conversations) · `<InternalNotesPanel>` collapsible amber strip · `<ResolveButton>` with 5-reason dropdown + Re-open · 4 server actions (add/delete note, mark/unmark resolved) · ThreadHeader resolved-summary line |
+
+### Locked variable list (Q.5)
+
+`{guest_name} {guest_first_name} {listing_nickname} {check_in_date} {check_out_date} {nights} {guests} {building_code} {wifi_ssid} {wifi_password} {checkin_time} {agent_name} {today_date} {address}` — resolves client-side at template-pick time. `wifi_password / wifi_ssid / checkin_time` lookup from `beithady_listing_secrets`.
+
+### What's now live on the inbox right panel
+
+1. **Reservation status chip** + click → opens calendar drawer in new tab (Q.1, earlier)
+2. **Reservation mini-timeline** + guest history badge (Q.1, earlier)
+3. **Templates button** (📋) next to attach + send — popover with category tabs + per-template missing-var indicator + click-to-insert with cursor-friendly placement
+4. **Attachment menu** (📎) with 3 sources: from device (multi-file), camera, listing library (2-step modal: building → unit → multi-select photos)
+5. **Pending tray** with thumbnail previews, drag-friendly remove buttons, "Send N" CTA — 5 file max
+6. **Guesty composer attaches** via the already-wired `attachments[]` field discovered in Q.0 — single message with N attachments
+7. **wa_casual** sends N sequential WhatsApp posts with shared caption on first only (per Q8)
+8. **Internal notes** — collapsible amber strip between header and messages, staff-only, with author username + delete; auto-opens when notes exist
+9. **Resolve button** in header — 5-reason dropdown (resolved · booked · no_response · spam · duplicate); switches to "Re-open" when resolved; sets `state='closed'` for archive auto-cron compatibility
+10. **Block-send guard** — composer disables send + shows amber banner listing missing template variables when body still has unresolved `{var}` keys
+
+### Admin pages
+
+- **`/beithady/communication/admin/templates`** — CRUD page for all 8+ templates. Active toggle inline. Form dialog with name/category/language/sort/channels/source-filter/body + known-vars hint chips.
+
+### Migrations applied (4)
+
+```
+0053a_message_templates_and_listing_secrets  — templates table + 8 seeds + listing_secrets table + touch trigger
+0053c_listing_assets                         — listing photo + asset library
+0053d_conversation_notes_and_resolved        — internal notes table + resolved_* columns
+```
+
+(Pre-existing 0054a from Phase R already on main.)
+
+### Storage usage
+
+- `beithady-wa-media` (20MB, public) — outbound chat media
+- `beithady-gallery-public` (50MB, public) — listing library photos at `listing/{listing_id}/{file}`
+
+### Deferred from Q.4
+
+The original Q.4 polish cut included #6 translate inline, #12 AI suggestion edit, #13 bulk mark-read + keyboard shortcuts. Shipped this round were #1 (mini-timeline, in Q.1), #2 (guest history, in Q.1), **#3 internal notes**, **#5 mark resolved**. Translate / AI edit / bulk-read / shortcuts deferred to V2 — none blocking.
+
+### V2 / future work
+
+- Translate inline (Anthropic haiku per-bubble menu)
+- AI suggestion edit button on `<SuggestionStrip>`
+- Bulk mark-read + keyboard shortcuts (j/k/r/e)
+- Listing secrets admin page at `/beithady/settings` (currently editable only via direct DB)
+- Listing assets bulk uploader (drag a folder; auto-route by filename pattern)
+- WABA template picker (waiting on Beit Hady WABA provisioning)
+
+## ✅ Earlier turn — Phase R fully shipped end-to-end (commits `81319e8` → `63b1087`, 5 sequential auto-deploys)
 
 User said "Ship R1 To R15 Together" → auto-mode → defaults on S1/S2/S3 → ran the entire R.0 → R.5 sub-phase chain in one turn.
 
