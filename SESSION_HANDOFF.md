@@ -1,6 +1,19 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Clickable media placeholder for empty-body Guesty messages
+## ✅ Latest turn — Media placeholder URL fixed: search-by-phone instead of direct conversation deep-link
+
+User clicked the new placeholder card and got Guesty's "You don't have access to this page" 403. Verified the conversation ID was correct (`69f0e6e017350d0013192201` exists in both our DB and Guesty's tables) — the issue is **Guesty's UI itself 403s on direct `/inbox/<conversation_id>` deep-links** for many user roles, even when the same user can see the conversation through normal inbox navigation.
+
+**Fix shipped:**
+- Changed placeholder href from `https://app.guesty.com/inbox/<conversation_id>` to `https://app.guesty.com/inbox?search=<phone>` (mirrors `<NoReservationFallback>` pattern)
+- Search priority: `guest_phone` → `guest_email` → `guest_full_name` → bare `/inbox`
+- `Bubble` now receives `guestPhone` / `guestEmail` / `guestName` props; `guestyExternalId` kept (prefixed `_`) for future use
+- Title hint: "Search this guest in Guesty inbox to view the original media"
+- 1 commit + deploy in background
+
+The same approach should be applied to other Guesty deep-links across the app (the existing `Open in Guesty` link in `<GuestyComposer>` at line 139 still uses `/inbox/<external_id>` — same potential 403). Not blocking enough to fix preemptively, but worth a sweep if more reports come in.
+
+## ✅ Earlier turn — Clickable media placeholder for empty-body Guesty messages
 
 User reported still seeing "(empty)" bubbles for messages where Guesty UI shows photos / rich cards (Airbnb flight info card, Booking confirmation cards, etc.). Verified the underlying cause via direct payload inspection:
 
