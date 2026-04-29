@@ -50,6 +50,8 @@ export type ItemRow = {
   is_asset: boolean;
   serial_tracked: boolean;
   amazon_eg_url: string | null;
+  amazon_eg_url_reviewed_at: string | null;
+  amazon_eg_url_reviewed_by: string | null;
   active: boolean;
   created_by_user: string | null;
   created_at: string;
@@ -62,6 +64,7 @@ export type ItemListRow = ItemRow & {
   category_code: string;
   vendor_name: string | null;
   total_on_hand: number;
+  amazon_eg_url_reviewed_by_name: string | null;
 };
 
 export async function listCategories(): Promise<Category[]> {
@@ -88,6 +91,12 @@ export type ItemFilters = {
   categoryCode?: string;
   status?: 'active' | 'inactive' | 'all';
   lowStock?: boolean;
+  /**
+   * Show only items that have an amazon_eg_url set but no
+   * amazon_eg_url_reviewed_at — operator hasn't confirmed the URL yet.
+   * Pairs with the "Needs review" chip on the items page.
+   */
+  needsReview?: boolean;
 };
 
 export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[]> {
@@ -98,7 +107,8 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       *,
       category:beithady_inventory_categories!inner(code, name_en, name_ar),
       vendor:beithady_inventory_vendors(legal_name, trade_name),
-      stock:beithady_inventory_stock(qty_on_hand)
+      stock:beithady_inventory_stock(qty_on_hand),
+      reviewer:app_users!amazon_eg_url_reviewed_by(username)
     `)
     .order('name_en', { ascending: true })
     .limit(500);
@@ -117,11 +127,16 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
     if (cat) q = q.eq('category_id', cat.id);
   }
 
+  if (filters.needsReview) {
+    q = q.not('amazon_eg_url', 'is', null).is('amazon_eg_url_reviewed_at', null);
+  }
+
   const { data } = await q;
   const rows = (data as Array<ItemRow & {
     category: { code: string; name_en: string; name_ar: string };
     vendor: { legal_name: string; trade_name: string | null } | null;
     stock: Array<{ qty_on_hand: number }> | null;
+    reviewer: { username: string | null } | null;
   }> | null) || [];
 
   const mapped: ItemListRow[] = rows.map(r => {
@@ -152,6 +167,8 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       is_asset: r.is_asset,
       serial_tracked: r.serial_tracked,
       amazon_eg_url: r.amazon_eg_url,
+      amazon_eg_url_reviewed_at: r.amazon_eg_url_reviewed_at,
+      amazon_eg_url_reviewed_by: r.amazon_eg_url_reviewed_by,
       active: r.active,
       created_by_user: r.created_by_user,
       created_at: r.created_at,
@@ -161,6 +178,7 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       category_name_ar: r.category.name_ar,
       vendor_name: r.vendor?.trade_name || r.vendor?.legal_name || null,
       total_on_hand: totalOnHand,
+      amazon_eg_url_reviewed_by_name: r.reviewer?.username || null,
     };
   });
 
