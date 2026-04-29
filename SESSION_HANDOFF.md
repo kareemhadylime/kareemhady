@@ -1,6 +1,41 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Default sort fixed: now sorts by the column that's actually displayed (last_inbound_at)
+## ✅ Latest turn — Critical webhook bug fixed: Guesty messages were silently dropped for ~16 hours
+
+User reported messages from Guesty not appearing (Saad Alkhaldi missing 4:02 PM agent reply; Abdulaziz Althagafi missing 8:32 AM reply; Zeinab AlKhashab still showing "1 NEW"/unreplied despite reply on Guesty).
+
+### Root cause
+
+**Phase O webhook receiver was rejecting 100% of events with `"message _id missing"` error since registration ~16 hours ago.**
+
+Code in `src/lib/guesty-webhook.ts` looked for `payload.message._id` or `payload.message.id`. Guesty's actual webhook payload (verified by inspecting one of the 138 stored events) puts the conversation-post id at **`payload.message.postId`** instead. The receiver wrote each event to `guesty_webhook_events` with `status='error'` then bailed before upserting into `guesty_conversation_posts`.
+
+The reason this was masked: the daily Guesty backfill at `40 4 * * *` UTC was still pulling everything via the Open API once a day, so anything between daily ticks was invisible until the next 04:40 UTC tick. Today the user noticed because they were looking at conversations that had activity between 04:42 UTC (last successful sync) and ~13:30 UTC (when they reported the issue).
+
+### Fix shipped (deploy ✓ green)
+
+- **`src/lib/guesty-webhook.ts`** — id lookup chain now: `message.postId` → `message._id` → `message.id` → `meta.messageId` (in 3 places: `deriveUniqueKey`, `processGuestyWebhook` outer, `ingestMessage` inner)
+- Also tightened `moduleType`: removed fallback to `message.type` (which is `'fromGuest'`/`'fromHost'`, not channel) — explicit fallback to `'whatsapp'` instead
+- `accountId` now also reads from `payload.conversation.accountId`
+- `fromFullName` synthesised from `conversation.meta.guestName` for inbound posts (Guesty doesn't include `from.fullName` on guest messages)
+
+### Recovery (executed via Supabase MCP)
+
+1. **Replayed 138 errored events** by extracting `message.postId/body/module/createdAt/...` from stored payloads and upserting into `guesty_conversation_posts` (deduped to 131 unique postIds)
+2. Called `beithady_communication_ingest()` RPC → 39 new messages inserted into `beithady_messages` (the rest were already known from daily backfill)
+3. Recomputed `beithady_conversations.last_inbound_at` / `last_outbound_at` / `modified_at_external` from messages so the sidebar dates reflect the recovered data
+4. Marked all 138 events `status='processed'` so the verify page reports 0 errors
+
+### State after fix
+
+- Latest message in `beithady_messages`: 13:26 UTC (Cairo 4:26 PM) — was 03:30 UTC (8 hours stale)
+- 0 webhook events still erroring
+- Saad Alkhaldi: last_inbound now 13:02 UTC (4:02 PM Cairo) — matches Guesty UI
+- Abdulaziz Althagafi: last_inbound now 05:32 UTC (8:32 AM Cairo) — matches Guesty UI
+
+**Earlier in this turn:** Default sort fixed to `last_inbound_at desc` (matches the column the sidebar visibly displays). The "API error" the user saw was actually this webhook bug surfacing as stale conversations.
+
+## ✅ Earlier turn — Default sort fixed: now sorts by the column that's actually displayed (last_inbound_at)
 
 User asked for newest-first. First attempt set default to `recent_activity` (`modified_at_external desc`) which produced visually scrambled lists — sidebar rows display `last_inbound_at` so the SORTED column ≠ DISPLAYED column. User screenshot showed dates jumping 4/29 → 4/28 → 4/24 → 4/27 in adjacent rows.
 
