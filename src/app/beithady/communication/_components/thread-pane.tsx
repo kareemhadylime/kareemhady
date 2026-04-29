@@ -2,9 +2,18 @@ import Link from 'next/link';
 import { Bot, Mail, MessageCircle, Smartphone, ExternalLink, Phone, AtSign, Building2, BedDouble, Sparkles, CalendarPlus, Type, Mic, Paperclip, Check, Ban, Image as ImageIcon, FileQuestion } from 'lucide-react';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { ThreadBundle } from '@/lib/beithady/communication/inbox';
+import {
+  getAvailableChannels,
+  homeChannelToDefaultTarget,
+  hoursSinceLastInbound,
+  type ChannelTarget,
+  type ChannelAvailability,
+} from '@/lib/beithady/communication/channel-switch';
 import { SlaPill } from './sla-pill';
 import { GuestyComposer } from './composer';
 import { WaCasualComposer } from './wa-casual-composer';
+import { ChannelSwitcher } from './channel-switcher';
+import { SwitchComposer } from './switch-composer';
 import { SuggestionStrip, type Suggestion } from './suggestion-strip';
 import { ReservationStatusChip } from './reservation-status-chip';
 import { ReservationMiniTimeline } from './reservation-mini-timeline';
@@ -22,9 +31,14 @@ export type ThreadComposerHints = {
   send_status?: string;
   fallback_url?: string;
   sent?: boolean;
+  // Phase C.5 — channel switcher round-trip
+  switch_revert?: string;
+  switch_hint?: string;
+  selected_target?: ChannelTarget;
+  return_path?: string;
 };
 
-export function ThreadPane({
+export async function ThreadPane({
   bundle,
   composerHints,
   pendingSuggestion,
@@ -60,6 +74,31 @@ export function ThreadPane({
     return null;
   })();
   const returnTo = `/beithady/communication/unified?c=${header.id}`;
+
+  // Phase C.5 — Channel switcher state
+  // Smart default precedence (improvement #3):
+  //   1. URL ?ch override (selected_target prop set by parent page from searchParams)
+  //   2. Persisted preferred_outbound_channel (Q3 "Remember")
+  //   3. Home channel + source heuristic
+  const switchCtx = {
+    conversationId: header.id,
+    homeChannel: header.channel,
+    externalId: header.external_id,
+    source: header.source,
+    guestId: header.guest_id,
+    guestPhone: header.guest_phone,
+    guestEmail: header.guest_email,
+  };
+  const availability = await getAvailableChannels(switchCtx);
+  const persistedTarget = (header.preferred_outbound_channel || null) as ChannelTarget | null;
+  const homeDefault = homeChannelToDefaultTarget(header.channel, header.source);
+  const requestedTarget = composerHints?.selected_target || null;
+  const effectiveChannel: ChannelTarget = requestedTarget || persistedTarget || homeDefault;
+  // Last-inbound-at across any transport for the WABA 24h-window banner.
+  const lastInboundIso = header.last_inbound_at || null;
+  const hoursSinceInbound = hoursSinceLastInbound(lastInboundIso);
+  const wabaOutsideWindow = effectiveChannel === 'wa_cloud' && (hoursSinceInbound === null || hoursSinceInbound > 24);
+  const returnPath = composerHints?.return_path || '/beithady/communication/unified';
 
   return (
     <div className="ix-card flex flex-col h-full overflow-hidden">
@@ -107,35 +146,43 @@ export function ThreadPane({
                 channel={header.channel}
               />
             )}
-            <ChannelCapabilityHint channel={header.channel} source={header.source || null} />
-            {header.channel === 'guesty' ? (
-              <GuestyComposer
-                conversationId={header.id}
-                guestyExternalId={header.external_id}
-                defaultModule={header.source && /airbnb|booking/.test(header.source) ? 'whatsapp' : 'whatsapp'}
-                killSwitchOn={!!header.ai_kill_switch}
-                initialError={composerHints?.send_error}
-                initialStatus={composerHints?.send_status}
-                initialFallbackUrl={composerHints?.fallback_url}
-                initialSent={composerHints?.sent}
-                channelSource={header.source || null}
-                templates={templates}
-                templateContext={templateContext}
-                buildingCode={header.building_code}
-              />
-            ) : header.channel === 'wa_casual' ? (
-              <WaCasualComposer
-                conversationId={header.id}
-                killSwitchOn={!!header.ai_kill_switch}
-                initialError={composerHints?.send_error}
-                initialSent={composerHints?.sent}
-                templates={templates}
-                templateContext={templateContext}
-                buildingCode={header.building_code}
-              />
-            ) : (
-              <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />
+
+            {/* Phase C.5 — Channel switcher bar (replaces the legacy static
+                ChannelCapabilityHint). */}
+            <ChannelSwitcher
+              conversationId={header.id}
+              guestId={header.guest_id}
+              guestPhone={header.guest_phone}
+              guestEmail={header.guest_email}
+              homeChannel={header.channel}
+              effectiveChannel={effectiveChannel}
+              availability={availability}
+              preferredChannel={persistedTarget}
+              preferredSetAt={header.preferred_outbound_set_at}
+              basePath={returnPath}
+              searchParams={{
+                c: header.id,
+                switch_revert: composerHints?.switch_revert,
+                switch_hint: composerHints?.switch_hint,
+              }}
+            />
+
+            {wabaOutsideWindow && (
+              <WabaOutsideWindowBanner hoursSince={hoursSinceInbound} />
             )}
+
+            <EffectiveChannelComposer
+              effectiveChannel={effectiveChannel}
+              homeChannel={header.channel}
+              header={header}
+              composerHints={composerHints}
+              templates={templates}
+              templateContext={templateContext}
+              returnPath={returnPath}
+              persistedTarget={persistedTarget}
+              availability={availability}
+              wabaBlocked={wabaOutsideWindow}
+            />
           </>
         )}
       </div>
@@ -462,6 +509,106 @@ function ComposerStub({ channel, guestyExternalId }: { channel: string; guestyEx
           <ExternalLink size={14} /> Reply in Guesty
         </a>
       )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Phase C.5 — composer router driven by effectiveChannel
+// =====================================================================
+function EffectiveChannelComposer(props: {
+  effectiveChannel: ChannelTarget;
+  homeChannel: 'guesty' | 'wa_cloud' | 'wa_casual';
+  header: ThreadBundle['header'];
+  composerHints?: ThreadComposerHints;
+  templates?: Template[];
+  templateContext?: TemplateContext;
+  returnPath: string;
+  persistedTarget: ChannelTarget | null;
+  availability: ChannelAvailability[];
+  wabaBlocked: boolean;
+}) {
+  const { effectiveChannel, homeChannel, header, composerHints, templates, templateContext, returnPath, persistedTarget, availability, wabaBlocked } = props;
+
+  // When sending via the conversation's home channel, route to the
+  // existing native composer for the cleanest UX (no extra forms).
+  // When effectiveChannel diverges from home OR the home channel is
+  // wa_cloud (no native composer yet), route through the unified switch
+  // composer that posts to sendMessageWithSwitchAction.
+  const isHomeNativePath =
+    (homeChannel === 'guesty' && (effectiveChannel === 'guesty_email' || effectiveChannel === 'guesty_sms' || effectiveChannel === 'guesty_whatsapp')) ||
+    (homeChannel === 'wa_casual' && effectiveChannel === 'wa_casual');
+
+  if (isHomeNativePath && homeChannel === 'guesty') {
+    const moduleHint =
+      effectiveChannel === 'guesty_email' ? 'email'
+      : effectiveChannel === 'guesty_sms' ? 'sms'
+      : 'whatsapp';
+    return (
+      <GuestyComposer
+        conversationId={header.id}
+        guestyExternalId={header.external_id}
+        defaultModule={moduleHint}
+        killSwitchOn={!!header.ai_kill_switch}
+        initialError={composerHints?.send_error}
+        initialStatus={composerHints?.send_status}
+        initialFallbackUrl={composerHints?.fallback_url}
+        initialSent={composerHints?.sent}
+        channelSource={header.source || null}
+        templates={templates}
+        templateContext={templateContext}
+        buildingCode={header.building_code}
+      />
+    );
+  }
+  if (isHomeNativePath && homeChannel === 'wa_casual') {
+    return (
+      <WaCasualComposer
+        conversationId={header.id}
+        killSwitchOn={!!header.ai_kill_switch}
+        initialError={composerHints?.send_error}
+        initialSent={composerHints?.sent}
+        templates={templates}
+        templateContext={templateContext}
+        buildingCode={header.building_code}
+      />
+    );
+  }
+
+  // Cross-channel path: render the unified switch composer.
+  const targetAvail = availability.find(x => x.target === effectiveChannel) || null;
+  return (
+    <SwitchComposer
+      conversationId={header.id}
+      effectiveChannel={effectiveChannel}
+      returnPath={returnPath}
+      initialError={composerHints?.send_error}
+      initialStatus={composerHints?.send_status}
+      initialFallbackUrl={composerHints?.fallback_url}
+      initialSent={composerHints?.sent}
+      killSwitchOn={!!header.ai_kill_switch}
+      guestPhone={header.guest_phone}
+      guestEmail={header.guest_email}
+      wabaBlocked={wabaBlocked}
+      hasAttachmentSupport={!!targetAvail?.attachmentsSupported}
+    />
+  );
+  // Unused fields silenced for now — homeChannel + persistedTarget reserved
+  // for future composer-level UX (e.g., showing the home label inline).
+  void homeChannel; void persistedTarget;
+}
+
+function WabaOutsideWindowBanner({ hoursSince }: { hoursSince: number | null }) {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+      <Sparkles size={12} className="text-amber-600 shrink-0 mt-0.5" />
+      <div>
+        <span className="font-semibold">Outside the WABA 24h customer-service window</span>
+        {hoursSince !== null && (
+          <span className="ml-1 opacity-80">(last inbound {Math.round(hoursSince)}h ago)</span>
+        )}
+        . Pre-approved templates only — Send is disabled until a template is selected. (Template picker ships with Phase C.4.)
+      </div>
     </div>
   );
 }

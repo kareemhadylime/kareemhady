@@ -28,6 +28,11 @@ type SearchParams = {
   send_status?: string;
   fallback?: string;
   sent?: string;
+  // Phase C.5 — channel switcher
+  ch?: string;
+  switch_revert?: string;
+  switch_hint?: string;
+  via?: string;
 };
 
 function parseFilter(sp: SearchParams): InboxFilter {
@@ -164,6 +169,10 @@ export default async function UnifiedInboxPage({
               send_status: sp.send_status,
               fallback_url: sp.fallback,
               sent: sp.sent === '1',
+              switch_revert: sp.switch_revert,
+              switch_hint: sp.switch_hint,
+              selected_target: sp.ch as never,
+              return_path: BASE_PATH,
             }}
             pendingSuggestion={pendingSuggestion}
             templates={templates}
