@@ -24,6 +24,65 @@ const PATH_PATTERN = /^[a-zA-Z0-9_./-]+$/;
 const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const API_BASE = 'https://open-api.guesty.com/v1';
 
+// Recursively walk a JSON object looking for a value that looks like a
+// signed CDN URL belonging to the attachment we want. Matches when:
+//   - value is an http(s) URL
+//   - AND either it contains the attachmentId, OR contains a chunk of the
+//     storage path (last filename segment), OR the parent object's _id
+//     matches our attachmentId.
+function findSignedUrl(j: unknown, attachmentId: string | null, cleanPath: string): string | null {
+  const filenameSeg = cleanPath.split('/').pop() || '';
+  const filenameStem = filenameSeg.split('.')[0] || '';
+
+  function isPlausibleSigned(url: string): boolean {
+    if (!url.startsWith('http')) return false;
+    if (attachmentId && url.includes(attachmentId)) return true;
+    if (filenameSeg && url.includes(filenameSeg)) return true;
+    if (filenameStem && filenameStem.length > 8 && url.includes(filenameStem)) return true;
+    // Looks like a Guesty signed URL even without obvious match
+    if (/X-Amz-Signature|X-Amz-Algorithm|signature=|expires=|sig=|token=/i.test(url)) return true;
+    return false;
+  }
+
+  function walk(node: unknown, parentId?: unknown): string | null {
+    if (!node) return null;
+    if (typeof node === 'string') {
+      if (isPlausibleSigned(node)) return node;
+      return null;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const found = walk(item);
+        if (found) return found;
+      }
+      return null;
+    }
+    if (typeof node === 'object') {
+      const obj = node as Record<string, unknown>;
+      // If this object IS our attachment (matches by _id/id), prefer its url fields
+      const matches = attachmentId
+        && (obj._id === attachmentId || obj.id === attachmentId || parentId === attachmentId);
+      const urlFields = ['url', 'downloadUrl', 'signedUrl', 'href', 'src', 'attachmentUrl'];
+      for (const k of urlFields) {
+        const v = obj[k];
+        if (typeof v === 'string') {
+          if (matches && v.startsWith('http')) return v;
+          if (isPlausibleSigned(v)) return v;
+        }
+      }
+      for (const [k, v] of Object.entries(obj)) {
+        const found = walk(v, obj._id || obj.id || parentId);
+        if (found) return found;
+        // ignore unused k
+        void k;
+      }
+    }
+    return null;
+  }
+
+  return walk(j);
+}
+
 const EXT_TO_MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
   gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', svg: 'image/svg+xml',
@@ -75,47 +134,83 @@ export async function GET(req: NextRequest) {
 
   const cleanPath = path.replace(/^\/+/, '');
 
-  // Build the candidate URL list. Most-likely-to-work first.
-  // Guesty Open API is at open-api.guesty.com; assets.guesty.com is the
-  // CDN that 400s on direct GETs. The API endpoints might either return
-  // the binary directly or a 302 redirect to a signed URL.
-  type Candidate = { url: string; auth: 'bearer' | 'none'; label: string };
+  // assets.guesty.com 400's with empty body — the host has the asset
+  // but rejects direct GETs. Most likely it's gating on Referer / Origin
+  // (Guesty's UI is the only legit consumer) OR expects a signed URL.
+  // Try Referer-based access first since that's free; if that fails,
+  // fall through to signed-URL lookups via API endpoint variants.
+  type Candidate = {
+    url: string;
+    auth: 'bearer' | 'none';
+    label: string;
+    extraHeaders?: Record<string, string>;
+  };
   const candidates: Candidate[] = [];
+
+  // Referer-spoof variants on the CDN — most likely to work without
+  // calling any API.
+  candidates.push({
+    url: `https://assets.guesty.com/${cleanPath}`,
+    auth: 'none',
+    label: 'cdn-referer-app',
+    extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+  });
+  candidates.push({
+    url: `https://assets.guesty.com/${cleanPath}`,
+    auth: 'none',
+    label: 'cdn-referer-openapi',
+    extraHeaders: { referer: 'https://open-api.guesty.com/', origin: 'https://open-api.guesty.com' },
+  });
+  candidates.push({
+    url: `https://assets.guesty.com/${cleanPath}`,
+    auth: 'bearer',
+    label: 'cdn-referer-bearer',
+    extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+  });
+
+  // API endpoints that might return a signed URL via JSON body or 302
   if (conversationId && postId && attachmentId) {
     candidates.push({
-      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}`,
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}/url`,
       auth: 'bearer',
-      label: 'api-conv-post-att',
+      label: 'api-conv-post-att-url',
     });
     candidates.push({
-      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}/download`,
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}`,
       auth: 'bearer',
-      label: 'api-conv-post-att-download',
+      label: 'api-post-singular',
     });
   }
-  if (attachmentId) {
+  if (conversationId) {
     candidates.push({
-      url: `${API_BASE}/communication/attachments/${attachmentId}`,
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts?withSignedAttachments=true`,
       auth: 'bearer',
-      label: 'api-attachments-id',
+      label: 'api-posts-withSigned',
     });
     candidates.push({
-      url: `${API_BASE}/attachments/${attachmentId}`,
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts?expand=attachments`,
       auth: 'bearer',
-      label: 'api-attachments-id-bare',
+      label: 'api-posts-expand',
     });
   }
-  // Path-based fallbacks
-  candidates.push({ url: `${API_BASE}/${cleanPath}`, auth: 'bearer', label: 'api-path' });
-  candidates.push({ url: `https://assets.guesty.com/${cleanPath}`, auth: 'none', label: 'cdn-assets-noauth' });
-  candidates.push({ url: `https://assets.guesty.com/${cleanPath}`, auth: 'bearer', label: 'cdn-assets-bearer' });
-  candidates.push({ url: `https://app-public-cdn.guesty.com/${cleanPath}`, auth: 'none', label: 'cdn-public-noauth' });
+
+  // Last-ditch direct CDN attempts
+  candidates.push({
+    url: `https://assets.guesty.com/${cleanPath}`,
+    auth: 'none',
+    label: 'cdn-bare-noauth',
+  });
 
   const failures: Array<{ label: string; url: string; status: number; body: string | null }> = [];
 
   for (const cand of candidates) {
     try {
-      const headers: Record<string, string> = { accept: '*/*' };
+      const headers: Record<string, string> = {
+        accept: '*/*',
+        // Browser-like UA — some CDNs reject default fetch UA strings
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+        ...(cand.extraHeaders || {}),
+      };
       if (cand.auth === 'bearer') headers.authorization = `Bearer ${token}`;
       const upstream = await fetch(cand.url, {
         method: 'GET',
@@ -129,26 +224,40 @@ export async function GET(req: NextRequest) {
         // signed-URL response or an error — don't pipe JSON to <img>.
         if (upContentType.includes('application/json')) {
           const text = await upstream.text();
-          // Try to extract a download URL from the JSON
+          // Try to extract a download URL from the JSON. Multiple shapes
+          // to try: top-level signed URL, nested data.url, or buried in
+          // posts[].attachments[].url|downloadUrl|signedUrl.
+          let foundSigned: string | null = null;
           try {
-            const j = JSON.parse(text) as Record<string, unknown>;
-            const signedUrl = (j.url || j.downloadUrl || j.signedUrl || (j.data as Record<string, unknown> | undefined)?.url) as string | undefined;
-            if (typeof signedUrl === 'string' && signedUrl.startsWith('http')) {
-              // Server-side fetch the signed URL and stream that back
-              const signed = await fetch(signedUrl, { method: 'GET', signal: AbortSignal.timeout(15_000) });
-              if (signed.ok && signed.body) {
-                const signedCt = signed.headers.get('content-type') || mimeFromPath(cleanPath);
-                return new Response(signed.body, {
-                  status: 200,
-                  headers: {
-                    'content-type': signedCt,
-                    'cache-control': 'private, max-age=3600',
-                  },
-                });
-              }
-            }
+            const j = JSON.parse(text);
+            foundSigned = findSignedUrl(j, attachmentId, cleanPath);
           } catch {
-            // not JSON; fall through to failure
+            // not JSON — fall through
+          }
+          if (foundSigned) {
+            const signed = await fetch(foundSigned, {
+              method: 'GET',
+              redirect: 'follow',
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (signed.ok && signed.body) {
+              const signedCt = signed.headers.get('content-type') || mimeFromPath(cleanPath);
+              return new Response(signed.body, {
+                status: 200,
+                headers: {
+                  'content-type': signedCt,
+                  'cache-control': 'private, max-age=3600',
+                  'x-source': cand.label + ' → signed-url',
+                },
+              });
+            }
+            failures.push({
+              label: cand.label + '-followsigned',
+              url: foundSigned,
+              status: signed.status,
+              body: 'signed URL fetch failed',
+            });
+            continue;
           }
           failures.push({ label: cand.label, url: cand.url, status: upstream.status, body: text.slice(0, 200) });
           continue;
