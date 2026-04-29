@@ -183,6 +183,10 @@ export type ThreadHeader = InboxRow & {
   reservation_id: string | null;
   archived_by_user_id: string | null;
   listing_id: string | null;
+  // Phase Q.4 — resolved bookkeeping
+  resolved_at: string | null;
+  resolved_reason: string | null;
+  resolved_by_user_id: string | null;
 };
 
 // Q.1 — reservation summary attached to the thread bundle. Computed via
@@ -216,11 +220,22 @@ export type ThreadGuestStats = {
   language: string | null;
 };
 
+// Q.4 — internal staff note attached to a conversation. Author display
+// name is joined from app_users.
+export type ThreadNote = {
+  id: string;
+  author_user_id: string;
+  author_username: string | null;
+  body: string;
+  created_at: string;
+};
+
 export type ThreadBundle = {
   header: ThreadHeader;
   messages: ThreadMessage[];
   reservation: ThreadReservation | null;
   guestStats: ThreadGuestStats | null;
+  notes: ThreadNote[];
 };
 
 export async function loadThread(conversationId: string): Promise<ThreadBundle | null> {
@@ -234,10 +249,10 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
 
   const header = conv as ThreadHeader;
 
-  // Parallel fetch: messages + reservation join + guest history. None
-  // depend on each other so they run together to keep the right-panel
+  // Parallel fetch: messages + reservation join + guest history + notes.
+  // None depend on each other so they run together to keep the right-panel
   // open latency unchanged.
-  const [msgsRes, resRes, guestRes] = await Promise.all([
+  const [msgsRes, resRes, guestRes, notesRes] = await Promise.all([
     sb
       .from('beithady_messages')
       .select(
@@ -262,13 +277,39 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
           .eq('id', header.guest_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    sb
+      .from('beithady_conversation_notes')
+      .select('id, author_user_id, body, created_at, app_users(username)')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(50),
   ]);
+
+  type NoteRow = {
+    id: string;
+    author_user_id: string;
+    body: string;
+    created_at: string;
+    app_users: { username: string } | { username: string }[] | null;
+  };
+  const notes: ThreadNote[] = ((notesRes.data as NoteRow[] | null) || []).map(n => {
+    const u = n.app_users;
+    const username = Array.isArray(u) ? u[0]?.username : u?.username;
+    return {
+      id: n.id,
+      author_user_id: n.author_user_id,
+      author_username: username || null,
+      body: n.body,
+      created_at: n.created_at,
+    };
+  });
 
   return {
     header,
     messages: (msgsRes.data as ThreadMessage[] | null) || [],
     reservation: (resRes.data as ThreadReservation | null) || null,
     guestStats: (guestRes.data as ThreadGuestStats | null) || null,
+    notes,
   };
 }
 

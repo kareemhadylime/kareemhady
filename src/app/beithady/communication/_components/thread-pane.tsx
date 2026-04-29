@@ -12,6 +12,8 @@ import { GuestHistoryBadge } from './guest-history-badge';
 import { NoReservationFallback } from './no-reservation-fallback';
 import { ArchivedBanner } from './archived-banner';
 import { AutoScrollThread } from './auto-scroll-thread';
+import { InternalNotesPanel } from './internal-notes-panel';
+import { ResolveButton } from './resolve-button';
 import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 export type ThreadComposerHints = {
@@ -56,9 +58,17 @@ export function ThreadPane({
     }
     return null;
   })();
+  const returnTo = `/beithady/communication/unified?c=${header.id}`;
+
   return (
     <div className="ix-card flex flex-col h-full overflow-hidden">
       <ThreadHeader bundle={bundle} />
+
+      <InternalNotesPanel
+        conversationId={header.id}
+        notes={bundle.notes}
+        returnTo={returnTo}
+      />
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-stone-50 dark:bg-slate-900">
         {messages.length === 0 ? (
@@ -195,18 +205,37 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
             )}
           </div>
         </div>
-        {directBookingLink && (
-          <a
-            href={directBookingLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ix-btn-secondary text-xs whitespace-nowrap"
-            title="Open Guesty reservation create — direct booking, no API write"
-          >
-            <CalendarPlus size={13} /> Create booking
-          </a>
-        )}
+        <div className="flex flex-col gap-2 items-end shrink-0">
+          {directBookingLink && (
+            <a
+              href={directBookingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ix-btn-secondary text-xs whitespace-nowrap"
+              title="Open Guesty reservation create — direct booking, no API write"
+            >
+              <CalendarPlus size={13} /> Create booking
+            </a>
+          )}
+          {/* Q.4 #5 — Resolve / Re-open button */}
+          {!h.archived_at && (
+            <ResolveButton
+              conversationId={h.id}
+              resolvedAt={h.resolved_at}
+              resolvedReason={h.resolved_reason}
+              returnTo={`/beithady/communication/unified?c=${h.id}`}
+              inHouseWarning={false}
+            />
+          )}
+        </div>
       </div>
+      {h.resolved_at && (
+        <div className="text-[10px] text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
+          <span className="font-semibold uppercase">Resolved</span>
+          <span>· {h.resolved_reason || 'resolved'}</span>
+          <span>· {fmtCairoDateTime(h.resolved_at)}</span>
+        </div>
+      )}
     </div>
   );
 }
