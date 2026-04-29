@@ -1,6 +1,29 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Real photo URL extraction fixed + redundant footer removed
+## 🟡 Latest turn — CDN hostname probe-and-cache (initial guess NXDOMAIN'd, iterating)
+
+User clicked a placeholder for a real photo upload. Image attempted to load `https://app-public-cdn.guesty.com/production/<acct>/png/<hash>_<filename>.png` — Chrome reported `DNS_PROBE_FINISHED_NXDOMAIN`. The hostname I guessed doesn't exist. Guesty's CDN base URL isn't documented publicly anywhere I could check.
+
+**Switched to probe-and-cache approach:**
+- Server-side HEAD-tests 8 candidate hostnames (3s timeout each):
+  - `assets.guesty.com`
+  - `app-public-cdn.guesty.com`
+  - `public-cdn.guesty.com`
+  - `cdn.guesty.com`
+  - `media.guesty.com`
+  - `files.guesty.com`
+  - `guesty-app-public.s3.amazonaws.com`
+  - `guesty-prod-uploads.s3.amazonaws.com`
+- First 2xx response wins, cached at module scope (warm-Lambda lifetime)
+- `cdnProbeInFlight` promise dedupes concurrent probes
+- If all 8 fail → fallback to first candidate so client still gets a URL it can try
+- `deriveAttachments` now async (awaits `absoluteAttachmentUrl`)
+
+**Debug escape hatch:** added `?debug=1` query param to V3 endpoint that includes `_raw_target` and `_raw_first_post` in the response. If probe-and-cache also fails (i.e. all 8 hostnames return 4xx/5xx), call `/api/beithady/communication/guesty-post?conversationId=<id>&sentAt=<ts>&debug=1` and inspect the raw API response — Guesty might use a different field name (`signedUrl`, `cdnUrl`, etc.) we haven't extracted yet.
+
+**Open question for next iteration:** if none of the 8 hostnames serve the asset, the path forward is server-side proxy — fetch the binary via Guesty's authenticated attachment endpoint (probably `GET /communication/conversations/{id}/posts/{postId}/attachments/{attachmentId}` or similar) and stream it through our backend. Avoids the CDN-URL-guessing game entirely.
+
+## ✅ Earlier turn — Real photo URL extraction fixed + redundant footer removed
 
 User correctly pointed out that the placeholders weren't all flight-info cards — many are **actual guest-uploaded photos** that show up in Guesty's UI. Investigation revealed:
 
