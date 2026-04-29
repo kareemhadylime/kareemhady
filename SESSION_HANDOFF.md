@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Estimator detail route created (Edit button was 404ing)
+## 🟡 Latest turn — Iterating Guesty attachment proxy; assets.guesty.com 400's empty, all API endpoints 404
+
+User confirmed real photo uploads (not just structured cards) appear in Guesty UI but didn't render in our app. Iteration chain:
+
+1. **Found the actual payload shape**: `attachments[].attachmentUrl` (relative path) + `type` (extension) — not `url`/`downloadUrl`
+2. **CDN guess `app-public-cdn.guesty.com`** → NXDOMAIN
+3. **Probe-and-cache 8 candidates** → `assets.guesty.com` returns 200 on HEAD but `<img src="...">` 400's in browser
+4. **Server-side proxy with Bearer token** → still 400 with empty body
+5. **Tried 7 API endpoint variants** → all 404, including `/v1/communication/*/attachments/*` and `/v1/<path>`. Server internally proxies `/v1/*` → `/api/v2/*` per the 404 HTML body
+
+**Diagnostic findings**: `assets.guesty.com` 400 with EMPTY body = host has the asset but rejects direct GETs (likely Referer/Origin/signature gating). Open API has no documented attachment endpoints.
+
+**Current iteration deployed:**
+- Referer + Origin spoof: `https://assets.guesty.com/<path>` with `Referer: https://app.guesty.com/`
+- Browser-like User-Agent on every request
+- 5 API endpoint variants including `?withSignedAttachments=true` and `?expand=attachments`
+- New `findSignedUrl()` recursively walks any JSON response looking for an http URL matching attachmentId / filename / S3-signature query params — handles "API returns nested signed URLs"
+- 502 response includes full `attempts[]` array with per-candidate URL+status+body for next iteration
+
+**Next-best moves if Referer spoof fails:**
+- User opens Chrome DevTools on Guesty UI, finds the actual photo URL in Network tab → tells us hostname/headers/cookies used
+- Or build an authenticated puppeteer worker (heavy, last resort)
+
+Note: a sibling worktree shipped Estimator detail route fixes (the previous "Latest turn" entry below) in parallel.
+
+## ✅ Earlier turn — Estimator detail route created (Edit button was 404ing)
 
 User clicked "Edit" on a row in `/beithady/inventory/rules/estimator` (Housekeeping Setup Matrix) and got Next's 404 page. Root cause: the matrix landing page links every row + Edit button to `/beithady/inventory/rules/estimator/${configId}`, but `[configId]/page.tsx` didn't exist.
 
