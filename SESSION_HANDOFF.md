@@ -1,6 +1,22 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Critical webhook bug fixed: Guesty messages were silently dropped for ~16 hours
+## ✅ Latest turn — Clickable media placeholder for empty-body Guesty messages
+
+User reported still seeing "(empty)" bubbles for messages where Guesty UI shows photos / rich cards (Airbnb flight info card, Booking confirmation cards, etc.). Verified the underlying cause via direct payload inspection:
+
+**Guesty's webhook genuinely sends `body: ""` and `postId: ""` for image / rich-card messages** — the actual media URL never reaches our DB. The content lives only on Airbnb/Booking's CDN and is accessible only via Guesty's authenticated UI.
+
+**Fix shipped:**
+- New `<MediaPlaceholder>` component in `thread-pane.tsx` — dashed-border card with `Image` / `FileQuestion` icon, label like "Airbnb media or rich card", subtitle "Body not delivered by webhook · click to view original"
+- Renders when: `body` is whitespace-empty AND `attachments[]` is empty AND `module_type ∈ {airbnb, airbnb2, bookingCom, booking.com, booking, whatsapp, sms, email}`
+- Click → opens `https://app.guesty.com/inbox/<conversation_id>` in a new tab
+- Outbound messages get a darker variant matching the bubble tone
+- `Bubble` component now receives conversation's `external_id` (only when `channel='guesty'`) so the deep-link resolves
+- 1 commit + deploy in background
+
+**V2 deferred:** fetch Guesty Open API `/communication/conversations/{id}/posts/{postId}` on-demand and proxy media URLs. Adds API cost + rate-limit risk; deep-link is enough until usage analytics show clicks are frequent enough to justify.
+
+## ✅ Earlier turn — Critical webhook bug fixed: Guesty messages were silently dropped for ~16 hours
 
 User reported messages from Guesty not appearing (Saad Alkhaldi missing 4:02 PM agent reply; Abdulaziz Althagafi missing 8:32 AM reply; Zeinab AlKhashab still showing "1 NEW"/unreplied despite reply on Guesty).
 
