@@ -1,17 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Default inbox sort flipped to newest-first; user reports possible API error post-deploy
+## ✅ Latest turn — Default sort fixed: now sorts by the column that's actually displayed (last_inbound_at)
 
-User asked for messages sorted new→old. Flipped default `InboxSort` from `sla_oldest` to `recent_activity` (orders by `modified_at_external desc`, then `last_inbound_at desc`) across all 4 inbox views + archive month detail. Sort dropdown reordered so "Newest first (default)" is the placeholder option; legacy SLA-oldest still selectable.
+User asked for newest-first. First attempt set default to `recent_activity` (`modified_at_external desc`) which produced visually scrambled lists — sidebar rows display `last_inbound_at` so the SORTED column ≠ DISPLAYED column. User screenshot showed dates jumping 4/29 → 4/28 → 4/24 → 4/27 in adjacent rows.
 
-After deploy user said "api error?" — currently investigating. **Possible causes to check on next session pickup:**
-- Default order using two `.order()` chained calls — verify Supabase JS client supports cumulative ordering on a `select(..., { count: 'exact' })` query
-- Archive month detail also uses listInbox now with the new default sort + `archiveScope='archived_in_month'` — could be ordering against the dates predicate weirdly
-- Active count drop from 6,744 → 1,248 (post-archive) means most inbox queries return far fewer rows; if the page assumes a certain row count or pagination shape it could 500
+**Fix shipped:**
+- Default sort now `recent_inbound` (`last_inbound_at desc`) — same column the row visibly shows
+- DB-side verification: top 8 rows strictly descending: 4/29 06:30 → 4/29 03:08 → 4/29 02:05 → 4/29 01:59 → 4/29 00:59 → 4/29 00:57 → 4/29 00:28 → 4/28 23:49
+- Sort dropdown reordered + footer hint on unified page updated
+- `recent_activity` (modified_at_external) still available as a selectable option
 
-If the bug reproduces, the likely fix is to revert the secondary `.order('last_inbound_at', ...)` clause on `recent_activity` and keep just the primary `.order('modified_at_external', ...)`.
+**Earlier "api error?" investigation** — was a red herring. Runtime logs showed pre-existing 500s on `beithady-comm-sync` / `beithady-sla-recalc` / `beithady-operations-recompute` cron endpoints, all from the worktree's Vercel project (`optimistic-brown-e4d920-*.vercel.app`) which is missing `NEXT_PUBLIC_SUPABASE_URL` env var. These don't affect the user-facing `limeinc.vercel.app` project. Worktree project is separate; same GitHub branch, independent env config. Left as-is — not blocking.
 
-Commits this turn: `b6344a0` (manual archive fire) · sort change deploy ID logged in background.
+**Commits this turn:**
+- `b6344a0` manual archive fire (5,496 conversations)
+- `ea3b609` first sort attempt (recent_activity, scrambled-display bug)
+- (latest) sort fix to `recent_inbound` (deploying)
 
 ## ✅ Earlier turn — Manual archive fire: 5,496 conversations archived (Phase R first-run executed)
 
