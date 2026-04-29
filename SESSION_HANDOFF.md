@@ -1,6 +1,18 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Inline media loader (V3): bypasses Guesty UI permissions entirely
+## ✅ Latest turn — Fixed "t is not iterable" runtime error in V3 media loader (wrong response field)
+
+User clicked the placeholder and got "Failed to load original — t is not iterable". Root cause: my V3 API route was reading `data.results` from the Guesty Open API response, but the actual field per the type definition (`src/lib/guesty.ts:427-433`) is `data.posts`. The fallback then cast the entire response object to `GuestyPost[]`, so `for (const p of posts)` threw "t is not iterable" in minified prod code.
+
+**Fix shipped:**
+- Read `dataObj.posts` first (correct shape per `GuestyConversationPostsResponse = { posts, count, limit, sort, cursor }`)
+- Defensive fallbacks: `dataObj.results` → direct array → `[]`
+- All branches gated by `Array.isArray()` so future shape changes can't reproduce this class of error
+- 1 commit + deploy in background
+
+Should now render the actual image inline on click.
+
+## ✅ Earlier turn — Inline media loader (V3): bypasses Guesty UI permissions entirely
 
 User reported "Still same problem" with the search-by-phone URL — Guesty's UI was 403-ing on `/inbox?search=…` too for their restricted role. Both V1 (`/inbox/<conv_id>`) and V2 (`/inbox?search=`) deep-link approaches hit the same access wall.
 
