@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Bed, Bath, Users, ChevronLeft, ExternalLink, Pencil, Info } from 'lucide-react';
+import { Bed, Bath, Users, ChevronLeft, ExternalLink, Pencil, Info, Search } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { computeEstimatorOutput } from '@/lib/beithady/inventory/estimator';
 import {
@@ -206,6 +206,17 @@ export default async function EstimatorConfigDetailPage({
   );
 }
 
+/**
+ * Build a fallback Amazon EG search URL for items that don't yet have a
+ * canonical product URL set. Strips trailing size suffixes ("400ml" /
+ * "1L" / "30ml") that often confuse Amazon's search relevance ranker
+ * but keeps the rest of the English item name intact.
+ */
+function buildAmazonSearchUrl(itemNameEn: string): string {
+  const cleaned = itemNameEn.trim();
+  return `https://www.amazon.eg/s?k=${encodeURIComponent(cleaned)}`;
+}
+
 function LineRow({ l }: { l: EstimatorLine }) {
   const scopeCls =
     l.rule_scope === 'unit_config'
@@ -229,11 +240,32 @@ function LineRow({ l }: { l: EstimatorLine }) {
           ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200'
           : 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
 
+  // Direct Amazon EG link if the item has a sourced product URL,
+  // otherwise fall through to a search-by-name URL so the user can
+  // always one-click out to a buy page.
+  const buyHref = l.amazon_eg_url || buildAmazonSearchUrl(l.item_name_en);
+  const isDirectMatch = !!l.amazon_eg_url;
+  const buyTitle = isDirectMatch
+    ? `Open product on Amazon EG${amazonMeta ? ` · ${amazonMeta.en}` : ''}`
+    : `Search Amazon EG for "${l.item_name_en}"`;
+
   return (
     <tr className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
       <td className="py-2 px-3">
-        <div className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{l.item_sku}</div>
-        <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[220px]">{l.item_name_en}</div>
+        <a
+          href={buyHref}
+          target="_blank"
+          rel="noreferrer noopener"
+          title={buyTitle}
+          className="block group"
+        >
+          <div className="font-mono text-[11px] text-slate-700 dark:text-slate-200 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
+            {l.item_sku}
+          </div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[220px] group-hover:underline">
+            {l.item_name_en}
+          </div>
+        </a>
       </td>
       <td className="py-2 px-3 text-[11px] text-slate-600 dark:text-slate-300">
         {FORMULA_KIND_LABEL[l.formula_kind]}
@@ -257,9 +289,9 @@ function LineRow({ l }: { l: EstimatorLine }) {
         {l.line_total_egp > 0 ? `${l.line_total_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP` : '—'}
       </td>
       <td className="py-2 px-3">
-        {l.amazon_eg_url ? (
+        {isDirectMatch ? (
           <a
-            href={l.amazon_eg_url}
+            href={l.amazon_eg_url!}
             target="_blank"
             rel="noreferrer noopener"
             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${amazonToneCls} hover:underline`}
@@ -269,7 +301,15 @@ function LineRow({ l }: { l: EstimatorLine }) {
             <ExternalLink size={10} />
           </a>
         ) : (
-          <span className="text-[10px] text-slate-400 italic">No source</span>
+          <a
+            href={buyHref}
+            target="_blank"
+            rel="noreferrer noopener"
+            title={`Search Amazon EG for "${l.item_name_en}"`}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 hover:bg-emerald-100 hover:text-emerald-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-emerald-900/40 dark:hover:text-emerald-200 hover:underline"
+          >
+            <Search size={10} /> Search Amazon EG
+          </a>
         )}
       </td>
       <td className="py-2 px-3">
