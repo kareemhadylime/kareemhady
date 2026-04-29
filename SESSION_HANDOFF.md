@@ -1,6 +1,46 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟡 Latest turn — Phase C.5 "Channel Switcher" — plan + workflow drafted, awaiting workflow sign-off (no commits this turn)
+## ✅ Latest turn — Phase M.15.4 shipped: per-item Amazon EG source review on items list
+
+User course-corrected away from inline source editing on the estimator detail page → wanted editing on the **items list page**, items grouped by category, with explicit Accept ✓ / Change ✎ per row so each URL change cascades into every unit-config budget. Plan → Workflow → Code phases with 95% confidence gates; user accepted all defaults except #5 (only edit on items page; remove URL field from the big ItemFormButton modal entirely).
+
+**Shipped (commit 24826cd, deployed dpl_BHwcEM5wgfP4tMaLMSVZE4sJsHFw):**
+
+**Schema migration `0053_amazon_eg_review_state.sql`** — MUST be run manually in Supabase SQL Editor (per AGENTS.md, supabase CLI isn't on PATH on Windows). Until run, every Source action returns: `Run migration 0053_amazon_eg_review_state.sql in Supabase SQL Editor before reviewing sources.` Adds:
+- `amazon_eg_url_reviewed_at timestamptz`
+- `amazon_eg_url_reviewed_by uuid REFERENCES app_users(id) ON DELETE SET NULL`
+- Partial index on `(reviewed_at) WHERE amazon_eg_url IS NOT NULL` for the Needs-review filter
+
+**Server actions (`items/actions.ts`):**
+- `setAmazonSourceAction(itemId, url|null)` — validates `AMAZON_EG_URL_PATTERN`, resets `amazon_eg_price_egp / pack_size / image_url / last_status` plus `reviewed_at / by` (new ASIN ⇒ unverified)
+- `acceptAmazonSourceAction(itemId)` — refuses if URL null; stamps reviewed_at/by; promotes status `unchecked` → `ok`
+- `acceptManySourcesAction(itemIds[])` — bulk; server-side `IS NOT NULL` filter so stale clients can't accept rows without URLs; status flip restricted to the unchecked/null subset
+- All: `requireBeithadyPermission('inventory', 'full')`, single `recordAudit` per call, revalidate items + estimator + dashboard
+
+**UI (`/beithady/inventory/items`):**
+- Items grouped into `<section id="cat-{code}">` blocks per `listCategories()` order, H2 + sub-table per section
+- New "Jump to category" client select scrolls to anchor (replaces hard-filter category dropdown)
+- "Needs review" filter chip with badge count
+- Sticky bulk-accept bar appears when ≥1 row checked: shows N selected + M eligible (URL-set), disabled when M=0
+- Per-section header counter: `7 items · 5 sourced · 3 reviewed`
+- `SourceCell` client component: 3 visual states + Change/Set popover
+- `ItemFormButton` modal no longer renders the Amazon EG URL field (per user choice — single source of truth)
+- `ix-flash-highlight` CSS animation for hash-anchor scroll target
+
+**Estimator detail page tightened:**
+- Item name + SKU now deep-link to `/beithady/inventory/items#item-<id>`
+- Source column still click-throughs to Amazon EG (buy affordance only)
+- Deleted orphan `src/app/beithady/inventory/rules/estimator/actions.ts`
+
+**Catalog lib changes:** `ItemRow` extended with `amazon_eg_url_reviewed_at` + `amazon_eg_url_reviewed_by`; `ItemListRow` adds `amazon_eg_url_reviewed_by_name` joined via `app_users.username`; `listItems()` learns `needsReview` filter.
+
+**Risks for next iteration:**
+- Migration not yet run → first Accept click will surface the friendly error. User needs to paste the SQL once.
+- `amazon_eg_url_reviewed_by_name` joins via `app_users(username)`. If a richer display field added later (full_name, display_name), bump the SELECT in `listItems()`.
+- No "Select all visible" master checkbox spanning sections — per-section only.
+- Bulk-accept promotes status `unchecked → ok` only; items in `oos` / `price_changed` / `404` keep that status while the operator's review still stamps the timestamp.
+
+## 🟡 Earlier turn — Phase C.5 "Channel Switcher" — plan + workflow drafted, awaiting workflow sign-off (no commits this turn)
 
 User asked for ability to switch outbound transport mid-thread to **Green WP / WABA / Email / SMS** with a "no info → revert" guardrail when guest contact field is missing. Process: Plan → Q&A → Workflow → review → Code (per user's "95% confidence per phase" rule).
 
