@@ -1,6 +1,83 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Phase R workflow doc drafted: True archive locked, defaults on R2–R15, awaiting S1–S3 (no code)
+## ✅ Latest turn — Phase R fully shipped end-to-end (commits `81319e8` → `63b1087`, 5 sequential auto-deploys)
+
+User said "Ship R1 To R15 Together" → auto-mode → defaults on S1/S2/S3 → ran the entire R.0 → R.5 sub-phase chain in one turn.
+
+### Sub-phase commit ledger
+
+| # | Commit | What shipped | Deploy |
+|---|---|---|---|
+| **R.0** | `81319e8` | doc-only pre-flight → [docs/PHASE_R_PREFLIGHT.md](docs/PHASE_R_PREFLIGHT.md) | ✅ |
+| **R.1** | `bf853a4` | Migration 0054a + listInbox/getInboxStats archive gating + getArchiveBuckets aggregator | ✅ |
+| **R.2** | `d2ba7e4` | Archive tab + year/month landing + month detail + ArchivedBanner + bulk-archive dialog + bulk-restore bar + 4 server actions | ✅ |
+| **R.3** | `33d1e40` | Auto-archive cron `/api/cron/beithady-conversation-archive` + vercel.json schedule | ✅ |
+| **R.4** | `63b1087` | MobileFullscreenLayout + compact sidebar row + AutoScrollThread first-unread | ✅ |
+| **R.5** | (rolled into R.2) | Search-within-month: `<input name="q">` on month detail + listInbox search filter | ✅ |
+
+### Q.0 pre-flight findings (Supabase MCP probes)
+
+- **6,744 total conversations**, **all in `open` state** — `closed` branch of auto-cron predicate matches 0 rows (future-proofing)
+- **5,496 conversations meet 90d cutoff** — 81.5% of inbox auto-archives day 1; LIMIT 5000/run spreads across 2 nights
+- **Year/month grid:** 2026 (1,788) · 2025 (4,167) · 2024 (789) · 25 distinct month buckets
+- Active inbox post-archive = **1,248 conversations** (Apr 474 · Mar 366 · Feb 384 · Jan 24)
+- `beithady_settings.value` is JSONB (not text) — seed adjusted
+- `app_users.id` is uuid — fk type-clean
+- Vercel cron: 33 → 34, headroom 6
+
+### Schema (Migration 0054a, applied via Supabase MCP)
+
+```sql
+alter table beithady_conversations
+  add column archived_at timestamptz,
+  add column archived_by_user_id uuid references app_users(id),
+  add column archived_reason text check (archived_reason in (
+    'manual_month_bulk', 'auto_cron_90d', 'manual_single', 'duplicate', 'restore_undo'
+  ));
+
+create index idx_bh_conv_archived_null on beithady_conversations(state, last_inbound_at desc nulls last)
+  where archived_at is null;
+create index idx_bh_conv_archived_at on beithady_conversations(archived_at desc)
+  where archived_at is not null;
+
+-- 3 settings seeds: comm_auto_archive_days=90 / comm_auto_archive_pause=false / comm_auto_archive_max_per_run=5000
+```
+
+### What's now live
+
+**[/beithady/communication/archive](https://limeinc.vercel.app/beithady/communication/archive)** — 5th tab (badge shows total archived count). Click year → month grid. Click month → sidebar+thread layout scoped to that month with bulk-archive button + per-conversation restore.
+
+**Active inbox (all 4 channels)** — auto-gates on `archived_at IS NULL`. Archive count badge in tab. Mobile (< lg) → tapping a conversation opens fullscreen 100dvh thread with sticky back-arrow header. Compact sidebar row hides building/listing meta on phones to fit ~2× more conversations per scroll.
+
+**Cron** at `0 1 * * *` UTC (4 AM Cairo winter / 3 AM summer):
+- Reads `comm_auto_archive_pause` settings flag → short-circuits if true
+- Reads `comm_auto_archive_days` (90) and `comm_auto_archive_max_per_run` (5000)
+- `?dry_run=1` returns count + 25-id sample without writing — **must run before first real cron tick** to verify the predicate
+- Race-safe `update … where archived_at is null` re-check on UPDATE
+- Single audit row per run (workflow R15)
+
+**Composer behavior on archived conversation** = `<ArchivedBanner>` replaces it with reason ("archived by 90-day inactivity rule") + timestamp + one-click Restore button.
+
+**Bulk-archive dialog** — type-to-confirm gate when count > 500 (requires typing `archive [month name]` in lowercase).
+
+**Auto-scroll-first-unread** — server-side computes first inbound message id newer than `last_outbound_at`; client `<AutoScrollThread>` scrolls it into view on mount; falls back to thread tail anchor.
+
+### V2 / future work
+
+- Body-text search across messages (V1 only searches header fields: name/email/phone/listing)
+- Single-conversation archive button on sidebar row (right-click menu / mobile swipe-left)
+- "Pause auto-archive" toggle in `/beithady/settings` UI (DB flag exists, no UI yet)
+- CSV export of archived month (deferred per workflow R13)
+
+### Important next-step for production
+
+Before the first cron tick fires (tomorrow 1 AM UTC), run:
+```bash
+curl 'https://limeinc.vercel.app/api/cron/beithady-conversation-archive?secret=<CRON_SECRET>&dry_run=1'
+```
+Expected response: `{"ok":true,"dry_run":true,"would_archive_count":~5000,"sample_ids":[...]}`. If the count looks wrong, flip `comm_auto_archive_pause` to `true` in `beithady_settings` to disable until investigated.
+
+## 🟡 Earlier this turn — Phase R workflow doc drafted: True archive locked, defaults on R2–R15, awaiting S1–S3 (no code)
 
 User answered **R1 = True archive (Option B)** explicitly; treated R2–R15 as defaults per recommendations. Sent the workflow doc for review per standing process. **No code this turn.**
 
