@@ -1,12 +1,34 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟢 Session pause — clean state; no pending tasks
+## ✅ Latest turn — Real photo URL extraction fixed + redundant footer removed
 
-Deploy of the channel-native-card empty-state copy update confirmed live (Vercel exit 0, deploy ID `bu4q2rqcg`). All prior phases (Q.0 → Q.4, R.0 → R.5) shipped in earlier turns; archive first-run executed (5,496 conversations); webhook bug fixed; default sort fixed; media loader V3 + module-aware empty-state shipped.
+User correctly pointed out that the placeholders weren't all flight-info cards — many are **actual guest-uploaded photos** that show up in Guesty's UI. Investigation revealed:
 
-**Nothing in flight.** Next session can either:
-- Resume Phase Q V2 polish (translate inline · AI suggestion edit · bulk mark-read · keyboard shortcuts · listing-secrets settings UI · listing-assets bulk uploader · WABA template picker)
-- Or pick up new work the user brings.
+**Photo extraction bug (V3 endpoint):** my `deriveAttachments` was looking for `attachments[].url` / `downloadUrl`, but Guesty actually returns this shape (verified directly via `beithady_messages.raw` for two real photos on Saad Alkhaldi's thread):
+
+```
+{ _id, body: '', module: { type: 'airbnb2' }, sentBy: 'guest',
+  attachments: [{
+    type: 'png',
+    attachmentUrl: 'production/<acct>/png/<hash>.png',
+    origFileName: '...',
+    contentName: 'ugcAttachment'
+  }] }
+```
+
+**Fix shipped:**
+- `deriveAttachments` now reads `attachmentUrl` (relative storage path) + builds absolute URL: `https://app-public-cdn.guesty.com/<path>`
+- New `classifyByExt` helper maps file extension (`png`/`jpeg`/`mp4`/etc.) → MIME + kind (image/audio/video/file)
+- Uses `origFileName` as the attachment display name (better than `contentName: 'ugcAttachment'`)
+- Direct `url`/`downloadUrl` fallback retained for shape variations
+
+So the V3 inline media loader should now correctly render real guest photos when placeholder is clicked. Channel-native structured cards (flight info etc.) still hit the empty-state with the explainer copy, since those genuinely don't have attachment URLs in the payload.
+
+**Footer removed:** "Cross-channel search · sorted by latest guest message (newest first)" line on the unified inbox was redundant (sort dropdown above already says "Newest first (default)") and visually overlapping the AttachmentMenu dropdown when opened. Cleaner without it.
+
+**Risk for next session:** the `app-public-cdn.guesty.com` URL pattern is an educated guess based on the storage-path shape. If images 404, alternate patterns to try: signed URL via `/communication/conversations/{id}/posts/{postId}/attachments/{attachmentId}`, or the `account-cdn.guesty.com` variant. Will surface as broken image icon → clear signal to iterate.
+
+## ✅ Earlier turn — Investigation complete: channel-native structured cards aren't recoverable; clearer empty-state shipped
 
 ## ✅ Earlier turn — Investigation complete: channel-native structured cards aren't recoverable; clearer empty-state shipped
 
