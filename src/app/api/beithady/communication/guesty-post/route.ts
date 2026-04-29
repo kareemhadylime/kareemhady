@@ -41,27 +41,65 @@ type ExtractedAttachment = {
   kind: 'image' | 'file' | 'audio' | 'video';
 };
 
+// Map file extension (Guesty's `type` field) to MIME + kind classification.
+function classifyByExt(ext: string): { mime: string; kind: ExtractedAttachment['kind'] } {
+  const e = ext.toLowerCase().replace(/^\./, '');
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'svg'].includes(e)) {
+    const mimeExt = e === 'jpg' ? 'jpeg' : e;
+    return { mime: `image/${mimeExt}`, kind: 'image' };
+  }
+  if (['mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac'].includes(e)) {
+    return { mime: `audio/${e}`, kind: 'audio' };
+  }
+  if (['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(e)) {
+    return { mime: `video/${e}`, kind: 'video' };
+  }
+  if (e === 'pdf') return { mime: 'application/pdf', kind: 'file' };
+  return { mime: '', kind: 'file' };
+}
+
+// Resolve a Guesty attachment storage path into an absolute CDN URL.
+// Verified shape from beithady_messages.raw (real photo upload by guest):
+//   { attachmentUrl: "production/<accountId>/png/<hash>_<filename>.png", type: "png" }
+// Guesty serves these via app-public-cdn.guesty.com.
+function absoluteAttachmentUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+  // Strip any leading slashes to keep the join clean
+  const clean = raw.replace(/^\/+/, '');
+  return `https://app-public-cdn.guesty.com/${clean}`;
+}
+
 function deriveAttachments(post: GuestyPost): ExtractedAttachment[] {
   const out: ExtractedAttachment[] = [];
 
-  // Some Guesty payloads have an `attachments` array of {url, fileName, mimeType}.
   if (Array.isArray(post.attachments)) {
     for (const a of post.attachments as Array<Record<string, unknown>>) {
-      const url = typeof a.url === 'string' ? a.url
+      // Guesty Open API uses `attachmentUrl` (relative storage path) +
+      // `type` (file extension like 'png', 'jpeg'). Some payloads also
+      // carry `url` or `downloadUrl` as absolute URLs — try those first.
+      const directUrl = typeof a.url === 'string' ? a.url
         : typeof a.downloadUrl === 'string' ? a.downloadUrl
         : null;
+      const relUrl = typeof a.attachmentUrl === 'string' ? a.attachmentUrl : null;
+      const url = directUrl || absoluteAttachmentUrl(relUrl);
       if (!url) continue;
-      const mime = typeof a.mimeType === 'string' ? a.mimeType
+
+      const ext = typeof a.type === 'string' ? a.type : '';
+      const mimeFromExt = ext ? classifyByExt(ext) : null;
+      const explicitMime = typeof a.mimeType === 'string' ? a.mimeType
         : typeof a.contentType === 'string' ? a.contentType
-        : '';
-      const name = typeof a.fileName === 'string' ? a.fileName
+        : null;
+      const mime = explicitMime || mimeFromExt?.mime || '';
+      const name = typeof a.origFileName === 'string' ? a.origFileName
+        : typeof a.fileName === 'string' ? a.fileName
         : typeof a.name === 'string' ? a.name
         : '';
       const kind: ExtractedAttachment['kind'] =
         mime.startsWith('image/') ? 'image'
         : mime.startsWith('audio/') ? 'audio'
         : mime.startsWith('video/') ? 'video'
-        : 'file';
+        : mimeFromExt?.kind || 'file';
       out.push({ url, name, mime, kind });
     }
   }
@@ -78,8 +116,6 @@ function deriveAttachments(post: GuestyPost): ExtractedAttachment[] {
     }
   }
 
-  // Some payloads carry rich-card bodyHtml without a separate media URL.
-  // We let the caller render bodyHtml as a fallback.
   return out;
 }
 

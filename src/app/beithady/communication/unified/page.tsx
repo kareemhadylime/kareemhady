@@ -1,4 +1,4 @@
-import { Layers, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
 import { listActiveTemplates, getListingSecrets } from '@/lib/beithady/communication/templates';
@@ -172,9 +172,6 @@ export default async function UnifiedInboxPage({
         }
       />
 
-      <p className="text-[11px] text-slate-500 flex items-center gap-2 justify-center">
-        <Layers size={11} /> Cross-channel search · sorted by latest guest message (newest first).
-      </p>
     </BeithadyShell>
   );
 }
