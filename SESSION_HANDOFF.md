@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — CDN hostname probe-and-cache (initial guess NXDOMAIN'd, iterating)
+## ✅ Latest turn — Server-side attachment proxy (CDN requires auth, public GETs 400)
+
+User pasted the `?debug=1` response from V3 endpoint. Two findings:
+
+1. **Probe correctly identified `assets.guesty.com`** as the CDN host — the URL my code built was right
+2. **But that host returns HTTP 400 to public unauthenticated GETs**. Browsers can't directly send our service-account Bearer token, so direct `<img src="https://assets.guesty.com/…">` will always fail.
+
+**Fix shipped — server-side attachment proxy:**
+
+New route `src/app/api/beithady/communication/guesty-attachment/route.ts`:
+- Receives `?path=production/<acct>/png/<hash>_<filename>.png` from the browser
+- Validates path matches `^[a-zA-Z0-9_./-]+$` + rejects `..` → SSRF-safe
+- Calls `getAccessToken()` (same OAuth path every other Guesty API call uses)
+- Loops 5 candidate hosts (`assets.guesty.com` first) with `Authorization: Bearer <token>` header until one returns 2xx
+- Streams binary back to browser with `Content-Type` from upstream (or inferred from path extension via `EXT_TO_MIME` map) and 1h client cache (`Cache-Control: private, max-age=3600`)
+- 502 with `{last_status, last_body, path}` diagnostic if all 5 hosts fail (so future iterations have actionable info, not silent failure)
+
+**V3 endpoint simplified back:**
+- Removed CDN candidate probing + module-scope cache (no longer needed since the browser doesn't load CDN URLs directly anymore)
+- `absoluteAttachmentUrl()` returns `/api/beithady/communication/guesty-attachment?path=<encoded path>`
+- `deriveAttachments()` reverted to sync
+
+**Risk for next iteration:** if Guesty's CDN doesn't accept the OAuth Bearer token from the API (token might be scoped only to `/communication/*` endpoints, not raw asset paths), the proxy will return 502. Recovery options to try next:
+- Use a separate signed-URL endpoint Guesty might expose (e.g. `GET /communication/conversations/{id}/posts/{postId}/attachments/{attachmentId}/download`)
+- Add `Referer: https://app.guesty.com` header
+- Try the API base URL `https://open-api.guesty.com/v1/communication/...` for asset access instead of `assets.guesty.com`
+
+## ✅ Earlier turn — Real photo URL extraction fixed + redundant footer removed
 
 User clicked a placeholder for a real photo upload. Image attempted to load `https://app-public-cdn.guesty.com/production/<acct>/png/<hash>_<filename>.png` — Chrome reported `DNS_PROBE_FINISHED_NXDOMAIN`. The hostname I guessed doesn't exist. Guesty's CDN base URL isn't documented publicly anywhere I could check.
 
