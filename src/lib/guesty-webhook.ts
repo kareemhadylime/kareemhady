@@ -55,8 +55,14 @@ function asIso(v: unknown): string | null {
 // Compute an idempotency key per event type. Same key arrives → row 2 collides
 // with the UNIQUE index → we treat as 'duplicate' and return ok.
 function deriveUniqueKey(eventName: string, payload: AnyJson): string | null {
-  const messageId = asString(get(payload, 'message', '_id'))
-    || asString(get(payload, 'message', 'id'));
+  // Guesty's actual webhook payload puts the message id in `message.postId`
+  // (the conversation-post _id). `meta.messageId` is a separate event-level
+  // UUID (one per webhook delivery) — useful as a fallback dedupe key when
+  // postId is somehow missing.
+  const messageId = asString(get(payload, 'message', 'postId'))
+    || asString(get(payload, 'message', '_id'))
+    || asString(get(payload, 'message', 'id'))
+    || asString(get(payload, 'meta', 'messageId'));
   const reservationId = asString(get(payload, 'reservationId'))
     || asString(get(payload, 'reservation', '_id'))
     || asString(get(payload, 'reservation', 'id'));
@@ -96,8 +102,12 @@ export async function processGuestyWebhook(
     || asString(get(payload, 'reservation', 'id'));
   const conversationId = asString(get(payload, 'conversation', '_id'))
     || asString(get(payload, 'conversation', 'id'));
-  const messageId = asString(get(payload, 'message', '_id'))
-    || asString(get(payload, 'message', 'id'));
+  // Guesty puts the conversation-post id under `message.postId` (verified
+  // via inspection of 138 actual payloads in guesty_webhook_events).
+  const messageId = asString(get(payload, 'message', 'postId'))
+    || asString(get(payload, 'message', '_id'))
+    || asString(get(payload, 'message', 'id'))
+    || asString(get(payload, 'meta', 'messageId'));
 
   const uniqueKey = deriveUniqueKey(eventName, payload);
 
@@ -197,17 +207,33 @@ async function ingestMessage(payload: AnyJson, fromType: 'guest' | 'host'): Prom
     throw new Error('conversation_id missing from message payload');
   }
 
-  const messageId = asString(get(message, '_id')) || asString(get(message, 'id'));
+  // Guesty's webhook payload keys: `message.postId` is the conversation-post _id.
+  // Fall back to legacy paths just in case Guesty changes the schema later.
+  const messageId = asString(get(message, 'postId'))
+    || asString(get(message, '_id'))
+    || asString(get(message, 'id'))
+    || asString(get(payload, 'meta', 'messageId'));
   if (!messageId) {
-    throw new Error('message _id missing');
+    throw new Error('message _id missing (no postId, _id, id, or meta.messageId)');
   }
 
-  const accountId = asString(get(message, 'accountId')) || asString(get(payload, 'accountId'));
+  const accountId = asString(get(message, 'accountId'))
+    || asString(get(payload, 'accountId'))
+    || asString(get(payload, 'conversation', 'accountId'));
   const sentBy = asString(get(message, 'from', 'userId')) || asString(get(message, 'sentBy'));
+  // Guesty doesn't include `from.fullName` on inbound message posts. For
+  // guest messages we synthesise from conversation.meta.guestName; for host
+  // messages we leave null and let the daily backfill enrich.
   const fromFullName = asString(get(message, 'from', 'fullName'))
-    || asString(get(message, 'fromFullName'));
+    || asString(get(message, 'fromFullName'))
+    || (fromType === 'guest'
+      ? asString(get(payload, 'conversation', 'meta', 'guestName'))
+      : null);
   const isAutomatic = Boolean(get(message, 'isAutomatic'));
-  const moduleType = asString(get(message, 'module')) || asString(get(message, 'type')) || 'whatsapp';
+  // Module priority order on Guesty payload: `message.module` is the actual
+  // channel (`bookingCom`/`whatsapp`/`email`/`airbnb2`/`sms`). `message.type`
+  // is direction (`fromGuest`/`fromHost`) and must NOT be used as module.
+  const moduleType = asString(get(message, 'module')) || 'whatsapp';
   const moduleSubject = asString(get(message, 'moduleSubject')) || asString(get(message, 'subject'));
   const bodyText = asString(get(message, 'body')) || asString(get(message, 'text')) || '';
   const createdAt = asIso(get(message, 'createdAt')) || new Date().toISOString();
