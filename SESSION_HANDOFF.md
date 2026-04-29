@@ -1,62 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Bucket confirmed (guesty-ugc.s3 STS pre-signed); POST signing endpoints deployed
+## ✅ Latest turn — Estimator lines click-through to Amazon EG (buy-now affordance)
 
-User pasted the actual photo URL via "Open image in new tab" trick:
-```
-https://guesty-ugc.s3.amazonaws.com/production/68342f589bf7f8c07ec2435c/jpeg/<hash>_<filename>.jpeg
-?AWSAccessKeyId=ASIAXGDPLVNEKRAHJ7WR
-&Expires=1777495845
-&Signature=<...>
-&x-amz-security-token=IQoJ<...>
-```
+User saw every Source cell rendered as "No source" plain text and asked: "Want to be able to click and go to the source of the item to buy". Direct interpretation: rows must always be clickable to a buy page, not only when the canonical Amazon EG URL is set.
 
-**Critical confirmations:**
-- Bucket: `guesty-ugc` on `s3.amazonaws.com`
-- Path prefix: `production/<accountId>/<type>/<filename>`
-- Auth: AWS STS pre-signed URL (token starts with `IQoJ` = STS temporary credentials)
-- Verified directly via `curl -I` from this session: bucket returns **403 AccessDenied** without signature → bucket is private, must be signed
-- Signature `Expires` is short-lived (~5min) so we can't cache it
+**Fix shipped (commit d67fa5f, deployed dpl_41ni1674fZ5L1T7bWXpZNCd5YY9w):**
+- New helper `buildAmazonSearchUrl(itemNameEn)` → `https://www.amazon.eg/s?k=<encoded item_name_en>`
+- Item-name + SKU cell now wrapped in `<a target="_blank">` linking to `amazon_eg_url ?? buildAmazonSearchUrl(item_name_en)`. Hover emeralds the SKU and underlines the name so the affordance is visible.
+- Source cell: when URL is set → existing "Amazon EG" badge with status tone (unchanged). When URL is missing → replaces the dead "No source" text with a clickable "Search Amazon EG" pill (Search icon from lucide-react) firing the same fallback URL.
+- Both anchors carry `rel="noreferrer noopener"` and a `title` tooltip indicating whether they go direct or fall through to search.
 
-**Proxy iteration deployed:**
-Previous round: 8 candidates, all 4xx. New round: 11 candidates including POST-based signing patterns (most likely to exist):
-1. `POST /v1/communication/attachments/{attId}/sign` body `{}`
-2. `GET /v1/communication/attachments/{attId}/url`
-3. `POST /v1/communication/conversations/{cId}/posts/{pId}/sign` body `{attachmentId, path}`
-4. `POST /v1/files/sign` body `{path}`
-5. `POST /v1/uploads/sign` body `{path}`
-6. `POST /v1/communication/files/sign` body `{path}`
-7-10. Previous GET endpoints (singular post, posts?expand=attachments, etc.)
-11. Direct S3 (will 403, useful for completeness)
+**Why search-fallback instead of a sourcing workflow:** Amazon EG sourcing was supposed to populate `amazon_eg_url` per item via M.15.2 ingest, but the current data shows every item with `amazon_eg_url=null`. Proper fix is (a) run that ingest, then (b) build a per-line "Choose Amazon match" UI for items that fail to auto-source. Until that's productized, the search link is the lowest-effort way to deliver the click-to-buy the user asked for.
 
-The Candidate type now has `method: 'GET' | 'POST'` and optional `body` field. Each request includes `Content-Type: application/json` for POSTs. Existing `findSignedUrl()` recursively walks the JSON response to extract the signed URL wherever Guesty buries it.
+**Earlier this turn — fixed the Edit-button 404 (commit 79e7483):**
+- Created `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` (the dynamic route was missing → every Edit click 404'd)
+- Server-rendered breakdown via `computeEstimatorOutput`: header (config name, tier badge, BR/BA/guests, total/per-checkin/per-guest), 6 group-total cards, per-group line tables (formula, base/computed/effective qty, loss %, unit cost, line total, source, rule scope chip), help banner pointing at the rules page for actual edits
 
-**If all 11 fail**, next-round ask: user opens DevTools Network tab → finds the JSON XHR call that fires immediately before the `guesty-ugc.s3.amazonaws.com` request → pastes its URL+method+body. That JSON XHR is the call that mints the signed URL — once we know its endpoint, we lock in candidate #12 and ship.
-
-## 🟡 Earlier turn — DevTools coaching round 2: photo URL still not captured, image cached (no code)
-
-User opened Guesty Network tab + passport-photo popup. First attempt copied a Pendo telemetry pixel (`data.pendo.io/data/ptm.gif`) — wrong (1×1 tracking GIF, not the actual JPEG). Filtered to `jp` only showed 2 more Pendo `.gif` rows.
-
-Diagnosis: the actual JPEG was already in browser cache, so no network request fired when the photo opened. Final guidance sent:
-1. Clear the filter, tick **Disable cache**, close the popup, re-click the photo thumbnail → fresh request appears
-2. **Or simpler**: right-click the passport image in the popup → "Open image in new tab" → copy the URL from the new tab's address bar (skips Network panel entirely)
-
-Waiting on user to paste either the cURL or the open-image-in-new-tab URL.
-
-No code changes this turn.
-
-## 🟡 Earlier turn — Walked user through Chrome DevTools to capture Guesty photo cURL (no code)
-
-User asked "Guide Me step by step on Chrome" after the Referer-spoof iteration deployed. Wrote a 14-step guide to:
-1. Open DevTools → Network tab (with note that Network might be hidden behind the `»` overflow chevron when DevTools is narrow — gave 3 ways to find it: click chevron, widen the panel, or `Ctrl+]` to cycle tabs)
-2. Filter to Img · clear log · disable cache
-3. Click Saad Alkhaldi conversation in Guesty UI, scroll to the photo messages
-4. Right-click the hash-named PNG row → Copy as cURL
-5. Paste back (after scrubbing personal session cookie value)
-
-Goal: see the actual headers/cookies/query params Guesty's UI sends when loading these photos so the proxy can replicate them. Currently waiting on user to paste the cURL.
-
-No code changes this turn.
+**Risk for next iteration:**
+- Search URL uses raw `item_name_en` — items like "Bleach 1L" or "Conditioner bottle 30ml" may rank loosely. If poor matches: strip trailing size suffixes (`\s+\d+(\.\d+)?\s*(ml|l|g|kg|oz|pack|count|ct)$`) before encoding, or send category code as a secondary keyword.
+- `RuleFormButton` doesn't expose a `unit_config` scope_value picker, so the help banner asks users to copy a UUID into a free-form field. Cleanest fix: detail page gets an "Add config-specific rule" button that opens the form pre-filled with `scope=unit_config` + `scope_value=<configId>` locked.
 
 ## 🟡 Earlier turn — Iterating Guesty attachment proxy; assets.guesty.com 400's empty, all API endpoints 404
 
