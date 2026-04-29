@@ -1,6 +1,22 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Proxy v2: try 7 Guesty Open API + CDN candidates (Bearer didn't unlock CDN either)
+## ✅ Latest turn — Estimator detail route created (Edit button was 404ing)
+
+User clicked "Edit" on a row in `/beithady/inventory/rules/estimator` (Housekeeping Setup Matrix) and got Next's 404 page. Root cause: the matrix landing page links every row + Edit button to `/beithady/inventory/rules/estimator/${configId}`, but `[configId]/page.tsx` didn't exist.
+
+**Fix shipped (commit 79e7483, deployed):**
+- New file `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx`
+- Server-rendered detail view via `computeEstimatorOutput(configId)` (existing lib in `src/lib/beithady/inventory/estimator.ts`); `notFound()` on missing/inactive config
+- Header: config name + tier badge + bedrooms/bathrooms/guests + total per check-in + per-guest cost
+- 6 group-total cards (Cleaning / Sanitary / Tray / Linen / Branded / Misc) with item counts
+- Per-group line tables: SKU + name, formula label, base qty, computed qty, loss %, effective qty, unit cost, line total, Amazon EG sourcing badge with status tone (`AMAZON_STATUS_LABEL`), and rule-scope chip (unit_config = green w/ pencil, listing = violet, category = cyan, building = blue, global = slate)
+- Help banner explains scoping ladder + deep links to `/beithady/inventory/rules` for actual rule editing
+
+**Why view-only (not inline edit) for now:** the existing `RuleFormButton` doesn't expose a `unit_config` `scope_value` picker — its else-branch only handles `category`. To add per-config inline editing, the form needs a `lockedScope` + `lockedScopeValue` prop pattern (or a unit-config dropdown when `scope === 'unit_config'`). Deferred to next iteration; users can still create unit_config-scoped rules from the rules page directly by entering the UUID shown in the help banner.
+
+**Risk for next iteration:** the help banner asks users to copy a config UUID into a free-form scope_value field — that's awkward. Two paths to clean it up: (1) extend `RuleFormButton` to render a `<select>` of unit configs when `scope === 'unit_config'`, OR (2) add an "Add rule for this config" button on the detail page that opens the form pre-filled with the scope and scope_value locked. Option 2 is the smaller diff.
+
+## 🟡 Earlier turn — Proxy v2: try 7 Guesty Open API + CDN candidates (Bearer didn't unlock CDN either)
 
 User reported v1 proxy returned `all_hosts_failed` with status 400 on every CDN candidate. Bearer token works against `open-api.guesty.com/v1/...` (every other Guesty API call uses it) but does NOT work against `assets.guesty.com`. So the CDN-direct path is dead.
 
