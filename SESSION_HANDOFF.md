@@ -1,6 +1,142 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## ✅ Latest turn — Phase M.15.4 shipped: per-item Amazon EG source review on items list
+## 🟢 Latest turn — Phase C.5 Channel Switcher SHIPPED across 6 commits
+
+User asked to switch outbound transport mid-thread to Green WP / WABA / Email / SMS with no-info revert. Plan → Workflow → Code with 95% confidence gates; user accepted all 10 questions + 12 improvements + workflow as drafted; PF1 (Guesty cross-module live probe) skipped on user's request.
+
+**Commits + branch state:**
+
+| Commit | Title | Vercel |
+|---|---|---|
+| `9da5c77` | feat(beithady): Phase C.5 migration 0055 — channel switcher schema | green |
+| `454d899` | feat(beithady): Phase C.5 channel-switch library + WABA stub | green |
+| `2f66f69` | feat(beithady): Phase C.5 sendMessageWithSwitchAction | green |
+| `f51f868` | feat(beithady): Phase C.5 ChannelSwitcher UI component | green |
+| `d9ceaa7` | feat(beithady): Phase C.5 wire ChannelSwitcher + cross-channel composer | green |
+| `300b9cc` | feat(beithady): Phase C.5 cross-cutting — K.2 cancel-fallback + audit filter | deploying |
+
+All pushed to `main` and auto-deployed to `limeinc.vercel.app` via the GitHub-Vercel integration; explicit `vercel --prod` also triggered after each commit on the worktree project `gallant-brahmagupta-1d925c.vercel.app`.
+
+**Migration 0055 — applied via Supabase MCP `apply_migration`** (NOT pasted in dashboard):
+- `beithady_conversations.preferred_outbound_channel TEXT NULL` + CHECK constraint allowing 7 targets (incl. forward-compat email_standalone / sms_standalone)
+- `beithady_conversations.preferred_outbound_set_at TIMESTAMPTZ NULL`
+- `beithady_messages.was_channel_switched BOOLEAN NOT NULL DEFAULT false`
+- `beithady_messages.original_thread_channel TEXT NULL`
+- `idx_bh_msg_guest_channel_outbound` partial index for the channel-score badge
+- Verified via `information_schema.columns` query — all 4 columns present
+
+**Library `src/lib/beithady/communication/channel-switch.ts` (new):**
+- `ChannelTarget` union (5 wired today: wa_casual, wa_cloud, guesty_email, guesty_sms, guesty_whatsapp; 2 forward-compat: email_standalone, sms_standalone)
+- F1 `resolveTargetChannel(ctx, target)` — validates phone/email + provider gates; returns `ResolveOk` (with display string) or `ResolveErr` with reason: `no_phone | no_email | provider_disabled | green_offline | wrong_home_channel | invalid_phone | unknown_target`
+- F2 `sendViaChannel(target, payload)` — dispatcher routes to `sendGuestyMessage` (with module=email/sms/whatsapp) / `sendWaCasualMessage` / `sendWaCloudMessage` (501 stub)
+- F4 `getAvailableChannels(ctx)` — capability matrix with per-target `available`, `reason`, `lastUsedAt`, `lastInboundAt`, `costHint`, `attachmentsSupported`, `voiceSupported`. Reads last 50 messages per guest for the "★ replied here Nh ago" badge.
+- F5 `setPreferredChannel(conversationId, target)` — writes Q3-c "Remember" preference
+- Helpers: `homeChannelToDefaultTarget` (smart default, improvement #3), `targetIsCrossChannel`, `hoursSinceLastInbound` (WABA 24h window)
+- Source gating in F1: Airbnb / Booking conversations refuse `guesty_sms` ("no SMS sub-channel"); only `guesty` home channel allows guesty_* targets
+
+**Library `src/lib/beithady/communication/send-wa-cloud.ts` (new):**
+- `sendWaCloudMessage` returns `{ ok: false, status: 501, error: 'waba_not_yet_provisioned' | 'waba_send_not_implemented_yet' }` until C.4 ships. Real implementation lands when Beit Hady WABA is provisioned in Meta Business Manager.
+
+**Server action `sendMessageWithSwitchAction` (in `actions.ts`):**
+- Validates `target_channel` against allowed set; reads conversation row; calls F1
+- F1 fail → redirect with `?switch_revert=<reason>&switch_hint=<text>` (UI shows banner + manual Revert per Q8-c)
+- F2 success + cross-channel → updates `beithady_messages` row with `was_channel_switched=true` + `original_thread_channel=<home>` so thread bubbles can render the "via X" badge (single-thread view per Q4-a)
+- `remember=on` → calls F5 to persist preference
+- `backup_target` (improvement #10 multi-channel send) → fail-soft secondary send with separate audit row (`channel_backup_sent | failed | unresolvable`)
+- Audit metadata-only per Q10: `{from, to, contact_used_hint, body_length, cross_channel, remember, backup}` — no body content
+
+**UI `_components/channel-switcher.tsx` (new client component):**
+- U1: 4 buttons (WA Casual / WABA / Email / SMS) with availability dot (green/red/grey), cost-hint $ badge, "★ Nh ago" channel-score badge, per-button tooltip
+- U2: NoInfoBanner with friendly message, contact summary, CRM 360° deep-link `/beithady/crm/<guestId>?focus=phone|email` (improvement #6), manual Revert button
+- U3: ActiveChannelPill with cross-channel indicator + "📌 Remembered" pill
+- CapabilityMatrixLine (improvement #12)
+- Alt+1..4 keyboard shortcuts (improvement #11) + collapsible Shortcuts hint
+- Exports `ContactValidatorPill` (improvement #5) reused by switch-composer
+
+**UI `_components/switch-composer.tsx` (new client component):**
+- Used when `effectiveChannel` diverges from conversation home channel (cross-channel path)
+- Inline phone/email validator pills, template-aware attachment-drop warning (improvement #4: heuristic on `{`, `}}`, `[[`)
+- "Remember for this conversation" checkbox (Q3-c)
+- "+Send X backup" multi-channel toggle (improvement #10)
+- Char counter, kill-switch banner, fallback link rendering on error
+
+**`thread-pane.tsx` (refactored to async server component):**
+- Computes `effectiveChannel` precedence: URL `?ch` → `preferred_outbound_channel` → home-default heuristic
+- Renders `<ChannelSwitcher>` above `<EffectiveChannelComposer>` which routes to:
+  - GuestyComposer when `effectiveChannel ∈ {guesty_email, guesty_sms, guesty_whatsapp}` AND home=guesty
+  - WaCasualComposer when home=wa_casual AND target=wa_casual
+  - SwitchComposer otherwise (cross-channel path)
+- WabaOutsideWindowBanner (Q6-b) — disables Send when target=wa_cloud AND >24h since last inbound
+
+**Pages `unified/`, `guesty/`, `wa-casual/` page.tsx:**
+- SearchParams + composerHints surface `ch`, `switch_revert`, `switch_hint`, `via`, `return_path`
+
+**K.2 Cancel-risk fallback (improvement #9, R10 mitigation):**
+- `sendReconfirmationAction` in `operations/calendar/actions.ts` now falls back to email-via-Guesty when guest_phone is missing AND env flag `BEITHADY_CANCEL_FALLBACK=true` (default off)
+- Looks up the open Guesty conversation linked to the reservation and injects `module=email` post via `sendGuestyMessage`
+- Audit row gains `via='wa_casual'|'guesty_email'` + `used_fallback` boolean
+- Existing behavior preserved when env flag is off
+
+**Audit page (improvement #8):**
+- `Settings → Audit` gains an Action dropdown filter with the 6 Phase C.5 events grouped under "Channel switcher (Phase C.5)"
+- `queryAudit` + `AuditQueryOpts` extended with optional `action` field
+
+**All 12 improvements in:**
+1. Live availability badges ✓ (ChannelButton dot color)
+2. Channel score per guest ✓ (★ relative time badges)
+3. Smart default ✓ (effectiveChannel resolution)
+4. Template-aware switching ✓ (showAttachmentDropWarning)
+5. Phone/email validators ✓ (ContactValidatorPill)
+6. CRM ?focus= deep-link ✓ (NoInfoBanner)
+7. Cost/risk hint ✓ ($ badge)
+8. Audit filter ✓ (Settings → Audit Action dropdown)
+9. K.2 fallback hookup ✓ (BEITHADY_CANCEL_FALLBACK env flag)
+10. Multi-channel send ✓ (+Email backup checkbox)
+11. Keyboard shortcuts ✓ (Alt+1..4)
+12. Capability matrix one-liner ✓ (CapabilityMatrixLine)
+
+**Out of scope (explicit, deferred):**
+- ❌ WABA send pipeline → Phase C.4 (stub returns 501)
+- ❌ Standalone Resend/Twilio providers → future phase
+- ❌ AI auto-reply through new switcher → still hardcoded to wa_casual in `auto-reply.ts:5`; PF5 documented this gap, no code change needed for C.5
+- ❌ Phase E AI gating preserved — the kill switch still independently disables auto-reply
+
+**Pre-flights run:**
+- PF1 (Guesty cross-module probe) — SKIPPED on user request; mitigation R1 in place (Airbnb/Booking SMS hidden via source gating in F1)
+- PF2 confirmed via Supabase MCP — schema migration was metadata-only
+- PF3 confirmed `getGreenInstanceState` returns `{stateInstance: 'authorized'}` for online
+- PF4 confirmed `beithady_messages` `unique(channel, external_id)` — cross-channel rows safe (channel matches actual transport, not home)
+- PF5 confirmed AI auto-reply hardcodes wa_casual; documented as out-of-scope
+- PF7 confirmed last-inbound source = `beithady_messages.sent_at WHERE direction='inbound'`
+- PF8 confirmed latest applied migration was `0054a` not `0046` per stale handoff line — used `0055` instead
+
+**Manual test scenarios (NOT yet executed — user should validate):**
+1. Airbnb thread → click WA Casual → message lands on guest phone via Green-API; row in thread shows "via WA Casual" cross-channel badge
+2. Airbnb thread, no email → click Email → no-info banner shows + manual Revert
+3. wa_casual thread → click WABA → button disabled, tooltip "Phase C.4"
+4. Switch channel mid-typing → body preserved (form state inside SwitchComposer)
+5. Toggle "Remember" → next thread reload defaults to switched channel
+6. Alt+2 from Guesty thread → switches to WABA-disabled state
+7. WABA outside 24h → Send disabled, banner explains template-only
+8. "+Email backup" toggle → 2 outbound rows in beithady_messages, audit captures both
+9. Settings → Audit → Action filter `channel_switched` → see all switches
+10. K.2 batch with `BEITHADY_CANCEL_FALLBACK=true` + guest with no phone → email fallback fires
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c` ahead by SESSION_HANDOFF.md update only after `300b9cc`. Auto-deploy ongoing for last commit.
+
+**Risk register status (10 risks):**
+- R1 (Guesty cross-module rejection) — PF1 skipped; live probe deferred. Source gating in F1 prevents the most likely failure mode (SMS on Airbnb)
+- R2 (table lock) — no lock observed, ADD COLUMN was metadata-only
+- R3 (unique constraint collision) — confirmed safe, channel matches actual transport
+- R4 (URL collision) — `?ch=` confirmed unused
+- R5 (remember surprises user) — default unchecked
+- R6 (WABA template gap) — banner-only per spec
+- R7 (multi-channel cost) — toggle off by default
+- R8 (smart default surprise) — only fires when preferred is set
+- R9 (Alt key collision) — scoped to thread-pane, no global hijack
+- R10 (K.2 fallback breaks batch) — gated by env flag, default off
+
+## ✅ Earlier turn — Phase M.15.4 shipped: per-item Amazon EG source review on items list
 
 User course-corrected away from inline source editing on the estimator detail page → wanted editing on the **items list page**, items grouped by category, with explicit Accept ✓ / Change ✎ per row so each URL change cascades into every unit-config budget. Plan → Workflow → Code phases with 95% confidence gates; user accepted all defaults except #5 (only edit on items page; remove URL field from the big ItemFormButton modal entirely).
 
