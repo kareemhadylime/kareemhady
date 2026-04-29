@@ -199,6 +199,10 @@ export type ThreadHeader = InboxRow & {
   resolved_at: string | null;
   resolved_reason: string | null;
   resolved_by_user_id: string | null;
+  // Phase C.5 — channel-switcher persisted preference. NULL = no
+  // override; thread-pane falls back to header.channel + source heuristic.
+  preferred_outbound_channel: string | null;
+  preferred_outbound_set_at: string | null;
 };
 
 // Q.1 — reservation summary attached to the thread bundle. Computed via
