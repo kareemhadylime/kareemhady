@@ -97,11 +97,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Pull the recent thread — Guesty returns most-recent-first by default
+    // Pull the recent thread — Guesty returns most-recent-first by default.
+    // Response shape per src/lib/guesty.ts:427-433 is { posts, count, limit, sort, cursor }.
+    // We also defensively check `results` and direct-array shapes in case
+    // the API ever returns differently.
     const data = await listGuestyConversationPosts(conversationId, { limit: 50 });
-    const posts: GuestyPost[] = ((data as unknown) as { results?: GuestyPost[] })?.results
-      || ((data as unknown) as GuestyPost[])
-      || [];
+    const dataObj = data as unknown as Record<string, unknown>;
+    const posts: GuestyPost[] = Array.isArray(dataObj?.posts)
+      ? (dataObj.posts as GuestyPost[])
+      : Array.isArray(dataObj?.results)
+        ? (dataObj.results as GuestyPost[])
+        : Array.isArray(data)
+          ? (data as unknown as GuestyPost[])
+          : [];
 
     // If sentAt provided, find the matching post within ~5 min tolerance.
     // (Guesty's recorded createdAt may differ slightly from our beithady_messages.sent_at.)
