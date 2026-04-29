@@ -5,6 +5,15 @@ import { getCurrentUser } from '@/lib/auth';
 import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { sendGuestyMessage, type SendGuestyResult } from '@/lib/beithady/communication/send-guesty';
 import { sendWaCasualMessage, uploadWaMedia } from '@/lib/beithady/communication/send-wa-casual';
+import {
+  resolveTargetChannel,
+  sendViaChannel,
+  setPreferredChannel,
+  targetIsCrossChannel,
+  type ChannelTarget,
+  type HomeChannel,
+} from '@/lib/beithady/communication/channel-switch';
+import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit } from '@/lib/beithady/audit';
 
 // Server actions for the Communication module. Today: Guesty send +
@@ -157,7 +166,6 @@ export async function toggleKillSwitchAction(formData: FormData): Promise<void> 
   const next = formData.get('next') === 'on';
   if (!conversationId) throw new Error('missing_conversation_id');
 
-  const { supabaseAdmin } = await import('@/lib/supabase');
   const sb = supabaseAdmin();
   await sb.from('beithady_conversations').update({ ai_kill_switch: next }).eq('id', conversationId);
   await recordAudit({
@@ -170,4 +178,209 @@ export async function toggleKillSwitchAction(formData: FormData): Promise<void> 
   });
   revalidatePath('/beithady/communication/guesty');
   revalidatePath('/beithady/communication/unified');
+}
+
+// =====================================================================
+// Phase C.5 — Channel Switcher action
+// =====================================================================
+// Routes a single outbound through a transport that may differ from the
+// conversation's home channel. On no-info errors (no_phone / no_email)
+// returns to the thread with ?switch_revert=<reason> so the UI can show
+// the no-info banner + Manual Revert button (Q8-c).
+//
+// Cross-channel sends still write a row into beithady_messages keyed
+// by conversation_id so the thread view stays unified (Q4-a). The row
+// is tagged with was_channel_switched=true + original_thread_channel for
+// the inline "via X" badge.
+//
+// Multi-channel send (improvement #10) supported via the optional
+// `backup_target` form field — both rows are recorded; backup failure
+// is fail-soft (logged, not blocking).
+export async function sendMessageWithSwitchAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('not_authenticated');
+  const allowed = user.is_admin || (await hasBeithadyPermission(user, 'communication', 'full'));
+  if (!allowed) throw new Error('forbidden');
+
+  const conversationId = String(formData.get('conversation_id') || '').trim();
+  const body = String(formData.get('body') || '').trim();
+  const targetRaw = String(formData.get('target_channel') || '').trim();
+  const backupRaw = String(formData.get('backup_target') || '').trim();
+  const remember = formData.get('remember') === 'on';
+  const returnPath = String(formData.get('return_path') || '/beithady/communication/unified').trim();
+
+  if (!conversationId) throw new Error('missing_conversation_id');
+  if (!body) throw new Error('empty_body');
+  if (body.length > 5000) throw new Error('body_too_long');
+
+  const ALLOWED: readonly string[] = ['guesty_email','guesty_sms','guesty_whatsapp','wa_casual','wa_cloud'];
+  const valid = (t: string): t is ChannelTarget => ALLOWED.includes(t);
+  if (!valid(targetRaw)) throw new Error('invalid_target_channel');
+  const target: ChannelTarget = targetRaw;
+  const backup: ChannelTarget | null = valid(backupRaw) ? backupRaw : null;
+
+  const sb = supabaseAdmin();
+  const { data: conv } = await sb
+    .from('beithady_conversations')
+    .select('id, channel, external_id, source, guest_id, guest_phone, guest_email, preferred_outbound_channel')
+    .eq('id', conversationId)
+    .maybeSingle();
+  if (!conv) {
+    redirect(`${returnPath}?c=${conversationId}&switch_revert=conversation_not_found`);
+  }
+  const c = conv as {
+    id: string;
+    channel: HomeChannel;
+    external_id: string;
+    source: string | null;
+    guest_id: string | null;
+    guest_phone: string | null;
+    guest_email: string | null;
+    preferred_outbound_channel: string | null;
+  };
+
+  // F1: validate the requested target
+  const resolved = await resolveTargetChannel(
+    {
+      conversationId: c.id,
+      homeChannel: c.channel,
+      externalId: c.external_id,
+      source: c.source,
+      guestId: c.guest_id,
+      guestPhone: c.guest_phone,
+      guestEmail: c.guest_email,
+    },
+    target,
+  );
+  if (!resolved.ok) {
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'communication',
+      action: 'channel_switch_blocked',
+      target_type: 'conversation',
+      target_id: c.id,
+      metadata: { from: c.channel, to: target, reason: resolved.reason, body_length: body.length },
+    });
+    const params = new URLSearchParams();
+    params.set('c', conversationId);
+    params.set('switch_revert', resolved.reason);
+    if (resolved.hint) params.set('switch_hint', resolved.hint);
+    redirect(`${returnPath}?${params.toString()}`);
+  }
+
+  // F2: dispatch primary send
+  const result = await sendViaChannel(target, {
+    beithadyConversationId: c.id,
+    body,
+    agentUserId: user.id,
+    agentDisplayName: user.username,
+  });
+
+  // Mark cross-channel rows on beithady_messages so the thread bubble
+  // can render the "via X" badge. The send-* libs already wrote the row
+  // with channel matching the actual transport — we only need to add
+  // the audit columns when the transport differs from home.
+  if (result.ok && result.messageId && targetIsCrossChannel(target, c.channel)) {
+    await sb
+      .from('beithady_messages')
+      .update({
+        was_channel_switched: true,
+        original_thread_channel: c.channel,
+      })
+      .eq('id', result.messageId);
+  }
+
+  // Persist preferred channel if "Remember" was checked (Q3-c).
+  if (remember && result.ok) {
+    await setPreferredChannel(c.id, target);
+  }
+
+  // Multi-channel "+Email backup" (improvement #10). Fail-soft —
+  // primary success is what matters; backup outcome is recorded but
+  // does not affect the redirect.
+  if (backup && result.ok) {
+    const backupResolved = await resolveTargetChannel(
+      {
+        conversationId: c.id,
+        homeChannel: c.channel,
+        externalId: c.external_id,
+        source: c.source,
+        guestId: c.guest_id,
+        guestPhone: c.guest_phone,
+        guestEmail: c.guest_email,
+      },
+      backup,
+    );
+    if (backupResolved.ok) {
+      const backupResult = await sendViaChannel(backup, {
+        beithadyConversationId: c.id,
+        body,
+        agentUserId: user.id,
+        agentDisplayName: user.username,
+      });
+      if (backupResult.ok && backupResult.messageId && targetIsCrossChannel(backup, c.channel)) {
+        await sb
+          .from('beithady_messages')
+          .update({
+            was_channel_switched: true,
+            original_thread_channel: c.channel,
+          })
+          .eq('id', backupResult.messageId);
+      }
+      await recordAudit({
+        actor_user_id: user.id,
+        module: 'communication',
+        action: backupResult.ok ? 'channel_backup_sent' : 'channel_backup_failed',
+        target_type: 'conversation',
+        target_id: c.id,
+        metadata: {
+          backup_target: backup,
+          ok: backupResult.ok,
+          ...(backupResult.ok ? {} : { error: backupResult.error, status: backupResult.status }),
+        },
+      });
+    } else {
+      await recordAudit({
+        actor_user_id: user.id,
+        module: 'communication',
+        action: 'channel_backup_unresolvable',
+        target_type: 'conversation',
+        target_id: c.id,
+        metadata: { backup_target: backup, reason: backupResolved.reason },
+      });
+    }
+  }
+
+  // Audit primary outcome (metadata only — Q10).
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'communication',
+    action: result.ok ? 'channel_switched' : 'channel_switch_send_failed',
+    target_type: 'conversation',
+    target_id: c.id,
+    metadata: {
+      from: c.channel,
+      to: target,
+      contact_used_hint: resolved.contact.phone ? 'phone' : 'email',
+      body_length: body.length,
+      cross_channel: targetIsCrossChannel(target, c.channel),
+      ...(result.ok ? {} : { error: result.error, status: result.status }),
+      remember,
+      backup: backup || null,
+    },
+  });
+
+  revalidatePath('/beithady/communication/guesty');
+  revalidatePath('/beithady/communication/unified');
+  revalidatePath('/beithady/communication/wa-casual');
+
+  if (!result.ok) {
+    const params = new URLSearchParams();
+    params.set('c', conversationId);
+    params.set('send_error', result.error.slice(0, 200));
+    params.set('send_status', String(result.status));
+    if ('fallbackUrl' in result && result.fallbackUrl) params.set('fallback', result.fallbackUrl);
+    redirect(`${returnPath}?${params.toString()}`);
+  }
+  redirect(`${returnPath}?c=${conversationId}&sent=1&via=${target}`);
 }
