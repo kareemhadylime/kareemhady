@@ -237,6 +237,41 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Internal app endpoints (NOT Open API). The signed URL Guesty's UI
+  // uses must come from one of these.
+  if (conversationId && postId && attachmentId) {
+    candidates.push({
+      url: `https://app.guesty.com/api/v2/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}`,
+      method: 'GET',
+      auth: 'bearer',
+      label: 'app-api-v2-att',
+      extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+    });
+    candidates.push({
+      url: `https://app.guesty.com/api/v2/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}/sign`,
+      method: 'GET',
+      auth: 'bearer',
+      label: 'app-api-v2-att-sign',
+      extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+    });
+    candidates.push({
+      url: `https://app.guesty.com/api/v2/communication/conversations/${conversationId}/posts/${postId}`,
+      method: 'GET',
+      auth: 'bearer',
+      label: 'app-api-v2-post',
+      extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+    });
+  }
+  if (attachmentId) {
+    candidates.push({
+      url: `https://app.guesty.com/api/v2/attachments/${attachmentId}/sign`,
+      method: 'GET',
+      auth: 'bearer',
+      label: 'app-api-v2-attid-sign',
+      extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+    });
+  }
+
   // Final fallback — direct S3 (will 403 but useful for debug)
   candidates.push({
     url: `https://guesty-ugc.s3.amazonaws.com/${cleanPath}`,

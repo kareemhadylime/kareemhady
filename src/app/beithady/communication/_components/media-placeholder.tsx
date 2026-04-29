@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Image as ImageIcon, FileQuestion, Loader2, AlertTriangle, FileText, Volume2 } from 'lucide-react';
 
 // Phase Q.4 follow-up V3 — inline media loader for empty-body Guesty
@@ -140,14 +140,12 @@ export function MediaPlaceholder({
         {imgs.length > 0 && (
           <div className={imgs.length > 1 ? 'grid grid-cols-2 gap-1.5' : ''}>
             {imgs.map((a, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" title={a.name || 'image'}>
-                <img
-                  src={a.url}
-                  alt={a.name || 'image'}
-                  className="rounded-lg max-w-full max-h-[280px] object-cover border border-slate-200 dark:border-slate-700"
-                />
-              </a>
+              <ImageWithFallback
+                key={i}
+                src={a.url}
+                name={a.name}
+                inbound={inbound}
+              />
             ))}
           </div>
         )}
@@ -231,3 +229,80 @@ export function MediaPlaceholder({
     </button>
   );
 }
+
+// Loads an image via fetch (so we can check the response status before
+// committing to a broken-image render). On 2xx, swaps to a blob URL and
+// renders <img>. On non-2xx (e.g. proxy 502 because Guesty's API doesn't
+// expose attachment signing), falls back to a clear "couldn't load"
+// card instead of the browser's broken-image icon.
+function ImageWithFallback({
+  src,
+  name,
+  inbound,
+}: {
+  src: string;
+  name?: string;
+  inbound: boolean;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  // Probe the proxy on mount; render image only if 2xx. Avoids the
+  // browser's broken-image icon when the proxy returns 502.
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    fetch(src)
+      .then(async r => {
+        if (cancelled) return;
+        if (!r.ok) {
+          setFailed(true);
+          return;
+        }
+        const blob = await r.blob();
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setBlobUrl(createdUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [src]);
+
+  if (failed) {
+    return (
+      <div className={`rounded-lg border-2 border-dashed px-3 py-2.5 text-xs ${
+        inbound
+          ? 'border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200'
+          : 'border-amber-400/50 bg-amber-600/30 text-white'
+      }`}>
+        <div className="font-medium">Couldn't load original media</div>
+        <div className="text-[11px] mt-1 opacity-80">
+          Guesty stores guest-uploaded photos on a private CDN with short-lived signed URLs that their integration API doesn't expose to third parties. To view this photo, open the conversation in Guesty's web app where the URL is signed by their UI on demand.
+        </div>
+      </div>
+    );
+  }
+  if (!blobUrl) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 p-3 inline-flex items-center gap-2 text-xs text-slate-500">
+        <Loader2 size={12} className="animate-spin" /> Loading {name || 'image'}…
+      </div>
+    );
+  }
+  return (
+    <a href={blobUrl} target="_blank" rel="noopener noreferrer" title={name || 'image'}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={blobUrl}
+        alt={name || 'image'}
+        className="rounded-lg max-w-full max-h-[280px] object-cover border border-slate-200 dark:border-slate-700"
+      />
+    </a>
+  );
+}
+
