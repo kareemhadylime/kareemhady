@@ -123,8 +123,8 @@ export default async function UnifiedInboxPage({
           <option value="none">Replied (no SLA)</option>
         </select>
         <select name="sort" defaultValue={sp.sort || ''} className="ix-input" title="Sort order">
-          <option value="">Sort: {SORT_LABELS.recent_activity}</option>
-          {VALID_SORTS.filter(s => s !== 'recent_activity').map(s => (
+          <option value="">Sort: {SORT_LABELS.recent_inbound}</option>
+          {VALID_SORTS.filter(s => s !== 'recent_inbound').map(s => (
             <option key={s} value={s}>Sort: {SORT_LABELS[s]}</option>
           ))}
         </select>
@@ -173,7 +173,7 @@ export default async function UnifiedInboxPage({
       />
 
       <p className="text-[11px] text-slate-500 flex items-center gap-2 justify-center">
-        <Layers size={11} /> Cross-channel search · sorted by SLA breach desc → age desc → modified desc.
+        <Layers size={11} /> Cross-channel search · sorted by latest guest message (newest first).
       </p>
     </BeithadyShell>
   );

@@ -123,10 +123,11 @@ export async function listInbox(opts: {
   if (f.state && f.state !== 'all') q = q.eq('state', f.state);
   else if (!f.state) q = q.eq('state', 'open');
 
-  // Default sort: most recent activity first (new → old) per user preference.
-  // The SLA-breach-first variant is preserved as an explicit opt-in for
-  // users who want the legacy "oldest unanswered" behavior.
-  const sort: InboxSort = f.sort || 'recent_activity';
+  // Default sort: most recent guest message first (new → old). Sorted on
+  // last_inbound_at because that's what the sidebar row visibly displays —
+  // sorting on any other column produced visually scrambled lists where
+  // adjacent rows showed dates out of order.
+  const sort: InboxSort = f.sort || 'recent_inbound';
   switch (sort) {
     case 'sla_oldest':
       // Legacy default: breach + oldest unreplied first
@@ -138,8 +139,12 @@ export async function listInbox(opts: {
     case 'sla_newest':
       q = q.order('sla_age_seconds', { ascending: true, nullsFirst: false });
       break;
-    case 'recent_inbound':
-      q = q.order('last_inbound_at', { ascending: false, nullsFirst: false });
+    case 'recent_activity':
+      // Activity = any modification to the conversation row (inbound,
+      // outbound, sync touch, status flip). May surface conversations
+      // that haven't received a guest message recently if other activity
+      // happened — caller picks this when they want full activity feed.
+      q = q.order('modified_at_external', { ascending: false, nullsFirst: false });
       break;
     case 'recent_outbound':
       q = q.order('last_outbound_at', { ascending: false, nullsFirst: false });
@@ -147,13 +152,13 @@ export async function listInbox(opts: {
     case 'name_asc':
       q = q.order('guest_full_name', { ascending: true, nullsFirst: false });
       break;
-    case 'recent_activity':
+    case 'recent_inbound':
     default:
-      // New default: most recent activity first — covers any change to the
-      // conversation (inbound, outbound, status, sync touch).
+      // New default: most recent guest message first — exactly the date
+      // shown on every sidebar row, so visible order is always consistent.
       q = q
-        .order('modified_at_external', { ascending: false, nullsFirst: false })
-        .order('last_inbound_at', { ascending: false, nullsFirst: false });
+        .order('last_inbound_at', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false });
   }
   q = q.range((page - 1) * pageSize, page * pageSize - 1);
 

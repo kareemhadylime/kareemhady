@@ -1,6 +1,19 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Manual archive fire: 5,496 conversations archived (Phase R first-run executed)
+## 🟡 Latest turn — Default inbox sort flipped to newest-first; user reports possible API error post-deploy
+
+User asked for messages sorted new→old. Flipped default `InboxSort` from `sla_oldest` to `recent_activity` (orders by `modified_at_external desc`, then `last_inbound_at desc`) across all 4 inbox views + archive month detail. Sort dropdown reordered so "Newest first (default)" is the placeholder option; legacy SLA-oldest still selectable.
+
+After deploy user said "api error?" — currently investigating. **Possible causes to check on next session pickup:**
+- Default order using two `.order()` chained calls — verify Supabase JS client supports cumulative ordering on a `select(..., { count: 'exact' })` query
+- Archive month detail also uses listInbox now with the new default sort + `archiveScope='archived_in_month'` — could be ordering against the dates predicate weirdly
+- Active count drop from 6,744 → 1,248 (post-archive) means most inbox queries return far fewer rows; if the page assumes a certain row count or pagination shape it could 500
+
+If the bug reproduces, the likely fix is to revert the secondary `.order('last_inbound_at', ...)` clause on `recent_activity` and keep just the primary `.order('modified_at_external', ...)`.
+
+Commits this turn: `b6344a0` (manual archive fire) · sort change deploy ID logged in background.
+
+## ✅ Earlier turn — Manual archive fire: 5,496 conversations archived (Phase R first-run executed)
 
 User asked "has all messages been archived as planned?" — answer was no, the cron hadn't fired yet. User picked option (c): fire the real archive now. Executed via Supabase MCP (cleaner than curl+CRON_SECRET; same SQL the cron handler runs).
 
