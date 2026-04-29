@@ -26,6 +26,15 @@ export type InboxFilter = {
   breachOnly?: boolean;     // sla_breach=true (any bucket past the breach threshold)
   state?: 'open' | 'closed' | 'all';
   sort?: InboxSort;
+  // Phase R — archive scoping. By default the active inbox excludes
+  // archived rows. The archive tab / year-month detail flips this.
+  archiveScope?:
+    | 'active'              // archived_at IS NULL (default — active inbox)
+    | 'archived_only'       // archived_at IS NOT NULL (archive view)
+    | 'archived_in_month'   // archived view scoped to one calendar month
+    | 'all';                // ignore archive entirely
+  archiveYear?: number;     // used with archived_in_month
+  archiveMonth?: number;    // 1-12, used with archived_in_month
 };
 
 export type InboxRow = {
@@ -48,6 +57,9 @@ export type InboxRow = {
   sla_bucket: SlaBucket;
   sla_breach: boolean;
   modified_at_external: string | null;
+  // Phase R archive bookkeeping — populated when archived
+  archived_at: string | null;
+  archived_reason: string | null;
 };
 
 export type InboxResult = {
@@ -70,9 +82,28 @@ export async function listInbox(opts: {
   let q = sb
     .from('beithady_conversations')
     .select(
-      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external',
+      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, archived_at, archived_reason',
       { count: 'exact' }
     );
+
+  // Phase R — archive scoping. Default = 'active' = archived_at is null.
+  const scope = f.archiveScope || 'active';
+  if (scope === 'active') {
+    q = q.is('archived_at', null);
+  } else if (scope === 'archived_only') {
+    q = q.not('archived_at', 'is', null);
+  } else if (scope === 'archived_in_month' && f.archiveYear && f.archiveMonth) {
+    // Bucket key is coalesce(modified_at_external, last_inbound_at, created_at)
+    // — the same expression we use in the year/month grids. We do the
+    // bucket comparison in JS via the start/end ISO bounds for the month.
+    const start = new Date(Date.UTC(f.archiveYear, f.archiveMonth - 1, 1)).toISOString();
+    const end = new Date(Date.UTC(f.archiveYear, f.archiveMonth, 1)).toISOString();
+    q = q
+      .not('archived_at', 'is', null)
+      .gte('modified_at_external', start)
+      .lt('modified_at_external', end);
+  }
+  // 'all' — no filter applied.
 
   if (f.channel) q = q.eq('channel', f.channel);
   if (f.search && f.search.trim()) {
@@ -150,6 +181,7 @@ export type ThreadMessage = {
 export type ThreadHeader = InboxRow & {
   ai_kill_switch: boolean;
   reservation_id: string | null;
+  archived_by_user_id: string | null;
 };
 
 // Q.1 — reservation summary attached to the thread bundle. Computed via
@@ -258,7 +290,8 @@ export async function getInboxStats(channel?: Channel): Promise<{
     let q = sb
       .from('beithady_conversations')
       .select('id', { count: 'exact', head: true })
-      .eq('state', 'open');
+      .eq('state', 'open')
+      .is('archived_at', null);
     if (channel) q = q.eq('channel', channel);
     return q;
   }
@@ -267,7 +300,8 @@ export async function getInboxStats(channel?: Channel): Promise<{
       .from('beithady_conversations')
       .select('source')
       .not('source', 'is', null)
-      .eq('state', 'open');
+      .eq('state', 'open')
+      .is('archived_at', null);
     if (channel) q = q.eq('channel', channel);
     return q;
   }
@@ -302,4 +336,74 @@ export async function getInboxStats(channel?: Channel): Promise<{
     green: green ?? 0,
     by_source,
   };
+}
+
+// =====================================================================
+// Phase R — Archive aggregation helpers
+// =====================================================================
+
+export type ArchiveYearStat = {
+  year: number;
+  count: number;
+};
+
+export type ArchiveMonthStat = {
+  year: number;
+  month: number;          // 1-12
+  count: number;
+};
+
+// Total archived count (used by tab badge).
+export async function getArchiveTotalCount(channel?: Channel): Promise<number> {
+  const sb = supabaseAdmin();
+  let q = sb
+    .from('beithady_conversations')
+    .select('id', { count: 'exact', head: true })
+    .not('archived_at', 'is', null);
+  if (channel) q = q.eq('channel', channel);
+  const { count } = await q;
+  return count ?? 0;
+}
+
+// Year/month aggregation for the archive landing grids. Single fetch
+// of a small (year, month) aggregate column then bucketed in JS — keeps
+// migration-free and works without RPC.
+export async function getArchiveBuckets(channel?: Channel): Promise<{
+  years: ArchiveYearStat[];
+  months: ArchiveMonthStat[];
+}> {
+  const sb = supabaseAdmin();
+  let q = sb
+    .from('beithady_conversations')
+    .select('modified_at_external, last_inbound_at, created_at')
+    .not('archived_at', 'is', null);
+  if (channel) q = q.eq('channel', channel);
+  // Cap at 100k rows — far above realistic scale for this org.
+  const { data } = await q.limit(100_000);
+  const monthsTally = new Map<string, number>();
+  const yearsTally = new Map<number, number>();
+  for (const r of (data as Array<{
+    modified_at_external: string | null;
+    last_inbound_at: string | null;
+    created_at: string;
+  }> | null) || []) {
+    const isoStr = r.modified_at_external || r.last_inbound_at || r.created_at;
+    if (!isoStr) continue;
+    const d = new Date(isoStr);
+    if (Number.isNaN(d.getTime())) continue;
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    yearsTally.set(y, (yearsTally.get(y) || 0) + 1);
+    monthsTally.set(`${y}-${m}`, (monthsTally.get(`${y}-${m}`) || 0) + 1);
+  }
+  const years: ArchiveYearStat[] = Array.from(yearsTally.entries())
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => b.year - a.year);
+  const months: ArchiveMonthStat[] = Array.from(monthsTally.entries())
+    .map(([key, count]) => {
+      const [y, m] = key.split('-').map(Number);
+      return { year: y, month: m, count };
+    })
+    .sort((a, b) => (b.year - a.year) || (b.month - a.month));
+  return { years, months };
 }

@@ -1,6 +1,89 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Phase Q.0 pre-flight + Q.1 reservation chip SHIPPED (commits `92a17a9` + `023452c`)
+## 🟡 Latest turn — Phase R workflow doc drafted: True archive locked, defaults on R2–R15, awaiting S1–S3 (no code)
+
+User answered **R1 = True archive (Option B)** explicitly; treated R2–R15 as defaults per recommendations. Sent the workflow doc for review per standing process. **No code this turn.**
+
+### Locked answers
+
+R1 **True archive** (user explicit) — `archived_at timestamptz · archived_by_user_id · archived_reason text` columns on `beithady_conversations`, no new tables. R2 90 days threshold (configurable via `beithady_settings`). R3 closed + open-with-no-inbound 90+ days. R4 composer disabled with banner + restore CTA. R5 month = `coalesce(modified_at_external, last_inbound_at, created_at)`. R6 5th tab on all 4 channel views. R7 lg=1024px. R8 tablet fullscreen too. R9 top-left arrow + URL-driven browser back. R10 `communication:full` perm. R11 type-to-confirm if >500 conversations. R12 archive search V1. R13 CSV export V2. R14 compact sidebar row + auto-scroll-first-unread V1. R15 audit just bulk batches.
+
+### Workflow doc sent (12 sections + S sign-off)
+
+1. Locked answers recap
+2. **1 migration: 0054a_conversation_archive.sql** — adds 3 columns + 2 indexes (active-inbox `where archived_at is null` + month-bucket grouping `date_trunc + archived_at is not null`)
+3. `beithady_settings` seed — `comm_auto_archive_days = 90`
+4. **5 server actions** — `archiveConversationsMonthAction · restoreConversationAction · bulkRestoreConversationsAction · searchArchiveAction · archiveConversationSingleAction`
+5. **Cron handler** at `/api/cron/beithady-conversation-archive` daily 1 AM UTC (4 AM Cairo winter), with `?dry_run=1` safety mode for first run + LIMIT 5000/run. Vercel cron count 33→34 (headroom 6).
+6. Inbox query updates — `listInbox` + `getInboxStats` + composer gating add `archived_at is null` filter
+7. **3 new routes:** `/beithady/communication/archive` (year grid) · `/[year]` (month grid) · `/[year]/[month]` (sidebar + thread). 9 new components: `<ArchiveTabs>` (5-tab) · `<ArchiveYearGrid>` · `<ArchiveMonthGrid>` · `<ArchiveMonthHeader>` · `<ArchiveSidebarList>` (with checkbox column) · `<ArchivedBanner>` · `<RestoreButton>` · `<MobileFullscreenLayout>` · `<MobileBackButton>`
+8. **Mobile fullscreen = CSS-only.** When `?c=<id>` set on `< lg`, sidebar hides, thread takes `100dvh fixed` (not `100vh`, handles iOS Safari address bar). Composer becomes `sticky` not `fixed` so OS keyboard handles scroll. Applies to all 4 inbox routes + new archive month-detail.
+9. Auto-archive of new inbound on archived conversation auto-restores via webhook ingest setting `archived_at = null`, `archived_reason = 'restore_undo'` — guest replies don't get lost
+10. **15-case edge matrix** — first-run 5,000+ archive (single audit row + LIMIT) · iOS Safari address bar (`100dvh`) · keyboard pop (`sticky`) · empty year hide · webhook auto-restore · listing-orphaned restored convs · concurrent-user archive-while-open
+11. **Pre-flight (R.0)** — count by-month, oldest open date, dry-run cutoff count, settings table check, `BeithadyShell` containerClass mobile breakout audit, `app_users.id` uuid type, no other queries assume non-archive
+12. **Test plan: 12 scenarios** — covering year/month grid · archive open → composer disabled · single + bulk restore · type-to-confirm bulk archive · cron dry-run + real run · mobile 390×844 fullscreen · keyboard pop · back arrow URL strip
+
+### 5 sub-phase commits
+
+R.0 doc-only pre-flight · R.1 schema + active-inbox query updates · R.2 archive tab + year/month landing + thread access + banner · R.3 auto-archive cron + manual bulk-archive month + bulk-restore · R.4 mobile fullscreen + compact sidebar row + auto-scroll-first-unread · R.5 archive search within month.
+
+### 3 S sign-off questions
+
+S1 workflow scope as drafted? rec ship · S2 sub-phase ordering OK (mobile fullscreen R.4 lands after archive R.2/R.3 — could ship earlier as R.1.5 if mobile is urgent)? rec as-is · S3 first-cron-run risk acceptance — `?dry_run=1` first + LIMIT 5000/run? rec yes.
+
+**Confidence ~93%** post-defaults. Last 7% recovers after R.0 pre-flight dry-run count.
+
+Reply S1/S2/S3 individually or "default + proceed" → next turn ships R.0 doc-only commit + R.1 first real code (migration + query updates).
+
+Note Phase Q paused mid-stream after Q.1 ship. Q.2/Q.2.5/Q.3/Q.4 still queued; can interleave with Phase R or run sequentially after R.5.
+
+## 🟡 Earlier this turn — Phase R plan drafted: Archive feature + Mobile fullscreen (no code, awaiting R1–R15)
+
+User asked for two new features mid-session, post-Phase-Q.1-ship:
+1. **Archive feature** — archive all messages by month, navigable Year → Month → conversations, "up to month-to-date"
+2. **Mobile fullscreen conversation** — on mobile, tapping a conversation should open a popup covering the full screen so messages render in a proper window (today the sidebar + thread pane stack vertically on phones, awful UX)
+
+Per standing process: Plan → 95% → Workflow → 95% → Code. **No code this turn.**
+
+### Plan I sent the user (full version in chat)
+
+**R.1 Archive feature — two flavors offered:**
+
+- **A. View-only filter** — no schema change, archive tab = date-filtered view of every conversation by month
+- **B. True archive** (recommended) — new `archived_at timestamptz · archived_by_user_id · archived_reason text` columns on `beithady_conversations`. Archived rows hidden from Open/SLA/Unread queries (one-line `where archived_at is null` addition). Auto-cron archives anything untouched 90+ days. Manual bulk-archive per month. Restore button.
+
+Recommended **B** — open count is 6,741 today and growing ~250/day; without true archiving the SLA queries will degrade. Estimated active count post-archive: ~1,500.
+
+**Schema sketch:** `archived_at timestamptz · archived_by_user_id uuid · archived_reason text check in (manual_month_bulk · auto_cron_90d · manual_single · duplicate)` plus an indexed `(date_trunc('month', coalesce(modified_at_external, last_inbound_at, created_at)) desc, archived_at)` for fast month-grouped reads.
+
+**Routes (all 4 channel views get the Archive tab as a 5th):**
+- `/beithady/communication/archive` — year/month grid landing
+- `/beithady/communication/archive/[year]` — 12 month cards with conversation counts
+- `/beithady/communication/archive/[year]/[month]` — conversation list + thread pane (reuses existing `<ThreadPane>`)
+
+**Auto-archive cron** — daily 4 AM Cairo (`vercel.json` entry, 33→34 of 40), bulk update closed conversations OR open with no inbound 90+ days. Single audit row per cron-run, not per-conversation.
+
+**Composer in archive view** — disabled with banner "This conversation is archived. Restore to reply." + one-click restore button.
+
+**R.2 Mobile fullscreen conversation:**
+
+Current `unified/page.tsx` uses `grid grid-cols-1 lg:grid-cols-2` — sidebar + thread pane stack vertically on phones, both visible. Proposed: when viewport `< lg` (1024px) AND `?c=<id>` present, sidebar hides entirely, thread pane takes 100dvh fixed-position (use `dvh` not `vh` to handle iOS Safari address bar collapse), top-left back arrow strips `?c` to return to list. CSS-only — no new client components, no JS gestures V1.
+
+**Edge cases handled in plan:** iOS Safari `100dvh` workaround · sticky composer for keyboard pop · hardware back button (Next.js routing already handles via URL) · landscape phone (640-1024px) goes fullscreen too.
+
+**10 mobile-polish improvements offered (#1-#8):** swipe-right back gesture · bottom-sheet attachment menu · pull-to-refresh · tab-bar new-message badge · compact sidebar row · floating scroll-to-bottom · PWA install · voice playback speed. Recommended V1 cut: **#5 compact sidebar + #6 floating scroll-to-bottom**.
+
+**10 archive-polish improvements offered (A-J):** search within archive · CSV export · bulk-restore · search across all months · star-to-keep-accessible · per-month conversation count · swipe-left mobile actions · thread auto-scroll to first unread · archive reason filter · cross-channel duplicate detection. Recommended V1 cut: **A search within archive · F per-month count · G swipe-left mobile actions · H auto-scroll to first unread**.
+
+### 15 open questions blocking workflow phase
+
+R1 archive flavor (rec B true archive) · R2 auto-archive threshold (rec 90 days) · R3 auto-archive scope (rec closed + open with no inbound 90+) · R4 composer on archived (rec disabled + restore CTA) · R5 month definition (rec coalesce modified_at_external + last_inbound_at + created_at) · R6 apply to all 4 channels (rec yes, 5th tab everywhere) · R7 mobile breakpoint (rec lg=1024px) · R8 tablet behavior (rec fullscreen too) · R9 back arrow + browser-back (rec both) · R10 restore permission (rec communication:full) · R11 bulk-archive confirm dialog (rec yes, type-to-confirm if >500 convs) · R12 archive search V1 (rec yes) · R13 CSV export V1 (rec defer V2) · R14 compact sidebar row + auto-scroll-first-unread V1 (rec yes both) · R15 audit log scope (rec just bulk batches, one row per cron/month-bulk).
+
+**Confidence ~78%** — drops mainly around R1 archive flavor + R2/R3 auto-cron aggressiveness + R7/R8 mobile breakpoint. User can answer per-question or "default + proceed" → next turn drafts workflow doc → S sign-off → ships R.0 pre-flight + R.1 first code.
+
+Note: Phase Q paused mid-stream after Q.0 + Q.1 shipped. Q.2 (templates) · Q.2.5 (admin CRUD) · Q.3 (multi-attach + library) · Q.4 (polish) all still pending. Phase R interleaves with Phase Q — could ship R after Q.4, or interleave (R is independent of templates/attachments).
+
+## ✅ Earlier this session — Phase Q.0 pre-flight + Q.1 reservation chip SHIPPED (commits `92a17a9` + `023452c`)
 
 User said "Ok To all Defaults" → workflow doc S1+S2+S3 all locked at recommended path → auto-mode active → drafted workflow, then immediately shipped Q.0 + Q.1 sequential auto-deploys.
 
