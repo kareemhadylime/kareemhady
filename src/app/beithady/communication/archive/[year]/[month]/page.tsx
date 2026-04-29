@@ -11,6 +11,7 @@ import { BeithadyShell, BeithadyHeader } from '../../../../_components/beithady-
 import { ChannelTabs } from '../../../_components/channel-tabs';
 import { SidebarList } from '../../../_components/sidebar-list';
 import { ThreadPane } from '../../../_components/thread-pane';
+import { MobileFullscreenLayout } from '../../../_components/mobile-fullscreen-layout';
 import { BulkRestoreBar } from '../../_components/bulk-restore-bar';
 import { ArchiveMonthHeaderActions } from '../../_components/archive-month-actions';
 
@@ -102,30 +103,33 @@ export default async function ArchiveMonthPage({
         </button>
       </form>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:h-[640px]">
-        <div className="overflow-y-auto space-y-3">
-          {inbox.rows.length > 0 && (
-            <BulkRestoreBar conversationIds={inbox.rows.map(r => r.id)} basePath={basePath} />
-          )}
-          <SidebarList
-            rows={inbox.rows}
-            basePath={basePath}
-            selectedId={sp.c}
-            searchQuery={sp.q ? `q=${encodeURIComponent(sp.q)}` : ''}
-          />
-          {inbox.rows.length === 0 && (
-            <p className="text-xs text-slate-500 text-center pt-3">
-              <Archive size={11} className="inline mr-1" />
-              {sp.q
-                ? 'No archived conversations match your search in this month.'
-                : 'No archived conversations in this month.'}
-            </p>
-          )}
-        </div>
-        <div className="lg:h-[640px]">
-          <ThreadPane bundle={thread} />
-        </div>
-      </section>
+      <MobileFullscreenLayout
+        selectedId={sp.c}
+        basePath={basePath}
+        preservedQuery={sp.q ? `q=${encodeURIComponent(sp.q)}` : ''}
+        sidebar={
+          <div className="space-y-3">
+            {inbox.rows.length > 0 && (
+              <BulkRestoreBar conversationIds={inbox.rows.map(r => r.id)} basePath={basePath} />
+            )}
+            <SidebarList
+              rows={inbox.rows}
+              basePath={basePath}
+              selectedId={sp.c}
+              searchQuery={sp.q ? `q=${encodeURIComponent(sp.q)}` : ''}
+            />
+            {inbox.rows.length === 0 && (
+              <p className="text-xs text-slate-500 text-center pt-3">
+                <Archive size={11} className="inline mr-1" />
+                {sp.q
+                  ? 'No archived conversations match your search in this month.'
+                  : 'No archived conversations in this month.'}
+              </p>
+            )}
+          </div>
+        }
+        threadPane={<ThreadPane bundle={thread} />}
+      />
     </BeithadyShell>
   );
 }

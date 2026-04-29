@@ -64,10 +64,19 @@ export function SidebarList({
                       {r.unread_count} new
                     </span>
                   )}
+                  {r.archived_at && (
+                    <span className="text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                      archived
+                    </span>
+                  )}
                 </div>
-                <div className="text-xs text-slate-500 truncate mt-0.5">
+                {/* R.4 — compact mobile row: hide listing/building line on `< sm` to give 2x more conversations on phones */}
+                <div className="text-xs text-slate-500 truncate mt-0.5 hidden sm:block">
                   {r.listing_nickname && <span>{r.listing_nickname} · </span>}
                   {r.building_code && <span>{r.building_code} · </span>}
+                  {r.last_inbound_at ? fmtCairoDateTime(r.last_inbound_at) : '—'}
+                </div>
+                <div className="text-[11px] text-slate-500 truncate mt-0.5 sm:hidden">
                   {r.last_inbound_at ? fmtCairoDateTime(r.last_inbound_at) : '—'}
                 </div>
               </div>

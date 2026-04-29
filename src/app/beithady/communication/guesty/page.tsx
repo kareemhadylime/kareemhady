@@ -7,6 +7,7 @@ import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell'
 import { ChannelTabs } from '../_components/channel-tabs';
 import { SidebarList } from '../_components/sidebar-list';
 import { ThreadPane } from '../_components/thread-pane';
+import { MobileFullscreenLayout } from '../_components/mobile-fullscreen-layout';
 import { StatLink, buildStatHref, VALID_SORTS, SORT_LABELS } from '../_components/stat-link';
 import type { SlaBucket } from '@/lib/beithady/communication/sla';
 
@@ -133,22 +134,26 @@ export default async function GuestyInboxPage({
         </div>
       </form>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:h-[640px]">
-        <div className="overflow-y-auto">
-          <SidebarList
-            rows={inbox.rows}
-            basePath="/beithady/communication/guesty"
-            selectedId={sp.c}
-            searchQuery={preserveQuery(sp)}
-          />
-          {inbox.total > inbox.pageSize && (
-            <p className="text-[11px] text-slate-500 text-center pt-3">
-              Showing {inbox.rows.length} of {inbox.total.toLocaleString()} matching conversations.
-              Pagination wires in C.2.
-            </p>
-          )}
-        </div>
-        <div className="lg:h-[640px]">
+      <MobileFullscreenLayout
+        selectedId={sp.c}
+        basePath="/beithady/communication/guesty"
+        preservedQuery={preserveQuery(sp)}
+        sidebar={
+          <>
+            <SidebarList
+              rows={inbox.rows}
+              basePath="/beithady/communication/guesty"
+              selectedId={sp.c}
+              searchQuery={preserveQuery(sp)}
+            />
+            {inbox.total > inbox.pageSize && (
+              <p className="text-[11px] text-slate-500 text-center pt-3">
+                Showing {inbox.rows.length} of {inbox.total.toLocaleString()} matching conversations.
+              </p>
+            )}
+          </>
+        }
+        threadPane={
           <ThreadPane
             bundle={thread}
             composerHints={{
@@ -159,8 +164,8 @@ export default async function GuestyInboxPage({
             }}
             pendingSuggestion={pendingSuggestion}
           />
-        </div>
-      </section>
+        }
+      />
 
       <p className="text-[11px] text-slate-500 flex items-center gap-2 justify-center">
         <Mail size={11} /> Read-only mirror · daily sync at 30 5 * * * UTC + 5-min top-up.

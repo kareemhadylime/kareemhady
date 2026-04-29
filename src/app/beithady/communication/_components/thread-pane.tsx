@@ -11,6 +11,7 @@ import { ReservationMiniTimeline } from './reservation-mini-timeline';
 import { GuestHistoryBadge } from './guest-history-badge';
 import { NoReservationFallback } from './no-reservation-fallback';
 import { ArchivedBanner } from './archived-banner';
+import { AutoScrollThread } from './auto-scroll-thread';
 
 export type ThreadComposerHints = {
   send_error?: string;
@@ -39,6 +40,17 @@ export function ThreadPane({
     );
   }
   const { header, messages } = bundle;
+  // R.4 — first message after our last reply is the agent's "next to read"
+  // visual anchor. If there's no outbound at all, the first inbound is it.
+  const lastOutboundAt = header.last_outbound_at;
+  const firstUnreadId = (() => {
+    for (const m of messages) {
+      if (m.direction !== 'inbound') continue;
+      const ts = m.sent_at || m.created_at;
+      if (!lastOutboundAt || (ts && ts > lastOutboundAt)) return m.id;
+    }
+    return null;
+  })();
   return (
     <div className="ix-card flex flex-col h-full overflow-hidden">
       <ThreadHeader bundle={bundle} />
@@ -49,8 +61,12 @@ export function ThreadPane({
             No messages yet on this conversation.
           </div>
         ) : (
-          messages.map(m => <Bubble key={m.id} m={m} />)
+          <>
+            {messages.map(m => <Bubble key={m.id} m={m} />)}
+            <div data-thread-tail={header.id} aria-hidden />
+          </>
         )}
+        <AutoScrollThread conversationId={header.id} firstUnreadId={firstUnreadId} />
       </div>
 
       <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-3 bg-white dark:bg-slate-900">
@@ -193,7 +209,7 @@ function Bubble({ m }: { m: ThreadBundle['messages'][number] }) {
   const ChIcon = channel === 'guesty' ? Mail : channel === 'wa_cloud' ? Bot : Smartphone;
 
   return (
-    <div className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
+    <div data-thread-msg-id={m.id} className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
       <div className={`max-w-[80%] rounded-2xl border px-4 py-2 shadow-sm ${tone}`}>
         <div className={`flex items-center gap-2 text-[10px] uppercase tracking-wide font-semibold mb-1 ${inbound ? 'text-slate-500' : 'text-slate-300'}`}>
           <ChIcon size={11} />
