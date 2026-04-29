@@ -1,6 +1,19 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Phase Q FULLY shipped (Q.2 → Q.2.5 → Q.3 → Q.4, 4 commits + deploys)
+## ✅ Latest turn — Manual archive fire: 5,496 conversations archived (Phase R first-run executed)
+
+User asked "has all messages been archived as planned?" — answer was no, the cron hadn't fired yet. User picked option (c): fire the real archive now. Executed via Supabase MCP (cleaner than curl+CRON_SECRET; same SQL the cron handler runs).
+
+**Result matches Q.0 prediction exactly:**
+- Batch 1: 5,000 archived
+- Batch 2: 496 archived
+- **Total: 5,496 archived · 1,248 still active · 0 remaining candidates**
+- Active inbox by month: Apr 474 · Mar 366 · Feb 384 · Jan 24 (matches workflow R prediction)
+- 2 audit rows in `beithady_audit_log` (one per batch) with metadata identical to what the cron would have logged
+
+Tomorrow's 1 AM UTC cron tick will be a no-op (0 candidates) until threads start aging out — exactly the steady-state behavior the workflow designed for.
+
+## ✅ Earlier turn — Phase Q FULLY shipped (Q.2 → Q.2.5 → Q.3 → Q.4, 4 commits + deploys)
 
 User said "Continue" → auto-mode → resumed from where Phase Q paused (Q.0 + Q.1 already live as reservation chip + popout) and shipped the remaining four sub-phases sequentially.
 
