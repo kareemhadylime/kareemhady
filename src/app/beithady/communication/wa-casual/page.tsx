@@ -141,8 +141,8 @@ export default async function WaCasualPage({
           <option value="none">Replied (no SLA)</option>
         </select>
         <select name="sort" defaultValue={sp.sort || ''} className="ix-input" title="Sort order">
-          <option value="">Sort: {SORT_LABELS.sla_oldest}</option>
-          {VALID_SORTS.filter(s => s !== 'sla_oldest').map(s => (
+          <option value="">Sort: {SORT_LABELS.recent_activity}</option>
+          {VALID_SORTS.filter(s => s !== 'recent_activity').map(s => (
             <option key={s} value={s}>Sort: {SORT_LABELS[s]}</option>
           ))}
         </select>

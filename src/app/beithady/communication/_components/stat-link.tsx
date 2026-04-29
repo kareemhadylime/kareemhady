@@ -70,15 +70,16 @@ export function buildStatHref(
 }
 
 // Centralised SORT options + labels (used by every inbox sort dropdown).
+// Default = recent_activity per user preference (new → old).
 export const VALID_SORTS = [
-  'sla_oldest', 'sla_newest', 'recent_inbound', 'recent_activity', 'recent_outbound', 'name_asc',
+  'recent_activity', 'recent_inbound', 'recent_outbound', 'sla_oldest', 'sla_newest', 'name_asc',
 ] as const;
 export type ValidSort = typeof VALID_SORTS[number];
 export const SORT_LABELS: Record<ValidSort, string> = {
-  sla_oldest: 'Oldest unanswered first (default)',
-  sla_newest: 'Newest unanswered first',
+  recent_activity: 'Newest first (default)',
   recent_inbound: 'Most recent guest message',
-  recent_activity: 'Most recent activity',
   recent_outbound: 'Most recently replied',
+  sla_oldest: 'Oldest unanswered first',
+  sla_newest: 'Newest unanswered first',
   name_asc: 'Guest name A→Z',
 };

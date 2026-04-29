@@ -123,16 +123,23 @@ export async function listInbox(opts: {
   if (f.state && f.state !== 'all') q = q.eq('state', f.state);
   else if (!f.state) q = q.eq('state', 'open');
 
-  const sort: InboxSort = f.sort || 'sla_oldest';
+  // Default sort: most recent activity first (new → old) per user preference.
+  // The SLA-breach-first variant is preserved as an explicit opt-in for
+  // users who want the legacy "oldest unanswered" behavior.
+  const sort: InboxSort = f.sort || 'recent_activity';
   switch (sort) {
+    case 'sla_oldest':
+      // Legacy default: breach + oldest unreplied first
+      q = q
+        .order('sla_breach', { ascending: false })
+        .order('sla_age_seconds', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false });
+      break;
     case 'sla_newest':
       q = q.order('sla_age_seconds', { ascending: true, nullsFirst: false });
       break;
     case 'recent_inbound':
       q = q.order('last_inbound_at', { ascending: false, nullsFirst: false });
-      break;
-    case 'recent_activity':
-      q = q.order('modified_at_external', { ascending: false, nullsFirst: false });
       break;
     case 'recent_outbound':
       q = q.order('last_outbound_at', { ascending: false, nullsFirst: false });
@@ -140,13 +147,13 @@ export async function listInbox(opts: {
     case 'name_asc':
       q = q.order('guest_full_name', { ascending: true, nullsFirst: false });
       break;
-    case 'sla_oldest':
+    case 'recent_activity':
     default:
-      // Original behaviour: breach + oldest unreplied first
+      // New default: most recent activity first — covers any change to the
+      // conversation (inbound, outbound, status, sync touch).
       q = q
-        .order('sla_breach', { ascending: false })
-        .order('sla_age_seconds', { ascending: false, nullsFirst: false })
-        .order('modified_at_external', { ascending: false, nullsFirst: false });
+        .order('modified_at_external', { ascending: false, nullsFirst: false })
+        .order('last_inbound_at', { ascending: false, nullsFirst: false });
   }
   q = q.range((page - 1) * pageSize, page * pageSize - 1);
 
