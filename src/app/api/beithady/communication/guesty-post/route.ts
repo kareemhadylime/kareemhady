@@ -39,6 +39,9 @@ type ExtractedAttachment = {
   name?: string;
   mime?: string;
   kind: 'image' | 'file' | 'audio' | 'video';
+  attachmentId?: string;
+  postId?: string;
+  conversationId?: string;
 };
 
 // Map file extension (Guesty's `type` field) to MIME + kind classification.
@@ -68,28 +71,38 @@ function classifyByExt(ext: string): { mime: string; kind: ExtractedAttachment['
 // uses the service-account Bearer token to fetch from Guesty and
 // streams the response back to the browser.
 
-function absoluteAttachmentUrl(raw: string | null | undefined): string | null {
+function absoluteAttachmentUrl(
+  raw: string | null | undefined,
+  ids: { attachmentId?: string; postId?: string; conversationId?: string } = {},
+): string | null {
   if (!raw) return null;
-  // Already an absolute URL → just use it (rare for Guesty, common for
-  // pre-signed URLs from other channels).
+  // Already an absolute URL → just use it.
   if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
   const clean = raw.replace(/^\/+/, '');
-  return `/api/beithady/communication/guesty-attachment?path=${encodeURIComponent(clean)}`;
+  const params = new URLSearchParams({ path: clean });
+  if (ids.attachmentId) params.set('attachmentId', ids.attachmentId);
+  if (ids.postId) params.set('postId', ids.postId);
+  if (ids.conversationId) params.set('conversationId', ids.conversationId);
+  return `/api/beithady/communication/guesty-attachment?${params.toString()}`;
 }
 
 function deriveAttachments(post: GuestyPost): ExtractedAttachment[] {
   const out: ExtractedAttachment[] = [];
+  const postId = post._id || post.id || undefined;
+  // ConversationId is on the post payload (not the parent envelope) per
+  // the raw shape we inspected earlier.
+  const conversationId = (post as Record<string, unknown>).conversationId as string | undefined;
 
   if (Array.isArray(post.attachments)) {
     for (const a of post.attachments as Array<Record<string, unknown>>) {
-      // Guesty Open API uses `attachmentUrl` (relative storage path) +
-      // `type` (file extension like 'png', 'jpeg'). Some payloads also
-      // carry `url` or `downloadUrl` as absolute URLs — try those first.
       const directUrl = typeof a.url === 'string' ? a.url
         : typeof a.downloadUrl === 'string' ? a.downloadUrl
         : null;
       const relUrl = typeof a.attachmentUrl === 'string' ? a.attachmentUrl : null;
-      const url = directUrl || absoluteAttachmentUrl(relUrl);
+      const attachmentId = typeof a._id === 'string' ? a._id
+        : typeof a.id === 'string' ? a.id
+        : undefined;
+      const url = directUrl || absoluteAttachmentUrl(relUrl, { attachmentId, postId, conversationId });
       if (!url) continue;
 
       const ext = typeof a.type === 'string' ? a.type : '';

@@ -20,15 +20,9 @@ export const maxDuration = 30;
 // Security: requires communication:read perm on the calling user, and
 // the path is validated to ensure it's a Guesty storage path (no SSRF).
 
-const ALLOWED_HOSTS = [
-  'https://assets.guesty.com',
-  'https://app-public-cdn.guesty.com',
-  'https://public-cdn.guesty.com',
-  'https://cdn.guesty.com',
-  'https://media.guesty.com',
-];
-
 const PATH_PATTERN = /^[a-zA-Z0-9_./-]+$/;
+const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const API_BASE = 'https://open-api.guesty.com/v1';
 
 const EXT_TO_MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
@@ -59,9 +53,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'invalid_path' }, { status: 400 });
   }
 
-  // Try each candidate host in order until one returns 2xx.
-  // First success is cached implicitly by the Lambda warm container
-  // (no module-scope cache here because failures should re-probe quickly).
+  const attachmentId = req.nextUrl.searchParams.get('attachmentId');
+  const postId = req.nextUrl.searchParams.get('postId');
+  const conversationId = req.nextUrl.searchParams.get('conversationId');
+  // Validate IDs against pattern (Mongo ObjectIds are alnum, but UUIDs use hyphens)
+  for (const id of [attachmentId, postId, conversationId]) {
+    if (id && !ID_PATTERN.test(id)) {
+      return NextResponse.json({ ok: false, error: 'invalid_id' }, { status: 400 });
+    }
+  }
+
   let token: string;
   try {
     token = await getAccessToken();
@@ -73,53 +74,113 @@ export async function GET(req: NextRequest) {
   }
 
   const cleanPath = path.replace(/^\/+/, '');
-  let lastStatus = 0;
-  let lastBody: string | null = null;
 
-  for (const host of ALLOWED_HOSTS) {
-    const url = `${host}/${cleanPath}`;
+  // Build the candidate URL list. Most-likely-to-work first.
+  // Guesty Open API is at open-api.guesty.com; assets.guesty.com is the
+  // CDN that 400s on direct GETs. The API endpoints might either return
+  // the binary directly or a 302 redirect to a signed URL.
+  type Candidate = { url: string; auth: 'bearer' | 'none'; label: string };
+  const candidates: Candidate[] = [];
+  if (conversationId && postId && attachmentId) {
+    candidates.push({
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}`,
+      auth: 'bearer',
+      label: 'api-conv-post-att',
+    });
+    candidates.push({
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}/download`,
+      auth: 'bearer',
+      label: 'api-conv-post-att-download',
+    });
+  }
+  if (attachmentId) {
+    candidates.push({
+      url: `${API_BASE}/communication/attachments/${attachmentId}`,
+      auth: 'bearer',
+      label: 'api-attachments-id',
+    });
+    candidates.push({
+      url: `${API_BASE}/attachments/${attachmentId}`,
+      auth: 'bearer',
+      label: 'api-attachments-id-bare',
+    });
+  }
+  // Path-based fallbacks
+  candidates.push({ url: `${API_BASE}/${cleanPath}`, auth: 'bearer', label: 'api-path' });
+  candidates.push({ url: `https://assets.guesty.com/${cleanPath}`, auth: 'none', label: 'cdn-assets-noauth' });
+  candidates.push({ url: `https://assets.guesty.com/${cleanPath}`, auth: 'bearer', label: 'cdn-assets-bearer' });
+  candidates.push({ url: `https://app-public-cdn.guesty.com/${cleanPath}`, auth: 'none', label: 'cdn-public-noauth' });
+
+  const failures: Array<{ label: string; url: string; status: number; body: string | null }> = [];
+
+  for (const cand of candidates) {
     try {
-      const upstream = await fetch(url, {
+      const headers: Record<string, string> = { accept: '*/*' };
+      if (cand.auth === 'bearer') headers.authorization = `Bearer ${token}`;
+      const upstream = await fetch(cand.url, {
         method: 'GET',
-        headers: {
-          authorization: `Bearer ${token}`,
-          // Some Guesty CDN paths gate on Origin/Referer
-          accept: '*/*',
-        },
+        headers,
+        redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
       });
       if (upstream.ok && upstream.body) {
-        // Stream the binary back. Content-Type from upstream if present,
-        // else infer from path extension.
-        const contentType = upstream.headers.get('content-type') || mimeFromPath(cleanPath);
+        const upContentType = upstream.headers.get('content-type') || '';
+        // If the API returned JSON instead of binary, that's likely a
+        // signed-URL response or an error — don't pipe JSON to <img>.
+        if (upContentType.includes('application/json')) {
+          const text = await upstream.text();
+          // Try to extract a download URL from the JSON
+          try {
+            const j = JSON.parse(text) as Record<string, unknown>;
+            const signedUrl = (j.url || j.downloadUrl || j.signedUrl || (j.data as Record<string, unknown> | undefined)?.url) as string | undefined;
+            if (typeof signedUrl === 'string' && signedUrl.startsWith('http')) {
+              // Server-side fetch the signed URL and stream that back
+              const signed = await fetch(signedUrl, { method: 'GET', signal: AbortSignal.timeout(15_000) });
+              if (signed.ok && signed.body) {
+                const signedCt = signed.headers.get('content-type') || mimeFromPath(cleanPath);
+                return new Response(signed.body, {
+                  status: 200,
+                  headers: {
+                    'content-type': signedCt,
+                    'cache-control': 'private, max-age=3600',
+                  },
+                });
+              }
+            }
+          } catch {
+            // not JSON; fall through to failure
+          }
+          failures.push({ label: cand.label, url: cand.url, status: upstream.status, body: text.slice(0, 200) });
+          continue;
+        }
+
+        const contentType = upContentType || mimeFromPath(cleanPath);
         const contentLength = upstream.headers.get('content-length');
-        const headers: Record<string, string> = {
+        const respHeaders: Record<string, string> = {
           'content-type': contentType,
-          // 1h client cache; per-Lambda re-fetch is cheap
           'cache-control': 'private, max-age=3600',
         };
-        if (contentLength) headers['content-length'] = contentLength;
-        return new Response(upstream.body, { status: 200, headers });
+        if (contentLength) respHeaders['content-length'] = contentLength;
+        return new Response(upstream.body, { status: 200, headers: respHeaders });
       }
-      lastStatus = upstream.status;
-      // Capture a small snippet of the error body for debugging
-      try {
-        const text = await upstream.text();
-        lastBody = text.slice(0, 200);
-      } catch {
-        // ignore
-      }
+      let body: string | null = null;
+      try { body = (await upstream.text()).slice(0, 200); } catch { /* ignore */ }
+      failures.push({ label: cand.label, url: cand.url, status: upstream.status, body });
     } catch (e) {
-      lastBody = e instanceof Error ? e.message : 'fetch_failed';
+      failures.push({
+        label: cand.label,
+        url: cand.url,
+        status: 0,
+        body: e instanceof Error ? e.message : 'fetch_failed',
+      });
     }
   }
 
   return NextResponse.json(
     {
       ok: false,
-      error: 'all_hosts_failed',
-      last_status: lastStatus,
-      last_body: lastBody,
+      error: 'all_candidates_failed',
+      attempts: failures,
       path: cleanPath,
     },
     { status: 502 },
