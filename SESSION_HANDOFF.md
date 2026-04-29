@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Iterating Guesty attachment proxy; assets.guesty.com 400's empty, all API endpoints 404
+## ✅ Latest turn — Estimator lines click-through to Amazon EG (buy-now affordance)
+
+User saw every Source cell rendered as "No source" plain text and asked: "Want to be able to click and go to the source of the item to buy". Direct interpretation: rows must always be clickable to a buy page, not only when the canonical Amazon EG URL is set.
+
+**Fix shipped (commit d67fa5f, deployed dpl_41ni1674fZ5L1T7bWXpZNCd5YY9w):**
+- New helper `buildAmazonSearchUrl(itemNameEn)` → `https://www.amazon.eg/s?k=<encoded item_name_en>`
+- Item-name + SKU cell now wrapped in `<a target="_blank">` linking to `amazon_eg_url ?? buildAmazonSearchUrl(item_name_en)`. Hover emeralds the SKU and underlines the name so the affordance is visible.
+- Source cell: when URL is set → existing "Amazon EG" badge with status tone (unchanged). When URL is missing → replaces the dead "No source" text with a clickable "Search Amazon EG" pill (Search icon from lucide-react) firing the same fallback URL.
+- Both anchors carry `rel="noreferrer noopener"` and a `title` tooltip indicating whether they go direct or fall through to search.
+
+**Why search-fallback instead of a sourcing workflow:** Amazon EG sourcing was supposed to populate `amazon_eg_url` per item via M.15.2 ingest, but the current data shows every item with `amazon_eg_url=null`. Proper fix is (a) run that ingest, then (b) build a per-line "Choose Amazon match" UI for items that fail to auto-source. Until that's productized, the search link is the lowest-effort way to deliver the click-to-buy the user asked for.
+
+**Earlier this turn — fixed the Edit-button 404 (commit 79e7483):**
+- Created `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` (the dynamic route was missing → every Edit click 404'd)
+- Server-rendered breakdown via `computeEstimatorOutput`: header (config name, tier badge, BR/BA/guests, total/per-checkin/per-guest), 6 group-total cards, per-group line tables (formula, base/computed/effective qty, loss %, unit cost, line total, source, rule scope chip), help banner pointing at the rules page for actual edits
+
+**Risk for next iteration:**
+- Search URL uses raw `item_name_en` — items like "Bleach 1L" or "Conditioner bottle 30ml" may rank loosely. If poor matches: strip trailing size suffixes (`\s+\d+(\.\d+)?\s*(ml|l|g|kg|oz|pack|count|ct)$`) before encoding, or send category code as a secondary keyword.
+- `RuleFormButton` doesn't expose a `unit_config` scope_value picker, so the help banner asks users to copy a UUID into a free-form field. Cleanest fix: detail page gets an "Add config-specific rule" button that opens the form pre-filled with `scope=unit_config` + `scope_value=<configId>` locked.
+
+## 🟡 Earlier turn — Iterating Guesty attachment proxy; assets.guesty.com 400's empty, all API endpoints 404
 
 User confirmed real photo uploads (not just structured cards) appear in Guesty UI but didn't render in our app. Iteration chain:
 
