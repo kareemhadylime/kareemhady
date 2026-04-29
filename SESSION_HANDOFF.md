@@ -1,6 +1,29 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Estimator lines click-through to Amazon EG (buy-now affordance)
+## 🔴 Latest turn — Guesty attachment proxy: 11 Open-API candidates all 4xx; 4 internal-app candidates added + graceful UI fallback shipped
+
+User confirmed real-photo placeholders STILL fail after the POST-signing iteration. Final diagnostic:
+
+- 6 POST signing endpoints (`/v1/communication/attachments/{id}/sign` etc.) → 404 (don't exist on Open API)
+- 4 GET endpoint variants → 404 or 400 validation errors
+- s3-direct → 403 AccessDenied (bucket private, signed URLs required)
+
+**Definitive conclusion: Guesty's Open API does NOT expose attachment signing.** The signed URLs we observed in the user's browser are minted by Guesty's INTERNAL admin app at `app.guesty.com`, not their integration API. The 4 attempts that returned `Cannot POST /api/v2/...` HTML pages confirm those routes don't exist on Guesty's Express server either.
+
+**Side bug fixed during the iteration:** my POST-signing + V3-fix commits (986ddc26, 60be4e9) were never pushed to `origin/main` because a sibling worktree's commits diverged the branch. `vercel --prod` was deploying my code to the worktree-specific Vercel project (`optimistic-brown-e4d920`), not to `limeinc.vercel.app` which auto-deploys from `main` via GitHub. Resolved by `git merge origin/main`, accepting their SESSION_HANDOFF, then pushing the merged head as `a92562a`. Limeinc auto-deploy now has all my commits.
+
+**This-turn shipped:**
+1. **4 last-ditch internal-app candidates** — `https://app.guesty.com/api/v2/communication/conversations/{cId}/posts/{pId}/attachments/{aId}` and 3 sign/url/post variants. Bearer token probably won't authenticate (their UI uses session cookies) but worth one attempt.
+2. **`<ImageWithFallback>` client component** — replaces direct `<img src=proxyURL>` rendering:
+   - Fetches the proxy URL via JS on mount, checks status
+   - 2xx → blob URL + renders inline
+   - Non-2xx → amber explanation card: "Couldn't load original media · Guesty stores guest-uploaded photos on a private CDN with short-lived signed URLs that their integration API doesn't expose to third parties. To view this photo, open the conversation in Guesty's web app where the URL is signed by their UI on demand."
+   - During fetch → spinner with filename
+   - Eliminates broken-image-icon UX
+
+**Where this leaves us:** if Guesty ever ships attachment signing in their Open API, we add one candidate to the proxy and it lights up. Until then, agents see honest copy explaining the limit. The placeholder still fires only on Airbnb/Booking empty messages (heuristic tightened earlier this session).
+
+## ✅ Earlier turn — Estimator lines click-through to Amazon EG (buy-now affordance)
 
 User saw every Source cell rendered as "No source" plain text and asked: "Want to be able to click and go to the source of the item to buy". Direct interpretation: rows must always be clickable to a buy page, not only when the canonical Amazon EG URL is set.
 
