@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Fixed "t is not iterable" runtime error in V3 media loader (wrong response field)
+## ✅ Latest turn — Investigation complete: channel-native structured cards aren't recoverable; clearer empty-state shipped
+
+User compared our placeholder ("Guesty returned this post with no media") to the Guesty UI showing the actual flight-info card. Investigated by inspecting `guesty_conversation_posts.raw` directly:
+
+**Hard finding — this is a Guesty platform limit, not our code:**
+- Webhook delivers `body=""`, `postId=""`, empty thread entry for these messages
+- V3 server-side fetch (Guesty Open API) returns the same empty post — verified
+- Structured-card content (Airbnb flight-info / verification request / co-traveller card; Booking.com event notifications) is rendered **only in Guesty's UI layer** and never exposed to API consumers
+- No workaround possible from our side without Airbnb/Booking direct API integration (out of scope)
+
+**Better empty-state copy shipped:**
+- Module-aware title: "Airbnb-native structured card" / "Booking.com structured event" / "Channel-native structured message"
+- Body explains why Guesty's API can't deliver the content
+- Workaround line: "view this thread on the original channel hosting dashboard, where the card renders natively"
+- 1 commit + deploy in background
+
+So when V3 successfully resolves a regular guest photo / file / audio, it renders inline as expected. When it hits an Airbnb/Booking structured card (which is the case the user just saw), the placeholder now explains the limit honestly instead of saying "no media or content".
+
+## ✅ Earlier turn — Fixed "t is not iterable" runtime error in V3 media loader (wrong response field)
 
 User clicked the placeholder and got "Failed to load original — t is not iterable". Root cause: my V3 API route was reading `data.results` from the Guesty Open API response, but the actual field per the type definition (`src/lib/guesty.ts:427-433`) is `data.posts`. The fallback then cast the entire response object to `GuestyPost[]`, so `for (const p of posts)` threw "t is not iterable" in minified prod code.
 
