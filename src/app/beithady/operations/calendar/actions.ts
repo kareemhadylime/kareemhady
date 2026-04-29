@@ -220,18 +220,54 @@ export async function sendReconfirmationAction(input: {
     .maybeSingle();
   if (!r) return { ok: false, error: 'Reservation not found' };
   const row = r as { listing_nickname: string | null; guest_name: string | null; guest_phone: string | null; check_in_date: string; check_out_date: string; nights: number | null };
-  if (!row.guest_phone) {
-    return { ok: false, error: 'No guest phone number on file' };
-  }
-  const phone = row.guest_phone.replace(/[^\d]/g, '');
 
   const greet = row.guest_name ? `Hi ${row.guest_name}` : 'Hello';
   const unit = row.listing_nickname ? ` at ${row.listing_nickname}` : '';
   const message = input.customMessage
     || `${greet}! Just confirming your upcoming stay${unit} from ${row.check_in_date} to ${row.check_out_date} (${row.nights} night${row.nights === 1 ? '' : 's'}). Reply YES to confirm, or message us if any of your plans have changed. — Beit Hady`;
 
-  const result = await sendWhatsApp({ to: phone, message });
-  if (!result.ok) return { ok: false, error: result.error };
+  // Phase C.5 — improvement #9: fallback to email-via-Guesty when phone
+  // is missing AND BEITHADY_CANCEL_FALLBACK=true. Default off (R10) so
+  // existing behavior is preserved until the env flag is flipped.
+  const fallbackEnabled = process.env.BEITHADY_CANCEL_FALLBACK === 'true';
+  const phone = row.guest_phone ? row.guest_phone.replace(/[^\d]/g, '') : null;
+
+  let usedFallback = false;
+  let viaChannel: 'wa_casual' | 'guesty_email' = 'wa_casual';
+
+  if (phone) {
+    const result = await sendWhatsApp({ to: phone, message });
+    if (!result.ok) return { ok: false, error: result.error };
+  } else if (fallbackEnabled) {
+    // Look up an active Guesty conversation linked to this reservation
+    // (or matching the guest_id) so we can inject a module=email post.
+    const { data: convRow } = await sb
+      .from('beithady_conversations')
+      .select('id, channel, guest_email')
+      .eq('reservation_id', input.reservationId)
+      .eq('channel', 'guesty')
+      .is('archived_at', null)
+      .order('last_inbound_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (!convRow || !(convRow as { guest_email: string | null }).guest_email) {
+      return { ok: false, error: 'No phone and no email-capable Guesty conversation on file' };
+    }
+    const conv = convRow as { id: string };
+    const { sendGuestyMessage } = await import('@/lib/beithady/communication/send-guesty');
+    const fb = await sendGuestyMessage({
+      beithadyConversationId: conv.id,
+      body: message,
+      module: 'email',
+      subject: `Re-confirming your stay${unit ? ` at${unit}` : ''}`,
+      agentUserId: user.id,
+    });
+    if (!fb.ok) return { ok: false, error: `email_fallback_failed: ${fb.error}` };
+    usedFallback = true;
+    viaChannel = 'guesty_email';
+  } else {
+    return { ok: false, error: 'No guest phone number on file' };
+  }
 
   await sb
     .from('beithady_reservation_overrides')
@@ -244,7 +280,9 @@ export async function sendReconfirmationAction(input: {
     }, { onConflict: 'reservation_id' });
 
   await writeAudit(user.id, 'reconfirmation.send', input.reservationId, null, {
-    phone,
+    via: viaChannel,
+    used_fallback: usedFallback,
+    phone: phone || null,
     message_preview: message.slice(0, 80),
   });
 

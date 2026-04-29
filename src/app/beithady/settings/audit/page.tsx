@@ -18,16 +18,26 @@ const MODULE_BADGES: Record<string, string> = {
 export default async function BeithadyAuditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ module?: string; limit?: string }>;
+  searchParams: Promise<{ module?: string; action?: string; limit?: string }>;
 }) {
   await requireBeithadyPermission('settings', 'read');
   const sp = await searchParams;
   const mod = sp.module && ['foundation','crm','communication','gallery','ads','settings'].includes(sp.module)
     ? (sp.module as 'foundation' | 'crm' | 'communication' | 'gallery' | 'ads' | 'settings')
     : undefined;
+  // Phase C.5 — action filter for surfacing channel-switcher events.
+  const ACTION_OPTIONS = [
+    'channel_switched',
+    'channel_switch_blocked',
+    'channel_switch_send_failed',
+    'channel_backup_sent',
+    'channel_backup_failed',
+    'channel_backup_unresolvable',
+  ];
+  const actionFilter = sp.action && ACTION_OPTIONS.includes(sp.action) ? sp.action : undefined;
   const limit = Math.min(500, Math.max(20, Number(sp.limit) || 100));
 
-  const rows = await queryAudit({ module: mod, limit });
+  const rows = await queryAudit({ module: mod, action: actionFilter, limit });
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -50,6 +60,20 @@ export default async function BeithadyAuditPage({
                 <option value="communication">communication</option>
                 <option value="gallery">gallery</option>
                 <option value="ads">ads</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1" title="Filter by exact audit action — useful for tracking channel-switcher events.">
+              Action
+              <select name="action" defaultValue={actionFilter || ''} className="ix-input text-xs">
+                <option value="">All</option>
+                <optgroup label="Channel switcher (Phase C.5)">
+                  <option value="channel_switched">channel_switched</option>
+                  <option value="channel_switch_blocked">channel_switch_blocked</option>
+                  <option value="channel_switch_send_failed">channel_switch_send_failed</option>
+                  <option value="channel_backup_sent">channel_backup_sent</option>
+                  <option value="channel_backup_failed">channel_backup_failed</option>
+                  <option value="channel_backup_unresolvable">channel_backup_unresolvable</option>
+                </optgroup>
               </select>
             </label>
             <label className="flex items-center gap-1">

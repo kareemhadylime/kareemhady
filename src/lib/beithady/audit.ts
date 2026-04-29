@@ -47,6 +47,10 @@ export async function recordAudit(entry: AuditEntry): Promise<void> {
 
 export type AuditQueryOpts = {
   module?: AuditModule;
+  // Phase C.5 — exact-action filter (e.g., 'channel_switched',
+  // 'channel_switch_blocked', 'channel_backup_sent') so the audit page
+  // can narrow to switcher-related rows.
+  action?: string;
   actorUserId?: string;
   targetType?: string;
   targetId?: string;
@@ -76,6 +80,7 @@ export async function queryAudit(opts: AuditQueryOpts = {}): Promise<AuditRow[]>
     .order('created_at', { ascending: false })
     .limit(opts.limit ?? 100);
   if (opts.module) q = q.eq('module', opts.module);
+  if (opts.action) q = q.eq('action', opts.action);
   if (opts.actorUserId) q = q.eq('actor_user_id', opts.actorUserId);
   if (opts.targetType) q = q.eq('target_type', opts.targetType);
   if (opts.targetId) q = q.eq('target_id', opts.targetId);
