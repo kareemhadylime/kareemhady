@@ -14,6 +14,7 @@ import { ArchivedBanner } from './archived-banner';
 import { AutoScrollThread } from './auto-scroll-thread';
 import { InternalNotesPanel } from './internal-notes-panel';
 import { ResolveButton } from './resolve-button';
+import { MediaPlaceholder } from './media-placeholder';
 import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 export type ThreadComposerHints = {
@@ -271,16 +272,15 @@ function hasNoLocalAttachments(attachments: unknown): boolean {
 
 function Bubble({
   m,
-  guestyExternalId: _guestyExternalId,
-  guestPhone,
-  guestName,
-  guestEmail,
+  guestyExternalId,
 }: {
   m: ThreadBundle['messages'][number];
   guestyExternalId: string | null;
-  guestPhone: string | null;
-  guestName: string | null;
-  guestEmail: string | null;
+  // Kept on the prop signature (legacy) — no longer used since the
+  // placeholder fetches via Guesty Open API instead of deep-linking.
+  guestPhone?: string | null;
+  guestName?: string | null;
+  guestEmail?: string | null;
 }) {
   const inbound = m.direction === 'inbound';
   const tone = inbound
@@ -292,20 +292,16 @@ function Bubble({
   // Phase Q.4 follow-up — placeholder for media/rich-card messages whose
   // body Guesty doesn't deliver via webhook.
   //
-  // V1 used a direct /inbox/<conversation_id> link, but Guesty 403s on
-  // those for many user roles ("You don't have access to this page").
-  // Switched to a search-by-phone/name URL — same pattern as the
-  // NoReservationFallback component — which works in any logged-in
-  // Guesty session that has read access to the conversation at all.
+  // V1 used /inbox/<conversation_id> deep-link → Guesty 403'd
+  // V2 used /inbox?search=<phone> → Guesty also 403'd for restricted roles
+  // V3 (this) — fetches the original post + attachments from Guesty Open
+  // API server-side via our service-account token. Bypasses the user's
+  // Guesty UI permissions entirely. Renders the actual image inline.
   const moduleKey = (m.module_type || '').toLowerCase();
   const looksLikeMedia =
     bodyIsEffectivelyEmpty(m.body) &&
     hasNoLocalAttachments(m.attachments) &&
     MEDIA_LIKELY_MODULES.has(moduleKey);
-  const searchTerm = guestPhone || guestEmail || guestName;
-  const guestyDeepLink = searchTerm
-    ? `https://app.guesty.com/inbox?search=${encodeURIComponent(searchTerm)}`
-    : 'https://app.guesty.com/inbox';
 
   return (
     <div data-thread-msg-id={m.id} className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
@@ -331,7 +327,8 @@ function Bubble({
         <Attachments attachments={m.attachments} inbound={inbound} />
         {looksLikeMedia ? (
           <MediaPlaceholder
-            href={guestyDeepLink}
+            conversationId={guestyExternalId}
+            sentAt={m.sent_at || m.created_at}
             inbound={inbound}
             moduleKey={moduleKey}
           />
@@ -348,61 +345,6 @@ function Bubble({
   );
 }
 
-function MediaPlaceholder({
-  href,
-  inbound,
-  moduleKey,
-}: {
-  href: string | null;
-  inbound: boolean;
-  moduleKey: string;
-}) {
-  const isAirbnb = /airbnb/i.test(moduleKey);
-  const isBooking = /booking/i.test(moduleKey);
-  const label = isAirbnb
-    ? 'Airbnb media or rich card'
-    : isBooking
-      ? 'Booking.com media or rich card'
-      : 'Media message';
-  const sub = 'Body not delivered by webhook · click to view original';
-  const Inner = (
-    <div className={`rounded-lg border-2 border-dashed px-3 py-2.5 flex items-start gap-2 ${
-      inbound
-        ? 'border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/40'
-        : 'border-slate-400/50 bg-slate-600/40'
-    }`}>
-      <div className={`shrink-0 mt-0.5 ${inbound ? 'text-slate-500' : 'text-slate-300'}`}>
-        {isAirbnb || isBooking ? <ImageIcon size={16} /> : <FileQuestion size={16} />}
-      </div>
-      <div className="text-sm flex-1 min-w-0">
-        <div className={`font-medium ${inbound ? 'text-slate-700 dark:text-slate-200' : 'text-white'}`}>
-          {label}
-        </div>
-        <div className={`text-[11px] mt-0.5 ${inbound ? 'text-slate-500' : 'text-slate-300'}`}>
-          {sub}
-        </div>
-      </div>
-      {href && (
-        <ExternalLink
-          size={13}
-          className={`shrink-0 mt-1 ${inbound ? 'text-slate-400' : 'text-slate-300'}`}
-        />
-      )}
-    </div>
-  );
-  if (!href) return Inner;
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block hover:opacity-90 transition cursor-pointer"
-      title="Search this guest in Guesty inbox to view the original media"
-    >
-      {Inner}
-    </a>
-  );
-}
 
 function Attachments({ attachments, inbound }: { attachments: unknown; inbound: boolean }) {
   if (!attachments || !Array.isArray(attachments) || attachments.length === 0) return null;
