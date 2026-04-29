@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Search, AlertTriangle, Mail } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { listActiveTemplates, getListingSecrets } from '@/lib/beithady/communication/templates';
+import { buildContextFromHeader } from '@/lib/beithady/communication/templates-shared';
 import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { ChannelTabs } from '../_components/channel-tabs';
@@ -68,13 +70,27 @@ export default async function GuestyInboxPage({
   const sp = await searchParams;
   const filter = parseFilter(sp);
 
-  const [inbox, stats, thread, pendingSuggestion, archiveCount] = await Promise.all([
+  const [inbox, stats, thread, pendingSuggestion, archiveCount, templates] = await Promise.all([
     listInbox({ filter, page: 1, pageSize: 50 }),
     getInboxStats('guesty'),
     sp.c ? loadThread(sp.c) : Promise.resolve(null),
     sp.c ? getPendingSuggestion(sp.c) : Promise.resolve(null),
     getArchiveTotalCount('guesty'),
+    listActiveTemplates(),
   ]);
+
+  let templateContext = undefined;
+  if (thread) {
+    const secrets = await getListingSecrets(thread.header.listing_id);
+    templateContext = buildContextFromHeader(
+      {
+        guest_full_name: thread.header.guest_full_name,
+        listing_nickname: thread.header.listing_nickname,
+        building_code: thread.header.building_code,
+      },
+      { reservation: thread.reservation, secrets },
+    );
+  }
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -163,6 +179,8 @@ export default async function GuestyInboxPage({
               sent: sp.sent === '1',
             }}
             pendingSuggestion={pendingSuggestion}
+            templates={templates}
+            templateContext={templateContext}
           />
         }
       />

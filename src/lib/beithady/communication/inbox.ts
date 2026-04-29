@@ -182,6 +182,7 @@ export type ThreadHeader = InboxRow & {
   ai_kill_switch: boolean;
   reservation_id: string | null;
   archived_by_user_id: string | null;
+  listing_id: string | null;
 };
 
 // Q.1 — reservation summary attached to the thread bundle. Computed via

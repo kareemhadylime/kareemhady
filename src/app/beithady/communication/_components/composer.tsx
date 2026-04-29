@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { Send, ExternalLink, AlertTriangle, Sparkles, AtSign, MessageCircle, Phone } from 'lucide-react';
+import { Send, ExternalLink, AlertTriangle, Sparkles, AtSign, MessageCircle, Phone, AlertCircle } from 'lucide-react';
 import { sendGuestyMessageAction } from '../actions';
+import { TemplatePicker } from './template-picker';
+import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 // Reply composer for Guesty conversations. Text-only for Phase C.2;
 // attachments + voice land in C.3. Submits via the server action which
@@ -22,6 +24,8 @@ export function GuestyComposer({
   initialFallbackUrl,
   initialSent,
   channelSource,
+  templates,
+  templateContext,
 }: {
   conversationId: string;
   guestyExternalId: string;
@@ -35,6 +39,8 @@ export function GuestyComposer({
    *  Used to gate which module-hint chips are shown — e.g. Airbnb / Booking
    *  conversations have no SMS module so we hide that chip. */
   channelSource?: string | null;
+  templates?: Template[];
+  templateContext?: TemplateContext;
 }) {
   const src = (channelSource || '').toLowerCase();
   // SMS module hint is irrelevant on Airbnb / Booking / WhatsApp threads —
@@ -43,11 +49,13 @@ export function GuestyComposer({
   const [body, setBody] = useState('');
   const [moduleHint, setModuleHint] = useState<ChannelHint>(defaultModule);
   const [submitting, setSubmitting] = useState(false);
+  const [unresolvedVars, setUnresolvedVars] = useState<string[]>([]);
 
   const remaining = MAX_LEN - body.length;
   const tooLong = remaining < 0;
   const hasError = !!initialError;
   const showSent = initialSent && !hasError;
+  const blockSendForUnresolved = unresolvedVars.length > 0 && body.includes('{');
 
   return (
     <form
@@ -130,7 +138,30 @@ export function GuestyComposer({
         required
       />
 
+      {blockSendForUnresolved && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-2 text-xs text-amber-700 dark:text-amber-200 flex items-start gap-2">
+          <AlertCircle size={12} className="mt-0.5 shrink-0" />
+          <div>
+            Resolve template variables first: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{unresolvedVars.map(v => `{${v}}`).join(' ')}</code>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {templates && templates.length > 0 && templateContext && (
+            <TemplatePicker
+              templates={templates}
+              channel="guesty"
+              source={channelSource || null}
+              context={templateContext}
+              onInsert={(text, unresolved) => {
+                setBody(text);
+                setUnresolvedVars(unresolved);
+              }}
+            />
+          )}
+        </div>
         <div className="text-xs flex items-center gap-3">
           <span className={tooLong ? 'text-rose-600 font-semibold' : 'text-slate-500'}>
             {remaining.toLocaleString()} chars left
@@ -146,7 +177,7 @@ export function GuestyComposer({
         </div>
         <button
           type="submit"
-          disabled={!body.trim() || tooLong || submitting}
+          disabled={!body.trim() || tooLong || submitting || blockSendForUnresolved}
           className="ix-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send size={14} />

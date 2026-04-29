@@ -12,6 +12,7 @@ import { GuestHistoryBadge } from './guest-history-badge';
 import { NoReservationFallback } from './no-reservation-fallback';
 import { ArchivedBanner } from './archived-banner';
 import { AutoScrollThread } from './auto-scroll-thread';
+import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 export type ThreadComposerHints = {
   send_error?: string;
@@ -24,10 +25,14 @@ export function ThreadPane({
   bundle,
   composerHints,
   pendingSuggestion,
+  templates,
+  templateContext,
 }: {
   bundle: ThreadBundle | null;
   composerHints?: ThreadComposerHints;
   pendingSuggestion?: Suggestion | null;
+  templates?: Template[];
+  templateContext?: TemplateContext;
 }) {
   if (!bundle) {
     return (
@@ -94,6 +99,8 @@ export function ThreadPane({
                 initialFallbackUrl={composerHints?.fallback_url}
                 initialSent={composerHints?.sent}
                 channelSource={header.source || null}
+                templates={templates}
+                templateContext={templateContext}
               />
             ) : header.channel === 'wa_casual' ? (
               <WaCasualComposer
@@ -101,6 +108,8 @@ export function ThreadPane({
                 killSwitchOn={!!header.ai_kill_switch}
                 initialError={composerHints?.send_error}
                 initialSent={composerHints?.sent}
+                templates={templates}
+                templateContext={templateContext}
               />
             ) : (
               <ComposerStub channel={header.channel} guestyExternalId={header.external_id} />

@@ -1,8 +1,10 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { Send, Paperclip, AlertTriangle, Sparkles, Loader2 } from 'lucide-react';
+import { Send, Paperclip, AlertTriangle, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { sendWaCasualMessageAction, sendWaCasualVoiceAction } from '../actions';
 import { VoiceRecorder } from './voice-recorder';
+import { TemplatePicker } from './template-picker';
+import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
 const MAX_LEN = 4000;
 
@@ -11,17 +13,23 @@ export function WaCasualComposer({
   killSwitchOn,
   initialError,
   initialSent,
+  templates,
+  templateContext,
 }: {
   conversationId: string;
   killSwitchOn: boolean;
   initialError?: string;
   initialSent?: boolean;
+  templates?: Template[];
+  templateContext?: TemplateContext;
 }) {
   const [body, setBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [voiceSending, setVoiceSending] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [unresolvedVars, setUnresolvedVars] = useState<string[]>([]);
   const [, startTransition] = useTransition();
+  const blockSendForUnresolved = unresolvedVars.length > 0 && body.includes('{');
   const remaining = MAX_LEN - body.length;
   const tooLong = remaining < 0;
   const hasError = !!initialError;
@@ -90,6 +98,14 @@ export function WaCasualComposer({
           className="ix-input w-full resize-y"
           maxLength={MAX_LEN + 200}
         />
+        {blockSendForUnresolved && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-2 text-xs text-amber-700 dark:text-amber-200 flex items-start gap-2">
+            <AlertCircle size={12} className="mt-0.5 shrink-0" />
+            <div>
+              Resolve template variables first: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{unresolvedVars.map(v => `{${v}}`).join(' ')}</code>
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <VoiceRecorder onSend={onVoiceSend} disabled={voiceSending} />
@@ -99,6 +115,18 @@ export function WaCasualComposer({
               </span>
             )}
             <FileAttachButton conversationId={conversationId} disabled={submitting} />
+            {templates && templates.length > 0 && templateContext && (
+              <TemplatePicker
+                templates={templates}
+                channel="wa_casual"
+                source={null}
+                context={templateContext}
+                onInsert={(text, unresolved) => {
+                  setBody(text);
+                  setUnresolvedVars(unresolved);
+                }}
+              />
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className={`text-xs ${tooLong ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
@@ -106,7 +134,7 @@ export function WaCasualComposer({
             </span>
             <button
               type="submit"
-              disabled={!body.trim() || tooLong || submitting}
+              disabled={!body.trim() || tooLong || submitting || blockSendForUnresolved}
               className="ix-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={14} />
