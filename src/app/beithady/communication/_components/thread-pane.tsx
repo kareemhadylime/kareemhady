@@ -250,13 +250,13 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
   );
 }
 
-// Channels that frequently send rich-card / image / location / file messages
-// where Guesty's webhook delivers `body: ""` because the content lives only
-// on the channel's CDN (Airbnb/Booking/etc.), not in our DB. We render a
-// clickable placeholder that deep-links to Guesty's inbox UI for the
-// original media.
+// Channels that send Airbnb/Booking-native structured cards or guest
+// photo uploads where Guesty's webhook delivers `body: ""`. We render a
+// clickable placeholder that probes Guesty's API on click. Tightened to
+// airbnb/booking only — empty WhatsApp/SMS/Email messages are typically
+// delivery receipts, not media-bearing.
 const MEDIA_LIKELY_MODULES = new Set([
-  'airbnb', 'airbnb2', 'bookingCom', 'booking.com', 'booking', 'whatsapp', 'sms', 'email',
+  'airbnb', 'airbnb2', 'bookingCom', 'booking.com', 'booking',
 ]);
 
 function bodyIsEffectivelyEmpty(body: string | null | undefined): boolean {

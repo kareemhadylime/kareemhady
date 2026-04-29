@@ -26,6 +26,10 @@ type FetchResult = {
     createdAt: string | null;
     attachments: FetchedAttachment[];
   };
+  // V3 sets note='no matching post...' when the click landed on a message
+  // whose timestamp doesn't match anything in Guesty's thread. In that case
+  // post.id will be null and attachments will be empty.
+  note?: string;
 } | {
   ok: false;
   error: string;
@@ -44,6 +48,7 @@ export function MediaPlaceholder({
 }) {
   const [state, setState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   const [data, setData] = useState<Extract<FetchResult, { ok: true }>['post'] | null>(null);
+  const [serverNote, setServerNote] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const isAirbnb = /airbnb/i.test(moduleKey);
@@ -72,6 +77,7 @@ export function MediaPlaceholder({
         return;
       }
       setData(json.post);
+      setServerNote(json.note || null);
       setState('loaded');
     } catch (e) {
       setState('error');
@@ -86,12 +92,14 @@ export function MediaPlaceholder({
     const others = data.attachments.filter(a => a.kind !== 'image' && a.kind !== 'audio');
 
     if (data.attachments.length === 0 && !data.bodyHtml && !data.body) {
-      // Guesty's webhook + Open API both return empty content for
-      // channel-native structured cards (Airbnb flight-info / verification /
-      // co-traveller cards, Booking.com event notifications, etc.). The
-      // structured payload lives only in Guesty's UI rendering layer and
-      // isn't exposed to API consumers. Surface what we DO know so the
-      // agent has actionable context.
+      // Either:
+      // (a) V3 returned post.id=null with note='no matching post...' —
+      //     this message has no Guesty-side post (likely a status-only
+      //     event the user clicked but there's nothing to load)
+      // (b) V3 found the post but it has no body/attachments — likely
+      //     an Airbnb structured card whose content lives only in
+      //     Guesty's UI rendering layer
+      const noPostMatch = data.id === null && !!serverNote;
       const isAirbnbCard = isAirbnb;
       const isBookingCard = isBooking;
       return (
@@ -101,22 +109,28 @@ export function MediaPlaceholder({
             : 'border-slate-400/50 bg-slate-600/40'
         }`}>
           <div className={`text-xs font-medium ${inbound ? 'text-slate-700 dark:text-slate-200' : 'text-white'}`}>
-            {isAirbnbCard
-              ? 'Airbnb-native structured card'
-              : isBookingCard
-                ? 'Booking.com structured event'
-                : 'Channel-native structured message'}
+            {noPostMatch
+              ? 'No media on this message'
+              : isAirbnbCard
+                ? 'Airbnb-native structured card'
+                : isBookingCard
+                  ? 'Booking.com structured event'
+                  : 'Channel-native structured message'}
           </div>
           <div className={`text-[11px] ${inbound ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300'}`}>
-            {isAirbnbCard
-              ? 'Likely a flight-info card, verification request, or co-traveller info. Airbnb embeds the content directly in their app — neither Guesty\'s webhook nor API exposes the rendered card to third parties.'
-              : isBookingCard
-                ? 'Likely a reservation event (modification, cancellation, cohort change). Booking.com embeds the content; the Guesty API only sees an empty shell.'
-                : 'The channel rendered structured content that Guesty\'s API doesn\'t expose.'}
+            {noPostMatch
+              ? 'This message has no corresponding post in Guesty\'s thread (typically a system event with no rendered body — read receipts, status flips, etc.). Nothing to load.'
+              : isAirbnbCard
+                ? 'Likely a flight-info card, verification request, or co-traveller info. Airbnb embeds the content directly in their app — neither Guesty\'s webhook nor API exposes the rendered card to third parties.'
+                : isBookingCard
+                  ? 'Likely a reservation event (modification, cancellation, cohort change). Booking.com embeds the content; the Guesty API only sees an empty shell.'
+                  : 'The channel rendered structured content that Guesty\'s API doesn\'t expose.'}
           </div>
-          <div className={`text-[11px] mt-1.5 ${inbound ? 'text-slate-400 dark:text-slate-500' : 'text-slate-300'}`}>
-            <span className="font-semibold">Workaround:</span> view this thread on the original {isAirbnbCard ? 'Airbnb' : isBookingCard ? 'Booking.com' : 'channel'} hosting dashboard, where the card renders natively.
-          </div>
+          {!noPostMatch && (
+            <div className={`text-[11px] mt-1.5 ${inbound ? 'text-slate-400 dark:text-slate-500' : 'text-slate-300'}`}>
+              <span className="font-semibold">Workaround:</span> view this thread on the original {isAirbnbCard ? 'Airbnb' : isBookingCard ? 'Booking.com' : 'channel'} hosting dashboard, where the card renders natively.
+            </div>
+          )}
         </div>
       );
     }

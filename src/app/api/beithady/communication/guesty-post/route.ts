@@ -186,12 +186,29 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    // No target match → just return the most recent post (still useful for
-    // viewing the latest media in the thread).
-    if (!target && posts.length > 0) target = posts[0];
 
+    // CRITICAL: do NOT fall back to posts[0] when no timestamp match was
+    // found. If the user clicked a placeholder on a message that has no
+    // counterpart post in Guesty's API (structured-card messages with
+    // empty postId), returning the most recent post would show wrong
+    // media — the user thinks they clicked an empty card and sees a
+    // photo from a totally unrelated message in the thread.
     if (!target) {
-      return NextResponse.json({ ok: false, error: 'no_posts_found' }, { status: 404 });
+      return NextResponse.json(
+        {
+          ok: true,
+          post: {
+            id: null,
+            body: '',
+            bodyHtml: null,
+            module: null,
+            type: null,
+            createdAt: sentAt,
+            attachments: [],
+          },
+          note: 'no matching post in Guesty thread for this timestamp',
+        },
+      );
     }
 
     const attachments = deriveAttachments(target);

@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — DevTools coaching round 2: photo URL still not captured, image cached (no code)
+## 🟡 Latest turn — Bucket confirmed (guesty-ugc.s3 STS pre-signed); POST signing endpoints deployed
+
+User pasted the actual photo URL via "Open image in new tab" trick:
+```
+https://guesty-ugc.s3.amazonaws.com/production/68342f589bf7f8c07ec2435c/jpeg/<hash>_<filename>.jpeg
+?AWSAccessKeyId=ASIAXGDPLVNEKRAHJ7WR
+&Expires=1777495845
+&Signature=<...>
+&x-amz-security-token=IQoJ<...>
+```
+
+**Critical confirmations:**
+- Bucket: `guesty-ugc` on `s3.amazonaws.com`
+- Path prefix: `production/<accountId>/<type>/<filename>`
+- Auth: AWS STS pre-signed URL (token starts with `IQoJ` = STS temporary credentials)
+- Verified directly via `curl -I` from this session: bucket returns **403 AccessDenied** without signature → bucket is private, must be signed
+- Signature `Expires` is short-lived (~5min) so we can't cache it
+
+**Proxy iteration deployed:**
+Previous round: 8 candidates, all 4xx. New round: 11 candidates including POST-based signing patterns (most likely to exist):
+1. `POST /v1/communication/attachments/{attId}/sign` body `{}`
+2. `GET /v1/communication/attachments/{attId}/url`
+3. `POST /v1/communication/conversations/{cId}/posts/{pId}/sign` body `{attachmentId, path}`
+4. `POST /v1/files/sign` body `{path}`
+5. `POST /v1/uploads/sign` body `{path}`
+6. `POST /v1/communication/files/sign` body `{path}`
+7-10. Previous GET endpoints (singular post, posts?expand=attachments, etc.)
+11. Direct S3 (will 403, useful for completeness)
+
+The Candidate type now has `method: 'GET' | 'POST'` and optional `body` field. Each request includes `Content-Type: application/json` for POSTs. Existing `findSignedUrl()` recursively walks the JSON response to extract the signed URL wherever Guesty buries it.
+
+**If all 11 fail**, next-round ask: user opens DevTools Network tab → finds the JSON XHR call that fires immediately before the `guesty-ugc.s3.amazonaws.com` request → pastes its URL+method+body. That JSON XHR is the call that mints the signed URL — once we know its endpoint, we lock in candidate #12 and ship.
+
+## 🟡 Earlier turn — DevTools coaching round 2: photo URL still not captured, image cached (no code)
 
 User opened Guesty Network tab + passport-photo popup. First attempt copied a Pendo telemetry pixel (`data.pendo.io/data/ptm.gif`) — wrong (1×1 tracking GIF, not the actual JPEG). Filtered to `jp` only showed 2 more Pendo `.gif` rows.
 
