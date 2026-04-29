@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## ✅ Latest turn — Media placeholder URL fixed: search-by-phone instead of direct conversation deep-link
+## ✅ Latest turn — Inline media loader (V3): bypasses Guesty UI permissions entirely
+
+User reported "Still same problem" with the search-by-phone URL — Guesty's UI was 403-ing on `/inbox?search=…` too for their restricted role. Both V1 (`/inbox/<conv_id>`) and V2 (`/inbox?search=`) deep-link approaches hit the same access wall.
+
+**V3 fix shipped:** stopped trying to deep-link to Guesty's UI at all. Instead, fetch the actual post via **Guesty Open API server-side** using our service-account OAuth token (which has full read access regardless of any individual user's UI permissions).
+
+**New code:**
+- **`/api/beithady/communication/guesty-post`** (server route) — authenticates calling user with `communication:read`, calls `listGuestyConversationPosts(conversationId)` with the service token, matches target post by `sentAt` within ±5min tolerance (since `postId` is empty in webhook payload for media messages), extracts attachments from `.attachments[]` (url|downloadUrl + fileName + mimeType) and `.images[]` (url|original|thumbnail), classifies each as image/audio/video/file
+- **`<MediaPlaceholder>`** (client component, new file `media-placeholder.tsx`) — click "Load original" → fetches the API → renders media inline:
+  - Images: grid layout (multi-image cards) with click-to-zoom
+  - Audio: HTML5 controls
+  - Files: download links
+  - Body text or `bodyHtml` rendered fallback
+  - Loading spinner state, error state with retry-on-click, dark/light variants
+- Removed the broken inline MediaPlaceholder from `thread-pane.tsx`; `Bubble` legacy props (`guestPhone/guestName/guestEmail`) kept optional for backwards compat
+
+**End state:** click any placeholder card → media renders directly inside our app. Never opens Guesty. Permissions issue is solved structurally because we proxy through a service account.
+
+**Risk:** every click costs 1 Guesty Open API call. At scale this could hit their rate limit (~120 req/min/token). Acceptable for V1 — agents don't click these often. If usage spikes, add caching: store the resolved attachments in `beithady_messages.attachments` after first fetch so subsequent renders don't re-call Guesty.
+
+## ✅ Earlier turn — Media placeholder URL fixed: search-by-phone instead of direct conversation deep-link
 
 User clicked the new placeholder card and got Guesty's "You don't have access to this page" 403. Verified the conversation ID was correct (`69f0e6e017350d0013192201` exists in both our DB and Guesty's tables) — the issue is **Guesty's UI itself 403s on direct `/inbox/<conversation_id>` deep-links** for many user roles, even when the same user can see the conversation through normal inbox navigation.
 
