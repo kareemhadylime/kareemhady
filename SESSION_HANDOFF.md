@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-29)
 
-## 🟡 Latest turn — Iterating Guesty attachment proxy; assets.guesty.com 400's empty, all API endpoints 404
+## 🟡 Latest turn — DevTools coaching round 2: photo URL still not captured, image cached (no code)
+
+User opened Guesty Network tab + passport-photo popup. First attempt copied a Pendo telemetry pixel (`data.pendo.io/data/ptm.gif`) — wrong (1×1 tracking GIF, not the actual JPEG). Filtered to `jp` only showed 2 more Pendo `.gif` rows.
+
+Diagnosis: the actual JPEG was already in browser cache, so no network request fired when the photo opened. Final guidance sent:
+1. Clear the filter, tick **Disable cache**, close the popup, re-click the photo thumbnail → fresh request appears
+2. **Or simpler**: right-click the passport image in the popup → "Open image in new tab" → copy the URL from the new tab's address bar (skips Network panel entirely)
+
+Waiting on user to paste either the cURL or the open-image-in-new-tab URL.
+
+No code changes this turn.
+
+## 🟡 Earlier turn — Walked user through Chrome DevTools to capture Guesty photo cURL (no code)
+
+User asked "Guide Me step by step on Chrome" after the Referer-spoof iteration deployed. Wrote a 14-step guide to:
+1. Open DevTools → Network tab (with note that Network might be hidden behind the `»` overflow chevron when DevTools is narrow — gave 3 ways to find it: click chevron, widen the panel, or `Ctrl+]` to cycle tabs)
+2. Filter to Img · clear log · disable cache
+3. Click Saad Alkhaldi conversation in Guesty UI, scroll to the photo messages
+4. Right-click the hash-named PNG row → Copy as cURL
+5. Paste back (after scrubbing personal session cookie value)
+
+Goal: see the actual headers/cookies/query params Guesty's UI sends when loading these photos so the proxy can replicate them. Currently waiting on user to paste the cURL.
+
+No code changes this turn.
+
+## 🟡 Earlier turn — Iterating Guesty attachment proxy; assets.guesty.com 400's empty, all API endpoints 404
 
 User confirmed real photo uploads (not just structured cards) appear in Guesty UI but didn't render in our app. Iteration chain:
 

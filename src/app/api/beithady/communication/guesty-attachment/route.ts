@@ -139,44 +139,85 @@ export async function GET(req: NextRequest) {
   // (Guesty's UI is the only legit consumer) OR expects a signed URL.
   // Try Referer-based access first since that's free; if that fails,
   // fall through to signed-URL lookups via API endpoint variants.
+  // Confirmed via DevTools cURL: actual asset is on guesty-ugc.s3.amazonaws.com
+  // and requires AWS S3 pre-signed URL with STS temporary credentials
+  // (AWSAccessKeyId, Expires, Signature, x-amz-security-token query params).
+  // Direct GET to that bucket returns 403 AccessDenied — confirmed.
+  // We must call a Guesty API endpoint that mints a signed URL on demand.
+  // GET endpoints all 404'd in the previous round. Try POST signing
+  // patterns common to other PMS integrations.
   type Candidate = {
     url: string;
+    method: 'GET' | 'POST';
     auth: 'bearer' | 'none';
     label: string;
     extraHeaders?: Record<string, string>;
+    body?: string;
   };
   const candidates: Candidate[] = [];
 
-  // Referer-spoof variants on the CDN — most likely to work without
-  // calling any API.
+  // POST signing endpoints — most-likely first based on common Guesty/PMS patterns
+  if (attachmentId) {
+    candidates.push({
+      url: `${API_BASE}/communication/attachments/${attachmentId}/sign`,
+      method: 'POST',
+      auth: 'bearer',
+      label: 'post-sign-attachment',
+      body: '{}',
+    });
+    candidates.push({
+      url: `${API_BASE}/communication/attachments/${attachmentId}/url`,
+      method: 'GET',
+      auth: 'bearer',
+      label: 'get-attachment-url',
+    });
+  }
+  if (conversationId && postId) {
+    candidates.push({
+      url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/sign`,
+      method: 'POST',
+      auth: 'bearer',
+      label: 'post-sign-post',
+      body: JSON.stringify({ attachmentId, path: cleanPath }),
+    });
+  }
+  // Generic file-signing endpoints
   candidates.push({
-    url: `https://assets.guesty.com/${cleanPath}`,
-    auth: 'none',
-    label: 'cdn-referer-app',
-    extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
-  });
-  candidates.push({
-    url: `https://assets.guesty.com/${cleanPath}`,
-    auth: 'none',
-    label: 'cdn-referer-openapi',
-    extraHeaders: { referer: 'https://open-api.guesty.com/', origin: 'https://open-api.guesty.com' },
-  });
-  candidates.push({
-    url: `https://assets.guesty.com/${cleanPath}`,
+    url: `${API_BASE}/files/sign`,
+    method: 'POST',
     auth: 'bearer',
-    label: 'cdn-referer-bearer',
-    extraHeaders: { referer: 'https://app.guesty.com/', origin: 'https://app.guesty.com' },
+    label: 'post-files-sign',
+    body: JSON.stringify({ path: cleanPath }),
+    extraHeaders: { 'content-type': 'application/json' },
+  });
+  candidates.push({
+    url: `${API_BASE}/uploads/sign`,
+    method: 'POST',
+    auth: 'bearer',
+    label: 'post-uploads-sign',
+    body: JSON.stringify({ path: cleanPath }),
+    extraHeaders: { 'content-type': 'application/json' },
+  });
+  candidates.push({
+    url: `${API_BASE}/communication/files/sign`,
+    method: 'POST',
+    auth: 'bearer',
+    label: 'post-comm-files-sign',
+    body: JSON.stringify({ path: cleanPath }),
+    extraHeaders: { 'content-type': 'application/json' },
   });
 
-  // API endpoints that might return a signed URL via JSON body or 302
+  // GET endpoints that might return a signed URL via JSON body
   if (conversationId && postId && attachmentId) {
     candidates.push({
       url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}/attachments/${attachmentId}/url`,
+      method: 'GET',
       auth: 'bearer',
       label: 'api-conv-post-att-url',
     });
     candidates.push({
       url: `${API_BASE}/communication/conversations/${conversationId}/posts/${postId}`,
+      method: 'GET',
       auth: 'bearer',
       label: 'api-post-singular',
     });
@@ -184,21 +225,24 @@ export async function GET(req: NextRequest) {
   if (conversationId) {
     candidates.push({
       url: `${API_BASE}/communication/conversations/${conversationId}/posts?withSignedAttachments=true`,
+      method: 'GET',
       auth: 'bearer',
       label: 'api-posts-withSigned',
     });
     candidates.push({
       url: `${API_BASE}/communication/conversations/${conversationId}/posts?expand=attachments`,
+      method: 'GET',
       auth: 'bearer',
       label: 'api-posts-expand',
     });
   }
 
-  // Last-ditch direct CDN attempts
+  // Final fallback — direct S3 (will 403 but useful for debug)
   candidates.push({
-    url: `https://assets.guesty.com/${cleanPath}`,
+    url: `https://guesty-ugc.s3.amazonaws.com/${cleanPath}`,
+    method: 'GET',
     auth: 'none',
-    label: 'cdn-bare-noauth',
+    label: 's3-direct',
   });
 
   const failures: Array<{ label: string; url: string; status: number; body: string | null }> = [];
@@ -213,8 +257,9 @@ export async function GET(req: NextRequest) {
       };
       if (cand.auth === 'bearer') headers.authorization = `Bearer ${token}`;
       const upstream = await fetch(cand.url, {
-        method: 'GET',
+        method: cand.method,
         headers,
+        body: cand.method === 'POST' ? (cand.body || '{}') : undefined,
         redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
       });
