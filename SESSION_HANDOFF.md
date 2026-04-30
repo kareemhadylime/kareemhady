@@ -1,6 +1,6 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Amazon-product-name mismatch banner shipped (no more silent SKU rewrites)
+## 🟢 Latest turn — Amazon-product-name mismatch banner SHIPPED + DEPLOYED (commit `c034519`, deploy `dpl_…cnuwi7nbj`)
 
 User UX request: "When I Add the new URL, There should be message — Update item or retry. If Update, its goes to item details and edits the details as per the added url." Triggered by the APC mismatch case (user pasted URL for 4L Frida Floor Disinfectant under SKU `CLN-APC-1L "All-purpose cleaner 1L"` — the previous sourcer code would have silently overwritten the SKU's name_en to `Frida Floor Disinfectant + Cleaner 5X Power, 4 Liters` if the parser hadn't false-flagged 404).
 
