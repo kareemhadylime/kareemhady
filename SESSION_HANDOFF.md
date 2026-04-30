@@ -1,6 +1,34 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Fixed re-render race that unmounted attach Send button mid-click (commit `fc9d002`)
+## 🟢 Latest turn — Switched attach send to programmatic useTransition (commit `85806f3`)
+
+User screenshot showed the watchdog stall banner firing at 90s — meaning the previous fix (`fc9d002`, button-stays-mounted) still wasn't getting the request through. DB confirmed: zero storage objects, zero `multi_attach_guesty` audit rows for that send attempt.
+
+**Diagnosis:** React 19 + Next.js 16 doesn't reliably re-bind the action ref when:
+- Parent `<form action={textOnlyAction}>` wraps the AttachmentMenu
+- Child `<button type="submit" formAction={multiAttachAction}>` is supposed to override
+
+The form submission either silently uses the parent action OR drops entirely. No error surfaces because no request actually goes out. This is distinct from the earlier nested-form (commit `88226d5`) and re-render-race (commit `fc9d002`) issues — those were about the SUBMITTER element. This is about React's serialized-action-ID reconciliation.
+
+**Fix shipped (commit `85806f3`):**
+Bypass `<form>` submission entirely.
+- Send button is `type="button"` (not submit)
+- On click, `handleSend` builds a FormData manually from `items[] + caption + module + conversationId`
+- Calls `action(fd)` directly inside `startTransition(() => action(fd))` — Next.js's recommended pattern for programmatic server-action invocation
+- `isPending` (from `useTransition`) drives the spinner + progress card
+- Server action's `redirect()` causes page navigation as before; component unmounts cleanly on success
+- Real errors (NOT framework `NEXT_REDIRECT` sentinel) surface a rose error banner with the message
+
+**Removed:** `NativeFileBag` helper — was a `DataTransfer`-based workaround for native multi-file form submission. With programmatic FormData construction, `fd.append(`file_${i}`, file, file.name)` puts files directly into the FormData payload.
+
+**Files touched:**
+- `src/app/beithady/communication/_components/attachment-menu.tsx` — added `useTransition`, `handleSend`, `errorMsg` state; removed `submitting` state, `NativeFileBag` helper, and `formAction` button approach.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `85806f3` pushed to `main`. `vercel --prod` fired.
+
+**If this STILL doesn't work**, the issue would be inside the action itself (auth check failing, file size limit, etc.) — at that point the rose error banner will surface the actual exception message (or the stall banner fires as a backup at 90s).
+
+## 🟢 Earlier turn — Fixed re-render race that unmounted attach Send button mid-click (commit `fc9d002`)
 
 User: "Stalled on this screen more than 5 mins" — screenshot showed the violet "Uploading 1 file…" progress card from `88226d5` stuck in place indefinitely.
 
