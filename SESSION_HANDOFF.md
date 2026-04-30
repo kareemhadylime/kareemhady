@@ -1,6 +1,20 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — ScrapingBee integration shipped (admin/integrations UI + sourcer rewire)
+## 🟢 Latest turn — ScrapingBee integration SHIPPED + DEPLOYED (commit `b0ae924`, deploy `dpl_…c1f2foe6f` READY)
+
+**Deploy verified.** Both ScrapingBee changes are live in production:
+1. `/admin/integrations` page now shows a 9th provider card for "ScrapingBee" (auto-rendered from CREDENTIAL_SPECS).
+2. Amazon EG sourcer's `probeAmazonProduct` is rewired to prefer ScrapingBee when api_key is set, with Anthropic web_fetch as graceful fallback.
+
+**Awaiting user action:** sign up at scrapingbee.com (free tier, no card) → paste API key in `/admin/integrations` → Test connection → Sync prices on items page. Then Antifly's `amazon_eg_last_status` should flip from `rate_limited` to `ok` via the real ScrapingBee fetch.
+
+**Background command output:** Vercel build took ~9 min (slower than usual — likely a cold dep cache from the @vercel/functions install earlier this session). Subsequent deploys should be faster.
+
+(Full ShippingBee technical details are in the next "Earlier this turn" entry.)
+
+---
+
+## 🟢 Earlier this turn — ScrapingBee integration shipped (admin/integrations UI + sourcer rewire)
 
 User picked free-tier ScrapingBee. "Add scraper settings in api settings module and will fill later." Done.
 
