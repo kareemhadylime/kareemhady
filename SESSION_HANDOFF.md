@@ -1,6 +1,105 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Orphan recovery VERIFIED in production (post-wakeup check)
+## 🟢 Latest turn — Split kill switch SHIPPED (1 manual + 12 per-automation switches + admin UI)
+
+User confirmed Q1–Q5: include AI under automatic, **separate switch per automation**, carry over current state (TRUE = paused), add settings UI. One commit `d7e5314` pushed to main.
+
+**Migration 0057 applied via Supabase MCP** — seeded all 13 flags TRUE per Q3 carry-over:
+- `beithady_pause_manual_outbound` — agent inbox composer
+- `beithady_pause_ai_auto_reply`
+- `beithady_pause_pre_arrival`
+- `beithady_pause_csat_survey`
+- `beithady_pause_boarding_pass`
+- `beithady_pause_loyalty_notifications`
+- `beithady_pause_upsell_offer`
+- `beithady_pause_cancel_risk_reconfirm`
+- `beithady_pause_morning_brief` (covers Ops + GR + Finance briefs)
+- `beithady_pause_late_reply_digest` (forward-compat — delivery wires up in Phase F)
+- `beithady_pause_vip_digest` (forward-compat — delivery wires up in Phase F)
+- `beithady_pause_daily_report_dispatch`
+
+Legacy `beithady_outbound_paused` row stays in `beithady_settings` for history but is no longer checked by code.
+
+**New artefacts (commit `d7e5314`):**
+- `src/lib/beithady/automations.ts` — typed `AUTOMATION_REGISTRY` catalog with label/description/category/triggeredBy per automation. Helpers: `isManualOutboundPaused`, `isAutomationPaused(key)`, `setManualOutboundPaused`, `setAutomationPaused`, `getAllPauseStates`. Adding a new automation = extend registry + gate at entry point + UI auto-renders a toggle.
+- `src/app/beithady/settings/outbound/page.tsx` + `actions.ts` — admin-only page (added to `ADMIN_ONLY_SETTINGS_SUBTABS`) with 13 toggles grouped by category (Inbox, Communication, Engagement, Operations, Reports). Header banner shows aggregate state ("N of 13 switches paused"). Each row: icon + label + description + triggeredBy + Pause/Resume button (form posts to `toggleOutboundFlagAction`).
+- New tile on `/beithady/settings` launcher (PowerOff icon, rose accent).
+- Added `outbound` to `ADMIN_ONLY_SETTINGS_SUBTABS` in auth.ts.
+
+**Refactored senders:**
+- `send-guesty.ts` / `send-wa-casual.ts` accept `mode: 'manual' | 'automatic'` (default 'manual'). Manual gates on the manual flag only when mode='manual'. Audit row error code now says `manual_outbound_paused` instead of generic `outbound_paused`. Imports switched from `isOutboundPaused` (deprecated) to `isManualOutboundPaused`.
+- `channel-switch.ts` `DispatchPayload` + `sendViaChannel` plumb mode through.
+- All manual call sites (composer actions) keep default `mode='manual'` — no signature change required.
+
+**Refactored automation entry points (each gated with `if (await isAutomationPaused(KEY)) return ...`):**
+- `src/lib/beithady/ai/auto-reply.ts:processInboundForAutoReply` — short-circuits before classify/draft/send so we don't burn tokens. AI's downstream `sendWaCasualMessage` call now passes `mode: 'automatic'`.
+- `src/lib/beithady/engagement/{pre-arrival,csat,boarding-pass,loyalty-tick,upsell}.ts` — each `run*Dispatch` returns early with `paused: true`. Internal `sendWaCasualMessage` calls all pass `mode: 'automatic'`.
+- `src/app/beithady/operations/calendar/actions.ts:sendReconfirmationAction` — returns `cancel_risk_reconfirm_paused` when paused.
+- `src/lib/beithady/morning-brief/run.ts` — gates the WA delivery loop only; brief still builds + persists for the web archive page.
+- `src/lib/beithady-daily-report/distribute.ts` — per-recipient skip path: writes `daily_report_deliveries` row with `status='skipped', error_message='daily_report_dispatch_paused'`.
+
+**Legacy `isOutboundPaused()` retained as deprecated shim** reading the manual flag — preserves any external imports while we migrate.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `d7e5314` pushed to `main`. Vercel auto-deploy via GitHub integration is the canonical path; local `vercel --prod` retried twice and hit transient DNS / ETIMEDOUT errors but does not affect the GitHub-triggered production build.
+
+**To use:** Navigate to **`/beithady/settings/outbound`** (admin only). All 13 toggles currently show "Paused" (rose). Click "Resume" on each one as you're ready to release that path. Manual inbox is the one to flip first if you want to type replies again. Each flip is audited under module=settings, action=setting_updated.
+
+## 🟡 Earlier turn — User requested splitting the outbound kill switch into manual-vs-automatic; sent Q1–Q5 for confirmation (no commits)
+
+User: "separate the toggle between the manual inbox sending and the automatic template sending. ask if not clear"
+
+**Plan drafted (pending answers):**
+
+Replace single `beithady_outbound_paused` with two independent flags:
+- `beithady_outbound_paused_manual` — agent-driven sends from inbox composers (GuestyComposer / WaCasualComposer / SwitchComposer / Phase C.5 sendMessageWithSwitchAction)
+- `beithady_outbound_paused_automatic` — machine-triggered sends (AI auto-reply, cron-driven templates, morning brief WA broadcasts, K.2 cancel-risk WA re-confirm, late-reply digest, Phase F pre-arrival/CSAT/boarding-pass dispatches)
+
+**Implementation sketch:**
+- Add `mode: 'manual' | 'automatic'` arg to `sendGuestyMessage` / `sendWaCasualMessage` / `sendWaCloudMessage` / `sendViaChannel`. Update all call sites to declare their mode.
+- `isOutboundPaused(mode)` reads the right flag from `beithady_settings`.
+- Retrofit non-gated senders (K.2 reconfirm, morning brief, late-reply digest) so the automatic kill switch covers them — these currently call provider APIs directly without going through the wrapper, bypassing the flag entirely.
+- Migration `0057_beithady_split_outbound_kill_switch.sql` — adds two new keys, backfills from current value per Q3.
+- Settings UI page (Q4 pending) — two toggles with audit attribution.
+
+**Q1–Q5 sent to user:**
+- Q1: AI auto-reply belongs under `automatic`? (recommend yes — machine-triggered)
+- Q2: Fold K.2 reconfirm + morning brief + late-reply digest + Phase F dispatches under the new automatic flag (currently they bypass the kill switch entirely)? (recommend yes)
+- Q3: Initial values on migration — carry over `true → true/true` (a), reset both to false (b), or split `manual=false/automatic=true` (c)? (recommend c — type replies today, machine sends stay paused)
+- Q4: Add settings UI (`/beithady/settings/outbound` with two switches + audit) or SQL-only? (recommend add UI — frequently flipped, audit attribution improves)
+- Q5: Naming — `_manual`/`_automatic` (chosen) vs `_inbox`/`_templates`, `_agent`/`_machine`, `_human`/`_bot`? (open)
+
+**Estimate:** 3 commits — migration + lib mode-aware refactor + settings UI page.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`, last commit `a756172` (orphan-recovery handoff). No commits this turn.
+
+## 🟡 Earlier turn — Diagnosed "outbound_paused" 503 on Hady Family send + confirmed capability matrix correctness (no commits, awaiting user "go" to flip kill switch)
+
+User screenshot showed Hady Family thread now visible (orphan recovery worked). User clicked send via channel switcher and got `Send failed · status 503 · outbound_paused`. Capability matrix correctly showed all 4 alternative channels (WA Casual / WABA / Email / SMS) crossed out.
+
+**Two distinct findings, both correct behavior:**
+
+### 1. Global emergency kill switch is ON
+`beithady_settings.beithady_outbound_paused = true`. This flag is checked at the top of `sendGuestyMessage` AND `sendWaCasualMessage` (and the WABA stub) BEFORE touching any provider. When true, every outbound returns `{ ok: false, status: 503, error: 'outbound_paused' }` and writes a `send_guesty_blocked_killswitch` audit row.
+
+Audit confirmed: at 2026-04-30 07:32:56 UTC, user's send attempt for conversation `1d523f48-0bf6-4897-a33d-5d7226f5c7e4` (Hady Family) was blocked with reason `beithady_outbound_paused=true`. Someone turned this on (likely safety pause during earlier development) and never turned off.
+
+**To flip it off** — ask user for explicit confirmation since this affects production message delivery (also re-enables AI auto-replies, K.2 cancel-risk WA, morning brief broadcasts, etc.). User asked "Outbound Paused?" — I responded explaining the kill switch + asked before flipping. Awaiting yes/no.
+
+### 2. Capability matrix correctly shows all 4 alternatives unavailable for THIS conversation
+Hady Family is an **Airbnb inquiry** — guest hasn't booked yet. Airbnb doesn't release phone or email to hosts until booking confirmation. The `beithady_conversations` row confirms `guest_phone: null` AND `guest_email: null`.
+
+So:
+- WA Casual / WABA / SMS → need phone → unavailable (correct)
+- Email → needs email → unavailable (correct)
+- Only **Guesty's native module=whatsapp** (Airbnb's masked tunnel via Guesty) is viable for inquiry-stage threads — this is the existing default, not a switcher target
+
+Channel switcher behaves as designed (Phase C.5 spec). Once Hady Family books → Airbnb releases phone/email → the switcher will light up automatically.
+
+**No code change needed** — this was a state question, not a bug.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`, last commit `a756172` (handoff for orphan recovery verification). No commits this turn.
+
+## 🟢 Earlier turn — Orphan recovery VERIFIED in production (post-wakeup check)
 
 ScheduleWakeup fired 6 minutes after deploy. Ran the four verification queries against Supabase:
 
