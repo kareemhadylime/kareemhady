@@ -1,6 +1,64 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Estimator UI confirmed showing live vs estimate cleanly; awaiting user sync click
+## 🟢 Latest turn — Generate Report module SHIPPED + PUSHED to main (commit `8599ee8`)
+
+User: "Ship all Phases together. Deploy & Commit Automatically." Done.
+
+**Single commit ships full feature** (BA self-serve report builder under Beit Hady Analytics — replaces the manually-built BH-yearly / BH-73 BCG / One K per-listing PDFs):
+
+**Database (1 migration applied to `bpjproljatbrbmszwbov`):**
+- `beithady_saved_reports` (id, title, description, config jsonb, commentary jsonb, template_key, last_run_data, created_by)
+- `beithady_report_runs` (run history with full data jsonb cache)
+- `beithady_report_schedules` (frequency daily/weekly/monthly, hour_cairo, email_recipients[], wa_channel_ids[], next_fire_at)
+
+**Lib (`src/lib/beithady/reports/`):**
+- `types.ts` — ReportConfig, ReportData, MetricCell, 13 metric keys, 6 group axes, 4 channel buckets, 5 bedroom buckets
+- `channel-taxonomy.ts` — `bucketChannel()` → airbnb/booking_com/other_ota/manual. Verified against live source values: `airbnb2` (5638), `manual` (1035), `Booking.com` (272), `website` (26), `Capital One` (5), `owner` (3), `Hotels.com` (2), `Expedia` (1)
+- `bedroom-buckets.ts` — Studio (0) / 1 / 2 / 3 / 4+
+- `period-resolver.ts` — rolling, fixed-year, fixed-month, bucket-size auto-pick (day/week/month)
+- `build-report.ts` — single-pass orchestrator: pulls listings + reservations + reviews + PriceLabs market in batches, folds into period buckets, computes 13 metrics with safe-divide, applies anomaly detection (>2σ), comparisons (period/group/market/target), pro-rates revenue by overlap fraction
+- `ai-commentary.ts` — Haiku 4.5 with prompt anchored to manual report tone ("The average occupancy rate at Beit Hadi for 2-bedroom units was 72% in 2025…"), JSON output {bullets[5], action_items[3]}
+- `templates.ts` — 6 quick-template seeds (bh_yearly, bcg_2wk, per_listing, building_h2h, channel_mix, pricing_vs_market) — each replicates one of the manual reports
+- `render-pdf.tsx` — A4 via @react-pdf/renderer, BeitHady palette, hand-rolled SVG charts (grouped bar, BCG quadrant), header/footer with page numbers, breaks for charts + commentary
+- `render-xlsx.ts` — exceljs 2-row header (period band + metric labels), merged cells, totals row, separate Conclusions sheet
+
+**API (`src/app/api/beithady/reports/`):**
+- `POST /run` — config → ReportData (live preview, no persist)
+- `POST /save` — gated BA+admin
+- `GET/PUT/DELETE /[id]`
+- `GET /[id]/pdf` — streams A4 PDF
+- `GET /[id]/xlsx` — streams XLSX
+- `POST/GET/DELETE /[id]/schedule` — manage schedules
+- `GET /templates` — list 6 templates
+- `POST /api/cron/beithady-scheduled-reports` — hourly fire of pending schedules → render PDF → email (Gmail rail) + WA (Green-API)
+
+**Frontend (`src/app/beithady/analytics/reports/`):**
+- `page.tsx` — landing: 6 quick-template tiles + saved reports list with PDF/Schedule/Delete buttons
+- `builder/page.tsx` + `_components/ReportBuilder.tsx` — 5-tab interactive builder (Setup/Compare/Visualize/AI/Export), live auto-preview (debounced), Run/Save buttons
+- `builder/_components/charts/index.tsx` — Recharts: KpiStrip with period Δ%, ResponsiveContainer for time-series/grouped-bar/stacked-bar/BCG ScatterChart with quadrant ReferenceLines + traffic-light Cell coloring, heatmap (HTML grid), PivotTable with sticky-left + conditional formatting
+- `[id]/page.tsx` + `_components/ReportViewer.tsx` + `ScheduleEditor.tsx` — saved-report view, refresh-data button, schedule CRUD modal
+- `_components/DeleteButton.tsx` — confirm-twice client island
+
+**Wiring:**
+- 5th tile added to `/beithady/analytics` (FileBarChart icon, indigo accent, "New" badge)
+- `vercel.json` cron `/api/cron/beithady-scheduled-reports` `0 * * * *`
+- `package.json` adds `recharts ^2.15.4`
+
+**Verification:**
+- `npx tsc --noEmit` clean (3 errors fixed: navy→indigo accent, ComparisonMode export, ReactElement removal)
+- `npm run build` clean (✓ Compiled successfully in 24.6s)
+- Migration applied via Supabase MCP (`apply_migration: beithady_saved_reports` returned `{success:true}`)
+
+**Deploy state:**
+- commit `8599ee8` pushed to `main` via GitHub
+- GitHub→Vercel integration auto-deploys to prod (kareemhady project)
+- CLI `vercel --prod` from this worktree spawned a sibling project (`exciting-fermi-e716c1-1gackh1l2-lime-investments.vercel.app`) — same worktree-vercel mismatch flagged earlier in this file. Real prod URL deploys via the GitHub push.
+
+**Files this turn:** 1 migration, 9 lib files, 7 API routes, 1 cron, 7 frontend files, 3 config edits.
+
+---
+
+## 🟢 Earlier this session — Estimator UI confirmed showing live vs estimate cleanly; awaiting user sync click
 
 User shared the estimator detail screenshot showing CLN-ANTIFLY-400ML at **90 EGP plain slate** with green "Amazon EG" badge (live), and the other 16 chemicals lines all showing **~XX EGP amber** with "Search Amazon EG" (estimates). The F1 estimate-flag UX is working as designed.
 
