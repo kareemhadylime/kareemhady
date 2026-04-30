@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Mail, MessageCircle, Smartphone, Activity } from 'lucide-react';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { InboxRow } from '@/lib/beithady/communication/inbox';
+import type { SlaBucket } from '@/lib/beithady/communication/sla';
 import { SlaPill } from './sla-pill';
 
 const SOURCE_BADGES: Record<string, string> = {
@@ -11,6 +12,35 @@ const SOURCE_BADGES: Record<string, string> = {
   direct: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200',
   manual: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200',
   vrbo: 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-200',
+};
+
+// "Awaiting reply" left-edge stripe + inline pill — only renders when
+// the guest sent the last message AND we haven't replied yet
+// (sla_age_seconds !== null). Stripe + pill colors track the SLA
+// bucket so the urgency is conveyed at a glance:
+//   green ≤ 1h, yellow 1-4h, orange 4-12h, red > 12h.
+const AWAITING_STRIPE: Record<NonNullable<SlaBucket>, string> = {
+  green: 'border-l-emerald-500',
+  yellow: 'border-l-yellow-500',
+  orange: 'border-l-orange-500',
+  red: 'border-l-rose-500',
+  none: 'border-l-transparent',
+};
+
+const AWAITING_PILL: Record<NonNullable<SlaBucket>, string> = {
+  green: 'bg-emerald-600 text-white',
+  yellow: 'bg-yellow-600 text-white',
+  orange: 'bg-orange-600 text-white',
+  red: 'bg-rose-600 text-white',
+  none: 'bg-slate-500 text-white',
+};
+
+const AWAITING_TINT: Record<NonNullable<SlaBucket>, string> = {
+  green: 'bg-emerald-50/40 dark:bg-emerald-950/10',
+  yellow: 'bg-yellow-50/40 dark:bg-yellow-950/10',
+  orange: 'bg-orange-50/40 dark:bg-orange-950/10',
+  red: 'bg-rose-50/40 dark:bg-rose-950/10',
+  none: '',
 };
 
 export function SidebarList({
@@ -40,20 +70,33 @@ export function SidebarList({
         const sourceLabel = (r.source || '').replace('2', '');
         const channelIcon = r.channel === 'guesty' ? Mail : r.channel === 'wa_cloud' ? Activity : Smartphone;
         const ChIcon = channelIcon;
+        // Awaiting reply = guest sent last message and we haven't
+        // replied (sla_age_seconds is non-null AND not archived). For
+        // these rows we apply a 4px left stripe + AWAITING REPLY pill
+        // keyed to the SLA bucket so urgency reads at a glance.
+        const awaiting = r.sla_age_seconds != null && !r.archived_at;
+        const bucketKey: NonNullable<SlaBucket> = (r.sla_bucket ?? 'none') as NonNullable<SlaBucket>;
+        const stripeCls = awaiting ? `border-l-4 ${AWAITING_STRIPE[bucketKey]}` : 'border-l-4 border-l-transparent';
+        const tintCls = awaiting && !selected ? AWAITING_TINT[bucketKey] : '';
         return (
           <li key={r.id}>
             <Link
               href={href}
-              className={`flex items-start gap-3 px-4 py-3 hover:bg-stone-50 dark:hover:bg-slate-800/50 transition ${selected ? 'bg-slate-50 dark:bg-slate-800/70' : ''}`}
+              className={`flex items-start gap-3 px-4 py-3 hover:bg-stone-50 dark:hover:bg-slate-800/50 transition ${stripeCls} ${tintCls} ${selected ? 'bg-slate-50 dark:bg-slate-800/70' : ''}`}
             >
               <div className="shrink-0 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 inline-flex items-center justify-center text-slate-600 dark:text-slate-300">
                 <ChIcon size={14} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`text-sm truncate ${r.unread_count > 0 ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
+                  <span className={`text-sm truncate ${awaiting || r.unread_count > 0 ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
                     {r.guest_full_name || r.guest_email || r.guest_phone || 'Unknown guest'}
                   </span>
+                  {awaiting && (
+                    <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${AWAITING_PILL[bucketKey]}`}>
+                      Awaiting reply
+                    </span>
+                  )}
                   {r.source && (
                     <span className={`text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${SOURCE_BADGES[r.source] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                       {sourceLabel}

@@ -281,16 +281,32 @@ async function ingestMessage(payload: AnyJson, fromType: 'guest' | 'host'): Prom
     }, { onConflict: 'id' });
   if (postErr) throw new Error(`post upsert: ${postErr.message}`);
 
-  // Bump the conversation's last-message timestamps
+  // Bump the conversation's last-message timestamps.
+  //
+  // FIXED 2026-04-30: previously these columns were SWAPPED. Guesty's
+  // terminology (matching the /conversations response shape that
+  // run-guesty-sync.ts reads from):
+  //   `lastMessageFrom.user`    = last message FROM a Guesty platform
+  //                               user (host/staff with a Guesty login)
+  //   `lastMessageFrom.nonUser` = last message FROM anyone else
+  //                               (guest, automation, log, etc.)
+  // Therefore: when a GUEST sends a post (fromType==='guest'), we must
+  // bump `last_message_nonuser_at` (NOT `last_message_user_at`).
+  // When a HOST replies, we bump `last_message_user_at`.
+  //
+  // The swap caused beithady_conversations.last_inbound_at to track
+  // host-reply times and last_outbound_at to track guest-message times,
+  // which made the SLA pill flag conversations as "guest waiting" right
+  // after we replied, and "replied" while the guest was actually waiting.
   const updates: Record<string, unknown> = {
     posts_synced_at: new Date().toISOString(),
   };
   if (fromType === 'guest') {
-    updates.last_message_user_at = createdAt;
+    updates.last_message_nonuser_at = createdAt;
     updates.latest_guest_post_at = createdAt;
     updates.latest_guest_post_text = bodyText.slice(0, 500);
   } else {
-    updates.last_message_nonuser_at = createdAt;
+    updates.last_message_user_at = createdAt;
   }
   await sb.from('guesty_conversations').update(updates).eq('id', conversationId);
 }
