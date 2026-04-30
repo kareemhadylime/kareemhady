@@ -1,6 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Inline attachment URLs in body, abandon Guesty attachments[] field (commit `507e885`)
+## 🟢 Latest turn — Multi-attachment gallery viewer with one shareable URL (commit `5e64c44`)
+
+User: "Fine URL Received, if several pictures are attached, they should go in one URL, and the receiver have the ability to scroll them left and right".
+
+**Implemented:** when N>1 files are attached on a Guesty channel, the action now mints a single shareable gallery URL instead of inlining N separate URLs.
+
+**Flow:**
+1. Files upload to Supabase Storage (existing client-direct path from commit `64d5845`)
+2. Server action mints a row in `beithady_attachment_galleries` with all items + 12-char token + 90-day expiry
+3. Body includes ONE link: `📎 5 photos: https://limeinc.vercel.app/g/<token>`
+4. Guest opens link → carousel viewer with prev/next arrows, dot indicators, keyboard arrows, swipe-to-scroll, and a download list for non-image attachments
+
+**For N=1:** unchanged — single direct file link inlined in body.
+
+**Migration 0063** adds `beithady_attachment_galleries`:
+- `id`, `token` (unique), `conversation_id`, `created_by_user_id`
+- `items jsonb` (array of `{url, name, mime}`)
+- `created_at`, `expires_at` (nullable)
+- Indexes on token + (conversation_id, created_at desc)
+
+**Public viewer at `/g/[token]/page.tsx`:**
+- Server-rendered HTML, plain JS (no React in the public page) for fast load on slow connections
+- Brand styled (Beit Hady navy `#0a0e1a` + gold `#d4a93a`)
+- Mobile responsive (600px breakpoint)
+- `noindex` robots meta
+- Carousel: scroll-snap, dot indicators (gold for active), prev/next 44x44px round buttons, keyboard arrow support, swipe via native horizontal scroll
+- Non-image files render as download cards below the carousel with file extension badge
+
+**Lib `attachment-gallery.ts`:**
+- `createGallery(items, opts) → { ok, token, publicUrl }` — mints token, inserts row, returns full URL
+- `getGalleryByToken(token) → row | null` — checks expiry, returns null if expired
+
+**Action wired** in `sendGuestyMultiAttachResult`:
+- `attachments.length === 1` → single inline 📎 link
+- `attachments.length > 1` → mint gallery, single 📎 link to /g/<token>
+- Label adapts: "5 photos" if all images, "5 files" otherwise
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `5e64c44` pushed to `main`. `vercel --prod` fired.
+
+## 🟢 Earlier turn — Inline attachment URLs in body, abandon Guesty attachments[] field (commit `507e885`)
 
 User screenshot showed the same Guesty `VALIDATION_ERROR: "attachments" does not match any of the allowed types` even after the schema fix at `1481bef` (which mapped to `{fileName, type, url}`).
 
