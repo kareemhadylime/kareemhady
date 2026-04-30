@@ -1,51 +1,43 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Morning Brief audit + Egypt/UAE segregation
+## 🟠 Latest turn — Diagnosed pre-existing orphaned-conversation bug (NOT shipped — awaiting user "go")
 
-User flagged that the 8am brief numbers don't match the Guesty homepage tile (sent screenshots showing Guesty: 6 check-ins / 15 check-outs / 2 turnovers / 43 currently staying vs brief: 11 / 21 / 5 / [missing]). Also requested standing rule: every revenue / payout figure across all briefs MUST segregate Egypt (USD) vs UAE (AED), no FX conversion.
+User screenshot showed they sent "This is a Test Message" via Guesty (Hady Family inquiry, Airbnb, BH73-3BR-SB-3-305, 9:06 AM Cairo / 06:06 UTC) but the message never appeared in our Unified Inbox at limeinc.vercel.app. They asked: "Where is my Test Message, it doesn't show up in inbox on app".
 
-**Root causes identified:**
-1. Brief queries used `.neq('status', 'canceled')` — too broad. Included `inquiry`, `declined`, `expired`. Guesty homepage tile only counts `confirmed` / `reserved` / `awaiting_payment`. That accounted for the count gap.
-2. No country segregation anywhere — Egypt + UAE rolled up into a single currency-mix line in finance brief; not visible at all in GR / Ops briefs.
-3. No "Currently staying" surface — never built. Guesty parity tile was missing.
-4. UAE listings (`DXB` building tag) silently rode along inside `BH-*` arrival/departure counts with no visible distinction.
+**Initially suspected** Phase C.5 deployment (just shipped 6 commits). Ruled out — diagnosis traced to a pre-existing bug.
 
-**Files added/changed:**
+**Definitive diagnosis (via Supabase MCP queries):**
 
-| File | Status | What |
-|---|---|---|
-| `src/lib/beithady/morning-brief/country.ts` | NEW | `countryForBuilding()` mapper (BH-* → EG, DXB → AE), per-country flag/label, `formatMoneyCountry()`, `sumByCountryCurrency()` helpers |
-| `src/lib/beithady/morning-brief/finance-brief.ts` | rewrite | Per-country revenue line for Yesterday + MTD ("Egypt: $X · UAE: Y AED"), country-split channel breakdown, new "Currently staying" section, country-tagged payout/unpaid items, new summary keys (`yesterday_revenue_eg_usd`, `_ae_aed`, `mtd_revenue_eg_usd`, `_ae_aed`, `currently_staying_eg`/`_ae`, etc.) |
-| `src/lib/beithady/morning-brief/gr-brief.ts` | rewrite | Status filter `IN (confirmed,reserved,awaiting_payment)` (Guesty parity), country flag prefix on every reservation row, per-country count in section headers, new "Currently staying" section with guest-count totals, summary fields `arrivals_eg`/`_ae`, `departures_eg`/`_ae`, `currently_staying_eg`/`_ae`/`_guests` |
-| `src/lib/beithady/morning-brief/ops-brief.ts` | rewrite | Same status tightening + country flags + per-country headers (Arabic), new "النزلاء الحاليون داخل الوحدات" (currently-staying) section in Arabic, summary fields `checkouts_eg`/`_ae`, `checkins_eg`/`_ae`, `currently_staying_eg`/`_ae`/`_guests` |
+1. The post itself IS in our DB — `guesty_conversation_posts.id = 69f2f16b646a600011c746c1`, body = "Good Morning\n\nThis is a Test Message", from_type=guest, parent conv_id=`69f2f16b824ad00012c34e12`. Team's "Received ✅" reply is also there as post `69f2f210e41ade0011b3be34`, from_type=host.
+2. **Both posts are ORPHANED** — parent conversation `69f2f16b824ad00012c34e12` does NOT exist in `guesty_conversations`. The SQL ingest proc `beithady_communication_ingest()` LEFT JOINs posts → conversations and skips orphans entirely.
+3. **Root cause:** Guesty's webhook subscription on this Beithady account does NOT fire `conversation.created` events. Verified by querying `guesty_webhook_events` for the last 2h — 13 events received, ALL of them `reservation.messageReceived` or `reservation.messageSent`. Zero `conversation.*` events ever (`event_name like 'conversation.%'` returned 0 rows).
+4. **Mechanism:** When a new conversation is created in Guesty, only the FIRST `reservation.messageReceived` webhook fires. Our `ingestMessage` handler (src/lib/guesty-webhook.ts:240+) does `UPDATE guesty_conversations SET last_message_user_at = X WHERE id = <new_id>` — silent no-op since the conversation row doesn't exist. The post itself gets upserted into `guesty_conversation_posts` correctly, but it's orphaned.
+5. **Scope:** At least 9 orphaned posts visible across multiple conversations created TODAY (Hady Family, Abdullah Idrees + 7 booking auto-notifications). The full daily Guesty pull at 4:40 UTC (07:40 Cairo) is the only thing that materializes new conversation rows — anything created between daily syncs is invisible until tomorrow.
+6. **Existing conversations work fine** — Krisztian Keszocze's 9:09 message arrived 3min after Hady Family's and IS in the inbox, because his conversation row was already in `guesty_conversations` from a previous daily sync; the webhook just bumped his `last_message_nonuser_at` and the 5-min comm-sync mirrored the change.
 
-**Country mapping (authoritative):**
-- Egypt = `BH-26`, `BH-73`, `BH-435`, `BH-OK`, `BH-ONEKAT`, `BH-MG`, `BH-GOUNA`, `BH-NEWCAI`, `BH-OKAT`, `BH-MANG`, `BH-MB34`, `BH-WS`, plus heuristic fallback (any unknown `BH-*` defaults to Egypt — every BH-* in catalog is Egyptian).
-- UAE = `DXB`, plus nickname-prefix fallback (`LIME-MA*`, `REEHAN*`, `YANSOON*`).
-- Status filter `ACTIVE_STATUSES` constant in both gr-brief.ts and ops-brief.ts; `NON_REVENUE_STATUSES` in finance-brief.ts excludes `canceled, inquiry, declined, expired`.
+**Architecture confirmed:**
+- `/api/cron/guesty` (daily, 4:40 UTC) — full pull from Guesty Open API → upserts `guesty_conversations` + `guesty_conversation_posts`
+- `/api/webhooks/guesty/...` — real-time event handler. Handles `reservation.message*` (UPDATE-only on conv) + `conversation.*` (UPSERT, but Guesty doesn't fire these on this account)
+- `/api/cron/beithady-comm-sync` (every 5 min) — runs SQL proc `beithady_communication_ingest()` which mirrors `guesty_conversations` + `guesty_conversation_posts` → `beithady_conversations` + `beithady_messages`
+- The 5-min comm-sync can ONLY mirror data that's already upstream. It does NOT call Guesty's API.
 
-**Behavioral changes user will see in next 8am brief:**
-- Finance: "Yesterday's revenue (X bookings)" → `Egypt: $A USD · UAE: B AED accrued` instead of `$A + B AED`. New "Currently staying" section. Channel breakdown split per country (`Egypt → airbnb2 $X · manual $Y | UAE → bookingCom Z AED`).
-- GR: Every arrival/departure row prefixed with 🇪🇬 or 🇦🇪. Section headers gain `— Egypt: N · UAE: M`. New "Currently staying (X) — Egypt: N · UAE: M · X guests" section with Guesty-parity guest count.
-- Ops (Arabic): Same with Arabic labels (`مصر / الإمارات`). New "النزلاء الحاليون داخل الوحدات" section.
-- Counts will drop ~30-40% vs prior briefs because inquiries / declined / expired are no longer counted as live arrivals/departures.
+**Proposed two-part fix (one commit, awaiting user "go"):**
 
-**Out of scope / not changed:**
-- ❌ Guesty multi-account scope (FZCO + A1HOSPITALITY + DXB — all roll up into `guesty_reservations` already; user's Guesty homepage screenshot may be filtered to one account, which would explain residual count gap).
-- ❌ FX conversion across countries — explicitly rejected per user's standing rule "no conversion".
-- ❌ Currency for EGP-priced bookings — they'll appear in the Egypt bucket as `X EGP` alongside `Y USD` if any bookings settle in EGP; never auto-converted.
+1. **Modify `src/lib/guesty-webhook.ts` `ingestMessage`:** when the parent conv doesn't exist in `guesty_conversations`, fetch it via Guesty Open API (`GET /v1/communication/conversations/{id}`) and upsert before continuing. Prevents future orphans.
+2. **Modify `/api/cron/beithady-comm-sync/route.ts`:** before calling the SQL proc, scan for orphaned posts (`SELECT DISTINCT conversation_id FROM guesty_conversation_posts gcp LEFT JOIN guesty_conversations gc ON gc.id=gcp.conversation_id WHERE gc.id IS NULL LIMIT 50`), fetch each missing parent from Guesty API, upsert. Recovers existing orphans (Hady Family + 8 others) on the next 5-min tick + any future webhook misses.
 
-**Validation:**
-- `npx tsc --noEmit -p tsconfig.json` runs clean (only pre-existing `@react-pdf/renderer` / `exceljs` errors that exist in main).
-- `npm run build` would deploy on Vercel — local node_modules missing the same two packages but that's a long-standing local env issue.
+**Risk register for the fix:**
+- R1 — Guesty Open API rate limit on parent-conversation fetches. Mitigation: cap orphan-scan at 50 per cron run, sequential, 250ms throttle between calls.
+- R2 — webhook race condition (parent fetch happens during another webhook firing for the same conv). Mitigation: webhook ingest is already idempotent via post `id` upsert; double-create on conversation is harmless via `onConflict: id`.
+- R3 — Guesty API returns 404 for very-fresh conversation (not yet propagated). Mitigation: log + skip; next cron tick retries.
 
-**Next 8am Cairo cron:** automatic; the next run will use the new code.
+**Why this is NOT a Phase C.5 problem:** Phase C.5 only added the channel-switcher UI + send dispatcher. It does not touch the ingest path or the inbox query. The bug pre-dates C.5 by months — it's been hiding since Phase C.1 because the daily Guesty sync was masking it (anything created between daily syncs was invisible for up to 24h).
 
-**Manual smoke test:** hit `/api/cron/morning-brief?role=finance&date=2026-04-30&dryRun=1` (or whichever endpoint name exists) once deployed and inspect the rendered markdown for the new country lines.
+**Awaiting:** User confirmation to ship the fix. No commits this turn.
 
----
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `2f8efbb` (handoff for Phase C.5 ship).
 
-## 🟢 Previous turn — Phase C.5 Channel Switcher SHIPPED across 6 commits
+## 🟢 Earlier turn — Phase C.5 Channel Switcher SHIPPED across 6 commits
 
 User asked to switch outbound transport mid-thread to Green WP / WABA / Email / SMS with no-info revert. Plan → Workflow → Code with 95% confidence gates; user accepted all 10 questions + 12 improvements + workflow as drafted; PF1 (Guesty cross-module live probe) skipped on user's request.
 
