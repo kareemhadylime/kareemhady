@@ -1,6 +1,43 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Map attachments to Guesty's {fileName, type, url} schema (commit `1481bef`)
+## 🟢 Latest turn — Inline attachment URLs in body, abandon Guesty attachments[] field (commit `507e885`)
+
+User screenshot showed the same Guesty `VALIDATION_ERROR: "attachments" does not match any of the allowed types` even after the schema fix at `1481bef` (which mapped to `{fileName, type, url}`).
+
+**Diagnosis:** Guesty's Open API rejects our outbound `attachments[]` field regardless of shape. Most likely:
+- Airbnb-native (`module: 'airbnb2'`) doesn't accept attachments via API at all (Airbnb's platform restriction)
+- Several other Guesty modules have the same restriction
+- We can't reliably know which channels accept what shape without internal Guesty docs
+
+**Fix shipped (commit `507e885`):**
+Universal workaround — inline attachment URLs in the message body as plaintext links instead of using Guesty's attachments field. Works on EVERY channel (airbnb2, bookingCom, whatsapp, email, sms).
+
+The composed body becomes:
+```
+[user's caption]
+
+📎 Photo: https://supabase.co/.../file.jpg
+📎 File: https://...
+```
+
+Guest sees the link in their native messaging app → clicks → opens browser → views the file. UX is acceptable; on the agent side they don't have to think about per-channel restrictions.
+
+`sendGuestyMultiAttachResult` no longer passes the attachments parameter to `sendGuestyMessage` — body now contains the inlined links composed from attachment URLs + names.
+
+The `sendGuestyConversationPost` schema mapping from `1481bef` becomes a no-op (the conditional doesn't execute when attachments is empty), but stays in place for any future direct callers who want to try Guesty's attachments field.
+
+The wa_casual code path (Green-API `sendWhatsAppFile`) is unchanged — it natively supports media uploads.
+
+**End-to-end pipeline now:**
+1. Client uploads file → Supabase Storage via signed URL ✓ (commit `64d5845`)
+2. Server action runs ✓ (commit `dd34af4`)
+3. Action composes body = caption + 📎 lines for each attachment URL ✓ (this commit)
+4. Guesty accepts because no attachments[] field is sent ✓
+5. Guest sees clickable link in their channel app
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `507e885` pushed to `main`. `vercel --prod` fired.
+
+## 🟢 Earlier turn — Map attachments to Guesty's {fileName, type, url} schema (commit `1481bef`)
 
 User screenshot showed the actual Guesty API rejection:
 ```
