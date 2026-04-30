@@ -1,6 +1,23 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — AI item info cards COMPLETE (M1–M5 shipped, all milestones live)
+## 🟢 Latest turn — Fixed Guesty 400 VALIDATION_ERROR on POST conversation-posts (manual reply now works)
+
+User screenshot: tried sending a manual reply on Hady Family (conv `69f2f16b824ad00012c34e12`) via Guesty WA. Got `Send failed · status 400 · guesty_400: VALIDATION_ERROR "type is not allowed"`.
+
+**Root cause:** Guesty's Open API now rejects the top-level `type` field on `POST /v1/communication/conversations/{id}/posts`. Our `sendGuestyConversationPost` was sending `type: 'message'` per the previously-valid schema; Guesty tightened validation and the field is no longer accepted at the top level.
+
+**Fix shipped (commit `d1fea00`):**
+- `src/lib/guesty.ts` `sendGuestyConversationPost`: stop including `type` in the payload. Kind is implicit from `module` / `subject` / `attachments` shape.
+- `GuestySendPostInput.type` kept on the type signature with `@deprecated` so existing callers compile; the field is now ignored.
+- `src/lib/beithady/communication/send-guesty.ts`: stopped passing `type: 'message'` explicitly.
+
+**Why this only fired now:** the fix path through the inbox composer + manual gate was the first real attempt at a Guesty POST after Phase C.5 shipped + the user resumed the `manual_outbound` switch. The earlier `outbound_paused` 503 was masking this 400 entirely.
+
+**Verification:** user should retry the same send on Hady Family → expect `Sent successfully via Guesty.` Outbound row writes to `beithady_messages` with `direction='outbound'`, `module_type='whatsapp'`.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `d1fea00` pushed to `main`. Vercel auto-deploy via GitHub integration lands within ~1-2 min.
+
+## 🟢 Earlier this session — AI item info cards COMPLETE (M1–M5 shipped, all milestones live)
 
 User said "All Default - Do All changes to Vercel & Supabase automatically" → skipped sign-off gate, executed entire workflow plan in one turn. Two commits planned: M1 (already shipped earlier this turn — see lower section) and M2–M5 in a single follow-up commit.
 
