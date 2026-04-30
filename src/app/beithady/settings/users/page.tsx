@@ -137,7 +137,10 @@ export default async function BeithadyUsersSettingsPage() {
         Permission matrix at a glance — guest_relations: CRM + Communication +
         Gallery; finance: Financial + read elsewhere; ops: Analytics + CRM +
         Communication + Gallery; manager: everything except integration
-        credentials; admin: full access including credentials.
+        credentials; admin: full access including credentials;
+        warehouse_manager: Inventory + read context; housekeeper: Inventory
+        read (mobile PIN gate); business_analyst: Analytics full + broad read,
+        no Financial or Communication.
       </p>
     </BeithadyShell>
   );
