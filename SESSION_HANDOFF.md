@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Direct-to-Storage upload bypass for attach send (commit `64d5845`)
+## 🟢 Latest turn — Map attachments to Guesty's {fileName, type, url} schema (commit `1481bef`)
+
+User screenshot showed the actual Guesty API rejection:
+```
+guesty_400: POST /communication/conversations/69f2f16b824ad00012c34e12/posts —
+{"error":{"code":"VALIDATION_ERROR","message":"\"attachments\" does not match any of the allowed types","data":{"details":[{"message":"\"attachments\" does not m…
+```
+
+**This means the entire pipeline now works** — client uploads to Supabase via signed URL, server action runs, Guesty POST is invoked. Guesty just rejected the attachments payload SHAPE.
+
+**Diagnosis:** previous payload was `[{url, name, mime}]`. Guesty's actual schema is `[{fileName, type, url}]` where `type` is a coarse classification ('image' | 'audio' | 'video' | 'file'), NOT the MIME string.
+
+**Fix shipped (commit `1481bef`):**
+`sendGuestyConversationPost` now maps each attachment from `{url, name, mime}` (our internal shape) to `{url, type, fileName}` (Guesty's shape). MIME → type derivation:
+- `image/*` → `image`
+- `audio/*` → `audio`
+- `video/*` → `video`
+- everything else → `file`
+
+**End-to-end pipeline confirmed working:**
+1. Client uploads file → Supabase Storage via signed URL (commit `64d5845`)
+2. Server action runs with URL refs only (commits `64d5845`, `dd34af4`)
+3. `sendGuestyMessage` → `sendGuestyConversationPost` formats payload correctly (this commit)
+4. Guesty accepts attachments
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `1481bef` pushed to `main`. `vercel --prod` fired.
+
+## 🟢 Earlier turn — Direct-to-Storage upload bypass for attach send (commit `64d5845`)
 
 User screenshot: rose error banner now shows **"Send failed. transport: An unexpected response was received from the server."** This is the catch-block path I added — meaning the action invocation itself (the React transport fetch) is failing BEFORE the action body runs.
 
