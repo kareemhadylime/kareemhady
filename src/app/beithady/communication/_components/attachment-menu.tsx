@@ -152,17 +152,15 @@ export function AttachmentMenu({
       )}
 
       {items.length > 0 && (
-        <form
-          action={action}
-          encType="multipart/form-data"
-          className="ix-card p-2 mt-2 space-y-2"
-          onSubmit={() => setSubmitting(true)}
-        >
-          <input type="hidden" name="conversation_id" value={conversationId} />
-          <input type="hidden" name="body" value={caption} />
-          {channel === 'guesty' && module && (
-            <input type="hidden" name="module" value={module} />
-          )}
+        // CRITICAL: this used to be wrapped in its own <form action=... >,
+        // but AttachmentMenu is rendered INSIDE the parent composer form
+        // (composer.tsx / wa-casual-composer.tsx). HTML forbids nested
+        // forms — the browser silently strips the inner form, leaving the
+        // submit button to submit the OUTER text-only action (no body →
+        // empty_body throw, "nothing happens" UX). Fix: render fields as
+        // siblings of the parent form and use formAction on the submit
+        // button to override the parent's action only for this click.
+        <div className="ix-card p-2 mt-2 space-y-2">
           <div className="flex flex-wrap gap-2">
             {items.map((it, i) => (
               <div key={i} className="relative group">
@@ -197,28 +195,45 @@ export function AttachmentMenu({
             ))}
           </div>
 
-          {/* Browser File objects can't be re-submitted via hidden input,
-              so we render a single visible multi-file input that includes
-              the same files. Each PendingItem is bound to its native File
-              by index using a single shared `files[]` input. */}
           <NativeFileBag items={items} />
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500">{items.length} ready · max {MAX_FILES}</span>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="ix-btn-primary text-xs disabled:opacity-50"
-            >
-              {submitting
-                ? <><Loader2 size={11} className="animate-spin" /> Sending…</>
-                : <><Check size={11} /> Send {items.length}</>}
-            </button>
-          </div>
-        </form>
+          {submitting ? (
+            <div className="rounded-lg border border-violet-200 bg-violet-50 dark:bg-violet-950 dark:border-violet-800 p-2 text-xs text-violet-800 dark:text-violet-200 flex items-center gap-2">
+              <Loader2 size={12} className="animate-spin shrink-0" />
+              <div className="flex-1">
+                <div className="font-semibold">Uploading {items.length} {items.length === 1 ? 'file' : 'files'}…</div>
+                <div className="text-[10px] opacity-80 mt-0.5">
+                  Files upload to Supabase storage, then post to Guesty. Average ~3s per file.
+                </div>
+              </div>
+              {/* Indeterminate progress bar */}
+              <div className="ml-auto w-16 h-1 rounded-full bg-violet-200 dark:bg-violet-900 overflow-hidden shrink-0">
+                <div className="h-full w-1/2 bg-violet-600 animate-pulse" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500">{items.length} ready · max {MAX_FILES}</span>
+              <button
+                type="submit"
+                formAction={action}
+                formEncType="multipart/form-data"
+                onClick={() => setSubmitting(true)}
+                disabled={submitting}
+                className="ix-btn-primary text-xs disabled:opacity-50"
+              >
+                <Check size={11} /> Send {items.length}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </>
   );
+  // module currently consumed via the parent form's hidden input, kept on
+  // signature for type symmetry with the (now-deferred) nested-form path.
+  void module;
+  void caption;
 }
 
 // Workaround: re-binding File objects to a hidden multi-input per submit.
