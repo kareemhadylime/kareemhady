@@ -150,11 +150,38 @@ function validate(o: unknown): AmazonProbeResult {
     return t.length === 0 ? null : t.length > maxLen ? t.slice(0, maxLen) : t;
   };
 
+  const priceEgp = num('price_egp');
+  const inStock = bool('in_stock');
+
+  // Sanity-check Claude's classification:
+  //   • status='ok' MUST have a non-null price. Without a price the row is
+  //     effectively useless to the estimator and we'd otherwise wipe a
+  //     known-good cached price. Downgrade to parse_error so the caller's
+  //     "preserve previous values" branch fires.
+  //   • status='ok' BUT in_stock=false is contradictory — Amazon's product
+  //     page is showing the buy-box but Claude flagged it OOS. This usually
+  //     means Claude was confused by a sponsored ad or recommendation
+  //     widget. Treat as parse_error to avoid corrupting the row.
+  if (status === 'ok' && priceEgp == null) {
+    return {
+      ok: false,
+      status: 'parse_error',
+      error: 'Claude returned status="ok" but price_egp was null — refusing to overwrite cached price',
+    };
+  }
+  if (status === 'ok' && !inStock) {
+    return {
+      ok: false,
+      status: 'parse_error',
+      error: 'Claude returned status="ok" but in_stock=false — contradictory, refusing to apply',
+    };
+  }
+
   return {
     ok: true,
-    price_egp: num('price_egp'),
+    price_egp: priceEgp,
     pack_size: packSize,
-    in_stock: bool('in_stock'),
+    in_stock: inStock,
     rating: num('rating'),
     review_count: num('review_count'),
     image_url: str('image_url'),
