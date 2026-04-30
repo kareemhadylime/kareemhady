@@ -1,6 +1,28 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Fixed nested-form attachment-send bug + added upload progress UI (commit `88226d5`)
+## 🟢 Latest turn — Fixed re-render race that unmounted attach Send button mid-click (commit `fc9d002`)
+
+User: "Stalled on this screen more than 5 mins" — screenshot showed the violet "Uploading 1 file…" progress card from `88226d5` stuck in place indefinitely.
+
+**Diagnosis:** the `88226d5` fix unblocked the nested-form HTML bug but introduced a React re-render race:
+- Click "Send N" → onClick fires `setSubmitting(true)` synchronously
+- React schedules re-render with submitting=true
+- The conditional render swapped the button for a progress card → button unmounted
+- Browsers commit form submissions when the submitter button is intact at submit time. With React 19's server-action formAction handling, if the submitter is removed from DOM before the submit is flushed, the action can get dropped silently.
+
+Confirmed via DB query: zero storage objects in `beithady-wa-media` bucket in the last 30 min, zero `multi_attach_guesty` audit rows. Server action **never ran** — the form submission was lost in the unmount race.
+
+**Fix shipped (commit `fc9d002`):**
+- Keep the Send button always mounted. Toggle `disabled` instead of conditional render. Spinner + label swap in-place via ternary inside the button.
+- Progress card rendered as a SIBLING of the button container, not a replacement.
+- 90-second watchdog (`useEffect` + `setTimeout`): if `submitting` hasn't resolved within 90s (i.e., the page hasn't navigated away from the action redirect), surface an amber stall banner with Cancel/reset button. 90s = Vercel's default 60s function timeout + 30s safety margin. Banner explains likely causes (timeout / silent reject / Guesty refusal) and points to Settings → Audit to verify whether the send actually went through.
+
+**Files touched:**
+- `src/app/beithady/communication/_components/attachment-menu.tsx` — restructured submit-area rendering, added stalled state + watchdog effect.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `fc9d002` pushed to `main`. `vercel --prod` fired.
+
+## 🟢 Earlier turn — Fixed nested-form attachment-send bug + added upload progress UI (commit `88226d5`)
 
 User: "Send Attachment not working, when pressing send, nothing happens ...check it out. Also need Progress when send till complete"
 
