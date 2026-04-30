@@ -1,6 +1,32 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Fixed Guesty 400 VALIDATION_ERROR on POST conversation-posts (manual reply now works)
+## 🟢 Latest turn — Fixed Airbnb/Booking replies routing through WhatsApp instead of platform in-app messaging
+
+User screenshot: typed a reply on Hady Family (Airbnb thread) → message went out as `WHATSAPP · KAREEMHADY · Hello / Test - Confirm Receipt`. Asked "Why replying Shows Whatsapp? This is message should go to Airbnb Message through Guesty."
+
+**Root cause:** `composer.tsx` had `defaultModule = 'whatsapp'` for every Guesty thread, plus a no-op ternary `airbnb|booking ? 'whatsapp' : 'whatsapp'` proving someone intended source-aware routing but never finished wiring it. Every reply on Airbnb / Booking threads got force-routed through Guesty's WhatsApp module instead of the platform's native in-app messaging.
+
+**Fix shipped (commit `3d43f9d`):**
+- `composer.tsx` — `deriveDefaultModule(source)` maps `airbnb→'airbnb2'`, `booking→'bookingCom'`, `whatsapp→'whatsapp'`, `email→'email'`, `sms→'sms'`. `defaultModule` prop is now optional; composer falls back to source-derived value when not passed. Added dedicated channel-hint chips "Airbnb in-app" (Home icon) and "Booking.com" (BookOpen icon), rendered conditionally on source.
+- `thread-pane.tsx` — only passes explicit `defaultModule` prop when user EXPLICITLY chose a sub-channel (URL `?ch` or persisted preference via Phase C.5 Remember). Otherwise leaves undefined so composer uses `sourceDefault`.
+- `guesty.ts` — `GuestySendPostInput.module` union widened from `'email' | 'sms' | 'whatsapp' | 'log'` to also include `'airbnb2' | 'bookingCom'`.
+- `send-guesty.ts` `SendGuestyArgs.module` — same widening.
+- `actions.ts` + `attach-actions.ts` — `moduleVal` allowlist accepts `'airbnb2' | 'bookingCom'`.
+- `attachment-menu.tsx` — `module` prop widened to match.
+
+**Behavior after fix:**
+- Airbnb thread default reply → `module: { type: 'airbnb2' }` → routes via Airbnb's in-app messaging tunnel.
+- Booking.com thread default reply → `module: { type: 'bookingCom' }` → routes via Booking.com messaging.
+- Direct / manual / unknown source → still defaults to `'whatsapp'` (covers most direct-booking flows where guest provided phone).
+- Channel-hint chips on Airbnb threads now show: Airbnb in-app (default) · WhatsApp · Email. SMS hidden because Airbnb threads don't have an SMS sub-channel.
+- Channel-hint chips on Booking threads: Booking.com (default) · WhatsApp · Email.
+- Channel-hint chips on WhatsApp / direct / manual threads: WhatsApp · Email · SMS.
+
+**Compatibility:** The Phase C.5 channel switcher (cross-channel sends to WA Casual / WABA / Email / SMS via `sendMessageWithSwitchAction`) is unchanged. This fix only affects the NATIVE composer path when the agent stays on the home channel.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `3d43f9d` pushed to `main`. Vercel auto-deploys via GitHub integration.
+
+## 🟢 Earlier turn — Fixed Guesty 400 VALIDATION_ERROR on POST conversation-posts (manual reply now works)
 
 User screenshot: tried sending a manual reply on Hady Family (conv `69f2f16b824ad00012c34e12`) via Guesty WA. Got `Send failed · status 400 · guesty_400: VALIDATION_ERROR "type is not allowed"`.
 
