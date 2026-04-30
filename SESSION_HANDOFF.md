@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Fixed swapped last_inbound_at / last_outbound_at on Yara + 2169 other rows (commit `efa0276`)
+## 🟢 Latest turn — Fixed nested-form attachment-send bug + added upload progress UI (commit `88226d5`)
+
+User: "Send Attachment not working, when pressing send, nothing happens ...check it out. Also need Progress when send till complete"
+
+**Root cause:** classic nested-form HTML bug.
+- `composer.tsx` and `wa-casual-composer.tsx` wrap their entire reply UI in `<form action={sendGuesty/WaCasualMessageAction}>`.
+- `AttachmentMenu` was rendering its OWN `<form action={sendGuesty/WaCasualMultiAttachAction}>` INSIDE that parent form.
+- HTML forbids nested forms. Browser silently strips the inner `<form>` tag at parse time. The "Send N" button (originally inside the inner form) becomes a child of the OUTER form with `type="submit"`.
+- Click → submits the outer form → `sendGuestyMessageAction` runs with empty body → throws `empty_body` → redirects back to inbox. UX = "nothing happens".
+
+**Fix shipped (commit `88226d5`):**
+- Removed the nested `<form>` wrapper in AttachmentMenu. File inputs + library_url hidden fields now live as siblings of the parent composer's hidden inputs.
+- "Send N" button gains `formAction={action}` and `formEncType="multipart/form-data"` — overrides the parent form's action ONLY for that button click. Everything else (textarea body, module hint, conversation_id) is reused from the parent form.
+- Implicitly fixes Airbnb/Booking attachment sends since `module=airbnb2|bookingCom` propagates from composer's hidden input through the multi-attach action's allowlist (which already accepts those values per the earlier composer fix).
+
+**Progress UI:**
+On submit, the button area swaps to a violet card with:
+- `Loader2` spinning icon
+- "Uploading N files…" header
+- "~3s per file" hint (Supabase upload + Guesty post round-trip estimate)
+- Indeterminate pulse bar (animated)
+
+**Files touched:**
+- `src/app/beithady/communication/_components/attachment-menu.tsx` — `<form>` removed, button uses formAction, progress card added.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `88226d5` pushed to `main`. `vercel --prod` fired.
+
+## 🟢 Earlier turn — Fixed swapped last_inbound_at / last_outbound_at on Yara + 2169 other rows (commit `efa0276`)
 
 User: "why Yara Message waiting Reply ??? Still same Bug ....Its Beithady Reply on Guesty the last reply ...This is considered replied"
 
