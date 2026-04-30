@@ -11,6 +11,7 @@
     "@anthropic-ai/sdk": "^0.90.0",
     "@react-pdf/renderer": "^4.1.6",
     "@supabase/supabase-js": "^2.103.3",
+    "@vercel/functions": "^3.4.6",
     "exceljs": "^4.4.0",
     "googleapis": "^171.4.0",
     "lucide-react": "^1.8.0",

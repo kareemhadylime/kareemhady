@@ -261,7 +261,9 @@ function LineRow({ l }: { l: EstimatorLine }) {
         */}
         <Link
           href={`/beithady/inventory/items#item-${l.item_id}`}
-          title={`Edit ${l.item_sku} on the items page`}
+          title={l.ai_info_summary_en
+            ? `${l.ai_info_summary_en}\n\nClick to edit ${l.item_sku} on the items page.`
+            : `Edit ${l.item_sku} on the items page`}
           className="block group"
         >
           <div className="font-mono text-[11px] text-slate-700 dark:text-slate-200 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">

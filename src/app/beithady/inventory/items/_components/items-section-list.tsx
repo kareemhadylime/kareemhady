@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
-import { AlertCircle, Check, Loader2, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { Category, ItemListRow, Uom } from '@/lib/beithady/inventory/catalog';
 import { ItemFormButton } from './item-form-button';
 import { SourceCell } from './source-cell';
+import { AiInfoCard } from './ai-info-card';
 import { acceptManySourcesAction } from '../actions';
 
 // Sectioned items list — one collapsible <table> per category, plus the
@@ -33,6 +34,19 @@ export function ItemsSectionList({
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Auto-refresh while any row is in the queued/running state — the
+  // Vercel waitUntil() background regen has no client push channel,
+  // so we poll the page every 4 s while a spinner is on screen.
+  useEffect(() => {
+    const anyInFlight = sections.some(s =>
+      s.items.some(it => it.ai_info_status === 'queued' || it.ai_info_status === 'running'),
+    );
+    if (!anyInFlight) return;
+    const t = window.setInterval(() => router.refresh(), 4000);
+    return () => window.clearInterval(t);
+  }, [sections, router]);
 
   // Hash-anchor scroll-and-flash for deep links from estimator detail pages.
   useEffect(() => {
@@ -176,6 +190,8 @@ export function ItemsSectionList({
               selected={selected}
               onToggle={toggle}
               onToggleSection={toggleSection}
+              expandedId={expandedId}
+              onToggleExpand={(id) => setExpandedId(prev => (prev === id ? null : id))}
             />
           ))}
         </div>
@@ -192,6 +208,8 @@ function CategorySection({
   selected,
   onToggle,
   onToggleSection,
+  expandedId,
+  onToggleExpand,
 }: {
   section: GroupedSection;
   categories: Category[];
@@ -200,6 +218,8 @@ function CategorySection({
   selected: Set<string>;
   onToggle: (id: string) => void;
   onToggleSection: (items: ItemListRow[], allChecked: boolean) => void;
+  expandedId: string | null;
+  onToggleExpand: (id: string) => void;
 }) {
   const sectionAllChecked =
     section.items.length > 0 && section.items.every(it => selected.has(it.id));
@@ -250,6 +270,7 @@ function CategorySection({
                     />
                   </th>
                 )}
+                <th className="px-1 py-2 w-6" aria-label="Expand"></th>
                 <th className="text-left px-3 py-2">SKU</th>
                 <th className="text-left px-3 py-2">Name</th>
                 <th className="text-left px-3 py-2">UoM</th>
@@ -271,6 +292,8 @@ function CategorySection({
                   canWrite={canWrite}
                   checked={selected.has(it.id)}
                   onToggle={() => onToggle(it.id)}
+                  expanded={expandedId === it.id}
+                  onToggleExpand={() => onToggleExpand(it.id)}
                 />
               ))}
             </tbody>
@@ -288,6 +311,8 @@ function ItemRow({
   canWrite,
   checked,
   onToggle,
+  expanded,
+  onToggleExpand,
 }: {
   it: ItemListRow;
   categories: Category[];
@@ -295,8 +320,16 @@ function ItemRow({
   canWrite: boolean;
   checked: boolean;
   onToggle: () => void;
+  expanded: boolean;
+  onToggleExpand: () => void;
 }) {
+  // 1 (chevron) + 8 base + 1 if canWrite (checkbox) + 1 (edit) — keep in
+  // sync with the <thead> column count above. The expanded-detail <tr>
+  // spans this width so the AI info card fills the row.
+  const colSpan = (canWrite ? 1 : 0) + 1 + 8 + 1;
+
   return (
+    <>
     <tr
       id={`item-${it.id}`}
       className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition"
@@ -312,6 +345,17 @@ function ItemRow({
           />
         </td>
       )}
+      <td className="px-1 py-2">
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+          aria-expanded={expanded}
+          className="text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-300 inline-flex items-center justify-center w-5 h-5"
+        >
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+      </td>
       <td className="px-3 py-2 font-mono text-[11px]">{it.sku}</td>
       <td className="px-3 py-2">
         <div className="font-medium">{it.name_en}</div>
@@ -371,6 +415,25 @@ function ItemRow({
         )}
       </td>
     </tr>
+    {expanded && (
+      <tr className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+        <td colSpan={colSpan} className="px-4 py-3">
+          <AiInfoCard
+            itemId={it.id}
+            itemSku={it.sku}
+            itemNameEn={it.name_en}
+            amazonEgUrl={it.amazon_eg_url}
+            aiInfo={it.ai_info}
+            generatedAt={it.ai_info_generated_at}
+            source={it.ai_info_source}
+            status={it.ai_info_status}
+            errorMsg={it.ai_info_error}
+            canEdit={canWrite}
+          />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 

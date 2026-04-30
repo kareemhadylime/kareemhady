@@ -7,6 +7,7 @@ import { ItemFormButton } from './_components/item-form-button';
 import { ImportButton } from './_components/import-button';
 import { ItemsSectionList } from './_components/items-section-list';
 import { CategoryJumpSelect } from './_components/category-jump-select';
+import { BulkAiInfoButton } from './_components/bulk-ai-info-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,7 @@ export default async function InventoryItemsPage({
   const needsReviewCount = items.filter(it => it.amazon_eg_url && !it.amazon_eg_url_reviewed_at).length;
   const sourcedCount = items.filter(it => it.amazon_eg_url).length;
   const reviewedCount = items.filter(it => it.amazon_eg_url_reviewed_at).length;
+  const aiInfoMissingCount = items.filter(it => !it.ai_info && it.active).length;
 
   // Group items by category, in the order returned by listCategories so the
   // sections render in the same order across the app.
@@ -138,6 +140,7 @@ export default async function InventoryItemsPage({
 
         {canWrite && (
           <div className="flex items-center gap-2">
+            <BulkAiInfoButton missingCount={aiInfoMissingCount} />
             <a
               href="/api/beithady/inventory/items/template"
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"

@@ -199,6 +199,7 @@ export type EstimatorLine = {
   amazon_eg_status: AmazonEgStatus | null;
   rule_scope: RuleScope;       // global / unit_config / listing — for "where did this rule come from" hint
   has_listing_override: boolean;
+  ai_info_summary_en: string | null;  // M.16 — short LLM-generated summary for hover tooltip
 };
 
 export type EstimatorOutput = {

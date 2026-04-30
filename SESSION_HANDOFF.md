@@ -1,6 +1,67 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Auto-archive Guesty system-notification emails SHIPPED (Option B2)
+## 🟢 Latest turn — AI item info cards COMPLETE (M1–M5 shipped, all milestones live)
+
+User said "All Default - Do All changes to Vercel & Supabase automatically" → skipped sign-off gate, executed entire workflow plan in one turn. Two commits planned: M1 (already shipped earlier this turn — see lower section) and M2–M5 in a single follow-up commit.
+
+**M2 — AI lib `src/lib/beithady/inventory/ai-item-info.ts` (new file, 240 lines):**
+- `generateItemInfo()` — single Haiku 4.5 call with `web_fetch_20250910` server-managed tool when `amazon_eg_url` is set. Adds `anthropic-beta: web-fetch-2025-09-10` header. Falls back to general housekeeping knowledge when fetch fails — Claude self-tags `source` field.
+- Robust JSON extraction (direct parse → strip code fence → bracket-substring slice) + 1 retry @ temp 0 on parse fail.
+- `validate()` enforces required strings, trims to max lengths, normalises `key_features` to 1–6 strings.
+- `persistItemInfo()` writes the row + appends history + prunes history to last 10 entries per item via fetch-ids-then-delete (cheaper than CTE on supabase REST).
+- `regenerateItemInfo()` — convenience wrapper used by both manual and bulk paths. Fetches item + category, flips status running → idle/error, never throws.
+- `setAiInfoStatus()` — small status flip helper for queued/running/error/idle.
+- `isWithinCooldown()` — 24h check for the auto-regen cooldown.
+
+**Catalog types extended (`src/lib/beithady/inventory/catalog.ts`):**
+- New `AiInfoStatus` type ('idle'|'queued'|'running'|'error') and `AiItemInfoPayload` (the structured info card shape — single source of truth, re-exported from ai-item-info as `AiItemInfo` alias).
+- `ItemRow` now has `ai_info`, `ai_info_generated_at`, `ai_info_source`, `ai_info_status`, `ai_info_error`.
+- `listItems()` mapper passes those through with `ai_info_status` defaulting to 'idle'.
+
+**M3 — Server actions `src/app/beithady/inventory/items/actions.ts`:**
+- New imports: `waitUntil` from `@vercel/functions` (newly installed @ ^3.4.6), AI helpers.
+- `setAmazonSourceAction:400` — extended: only enqueues regen when URL actually CHANGED (avoids burning tokens on no-op saves) and either no card exists OR cooldown elapsed. Sets `ai_info_status='queued'` synchronously then fires `waitUntil(regenerateItemInfo(...))` so the operator's save returns instantly. Calls `revalidatePath` from inside the background promise too.
+- `generateAiInfoAction(itemId)` — manual single regen, foreground (request waits ~5–10s). Bypasses cooldown. Audits.
+- `generateAllMissingAiInfoAction()` — flags every active item with `ai_info IS NULL` as queued, fires `waitUntil` background pool of 5 concurrent generations. Returns queued count immediately.
+
+**M4 — UI:**
+- New `_components/ai-info-card.tsx` (190 lines) — handles 4 states: queued/running spinner, no-info CTA with "Generate AI info" button, full card render (summary EN+AR-RTL, key features, usage tips, ingredients/warnings/pack-details three-up), error banner. Footer shows source badge (Amazon EG vs General knowledge), generated date, model name, "Fallback used" warning when URL exists but Amazon fetch failed, and "Refresh AI info" button (manual regen, bypasses cooldown).
+- New `_components/bulk-ai-info-button.tsx` — header CTA, only visible when ≥1 item has `ai_info IS NULL && active`. Click queues background regen for all missing.
+- `_components/items-section-list.tsx` — added chevron column (Right/Down lucide) on row left, expand-state in parent, second `<tr>` with colSpan rendering `<AiInfoCard />` when expanded. Also added an auto-poll: `setInterval(router.refresh, 4000)` while any row is queued/running so spinners flip to cards as background regen completes (no SSE/websockets needed).
+- `items/page.tsx` — counts `aiInfoMissingCount`, renders `<BulkAiInfoButton />` next to the existing Excel template / Add item buttons.
+
+**M5 — Estimator tooltip:**
+- `EstimatorLine` extended with `ai_info_summary_en: string \| null`.
+- `estimator.ts` query selects `ai_info`, populates `ai_info_summary_en` from `it.ai_info?.summary_en`.
+- `estimator/[configId]/page.tsx:267` — item-name link's `title=` shows the summary when present, with a newline + "Click to edit…" continuation line.
+
+**Verification:**
+- `npx tsc --noEmit` — clean.
+- `npm run build` — clean (no lint script available; build does its own validation).
+- DB before commit: 73 active items across 9 categories (verified via SELECT after M1).
+
+**Architecture notes left for future me:**
+- `waitUntil` requires `@vercel/functions` (now installed). On any non-Vercel runtime it falls back to a no-op which means the regen would never run; we only deploy to Vercel so this is fine.
+- Auto-poll runs ONLY while spinners are visible — checks `sections.some(it.ai_info_status in queued/running)`. Page is otherwise static SSR, so no perf concern.
+- Cost: Haiku ~$0.001/call. Bulk regen of 73 items ≈ $0.07 worst case; daily auto-regens negligible.
+- The `web_fetch` tool may fail outright if Anthropic blocks Amazon EG (likely). Fallback path always works since prompt instructs Claude to set source='general_knowledge' on fetch failure.
+- History table prune is fire-and-forget; if it fails the next regen also tries to prune so we don't accumulate unbounded.
+
+**Files touched (M2–M5 commit):**
+- New: `src/lib/beithady/inventory/ai-item-info.ts`, `src/app/beithady/inventory/items/_components/ai-info-card.tsx`, `src/app/beithady/inventory/items/_components/bulk-ai-info-button.tsx`
+- Edited: `src/lib/beithady/inventory/catalog.ts`, `src/app/beithady/inventory/items/actions.ts`, `src/app/beithady/inventory/items/_components/items-section-list.tsx`, `src/app/beithady/inventory/items/page.tsx`, `src/lib/beithady/inventory/estimator-shared.ts`, `src/lib/beithady/inventory/estimator.ts`, `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx`, `package.json`, `package-lock.json`
+
+**Smoke test plan (post-deploy):**
+1. Load `/beithady/inventory/items` → 73 items across 9 sections, every row has chevron.
+2. Click any chevron → "No AI info card yet" CTA appears.
+3. Click "Generate AI info" → spinner ~5–10s → full card renders with summaries, features, tips.
+4. Header should show "AI info for ~73 missing" pill — click → all rows flip to spinner; auto-poll fills them in over ~2 min.
+5. Click "Change" on Amazon URL → save valid URL → row flips to spinner (queued). Wait ~10s + refresh → card now shows source=Amazon EG.
+6. Estimator detail page: hover any item name → tooltip shows summary_en (after at least one regen completes for that item).
+
+---
+
+## 🟢 Earlier today — Auto-archive Guesty system-notification emails SHIPPED (Option B2 — parallel session)
 
 User picked Option B2. Migrations 0058 + 0058a applied via Supabase MCP, code commit `e7632b3` pushed to main (then merged with upstream's parallel `0058_inventory_ai_info.sql` — both coexist, no conflict).
 

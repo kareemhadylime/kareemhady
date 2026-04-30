@@ -1,12 +1,18 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { waitUntil } from '@vercel/functions';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
 import { listCategories, type ItemRow } from '@/lib/beithady/inventory/catalog';
 import { parseItemTemplate } from '@/lib/beithady/inventory/excel';
 import { AMAZON_EG_URL_PATTERN } from '@/lib/beithady/inventory/estimator-shared';
+import {
+  regenerateItemInfo,
+  setAiInfoStatus,
+  isWithinCooldown,
+} from '@/lib/beithady/inventory/ai-item-info';
 
 export type ItemFormInput = {
   sku: string;
@@ -453,10 +459,118 @@ export async function setAmazonSourceAction(
     after: { amazon_eg_url: cleanUrl },
   });
 
+  // Background AI info regen: only when the URL actually changed (avoids
+  // burning tokens on repeated saves of the same value) and only when the
+  // existing card is older than the cooldown OR doesn't exist yet. Manual
+  // refresh button bypasses cooldown — that's a separate action.
+  const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
+  if (urlChanged) {
+    const { data: aiState } = await sb
+      .from('beithady_inventory_items')
+      .select('ai_info, ai_info_generated_at')
+      .eq('id', itemId)
+      .maybeSingle();
+    const skipCooldown = !aiState?.ai_info;  // first-ever regen always runs
+    if (skipCooldown || !isWithinCooldown(aiState?.ai_info_generated_at)) {
+      // Mark as queued synchronously so the UI shows the spinner immediately;
+      // the actual call runs after the response is flushed.
+      await setAiInfoStatus(itemId, 'queued');
+      const userIdForAudit = user.id;
+      waitUntil(
+        regenerateItemInfo(itemId, userIdForAudit).then(() => {
+          revalidatePath('/beithady/inventory/items');
+          revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+        }),
+      );
+    }
+  }
+
   revalidatePath('/beithady/inventory/items');
   revalidatePath('/beithady/inventory/rules/estimator', 'layout');
   revalidatePath('/beithady/inventory');
   return { ok: true };
+}
+
+/**
+ * Manually trigger an AI info regen for a single item. Bypasses the 24h
+ * cooldown — operator clicked the "Refresh AI info" button and explicitly
+ * wants a fresh card. Runs in the foreground (request waits ~5-10s) so
+ * the UI can show the result on the next render.
+ */
+export async function generateAiInfoAction(
+  itemId: string,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  await setAiInfoStatus(itemId, 'running');
+  const res = await regenerateItemInfo(itemId, user.id);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: res.ok ? 'item.ai_info.generate' : 'item.ai_info.generate_failed',
+    target_type: 'item',
+    target_id: itemId,
+    metadata: res.ok ? undefined : { error: res.error },
+  });
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/**
+ * Bulk-regen for every active item with `ai_info IS NULL`. Operators
+ * click the header button to fill the catalog in one shot. Runs the
+ * regens concurrently with a small pool to avoid hammering Anthropic
+ * rate limits, returns the queued count once items have been flagged
+ * as `queued` (the actual generation continues via waitUntil so the
+ * page can refresh with spinners).
+ */
+export async function generateAllMissingAiInfoAction(): Promise<
+  { ok: true; queued: number } | { ok: false; error: string }
+> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+
+  const { data: pending, error } = await sb
+    .from('beithady_inventory_items')
+    .select('id')
+    .is('ai_info', null)
+    .eq('active', true)
+    .limit(500);
+  if (error) return { ok: false, error: error.message };
+  const ids = (pending as Array<{ id: string }> | null || []).map(r => r.id);
+  if (ids.length === 0) return { ok: true, queued: 0 };
+
+  // Flag every targeted row as queued so the UI shows spinners on next render.
+  await sb
+    .from('beithady_inventory_items')
+    .update({ ai_info_status: 'queued', ai_info_error: null, updated_at: new Date().toISOString() })
+    .in('id', ids);
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.ai_info.bulk_generate',
+    target_type: 'item',
+    metadata: { queued: ids.length },
+  });
+
+  // Run concurrently in pools of 5 — keeps total wall-clock under ~2 minutes
+  // for 50 items while staying inside Anthropic concurrent-request limits.
+  const userIdForAudit = user.id;
+  waitUntil(
+    (async () => {
+      const POOL = 5;
+      for (let i = 0; i < ids.length; i += POOL) {
+        const slice = ids.slice(i, i + POOL);
+        await Promise.allSettled(slice.map(id => regenerateItemInfo(id, userIdForAudit)));
+      }
+      revalidatePath('/beithady/inventory/items');
+      revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+    })(),
+  );
+
+  revalidatePath('/beithady/inventory/items');
+  return { ok: true, queued: ids.length };
 }
 
 /**

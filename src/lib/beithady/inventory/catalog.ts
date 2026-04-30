@@ -1,5 +1,20 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+export type AiInfoStatus = 'idle' | 'queued' | 'running' | 'error';
+
+export type AiItemInfoPayload = {
+  summary_en: string;
+  summary_ar: string;
+  key_features: string[];
+  usage_tips: string;
+  ingredients_or_materials: string | null;
+  warnings: string | null;
+  pack_details: string;
+  source: 'amazon_eg_fetch' | 'general_knowledge';
+  source_url: string | null;
+  model: string;
+  generated_at: string;
+};
 
 export type Category = {
   id: string;
@@ -52,6 +67,11 @@ export type ItemRow = {
   amazon_eg_url: string | null;
   amazon_eg_url_reviewed_at: string | null;
   amazon_eg_url_reviewed_by: string | null;
+  ai_info: AiItemInfoPayload | null;
+  ai_info_generated_at: string | null;
+  ai_info_source: 'amazon_eg_fetch' | 'general_knowledge' | null;
+  ai_info_status: AiInfoStatus;
+  ai_info_error: string | null;
   active: boolean;
   created_by_user: string | null;
   created_at: string;
@@ -169,6 +189,11 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       amazon_eg_url: r.amazon_eg_url,
       amazon_eg_url_reviewed_at: r.amazon_eg_url_reviewed_at,
       amazon_eg_url_reviewed_by: r.amazon_eg_url_reviewed_by,
+      ai_info: r.ai_info,
+      ai_info_generated_at: r.ai_info_generated_at,
+      ai_info_source: r.ai_info_source,
+      ai_info_status: (r.ai_info_status || 'idle') as AiInfoStatus,
+      ai_info_error: r.ai_info_error,
       active: r.active,
       created_by_user: r.created_by_user,
       created_at: r.created_at,
