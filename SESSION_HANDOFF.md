@@ -1,6 +1,58 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟡 Latest turn — Diagnosed message-direction bug (54 BH-side rows wrongly inbound); proposed 3-part fix; AWAITING approval (no changes shipped)
+## 🟢 Latest turn — SHIPPED: inbox direction fix + AUTO/MANUAL visual + brief BH-bucket rebucket with UAE on separate excluded line
+
+User approved "All at one time" plus answered Q6 with: "Include ALL UAE Under Separate Line". One commit `1fe6d7f` shipped four logically-related fixes:
+
+**1. Message direction (DB-side, applied via Supabase MCP):**
+- Migration `0056_beithady_msg_direction_fix.sql` — replaces the direction CASE in `beithady_communication_ingest()` to prioritize `from_type IN ('host','employee','user') → outbound` over `sent_by`. Fixes the bug where Guesty's auto-templates with `sentBy='log'` were misrouted to inbound.
+- One-shot UPDATE flipped **69 rows** from inbound → outbound. Verified zero remaining `from_type IN ('host','employee','user') AND direction='inbound'` rows post-update.
+- Migration file committed at `supabase/migrations/0056_beithady_msg_direction_fix.sql` so the repo's migration history matches DB state.
+
+**2. AUTO/MANUAL visual differentiation in `src/app/beithady/communication/_components/thread-pane.tsx`:**
+- New `isAutoOutbound = !inbound && m.is_automatic` derived flag.
+- 3 visual lanes:
+  - Inbound (guest): white bubble, left-justified — unchanged
+  - Manual outbound (staff typed): solid dark slate bubble, prominent `MANUAL` pill in slate
+  - Auto outbound (Guesty template): cyan-tinted bubble (`bg-cyan-50 / dark:bg-cyan-950/40`), dashed border (`border-dashed border-cyan-300/700`), prominent `⚡ AUTO` pill in cyan
+- Header text + module_subject + timestamp tones adjusted per lane for legibility.
+
+**3. HTML-strip in Guesty sync (`src/lib/run-guesty-sync.ts`):**
+- New `stripHtmlToText()` helper at top of file (entity decode, `<br>`/`<p>`/`<div>`/`<li>`/`<h*>` → newline, strip remaining tags, collapse whitespace).
+- Wired into `text` derivation at line ~487 with an HTML-shape guard. Only fires when `plainTextBody` is empty AND `body` looks HTML-shaped — preserves real plain-text payloads.
+- Plus the previous-turn fallback "· Guesty (system)" sender label survived this turn (still in thread-pane.tsx) for `from_full_name=null AND channel='guesty' AND is_automatic`.
+
+**4. Morning brief rebucket — 6 building buckets, UAE always on separate excluded line:**
+- `src/lib/beithady/morning-brief/country.ts` — kept the filename (low-blast-radius rename), but content is now bucket-based.
+  - New `BriefBucket` type: `'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'BH-OTHERS' | 'BH-DXB'`
+  - `EGYPT_BUCKETS` constant = first 5 (Egypt-only sums)
+  - `bucketForListing({ building_code, listing_id, nickname })` resolver: building_code exact match → catalog lookup by guesty_listing_id → nickname-prefix fallback (LIME-MA / REEHAN / YANSOON / BURJ- / DUBAI- → BH-DXB) → default BH-OTHERS
+  - `isExcludedFromRevenue(bucket): boolean` predicate — currently `true` only for BH-DXB. Every brief caller MUST consult this before adding to revenue/count rollups.
+  - Helpers: `sumByBucketCurrency`, `countByBucket`, `formatEgyptTotalsLine`, `formatDxbInfoLine`, `sumEgyptByCurrency`, `bucketInventoryFromCatalog`
+  - Backwards-compat shims: `CountryCode` + `countryForBuilding` (deprecated, preserved briefly so any straggler import doesn't break the build).
+- `finance-brief.ts` rewrite: per-Egypt-bucket lines on every revenue section, BH-DXB info line `"BH-DXB: N reservations · X AED (excluded from totals)"` rendered separately when there's UAE activity. Headlines (yesterday / MTD / payouts / unpaid) count Egypt only. New summary keys: `yesterday_revenue_egypt_usd/_aed`, `mtd_revenue_egypt_usd/_aed`, `currently_staying`, `uae_*_excluded` info-only fields.
+- `gr-brief.ts` rewrite: arrival/departure rows tagged inline with `[BH-26]`/`[BH-73]`/etc., section headlines Egypt-only, BH-DXB silent in row list but counted in dedicated excluded line. Bucket breakdown sub-line under sections with > 0 Egypt rows.
+- `ops-brief.ts` rewrite (Arabic): same pattern with Arabic labels (`BH-DXB: ن وحدة (مستثناة من الإجمالي)`).
+
+**Standing rules captured in code (referenced from country.ts top comment):**
+- Egypt = BH-26 + BH-73 + BH-435 + BH-OK + BH-OTHERS (BH-MG, BH-GOUNA, BH-NEWCAI, BH-MANG, BH-MB34, BH-WS).
+- UAE = BH-DXB (LIME-MA, REEHAN, YANSOON via nickname or future `building_code='DXB'` backfill).
+- BH-DXB EXCLUDED from revenue/cost/payouts/headline counts in all 3 briefs. Always shown as a separate transparency info line.
+
+**Deployment:**
+- Type-check: `npx tsc --noEmit -p tsconfig.json` → clean for all touched files.
+- Branch HEAD on `claude/zen-euler-d3bd5e` = `1fe6d7f`. Pushed via `git push origin claude/zen-euler-d3bd5e --force-with-lease`. Did NOT push to main this turn — origin/main has 13 commits ahead from a parallel session and the rebase had a SESSION_HANDOFF.md conflict mid-flight; aborted to preserve my code changes intact.
+- `vercel --prod` → READY at `https://zen-euler-d3bd5e-8iy8xgfsl-lime-investments.vercel.app` (aliased to `https://zen-euler-d3bd5e.vercel.app`). Pinged the production endpoint via the alias; all changes live.
+
+**Catalog-fix opportunity (NOT applied — needs user nod):**
+- 8 `guesty_listings.building_code IS NULL` rows could be backfilled: 3 → `'DXB'` (LIME-MA-1402, REEHAN-204, YANSOON-105), 5 → their authoritative tag from the catalog (BH-MG/BH-GOUNA/etc.). The bucket resolver already handles them via the catalog lookup fallback, so this is hygiene not correctness. SQL one-liner ready to apply if you say go.
+
+**Pending integration with `main`:**
+- This commit lives on the feature branch; main is 13 commits ahead from a parallel session. Whoever merges next will need to resolve SESSION_HANDOFF.md conflicts. The morning-brief code files won't conflict — main hasn't touched them since the previous segregation turn.
+
+---
+
+## 🟡 Previous turn — Diagnosed message-direction bug (54 BH-side rows wrongly inbound); proposed 3-part fix
 
 User shared a fresh inbox screenshot showing the Hadhemi Akermi conversation. Two messages from BH (one auto check-out reminder, one manual reply by Shorouq Khaled) were rendering on the left/middle of the conversation pane instead of the right. Asked: "Always show messages from BH on the Right not to confuse, Also Differentiate clearly between Auto and Manual Messages".
 
