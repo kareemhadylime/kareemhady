@@ -555,7 +555,12 @@ export type GuestySendPostInput = {
   /** @deprecated Guesty rejects top-level `type`. Field is ignored. */
   type?: 'message' | 'note';
   subject?: string;
-  module?: 'email' | 'sms' | 'whatsapp' | 'log';
+  /** Sub-channel within the conversation. Guesty accepts string values
+   *  including channel-native modules like 'airbnb2' / 'bookingCom' on
+   *  threads of the matching source — sending those routes the message
+   *  through the platform's in-app messaging instead of forcing
+   *  WhatsApp. */
+  module?: 'email' | 'sms' | 'whatsapp' | 'log' | 'airbnb2' | 'bookingCom';
   attachments?: Array<{ url: string; name?: string; mime?: string }>;
 };
 

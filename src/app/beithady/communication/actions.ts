@@ -29,7 +29,10 @@ export async function sendGuestyMessageAction(formData: FormData): Promise<void>
   const conversationId = String(formData.get('conversation_id') || '').trim();
   const body = String(formData.get('body') || '').trim();
   const moduleRaw = String(formData.get('module') || '').trim();
-  const moduleVal = (['email','sms','whatsapp','log'] as const).find(m => m === moduleRaw);
+  // Allow source-native modules ('airbnb2', 'bookingCom') so Airbnb /
+  // Booking threads can submit replies through the platform's in-app
+  // messaging instead of WhatsApp.
+  const moduleVal = (['email','sms','whatsapp','log','airbnb2','bookingCom'] as const).find(m => m === moduleRaw);
   if (!conversationId) throw new Error('missing_conversation_id');
   if (!body) throw new Error('empty_body');
   if (body.length > 5000) throw new Error('body_too_long');

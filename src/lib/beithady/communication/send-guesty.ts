@@ -12,7 +12,7 @@ import { isManualOutboundPaused } from '@/lib/beithady/automations';
 export type SendGuestyArgs = {
   beithadyConversationId: string;     // beithady_conversations.id (uuid)
   body: string;
-  module?: 'email' | 'sms' | 'whatsapp' | 'log';
+  module?: 'email' | 'sms' | 'whatsapp' | 'log' | 'airbnb2' | 'bookingCom';
   subject?: string;
   agentUserId: string | null;
   agentDisplayName?: string | null;
