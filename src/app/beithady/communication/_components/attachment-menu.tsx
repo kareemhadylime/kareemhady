@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { Paperclip, Camera, FolderOpen, X, Image as ImageIcon, Check, Loader2, AlertTriangle } from 'lucide-react';
 import { sendWaCasualMultiAttachAction, sendGuestyMultiAttachAction } from '../attach-actions';
 import { LibraryPicker, type LibraryAttachment } from './library-picker';
@@ -30,25 +30,26 @@ export function AttachmentMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PendingItem[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [stalled, setStalled] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [libOpen, setLibOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Watchdog: if submitting hasn't resolved within 90s, surface a stall
-  // banner so the user can cancel and retry instead of staring at the
-  // spinner forever. Vercel's serverless function default timeout is
-  // 60s — anything past 90s on the client means the action either
-  // crashed without redirecting or got swallowed at the edge layer.
+  // Watchdog: if isPending hasn't resolved within 90s, surface a stall
+  // banner so the user can cancel and retry. Vercel's serverless
+  // function default timeout is 60s — anything past 90s on the client
+  // means the action either crashed without redirecting or got
+  // swallowed at the edge layer.
   useEffect(() => {
-    if (!submitting) {
+    if (!isPending) {
       setStalled(false);
       return;
     }
     const id = setTimeout(() => setStalled(true), 90_000);
     return () => clearTimeout(id);
-  }, [submitting]);
+  }, [isPending]);
 
   const pickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -94,6 +95,48 @@ export function AttachmentMenu({
   };
 
   const action = channel === 'guesty' ? sendGuestyMultiAttachAction : sendWaCasualMultiAttachAction;
+
+  // Programmatic submit. Bypasses native <form> submission entirely —
+  // the previous formAction-on-button approach silently dropped the
+  // request in React 19 + Next.js 16 (no audit row, no storage object,
+  // confirmed empty post-click). Build FormData ourselves, call the
+  // action inside startTransition so isPending tracks the round-trip,
+  // and let Next.js handle redirect + revalidate as usual.
+  const handleSend = () => {
+    if (items.length === 0 || isPending) return;
+    setErrorMsg(null);
+    const fd = new FormData();
+    fd.append('conversation_id', conversationId);
+    fd.append('body', caption);
+    if (channel === 'guesty' && module) fd.append('module', module);
+    items.forEach((it, i) => {
+      if (it.kind === 'file') {
+        fd.append(`file_${i}`, it.file, it.file.name);
+      } else {
+        fd.append(`library_url_${i}`, it.url);
+        fd.append(`library_name_${i}`, it.name);
+        fd.append(`library_mime_${i}`, it.mime);
+      }
+    });
+    startTransition(async () => {
+      try {
+        await action(fd);
+        // On success, the server action redirects → page navigates → this
+        // component unmounts. We never reach here on a clean redirect.
+      } catch (e) {
+        // Next.js redirect throws a special error that the framework
+        // catches above us. ANY error reaching here is a real failure —
+        // surface it.
+        const msg = e instanceof Error ? e.message : String(e);
+        // The framework intercepts redirects with a NEXT_REDIRECT
+        // sentinel; we never see those. Any other error is a real
+        // server failure (validation throw, network blip, etc.).
+        if (!msg.includes('NEXT_REDIRECT')) {
+          setErrorMsg(msg.slice(0, 240));
+        }
+      }
+    });
+  };
 
   return (
     <>
@@ -167,14 +210,13 @@ export function AttachmentMenu({
       )}
 
       {items.length > 0 && (
-        // CRITICAL: this used to be wrapped in its own <form action=... >,
-        // but AttachmentMenu is rendered INSIDE the parent composer form
-        // (composer.tsx / wa-casual-composer.tsx). HTML forbids nested
-        // forms — the browser silently strips the inner form, leaving the
-        // submit button to submit the OUTER text-only action (no body →
-        // empty_body throw, "nothing happens" UX). Fix: render fields as
-        // siblings of the parent form and use formAction on the submit
-        // button to override the parent's action only for this click.
+        // No <form> wrapper — we submit programmatically via
+        // useTransition + the imported server action. Avoids both the
+        // nested-form bug (illegal HTML, browser strips inner form)
+        // AND the formAction re-binding edge case in React 19 +
+        // Next.js 16 server actions. The button is type="button"; click
+        // builds FormData from items + caption + module and calls
+        // action(fd) directly inside startTransition.
         <div className="ix-card p-2 mt-2 space-y-2">
           <div className="flex flex-wrap gap-2">
             {items.map((it, i) => (
@@ -199,42 +241,25 @@ export function AttachmentMenu({
                 >
                   <X size={10} />
                 </button>
-                {it.kind === 'lib' && (
-                  <>
-                    <input type="hidden" name={`library_url_${i}`} value={it.url} />
-                    <input type="hidden" name={`library_name_${i}`} value={it.name} />
-                    <input type="hidden" name={`library_mime_${i}`} value={it.mime} />
-                  </>
-                )}
               </div>
             ))}
           </div>
 
-          <NativeFileBag items={items} />
-
-          {/* CRITICAL: keep the submit button mounted at all times. The
-              earlier conditional-render approach (button vs progress
-              card) caused a React re-render race where setSubmitting(true)
-              from onClick would unmount the button BEFORE the browser
-              committed the submit, leaving the request never sent. Toggle
-              `disabled` instead of remounting. */}
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-500">{items.length} ready · max {MAX_FILES}</span>
             <button
-              type="submit"
-              formAction={action}
-              formEncType="multipart/form-data"
-              onClick={() => setSubmitting(true)}
-              disabled={submitting}
+              type="button"
+              onClick={handleSend}
+              disabled={isPending}
               className="ix-btn-primary text-xs disabled:opacity-50"
             >
-              {submitting
+              {isPending
                 ? <><Loader2 size={11} className="animate-spin" /> Sending…</>
                 : <><Check size={11} /> Send {items.length}</>}
             </button>
           </div>
 
-          {submitting && !stalled && (
+          {isPending && !stalled && (
             <div className="rounded-lg border border-violet-200 bg-violet-50 dark:bg-violet-950 dark:border-violet-800 p-2 text-xs text-violet-800 dark:text-violet-200 flex items-center gap-2">
               <Loader2 size={12} className="animate-spin shrink-0" />
               <div className="flex-1">
@@ -243,9 +268,18 @@ export function AttachmentMenu({
                   Files upload to Supabase storage, then post to Guesty. Average ~3s per file.
                 </div>
               </div>
-              {/* Indeterminate progress bar */}
               <div className="ml-auto w-16 h-1 rounded-full bg-violet-200 dark:bg-violet-900 overflow-hidden shrink-0">
                 <div className="h-full w-1/2 bg-violet-600 animate-pulse" />
+              </div>
+            </div>
+          )}
+
+          {errorMsg && !isPending && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950 dark:border-rose-800 p-2 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <div className="font-semibold">Send failed.</div>
+                <div className="text-[10px] opacity-90 break-all">{errorMsg}</div>
               </div>
             </div>
           )}
@@ -256,18 +290,9 @@ export function AttachmentMenu({
               <div className="flex-1 space-y-1">
                 <div className="font-semibold">Send appears to have stalled.</div>
                 <div className="text-[10px] opacity-90">
-                  No response from server after 90s. The upload may have failed silently
-                  (file too large for the function timeout, or Guesty rejected it). Click
-                  Cancel to reset and retry; check Settings → Audit for any &quot;multi_attach_guesty&quot;
-                  row to confirm whether the send actually went through.
+                  No response from server after 90s. Check Settings → Audit for any &quot;multi_attach_guesty&quot; row
+                  to confirm whether the send actually went through. Reload the page to clear and retry.
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setSubmitting(false); setStalled(false); }}
-                  className="ix-btn-secondary text-[11px] mt-1"
-                >
-                  Cancel and reset
-                </button>
               </div>
             </div>
           )}
@@ -275,41 +300,9 @@ export function AttachmentMenu({
       )}
     </>
   );
-  // module / caption consumed via the parent form's hidden inputs +
-  // textarea — props kept for type symmetry.
-  void module;
-  void caption;
 }
 
-// Workaround: re-binding File objects to a hidden multi-input per submit.
-// Use a DataTransfer to populate the input.files at form submit time so
-// the server action receives them under name=file_N.
-function NativeFileBag({ items }: { items: PendingItem[] }) {
-  const refs = useRef<Map<number, HTMLInputElement>>(new Map());
-  const setRef = (i: number) => (el: HTMLInputElement | null) => {
-    if (el) {
-      refs.current.set(i, el);
-      const f = items[i];
-      if (f && f.kind === 'file') {
-        const dt = new DataTransfer();
-        dt.items.add(f.file);
-        el.files = dt.files;
-      }
-    }
-  };
-  return (
-    <>
-      {items.map((it, i) =>
-        it.kind === 'file' ? (
-          <input
-            key={`bag-${i}`}
-            ref={setRef(i)}
-            type="file"
-            name={`file_${i}`}
-            className="hidden"
-          />
-        ) : null,
-      )}
-    </>
-  );
-}
+// Note: NativeFileBag (DataTransfer + hidden input rebinding for
+// native form submission) was removed when the submit path switched
+// to programmatic action invocation via useTransition. FormData is
+// built directly from the items[] state in handleSend.
