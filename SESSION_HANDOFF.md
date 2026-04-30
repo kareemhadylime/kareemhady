@@ -1,6 +1,79 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟡 Latest turn — Awaiting user answers on rebucket spec (no code shipped)
+## 🟡 Latest turn — User answered Q1–Q5; one open Q6 + data-layer recon done (no code shipped)
+
+User answered the previous turn's 5 spec questions. Captured here so the next session can ship without re-asking:
+
+| Q | Answer | Implication |
+|---|---|---|
+| **Q1** | **A** — Big-4 + others split | 6 brief buckets: `BH-26`, `BH-73`, `BH-435`, `BH-OK`, `BH-OTHERS`, `BH-DXB`. BH-OTHERS = small Egypt clusters (BH-MG, BH-GOUNA, BH-NEWCAI, BH-MANG, BH-MB34, BH-WS). |
+| **Q2** | **B** — Single info line | BH-DXB shown in revenue sections as transparency footer "BH-DXB: N reservations (UAE — excluded from revenue rollup)". Contributes 0 to totals. |
+| **Q3** | **A** — Egypt only | Booking COUNT in MTD / yesterday / payouts headlines = Egypt only. UAE bookings not counted toward "143 bookings" type lines. |
+| **Q4** | "BH-Others should be Added to the Rest, They are part of Total" | The 5 small-Egypt listings (currently null building_code, $1,550 of MTD revenue) DO count toward Egypt totals via the BH-OTHERS bucket. The 9,070 AED currently-other line disappears (was UAE mis-routing). |
+| **Q5** | "Others Are included to Currently, don't treat them separately" | Currently Staying section: BH-DXB IS counted in the headline + listed inline alongside Egypt buckets. No separate "UAE excluded" footer here. (Activity vs revenue split.) |
+
+**Q6 still open (turn ended awaiting reply):** Should arrivals / departures / VIP / pre-arrival / at-risk / late SLA / same-day flips / tomorrow prep / long stays follow Q5 (include UAE silently) or Q3-style revenue exclusion? Posted to user, awaiting answer.
+
+**Data-layer recon (Supabase MCP, read-only):**
+
+Confirmed via SQL on `guesty_listings`:
+
+```
+building_code | listings | active
+BH-73         | 36       | 36
+BH-26         | 22       | 22
+BH-435        | 14       | 14
+BH-OK         | 10       |  9
+NULL          |  8       |  6   ← 3 DXB + 5 small Egypt
+```
+
+Specifically the 3 NULL UAE rows:
+- `683edd460d8f3c0021fedfc7` LIME-MA-1402 (active=false)
+- `683edd79c4730f0011ad7b09` REEHAN-204 (active=true)
+- `683edd80b8b96f001c7b6d20` YANSOON-105 (active=true)
+
+→ confirms previous-turn hypothesis: country mapper routes these to OTHER because `building_code IS NULL`. The rendered brief's `Other: 9,070 AED + $1,550` line is exactly those 3 DXB units (the 9,070 AED) plus the 5 small Egypt clusters (the $1,550).
+
+**Implementation plan (do once Q6 answered, NOT shipped yet):**
+
+1. **Schema-level fix in code (preferred over DB backfill):**
+   - New bucket scheme in `src/lib/beithady/morning-brief/country.ts` (or rename to `buckets.ts`):
+     ```ts
+     export type BriefBucket = 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'BH-OTHERS' | 'BH-DXB';
+     export function bucketForListing(opts: { building_code: string|null; listing_id?: string|null; nickname?: string|null }): BriefBucket
+     export function isExcludedFromRevenue(b: BriefBucket): boolean // true only for BH-DXB
+     export const BUCKET_LABEL: Record<BriefBucket, { en: string; ar: string; flag: string }>
+     ```
+   - Resolver order: (1) `building_code` → exact match for BH-26/73/435/OK/DXB, (2) catalog lookup by `guesty_listing_id` against `BEITHADY_LISTINGS` (which has the correct tag for null-building-code rows), (3) nickname-prefix heuristic (LIME-MA*, REEHAN*, YANSOON* → BH-DXB), (4) BH-OTHERS as the catch-all for any unknown Egyptian.
+   - Catalog import: `import { BEITHADY_LISTINGS, getListingByGuestyId, canonicalBuildingFromTag } from '@/lib/rules/beithady-listings'`.
+
+2. **Optional secondary: Supabase backfill** so the column itself becomes truthful (helps future queries that don't go through the resolver):
+   ```sql
+   UPDATE guesty_listings SET building_code = 'BH-DXB'
+     WHERE id IN ('683edd460d8f3c0021fedfc7','683edd79c4730f0011ad7b09','683edd80b8b96f001c7b6d20');
+   UPDATE guesty_listings SET building_code = 'BH-OTHERS'
+     WHERE building_code IS NULL AND id NOT IN (...DXB ids...);
+   ```
+   Apply via `mcp__f6afcc50-...__apply_migration` (DDL-style) or `execute_sql` (it's a data update). Run AFTER the resolver lands so the resolver always wins.
+
+3. **Brief callers** (`finance-brief.ts`, `gr-brief.ts`, `ops-brief.ts`):
+   - Replace `countryForBuilding(b)` calls with `bucketForListing({building_code, listing_id, nickname})`.
+   - Replace `Record<CountryCode, ...>` with `Record<BriefBucket, ...>`.
+   - **Revenue / payouts / unpaid / direct sections** (finance + parts of GR): filter out BH-DXB before summation; display Egypt totals across 5 buckets; append "BH-DXB: N reservations (excluded)" line if any UAE rows exist.
+   - **Currently Staying section**: include BH-DXB in count (Q5).
+   - **Activity sections (Q6 pending)**: behavior depends on user's Q6 answer.
+   - Headline counts (e.g. "11 bookings", "143 bookings"): drop UAE per Q3.
+   - Summary keys: replace `_eg_usd / _ae_aed` with per-bucket keys (`mtd_revenue_bh26_usd`, `mtd_revenue_bh73_usd`, ..., or simpler: `mtd_revenue_egypt_usd` summing all 5 Egypt buckets + `mtd_count_dxb_excluded` for transparency).
+
+4. **Validate** — npx tsc -p tsconfig.json clean, deploy via `vercel --prod`, then click "Send ALL 3 briefs NOW" admin button (already deployed at `/beithady/operations/morning-brief`) to verify next-day output.
+
+**No code touched in this turn.** Branch HEAD on `claude/zen-euler-d3bd5e` is `6a80430` (handoff doc). Production main HEAD = `25eda26`.
+
+The pre-existing `beithady-brief-audit-followup` scheduled task fires `2026-05-01T10:00:00+03:00` — its check uses old key names (`yesterday_revenue_eg_usd`, etc.). Once the rebucket ships, that task's keys will mismatch reality. Either (a) update the scheduled task prompt before tomorrow 10am or (b) accept that it'll report ⚠️ drift on those specific keys (which is technically correct because the schema changed — user will know to investigate).
+
+---
+
+## 🟡 Previous turn — Awaiting user answers on rebucket spec (no code shipped)
 
 User saw the new Egypt/UAE-segregated brief output and shared the rendered finance brief in chat. Key observations from their reply:
 - 11 yesterday bookings, all Egypt — $5,194 accrued, channels airbnb2 / manual / bookingCom
