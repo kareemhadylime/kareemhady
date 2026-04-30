@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Morning Brief audit: Egypt/UAE segregation + Guesty parity + send-all admin button + follow-up validation agent
+## 🟡 Latest turn — Awaiting user answers on rebucket spec (no code shipped)
+
+User saw the new Egypt/UAE-segregated brief output and shared the rendered finance brief in chat. Key observations from their reply:
+- 11 yesterday bookings, all Egypt — $5,194 accrued, channels airbnb2 / manual / bookingCom
+- MTD: `Egypt: $66,688 · Other: 9,070 AED + $1,550` across 143 bookings (133 Egypt + 10 OTHER)
+- Currently staying (34): Egypt 32, **UAE 0**, Other 2 — the "UAE: 0" is a bug; DXB-tagged units are bucketing into OTHER because `guesty_listings.building_code` for LIME-MA-1402 / REEHAN-204 / YANSOON-105 is presumably null or non-`DXB`. The 9,070 AED in OTHER is almost certainly those 3 UAE units mis-routed.
+
+**User's standing instruction (new — supersedes the earlier "Egypt USD vs UAE AED" rule for briefs):**
+
+> "In All Beithady Sections, Segregate UAE Units, Remove them from Others and Remove them from any Revenues, cost and anything. Treat Them As Non existing for now except in Messaging and Calendar. Include Them in Other Category Named DXB, So We Have BH-26, BH-435 ... BH-Others, BH-DXB."
+
+So briefs need a rebucket from country-based (EG/AE/OTHER) → building-bucket-based with UAE explicitly excluded from revenue rollups. UAE units stay live in Messaging and Calendar surfaces; they're effectively non-existent for finance/ops/GR brief purposes.
+
+**Posted 5 clarifying questions to user (turn ended awaiting reply):**
+
+- **Q1** — Exact bucket list: (a) BH-26, BH-73, BH-435, BH-OK each their own + BH-Others (small Egypt clusters) + BH-DXB OR (b) just BH-26, BH-435, BH-Others (everything else Egypt incl. BH-73/OK), BH-DXB
+- **Q2** — BH-DXB visibility in brief: completely silent OR single transparency line "BH-DXB: N reservations (excluded)"
+- **Q3** — Booking COUNT for UAE in MTD: count them or not (revenue is already excluded — this is just whether the headline "143 bookings" drops to "138" or stays)
+- **Q4** — Confirm 9,070 AED in current "Other" = UAE (to be removed) and $1,550 in current "Other" = small Egypt cluster (to be moved into BH-Others)
+- **Q5** — Currently-staying / arrivals / departures: also exclude UAE from these GR/Ops sections, or surface UAE separately? (User said "treat as non-existing in briefs" so leaning toward exclude)
+
+**No code touched in this turn.** Last commit on the branch is still `663be34` (handoff doc). Production is on `main` HEAD = `25eda26` (send-all admin button + Egypt/UAE country segregation).
+
+**For the next session:** once user answers, the rebucket lives in `src/lib/beithady/morning-brief/country.ts` — replace `CountryCode` enum with `BriefBucket` ('BH-26'|'BH-435'|...|'BH-DXB'|'BH-OTHERS'), add a `bucketForBuilding(building_code, listing_nickname)` resolver, and add an `isExcludedFromRevenue(bucket)` predicate that callers MUST consult before adding to any revenue/count aggregator. Then propagate through `finance-brief.ts`, `gr-brief.ts`, `ops-brief.ts` — replace the per-country `EG/AE/OTHER` maps with per-bucket maps and filter out BH-DXB before summation. Also fix the upstream root cause: `guesty_listings.building_code` should be backfilled to 'DXB' for the 3 UAE listing IDs (683edd460d8f3c0021fedfc7, 683edd79c4730f0011ad7b09, 683edd80b8b96f001c7b6d20) so the bucket resolver doesn't have to lean on nickname-prefix fallback. Same backfill story for the small Egypt clusters that currently land in OTHER ($1,550 worth in MTD).
+
+---
+
+## 🟢 Previous turn — Morning Brief audit: Egypt/UAE segregation + Guesty parity + send-all admin button + follow-up validation agent
 
 User flagged that the 8am brief numbers diverged from the Guesty homepage tile. Screenshots: Guesty showed 6 check-ins / 15 check-outs / 2 turnovers / 43 currently-staying; brief said arrivals=11 / departures=21 / same-day-flips=5 / no-currently-staying-section. User also issued a standing rule: every revenue / payout / activity figure across all 3 briefs MUST split Egypt (USD) vs UAE (AED), with no FX conversion across the line.
 
