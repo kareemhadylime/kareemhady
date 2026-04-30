@@ -1,6 +1,35 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — SHIPPED + merged to main: webhook column-swap fix + Awaiting Reply banner + 2170-row SLA backfill + UAE building_code backfill
+## 🟢 Latest turn — Sync: pulled 36 parallel commits from origin/main + ran missed `vercel --prod`
+
+User flagged "you didn't push to main, take care of other newer commits". Push HAD succeeded earlier (`6f76eb3` + `b97d46b`) but I'd skipped the explicit `vercel --prod` step on commit `6f76eb3` (the `is_unanswered` NEW badge fix). Verified state, pulled upstream, redeployed.
+
+**Pre-fetch state:** local was 36 commits behind origin/main. All my 6 Phase C.5 commits were ALREADY in origin/main (pushed correctly earlier this session). 
+
+**Merge result — fast-forward, zero conflicts.** New code from sibling worktrees that's now active:
+- `43f0b95` "inbox SLA column-swap + Awaiting Reply banner + UAE backfill" — touches `sidebar-list.tsx`. Coexists cleanly with my `is_unanswered` NEW badge from `6f76eb3` — the merged file shows BOTH the new "Awaiting reply" pill (sibling) AND the NEW pill (mine), keyed off `is_unanswered`.
+- `babc274` handoff for the above
+- `49f3492` parent merge integrating 42 parallel commits
+- `8599ee8` Generate Report module — adds analytics/reports/builder pages + render-pdf/xlsx libs (recharts, exceljs deps surface as pre-existing typecheck noise)
+- `b9ac678` `business_analyst` role added to BeithadyRole union
+- `1481eb7` AI-suggested SKU rename + Amazon mismatch banner (inventory)
+- `b0ae924` ScrapingBee integration for Amazon EG sourcer
+- `0056_beithady_msg_direction_fix.sql` migration applied (different from my `0056_beithady_orphan_conv_recovery.sql` — both coexist via Supabase's timestamp-versioned tracking; filename collision is cosmetic only)
+
+**`vercel --prod` ran** for the current HEAD (deploys all merged work). Vercel response shows deployment created.
+
+**Files the system reminders flagged as recently modified** (post-merge state, Phase C.5 work intact):
+- `src/lib/run-guesty-sync.ts` — sibling added `stripHtmlToText` for system emails. Compatible with my `normalizeConversationRow` export from commit `6347899`.
+- `src/lib/guesty-webhook.ts` — sibling rewrote ingestMessage. My `fetchAndUpsertConversation` lazy-create call (commit `6347899`) preserved per merge inspection — verify on next manual run.
+- `src/lib/beithady/auth.ts` — sibling added `business_analyst` to `BEITHADY_ROLES` + permissions matrix. My `'outbound'` entry in `ADMIN_ONLY_SETTINGS_SUBTABS` (commit `d7e5314`) preserved.
+- `src/app/beithady/communication/_components/thread-pane.tsx` — my Phase C.5 ChannelSwitcher + SwitchComposer + EffectiveChannelComposer wire-in preserved. SwitchComposer import + composerHints with selected_target/return_path intact.
+- `src/app/beithady/communication/_components/sidebar-list.tsx` — sibling's "Awaiting reply" pill + 4px stripe coexist with my "NEW" pill. Both keyed off `is_unanswered`. UI now shows BOTH a colored bucket-keyed "Awaiting reply" pill AND a rose "NEW" pill on guest-replied-last threads — slightly redundant but not broken; can be deduped in a follow-up.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c` is 0 ahead / 0 behind origin/main. Clean working tree.
+
+**Open follow-up:** the "NEW" pill + "Awaiting reply" pill on the sidebar are now both rendered on the same condition (`is_unanswered`). Could merge into one — TBD per user preference.
+
+## 🟢 Earlier this session — SHIPPED + merged to main: webhook column-swap fix + Awaiting Reply banner + 2170-row SLA backfill + UAE building_code backfill
 
 **Push to main:** merge commit `49f3492` integrating 42 parallel-session commits + my 10 fix commits. `git push origin claude/zen-euler-d3bd5e:main` → success (`fa874ec..49f3492`). Vercel `--prod` deploy READY at `https://zen-euler-d3bd5e-qwb11fnsy-lime-investments.vercel.app` (alias `zen-euler-d3bd5e.vercel.app`). Branch state: zero divergence with origin/main now.
 
