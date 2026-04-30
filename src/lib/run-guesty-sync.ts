@@ -711,7 +711,7 @@ function extractBuildingFromTags(tags: string[] | undefined): string | null {
 
 // Flatten one /communication/conversations row into our mirror schema.
 // Denormalizes the first reservation (most conversations only have one).
-function normalizeConversationRow(
+export function normalizeConversationRow(
   c: GuestyConversation
 ): Record<string, unknown> {
   const state = c.state || {};

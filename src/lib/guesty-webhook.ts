@@ -207,6 +207,28 @@ async function ingestMessage(payload: AnyJson, fromType: 'guest' | 'host'): Prom
     throw new Error('conversation_id missing from message payload');
   }
 
+  // Phase C.5 follow-up — lazy-create the parent conversation if it's
+  // missing. Guesty's webhook subscription on this account fires
+  // reservation.messageReceived without a preceding conversation.created,
+  // so the very first message on a brand-new conversation would orphan
+  // here without this fetch. Fast-path: when the row already exists,
+  // fetchAndUpsertConversation skips the API round-trip.
+  try {
+    const { fetchAndUpsertConversation } = await import('./guesty-conversation-recovery');
+    const r = await fetchAndUpsertConversation(conversationId);
+    if (!r.ok) {
+      // Non-fatal: log and continue with the post upsert. Worst case the
+      // post is briefly orphaned and the next 5-min cron's batch
+      // recovery picks it up.
+      // eslint-disable-next-line no-console
+      console.warn(`[guesty-webhook] lazy-create parent conv ${conversationId} failed: ${r.reason}${r.error ? ` (${r.error})` : ''}`);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // eslint-disable-next-line no-console
+    console.warn(`[guesty-webhook] lazy-create threw for conv ${conversationId}: ${msg}`);
+  }
+
   // Guesty's webhook payload keys: `message.postId` is the conversation-post _id.
   // Fall back to legacy paths just in case Guesty changes the schema later.
   const messageId = asString(get(message, 'postId'))

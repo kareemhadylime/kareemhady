@@ -456,6 +456,39 @@ export async function listGuestyConversationPosts(
   return raw as GuestyConversationPostsResponse;
 }
 
+// GET /v1/communication/conversations/{id} — fetch a single conversation
+// by id. Used by the orphan-recovery path (Phase C.5 follow-up) when our
+// webhook receives a `reservation.messageReceived` event whose parent
+// conversation isn't yet in guesty_conversations.
+export async function getGuestyConversation(
+  conversationId: string,
+  fields?: string,
+): Promise<GuestyConversation | null> {
+  if (!conversationId) return null;
+  try {
+    const raw = await guestyFetch<unknown>(
+      `/communication/conversations/${conversationId}`,
+      { query: { fields: fields ?? DEFAULT_CONV_FIELDS } },
+    );
+    // Single-conversation responses may be wrapped under `.data` or
+    // returned directly — handle both.
+    const obj =
+      raw && typeof raw === 'object' && 'data' in raw && (raw as { data?: unknown }).data
+        ? (raw as { data: GuestyConversation }).data
+        : (raw as GuestyConversation);
+    if (!obj || typeof obj !== 'object') return null;
+    const idLike = (obj as { _id?: string; id?: string })._id || (obj as { id?: string }).id;
+    if (!idLike) return null;
+    // Ensure the canonical `_id` field is set so downstream normalizers work.
+    if (!(obj as { _id?: string })._id) {
+      (obj as { _id?: string })._id = idLike;
+    }
+    return obj as GuestyConversation;
+  } catch {
+    return null;
+  }
+}
+
 export async function listGuestyConversations(params: {
   limit?: number;
   after?: string;
