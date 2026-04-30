@@ -1,6 +1,36 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Result-returning attach actions for programmatic invocation (commit `dd34af4`)
+## 🟢 Latest turn — Direct-to-Storage upload bypass for attach send (commit `64d5845`)
+
+User screenshot: rose error banner now shows **"Send failed. transport: An unexpected response was received from the server."** This is the catch-block path I added — meaning the action invocation itself (the React transport fetch) is failing BEFORE the action body runs.
+
+**Diagnosis:** the error originates at the framework/transport layer, NOT inside the action's try/catch. The result-returning variant from `dd34af4` works correctly — its body never threw. The failure is at Vercel's serverless function pipeline rejecting the multipart payload before the action is invoked. Likely the 12mb `bodySizeLimit` config in `next.config.ts` gates form-action POSTs, not necessarily the RSC binary frame used by `useTransition`-invoked programmatic actions.
+
+**Fix shipped (commit `64d5845`):**
+Bypass Vercel for file bytes entirely. Direct-to-Supabase-Storage upload via signed upload URLs.
+
+1. New tiny action `createMediaSignedUploadUrl(ext)`:
+   - Service-role creates a signed upload URL on the `beithady-wa-media` bucket
+   - Returns `{ token, path, publicUrl }` — round-trip is a few hundred bytes
+   - No body limit issues
+
+2. `AttachmentMenu.handleSend` rewired:
+   - Iterates `items[]`. For each FILE: get signed URL from server, upload directly via `supabaseBrowser().storage.from('beithady-wa-media').uploadToSignedUrl(path, token, file)`
+   - Bytes flow **client → Supabase Storage**, never through Vercel
+   - Library items pass through unchanged
+   - After all uploads succeed, calls the multi-attach Result action with all entries mapped as `library_url_${i}`. Action payload now only contains URL strings — tiny, fast.
+
+3. Errors at any stage (signed URL mint, direct upload, send-message) surface in the rose error banner with the specific cause string.
+
+**Files touched:**
+- `src/app/beithady/communication/attach-actions.ts` — added `createMediaSignedUploadUrl` (~40 lines)
+- `src/app/beithady/communication/_components/attachment-menu.tsx` — `handleSend` rewritten to use signed-URL upload + Result action with URL refs only
+
+**Deploy state:** push to main succeeded (`25595b0..64d5845`). Explicit `vercel --prod` returned ECONNRESET (Vercel API network blip), but GitHub-Vercel integration auto-deploys from main, so `limeinc.vercel.app` will pick up the change within ~1-2 min.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `64d5845` on main.
+
+## 🟢 Earlier turn — Result-returning attach actions for programmatic invocation (commit `dd34af4`)
 
 User screenshot: rose error banner showing **"Send failed. An unexpected response was received from the server."** This is React 19's generic error string — emitted when a server action's response can't be deserialized.
 
