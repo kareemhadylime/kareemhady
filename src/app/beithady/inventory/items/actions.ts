@@ -13,6 +13,10 @@ import {
   setAiInfoStatus,
   isWithinCooldown,
 } from '@/lib/beithady/inventory/ai-item-info';
+import {
+  syncOneItemPrice,
+  syncAllItemPrices,
+} from '@/lib/beithady/inventory/amazon-eg-sourcer';
 
 export type ItemFormInput = {
   sku: string;
@@ -707,4 +711,76 @@ export async function acceptManySourcesAction(
   revalidatePath('/beithady/inventory/rules/estimator', 'layout');
   revalidatePath('/beithady/inventory');
   return { ok: true, accepted: eligibleIds.length, skipped };
+}
+
+// ---------------------------------------------------------------------------
+// Amazon EG sourcer — manual triggers (Phase M.16 / M.15.4)
+// ---------------------------------------------------------------------------
+//
+// The daily cron at /api/cron/beithady-amazon-eg-sourcer walks every active
+// item with a URL and refreshes price + pack_size + stock. These two
+// actions let operators force-refresh:
+//   • single item    → "Sync price now" button on the source cell
+//   • whole catalog  → "Sync all prices" header button
+// Manual single runs in the foreground (~10-15s) so the operator sees the
+// result immediately. Bulk runs in the background via waitUntil so the
+// header click returns instantly and the items page auto-polls for updates.
+
+export type SyncPriceResult =
+  | { ok: true; status: string; price_egp: number | null; price_changed: boolean }
+  | { ok: false; error: string };
+
+export async function syncAmazonPriceNowAction(itemId: string): Promise<SyncPriceResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const res = await syncOneItemPrice(itemId);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: res.ok ? 'amazon_eg.sync_one' : 'amazon_eg.sync_one_failed',
+    target_type: 'item',
+    target_id: itemId,
+    metadata: res.ok
+      ? { status: res.status, price_egp: res.price_egp, price_changed: res.price_changed }
+      : { error: res.error },
+  });
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  return res;
+}
+
+export async function syncAllAmazonPricesAction(): Promise<
+  { ok: true; queued: number } | { ok: false; error: string }
+> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+  const { data: candidates, error } = await sb
+    .from('beithady_inventory_items')
+    .select('id')
+    .eq('active', true)
+    .not('amazon_eg_url', 'is', null)
+    .limit(500);
+  if (error) return { ok: false, error: error.message };
+  const queued = (candidates as Array<{ id: string }> | null || []).length;
+  if (queued === 0) {
+    return { ok: false, error: 'No active items have an Amazon EG URL set yet — set URLs first.' };
+  }
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'amazon_eg.sync_all',
+    target_type: 'item',
+    metadata: { queued },
+  });
+
+  // Fire-and-forget. Worst case ~2 min for 50 items @ 4 concurrent.
+  waitUntil(
+    syncAllItemPrices().then(() => {
+      revalidatePath('/beithady/inventory/items');
+      revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+    }),
+  );
+
+  revalidatePath('/beithady/inventory/items');
+  return { ok: true, queued };
 }

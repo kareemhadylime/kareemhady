@@ -44,6 +44,12 @@ export default async function EstimatorConfigDetailPage({
     if (!linesByGroup.has(l.group)) linesByGroup.set(l.group, []);
     linesByGroup.get(l.group)!.push(l);
   }
+  // M.16 — flag the totals visually if any line uses an estimated unit cost.
+  const anyEstimate = lines.some(l => l.unit_cost_is_estimate);
+  const estimateCount = lines.filter(l => l.unit_cost_is_estimate).length;
+  const estimateNote = anyEstimate
+    ? `${estimateCount} of ${lines.length} lines use estimated cost (no live Amazon price). Set Amazon URLs on the items page and run the price sourcer for live totals.`
+    : null;
 
   return (
     <BeithadyShell
@@ -88,21 +94,32 @@ export default async function EstimatorConfigDetailPage({
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Total / check-in</div>
-            <div className="text-2xl font-bold tabular-nums" style={{ color: 'var(--bh-heading)' }}>
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-300">
+              Total / check-in {anyEstimate && <span className="text-amber-600 dark:text-amber-300">· estimated</span>}
+            </div>
+            <div className={`text-2xl font-bold tabular-nums ${anyEstimate ? 'text-amber-700 dark:text-amber-300' : ''}`}
+                 style={anyEstimate ? undefined : { color: 'var(--bh-heading)' }}
+                 title={estimateNote || undefined}>
               {total_per_checkin_egp > 0
-                ? `${total_per_checkin_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP`
+                ? `${anyEstimate ? '~' : ''}${total_per_checkin_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP`
                 : '—'}
             </div>
           </div>
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Per guest</div>
-            <div className="text-lg font-semibold tabular-nums text-slate-700 dark:text-slate-100">
-              {total_per_guest_egp > 0 ? `${total_per_guest_egp.toFixed(0)} EGP` : '—'}
+            <div className={`text-lg font-semibold tabular-nums ${anyEstimate ? 'text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-100'}`}>
+              {total_per_guest_egp > 0 ? `${anyEstimate ? '~' : ''}${total_per_guest_egp.toFixed(0)} EGP` : '—'}
             </div>
           </div>
         </div>
       </section>
+
+      {anyEstimate && estimateNote && (
+        <section className="ix-card p-2.5 border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 text-[11px] text-amber-800 dark:text-amber-200 flex items-start gap-2">
+          <Info size={12} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
+          <span>{estimateNote}</span>
+        </section>
+      )}
 
       {/* Group totals */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
@@ -289,11 +306,20 @@ function LineRow({ l }: { l: EstimatorLine }) {
       <td className="py-2 px-3 text-right tabular-nums font-medium text-slate-700 dark:text-slate-100">
         {fmtQty(l.effective_qty)}
       </td>
-      <td className="py-2 px-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-        {l.unit_cost_egp > 0 ? `${l.unit_cost_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP` : '—'}
+      <td className={`py-2 px-3 text-right tabular-nums ${l.unit_cost_is_estimate ? 'text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-200'}`}
+          title={l.unit_cost_is_estimate
+            ? 'Estimate — seeded placeholder. Set Amazon URL on the items page and run the price sourcer for the live price.'
+            : 'Live Amazon EG price (price_egp / pack_size)'}>
+        {l.unit_cost_egp > 0
+          ? `${l.unit_cost_is_estimate ? '~' : ''}${l.unit_cost_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP`
+          : '—'}
       </td>
-      <td className="py-2 px-3 text-right tabular-nums font-semibold" style={{ color: 'var(--bh-heading)' }}>
-        {l.line_total_egp > 0 ? `${l.line_total_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP` : '—'}
+      <td className={`py-2 px-3 text-right tabular-nums font-semibold ${l.unit_cost_is_estimate ? 'text-amber-700 dark:text-amber-300' : ''}`}
+          style={l.unit_cost_is_estimate ? undefined : { color: 'var(--bh-heading)' }}
+          title={l.unit_cost_is_estimate ? 'Line total based on estimated unit cost' : undefined}>
+        {l.line_total_egp > 0
+          ? `${l.unit_cost_is_estimate ? '~' : ''}${l.line_total_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP`
+          : '—'}
       </td>
       <td className="py-2 px-3">
         {isDirectMatch ? (

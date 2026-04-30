@@ -1,6 +1,6 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Fixed "NEW" badge stuck on answered threads (commit `6f76eb3`)
+## 🟢 Latest turn (parallel session) — Fixed "NEW" badge stuck on answered threads (commit `6f76eb3`)
 
 User screenshot: Amr (Airbnb inquiry BH73-3BR-SB-3-305) showed "1 NEW" badge in sidebar even though the team had replied via the templated "Hello, Thanks for your interest" outbound. Asked "Why Amr Message shows new, although team has responded".
 
@@ -113,7 +113,80 @@ User screenshot: typed a reply on Hady Family (Airbnb thread) → message went o
 
 **Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `3d43f9d` pushed to `main`. Vercel auto-deploys via GitHub integration.
 
-## 🟢 Earlier turn — Fixed Guesty 400 VALIDATION_ERROR on POST conversation-posts (manual reply now works)
+## 🟢 Latest turn (this session) — F3 (Amazon EG sourcer) + F1 (estimate flags) SHIPPED — costs are now honest
+
+User picked **F3 falling back to F1**. Built both in one turn.
+
+**F3 — Amazon EG price sourcer (the proper fix):**
+- New lib `src/lib/beithady/inventory/amazon-eg-sourcer.ts` — Claude Haiku 4.5 with `web_fetch_20250910` tool, beta header, structured-JSON output. Three exported entry points:
+  - `probeAmazonProduct({ itemName, itemUom, url })` — pure probe, no DB writes
+  - `persistProbeResult(itemId, result)` — writes to items row + appends snapshot. Detects >10pct delta vs last snapshot → `amazon_eg_last_status='price_changed'`
+  - `syncOneItemPrice(itemId)` — fetch + probe + persist in one go (manual button + per-cron-loop)
+  - `syncAllItemPrices({ limit? })` — concurrency pool of 4, walks every active item with `amazon_eg_url IS NOT NULL`. Returns counts: attempted/ok/rate_limited/not_found/parse_errors/price_changed.
+- New cron route `src/app/api/cron/beithady-amazon-eg-sourcer/route.ts` — `maxDuration=300` (probing 70+ items takes ~5-8 min worst case @ 4 concurrent × ~10s each). Bearer auth via `CRON_SECRET`. Manual trigger via `?force=1&secret=$CRON_SECRET`.
+- `vercel.json` — added schedule `0 4 * * *` (06:00 Cairo daily). Lands ~30 min before housekeeping starts so morning estimator pulls fresh prices.
+- Two new server actions in `actions.ts`:
+  - `syncAmazonPriceNowAction(itemId)` — manual single-item refresh, foreground (~10-15s). Audits.
+  - `syncAllAmazonPricesAction()` — flags candidates, fires `waitUntil(syncAllItemPrices())` background pool. Returns `{ queued }` immediately.
+- New `_components/sync-prices-button.tsx` — header CTA "Sync prices (N)" visible when ≥1 item has a URL set. Auto-refreshes the page after 10s so the operator sees the first prices land.
+
+**F1 — Honest estimate flags everywhere costs are displayed:**
+- `ItemListRow` extended with `amazon_eg_price_egp`, `amazon_eg_pack_size`, `amazon_eg_image_url`, `amazon_eg_last_status`, `amazon_eg_last_checked_at` (added to type + mapper in `catalog.ts:67-74` + `:194-198`).
+- `EstimatorLine` extended with `unit_cost_is_estimate: boolean` ([estimator-shared.ts:202](src/lib/beithady/inventory/estimator-shared.ts:202)). Set by `estimator.ts` when the unit cost falls back to `default_cost_egp` instead of computing from `amazon_eg_price_egp / pack_size`.
+- New `CostCell` component in `items-section-list.tsx` — when no live Amazon price: renders `~55` in amber with tooltip "Estimate — seeded placeholder. Set an Amazon EG URL and run the price sourcer to get the live price." Otherwise plain slate "55" with tooltip "Live Amazon EG price · checked DD MMM".
+- Estimator detail page (`estimator/[configId]/page.tsx`):
+  - Per-row Unit cost + Line total cells flip to amber + tilde prefix when estimate
+  - "Total / check-in" and "Per guest" headline numbers flip amber + tilde + add "estimated" eyebrow when ANY line is an estimate
+  - New amber banner under the summary strip: "N of M lines use estimated cost..."
+- `EstimatorLine.unit_cost_is_estimate` source-of-truth: `unitCostIsEstimate = true` initially, flipped to `false` only when `amazon_eg_price_egp != null` ([estimator.ts:191-201](src/lib/beithady/inventory/estimator.ts:191)).
+
+**Smoke test plan post-deploy:**
+1. Load `/beithady/inventory/items` → all 73 cost cells should now show `~XX` in amber. Header has new amber "Sync prices (0)" button hidden (no URLs set yet).
+2. Set an Amazon EG URL on one item via "Set URL" button → header pill becomes "Sync prices (1)".
+3. Click "Sync prices (1)" → message "Probing 1 URL — refresh in ~2 min" → wait → cost cell flips to plain (no tilde, slate color), shows real price.
+4. Estimator detail page: amber banner "73 of 73 lines use estimated cost..." until any item has live data. Once one item is live, banner says "72 of 73...".
+5. Daily cron at 06:00 Cairo refreshes all URLs automatically.
+
+**Why F2 + F4 rejected:**
+- F2 (AI info card extracts price) — Haiku price extraction unreliable at scale, and we already have a Haiku call for ai-info; doing both is duplicative.
+- F4 (inline search picker) — Amazon's anti-bot blocks scrape-of-search-results far more aggressively than scrape-of-product-page. Search picker would need real rendering / proxy.
+
+**Files touched:**
+- New: `src/lib/beithady/inventory/amazon-eg-sourcer.ts`, `src/app/api/cron/beithady-amazon-eg-sourcer/route.ts`, `src/app/beithady/inventory/items/_components/sync-prices-button.tsx`
+- Edited: `src/lib/beithady/inventory/catalog.ts` (5 new fields), `src/lib/beithady/inventory/estimator.ts` (track is_estimate), `src/lib/beithady/inventory/estimator-shared.ts` (`EstimatorLine.unit_cost_is_estimate`), `src/app/beithady/inventory/items/actions.ts` (2 new actions + import), `src/app/beithady/inventory/items/page.tsx` (sync button + count), `src/app/beithady/inventory/items/_components/items-section-list.tsx` (`CostCell`), `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` (per-line + total + banner), `vercel.json` (cron schedule)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟡 Earlier this turn — User flagged "where does the 55 EGP cost come from?" — explained + proposed F1-F4 fixes (no commits)
+
+User screenshot: items page shows `CLN-ANTIFLY-400ML` cost = 55 EGP. Click "Search" → opens `amazon.eg/s?k=Anti-flies+spray+400ml` showing 6 real products at 125 / 145 / 170 / 222 EGP. User asked: "Where did 55 come from if it's a search not a specific product?"
+
+**Honest answer given:** the 55 is a **hardcoded placeholder** I wrote in seed migration `0052d_seed_unit_configs_categories_uoms_items_rules.sql:49` (and same pattern in `0059_seed_extra_inventory_items.sql` for the 43 new items). Every cost in the catalog right now is a guess — none have been populated from Amazon yet.
+
+**Why the table looks confidently wrong:**
+- `default_cost_egp` (seed placeholder) is the fallback when `amazon_eg_price_egp IS NULL`.
+- Estimator code is `let unitCost = Number(it.default_cost_egp || 0); if (amazon_eg_price_egp …) unitCost = …` ([estimator.ts:191](src/lib/beithady/inventory/estimator.ts:191)).
+- 0 of 73 items have `amazon_eg_price_egp` populated — so every displayed cost is the placeholder.
+- The "Amazon EG sourcer" cron (M.15.4) was scaffolded with columns + `amazon_eg_alternatives` jsonb but **never built** — there is no code path that writes `amazon_eg_price_egp` today. Setting a URL just nulls all the Amazon-derived fields; nothing fills them back in.
+- The Search button is a fallback ONLY for items without a canonical URL — it never drives cost.
+
+**4 fix options offered, awaiting user pick:**
+- **F1** (~30 min) Visual flag: show `~55 EGP` or "estimate" pill when `amazon_eg_price_egp IS NULL`. Cheapest, makes table honest immediately.
+- **F2** (~1 hr) Add `unit_cost_egp_estimate` to AI info card so Claude pulls a typical price during web_fetch.
+- **F3** (~half day) Build the actual Amazon EG sourcer cron — the proper fix. New `/api/cron/beithady-amazon-eg-sourcer` walks every item with URL set, fetches price + pack_size, writes to `amazon_eg_price_egp` + `amazon_eg_pack_size`.
+- **F4** (~medium) Surface candidate prices inline on the items page when operator clicks Search — pick a product → URL + price stored together.
+
+**Recommended:** F1 + F3 as a pair. F1 ships today for honesty; F3 makes it real. F2 is unreliable; F4 fights Amazon anti-bot.
+
+**No code changes this turn.** Awaiting user pick on F1-F4.
+
+**Branch state:** `claude/festive-lamport-b23de0`. Last commit `74db4b8` (handoff verifying M2-M5 deploy). Prod is at the M2-M5 deploy `dpl_3tvs5eUoYWQzJQMGqPXcJgKENH4z` (READY). All M.16 work shipped — only the price-honesty UX remains.
+
+---
+
+## 🟢 Earlier today — Fixed Guesty 400 VALIDATION_ERROR on POST conversation-posts (manual reply now works)
 
 User screenshot: tried sending a manual reply on Hady Family (conv `69f2f16b824ad00012c34e12`) via Guesty WA. Got `Send failed · status 400 · guesty_400: VALIDATION_ERROR "type is not allowed"`.
 

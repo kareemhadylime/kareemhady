@@ -380,7 +380,7 @@ function ItemRow({
       </td>
       <td className="px-3 py-2 text-right tabular-nums text-slate-500">{it.min_qty}</td>
       <td className="px-3 py-2 text-right tabular-nums">
-        {Number(it.default_cost_egp).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+        <CostCell item={it} />
       </td>
       <td className="px-3 py-2">
         <SourceCell
@@ -434,6 +434,41 @@ function ItemRow({
       </tr>
     )}
     </>
+  );
+}
+
+function CostCell({ item }: { item: ItemListRow }) {
+  // Live price = amazon_eg_price_egp / pack_size  (matches estimator.ts)
+  // Estimate    = default_cost_egp (the seeded placeholder)
+  const livePrice = (() => {
+    if (item.amazon_eg_price_egp == null) return null;
+    const ps = item.amazon_eg_pack_size && item.amazon_eg_pack_size > 0 ? item.amazon_eg_pack_size : 1;
+    return item.amazon_eg_price_egp / ps;
+  })();
+  const isEstimate = livePrice == null;
+  const displayValue = livePrice ?? Number(item.default_cost_egp);
+  const formatted = displayValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const lastChecked = item.amazon_eg_last_checked_at
+    ? new Date(item.amazon_eg_last_checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+    : null;
+
+  if (isEstimate) {
+    return (
+      <span
+        className="text-amber-700 dark:text-amber-300"
+        title="Estimate — seeded placeholder. Set an Amazon EG URL and run the price sourcer to get the live price."
+      >
+        ~{formatted}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-slate-700 dark:text-slate-100"
+      title={lastChecked ? `Live Amazon EG price · checked ${lastChecked}` : 'Live Amazon EG price'}
+    >
+      {formatted}
+    </span>
   );
 }
 

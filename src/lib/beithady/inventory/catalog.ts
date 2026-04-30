@@ -67,6 +67,11 @@ export type ItemRow = {
   amazon_eg_url: string | null;
   amazon_eg_url_reviewed_at: string | null;
   amazon_eg_url_reviewed_by: string | null;
+  amazon_eg_price_egp: number | null;
+  amazon_eg_pack_size: number | null;
+  amazon_eg_image_url: string | null;
+  amazon_eg_last_status: 'ok' | 'oos' | '404' | 'price_changed' | 'unchecked' | 'rate_limited' | null;
+  amazon_eg_last_checked_at: string | null;
   ai_info: AiItemInfoPayload | null;
   ai_info_generated_at: string | null;
   ai_info_source: 'amazon_eg_fetch' | 'general_knowledge' | null;
@@ -189,6 +194,11 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       amazon_eg_url: r.amazon_eg_url,
       amazon_eg_url_reviewed_at: r.amazon_eg_url_reviewed_at,
       amazon_eg_url_reviewed_by: r.amazon_eg_url_reviewed_by,
+      amazon_eg_price_egp: r.amazon_eg_price_egp != null ? Number(r.amazon_eg_price_egp) : null,
+      amazon_eg_pack_size: r.amazon_eg_pack_size != null ? Number(r.amazon_eg_pack_size) : null,
+      amazon_eg_image_url: r.amazon_eg_image_url,
+      amazon_eg_last_status: r.amazon_eg_last_status,
+      amazon_eg_last_checked_at: r.amazon_eg_last_checked_at,
       ai_info: r.ai_info,
       ai_info_generated_at: r.ai_info_generated_at,
       ai_info_source: r.ai_info_source,

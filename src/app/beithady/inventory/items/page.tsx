@@ -8,6 +8,7 @@ import { ImportButton } from './_components/import-button';
 import { ItemsSectionList } from './_components/items-section-list';
 import { CategoryJumpSelect } from './_components/category-jump-select';
 import { BulkAiInfoButton } from './_components/bulk-ai-info-button';
+import { SyncPricesButton } from './_components/sync-prices-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,8 @@ export default async function InventoryItemsPage({
   const sourcedCount = items.filter(it => it.amazon_eg_url).length;
   const reviewedCount = items.filter(it => it.amazon_eg_url_reviewed_at).length;
   const aiInfoMissingCount = items.filter(it => !it.ai_info && it.active).length;
+  // Items eligible for the price sourcer = active + URL set
+  const sourcerCandidateCount = items.filter(it => it.amazon_eg_url && it.active).length;
 
   // Group items by category, in the order returned by listCategories so the
   // sections render in the same order across the app.
@@ -140,6 +143,7 @@ export default async function InventoryItemsPage({
 
         {canWrite && (
           <div className="flex items-center gap-2">
+            <SyncPricesButton candidateCount={sourcerCandidateCount} />
             <BulkAiInfoButton missingCount={aiInfoMissingCount} />
             <a
               href="/api/beithady/inventory/items/template"

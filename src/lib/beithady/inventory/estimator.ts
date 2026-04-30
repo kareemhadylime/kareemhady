@@ -188,12 +188,16 @@ export async function computeEstimatorOutput(
     const finalQty = override ? Number(override.qty_override) : computedQty;
     const effectiveQty = finalQty * (1 + lossFactor);
 
-    // Unit cost: prefer Amazon-sourced price-per-pack-unit, fall back to default_cost_egp
+    // Unit cost: prefer Amazon-sourced price-per-pack-unit, fall back to default_cost_egp.
+    // Track whether we used the fallback so the UI can flag estimates.
     let unitCost = Number(it.default_cost_egp || 0);
+    let unitCostIsEstimate = true;
     if (it.amazon_eg_price_egp != null && it.amazon_eg_pack_size && it.amazon_eg_pack_size > 0) {
       unitCost = Number(it.amazon_eg_price_egp) / it.amazon_eg_pack_size;
+      unitCostIsEstimate = false;
     } else if (it.amazon_eg_price_egp != null) {
       unitCost = Number(it.amazon_eg_price_egp);
+      unitCostIsEstimate = false;
     }
 
     lines.push({
@@ -217,6 +221,7 @@ export async function computeEstimatorOutput(
       rule_scope: rulePicked.scope,
       has_listing_override: !!override,
       ai_info_summary_en: it.ai_info?.summary_en ?? null,
+      unit_cost_is_estimate: unitCostIsEstimate,
     });
   }
 

@@ -200,6 +200,7 @@ export type EstimatorLine = {
   rule_scope: RuleScope;       // global / unit_config / listing — for "where did this rule come from" hint
   has_listing_override: boolean;
   ai_info_summary_en: string | null;  // M.16 — short LLM-generated summary for hover tooltip
+  unit_cost_is_estimate: boolean;     // M.16 — true when unit_cost_egp came from default_cost_egp seed (no live Amazon price)
 };
 
 export type EstimatorOutput = {
