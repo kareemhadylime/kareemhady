@@ -1,6 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Switched attach send to programmatic useTransition (commit `85806f3`)
+## 🟢 Latest turn — Result-returning attach actions for programmatic invocation (commit `dd34af4`)
+
+User screenshot: rose error banner showing **"Send failed. An unexpected response was received from the server."** This is React 19's generic error string — emitted when a server action's response can't be deserialized.
+
+**Diagnosis:** the action throws on `ensureFullPerm` failure, on `missing_conversation_id`, etc., AND calls `redirect()` on success/known-failure. Both patterns are designed for native `<form action={...}>` submission where Next.js intercepts the `NEXT_REDIRECT` sentinel. When called programmatically via `useTransition`, neither throws nor redirects deserialize cleanly back to the client. Server still shows no audit row + no storage object → action threw before reaching the audit write.
+
+**Fix shipped (commit `dd34af4`):**
+New result-returning action variants alongside the existing throw/redirect ones:
+- `sendGuestyMultiAttachResult(formData) → Promise<MultiAttachResult>`
+- `sendWaCasualMultiAttachResult(formData) → Promise<MultiAttachResult>`
+
+```ts
+type MultiAttachResult = {
+  ok: boolean;
+  error?: string;
+  redirectTo?: string;
+  count?: number;
+  status?: number;
+};
+```
+
+These wrap the entire body in try/catch, **never throw**, **never redirect**. On any failure (auth, validation, upload, Guesty rejection) the catch returns `{ ok: false, error: msg }`. On success returns `{ ok: true, redirectTo: ... }`.
+
+`AttachmentMenu` updated:
+- Imports Result variants (`sendGuestyMultiAttachResult` / `sendWaCasualMultiAttachResult`)
+- Uses `useRouter().push(result.redirectTo)` to navigate client-side after success
+- Renders `result.error` in the rose error banner — the actual exception message is now visible (auth errors, file size limits, Guesty rejection text, etc.)
+- Optimistically clears `items[]` on success and revokes blob URLs
+
+The original redirect-style actions (`sendGuestyMultiAttachAction` etc.) are preserved in attach-actions.ts for backward compat if any native form callers ever come back.
+
+**Files touched:**
+- `src/app/beithady/communication/attach-actions.ts` — added two `*Result` action variants (~150 lines)
+- `src/app/beithady/communication/_components/attachment-menu.tsx` — switched imports, uses router.push, surfaces actual server error
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `dd34af4` pushed to `main`. Vercel deploy fired.
+
+**On next attempt by user**: if upload still fails, the rose banner will show the SPECIFIC exception (e.g., "upload_failed: bucket not found", "guesty_400: VALIDATION_ERROR ...", etc.) — no more opaque "unexpected response" errors.
+
+## 🟢 Earlier turn — Switched attach send to programmatic useTransition (commit `85806f3`)
 
 User screenshot showed the watchdog stall banner firing at 90s — meaning the previous fix (`fc9d002`, button-stays-mounted) still wasn't getting the request through. DB confirmed: zero storage objects, zero `multi_attach_guesty` audit rows for that send attempt.
 
