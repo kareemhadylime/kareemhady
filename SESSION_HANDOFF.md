@@ -1,6 +1,18 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn (this session) — F3 (Amazon EG sourcer) + F1 (estimate flags) SHIPPED + DEPLOYED
+## 🟢 Latest turn — Beit Hady "+ Add user" CTA shipped (commit `dacad44`)
+
+User was on `/beithady/settings/users` and asked "Where to add users?" — there was no UI hint pointing them to the global user-creation page at `/admin/users`. The Beit Hady page only grants existing users to one of the five property-roles; it never created users.
+
+**Fix shipped:** added a header `right` slot CTA via `BeithadyHeader` — a Link to `/admin/users` with `UserPlus` icon, gated on `user.is_admin` (server-side). Non-admins still see the matrix unchanged (they can't access `/admin/users` anyway — that page calls `notFound()` on non-admins).
+
+**Deploy state:** commit `dacad44` pushed to `main`. Vercel CLI in this worktree created a sibling project (`recursing-pike-a73c86-57bja5jlf-lime-investments`, `dpl_ZzrNNRbdsRxapVYcEGmr5hodShk5` READY) but the real prod deploy comes from the GitHub→Vercel integration on the main-branch push.
+
+**Why the worktree-vercel mismatch is fine:** the kareemhady project on Vercel auto-deploys from `main` via GitHub. The CLI-spawned sibling project is a no-op artifact. Future worktree sessions could symlink `.vercel/` from the parent or skip the CLI step and rely purely on the GitHub integration.
+
+---
+
+## 🟢 Earlier — F3 (Amazon EG sourcer) + F1 (estimate flags) SHIPPED + DEPLOYED
 
 **End-state confirmation (post-deploy):**
 - Commit `4c57682` pushed to main
