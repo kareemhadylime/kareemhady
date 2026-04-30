@@ -51,7 +51,11 @@ export function SidebarList({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`text-sm truncate ${r.unread_count > 0 ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
+                  {/* Phase C.5 follow-up — "new" badge is now driven by
+                      is_unanswered (timestamp-derived truth) rather than
+                      Guesty's state_read flag (which lags when we reply
+                      via API but Guesty UI isn't opened to mark read). */}
+                  <span className={`text-sm truncate ${r.is_unanswered ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
                     {r.guest_full_name || r.guest_email || r.guest_phone || 'Unknown guest'}
                   </span>
                   {r.source && (
@@ -59,9 +63,9 @@ export function SidebarList({
                       {sourceLabel}
                     </span>
                   )}
-                  {r.unread_count > 0 && (
+                  {r.is_unanswered && (
                     <span className="text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white">
-                      {r.unread_count} new
+                      NEW
                     </span>
                   )}
                   {r.archived_at && (

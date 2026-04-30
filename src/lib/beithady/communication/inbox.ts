@@ -58,6 +58,11 @@ export type InboxRow = {
   sla_bucket: SlaBucket;
   sla_breach: boolean;
   modified_at_external: string | null;
+  // Phase C.5 follow-up — generated column (migration 0059). True when
+  // guest replied last (or no outbound yet). Drives the "NEW" sidebar
+  // badge — replaces the unread_count flag which lags when Guesty's
+  // state_read isn't bumped despite our outbound POST.
+  is_unanswered: boolean;
   // Phase R archive bookkeeping — populated when archived
   archived_at: string | null;
   archived_reason: string | null;
@@ -83,7 +88,7 @@ export async function listInbox(opts: {
   let q = sb
     .from('beithady_conversations')
     .select(
-      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, archived_at, archived_reason',
+      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, is_unanswered, archived_at, archived_reason',
       { count: 'exact' }
     );
 
@@ -119,7 +124,7 @@ export async function listInbox(opts: {
     if (f.slaBucket === 'none') q = q.is('sla_bucket', null);
     else q = q.eq('sla_bucket', f.slaBucket);
   }
-  if (f.unreadOnly) q = q.gt('unread_count', 0);
+  if (f.unreadOnly) q = q.eq('is_unanswered', true);
   if (f.breachOnly) q = q.eq('sla_breach', true);
   if (f.state && f.state !== 'all') q = q.eq('state', f.state);
   else if (!f.state) q = q.eq('state', 'open');
@@ -371,7 +376,7 @@ export async function getInboxStats(channel?: Channel): Promise<{
 
   const [{ count: open }, { count: unread }, { count: breach }, { count: red }, { count: orange }, { count: yellow }, { count: green }, { data: sourceRows }] = await Promise.all([
     countWhere(q => q),
-    countWhere(q => q.gt('unread_count', 0)),
+    countWhere(q => q.eq('is_unanswered', true)),
     countWhere(q => q.eq('sla_breach', true)),
     countWhere(q => q.eq('sla_bucket', 'red')),
     countWhere(q => q.eq('sla_bucket', 'orange')),

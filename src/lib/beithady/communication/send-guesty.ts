@@ -128,7 +128,10 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     console.warn('[send-guesty] beithady_messages insert failed:', insErr.message);
   }
 
-  // Update conversation: last_outbound_at + clear SLA bucket via recompute
+  // Update conversation: last_outbound_at + clear SLA bucket + clear
+  // unread_count so the sidebar badge clears immediately (parity with
+  // send-wa-casual). is_unanswered (generated column) auto-flips since
+  // last_outbound_at moves past last_inbound_at.
   await sb
     .from('beithady_conversations')
     .update({
@@ -136,6 +139,7 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
       sla_age_seconds: null,
       sla_bucket: null,
       sla_breach: false,
+      unread_count: 0,
     })
     .eq('id', c.id);
 
