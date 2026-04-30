@@ -1,6 +1,59 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — ScrapingBee integration SHIPPED + DEPLOYED (commit `b0ae924`, deploy `dpl_…c1f2foe6f` READY)
+## 🟢 Latest turn — Estimator UI confirmed showing live vs estimate cleanly; awaiting user sync click
+
+User shared the estimator detail screenshot showing CLN-ANTIFLY-400ML at **90 EGP plain slate** with green "Amazon EG" badge (live), and the other 16 chemicals lines all showing **~XX EGP amber** with "Search Amazon EG" (estimates). The F1 estimate-flag UX is working as designed.
+
+**However:** the Antifly 90 EGP is still from the manual SQL patch earlier this session, NOT from a real ScrapingBee fetch. DB still shows my marker:
+```
+amazon_eg_last_status:     unchecked
+amazon_eg_last_checked_at: 2026-01-01
+has_image:                 false        ← ScrapingBee would have populated this
+```
+
+**Why:** the URL was originally saved BEFORE ScrapingBee was configured → setAmazonSourceAction's auto-sync (via syncOneItemPrice in waitUntil — this WAS already shipped at commit 8fb7283) ran via Anthropic web_fetch and got rate_limited. Now that ScrapingBee key is configured, a re-trigger should populate the row from a real fetch.
+
+**Asked user to do one of:**
+- A) Click "Sync prices (1)" header button on items page
+- B) Re-paste the same Antifly URL in the Change modal — re-triggers setAmazonSourceAction → ScrapingBee path runs
+
+Either should advance `last_checked_at` past 2026-01-01 + flip `last_status` to 'ok' + populate `amazon_eg_image_url`. The image_url being non-null is the smoking gun for ScrapingBee actually working.
+
+**Tried but blocked:**
+- Chrome MCP from this chat can't reach user's authenticated session — fresh MCP-spawned tabs hit `/login` because cookies don't transfer across tab groups.
+- CRON_SECRET isn't in `.env.local` (lives only in Vercel env), so can't curl the cron endpoint either.
+- Result: user must click in their tab.
+
+**Smaller cosmetic fix shipped this turn (commit `91b83f0`):** `testScrapingBee()` no longer appends "concurrency ?" when free-tier ScrapingBee `/api/v1/usage` doesn't return `concurrency_limit`. Auto-deploys via GitHub→Vercel.
+
+---
+
+## 🟢 Earlier this turn — User pasted ScrapingBee key, "Connected · 1,000/1,000 credits" — awaiting sync click
+
+**User confirmed the card shows "Connected · 1,000 of 1,000 credits remaining · concurrency ?"** in `/admin/integrations`. Three things this turn:
+
+1. **Cosmetic fix shipped (commit `91b83f0` pushed to main).** The "concurrency ?" tail showed because ScrapingBee's free tier doesn't return `concurrency_limit` in `/api/v1/usage`. Updated `testScrapingBee()` in `src/lib/integration-tests.ts` to omit the concurrency clause entirely when the field is missing — falsy guard via `json.concurrency_limit ? \` · concurrency ${...}\` : ''`. Auto-deploys via GitHub→Vercel; "concurrency ?" disappears after the next Test connection click.
+
+2. **Marker set on Antifly row for smoke detection.** Reset via Supabase MCP:
+   ```sql
+   UPDATE beithady_inventory_items
+   SET amazon_eg_last_checked_at = '2026-01-01 00:00:00+00',
+       amazon_eg_last_status = 'unchecked'
+   WHERE sku = 'CLN-ANTIFLY-400ML'
+   ```
+   So when the sync runs, the new `amazon_eg_last_checked_at` will be a fresh 2026-04-30 timestamp (instantly identifiable as "not the marker"). The price is still 90 EGP — manually patched earlier — so I'll detect "live ScrapingBee fetch" by the timestamp change + the `amazon_eg_last_status` going from 'unchecked' back to 'ok'.
+
+3. **Chrome MCP smoke test blocked — fresh tab not authenticated.** Tried navigating to `https://festive-lamport-b23de0.vercel.app/beithady/inventory/items` in a new MCP tab; landed on login page. The user's existing session has the auth cookie but I can't share it across MCP-spawned tabs. Asked the user to click "Sync prices (1)" themselves on their authenticated tab.
+
+**Awaiting:** user clicks Sync prices → I run a SELECT on antifly to verify timestamp advanced past 2026-01-01 + status flipped from 'unchecked' to 'ok' → confirms ScrapingBee path is fully working in prod.
+
+**If the smoke fails:** likely culprits are (a) ScrapingBee free tier blocked the country_code=eg premium proxy → fix by clearing the country_code field, (b) Vercel function timed out (we set maxDuration=300 but the call goes through ScrapingBee + Anthropic Haiku in serial), or (c) Anthropic Haiku threw on the 120k-char HTML payload (mitigation: trim further).
+
+**Active commits this session:** `7aa2711` (M1) → `f4f9d14` (M2-M5) → `5d03fe2` (URL canonicalize) → `2f4cf23` (manual price entry) → `b0ae924` (ScrapingBee main) → `2f83988` (handoff) → `91b83f0` (cosmetic).
+
+---
+
+## 🟢 Earlier this session — ScrapingBee integration SHIPPED + DEPLOYED (commit `b0ae924`, deploy `dpl_…c1f2foe6f` READY)
 
 **Deploy verified.** Both ScrapingBee changes are live in production:
 1. `/admin/integrations` page now shows a 9th provider card for "ScrapingBee" (auto-rendered from CREDENTIAL_SPECS).
