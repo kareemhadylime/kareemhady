@@ -21,7 +21,7 @@ import { normalizeConversationRow } from './run-guesty-sync';
 //     5-min comm-sync cron to recover EXISTING orphans
 
 export type RecoverOneResult =
-  | { ok: true; conversationId: string; alreadyExisted: boolean }
+  | { ok: true; conversationId: string; alreadyExisted: boolean; rehydrated?: boolean }
   | { ok: false; conversationId: string; reason: 'not_found' | 'fetch_error' | 'db_error'; error?: string };
 
 export async function fetchAndUpsertConversation(
@@ -105,6 +105,82 @@ export async function recoverOrphanedConversations(
     } else {
       out.failed += 1;
       out.errors.push({ conversationId: cid, reason: r.reason, error: r.error });
+    }
+    if (throttleMs > 0 && i < rows.length - 1) {
+      await new Promise(res => setTimeout(res, throttleMs));
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------
+// Rehydrate: re-fetch conversations whose denormalized fields are still
+// NULL even though they have messages. Happens when the lazy-create
+// path fired for a brand-new conversation BEFORE Guesty had populated
+// the conversation's guest/listing details — the fetch returns sparse
+// data, the row gets created with NULLs, and remains stuck that way
+// until the daily full sync. This pass re-fetches and refreshes.
+// ---------------------------------------------------------------------
+export type RehydrateResult = {
+  scanned: number;
+  rehydrated: number;
+  unchanged: number;
+  failed: number;
+  errors: Array<{ conversationId: string; reason: string; error?: string }>;
+};
+
+export async function rehydrateUnpopulatedConversations(
+  maxToFetch: number = 30,
+  throttleMs: number = 200,
+): Promise<RehydrateResult> {
+  const sb = supabaseAdmin();
+  const out: RehydrateResult = { scanned: 0, rehydrated: 0, unchanged: 0, failed: 0, errors: [] };
+
+  // Find conversations that have at least one inbound message but
+  // still have a NULL guest_full_name. Cap at maxToFetch ordered by
+  // most recent activity so the visible inbox gets fixed first.
+  const { data: targets, error } = await sb
+    .from('guesty_conversations')
+    .select('id, last_message_user_at, last_message_nonuser_at, modified_at_guesty')
+    .is('guest_full_name', null)
+    .order('modified_at_guesty', { ascending: false, nullsFirst: false })
+    .limit(maxToFetch);
+  if (error) {
+    out.errors.push({ conversationId: '', reason: 'select_error', error: error.message });
+    return out;
+  }
+  const rows = (targets as Array<{ id: string }> | null) || [];
+  out.scanned = rows.length;
+
+  for (let i = 0; i < rows.length; i++) {
+    const cid = rows[i].id;
+    // Force a re-fetch: delete-then-upsert can flip the on-conflict
+    // path. Simpler: call fetchAndUpsertConversation but it short-
+    // circuits when the row exists. Inline the re-fetch here.
+    try {
+      const conv = await getGuestyConversation(cid);
+      if (!conv) {
+        out.unchanged += 1;
+        continue;
+      }
+      const row = normalizeConversationRow(conv);
+      // Skip if Guesty STILL returns null guest — saves a no-op upsert.
+      if (!row.guest_full_name && !row.reservation_source && !row.listing_nickname) {
+        out.unchanged += 1;
+      } else {
+        const { error: upErr } = await sb
+          .from('guesty_conversations')
+          .upsert(row, { onConflict: 'id' });
+        if (upErr) {
+          out.failed += 1;
+          out.errors.push({ conversationId: cid, reason: 'db_error', error: upErr.message });
+        } else {
+          out.rehydrated += 1;
+        }
+      }
+    } catch (e) {
+      out.failed += 1;
+      out.errors.push({ conversationId: cid, reason: 'fetch_threw', error: e instanceof Error ? e.message : String(e) });
     }
     if (throttleMs > 0 && i < rows.length - 1) {
       await new Promise(res => setTimeout(res, throttleMs));

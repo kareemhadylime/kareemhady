@@ -9,7 +9,8 @@ import type { SlaBucket } from './sla';
 export type Channel = 'guesty' | 'wa_cloud' | 'wa_casual';
 
 export type InboxSort =
-  | 'sla_oldest'      // breach + age desc — oldest unanswered first (default)
+  | 'unanswered_first'// guest replied last → top, then by recent activity (DEFAULT)
+  | 'sla_oldest'      // breach + age desc — oldest unanswered first
   | 'sla_newest'      // age asc — newest unanswered first
   | 'recent_inbound'  // last_inbound_at desc — most recent guest message first
   | 'recent_activity' // modified_at_external desc — last touched anywhere
@@ -123,14 +124,13 @@ export async function listInbox(opts: {
   if (f.state && f.state !== 'all') q = q.eq('state', f.state);
   else if (!f.state) q = q.eq('state', 'open');
 
-  // Default sort: most recent guest message first (new → old). Sorted on
-  // last_inbound_at because that's what the sidebar row visibly displays —
-  // sorting on any other column produced visually scrambled lists where
-  // adjacent rows showed dates out of order.
-  const sort: InboxSort = f.sort || 'recent_inbound';
+  // Default sort (Phase C.5 follow-up): unanswered-first then recent activity.
+  // Surfaces threads where the guest has messaged after our last reply
+  // (or we never replied) at the top, then sorts the answered tail by
+  // recent activity so team replies still bump conversations up.
+  const sort: InboxSort = f.sort || 'unanswered_first';
   switch (sort) {
     case 'sla_oldest':
-      // Legacy default: breach + oldest unreplied first
       q = q
         .order('sla_breach', { ascending: false })
         .order('sla_age_seconds', { ascending: false, nullsFirst: false })
@@ -141,9 +141,7 @@ export async function listInbox(opts: {
       break;
     case 'recent_activity':
       // Activity = any modification to the conversation row (inbound,
-      // outbound, sync touch, status flip). May surface conversations
-      // that haven't received a guest message recently if other activity
-      // happened — caller picks this when they want full activity feed.
+      // outbound, sync touch, status flip).
       q = q.order('modified_at_external', { ascending: false, nullsFirst: false });
       break;
     case 'recent_outbound':
@@ -153,12 +151,19 @@ export async function listInbox(opts: {
       q = q.order('guest_full_name', { ascending: true, nullsFirst: false });
       break;
     case 'recent_inbound':
-    default:
-      // New default: most recent guest message first — exactly the date
-      // shown on every sidebar row, so visible order is always consistent.
       q = q
         .order('last_inbound_at', { ascending: false, nullsFirst: false })
         .order('modified_at_external', { ascending: false, nullsFirst: false });
+      break;
+    case 'unanswered_first':
+    default:
+      // is_unanswered=true (guest replied last) at the top, then by
+      // recent activity within each group. Generated column added in
+      // migration 0059; partial index backs the open + active scope.
+      q = q
+        .order('is_unanswered', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false })
+        .order('last_inbound_at', { ascending: false, nullsFirst: false });
   }
   q = q.range((page - 1) * pageSize, page * pageSize - 1);
 
