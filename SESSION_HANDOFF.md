@@ -1,6 +1,37 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟡 Latest turn — User answered Q1–Q5; one open Q6 + data-layer recon done (no code shipped)
+## 🟡 Latest turn — "Who is this Sender???" — explained brief sender + uncovered preview-URL bug (no code shipped)
+
+User asked "Who is this Sender???" with no attached image, referring to the WhatsApp morning brief shown in earlier screenshots. Answered three layers:
+
+1. **Actual WhatsApp account sending the brief** = Green-API instance configured in `integration_credentials` (provider='green'). Verified via Supabase MCP: `enabled=true`, `last_test_status=ok` at `2026-04-22 11:20:41+00`, config keys present (apiUrl, mediaUrl, idInstance, apiTokenInstance, webhook_path_slug). Did NOT print idInstance / token in chat — credentials. Sender code path: `src/lib/whatsapp/green-api.ts:33` `sendWhatsApp()` → POST to `{apiUrl}/waInstance{idInstance}/sendMessage/{apiToken}`.
+
+2. **The "Lime Investments Dashboard / Portfolio operations cockpit for Lime Investments — consolidated …" card** at top of the WhatsApp brief is a **WhatsApp link-preview card**, not a sender. Source = global OG metadata at `src/app/layout.tsx`:
+   ```ts
+   title: 'Lime Investments Dashboard',
+   description: 'Portfolio operations cockpit for Lime Investments — consolidated view across Beithady, Kika, FMPLUS, VoltAuto subsidiaries plus the Boat Rental module.',
+   ```
+   WhatsApp auto-fetches OG tags from any URL embedded in a message and renders that card.
+
+3. **🐛 Real bug uncovered:** the brief's "View full brief" URL says `lime-9pss5d6tl-lime-investments.vercel.app` (Vercel preview deployment URL with a deployment-hash segment) instead of the canonical `limeinc.vercel.app`. Root cause in `src/app/api/cron/beithady-morning-brief/route.ts:51-52`:
+   ```ts
+   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+     || `https://${req.headers.get('host') || 'limeinc.vercel.app'}`;
+   ```
+   If `NEXT_PUBLIC_BASE_URL` is unset on Vercel AND the cron fires from a preview deployment, the preview hostname leaks into the brief link. Preview URLs become unreachable when superseded by newer deploys → broken "View full brief" links over time.
+
+**Two fix options offered to user (awaiting reply):**
+- (a) Hard-code `https://limeinc.vercel.app` as the production fallback in the cron handler (one-line code change), OR
+- (b) Set `NEXT_PUBLIC_BASE_URL=https://limeinc.vercel.app` as a Vercel env var (better — fixes every other place using the same fallback pattern, no code change).
+- Plus offered (c) custom OG metadata override for the `/beithady/operations/morning-brief` route so the link preview card title becomes "Beit Hady — Daily Morning Brief" instead of the generic Lime Investments title.
+
+**No code shipped this turn.** Still awaiting **Q6 answer** from the prior turn (UAE inclusion in non-revenue activity sections — arrivals/departures/VIP/late SLA/at-risk/CSAT/same-day flips/tomorrow prep/long stays). Q6 needs to be answered before the BH-26/73/435/OK/OTHERS/DXB rebucket can ship.
+
+**Branch HEAD:** `claude/zen-euler-d3bd5e` is at `8883d98` (handoff-only commits, no source changes since last main HEAD `25eda26`).
+
+---
+
+## 🟡 Previous turn — User answered Q1–Q5; one open Q6 + data-layer recon done (no code shipped)
 
 User answered the previous turn's 5 spec questions. Captured here so the next session can ship without re-asking:
 
