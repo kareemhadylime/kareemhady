@@ -1,12 +1,22 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { waitUntil } from '@vercel/functions';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
 import { listCategories, type ItemRow } from '@/lib/beithady/inventory/catalog';
 import { parseItemTemplate } from '@/lib/beithady/inventory/excel';
-import { AMAZON_EG_URL_PATTERN } from '@/lib/beithady/inventory/estimator-shared';
+import { canonicalizeAmazonEgUrl } from '@/lib/beithady/inventory/estimator-shared';
+import {
+  regenerateItemInfo,
+  setAiInfoStatus,
+  isWithinCooldown,
+} from '@/lib/beithady/inventory/ai-item-info';
+import {
+  syncOneItemPrice,
+  syncAllItemPrices,
+} from '@/lib/beithady/inventory/amazon-eg-sourcer';
 
 export type ItemFormInput = {
   sku: string;
@@ -397,17 +407,21 @@ export async function setAmazonSourceAction(
 ): Promise<SourceActionResult> {
   const { user } = await requireBeithadyPermission('inventory', 'full');
 
+  // Accept any Amazon EG product URL shape: bare /dp/<ASIN>, /gp/product/<ASIN>,
+  // or the SEO-slug form `/Some-Product-Name/dp/<ASIN>/ref=...?query`. The
+  // helper extracts the ASIN and returns the bare canonical form so storage
+  // is always normalised — two pastes of the same product never differ.
   let cleanUrl: string | null = null;
   if (url && url.trim()) {
-    const trimmed = url.trim();
-    if (!AMAZON_EG_URL_PATTERN.test(trimmed)) {
+    const canonical = canonicalizeAmazonEgUrl(url);
+    if (!canonical) {
       return {
         ok: false,
         error:
-          'URL must be a canonical Amazon EG product link, e.g. https://www.amazon.eg/dp/B0XXXXXXXX or /gp/product/B0XXXXXXXX.',
+          'URL must be an Amazon EG product link with a 10-char ASIN. Examples: https://www.amazon.eg/dp/B0XXXXXXXX, https://www.amazon.eg/gp/product/B0XXXXXXXX, or the SEO-slug form https://www.amazon.eg/Product-Name/dp/B0XXXXXXXX/ref=… are all OK.',
       };
     }
-    cleanUrl = trimmed;
+    cleanUrl = canonical;
   }
 
   const sb = supabaseAdmin();
@@ -453,10 +467,136 @@ export async function setAmazonSourceAction(
     after: { amazon_eg_url: cleanUrl },
   });
 
+  // On URL change with a non-null URL: kick off TWO background tasks via
+  // waitUntil so the operator's save returns instantly while the heavy
+  // work runs after the response is flushed:
+  //   1) Amazon EG price sourcer — fetches price + pack_size + product name
+  //      + brand from the live Amazon page and overwrites the items row.
+  //   2) AI info regen — generates the structured info card (24h cooldown
+  //      respected; first-ever regen bypasses it).
+  // Both calls hit Claude with web_fetch on the same URL but they extract
+  // different fields, so we run them in parallel.
+  const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
+  if (urlChanged && cleanUrl) {
+    const { data: aiState } = await sb
+      .from('beithady_inventory_items')
+      .select('ai_info, ai_info_generated_at')
+      .eq('id', itemId)
+      .maybeSingle();
+    const skipCooldown = !aiState?.ai_info;
+    const userIdForAudit = user.id;
+
+    const tasks: Promise<unknown>[] = [];
+
+    // Task 1: price sourcer (always run on URL change — operator just gave
+    // us a fresh ASIN, the existing price is stale by definition).
+    tasks.push(
+      syncOneItemPrice(itemId).then(() => {
+        revalidatePath('/beithady/inventory/items');
+        revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+      }),
+    );
+
+    // Task 2: AI info regen (cooldown-gated)
+    if (skipCooldown || !isWithinCooldown(aiState?.ai_info_generated_at)) {
+      await setAiInfoStatus(itemId, 'queued');
+      tasks.push(
+        regenerateItemInfo(itemId, userIdForAudit).then(() => {
+          revalidatePath('/beithady/inventory/items');
+          revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+        }),
+      );
+    }
+
+    waitUntil(Promise.allSettled(tasks));
+  }
+
   revalidatePath('/beithady/inventory/items');
   revalidatePath('/beithady/inventory/rules/estimator', 'layout');
   revalidatePath('/beithady/inventory');
   return { ok: true };
+}
+
+/**
+ * Manually trigger an AI info regen for a single item. Bypasses the 24h
+ * cooldown — operator clicked the "Refresh AI info" button and explicitly
+ * wants a fresh card. Runs in the foreground (request waits ~5-10s) so
+ * the UI can show the result on the next render.
+ */
+export async function generateAiInfoAction(
+  itemId: string,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  await setAiInfoStatus(itemId, 'running');
+  const res = await regenerateItemInfo(itemId, user.id);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: res.ok ? 'item.ai_info.generate' : 'item.ai_info.generate_failed',
+    target_type: 'item',
+    target_id: itemId,
+    metadata: res.ok ? undefined : { error: res.error },
+  });
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
+}
+
+/**
+ * Bulk-regen for every active item with `ai_info IS NULL`. Operators
+ * click the header button to fill the catalog in one shot. Runs the
+ * regens concurrently with a small pool to avoid hammering Anthropic
+ * rate limits, returns the queued count once items have been flagged
+ * as `queued` (the actual generation continues via waitUntil so the
+ * page can refresh with spinners).
+ */
+export async function generateAllMissingAiInfoAction(): Promise<
+  { ok: true; queued: number } | { ok: false; error: string }
+> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+
+  const { data: pending, error } = await sb
+    .from('beithady_inventory_items')
+    .select('id')
+    .is('ai_info', null)
+    .eq('active', true)
+    .limit(500);
+  if (error) return { ok: false, error: error.message };
+  const ids = (pending as Array<{ id: string }> | null || []).map(r => r.id);
+  if (ids.length === 0) return { ok: true, queued: 0 };
+
+  // Flag every targeted row as queued so the UI shows spinners on next render.
+  await sb
+    .from('beithady_inventory_items')
+    .update({ ai_info_status: 'queued', ai_info_error: null, updated_at: new Date().toISOString() })
+    .in('id', ids);
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.ai_info.bulk_generate',
+    target_type: 'item',
+    metadata: { queued: ids.length },
+  });
+
+  // Run concurrently in pools of 5 — keeps total wall-clock under ~2 minutes
+  // for 50 items while staying inside Anthropic concurrent-request limits.
+  const userIdForAudit = user.id;
+  waitUntil(
+    (async () => {
+      const POOL = 5;
+      for (let i = 0; i < ids.length; i += POOL) {
+        const slice = ids.slice(i, i + POOL);
+        await Promise.allSettled(slice.map(id => regenerateItemInfo(id, userIdForAudit)));
+      }
+      revalidatePath('/beithady/inventory/items');
+      revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+    })(),
+  );
+
+  revalidatePath('/beithady/inventory/items');
+  return { ok: true, queued: ids.length };
 }
 
 /**
@@ -593,4 +733,353 @@ export async function acceptManySourcesAction(
   revalidatePath('/beithady/inventory/rules/estimator', 'layout');
   revalidatePath('/beithady/inventory');
   return { ok: true, accepted: eligibleIds.length, skipped };
+}
+
+// ---------------------------------------------------------------------------
+// Amazon EG sourcer — manual triggers (Phase M.16 / M.15.4)
+// ---------------------------------------------------------------------------
+//
+// The daily cron at /api/cron/beithady-amazon-eg-sourcer walks every active
+// item with a URL and refreshes price + pack_size + stock. These two
+// actions let operators force-refresh:
+//   • single item    → "Sync price now" button on the source cell
+//   • whole catalog  → "Sync all prices" header button
+// Manual single runs in the foreground (~10-15s) so the operator sees the
+// result immediately. Bulk runs in the background via waitUntil so the
+// header click returns instantly and the items page auto-polls for updates.
+
+export type SyncPriceResult =
+  | { ok: true; status: string; price_egp: number | null; price_changed: boolean }
+  | { ok: false; error: string };
+
+export async function syncAmazonPriceNowAction(itemId: string): Promise<SyncPriceResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const res = await syncOneItemPrice(itemId);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: res.ok ? 'amazon_eg.sync_one' : 'amazon_eg.sync_one_failed',
+    target_type: 'item',
+    target_id: itemId,
+    metadata: res.ok
+      ? { status: res.status, price_egp: res.price_egp, price_changed: res.price_changed }
+      : { error: res.error },
+  });
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  return res;
+}
+
+export async function syncAllAmazonPricesAction(): Promise<
+  { ok: true; queued: number } | { ok: false; error: string }
+> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+  const { data: candidates, error } = await sb
+    .from('beithady_inventory_items')
+    .select('id')
+    .eq('active', true)
+    .not('amazon_eg_url', 'is', null)
+    .limit(500);
+  if (error) return { ok: false, error: error.message };
+  const queued = (candidates as Array<{ id: string }> | null || []).length;
+  if (queued === 0) {
+    return { ok: false, error: 'No active items have an Amazon EG URL set yet — set URLs first.' };
+  }
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'amazon_eg.sync_all',
+    target_type: 'item',
+    metadata: { queued },
+  });
+
+  // Fire-and-forget. Worst case ~2 min for 50 items @ 4 concurrent.
+  waitUntil(
+    syncAllItemPrices().then(() => {
+      revalidatePath('/beithady/inventory/items');
+      revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+    }),
+  );
+
+  revalidatePath('/beithady/inventory/items');
+  return { ok: true, queued };
+}
+
+// ---------------------------------------------------------------------------
+// Manual price entry (Phase M.16) — fallback for items where Amazon EG
+// blocks Claude's web_fetch and the auto-sourcer can't pull live data.
+// Operator opens the product page themselves, reads price + pack_size +
+// (optionally) the canonical product name, types them in. Marks the row
+// as `amazon_eg_last_status='ok'` so the UI flips from amber estimate
+// to plain live cost.
+// ---------------------------------------------------------------------------
+
+export type ManualPriceInput = {
+  price_egp: number;
+  pack_size: number;          // ≥1
+  name_en?: string | null;    // optional — overwrites name when provided
+  brand?: string | null;
+};
+
+export async function setManualAmazonPriceAction(
+  itemId: string,
+  input: ManualPriceInput,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+
+  // Validate
+  if (!Number.isFinite(input.price_egp) || input.price_egp <= 0) {
+    return { ok: false, error: 'Price must be a positive number' };
+  }
+  const packSize = Math.max(1, Math.round(input.pack_size || 1));
+  if (input.price_egp > 100_000) {
+    return { ok: false, error: 'Price looks too high — typo? Max 100,000 EGP per unit.' };
+  }
+
+  const sb = supabaseAdmin();
+  const { data: before } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku, name_en, brand, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: 'Item not found' };
+  if (!before.amazon_eg_url) {
+    return { ok: false, error: 'Set an Amazon EG URL first — the manual price still needs a source link.' };
+  }
+
+  const namePatch: Record<string, unknown> = {};
+  if (input.name_en && input.name_en.trim()) namePatch.name_en = input.name_en.trim().slice(0, 200);
+  if (input.brand && input.brand.trim()) namePatch.brand = input.brand.trim().slice(0, 80);
+
+  const { error } = await sb
+    .from('beithady_inventory_items')
+    .update({
+      ...namePatch,
+      amazon_eg_price_egp: input.price_egp,
+      amazon_eg_pack_size: packSize,
+      amazon_eg_in_stock: true,
+      amazon_eg_last_status: 'ok',
+      amazon_eg_last_checked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: error.message };
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.amazon_price.manual_set',
+    target_type: 'item',
+    target_id: itemId,
+    before: {
+      amazon_eg_price_egp: before.amazon_eg_price_egp,
+      amazon_eg_pack_size: before.amazon_eg_pack_size,
+      name_en: before.name_en,
+      brand: before.brand,
+    },
+    after: {
+      amazon_eg_price_egp: input.price_egp,
+      amazon_eg_pack_size: packSize,
+      ...namePatch,
+    },
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true };
+}
+
+
+// ---------------------------------------------------------------------------
+// Apply Amazon-fetched product details to the SKU (Phase M.16)
+// ---------------------------------------------------------------------------
+// When the sourcer pulls a product name/brand that differs from the SKU's
+// curated name, the items page surfaces a "Use Amazon details" button.
+// This action copies amazon_eg_product_name_en/_ar/_brand into the
+// canonical name_en/name_ar/brand fields. Operator-driven — never fires
+// automatically. Audit-logged with before/after snapshot for rollback.
+
+export async function applyAmazonDetailsAction(
+  itemId: string,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+  const { data: before } = await sb
+    .from('beithady_inventory_items')
+    .select(
+      'id, sku, name_en, name_ar, brand, amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand'
+    )
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: 'Item not found' };
+  const row = before as {
+    id: string; sku: string; name_en: string; name_ar: string; brand: string | null;
+    amazon_eg_product_name_en: string | null;
+    amazon_eg_product_name_ar: string | null;
+    amazon_eg_brand: string | null;
+  };
+
+  const patch: Record<string, unknown> = {};
+  if (row.amazon_eg_product_name_en && row.amazon_eg_product_name_en.trim()) {
+    patch.name_en = row.amazon_eg_product_name_en.trim().slice(0, 200);
+  }
+  if (row.amazon_eg_product_name_ar && row.amazon_eg_product_name_ar.trim()) {
+    patch.name_ar = row.amazon_eg_product_name_ar.trim().slice(0, 200);
+  }
+  if (row.amazon_eg_brand && row.amazon_eg_brand.trim()) {
+    patch.brand = row.amazon_eg_brand.trim().slice(0, 80);
+  }
+  if (Object.keys(patch).length === 0) {
+    return {
+      ok: false,
+      error: 'No Amazon product details to apply — run a price sync first.',
+    };
+  }
+  patch.updated_at = new Date().toISOString();
+
+  const { error } = await sb
+    .from('beithady_inventory_items')
+    .update(patch)
+    .eq('id', itemId);
+  if (error) return { ok: false, error: error.message };
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.amazon_details.apply',
+    target_type: 'item',
+    target_id: itemId,
+    before: { name_en: row.name_en, name_ar: row.name_ar, brand: row.brand },
+    after: patch,
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// AI-suggested SKU rename (Phase M.16)
+// ---------------------------------------------------------------------------
+// Operator's flow when an Amazon URL points to a different size/brand than
+// the SKU code suggests (e.g., CLN-ANTIFLY-400ML pointing at a 300ML can):
+//   1) Click "Suggest SKU rename" in the mismatch banner
+//      → calls suggestSkuRenameAction → returns AI-proposed new SKU + rationale
+//   2) UI shows confirmation modal with old/new comparison
+//   3) Operator clicks Apply → calls applySkuRenameAction → updates items.sku
+//
+// items.id is the FK target across stock/transactions/rules/etc, NOT the SKU
+// text — so renaming items.sku is a label-only change, no cascade needed.
+
+export type SkuSuggestionResult =
+  | { ok: true; old_sku: string; suggested_sku: string; rationale: string }
+  | { ok: false; error: string };
+
+export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggestionResult> {
+  await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+  const { data: row } = await sb
+    .from('beithady_inventory_items')
+    .select(`
+      sku, name_en, uom,
+      amazon_eg_product_name_en, amazon_eg_brand, amazon_eg_pack_size,
+      category:beithady_inventory_categories!inner(code)
+    `)
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!row) return { ok: false, error: 'Item not found' };
+  const item = row as unknown as {
+    sku: string;
+    name_en: string;
+    uom: string;
+    amazon_eg_product_name_en: string | null;
+    amazon_eg_brand: string | null;
+    amazon_eg_pack_size: number | null;
+    category: { code: string };
+  };
+
+  if (!item.amazon_eg_product_name_en) {
+    return {
+      ok: false,
+      error: 'No Amazon product details on this row yet — set a URL and run sync first.',
+    };
+  }
+
+  const { suggestSkuRename } = await import('@/lib/beithady/inventory/ai-sku-rename');
+  const res = await suggestSkuRename({
+    oldSku: item.sku,
+    categoryCode: item.category.code,
+    oldNameEn: item.name_en,
+    newNameEn: item.amazon_eg_product_name_en,
+    newBrand: item.amazon_eg_brand,
+    uom: item.uom,
+    packSize: item.amazon_eg_pack_size,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+  if (res.sku === item.sku) {
+    return { ok: false, error: 'AI suggested the same SKU — no change needed.' };
+  }
+  return { ok: true, old_sku: item.sku, suggested_sku: res.sku, rationale: res.rationale };
+}
+
+export type SkuApplyResult = { ok: true; old_sku: string; new_sku: string } | { ok: false; error: string };
+
+export async function applySkuRenameAction(
+  itemId: string,
+  newSku: string,
+): Promise<SkuApplyResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+
+  const cleanSku = (newSku || '').trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9-]{1,29}$/.test(cleanSku)) {
+    return { ok: false, error: 'SKU must be 2–30 chars, A-Z / 0-9 / hyphen, starting with a letter.' };
+  }
+
+  const sb = supabaseAdmin();
+  const { data: before } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: 'Item not found' };
+  const beforeRow = before as { id: string; sku: string };
+  if (beforeRow.sku === cleanSku) {
+    return { ok: false, error: 'New SKU is identical to the current one — no change.' };
+  }
+
+  // Uniqueness check
+  const { data: clash } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku')
+    .eq('sku', cleanSku)
+    .neq('id', itemId)
+    .maybeSingle();
+  if (clash) {
+    return { ok: false, error: `SKU "${cleanSku}" is already used by another item.` };
+  }
+
+  const { error } = await sb
+    .from('beithady_inventory_items')
+    .update({ sku: cleanSku, updated_at: new Date().toISOString() })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: error.message };
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.sku.rename',
+    target_type: 'item',
+    target_id: itemId,
+    before: { sku: beforeRow.sku },
+    after: { sku: cleanSku },
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true, old_sku: beforeRow.sku, new_sku: cleanSku };
 }

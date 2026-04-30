@@ -34,6 +34,8 @@
     { "path": "/api/cron/beithady-morning-brief", "schedule": "0 6 * * *" },
     { "path": "/api/cron/beithady-inventory-auto-issue", "schedule": "0 11 * * *" },
     { "path": "/api/cron/beithady-inventory-auto-issue", "schedule": "0 12 * * *" },
-    { "path": "/api/cron/beithady-conversation-archive", "schedule": "0 1 * * *" }
+    { "path": "/api/cron/beithady-conversation-archive", "schedule": "0 1 * * *" },
+    { "path": "/api/cron/beithady-amazon-eg-sourcer", "schedule": "0 4 * * *" },
+    { "path": "/api/cron/beithady-scheduled-reports", "schedule": "0 * * * *" }
   ]
 }

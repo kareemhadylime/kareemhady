@@ -142,6 +142,8 @@ export type DispatchPayload = {
   fileMime?: string;
   agentUserId: string | null;
   agentDisplayName?: string | null;
+  // Phase C.5 follow-up — manual kill switch gating mode.
+  mode?: 'manual' | 'automatic';
 };
 
 export type DispatchResult =
@@ -164,6 +166,7 @@ export async function sendViaChannel(
         attachments: payload.attachments,
         agentUserId: payload.agentUserId,
         agentDisplayName: payload.agentDisplayName,
+        mode: payload.mode,
       });
       if (r.ok) return { ok: true, provider: 'guesty', messageId: r.messageId, providerMessageId: r.externalId };
       return { ok: false, provider: 'guesty', status: r.status, error: r.error, fallbackUrl: r.fallbackUrl };
@@ -177,6 +180,7 @@ export async function sendViaChannel(
         fileMime: payload.fileMime,
         agentUserId: payload.agentUserId,
         agentDisplayName: payload.agentDisplayName,
+        mode: payload.mode,
       });
       if (r.ok) return { ok: true, provider: 'wa_casual', messageId: r.messageId, providerMessageId: r.providerMessageId };
       return { ok: false, provider: 'wa_casual', status: r.status, error: r.error };

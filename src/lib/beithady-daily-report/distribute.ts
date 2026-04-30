@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '../supabase';
 import { sendWhatsApp } from '../whatsapp/green-api';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { sendHtmlEmail, sendHtmlEmailWithAttachment } from '../gmail';
 import type { DailyReportPayload } from './types';
 
@@ -258,6 +259,20 @@ export async function distributeReport(args: {
     const attempt = (count ?? 0) + 1;
 
     if (rcp.channel === 'whatsapp') {
+      // Phase C.5 follow-up — granular kill switch for daily report WA.
+      if (await isAutomationPaused('daily_report_dispatch')) {
+        await sb.from('daily_report_deliveries').insert({
+          snapshot_id: args.snapshot_id,
+          recipient_id: rcp.id,
+          channel: 'whatsapp',
+          destination: rcp.destination,
+          attempt,
+          status: 'skipped',
+          error_message: 'daily_report_dispatch_paused',
+        });
+        skipped += 1;
+        continue;
+      }
       const result = await sendWhatsApp({
         to: rcp.destination,
         message: waText,

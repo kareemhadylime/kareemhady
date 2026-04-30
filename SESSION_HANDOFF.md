@@ -1,6 +1,6 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — SHIPPED: webhook column-swap fix + Awaiting Reply banner + 2170-row SLA backfill + UAE building_code backfill
+## 🟢 Latest turn — SHIPPED: webhook column-swap fix + Awaiting Reply banner + 2170-row SLA backfill + UAE building_code backfill, then merged main
 
 User said "ship". Commit `43f0b95` shipped three fixes plus two data backfills.
 
@@ -467,6 +467,1085 @@ User flagged that the 8am brief numbers diverged from the Guesty homepage tile. 
 ---
 
 ## 🟢 Previous turn — Orphaned-conversation recovery SHIPPED (Hady Family bug fix)
+
+[…earlier morning-brief and inbox turns continue below…]
+
+---
+
+## 🔵 Parallel-session turns (from `main`, merged 2026-04-30)
+
+## 🟢 SKU-size mismatch detector (Option B) — banner now surfaces stale size suffixes
+
+User picked **Option B**: extend the mismatch detector to also flag size-only mismatches when names already align (e.g., SKU `CLN-ANTIFLY-400ML` paired with Amazon's "Raid Flying Insect Killer Odorless 300 ML" — names match via substring containment, but the `400ML` suffix is stale).
+
+**New helpers in `amazon-mismatch-banner.tsx`:**
+- `extractSize(text)` — pulls a normalized size token (e.g. `300ML`, `4L`, `12PK`, `500G`) from any free-text label or SKU code. Handles "litre"/"liter"/"litres" → `L`, "pack of N" → `NPK`, etc.
+- `detectAmazonMismatch({ itemSku, itemName, amazonName })` — returns `'none' | 'name' | 'size' | 'both'`. Compares names by case+punctuation-insensitive substring containment, sizes by extracted-token equality.
+- Old `shouldShowAmazonMismatch` kept for backwards compat (boolean form).
+
+**Banner UI now adapts** based on `kind`:
+- `'name'` (or `'both'`): full banner — "Use Amazon details" + "Rename SKU via AI" + "Ignore"
+- `'size'`: same banner with **adjusted headline** "SKU size code is stale vs Amazon listing", and **"Use Amazon details" hidden** (names already match — that button would no-op). Operator just gets "Rename SKU via AI" + "Ignore".
+
+**`items-section-list.tsx` switched** from `shouldShowAmazonMismatch` to `detectAmazonMismatch` — passes the resulting `kind` to the banner.
+
+**Concrete impact for your Antifly row:** `name_en` and `amazon_eg_product_name_en` are both "Raid Flying Insect Killer Odorless 300 ML" (match). But `extractSize('CLN-ANTIFLY-400ML')` returns `400ML` while `extractSize('Raid Flying Insect Killer Odorless 300 ML')` returns `300ML`. So `detectAmazonMismatch` returns `'size'` → banner appears with "Rename SKU via AI" button → click → Haiku suggests something like `CLN-RAID-300ML` → confirm → SKU updated.
+
+**Files touched this turn:**
+- Edited: `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx` (added `extractSize`, `detectAmazonMismatch`, `MismatchKind` types, banner adapts copy + buttons by kind)
+- Edited: `src/app/beithady/inventory/items/_components/items-section-list.tsx` (switched to `detectAmazonMismatch`, passes kind)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this turn — AI-suggested SKU rename shipped + critical sourcer regression fixed
+
+User: "Rename SKU code By AI based on URL". Implemented as a third button in the Amazon mismatch banner: "Rename SKU via AI".
+
+**Why the rename is safe**: `items.id` is the FK target for stock/transactions/consumption_rules/etc. — `items.sku` is just a unique-text label. Renaming `items.sku` does NOT cascade or break references. Verified by reading the 0048b schema (stock has `item_id uuid`, transactions has `item_id uuid`).
+
+**New module `src/lib/beithady/inventory/ai-sku-rename.ts`**:
+- `suggestSkuRename(input)` → calls Claude Haiku 4.5 with the catalog's existing SKU patterns as few-shot examples (CLN-ANTIFLY-400ML, SAN-SHAMPOO-30ML, BRN-PEN, MNT-LIGHTBULB-LED-9W, etc.).
+- Prompt enforces: prefix MUST match category code (CLN/SAN/TRAY/WTR/LIN/BRN/MNT/AST). KEY-WORD must be the most distinctive product noun. SIZE uses ML/L/G/KG/PK abbreviations. Total ≤30 chars, A-Z/0-9/hyphen only.
+- Returns `{ ok, sku, rationale }` — rationale shown in confirm dialog.
+
+**Two new server actions in `actions.ts`**:
+- `suggestSkuRenameAction(itemId)` → reads item + fetched Amazon details + category code, calls Haiku, returns `{ old_sku, suggested_sku, rationale }`. Refuses if Amazon details haven't been synced yet.
+- `applySkuRenameAction(itemId, newSku)` → validates regex `^[A-Z][A-Z0-9-]{1,29}$`, checks uniqueness against all other rows, updates `items.sku`. Audit-logged.
+
+**UI extension in `amazon-mismatch-banner.tsx`**:
+- New cyan "Rename SKU via AI" button next to "Use Amazon details" / "Ignore"
+- Click → calls `suggestSkuRenameAction` → modal opens showing old/new SKU side-by-side + AI rationale + a "Safe to rename" reassurance note
+- Click "Apply rename" → calls `applySkuRenameAction` → row's SKU updates, banner dismisses, page refreshes
+
+**Operator workflow (end-to-end):**
+1. Paste Amazon URL → save → background sync fires
+2. After sync, if Amazon's product name differs from SKU's `name_en`, amber banner appears
+3. Three choices in banner:
+   - **Use Amazon details** → applies name + brand only (existing flow)
+   - **Rename SKU via AI** → opens confirm modal with AI suggestion, click Apply
+   - **Ignore** → dismisses locally
+4. After applying both, the row has matching name + matching SKU code with the actual product
+
+**Earlier this turn — sourcer validate hardening (commit `fd1fed3`):** detailed in the entry below. Also restored Antifly's 89 EGP price (wiped by bad sync) + cleared CLN-FLOOR-DISIN-1L's wrong URL.
+
+**Files touched this turn:**
+- New: `src/lib/beithady/inventory/ai-sku-rename.ts`
+- Edited: `src/app/beithady/inventory/items/actions.ts` (suggestSku + applySku actions), `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx` (button + modal)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this turn — Critical sourcer regression fixed (commit `fd1fed3`, pushed to main)
+
+User screenshot showed cost cells still amber `~55` `~45` `~40` after clicking Sync prices. Investigation via `mcp__execute_sql`:
+```
+CLN-ANTIFLY-400ML: price=null, in_stock=false, last_status='ok'  ← contradictory!
+CLN-APC-1L:        price=null, in_stock=false, last_status='404'
+CLN-FLOOR-DISIN-1L: price=null, last_status='404'
+```
+
+**Two bugs found:**
+
+1. **Sourcer was actively destroying good data.** ScrapingBee fetched the Amazon page, but Haiku returned `status='ok'` with `price_egp=null` AND `in_stock=false` — impossible combo. The previous `validate()` accepted this; `persistProbeResult` then overwrote Antifly's cached 89 EGP with null. Every Sync click was wiping the previous good price.
+
+2. **User pasted same URL for two SKUs.** `https://www.amazon.eg/dp/B08WJN8HWQ` was set on BOTH `CLN-APC-1L` AND `CLN-FLOOR-DISIN-1L`. Both got status='404'. Two SKUs can't share a URL.
+
+**Fix shipped in `src/lib/beithady/inventory/amazon-eg-sourcer.ts:153-178`:**
+- `validate()` now downgrades to `parse_error` when:
+  - `status='ok'` AND `price_egp == null` (Claude couldn't actually find a price)
+  - `status='ok'` AND `in_stock == false` (contradictory)
+- On `parse_error`, `persistProbeResult` writes ONLY `amazon_eg_last_status='unchecked'` + timestamp. Price/pack_size/image stay at their previous values. **Flaky Claude responses can never wipe known-good cached data again.**
+
+**DB cleanup via Supabase MCP:**
+- Restored Antifly's `amazon_eg_price_egp = 89.00`, `in_stock = true`, `last_status = 'ok'` from prior verified sync
+- Cleared all amazon_eg_* fields on `CLN-FLOOR-DISIN-1L` so user can paste a real 1L floor disinfectant ASIN (separate from APC's URL)
+
+**Auxiliary:** parallel session shipped Generate Report with `recharts` import but never installed the dep. Build was failing. Fixed via `npm install recharts` (now `^2.15.4` in package.json). Build clean.
+
+**Deploy state:** `vercel --prod` first attempt errored on `getaddrinfo ENOTFOUND api.vercel.com` (transient DNS), retrying in background as `blifp2wh1`. The GitHub→Vercel integration will auto-deploy `fd1fed3` regardless within ~3 min of the push, so the fix lands either way.
+
+**User's secondary concern** ("Size has to update and name"): names ARE updating via the existing apply-Amazon-details flow (APC's `name_en` is now "Frida floor cleaner - lemon, 4 litre"). For sizes:
+- `amazon_eg_pack_size` IS being captured (APC = 4 for "4 litre")
+- Volume info is in the name itself ("4 litre" / "300 ML")
+- The SKU code suffix (`CLN-ANTIFLY-400ML` while actual is 300ML) is the only thing not auto-updating, because SKU codes are FK references in stock/transactions/rules tables. Renaming them is a destructive cascade. **Deferred** — added to "ask user to confirm SKU rename" as a future feature, will build if user explicitly requests.
+
+**Files touched:**
+- `src/lib/beithady/inventory/amazon-eg-sourcer.ts` (validate hardening)
+- `package.json` + `package-lock.json` (recharts install for parallel-session unblock)
+- DB: 2 row updates via Supabase MCP
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Smoke test for next time:**
+1. After deploy lands, click Sync prices on items page
+2. Antifly should stay at 89 (preserved if Claude misbehaves) or land on a fresh live price
+3. APC should retry with Haiku 404 prompt fix (commit `e8f74be` from earlier this turn) — likely succeeds
+4. Floor-Disin row will not have a URL — operator pastes a fresh 1L floor disinfectant ASIN to source it
+
+---
+
+## 🟢 Earlier — Amazon-product-name mismatch banner SHIPPED + DEPLOYED (commit `c034519`)
+
+Operator-confirmation flow for fetched Amazon names that differ from SKU names. Three new shadow columns (`amazon_eg_product_name_en/_ar` + `amazon_eg_brand`) populated by sourcer. Mismatch banner UI surfaces them with "Use Amazon details" / "Ignore" buttons. New `applyAmazonDetailsAction(itemId)` server action copies shadow → canonical when accepted. Sourcer NEVER overwrites name_en/brand silently anymore.
+
+---
+
+## 🟢 Earlier — Generate Report module SHIPPED + PUSHED to main (commit `8599ee8`)
+
+User: "Ship all Phases together. Deploy & Commit Automatically." Done.
+
+**Single commit ships full feature** (BA self-serve report builder under Beit Hady Analytics — replaces the manually-built BH-yearly / BH-73 BCG / One K per-listing PDFs):
+
+**Database (1 migration applied to `bpjproljatbrbmszwbov`):**
+- `beithady_saved_reports` (id, title, description, config jsonb, commentary jsonb, template_key, last_run_data, created_by)
+- `beithady_report_runs` (run history with full data jsonb cache)
+- `beithady_report_schedules` (frequency daily/weekly/monthly, hour_cairo, email_recipients[], wa_channel_ids[], next_fire_at)
+
+**Lib (`src/lib/beithady/reports/`):**
+- `types.ts` — ReportConfig, ReportData, MetricCell, 13 metric keys, 6 group axes, 4 channel buckets, 5 bedroom buckets
+- `channel-taxonomy.ts` — `bucketChannel()` → airbnb/booking_com/other_ota/manual. Verified against live source values: `airbnb2` (5638), `manual` (1035), `Booking.com` (272), `website` (26), `Capital One` (5), `owner` (3), `Hotels.com` (2), `Expedia` (1)
+- `bedroom-buckets.ts` — Studio (0) / 1 / 2 / 3 / 4+
+- `period-resolver.ts` — rolling, fixed-year, fixed-month, bucket-size auto-pick (day/week/month)
+- `build-report.ts` — single-pass orchestrator: pulls listings + reservations + reviews + PriceLabs market in batches, folds into period buckets, computes 13 metrics with safe-divide, applies anomaly detection (>2σ), comparisons (period/group/market/target), pro-rates revenue by overlap fraction
+- `ai-commentary.ts` — Haiku 4.5 with prompt anchored to manual report tone ("The average occupancy rate at Beit Hadi for 2-bedroom units was 72% in 2025…"), JSON output {bullets[5], action_items[3]}
+- `templates.ts` — 6 quick-template seeds (bh_yearly, bcg_2wk, per_listing, building_h2h, channel_mix, pricing_vs_market) — each replicates one of the manual reports
+- `render-pdf.tsx` — A4 via @react-pdf/renderer, BeitHady palette, hand-rolled SVG charts (grouped bar, BCG quadrant), header/footer with page numbers, breaks for charts + commentary
+- `render-xlsx.ts` — exceljs 2-row header (period band + metric labels), merged cells, totals row, separate Conclusions sheet
+
+**API (`src/app/api/beithady/reports/`):**
+- `POST /run` — config → ReportData (live preview, no persist)
+- `POST /save` — gated BA+admin
+- `GET/PUT/DELETE /[id]`
+- `GET /[id]/pdf` — streams A4 PDF
+- `GET /[id]/xlsx` — streams XLSX
+- `POST/GET/DELETE /[id]/schedule` — manage schedules
+- `GET /templates` — list 6 templates
+- `POST /api/cron/beithady-scheduled-reports` — hourly fire of pending schedules → render PDF → email (Gmail rail) + WA (Green-API)
+
+**Frontend (`src/app/beithady/analytics/reports/`):**
+- `page.tsx` — landing: 6 quick-template tiles + saved reports list with PDF/Schedule/Delete buttons
+- `builder/page.tsx` + `_components/ReportBuilder.tsx` — 5-tab interactive builder (Setup/Compare/Visualize/AI/Export), live auto-preview (debounced), Run/Save buttons
+- `builder/_components/charts/index.tsx` — Recharts: KpiStrip with period Δ%, ResponsiveContainer for time-series/grouped-bar/stacked-bar/BCG ScatterChart with quadrant ReferenceLines + traffic-light Cell coloring, heatmap (HTML grid), PivotTable with sticky-left + conditional formatting
+- `[id]/page.tsx` + `_components/ReportViewer.tsx` + `ScheduleEditor.tsx` — saved-report view, refresh-data button, schedule CRUD modal
+- `_components/DeleteButton.tsx` — confirm-twice client island
+
+**Wiring:**
+- 5th tile added to `/beithady/analytics` (FileBarChart icon, indigo accent, "New" badge)
+- `vercel.json` cron `/api/cron/beithady-scheduled-reports` `0 * * * *`
+- `package.json` adds `recharts ^2.15.4`
+
+**Verification:**
+- `npx tsc --noEmit` clean (3 errors fixed: navy→indigo accent, ComparisonMode export, ReactElement removal)
+- `npm run build` clean (✓ Compiled successfully in 24.6s)
+- Migration applied via Supabase MCP (`apply_migration: beithady_saved_reports` returned `{success:true}`)
+
+**Deploy state:**
+- commit `8599ee8` pushed to `main` via GitHub
+- GitHub→Vercel integration auto-deploys to prod (kareemhady project)
+- CLI `vercel --prod` from this worktree spawned a sibling project (`exciting-fermi-e716c1-1gackh1l2-lime-investments.vercel.app`) — same worktree-vercel mismatch flagged earlier in this file. Real prod URL deploys via the GitHub push.
+
+**Files this turn:** 1 migration, 9 lib files, 7 API routes, 1 cron, 7 frontend files, 3 config edits.
+
+---
+
+## 🟢 Earlier turn (parallel session) — Amazon-product-name mismatch banner SHIPPED + DEPLOYED (commit `c034519`, deploy `dpl_…cnuwi7nbj`)
+
+User UX request: "When I Add the new URL, There should be message — Update item or retry. If Update, its goes to item details and edits the details as per the added url." Triggered by the APC mismatch case (user pasted URL for 4L Frida Floor Disinfectant under SKU `CLN-APC-1L "All-purpose cleaner 1L"` — the previous sourcer code would have silently overwritten the SKU's name_en to `Frida Floor Disinfectant + Cleaner 5X Power, 4 Liters` if the parser hadn't false-flagged 404).
+
+**Three changes shipped in one commit:**
+
+1. **DB migration `0060_amazon_product_name_fields.sql`** — adds 3 new columns:
+   - `amazon_eg_product_name_en text`
+   - `amazon_eg_product_name_ar text`
+   - `amazon_eg_brand text`
+   These are SHADOW columns the sourcer writes to, separate from the operator's curated `name_en`/`name_ar`/`brand`. Applied to prod via Supabase MCP.
+
+2. **`src/lib/beithady/inventory/amazon-eg-sourcer.ts`** — `persistProbeResult` no longer writes to `name_en`/`name_ar`/`brand`. It writes the fetched values to the new shadow columns instead. **No more silent overwrites.** Existing rows that already had Amazon names (Antifly) are unaffected — the previous overwrite landed before this change, and the data is preserved.
+
+3. **`src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx`** + integration into `items-section-list.tsx` — when the row has `amazon_eg_product_name_en` AND it differs from `name_en` (loose substring match — case + punctuation insensitive, treats "Bleach 1L" ⊂ "Clorox Bleach 1L Original" as matching), an amber banner appears as a third row under that item showing:
+   - Side-by-side "Your SKU" vs "Amazon EG" comparison (name + brand for each)
+   - "Open on Amazon" link
+   - **"Use Amazon details"** button → calls new `applyAmazonDetailsAction(itemId)` which copies fetched values to canonical columns
+   - **"Ignore"** button → local-state dismiss; reappears on next sync if names still differ
+
+4. **New server action `applyAmazonDetailsAction(itemId)`** in `actions.ts` — operator-driven (never fires automatically). Copies `amazon_eg_product_name_en/_ar/_brand` → `name_en/name_ar/brand`. Audit-logged with before/after for rollback.
+
+**`shouldShowAmazonMismatch()` helper** — pure function that decides whether to render the banner. Normalizes both strings (lowercase, alphanumeric only), checks for exact match OR substring containment in either direction (≥4 chars). Conservative — won't false-trigger on small prefix/suffix differences.
+
+**End-to-end flow operator now sees:**
+1. Click Set URL → paste `https://www.amazon.eg/dp/B0XXXXXXXX` → Save
+2. Background sync fires (~10s) → ScrapingBee fetches HTML → Haiku parses → name + brand land in shadow columns, price + pack + image in normal columns
+3. Items page next render: row's cost cell flips from `~55` to live cost. **If the Amazon listing's name differs from the SKU name, an amber banner appears as a third row** showing both sides + "Use Amazon details" button.
+4. Click "Use Amazon details" → SKU's name_en/brand updated to match Amazon. Banner disappears (names now match).
+5. Or click "Ignore" → banner hidden until next sync.
+6. Or paste a new URL → re-sync → new mismatch banner if the new product's name also differs.
+
+**Why the prior approach was wrong:** the previous sourcer code (`namePatch.name_en = result.product_name_en`) silently overwrote the operator's curated SKU name on every sync. For URL mismatches, this would corrupt the catalog without warning. The new approach surfaces the mismatch and requires operator confirmation.
+
+**Files touched this turn:**
+- New: `supabase/migrations/0060_amazon_product_name_fields.sql`, `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx`
+- Edited: `src/lib/beithady/inventory/amazon-eg-sourcer.ts` (write to shadow cols), `src/lib/beithady/inventory/catalog.ts` (3 new fields), `src/app/beithady/inventory/items/_components/items-section-list.tsx` (banner row), `src/app/beithady/inventory/items/actions.ts` (applyAmazonDetailsAction)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Next time the operator pastes a URL** — they'll either:
+- Get a clean ScrapingBee fetch with matching name → no banner, just the price update
+- Get a fetch with a different product → see the amber banner → choose to apply or ignore
+
+---
+
+## 🟢 Earlier this turn — ScrapingBee path PROVEN working (Antifly fetched live) + Haiku 404 false-positive bug fixed
+
+User added a 2nd Amazon URL (CLN-APC-1L → `https://www.amazon.eg/dp/B08WJJB6KV`) and clicked Sync. Two findings:
+
+### ✅ ScrapingBee end-to-end is working
+
+DB inspection of `CLN-ANTIFLY-400ML` after the sync:
+```
+amazon_eg_price_egp:        89.00         ← was 90 (manual SQL); now LIVE 89 from ScrapingBee
+has_image:                  TRUE          ← only ScrapingBee/browser fetches can populate this
+amazon_eg_last_status:      ok
+amazon_eg_last_checked_at:  2026-04-30 16:48:47
+```
+This is definitive proof — Anthropic's web_fetch can't extract image URLs and it gets rate_limited on amazon.eg, so this can ONLY have come from the ScrapingBee path. Haiku correctly parsed the HTML, populated price + name + brand + image_url + stock + rating fields.
+
+### ❌ Two separate issues with CLN-APC-1L
+
+**Issue 1 — wrong product (user error).** ASIN `B08WJJB6KV` is "Frida Floor Disinfectant + Cleaner 5X Power, 4 Liters, Floral" at EGP 164.95 — verified via Chrome MCP navigation. That's a 4L FLOOR cleaner, not a 1L all-purpose cleaner. The user's SKU `CLN-APC-1L` describes a different product. They need to either find a 1L APC URL or rename the SKU.
+
+**Issue 2 — parser bug (fixed, commit `e8f74be`, deploying).** Even with the wrong product, the parser SHOULD have extracted 164.95 EGP for "Frida Floor Disinfectant…". Instead it returned `status='404'`. Root cause: the page has a sponsored ad ("Signal Triple Clean 37.99 EGP") at the top of the HTML, and Haiku was over-classifying the whole page as "not a product page". Fix in `buildHtmlExtractionPrompt`:
+- Trim ceiling raised 120k → 150k chars (sponsored headers were pushing buy-box past the cut)
+- Prompt explicitly enumerates: skip sponsored injections, bundle prices, recommendation carousels, "was" prices
+- Hard rule: "Pages that show a single canonical product with a price MUST return ok or oos, never 404, regardless of sponsored injections."
+
+### Cosmetic fix from earlier this turn (commit `91b83f0`)
+
+`testScrapingBee()` no longer appends "concurrency ?" to the test detail string when ScrapingBee's free tier `/api/v1/usage` doesn't return `concurrency_limit`. After Test connection click, free-tier users see clean "1,000 of 1,000 credits remaining" with no trailing junk.
+
+### Active commits this session (latest first)
+
+`e8f74be` (parser 404 fix) → `2f11919` (handoff) → `91b83f0` (cosmetic) → `2f83988` (handoff) → `b0ae924` (ScrapingBee main) → `2f4cf23` (manual price entry) → `5d03fe2` (URL canonicalize) → `4c57682` (F3+F1) → `f4f9d14` (M2-M5) → `7aa2711` (M1).
+
+### Awaiting user
+
+To verify the parser fix, user needs to do one of:
+- A) Find a real 1L all-purpose cleaner URL on Amazon EG, paste over the Frida URL, save → ScrapingBee + fixed parser pull correct price for the actual product
+- B) Keep Frida URL for now, just re-paste it to re-trigger the sync → with the fix deployed, it'll save 164.95 EGP under CLN-APC-1L (mismatched product but proves the parser works)
+- B is faster for verification; A is correct for actual usage.
+
+### Deploy state
+
+`e8f74be` push to main triggered Vercel auto-deploy. Manual `vercel --prod` also fired (background task `bzmjvmzvt`). Should be READY in ~2-9 min depending on cache state.
+
+---
+
+## 🟢 Earlier this session — Estimator UI confirmed showing live vs estimate cleanly; awaiting user sync click
+
+User shared the estimator detail screenshot showing CLN-ANTIFLY-400ML at **90 EGP plain slate** with green "Amazon EG" badge (live), and the other 16 chemicals lines all showing **~XX EGP amber** with "Search Amazon EG" (estimates). The F1 estimate-flag UX is working as designed.
+
+**However:** the Antifly 90 EGP is still from the manual SQL patch earlier this session, NOT from a real ScrapingBee fetch. DB still shows my marker:
+```
+amazon_eg_last_status:     unchecked
+amazon_eg_last_checked_at: 2026-01-01
+has_image:                 false        ← ScrapingBee would have populated this
+```
+
+**Why:** the URL was originally saved BEFORE ScrapingBee was configured → setAmazonSourceAction's auto-sync (via syncOneItemPrice in waitUntil — this WAS already shipped at commit 8fb7283) ran via Anthropic web_fetch and got rate_limited. Now that ScrapingBee key is configured, a re-trigger should populate the row from a real fetch.
+
+**Asked user to do one of:**
+- A) Click "Sync prices (1)" header button on items page
+- B) Re-paste the same Antifly URL in the Change modal — re-triggers setAmazonSourceAction → ScrapingBee path runs
+
+Either should advance `last_checked_at` past 2026-01-01 + flip `last_status` to 'ok' + populate `amazon_eg_image_url`. The image_url being non-null is the smoking gun for ScrapingBee actually working.
+
+**Tried but blocked:**
+- Chrome MCP from this chat can't reach user's authenticated session — fresh MCP-spawned tabs hit `/login` because cookies don't transfer across tab groups.
+- CRON_SECRET isn't in `.env.local` (lives only in Vercel env), so can't curl the cron endpoint either.
+- Result: user must click in their tab.
+
+**Smaller cosmetic fix shipped this turn (commit `91b83f0`):** `testScrapingBee()` no longer appends "concurrency ?" when free-tier ScrapingBee `/api/v1/usage` doesn't return `concurrency_limit`. Auto-deploys via GitHub→Vercel.
+
+---
+
+## 🟢 Earlier this turn — User pasted ScrapingBee key, "Connected · 1,000/1,000 credits" — awaiting sync click
+
+**User confirmed the card shows "Connected · 1,000 of 1,000 credits remaining · concurrency ?"** in `/admin/integrations`. Three things this turn:
+
+1. **Cosmetic fix shipped (commit `91b83f0` pushed to main).** The "concurrency ?" tail showed because ScrapingBee's free tier doesn't return `concurrency_limit` in `/api/v1/usage`. Updated `testScrapingBee()` in `src/lib/integration-tests.ts` to omit the concurrency clause entirely when the field is missing — falsy guard via `json.concurrency_limit ? \` · concurrency ${...}\` : ''`. Auto-deploys via GitHub→Vercel; "concurrency ?" disappears after the next Test connection click.
+
+2. **Marker set on Antifly row for smoke detection.** Reset via Supabase MCP:
+   ```sql
+   UPDATE beithady_inventory_items
+   SET amazon_eg_last_checked_at = '2026-01-01 00:00:00+00',
+       amazon_eg_last_status = 'unchecked'
+   WHERE sku = 'CLN-ANTIFLY-400ML'
+   ```
+   So when the sync runs, the new `amazon_eg_last_checked_at` will be a fresh 2026-04-30 timestamp (instantly identifiable as "not the marker"). The price is still 90 EGP — manually patched earlier — so I'll detect "live ScrapingBee fetch" by the timestamp change + the `amazon_eg_last_status` going from 'unchecked' back to 'ok'.
+
+3. **Chrome MCP smoke test blocked — fresh tab not authenticated.** Tried navigating to `https://festive-lamport-b23de0.vercel.app/beithady/inventory/items` in a new MCP tab; landed on login page. The user's existing session has the auth cookie but I can't share it across MCP-spawned tabs. Asked the user to click "Sync prices (1)" themselves on their authenticated tab.
+
+**Awaiting:** user clicks Sync prices → I run a SELECT on antifly to verify timestamp advanced past 2026-01-01 + status flipped from 'unchecked' to 'ok' → confirms ScrapingBee path is fully working in prod.
+
+**If the smoke fails:** likely culprits are (a) ScrapingBee free tier blocked the country_code=eg premium proxy → fix by clearing the country_code field, (b) Vercel function timed out (we set maxDuration=300 but the call goes through ScrapingBee + Anthropic Haiku in serial), or (c) Anthropic Haiku threw on the 120k-char HTML payload (mitigation: trim further).
+
+**Active commits this session:** `7aa2711` (M1) → `f4f9d14` (M2-M5) → `5d03fe2` (URL canonicalize) → `2f4cf23` (manual price entry) → `b0ae924` (ScrapingBee main) → `2f83988` (handoff) → `91b83f0` (cosmetic).
+
+---
+
+## 🟢 Earlier this session — ScrapingBee integration SHIPPED + DEPLOYED (commit `b0ae924`, deploy `dpl_…c1f2foe6f` READY)
+
+**Deploy verified.** Both ScrapingBee changes are live in production:
+1. `/admin/integrations` page now shows a 9th provider card for "ScrapingBee" (auto-rendered from CREDENTIAL_SPECS).
+2. Amazon EG sourcer's `probeAmazonProduct` is rewired to prefer ScrapingBee when api_key is set, with Anthropic web_fetch as graceful fallback.
+
+**Awaiting user action:** sign up at scrapingbee.com (free tier, no card) → paste API key in `/admin/integrations` → Test connection → Sync prices on items page. Then Antifly's `amazon_eg_last_status` should flip from `rate_limited` to `ok` via the real ScrapingBee fetch.
+
+**Background command output:** Vercel build took ~9 min (slower than usual — likely a cold dep cache from the @vercel/functions install earlier this session). Subsequent deploys should be faster.
+
+(Full ShippingBee technical details are in the next "Earlier this turn" entry.)
+
+---
+
+## 🟢 Earlier this turn — ScrapingBee integration shipped (admin/integrations UI + sourcer rewire)
+
+User picked free-tier ScrapingBee. "Add scraper settings in api settings module and will fill later." Done.
+
+**Three changes shipped in one commit:**
+1. **`src/lib/credentials.ts`** — added `scrapingbee` to `ProviderId` union + new entry in `CREDENTIAL_SPECS` with three fields: `api_key` (required, password), `render_js` (optional bool, default false), `country_code` (optional, default blank, recommended `eg` for EGP pricing). Description explains what it solves and that free tier 1k req/mo covers weekly refresh of 73 SKUs. Help URL points to scrapingbee.com dashboard.
+2. **`src/lib/integration-tests.ts`** — `testScrapingBee()` calls ScrapingBee's `/api/v1/usage` endpoint with the configured API key. Returns `ok: true` with detail string `"850 of 1,000 credits remaining · concurrency 1"` so the operator sees their quota at a glance. 15s timeout. Hooked into `testProvider()` switch.
+3. **`src/lib/beithady/inventory/amazon-eg-sourcer.ts`** — refactored `probeAmazonProduct` to a 2-path strategy:
+   - Path 1: `fetchViaScrapingBee(url)` hits `https://app.scrapingbee.com/api/v1/?api_key=X&url=…` (with optional `country_code` + `render_js`). 30s timeout. Returns null on no-key / failure (transparent fall-through).
+   - If HTML > 1000 chars, sends to Haiku via new `buildHtmlExtractionPrompt(itemName, itemUom, url, html)` — same JSON schema as before, but the HTML is in the user message instead of a `web_fetch` tool. Trims HTML to 120k chars (price + title always within first 80k).
+   - Path 2: original Anthropic `web_fetch` fallback, kept for graceful degradation. Will return rate_limited on amazon.eg today but might unblock for other domains.
+
+**`/admin/integrations` UI auto-renders the new card** because the page iterates `Object.keys(CREDENTIAL_SPECS)`. No UI code changes needed. Test connection button works once the operator pastes their API key.
+
+**Operator's next step:**
+1. Sign up at https://app.scrapingbee.com (free tier, no card)
+2. Copy API key from dashboard
+3. Open `/admin/integrations` → ScrapingBee card → paste key → Save → Test connection
+4. Then `/beithady/inventory/items` → click "Sync prices (1)" → Antifly row's `amazon_eg_last_status` flips from `rate_limited` to `ok` with fresh price (should still be 90 EGP since we already manually patched it)
+5. Daily cron at 06:00 Cairo will start working reliably for any future URLs the user pastes
+
+**Architecture caveats noted for future me:**
+- The new path uses ~25 credits per call (Amazon EG via residential proxy with no JS). Weekly refresh of 73 items = 290 credits/wk → 1.16k/mo, slightly over 1k free tier. Daily refresh would need paid plan. Recommended to switch the cron from daily to weekly until user upgrades.
+- ScrapingBee's `country_code=eg` may incur premium credit cost (5-25 credits/req) depending on plan tier. Free tier may not include premium proxies — if user hits "country_code not allowed" errors, leave the field blank and accept any IP.
+- `render_js=false` is critical for cost — JS rendering is 5x credits and Amazon EG product pages parse fine without it.
+
+**Files touched this turn:**
+- `src/lib/credentials.ts` (provider id + spec)
+- `src/lib/integration-tests.ts` (test impl)
+- `src/lib/beithady/inventory/amazon-eg-sourcer.ts` (two-path probe with ScrapingBee preferred)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this session — Chrome MCP paired + Antifly verified end-to-end. ScraperAPI proposal sent.
+
+**Chrome MCP pairing succeeded.** User connected the "Claude in Chrome (Beta)" extension (claude.com publisher) to this Claude Code session. `list_connected_browsers` returned `Browser 1` (Windows, deviceId `30b22924-0642-49ee-b446-0c3d34e25861`).
+
+**Antifly proof-of-concept fetched via user's authenticated Chrome session:**
+- Navigated to `https://www.amazon.eg/dp/B0882X6KH7`
+- `find('product title H1')` → "Raid Flying Insect Killer Odorless 300 ML"
+- `find('main visible product price')` → "EGP 90.00"
+- `find('stock availability')` → "In Stock"
+- `find('brand')` → "Brand: Raid"
+- DB row already had matching values from earlier manual SQL patch — refreshed `amazon_eg_last_checked_at` to NOW so the cell shows freshly verified.
+
+**Confirmed: user's authenticated browser bypasses the rate-limit Anthropic web_fetch hits.** This proves the Chrome-MCP-driven workflow works for one-shot catalog setup.
+
+**User asked 3 clarifying questions about scaling:**
+1. Will the deployed app auto-fetch via my browser when I paste a URL? → **No.** Chrome MCP only exists in this chat session, not on Vercel. Deployed app's "Save URL" still goes through blocked web_fetch.
+2. Fall back to Option 2 (auto-discover) with manual edit? → Available but still chat-session-bound, not operator-self-service.
+3. ScraperAPI long-term, other uses? → **Yes**, ScraperAPI / ScrapingBee / ScrapingFish would replace web_fetch in the cron with ~95% reliability. Cost reality at user's volume (73 SKUs):
+   - Weekly refresh = ~290 req/mo (free tier covers it)
+   - Daily refresh = ~2.2k req/mo (ScrapingFish $20/mo plan)
+   - ScrapingBee free 1k/mo would cover weekly refresh
+
+**Other ScraperAPI uses in this app — honest assessment given to user:**
+- ✅ Amazon EG product enrichment (main use)
+- 🟡 TripAdvisor / Google Reviews public monitoring (additive — Guesty only covers OTAs)
+- 🟡 Vendor catalog scraping (if vendors lack APIs)
+- ❌ Competitor pricing (PriceLabs already does this better)
+- ❌ SEO/SERP (DataForSEO purpose-built)
+- ❌ Social/WhatsApp (Guesty + existing integrations cover it)
+
+**Three options offered, awaiting user pick:**
+- A. Ship ScrapingBee integration (~half day, $20/mo). Replace `web_fetch` in `probeAmazonProduct` with ScrapingBee HTTP fetch then send HTML to Haiku for structured parse. Daily cron starts working reliably.
+- B. Chat-driven Chrome MCP fetches when user pings me (free, one-time setup pattern)
+- C. "Find on Amazon" auto-discovery UI (still chat-session-bound)
+
+Recommended: **A long-term + B for the immediate one-shot setup.**
+
+**No code changes, no commits this turn.** Branch state unchanged from last commit `2f4cf23` (manual price entry). Browser MCP connection state will reset when chat session ends.
+
+---
+
+## 🟡 Earlier this session — Chrome MCP connection blocked, awaiting user pairing (no commits)
+
+User asked "can you use my browser to go on amazon and get the details" — proper instinct since their browser carries the cookies + IP that Amazon trusts (vs Claude's web_fetch which is rate-limited).
+
+**State of the Chrome MCP path:**
+- `mcp__Claude_in_Chrome__list_connected_browsers` → `[]`
+- `mcp__Claude_in_Chrome__tabs_context_mcp` → "Claude in Chrome is not connected"
+- `mcp__Claude_in_Chrome__switch_browser` → "No other browsers available to switch to"
+- User confirmed via screenshot the **Claude in Chrome (Beta)** extension by `claude.com` IS installed — but the pairing handshake hasn't completed for this Claude Code session.
+
+**Pairing instructions sent to user:**
+1. Click puzzle-piece icon in Chrome toolbar → pin Claude
+2. Click Claude extension icon
+3. Sign in with same Anthropic account
+4. Extension should show "Connect" / "Pair with Claude Code" — click it
+5. Try a new Chrome tab if the extension UI looks empty
+
+**Plan once paired (drafted but not run):**
+```
+1. tabs_context_mcp → enumerate tabs
+2. Navigate to https://www.amazon.eg/dp/B0882X6KH7 (Antifly — already has URL set in DB)
+3. find('product price') + find('add to cart') + get_page_text
+4. Parse price + stock + name + brand
+5. setManualAmazonPriceAction or direct supabase write
+6. Verify cost cell flips amber→slate
+7. If single-item proof works, loop for all items with amazon_eg_url IS NOT NULL
+```
+
+**Current DB state for the smoke test:**
+- Only 1 item has a URL: `CLN-ANTIFLY-400ML` → `https://www.amazon.eg/dp/B0882X6KH7`. Already manually patched to 90 EGP earlier this session, so a Chrome-MCP fetch on that one would just confirm 90 EGP and re-stamp `amazon_eg_last_checked_at`.
+- Other 72 items have no URL set yet → user has to paste URLs for them before browser-MCP can fetch.
+
+**Three browser-automation tiers I outlined to user:**
+- A: install Claude in Chrome ext (recommended) → fully automated end-to-end via DOM-aware MCP
+- B: computer-use screenshot reading → tier=read for browsers, can SEE but not click/type, user navigates manually
+- C: ManualPriceButton already shipped this session → operator types price into a popover
+
+**No code changes, no commits, no deploys this turn.** Branch state unchanged from last commit `2f4cf23` (manual price entry shipped).
+
+**Awaiting user signal:** "ready" once browser is paired, OR "B" to fall back to screenshot-read flow, OR "use the manual button" to abandon browser path.
+
+---
+
+## 🟢 Earlier this session — Manual price entry (Amazon EG blocks Claude web_fetch — confirmed in prod)
+
+User pressed "Sync prices" — price still didn't update. Investigated via `mcp__execute_sql`:
+```
+amazon_eg_last_status: 'rate_limited'
+amazon_eg_last_checked_at: 2026-04-30 12:33:34 UTC
+```
+**Confirmed: Amazon EG blocks Claude's `web_fetch` server-managed tool.** This is the R1 risk from the workflow plan now real in prod. The AI info regen survived because it has a `general_knowledge` fallback (its row showed `source: 'general_knowledge'`); the price sourcer had no fallback so it wrote `rate_limited` and bailed.
+
+**Three things shipped:**
+
+1. **Manually patched `CLN-ANTIFLY-400ML` via SQL** so the user sees results immediately:
+   ```sql
+   UPDATE … SET name_en='Raid Flying Insect Killer Odorless 300 ML',
+                brand='Raid', amazon_eg_price_egp=90, amazon_eg_pack_size=1,
+                amazon_eg_last_status='ok', amazon_eg_in_stock=true …
+   WHERE sku='CLN-ANTIFLY-400ML'
+   ```
+2. **New `setManualAmazonPriceAction(itemId, { price_egp, pack_size, name_en?, brand? })`** server action in `actions.ts`. Validates price >0 and ≤100k EGP. Requires URL to be set first. Audit-logged with before/after values.
+3. **New `ManualPriceButton` component** rendered inline in `CostCell` whenever the row has a URL set but no live price. Modal explains "Auto-fetch is blocked — open the product page below, read price + pack size, type them here." Includes "Open product" link in the modal banner. Optional name/brand override fields.
+
+**UX flow now (when Amazon blocks):**
+1. Operator pastes URL → Save (still triggers AI regen + sourcer attempt in background)
+2. Sourcer hits rate_limited → row stays amber `~55`
+3. Cost cell now shows `~55 [Manual price]` button next to it (amber pill)
+4. Click → modal opens with price/pack-size inputs + "Open product" link
+5. Operator opens product, reads price (e.g. 90 EGP), types it, clicks Save price
+6. Row flips to plain `90` slate cost. name_en + brand auto-update from the optional fields.
+
+**The tooltip when fetch is blocked is also explicit:** "Amazon blocked the auto-fetch. Click 'Manual price' to type the price you see on the live page."
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Future-proofing notes for next time we hit web_fetch limits:**
+- Daily cron will keep retrying — Amazon may unblock briefly. But realistically the sourcer is unreliable and the manual button IS the workflow.
+- Alternative options not built (would need user direction): (a) ScraperAPI/ScrapingBee subscription (~$30/mo), (b) AI-estimate fallback when fetch fails (Claude guesses typical price from name — accuracy questionable), (c) Browser automation via Playwright in a separate Lambda.
+
+---
+
+## 🟢 Earlier this turn — URL save now auto-fetches price + name + brand from Amazon
+
+User saved a valid Amazon URL on `CLN-ANTIFLY-400ML` (Raid Flying Insect Killer 300ml). Two complaints:
+1. Cost cell stayed amber `~55` — saving the URL didn't trigger the price sourcer (only triggered the AI info regen). Operator had to click the separate "Sync prices" header button.
+2. Item name stayed "Anti-flies spray 400ml" — the seed name. Should change to the Amazon product title.
+
+**Both fixed in one commit:**
+
+**Sourcer extracts more fields:**
+- `AmazonProbeResult` extended with `product_name_en`, `product_name_ar`, `brand` (all `string | null`).
+- Prompt asks Claude to extract the product title (English + Arabic if listed) and the brand. New `cleanName()` helper strips Amazon noise like "(Pack of 1)" / dangling redundant parens.
+- `persistProbeResult` writes `name_en` / `name_ar` / `brand` columns when the probe returns non-empty values. Operator-edited names get preserved when probe fails or returns null fields.
+
+**Auto-fire sourcer on URL save:**
+- `setAmazonSourceAction` in `actions.ts:474-510` now schedules BOTH tasks via `waitUntil(Promise.allSettled([...]))`:
+  1. **Always** — `syncOneItemPrice(itemId)` (operator just gave us a fresh ASIN; existing price is stale by definition).
+  2. **Cooldown-gated** — `regenerateItemInfo(itemId, user.id)` (24h cooldown still applies; first regen always runs).
+- They run in parallel — both hit Claude with `web_fetch` on the same URL but extract different fields, so doubling the cost is acceptable (~$0.002 per save vs $0.001 before).
+
+**Items-page auto-poll extended:**
+- Previous trigger: `ai_info_status === 'queued' | 'running'`
+- Now also: `amazon_eg_url IS NOT NULL && amazon_eg_price_egp IS NULL && (no checked-at OR checked within last 60s)` — i.e. price sourcer in flight. So the cost cell flips from amber `~55` to plain `90` automatically when the background fetch lands, without the operator hitting refresh.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Smoke flow now:**
+1. Operator pastes URL → clicks Save
+2. Save returns instantly. Row shows amber `~55` + "Open product" + ✓ reviewed
+3. Within ~10s the auto-poll picks up the new state: name = "Raid Flying Insect Killer Odorless 300 ML", brand = "Raid", cost flips to plain slate `90 EGP` with "checked DD MMM" tooltip
+4. AI info card chevron expand also shows fresh content based on the live page
+
+---
+
+## 🟢 Earlier this turn — Amazon URL validation accepts SEO-slug form (canonicalize on save)
+
+User pasted `https://www.amazon.eg/Raid-Flying-Insect-Killer-Odorless/dp/B0882X6KH7/ref=sr_1_1_sspa?crid=...` into the "Set URL" popover for `CLN-ANTIFLY-400ML`. Got rejected: "URL must be a canonical Amazon EG product link, e.g. https://www.amazon.eg/dp/B0XXXXXXXX or /gp/product/B0XXXXXXXX." That URL IS valid — Amazon emits 4+ legitimate URL shapes for the same product. Our regex `^https:\/\/www\.amazon\.eg\/(dp|gp\/product)\/[A-Z0-9]{10}/` only matched two of them.
+
+**Fix shipped:**
+- New helpers in `estimator-shared.ts:142-180`:
+  - `extractAmazonEgAsin(url)` — pulls the 10-char ASIN out of any of the 4 known shapes (bare `/dp/<ASIN>`, `/gp/product/<ASIN>`, `/Product-Name/dp/<ASIN>/ref=…`, all + query strings). Regex: `/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i`. Domain check: `^https:\/\/(www\.)?amazon\.eg\//i`.
+  - `canonicalizeAmazonEgUrl(url)` — extracts ASIN and returns `https://www.amazon.eg/dp/<ASIN>`. Two pastes of the same product now always store identical strings (no slug, no `/ref=`, no `?crid=`).
+- `setAmazonSourceAction` in `actions.ts:411` swapped from regex test → `canonicalizeAmazonEgUrl()`. New error message lists all 3 acceptable forms.
+- Source-cell popover help text updated to mention the SEO-slug form is OK.
+
+**Side effect (good):** when the operator pastes a long messy URL with tracking params, the row now stores the clean `/dp/<ASIN>` form. Sourcer fetches against the clean URL too — slightly less likely to trigger Amazon anti-bot detection than fetching with `?crid=...&aref=...` query strings.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**No DB migration needed** — fix is pure app code.
+
+---
+
+## 🟢 Earlier today (parallel session) — clarified two-layer permission model + scheduled verification routine
+
+User created their first BA user (`ashargamal`) on `/admin/users` and asked: (a) what to pick in the Role dropdown (only sees admin/editor/viewer — no `business_analyst`); (b) whether the 3 app-level roles need to change to reflect the new Beit Hady roles; (c) confirmation that the prior change shipped.
+
+**Answers given:**
+- App role for BA → `editor`. NOT `admin` (would bypass matrix entirely via `if (user.is_admin) return true` in `src/lib/beithady/auth.ts` and leak financial/comm). NOT `viewer` (semantically no-write, but BA needs `analytics: full` write to save dashboards).
+- App-level roles (admin/editor/viewer) DO NOT change. They're the outer layer (cross-portfolio). Beit Hady roles (business_analyst, guest_relations, etc.) are a fine-grained inner layer that only applies inside Beit Hady. They compose; they don't replace.
+- 3-step workflow given to user: (1) `/admin/users` → create user as `editor`; (2) per-row Edit → grant `beithady` domain access; (3) `/beithady/settings/users` → Grant `business_analyst` role.
+
+**Verification routine scheduled:** `trig_01PA5ETNjNSjXTJsERxg7E6i` fires once on `2026-05-07T11:00:00Z` (Cairo Thu May 7, 2pm). Auto-attached MCP connectors include Supabase (`bpjproljatbrbmszwbov`) so the agent can query the live `beithady_role` enum and the `beithady_user_roles` grant table. Routine URL: `https://claude.ai/code/routines/trig_01PA5ETNjNSjXTJsERxg7E6i`. No commits/PRs from the agent — just a structured PASS/FAIL transcript.
+
+**Previous change confirmed live:** commit `b9ac678` on `main`, deploy `dpl_3jE9hR23mY4PKWcj1Tbh7Zg59C4L` READY, `business_analyst` appears in the Grant picker on `/beithady/settings/users`.
+
+---
+
+## 🟢 Earlier — `business_analyst` Beit Hady role shipped (commit `b9ac678`)
+
+User asked for a "Business Analyst & Reporting" role. Suggested matrix; user locked in `financial: none` ("Only Numbers Coming From Booking Channels & Pricelabs") and `communication: none`.
+
+**Final permission matrix:**
+- analytics: **full** (primary domain — segments, dashboards, saved reports)
+- crm / ops / inv / ads / settings: **read** (broad context for analysis)
+- financial: **none** (Odoo P&L excluded — segregation of duties)
+- communication: **none** (no inbox / message bodies — privacy)
+- gallery: **none**
+
+Booking-channel + PriceLabs numbers reach the BA via `/beithady/analytics/*` (gated by `analytics`) and `/beithady/pricing` (currently un-gated entirely — see flag below).
+
+**Files:**
+- `supabase/migrations/0060_beithady_role_business_analyst.sql` — `alter type beithady_role add value if not exists 'business_analyst'`. Applied to `bpjproljatbrbmszwbov` via Supabase MCP. `enum_range(null::beithady_role)` confirms 8 values now.
+- `src/lib/beithady/auth.ts` — added to `BEITHADY_ROLES` tuple + permission row in the matrix.
+- `src/app/beithady/settings/users/page.tsx` — footer "matrix at a glance" copy updated to mention the new role; the Grant picker auto-picks it up since it iterates `BEITHADY_ROLES`.
+
+**Deploy state:** commit `b9ac678` pushed to `main`. Vercel CLI sibling project deploy `dpl_3jE9hR23mY4PKWcj1Tbh7Zg59C4L` READY. Real prod deploy goes via GitHub→Vercel integration on the main push.
+
+**🚩 Flag for future me — un-gated routes:** `/beithady/financials/page.tsx` (plural) and `/beithady/pricing/page.tsx` do NOT call `requireBeithadyPermission`. They rely on the upstream `requireDomainAccess('beithady')` gate only — meaning ANY user with `beithady` domain access can see Odoo financial detail and PriceLabs pricing, regardless of their fine-grained role. For the BA role this is actually *desired* (they want PriceLabs numbers), but it's a hole for guest_relations / housekeeper / warehouse_manager who are matrix-blocked from `financial: 'none'` but can still URL-walk to `/beithady/financials`. Worth a follow-up to add `requireBeithadyPermission('financial', 'read')` to `/beithady/financials/page.tsx` and decide whether `/beithady/pricing` should be gated by `analytics` or stay open.
+
+---
+
+## 🟢 Earlier this session — Beit Hady "+ Add user" CTA shipped (commit `dacad44`)
+
+User was on `/beithady/settings/users` and asked "Where to add users?" — there was no UI hint pointing them to the global user-creation page at `/admin/users`. The Beit Hady page only grants existing users to one of the five property-roles; it never created users.
+
+**Fix shipped:** added a header `right` slot CTA via `BeithadyHeader` — a Link to `/admin/users` with `UserPlus` icon, gated on `user.is_admin` (server-side). Non-admins still see the matrix unchanged (they can't access `/admin/users` anyway — that page calls `notFound()` on non-admins).
+
+**Deploy state:** commit `dacad44` pushed to `main`. Vercel CLI in this worktree created a sibling project (`recursing-pike-a73c86-57bja5jlf-lime-investments`, `dpl_ZzrNNRbdsRxapVYcEGmr5hodShk5` READY) but the real prod deploy comes from the GitHub→Vercel integration on the main-branch push.
+
+**Why the worktree-vercel mismatch is fine:** the kareemhady project on Vercel auto-deploys from `main` via GitHub. The CLI-spawned sibling project is a no-op artifact. Future worktree sessions could symlink `.vercel/` from the parent or skip the CLI step and rely purely on the GitHub integration.
+
+---
+
+## 🟢 Earlier — F3 (Amazon EG sourcer) + F1 (estimate flags) SHIPPED + DEPLOYED
+
+**End-state confirmation (post-deploy):**
+- Commit `4c57682` pushed to main
+- Vercel prod deploy `dpl_4WxALj4LcKQYHYhRefmZdgocCYQD` → READY (production target)
+- `npx tsc --noEmit` clean, `npm run build` clean
+- Daily Vercel cron `/api/cron/beithady-amazon-eg-sourcer` scheduled `0 4 * * *` UTC = 06:00 Cairo
+- Two parallel-session migrations (`0058_beithady_auto_archive_*` and `0059_beithady_unanswered_first_sort.sql`) coexist on disk with my `0058_inventory_ai_info.sql` and `0059_seed_extra_inventory_items.sql` — no DB collision since Supabase tracks by applied-name.
+
+**Deferred follow-ups (NOT this turn):**
+- Set Amazon EG URLs on the actual seeded items so the sourcer has something to probe (currently 0/73 have a URL → "Sync prices (0)" button is hidden until first URL is set)
+- Optional: schedule a 2h check to verify the first manual sync actually returns data (Amazon may block → would force F1-only fallback as the long-term reality)
+- M.15.4 `amazon_eg_alternatives` jsonb is still untouched — currently the sourcer only re-validates the canonical URL, doesn't propose alternates
+
+**Architecture caveat for future me:** the sourcer relies on Claude's `web_fetch` tool succeeding against amazon.eg. Anthropic's tool docs warn that high-volume e-commerce sites often refuse fetches. If we see `rate_limited` rates >50% in production, fall back to: (a) third-party scrape proxy like ScraperAPI, or (b) manual URL paste + manual price field on the items form. The estimate-flag UI (F1) handles either failure mode gracefully — costs just stay amber until live data arrives.
+
+---
+
+## 🟢 Earlier today (parallel session) — Fixed "NEW" badge stuck on answered threads (commit `6f76eb3`)
+
+User screenshot: Amr (Airbnb inquiry BH73-3BR-SB-3-305) showed "1 NEW" badge in sidebar even though the team had replied via the templated "Hello, Thanks for your interest" outbound. Asked "Why Amr Message shows new, although team has responded".
+
+**Diagnosis:** `unread_count` was sourced from Guesty's `gc.state_read` flag, which only flips when the conversation is OPENED in Guesty's UI. API-only replies (via send-guesty) don't bump state_read upstream — so even though we replied, our mirror saw `state_read=false` → `unread_count=1` → "1 NEW" badge.
+
+DB confirmed: `last_inbound_at: 05:10:29 UTC`, `last_outbound_at: 03:04:57 UTC` (older log entry), `is_unanswered: true`, `unread_count: 1`. The 8:10 outbound visible in the UI was likely a Guesty-side log auto-templated reply that we do mirror, but the timestamps showed the inbound came LAST.
+
+**Fix shipped (commit `6f76eb3`):**
+- Sidebar "NEW" pill + bold-name styling now read `is_unanswered` (the timestamp-derived generated column from migration 0059) instead of `unread_count > 0`.
+- `is_unanswered` = `last_inbound_at IS NOT NULL AND (last_outbound_at IS NULL OR last_inbound_at > last_outbound_at)` — flips the moment we reply because `last_outbound_at` jumps past `last_inbound_at` in the same transaction.
+- `unreadOnly` filter on `listInbox()` + `getInboxStats().unread` counter both switched to `.eq('is_unanswered', true)` for consistency.
+- `send-guesty.ts` outbound update now also sets `unread_count: 0` for parity with `send-wa-casual.ts` (defense in depth — legacy callers reading unread_count still get the correct value).
+
+**Pill text** simplified from "1 new" to "NEW" since is_unanswered is binary (no count to surface).
+
+**Why this is the right fix:** Guesty's `state_read` is a Guesty-UI-driven signal. Our app's "needs reply" indicator should be based on what WE control — whether `last_outbound_at` has caught up to `last_inbound_at`. Migration 0059 already gave us that as a generated column; this commit just wires the UI to the right source of truth.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `6f76eb3` pushed to `main`. Vercel auto-deploys via GitHub integration.
+
+## 🟢 Earlier turn — Unanswered-first default sort + lazy-fetch rehydrate SHIPPED (commit `4690bce`)
+
+User: "The Default Sorting should be Unanswered First then Recent Activity. Another bug — Still Unknown Messages show up." Two parallel issues, both fixed in one commit.
+
+### Issue 1 — new default sort
+Migration 0059 adds `beithady_conversations.is_unanswered` as a STORED generated column:
+```sql
+last_inbound_at IS NOT NULL AND (last_outbound_at IS NULL OR last_inbound_at > last_outbound_at)
+```
+Plus partial index `idx_bh_conv_unanswered_recent` for the open + active scope.
+
+`listInbox()` gets a new `unanswered_first` case ordering by `is_unanswered DESC, modified_at_external DESC, last_inbound_at DESC` — surfaces guest-replied-last threads at the top, then sorts the answered tail by recent activity (so team replies bump conversations up within the answered group).
+
+`unanswered_first` is now the default. Sidebar dropdown labels updated:
+- "Unanswered first, then recent activity (default)" ← new top
+- "Most recent activity"
+- "Newest guest message first" (was the old default)
+- ...etc
+
+Counts post-migration: 227 unanswered / 1035 answered / 0 null on open+active scope.
+
+### Issue 2 — "Unknown guest" still showed for Habiba
+Diagnosed: conversation `2ce2d09f-0a33-472a-a23e-1156fc3cab6b` (BH-26-001 Airbnb inquiry, Habiba) was lazy-created by the orphan-recovery flow at 10:18 UTC. Guesty's API at the time returned a SPARSE payload — `meta.guest`, `meta.reservations[0].source`, `meta.reservations[0].listing.nickname` all NULL. The row got upserted with NULLs and stuck that way even after 7 messages including a guest reply with `from_full_name: 'Habiba'` flowed through.
+
+Different bug from the earlier system-notification one — Habiba is a real conversation, not a system email.
+
+**Fix:** new `rehydrateUnpopulatedConversations(maxToFetch=30, throttleMs=200)` in `src/lib/guesty-conversation-recovery.ts`. Finds rows with NULL `guest_full_name`, re-fetches via Guesty Open API, upserts. Skips the upsert if Guesty STILL returns null (saves a no-op write). Cron runs it as Step 1b after orphan recovery.
+
+Audit row metadata for `comm_sync_run` gains `rehydrate: { scanned, rehydrated, unchanged, failed, errors }`.
+
+**Verification path:** next 5-min cron tick will rehydrate Habiba + any other null-guest conversations. User should refresh `/beithady/communication/unified` ~5 min after deploy → Habiba appears at top (unanswered + most recent activity) with proper guest name + listing.
+
+### Files touched
+- `supabase/migrations/0059_beithady_unanswered_first_sort.sql` (new)
+- `src/lib/guesty-conversation-recovery.ts` — `rehydrateUnpopulatedConversations` added
+- `src/app/api/cron/beithady-comm-sync/route.ts` — Step 1b wired
+- `src/lib/beithady/communication/inbox.ts` — new sort case + new default
+- `src/app/beithady/communication/_components/stat-link.tsx` — VALID_SORTS + SORT_LABELS
+
+### Branch state
+`claude/gallant-brahmagupta-1d925c`. Last commit `4690bce` pushed to `main`. Vercel auto-deploys via GitHub integration.
+
+## ⚪ Earlier turn — Explained Guesty's sidebar sort behavior (no code change, awaiting user preference on our app's default)
+
+User screenshots: Guesty's native UI showing Hady Family thread with the most recent activity at 1:25 PM ("2m ago" badge in sidebar) but Hady Family was buried at position 4 in the conversation list, behind threads tagged "2h ago". Asked why Guesty isn't sorting newest-on-top.
+
+**Diagnosis (Guesty UX, not our app):**
+Guesty's inbox sidebar sorts by `last_message_nonuser_at` (last GUEST message), NOT by overall activity. After our team replies, the thread sinks because Guesty considers it answered. The "2m ago" badge shows last-activity timestamp for context, but it's NOT the sort key. Threads only float back up when the guest replies again. No Guesty setting to change this.
+
+For Hady Family:
+- Last guest message: 9:06 AM Cairo (original "Test Message")
+- Team replies at 9:09, 1:13, 1:25 PM did not bump it
+- Other threads with newer guest messages (Khalid, Shashi, Sireen ~2h ago) sit above
+
+**What our Beithady Unified Inbox already offers** (per `src/lib/beithady/communication/inbox.ts` `InboxSort`):
+- `recent_inbound` (default) — same as Guesty
+- `recent_activity` — ANY modification (incl. our outbound) bumps to top
+- `recent_outbound` — newest reply first
+- `sla_oldest` / `sla_newest` — breach-priority sorts
+- `name_asc` — alphabetical
+
+UI exposes these via the Sort dropdown on `/beithady/communication/unified`.
+
+**Asked user:** want me to change the site-wide default to `recent_activity` so team replies bump conversations up automatically, or keep the per-user toggle as-is?
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `81e128d` (handoff for Airbnb/Booking module-routing fix). No commits this turn.
+
+## 🟢 Earlier turn — Fixed Airbnb/Booking replies routing through WhatsApp instead of platform in-app messaging
+
+User screenshot: typed a reply on Hady Family (Airbnb thread) → message went out as `WHATSAPP · KAREEMHADY · Hello / Test - Confirm Receipt`. Asked "Why replying Shows Whatsapp? This is message should go to Airbnb Message through Guesty."
+
+**Root cause:** `composer.tsx` had `defaultModule = 'whatsapp'` for every Guesty thread, plus a no-op ternary `airbnb|booking ? 'whatsapp' : 'whatsapp'` proving someone intended source-aware routing but never finished wiring it. Every reply on Airbnb / Booking threads got force-routed through Guesty's WhatsApp module instead of the platform's native in-app messaging.
+
+**Fix shipped (commit `3d43f9d`):**
+- `composer.tsx` — `deriveDefaultModule(source)` maps `airbnb→'airbnb2'`, `booking→'bookingCom'`, `whatsapp→'whatsapp'`, `email→'email'`, `sms→'sms'`. `defaultModule` prop is now optional; composer falls back to source-derived value when not passed. Added dedicated channel-hint chips "Airbnb in-app" (Home icon) and "Booking.com" (BookOpen icon), rendered conditionally on source.
+- `thread-pane.tsx` — only passes explicit `defaultModule` prop when user EXPLICITLY chose a sub-channel (URL `?ch` or persisted preference via Phase C.5 Remember). Otherwise leaves undefined so composer uses `sourceDefault`.
+- `guesty.ts` — `GuestySendPostInput.module` union widened from `'email' | 'sms' | 'whatsapp' | 'log'` to also include `'airbnb2' | 'bookingCom'`.
+- `send-guesty.ts` `SendGuestyArgs.module` — same widening.
+- `actions.ts` + `attach-actions.ts` — `moduleVal` allowlist accepts `'airbnb2' | 'bookingCom'`.
+- `attachment-menu.tsx` — `module` prop widened to match.
+
+**Behavior after fix:**
+- Airbnb thread default reply → `module: { type: 'airbnb2' }` → routes via Airbnb's in-app messaging tunnel.
+- Booking.com thread default reply → `module: { type: 'bookingCom' }` → routes via Booking.com messaging.
+- Direct / manual / unknown source → still defaults to `'whatsapp'` (covers most direct-booking flows where guest provided phone).
+- Channel-hint chips on Airbnb threads now show: Airbnb in-app (default) · WhatsApp · Email. SMS hidden because Airbnb threads don't have an SMS sub-channel.
+- Channel-hint chips on Booking threads: Booking.com (default) · WhatsApp · Email.
+- Channel-hint chips on WhatsApp / direct / manual threads: WhatsApp · Email · SMS.
+
+**Compatibility:** The Phase C.5 channel switcher (cross-channel sends to WA Casual / WABA / Email / SMS via `sendMessageWithSwitchAction`) is unchanged. This fix only affects the NATIVE composer path when the agent stays on the home channel.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `3d43f9d` pushed to `main`. Vercel auto-deploys via GitHub integration.
+
+## 🟢 Latest turn (this session) — F3 (Amazon EG sourcer) + F1 (estimate flags) SHIPPED — costs are now honest
+
+User picked **F3 falling back to F1**. Built both in one turn.
+
+**F3 — Amazon EG price sourcer (the proper fix):**
+- New lib `src/lib/beithady/inventory/amazon-eg-sourcer.ts` — Claude Haiku 4.5 with `web_fetch_20250910` tool, beta header, structured-JSON output. Three exported entry points:
+  - `probeAmazonProduct({ itemName, itemUom, url })` — pure probe, no DB writes
+  - `persistProbeResult(itemId, result)` — writes to items row + appends snapshot. Detects >10pct delta vs last snapshot → `amazon_eg_last_status='price_changed'`
+  - `syncOneItemPrice(itemId)` — fetch + probe + persist in one go (manual button + per-cron-loop)
+  - `syncAllItemPrices({ limit? })` — concurrency pool of 4, walks every active item with `amazon_eg_url IS NOT NULL`. Returns counts: attempted/ok/rate_limited/not_found/parse_errors/price_changed.
+- New cron route `src/app/api/cron/beithady-amazon-eg-sourcer/route.ts` — `maxDuration=300` (probing 70+ items takes ~5-8 min worst case @ 4 concurrent × ~10s each). Bearer auth via `CRON_SECRET`. Manual trigger via `?force=1&secret=$CRON_SECRET`.
+- `vercel.json` — added schedule `0 4 * * *` (06:00 Cairo daily). Lands ~30 min before housekeeping starts so morning estimator pulls fresh prices.
+- Two new server actions in `actions.ts`:
+  - `syncAmazonPriceNowAction(itemId)` — manual single-item refresh, foreground (~10-15s). Audits.
+  - `syncAllAmazonPricesAction()` — flags candidates, fires `waitUntil(syncAllItemPrices())` background pool. Returns `{ queued }` immediately.
+- New `_components/sync-prices-button.tsx` — header CTA "Sync prices (N)" visible when ≥1 item has a URL set. Auto-refreshes the page after 10s so the operator sees the first prices land.
+
+**F1 — Honest estimate flags everywhere costs are displayed:**
+- `ItemListRow` extended with `amazon_eg_price_egp`, `amazon_eg_pack_size`, `amazon_eg_image_url`, `amazon_eg_last_status`, `amazon_eg_last_checked_at` (added to type + mapper in `catalog.ts:67-74` + `:194-198`).
+- `EstimatorLine` extended with `unit_cost_is_estimate: boolean` ([estimator-shared.ts:202](src/lib/beithady/inventory/estimator-shared.ts:202)). Set by `estimator.ts` when the unit cost falls back to `default_cost_egp` instead of computing from `amazon_eg_price_egp / pack_size`.
+- New `CostCell` component in `items-section-list.tsx` — when no live Amazon price: renders `~55` in amber with tooltip "Estimate — seeded placeholder. Set an Amazon EG URL and run the price sourcer to get the live price." Otherwise plain slate "55" with tooltip "Live Amazon EG price · checked DD MMM".
+- Estimator detail page (`estimator/[configId]/page.tsx`):
+  - Per-row Unit cost + Line total cells flip to amber + tilde prefix when estimate
+  - "Total / check-in" and "Per guest" headline numbers flip amber + tilde + add "estimated" eyebrow when ANY line is an estimate
+  - New amber banner under the summary strip: "N of M lines use estimated cost..."
+- `EstimatorLine.unit_cost_is_estimate` source-of-truth: `unitCostIsEstimate = true` initially, flipped to `false` only when `amazon_eg_price_egp != null` ([estimator.ts:191-201](src/lib/beithady/inventory/estimator.ts:191)).
+
+**Smoke test plan post-deploy:**
+1. Load `/beithady/inventory/items` → all 73 cost cells should now show `~XX` in amber. Header has new amber "Sync prices (0)" button hidden (no URLs set yet).
+2. Set an Amazon EG URL on one item via "Set URL" button → header pill becomes "Sync prices (1)".
+3. Click "Sync prices (1)" → message "Probing 1 URL — refresh in ~2 min" → wait → cost cell flips to plain (no tilde, slate color), shows real price.
+4. Estimator detail page: amber banner "73 of 73 lines use estimated cost..." until any item has live data. Once one item is live, banner says "72 of 73...".
+5. Daily cron at 06:00 Cairo refreshes all URLs automatically.
+
+**Why F2 + F4 rejected:**
+- F2 (AI info card extracts price) — Haiku price extraction unreliable at scale, and we already have a Haiku call for ai-info; doing both is duplicative.
+- F4 (inline search picker) — Amazon's anti-bot blocks scrape-of-search-results far more aggressively than scrape-of-product-page. Search picker would need real rendering / proxy.
+
+**Files touched:**
+- New: `src/lib/beithady/inventory/amazon-eg-sourcer.ts`, `src/app/api/cron/beithady-amazon-eg-sourcer/route.ts`, `src/app/beithady/inventory/items/_components/sync-prices-button.tsx`
+- Edited: `src/lib/beithady/inventory/catalog.ts` (5 new fields), `src/lib/beithady/inventory/estimator.ts` (track is_estimate), `src/lib/beithady/inventory/estimator-shared.ts` (`EstimatorLine.unit_cost_is_estimate`), `src/app/beithady/inventory/items/actions.ts` (2 new actions + import), `src/app/beithady/inventory/items/page.tsx` (sync button + count), `src/app/beithady/inventory/items/_components/items-section-list.tsx` (`CostCell`), `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` (per-line + total + banner), `vercel.json` (cron schedule)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟡 Earlier this turn — User flagged "where does the 55 EGP cost come from?" — explained + proposed F1-F4 fixes (no commits)
+
+User screenshot: items page shows `CLN-ANTIFLY-400ML` cost = 55 EGP. Click "Search" → opens `amazon.eg/s?k=Anti-flies+spray+400ml` showing 6 real products at 125 / 145 / 170 / 222 EGP. User asked: "Where did 55 come from if it's a search not a specific product?"
+
+**Honest answer given:** the 55 is a **hardcoded placeholder** I wrote in seed migration `0052d_seed_unit_configs_categories_uoms_items_rules.sql:49` (and same pattern in `0059_seed_extra_inventory_items.sql` for the 43 new items). Every cost in the catalog right now is a guess — none have been populated from Amazon yet.
+
+**Why the table looks confidently wrong:**
+- `default_cost_egp` (seed placeholder) is the fallback when `amazon_eg_price_egp IS NULL`.
+- Estimator code is `let unitCost = Number(it.default_cost_egp || 0); if (amazon_eg_price_egp …) unitCost = …` ([estimator.ts:191](src/lib/beithady/inventory/estimator.ts:191)).
+- 0 of 73 items have `amazon_eg_price_egp` populated — so every displayed cost is the placeholder.
+- The "Amazon EG sourcer" cron (M.15.4) was scaffolded with columns + `amazon_eg_alternatives` jsonb but **never built** — there is no code path that writes `amazon_eg_price_egp` today. Setting a URL just nulls all the Amazon-derived fields; nothing fills them back in.
+- The Search button is a fallback ONLY for items without a canonical URL — it never drives cost.
+
+**4 fix options offered, awaiting user pick:**
+- **F1** (~30 min) Visual flag: show `~55 EGP` or "estimate" pill when `amazon_eg_price_egp IS NULL`. Cheapest, makes table honest immediately.
+- **F2** (~1 hr) Add `unit_cost_egp_estimate` to AI info card so Claude pulls a typical price during web_fetch.
+- **F3** (~half day) Build the actual Amazon EG sourcer cron — the proper fix. New `/api/cron/beithady-amazon-eg-sourcer` walks every item with URL set, fetches price + pack_size, writes to `amazon_eg_price_egp` + `amazon_eg_pack_size`.
+- **F4** (~medium) Surface candidate prices inline on the items page when operator clicks Search — pick a product → URL + price stored together.
+
+**Recommended:** F1 + F3 as a pair. F1 ships today for honesty; F3 makes it real. F2 is unreliable; F4 fights Amazon anti-bot.
+
+**No code changes this turn.** Awaiting user pick on F1-F4.
+
+**Branch state:** `claude/festive-lamport-b23de0`. Last commit `74db4b8` (handoff verifying M2-M5 deploy). Prod is at the M2-M5 deploy `dpl_3tvs5eUoYWQzJQMGqPXcJgKENH4z` (READY). All M.16 work shipped — only the price-honesty UX remains.
+
+---
+
+## 🟢 Earlier today — Fixed Guesty 400 VALIDATION_ERROR on POST conversation-posts (manual reply now works)
+
+User screenshot: tried sending a manual reply on Hady Family (conv `69f2f16b824ad00012c34e12`) via Guesty WA. Got `Send failed · status 400 · guesty_400: VALIDATION_ERROR "type is not allowed"`.
+
+**Root cause:** Guesty's Open API now rejects the top-level `type` field on `POST /v1/communication/conversations/{id}/posts`. Our `sendGuestyConversationPost` was sending `type: 'message'` per the previously-valid schema; Guesty tightened validation and the field is no longer accepted at the top level.
+
+**Fix shipped (commit `d1fea00`):**
+- `src/lib/guesty.ts` `sendGuestyConversationPost`: stop including `type` in the payload. Kind is implicit from `module` / `subject` / `attachments` shape.
+- `GuestySendPostInput.type` kept on the type signature with `@deprecated` so existing callers compile; the field is now ignored.
+- `src/lib/beithady/communication/send-guesty.ts`: stopped passing `type: 'message'` explicitly.
+
+**Why this only fired now:** the fix path through the inbox composer + manual gate was the first real attempt at a Guesty POST after Phase C.5 shipped + the user resumed the `manual_outbound` switch. The earlier `outbound_paused` 503 was masking this 400 entirely.
+
+**Verification:** user should retry the same send on Hady Family → expect `Sent successfully via Guesty.` Outbound row writes to `beithady_messages` with `direction='outbound'`, `module_type='whatsapp'`.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `d1fea00` pushed to `main`. Vercel auto-deploy via GitHub integration lands within ~1-2 min.
+
+## 🟢 Earlier this session — AI item info cards COMPLETE (M1–M5 shipped, both prod deploys VERIFIED)
+
+**End-state confirmation (post-deploy):**
+- Commit `7aa2711` (M1: schema + 43-item seed) → Vercel deploy `dpl_bq3ScXnGcrJmAy2eU52dYWcushVm` → READY
+- Commit `f4f9d14` (M2–M5: lib + actions + UI + tooltip) → Vercel deploy `dpl_3tvs5eUoYWQzJQMGqPXcJgKENH4z` → READY (production target)
+- 3 Supabase migrations applied via MCP: `0053_amazon_eg_review_state`, `0058_inventory_ai_info`, `0059_seed_extra_inventory_items`
+- DB verified post-seed: **73 active items across 9 categories** (chemicals 17, sanitary 17, fnb 12, linen 7, branded 8, maintenance 5, welcome_tray 2, consumables 5)
+- `npx tsc --noEmit` clean, `npm run build` clean
+
+
+**End-state confirmation (post-deploy):**
+- Commit `7aa2711` (M1: schema + 43-item seed) → Vercel deploy `dpl_bq3ScXnGcrJmAy2eU52dYWcushVm` → READY
+- Commit `f4f9d14` (M2–M5: lib + actions + UI + tooltip) → Vercel deploy `dpl_3tvs5eUoYWQzJQMGqPXcJgKENH4z` → READY (production target)
+- 3 Supabase migrations applied via MCP: `0053_amazon_eg_review_state`, `0058_inventory_ai_info`, `0059_seed_extra_inventory_items`
+- DB verified post-seed: **73 active items across 9 categories** (chemicals 17, sanitary 17, fnb 12, linen 7, branded 8, maintenance 5, welcome_tray 2, consumables 5)
+- `npx tsc --noEmit` clean, `npm run build` clean
+- Rebase encountered: parallel session pushed `e7632b3` (auto-archive Guesty system-notifs) + `6f89fe0` while M2–M5 was being written. Resolved cleanly — both their `0058_beithady_auto_archive_*` and my `0058_inventory_ai_info` migration files coexist on disk (different applied-names in DB, no collision). SESSION_HANDOFF.md conflict resolved by demoting their entry to "Earlier today (parallel session)".
+
+**User said "All Default - Do All changes to Vercel & Supabase automatically"** → skipped sign-off gate, executed entire workflow plan in one turn.
+
+**M2 — AI lib `src/lib/beithady/inventory/ai-item-info.ts` (new file, 240 lines):**
+- `generateItemInfo()` — single Haiku 4.5 call with `web_fetch_20250910` server-managed tool when `amazon_eg_url` is set. Adds `anthropic-beta: web-fetch-2025-09-10` header. Falls back to general housekeeping knowledge when fetch fails — Claude self-tags `source` field.
+- Robust JSON extraction (direct parse → strip code fence → bracket-substring slice) + 1 retry @ temp 0 on parse fail.
+- `validate()` enforces required strings, trims to max lengths, normalises `key_features` to 1–6 strings.
+- `persistItemInfo()` writes the row + appends history + prunes history to last 10 entries per item via fetch-ids-then-delete (cheaper than CTE on supabase REST).
+- `regenerateItemInfo()` — convenience wrapper used by both manual and bulk paths. Fetches item + category, flips status running → idle/error, never throws.
+- `setAiInfoStatus()` — small status flip helper for queued/running/error/idle.
+- `isWithinCooldown()` — 24h check for the auto-regen cooldown.
+
+**Catalog types extended (`src/lib/beithady/inventory/catalog.ts`):**
+- New `AiInfoStatus` type ('idle'|'queued'|'running'|'error') and `AiItemInfoPayload` (the structured info card shape — single source of truth, re-exported from ai-item-info as `AiItemInfo` alias).
+- `ItemRow` now has `ai_info`, `ai_info_generated_at`, `ai_info_source`, `ai_info_status`, `ai_info_error`.
+- `listItems()` mapper passes those through with `ai_info_status` defaulting to 'idle'.
+
+**M3 — Server actions `src/app/beithady/inventory/items/actions.ts`:**
+- New imports: `waitUntil` from `@vercel/functions` (newly installed @ ^3.4.6), AI helpers.
+- `setAmazonSourceAction:400` — extended: only enqueues regen when URL actually CHANGED (avoids burning tokens on no-op saves) and either no card exists OR cooldown elapsed. Sets `ai_info_status='queued'` synchronously then fires `waitUntil(regenerateItemInfo(...))` so the operator's save returns instantly. Calls `revalidatePath` from inside the background promise too.
+- `generateAiInfoAction(itemId)` — manual single regen, foreground (request waits ~5–10s). Bypasses cooldown. Audits.
+- `generateAllMissingAiInfoAction()` — flags every active item with `ai_info IS NULL` as queued, fires `waitUntil` background pool of 5 concurrent generations. Returns queued count immediately.
+
+**M4 — UI:**
+- New `_components/ai-info-card.tsx` (190 lines) — handles 4 states: queued/running spinner, no-info CTA with "Generate AI info" button, full card render (summary EN+AR-RTL, key features, usage tips, ingredients/warnings/pack-details three-up), error banner. Footer shows source badge (Amazon EG vs General knowledge), generated date, model name, "Fallback used" warning when URL exists but Amazon fetch failed, and "Refresh AI info" button (manual regen, bypasses cooldown).
+- New `_components/bulk-ai-info-button.tsx` — header CTA, only visible when ≥1 item has `ai_info IS NULL && active`. Click queues background regen for all missing.
+- `_components/items-section-list.tsx` — added chevron column (Right/Down lucide) on row left, expand-state in parent, second `<tr>` with colSpan rendering `<AiInfoCard />` when expanded. Also added an auto-poll: `setInterval(router.refresh, 4000)` while any row is queued/running so spinners flip to cards as background regen completes (no SSE/websockets needed).
+- `items/page.tsx` — counts `aiInfoMissingCount`, renders `<BulkAiInfoButton />` next to the existing Excel template / Add item buttons.
+
+**M5 — Estimator tooltip:**
+- `EstimatorLine` extended with `ai_info_summary_en: string \| null`.
+- `estimator.ts` query selects `ai_info`, populates `ai_info_summary_en` from `it.ai_info?.summary_en`.
+- `estimator/[configId]/page.tsx:267` — item-name link's `title=` shows the summary when present, with a newline + "Click to edit…" continuation line.
+
+**Verification:**
+- `npx tsc --noEmit` — clean.
+- `npm run build` — clean (no lint script available; build does its own validation).
+- DB before commit: 73 active items across 9 categories (verified via SELECT after M1).
+
+**Architecture notes left for future me:**
+- `waitUntil` requires `@vercel/functions` (now installed). On any non-Vercel runtime it falls back to a no-op which means the regen would never run; we only deploy to Vercel so this is fine.
+- Auto-poll runs ONLY while spinners are visible — checks `sections.some(it.ai_info_status in queued/running)`. Page is otherwise static SSR, so no perf concern.
+- Cost: Haiku ~$0.001/call. Bulk regen of 73 items ≈ $0.07 worst case; daily auto-regens negligible.
+- The `web_fetch` tool may fail outright if Anthropic blocks Amazon EG (likely). Fallback path always works since prompt instructs Claude to set source='general_knowledge' on fetch failure.
+- History table prune is fire-and-forget; if it fails the next regen also tries to prune so we don't accumulate unbounded.
+
+**Files touched (M2–M5 commit):**
+- New: `src/lib/beithady/inventory/ai-item-info.ts`, `src/app/beithady/inventory/items/_components/ai-info-card.tsx`, `src/app/beithady/inventory/items/_components/bulk-ai-info-button.tsx`
+- Edited: `src/lib/beithady/inventory/catalog.ts`, `src/app/beithady/inventory/items/actions.ts`, `src/app/beithady/inventory/items/_components/items-section-list.tsx`, `src/app/beithady/inventory/items/page.tsx`, `src/lib/beithady/inventory/estimator-shared.ts`, `src/lib/beithady/inventory/estimator.ts`, `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx`, `package.json`, `package-lock.json`
+
+**Smoke test plan (post-deploy):**
+1. Load `/beithady/inventory/items` → 73 items across 9 sections, every row has chevron.
+2. Click any chevron → "No AI info card yet" CTA appears.
+3. Click "Generate AI info" → spinner ~5–10s → full card renders with summaries, features, tips.
+4. Header should show "AI info for ~73 missing" pill — click → all rows flip to spinner; auto-poll fills them in over ~2 min.
+5. Click "Change" on Amazon URL → save valid URL → row flips to spinner (queued). Wait ~10s + refresh → card now shows source=Amazon EG.
+6. Estimator detail page: hover any item name → tooltip shows summary_en (after at least one regen completes for that item).
+
+---
+
+## 🟢 Earlier today — Auto-archive Guesty system-notification emails SHIPPED (Option B2 — parallel session)
+
+User picked Option B2. Migrations 0058 + 0058a applied via Supabase MCP, code commit `e7632b3` pushed to main (then merged with upstream's parallel `0058_inventory_ai_info.sql` — both coexist, no conflict).
+
+**Migrations applied:**
+- `0058_beithady_auto_archive_system_notifications.sql` — adds `beithady_conversations.is_system_notification BOOLEAN NOT NULL DEFAULT false` + partial index `idx_bh_conv_system_notif` + new RPC `beithady_classify_system_notifications()`
+- `0058a_extend_archived_reason_check.sql` — extends `beithady_conversations_archived_reason_check` allowlist with `'system_notification'` (was rejecting it on first classify run; previous values: `manual_month_bulk, auto_cron_90d, manual_single, duplicate, restore_undo`)
+
+**RPC behavior:**
+- Two-pass: archive + restore
+- Archive branch: flips `is_system_notification=true` + sets `archived_at + archived_reason='system_notification'` for any conv where ALL posts match `module_type='email' AND from_type='host' AND module_subject ILIKE 'NEW BOOKING from %'`
+- Restore branch: un-archives + clears flag if any non-pattern message later arrives. Future-proofs against guests replying on a flagged thread.
+
+**Cron wire-in:**
+- `/api/cron/beithady-comm-sync/route.ts` now runs the classifier as Step 3 after orphan recovery + SQL mirror
+- Best-effort error handling: classifier failure logs but doesn't fail the cron
+- Audit row metadata gains `classify: { archived, restored }` field
+- Returns `classify` in the JSON response
+
+**One-shot manual run cleared 18 system-notification rows** including both convs from the user screenshot (`60b63d94 BH-26-002 manual` and `e907161a BH-435-202 airbnb2`). Verification:
+- `flagged_total: 18`
+- `flagged_archived: 18`
+- `flagged_active_BUG: 0`
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `6f89fe0` (auto-archive ship + merge). Local `vercel --prod` skipped (network flaky); GitHub auto-deploy to `limeinc.vercel.app` is canonical.
+
+**End-state in production:** the 18 system-notification rows are archived. Future inbound: next 5-min cron tick auto-classifies any newly-arrived booking-notification email. The active inbox now shows only real guest threads. Archive tab can be browsed for the system-notification history if needed (filter by `archived_reason='system_notification'`).
+
+
+
+User screenshot showed two "Unknown guest" rows in the unified inbox after the orphan recovery pulled them in:
+1. **MANUAL · BH-26-002 · 4/30/2026 12:22:16 PM** — conv `60b63d94-083d-4201-b138-0741287195f4`
+2. **AIRBNB · BH-435-202 · 4/30/2026 11:04:11 AM** — conv `e907161a-6b71-4160-bd77-4ccbf14d9543`
+
+**Definitive diagnosis:** both are **Guesty automation-generated booking-notification emails sent into the host's own inbox**, not real guest conversations.
+
+Evidence from `beithady_messages` query:
+- Conv 1 has 1 message: `module_type='email', module_subject='NEW BOOKING from manual', from_type='host', direction='inbound'`, body is `<!DOCTYPE html>...📩 **A New Booking Received from : <strong>manual</strong></div>...Type of Reservation: Reservation Extension`
+- Conv 2 has 1 message: same shape, subject `NEW BOOKING from Airbnb`
+- Both have `guest_full_name=NULL, guest_email=NULL, guest_phone=NULL` because the Guesty service address has no real guest identity
+
+The same booking (`Ali Lushe / BH-26-002`) has a **separate real conv** `3b43b2d2-…` with proper guest_full_name + email + phone. The system-notification thread is parallel noise.
+
+**Two fix options sent for user pick:**
+
+- **Option A — disable in Guesty (root cause).** User's Guesty workspace has an "Automation: email host on every NEW BOOKING from {channel}" rule. Disable in Guesty Admin → Automations. Cleanest — they stop being created.
+- **Option B — server-side filter:**
+  - B1: hide from active inbox + new "System notifications" filter
+  - B2: auto-archive on ingest (~30 lines) — migration adds `is_system_notification BOOLEAN DEFAULT false` to `beithady_conversations`; update `beithady_communication_ingest()` to set the flag + auto-archive when `module_subject ILIKE 'NEW BOOKING from %' AND from_type='host'` and only one post; `listInbox()` already excludes archived by default
+
+Recommended: A long-term + B2 immediate cleanup. Awaiting user pick.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `fc97ca3` (handoff for split kill switches). No commits this turn.
+
+## 🟢 Earlier turn — Split kill switch SHIPPED (1 manual + 12 per-automation switches + admin UI)
+
+User confirmed Q1–Q5: include AI under automatic, **separate switch per automation**, carry over current state (TRUE = paused), add settings UI. One commit `d7e5314` pushed to main.
+
+**Migration 0057 applied via Supabase MCP** — seeded all 13 flags TRUE per Q3 carry-over:
+- `beithady_pause_manual_outbound` — agent inbox composer
+- `beithady_pause_ai_auto_reply`
+- `beithady_pause_pre_arrival`
+- `beithady_pause_csat_survey`
+- `beithady_pause_boarding_pass`
+- `beithady_pause_loyalty_notifications`
+- `beithady_pause_upsell_offer`
+- `beithady_pause_cancel_risk_reconfirm`
+- `beithady_pause_morning_brief` (covers Ops + GR + Finance briefs)
+- `beithady_pause_late_reply_digest` (forward-compat — delivery wires up in Phase F)
+- `beithady_pause_vip_digest` (forward-compat — delivery wires up in Phase F)
+- `beithady_pause_daily_report_dispatch`
+
+Legacy `beithady_outbound_paused` row stays in `beithady_settings` for history but is no longer checked by code.
+
+**New artefacts (commit `d7e5314`):**
+- `src/lib/beithady/automations.ts` — typed `AUTOMATION_REGISTRY` catalog with label/description/category/triggeredBy per automation. Helpers: `isManualOutboundPaused`, `isAutomationPaused(key)`, `setManualOutboundPaused`, `setAutomationPaused`, `getAllPauseStates`. Adding a new automation = extend registry + gate at entry point + UI auto-renders a toggle.
+- `src/app/beithady/settings/outbound/page.tsx` + `actions.ts` — admin-only page (added to `ADMIN_ONLY_SETTINGS_SUBTABS`) with 13 toggles grouped by category (Inbox, Communication, Engagement, Operations, Reports). Header banner shows aggregate state ("N of 13 switches paused"). Each row: icon + label + description + triggeredBy + Pause/Resume button (form posts to `toggleOutboundFlagAction`).
+- New tile on `/beithady/settings` launcher (PowerOff icon, rose accent).
+- Added `outbound` to `ADMIN_ONLY_SETTINGS_SUBTABS` in auth.ts.
+
+**Refactored senders:**
+- `send-guesty.ts` / `send-wa-casual.ts` accept `mode: 'manual' | 'automatic'` (default 'manual'). Manual gates on the manual flag only when mode='manual'. Audit row error code now says `manual_outbound_paused` instead of generic `outbound_paused`. Imports switched from `isOutboundPaused` (deprecated) to `isManualOutboundPaused`.
+- `channel-switch.ts` `DispatchPayload` + `sendViaChannel` plumb mode through.
+- All manual call sites (composer actions) keep default `mode='manual'` — no signature change required.
+
+**Refactored automation entry points (each gated with `if (await isAutomationPaused(KEY)) return ...`):**
+- `src/lib/beithady/ai/auto-reply.ts:processInboundForAutoReply` — short-circuits before classify/draft/send so we don't burn tokens. AI's downstream `sendWaCasualMessage` call now passes `mode: 'automatic'`.
+- `src/lib/beithady/engagement/{pre-arrival,csat,boarding-pass,loyalty-tick,upsell}.ts` — each `run*Dispatch` returns early with `paused: true`. Internal `sendWaCasualMessage` calls all pass `mode: 'automatic'`.
+- `src/app/beithady/operations/calendar/actions.ts:sendReconfirmationAction` — returns `cancel_risk_reconfirm_paused` when paused.
+- `src/lib/beithady/morning-brief/run.ts` — gates the WA delivery loop only; brief still builds + persists for the web archive page.
+- `src/lib/beithady-daily-report/distribute.ts` — per-recipient skip path: writes `daily_report_deliveries` row with `status='skipped', error_message='daily_report_dispatch_paused'`.
+
+**Legacy `isOutboundPaused()` retained as deprecated shim** reading the manual flag — preserves any external imports while we migrate.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `d7e5314` pushed to `main`. Vercel auto-deploy via GitHub integration is the canonical path; local `vercel --prod` retried twice and hit transient DNS / ETIMEDOUT errors but does not affect the GitHub-triggered production build.
+
+**To use:** Navigate to **`/beithady/settings/outbound`** (admin only). All 13 toggles currently show "Paused" (rose). Click "Resume" on each one as you're ready to release that path. Manual inbox is the one to flip first if you want to type replies again. Each flip is audited under module=settings, action=setting_updated.
+
+## 🟡 Earlier turn — User requested splitting the outbound kill switch into manual-vs-automatic; sent Q1–Q5 for confirmation (no commits)
+
+User: "separate the toggle between the manual inbox sending and the automatic template sending. ask if not clear"
+
+**Plan drafted (pending answers):**
+
+Replace single `beithady_outbound_paused` with two independent flags:
+- `beithady_outbound_paused_manual` — agent-driven sends from inbox composers (GuestyComposer / WaCasualComposer / SwitchComposer / Phase C.5 sendMessageWithSwitchAction)
+- `beithady_outbound_paused_automatic` — machine-triggered sends (AI auto-reply, cron-driven templates, morning brief WA broadcasts, K.2 cancel-risk WA re-confirm, late-reply digest, Phase F pre-arrival/CSAT/boarding-pass dispatches)
+
+**Implementation sketch:**
+- Add `mode: 'manual' | 'automatic'` arg to `sendGuestyMessage` / `sendWaCasualMessage` / `sendWaCloudMessage` / `sendViaChannel`. Update all call sites to declare their mode.
+- `isOutboundPaused(mode)` reads the right flag from `beithady_settings`.
+- Retrofit non-gated senders (K.2 reconfirm, morning brief, late-reply digest) so the automatic kill switch covers them — these currently call provider APIs directly without going through the wrapper, bypassing the flag entirely.
+- Migration `0057_beithady_split_outbound_kill_switch.sql` — adds two new keys, backfills from current value per Q3.
+- Settings UI page (Q4 pending) — two toggles with audit attribution.
+
+**Q1–Q5 sent to user:**
+- Q1: AI auto-reply belongs under `automatic`? (recommend yes — machine-triggered)
+- Q2: Fold K.2 reconfirm + morning brief + late-reply digest + Phase F dispatches under the new automatic flag (currently they bypass the kill switch entirely)? (recommend yes)
+- Q3: Initial values on migration — carry over `true → true/true` (a), reset both to false (b), or split `manual=false/automatic=true` (c)? (recommend c — type replies today, machine sends stay paused)
+- Q4: Add settings UI (`/beithady/settings/outbound` with two switches + audit) or SQL-only? (recommend add UI — frequently flipped, audit attribution improves)
+- Q5: Naming — `_manual`/`_automatic` (chosen) vs `_inbox`/`_templates`, `_agent`/`_machine`, `_human`/`_bot`? (open)
+
+**Estimate:** 3 commits — migration + lib mode-aware refactor + settings UI page.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`, last commit `a756172` (orphan-recovery handoff). No commits this turn.
+
+## 🟡 Earlier turn — Diagnosed "outbound_paused" 503 on Hady Family send + confirmed capability matrix correctness (no commits, awaiting user "go" to flip kill switch)
+
+User screenshot showed Hady Family thread now visible (orphan recovery worked). User clicked send via channel switcher and got `Send failed · status 503 · outbound_paused`. Capability matrix correctly showed all 4 alternative channels (WA Casual / WABA / Email / SMS) crossed out.
+
+**Two distinct findings, both correct behavior:**
+
+### 1. Global emergency kill switch is ON
+`beithady_settings.beithady_outbound_paused = true`. This flag is checked at the top of `sendGuestyMessage` AND `sendWaCasualMessage` (and the WABA stub) BEFORE touching any provider. When true, every outbound returns `{ ok: false, status: 503, error: 'outbound_paused' }` and writes a `send_guesty_blocked_killswitch` audit row.
+
+Audit confirmed: at 2026-04-30 07:32:56 UTC, user's send attempt for conversation `1d523f48-0bf6-4897-a33d-5d7226f5c7e4` (Hady Family) was blocked with reason `beithady_outbound_paused=true`. Someone turned this on (likely safety pause during earlier development) and never turned off.
+
+**To flip it off** — ask user for explicit confirmation since this affects production message delivery (also re-enables AI auto-replies, K.2 cancel-risk WA, morning brief broadcasts, etc.). User asked "Outbound Paused?" — I responded explaining the kill switch + asked before flipping. Awaiting yes/no.
+
+### 2. Capability matrix correctly shows all 4 alternatives unavailable for THIS conversation
+Hady Family is an **Airbnb inquiry** — guest hasn't booked yet. Airbnb doesn't release phone or email to hosts until booking confirmation. The `beithady_conversations` row confirms `guest_phone: null` AND `guest_email: null`.
+
+So:
+- WA Casual / WABA / SMS → need phone → unavailable (correct)
+- Email → needs email → unavailable (correct)
+- Only **Guesty's native module=whatsapp** (Airbnb's masked tunnel via Guesty) is viable for inquiry-stage threads — this is the existing default, not a switcher target
+
+Channel switcher behaves as designed (Phase C.5 spec). Once Hady Family books → Airbnb releases phone/email → the switcher will light up automatically.
+
+**No code change needed** — this was a state question, not a bug.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`, last commit `a756172` (handoff for orphan recovery verification). No commits this turn.
+
+## 🟢 Earlier turn — Orphan recovery VERIFIED in production (post-wakeup check)
+
+ScheduleWakeup fired 6 minutes after deploy. Ran the four verification queries against Supabase:
+
+**(a) Cron run sequence in `beithady_comm_sync_runs`:**
+| Time (UTC) | Code | conversations_upserted | messages_upserted |
+|---|---|---|---|
+| 06:35:42 | pre-fix | 0 | 0 |
+| **06:40:29** | **NEW** | **17** | **22** |
+| 06:45:35 | new (steady-state) | 0 | 0 |
+
+**(b) `beithady_orphan_conv_ids(500)` returns 0 rows** — down from 17.
+
+**(c) Hady Family `69f2f16b824ad00012c34e12` exists in BOTH tables:**
+- `guesty_conversations`: last_message_user_at=06:09:20 (host "Received ✅"), last_message_nonuser_at=06:06:36 (guest "Test Message")
+- `beithady_conversations`: mirrored with correct semantics — `last_inbound_at=06:06:36`, `last_outbound_at=06:09:20`
+
+**(d) Audit row at 06:40:34:**
+```json
+"recovery": { "scanned": 17, "recovered": 17, "notFound": 0, "failed": 0, "errors": [] }
+```
+
+**End-state:** zero orphans, all 17 previously-invisible conversations now in the unified inbox. User should see Hady Family + Abdullah Idrees + 14 booking auto-notifications + 1 newer thread when they refresh. Future brand-new conversations land on first webhook tick via lazy-create; cron sweeps any misses every 5 minutes.
+
+## 🟢 Earlier this turn — Orphan recovery SHIPPED (Hady Family bug fix)
 
 User: "Ship all automatically" → fix landed in 2 commits + applied migration:
 

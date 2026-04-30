@@ -71,10 +71,12 @@ export function SidebarList({
         const channelIcon = r.channel === 'guesty' ? Mail : r.channel === 'wa_cloud' ? Activity : Smartphone;
         const ChIcon = channelIcon;
         // Awaiting reply = guest sent last message and we haven't
-        // replied (sla_age_seconds is non-null AND not archived). For
-        // these rows we apply a 4px left stripe + AWAITING REPLY pill
-        // keyed to the SLA bucket so urgency reads at a glance.
-        const awaiting = r.sla_age_seconds != null && !r.archived_at;
+        // replied yet. We prefer `is_unanswered` (timestamp-derived
+        // freshness from main's Phase C.5 follow-up) over
+        // sla_age_seconds, since the latter only updates on the 5-min
+        // SLA recompute. For these rows we apply a 4px left stripe +
+        // AWAITING REPLY pill keyed to the SLA bucket.
+        const awaiting = r.is_unanswered && !r.archived_at;
         const bucketKey: NonNullable<SlaBucket> = (r.sla_bucket ?? 'none') as NonNullable<SlaBucket>;
         const stripeCls = awaiting ? `border-l-4 ${AWAITING_STRIPE[bucketKey]}` : 'border-l-4 border-l-transparent';
         const tintCls = awaiting && !selected ? AWAITING_TINT[bucketKey] : '';
@@ -89,7 +91,12 @@ export function SidebarList({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className={`text-sm truncate ${awaiting || r.unread_count > 0 ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
+                  {/* Phase C.5 follow-up — "new" badge driven by
+                      is_unanswered (timestamp-derived truth) rather
+                      than Guesty's state_read flag (which lags when
+                      we reply via API but Guesty UI isn't opened to
+                      mark read). */}
+                  <span className={`text-sm truncate ${r.is_unanswered ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'}`}>
                     {r.guest_full_name || r.guest_email || r.guest_phone || 'Unknown guest'}
                   </span>
                   {awaiting && (
@@ -102,9 +109,9 @@ export function SidebarList({
                       {sourceLabel}
                     </span>
                   )}
-                  {r.unread_count > 0 && (
+                  {r.is_unanswered && (
                     <span className="text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-rose-600 text-white">
-                      {r.unread_count} new
+                      NEW
                     </span>
                   )}
                   {r.archived_at && (

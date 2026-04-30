@@ -26,7 +26,7 @@ export function AttachmentMenu({
   channel: 'guesty' | 'wa_casual';
   buildingCode: string | null;
   caption: string;
-  module?: 'whatsapp' | 'email' | 'sms' | 'log';
+  module?: 'whatsapp' | 'email' | 'sms' | 'log' | 'airbnb2' | 'bookingCom';
 }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PendingItem[]>([]);

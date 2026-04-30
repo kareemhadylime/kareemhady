@@ -138,7 +138,7 @@ export async function sendGuestyMultiAttachAction(formData: FormData): Promise<v
   if (!conversationId) throw new Error('missing_conversation_id');
   const body = String(formData.get('body') || '').trim();
   const moduleRaw = String(formData.get('module') || 'whatsapp').trim();
-  const moduleVal = (['email', 'sms', 'whatsapp', 'log'] as const).find(m => m === moduleRaw) || 'whatsapp';
+  const moduleVal = (['email', 'sms', 'whatsapp', 'log', 'airbnb2', 'bookingCom'] as const).find(m => m === moduleRaw) || 'whatsapp';
 
   type AttachInput = { url: string; name: string; mime: string };
   const attachments: AttachInput[] = [];

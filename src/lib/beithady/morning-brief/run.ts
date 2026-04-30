@@ -7,6 +7,7 @@ import { renderMarkdown, renderHtml } from './renderers';
 import { getBriefRecipients } from './recipients';
 import type { Brief, BriefRole, BriefRecipient } from './types';
 import { sendWhatsApp } from '@/lib/whatsapp/green-api';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 
 type RunResult = {
   role: BriefRole;
@@ -70,10 +71,15 @@ export async function runMorningBrief(opts: {
   let failed = 0;
   const errors: Array<{ recipient: string; channel: string; error: string }> = [];
 
+  // Phase C.5 follow-up — granular kill switch for morning-brief WA distribution.
+  // We still build + render the brief (so the web archive page works) but skip
+  // the actual WA send when paused.
+  const morningBriefPaused = await isAutomationPaused('morning_brief');
+
   if (!opts.dryRun) {
     for (const r of recipients) {
       // WhatsApp delivery
-      if (r.whatsapp) {
+      if (r.whatsapp && !morningBriefPaused) {
         try {
           const result = await sendWhatsApp({ to: r.whatsapp, message: markdown });
           if (result.ok) {

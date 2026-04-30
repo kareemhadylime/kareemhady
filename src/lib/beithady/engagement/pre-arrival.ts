@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { getUpcomingArrivals, matchBeithadyGuest, templateRender } from './reservation-helpers';
 
 const HOST_PHONE_DEFAULT = '+201101300300'; // matches the existing brand WABA presence
@@ -11,7 +12,12 @@ export async function runPreArrivalDispatch(): Promise<{
   sent: number;
   skipped: number;
   errors: Array<{ reservation_id: string; error: string }>;
+  paused?: boolean;
 }> {
+  // Phase C.5 follow-up — granular kill switch for pre-arrival.
+  if (await isAutomationPaused('pre_arrival')) {
+    return { considered: 0, sent: 0, skipped: 0, errors: [], paused: true };
+  }
   const sb = supabaseAdmin();
   // Window: check-in is 12-30h from now, so the 10:00 Cairo cron picks
   // up tomorrow's arrivals in a 24h-ish window.
@@ -80,6 +86,7 @@ export async function runPreArrivalDispatch(): Promise<{
       body,
       agentUserId: null,
       agentDisplayName: 'Beit Hady automated',
+      mode: 'automatic',
     });
 
     if (result.ok) {

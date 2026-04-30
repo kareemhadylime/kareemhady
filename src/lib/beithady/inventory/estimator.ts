@@ -77,6 +77,7 @@ type RawItem = {
   amazon_eg_url: string | null;
   amazon_eg_image_url: string | null;
   amazon_eg_last_status: string | null;
+  ai_info: { summary_en?: string | null } | null;
   active: boolean;
 };
 
@@ -120,7 +121,7 @@ export async function computeEstimatorOutput(
   // 2. All active items + their categories
   const [itemsRes, catsRes, rulesRes] = await Promise.all([
     sb.from('beithady_inventory_items')
-      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, active')
+      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, active')
       .eq('active', true),
     sb.from('beithady_inventory_categories')
       .select('id, code'),
@@ -187,12 +188,16 @@ export async function computeEstimatorOutput(
     const finalQty = override ? Number(override.qty_override) : computedQty;
     const effectiveQty = finalQty * (1 + lossFactor);
 
-    // Unit cost: prefer Amazon-sourced price-per-pack-unit, fall back to default_cost_egp
+    // Unit cost: prefer Amazon-sourced price-per-pack-unit, fall back to default_cost_egp.
+    // Track whether we used the fallback so the UI can flag estimates.
     let unitCost = Number(it.default_cost_egp || 0);
+    let unitCostIsEstimate = true;
     if (it.amazon_eg_price_egp != null && it.amazon_eg_pack_size && it.amazon_eg_pack_size > 0) {
       unitCost = Number(it.amazon_eg_price_egp) / it.amazon_eg_pack_size;
+      unitCostIsEstimate = false;
     } else if (it.amazon_eg_price_egp != null) {
       unitCost = Number(it.amazon_eg_price_egp);
+      unitCostIsEstimate = false;
     }
 
     lines.push({
@@ -215,6 +220,8 @@ export async function computeEstimatorOutput(
       amazon_eg_status: (it.amazon_eg_last_status as EstimatorLine['amazon_eg_status']) || null,
       rule_scope: rulePicked.scope,
       has_listing_override: !!override,
+      ai_info_summary_en: it.ai_info?.summary_en ?? null,
+      unit_cost_is_estimate: unitCostIsEstimate,
     });
   }
 

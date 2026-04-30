@@ -16,6 +16,7 @@ export const BEITHADY_ROLES = [
   'admin',
   'warehouse_manager',         // Phase M — owns Inventory category
   'housekeeper',               // Phase M — limited mobile-app access via PIN gate
+  'business_analyst',          // Reporting role — broad read, full analytics, no financial/comm
 ] as const;
 export type BeithadyRole = (typeof BEITHADY_ROLES)[number];
 
@@ -111,12 +112,24 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     operations: 'none',
     inventory: 'read',         // mobile app uses PIN gate, not role gate, for write actions
   },
+  business_analyst: {
+    financial: 'none',         // Odoo P&L excluded by design — segregation of duties
+    analytics: 'full',         // primary domain: dashboards, segments, saved reports
+    crm: 'read',               // cohort / LTV / churn analysis needs guest-level reads
+    communication: 'none',     // no inbox / message bodies — privacy
+    settings: 'read',          // needs custom fields / tags / segment defs to interpret data
+    gallery: 'none',
+    ads: 'read',               // ad spend feeds attribution / ROAS reports
+    operations: 'read',        // SLA / calendar / morning brief feed ops dashboards
+    inventory: 'read',         // stock value / turnover / GRN history for COGS reports
+  },
 };
 
 // Sub-tabs of /beithady/settings that are restricted to admins
 // even within the manager role's general 'settings: read' permission.
 export const ADMIN_ONLY_SETTINGS_SUBTABS = new Set([
   'integrations',  // credentials are admin-only
+  'outbound',      // Phase C.5 follow-up — kill switches affect production messaging
 ]);
 
 // ---- DB queries ----

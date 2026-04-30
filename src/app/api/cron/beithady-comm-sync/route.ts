@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit } from '@/lib/beithady/audit';
-import { recoverOrphanedConversations } from '@/lib/guesty-conversation-recovery';
+import { recoverOrphanedConversations, rehydrateUnpopulatedConversations } from '@/lib/guesty-conversation-recovery';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -50,18 +50,52 @@ export async function GET(req: NextRequest) {
       console.warn('[beithady-comm-sync] orphan recovery threw:', msg);
     }
 
+    // Step 1b — rehydrate conversations whose denormalized fields are
+    // still NULL even though they have messages. Catches the case where
+    // the lazy-create path fetched too early.
+    let rehydrate: Awaited<ReturnType<typeof rehydrateUnpopulatedConversations>> | { skipped: true } = { skipped: true };
+    try {
+      rehydrate = await rehydrateUnpopulatedConversations(30, 200);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // eslint-disable-next-line no-console
+      console.warn('[beithady-comm-sync] rehydrate threw:', msg);
+    }
+
     // Step 2 — SQL mirror.
     const { data, error } = await sb.rpc('beithady_communication_ingest');
     if (error) throw new Error(error.message);
     const row = (Array.isArray(data) ? data[0] : data) as
       | { conversations_upserted: number; messages_upserted: number; total_conversations: number; total_messages: number }
       | undefined;
+
+    // Step 3 — auto-archive Guesty system-notification emails (Phase C.5
+    // follow-up). Best-effort: don't fail the cron if classification
+    // throws.
+    let classify: { archived: number; restored: number } | { error: string } = { archived: 0, restored: 0 };
+    try {
+      const { data: c, error: cErr } = await sb.rpc('beithady_classify_system_notifications');
+      if (cErr) throw new Error(cErr.message);
+      const cRow = (Array.isArray(c) ? c[0] : c) as { archived: number; restored: number } | undefined;
+      if (cRow) classify = cRow;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // eslint-disable-next-line no-console
+      console.warn('[beithady-comm-sync] system-notification classify threw:', msg);
+      classify = { error: msg };
+    }
+
     await recordAudit({
       module: 'communication',
       action: 'comm_sync_run',
-      metadata: { ...(row as Record<string, unknown> || {}), recovery: recovery as Record<string, unknown> },
+      metadata: {
+        ...(row as Record<string, unknown> || {}),
+        recovery: recovery as Record<string, unknown>,
+        rehydrate: rehydrate as Record<string, unknown>,
+        classify: classify as Record<string, unknown>,
+      },
     });
-    return NextResponse.json({ ok: true, result: row, recovery });
+    return NextResponse.json({ ok: true, result: row, recovery, rehydrate, classify });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

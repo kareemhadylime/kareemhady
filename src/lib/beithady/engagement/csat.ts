@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { getRecentCheckouts, matchBeithadyGuest, mintToken, templateRender } from './reservation-helpers';
 
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
@@ -11,7 +12,11 @@ export async function runCsatDispatch(): Promise<{
   sent: number;
   skipped: number;
   errors: Array<{ reservation_id: string; error: string }>;
+  paused?: boolean;
 }> {
+  if (await isAutomationPaused('csat_survey')) {
+    return { considered: 0, sent: 0, skipped: 0, errors: [], paused: true };
+  }
   const sb = supabaseAdmin();
   // Window: check-out was 12-30h ago
   const checkouts = await getRecentCheckouts(12, 30);
@@ -83,6 +88,7 @@ export async function runCsatDispatch(): Promise<{
       body,
       agentUserId: null,
       agentDisplayName: 'Beit Hady automated',
+      mode: 'automatic',
     });
 
     if (result.ok) {

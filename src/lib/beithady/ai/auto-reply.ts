@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getAiConfidenceThreshold, isAiAutoReplyEnabled } from '@/lib/beithady/settings';
 import { recordAudit } from '@/lib/beithady/audit';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { classifyAndDraft, type Classification } from './classify';
 import { gateDecision, type Decision } from './gate';
 
@@ -24,6 +25,12 @@ export type AutoReplyResult = {
 export async function processInboundForAutoReply(
   inboundMessageId: string
 ): Promise<AutoReplyResult> {
+  // Phase C.5 follow-up — granular kill switch for AI auto-reply.
+  // When paused, skip the entire orchestrator (classification, draft,
+  // suggestion, send) so we don't burn API tokens or pile up suggestions.
+  if (await isAutomationPaused('ai_auto_reply')) {
+    return { ok: true, skipped: 'ai_auto_reply_paused' };
+  }
   const sb = supabaseAdmin();
 
   // 1. Load message + conversation + guest
@@ -195,6 +202,7 @@ export async function processInboundForAutoReply(
       body: classifyResult.suggested_reply,
       agentUserId: null,
       agentDisplayName: 'AI Assistant',
+      mode: 'automatic',
     });
     if (sendResult.ok) {
       outboundMessageId = sendResult.messageId;

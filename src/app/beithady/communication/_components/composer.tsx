@@ -1,24 +1,41 @@
 'use client';
 import { useState } from 'react';
-import { Send, ExternalLink, AlertTriangle, Sparkles, AtSign, MessageCircle, Phone, AlertCircle } from 'lucide-react';
+import { Send, ExternalLink, AlertTriangle, Sparkles, AtSign, MessageCircle, Phone, AlertCircle, Home, BookOpen } from 'lucide-react';
 import { sendGuestyMessageAction } from '../actions';
 import { TemplatePicker } from './template-picker';
 import { AttachmentMenu } from './attachment-menu';
 import type { Template, TemplateContext } from '@/lib/beithady/communication/templates-shared';
 
-// Reply composer for Guesty conversations. Text-only for Phase C.2;
-// attachments + voice land in C.3. Submits via the server action which
-// calls Guesty POST and falls back to a deep-link if the tier doesn't
-// permit POST.
+// Reply composer for Guesty conversations. Submits via the server
+// action which calls Guesty POST and falls back to a deep-link if the
+// tier doesn't permit POST.
+//
+// Module routing (2026-04-30 fix): for source-native channels (Airbnb,
+// Booking) the default module is the source itself ('airbnb2',
+// 'bookingCom') so messages land in the platform's in-app inbox rather
+// than getting force-routed through WhatsApp. Override chips offer
+// WhatsApp / Email / SMS as alternative sub-channels.
 
-type ChannelHint = 'whatsapp' | 'email' | 'sms';
+type ChannelHint = 'whatsapp' | 'email' | 'sms' | 'airbnb2' | 'bookingCom';
 
 const MAX_LEN = 4000;
+
+function deriveDefaultModule(src: string): ChannelHint {
+  const s = src.toLowerCase();
+  if (s.includes('airbnb')) return 'airbnb2';
+  if (s.includes('booking')) return 'bookingCom';
+  if (s.includes('whatsapp')) return 'whatsapp';
+  if (s.includes('email')) return 'email';
+  if (s.includes('sms')) return 'sms';
+  // Direct / manual / unknown → WhatsApp is still the safest default
+  // (covers most direct-booking flows where the guest provided a phone).
+  return 'whatsapp';
+}
 
 export function GuestyComposer({
   conversationId,
   guestyExternalId,
-  defaultModule = 'whatsapp',
+  defaultModule,
   killSwitchOn,
   initialError,
   initialStatus,
@@ -38,19 +55,21 @@ export function GuestyComposer({
   initialFallbackUrl?: string;
   initialSent?: boolean;
   /** Source of the underlying conversation (airbnb / booking.com / etc.).
-   *  Used to gate which module-hint chips are shown — e.g. Airbnb / Booking
-   *  conversations have no SMS module so we hide that chip. */
+   *  Drives the default module + which override chips render. */
   channelSource?: string | null;
   templates?: Template[];
   templateContext?: TemplateContext;
   buildingCode?: string | null;
 }) {
   const src = (channelSource || '').toLowerCase();
+  const sourceDefault = deriveDefaultModule(src);
+  const isAirbnbThread = src.includes('airbnb');
+  const isBookingThread = src.includes('booking');
   // SMS module hint is irrelevant on Airbnb / Booking / WhatsApp threads —
   // those don't have an SMS sub-channel inside Guesty.
-  const showSmsChip = !src.includes('airbnb') && !src.includes('booking');
+  const showSmsChip = !isAirbnbThread && !isBookingThread;
   const [body, setBody] = useState('');
-  const [moduleHint, setModuleHint] = useState<ChannelHint>(defaultModule);
+  const [moduleHint, setModuleHint] = useState<ChannelHint>(defaultModule || sourceDefault);
   const [submitting, setSubmitting] = useState(false);
   const [unresolvedVars, setUnresolvedVars] = useState<string[]>([]);
 
@@ -102,8 +121,26 @@ export function GuestyComposer({
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-slate-500">
+      <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
         <span className="font-semibold uppercase tracking-wide">Channel hint</span>
+        {isAirbnbThread && (
+          <ChannelChip
+            icon={Home}
+            label="Airbnb in-app"
+            value="airbnb2"
+            current={moduleHint}
+            onChange={setModuleHint}
+          />
+        )}
+        {isBookingThread && (
+          <ChannelChip
+            icon={BookOpen}
+            label="Booking.com"
+            value="bookingCom"
+            current={moduleHint}
+            onChange={setModuleHint}
+          />
+        )}
         <ChannelChip
           icon={MessageCircle}
           label="WhatsApp"

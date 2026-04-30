@@ -2,7 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWhatsApp, sendWhatsAppFile } from '@/lib/whatsapp/green-api';
 import { recordAudit } from '@/lib/beithady/audit';
-import { isOutboundPaused } from '@/lib/beithady/settings';
+import { isManualOutboundPaused } from '@/lib/beithady/automations';
 
 // Server-side wrapper for sending a message into a wa_casual conversation
 // via Green-API. Persists to beithady_messages, updates conversation,
@@ -16,6 +16,9 @@ export type SendWaCasualArgs = {
   fileMime?: string;
   agentUserId: string | null;
   agentDisplayName?: string | null;
+  // Phase C.5 follow-up — 'manual' (default) gates on the manual kill
+  // switch; 'automatic' bypasses (caller gates via isAutomationPaused).
+  mode?: 'manual' | 'automatic';
 };
 
 export type SendWaCasualResult =
@@ -23,18 +26,18 @@ export type SendWaCasualResult =
   | { ok: false; status: number; error: string };
 
 export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendWaCasualResult> {
-  // Global emergency kill switch. Refuse the send before touching the
-  // provider so a single beithady_settings flip stops every sender path.
-  if (await isOutboundPaused()) {
+  // Phase C.5 follow-up — manual kill switch only gates manual paths.
+  const mode = args.mode || 'manual';
+  if (mode === 'manual' && (await isManualOutboundPaused())) {
     await recordAudit({
       actor_user_id: args.agentUserId,
       module: 'communication',
       action: 'send_wa_casual_blocked_killswitch',
       target_type: 'conversation',
       target_id: args.beithadyConversationId,
-      metadata: { reason: 'beithady_outbound_paused=true', body_length: args.body.length },
+      metadata: { reason: 'beithady_pause_manual_outbound=true', body_length: args.body.length },
     });
-    return { ok: false, status: 503, error: 'outbound_paused' };
+    return { ok: false, status: 503, error: 'manual_outbound_paused' };
   }
   const sb = supabaseAdmin();
   const { data: conv } = await sb

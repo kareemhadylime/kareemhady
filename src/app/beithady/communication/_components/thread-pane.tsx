@@ -576,10 +576,18 @@ function EffectiveChannelComposer(props: {
     (homeChannel === 'wa_casual' && effectiveChannel === 'wa_casual');
 
   if (isHomeNativePath && homeChannel === 'guesty') {
-    const moduleHint =
-      effectiveChannel === 'guesty_email' ? 'email'
-      : effectiveChannel === 'guesty_sms' ? 'sms'
-      : 'whatsapp';
+    // Only pass an explicit module hint when the user EXPLICITLY chose
+    // a sub-channel (via ?ch URL param or persisted preference). When
+    // neither is set we leave defaultModule undefined so the composer
+    // derives the module from the conversation source — Airbnb threads
+    // route via 'airbnb2', Booking via 'bookingCom', etc., instead of
+    // force-dropping every reply through WhatsApp.
+    const explicitlyChosen = !!composerHints?.selected_target || !!persistedTarget;
+    const moduleHint = explicitlyChosen
+      ? (effectiveChannel === 'guesty_email' ? 'email'
+        : effectiveChannel === 'guesty_sms' ? 'sms'
+        : 'whatsapp')
+      : undefined;
     return (
       <GuestyComposer
         conversationId={header.id}

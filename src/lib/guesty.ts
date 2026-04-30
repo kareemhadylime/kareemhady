@@ -543,12 +543,24 @@ export async function listGuestyReviews(params: {
 // a Guesty conversation thread. Tier-gated (PRO supports it; older
 // tiers may return 403/404). Surfaces raw error so the UI can fall
 // back to a deep-link to Guesty's own inbox compose.
+//
+// 2026-04-30: Guesty rejects a top-level `type` field with
+// VALIDATION_ERROR "type is not allowed". The `type` parameter on
+// GuestySendPostInput is kept for source-compat but no longer sent to
+// the API — kind is inferred by Guesty from `module` / `subject` /
+// `attachments` shape.
 export type GuestySendPostInput = {
   conversationId: string;
   body: string;
+  /** @deprecated Guesty rejects top-level `type`. Field is ignored. */
   type?: 'message' | 'note';
   subject?: string;
-  module?: 'email' | 'sms' | 'whatsapp' | 'log';
+  /** Sub-channel within the conversation. Guesty accepts string values
+   *  including channel-native modules like 'airbnb2' / 'bookingCom' on
+   *  threads of the matching source — sending those routes the message
+   *  through the platform's in-app messaging instead of forcing
+   *  WhatsApp. */
+  module?: 'email' | 'sms' | 'whatsapp' | 'log' | 'airbnb2' | 'bookingCom';
   attachments?: Array<{ url: string; name?: string; mime?: string }>;
 };
 
@@ -564,7 +576,6 @@ export async function sendGuestyConversationPost(
 
   const payload: Record<string, unknown> = {
     body: input.body,
-    type: input.type ?? 'message',
   };
   if (input.subject) payload.subject = input.subject;
   if (input.module) payload.module = { type: input.module };

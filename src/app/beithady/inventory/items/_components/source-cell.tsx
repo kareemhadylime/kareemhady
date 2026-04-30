@@ -194,10 +194,12 @@ export function SourceCell({
                   autoFocus
                 />
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                  Must match <code>www.amazon.eg/dp/&lt;ASIN&gt;</code> or
-                  {' '}<code>/gp/product/&lt;ASIN&gt;</code>. Saving clears
-                  price + pack-size + image + review status — re-Accept
-                  after the next sourcing sync confirms the new product.
+                  Any Amazon EG product URL works — bare <code>/dp/&lt;ASIN&gt;</code>,
+                  {' '}<code>/gp/product/&lt;ASIN&gt;</code>, or the SEO-slug form
+                  {' '}<code>/Product-Name/dp/&lt;ASIN&gt;/ref=…</code>. We strip
+                  the slug + tracking refs and store the canonical link.
+                  Saving clears price + pack-size + image + review status —
+                  re-Accept after the next sourcing sync confirms the new product.
                 </p>
               </label>
               {error && (

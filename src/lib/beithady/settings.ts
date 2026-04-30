@@ -64,12 +64,16 @@ export async function isVipDigestEnabled(): Promise<boolean> {
   return getSetting<boolean>('vip_digest_enabled', true);
 }
 
-// Global emergency kill-switch for outbound guest messaging. When true,
-// every guest-facing sender (send-wa-casual, send-guesty, future SMTP)
-// MUST refuse to send and return an error. Engaged by the operator
-// directly in beithady_settings; disengage by flipping back to false.
-// Last engaged 2026-04-28 after an unauthorized A1 Hospitality
-// pre-arrival dispatch — see beithady_outbound_paused_reason.
+// Phase C.5 follow-up — DEPRECATED. The single global outbound kill
+// switch was replaced 2026-04-30 with granular per-automation switches
+// + a manual-outbound switch. New code should use:
+//
+//   import { isManualOutboundPaused, isAutomationPaused } from '@/lib/beithady/automations';
+//
+// This shim is kept ONLY to satisfy any external callers that imported
+// the old name; it now reads the manual switch (the closest semantic
+// match for "is outbound paused for what an agent would do?"). Schedule
+// for removal once all imports are migrated.
 export async function isOutboundPaused(): Promise<boolean> {
-  return getSetting<boolean>('beithady_outbound_paused', false);
+  return getSetting<boolean>('beithady_pause_manual_outbound', false);
 }

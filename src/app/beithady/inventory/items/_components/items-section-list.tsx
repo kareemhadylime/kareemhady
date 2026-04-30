@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
-import { AlertCircle, Check, Loader2, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { Category, ItemListRow, Uom } from '@/lib/beithady/inventory/catalog';
 import { ItemFormButton } from './item-form-button';
 import { SourceCell } from './source-cell';
+import { AiInfoCard } from './ai-info-card';
+import { ManualPriceButton } from './manual-price-button';
+import { AmazonMismatchBanner, detectAmazonMismatch } from './amazon-mismatch-banner';
 import { acceptManySourcesAction } from '../actions';
 
 // Sectioned items list — one collapsible <table> per category, plus the
@@ -33,6 +36,33 @@ export function ItemsSectionList({
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Auto-refresh while any background work is in flight — Vercel waitUntil()
+  // has no client push channel, so we poll the page every 4s. Two trigger
+  // conditions:
+  //   1) AI info status flag = queued/running (regen task running)
+  //   2) Item has an Amazon URL set but no live price yet AND it was
+  //      checked recently (within 60s) — the price sourcer is mid-fetch
+  useEffect(() => {
+    const cutoff = Date.now() - 60_000;
+    const anyInFlight = sections.some(s =>
+      s.items.some(it => {
+        if (it.ai_info_status === 'queued' || it.ai_info_status === 'running') return true;
+        if (it.amazon_eg_url && it.amazon_eg_price_egp == null) {
+          // No checked-at yet → freshly saved URL, sourcer just queued
+          if (!it.amazon_eg_last_checked_at) return true;
+          // Or checked within the last minute → sourcer probably in flight
+          const checkedAt = Date.parse(it.amazon_eg_last_checked_at);
+          if (Number.isFinite(checkedAt) && checkedAt > cutoff) return true;
+        }
+        return false;
+      }),
+    );
+    if (!anyInFlight) return;
+    const t = window.setInterval(() => router.refresh(), 4000);
+    return () => window.clearInterval(t);
+  }, [sections, router]);
 
   // Hash-anchor scroll-and-flash for deep links from estimator detail pages.
   useEffect(() => {
@@ -176,6 +206,8 @@ export function ItemsSectionList({
               selected={selected}
               onToggle={toggle}
               onToggleSection={toggleSection}
+              expandedId={expandedId}
+              onToggleExpand={(id) => setExpandedId(prev => (prev === id ? null : id))}
             />
           ))}
         </div>
@@ -192,6 +224,8 @@ function CategorySection({
   selected,
   onToggle,
   onToggleSection,
+  expandedId,
+  onToggleExpand,
 }: {
   section: GroupedSection;
   categories: Category[];
@@ -200,6 +234,8 @@ function CategorySection({
   selected: Set<string>;
   onToggle: (id: string) => void;
   onToggleSection: (items: ItemListRow[], allChecked: boolean) => void;
+  expandedId: string | null;
+  onToggleExpand: (id: string) => void;
 }) {
   const sectionAllChecked =
     section.items.length > 0 && section.items.every(it => selected.has(it.id));
@@ -250,6 +286,7 @@ function CategorySection({
                     />
                   </th>
                 )}
+                <th className="px-1 py-2 w-6" aria-label="Expand"></th>
                 <th className="text-left px-3 py-2">SKU</th>
                 <th className="text-left px-3 py-2">Name</th>
                 <th className="text-left px-3 py-2">UoM</th>
@@ -271,6 +308,8 @@ function CategorySection({
                   canWrite={canWrite}
                   checked={selected.has(it.id)}
                   onToggle={() => onToggle(it.id)}
+                  expanded={expandedId === it.id}
+                  onToggleExpand={() => onToggleExpand(it.id)}
                 />
               ))}
             </tbody>
@@ -288,6 +327,8 @@ function ItemRow({
   canWrite,
   checked,
   onToggle,
+  expanded,
+  onToggleExpand,
 }: {
   it: ItemListRow;
   categories: Category[];
@@ -295,8 +336,16 @@ function ItemRow({
   canWrite: boolean;
   checked: boolean;
   onToggle: () => void;
+  expanded: boolean;
+  onToggleExpand: () => void;
 }) {
+  // 1 (chevron) + 8 base + 1 if canWrite (checkbox) + 1 (edit) — keep in
+  // sync with the <thead> column count above. The expanded-detail <tr>
+  // spans this width so the AI info card fills the row.
+  const colSpan = (canWrite ? 1 : 0) + 1 + 8 + 1;
+
   return (
+    <>
     <tr
       id={`item-${it.id}`}
       className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition"
@@ -312,6 +361,17 @@ function ItemRow({
           />
         </td>
       )}
+      <td className="px-1 py-2">
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+          aria-expanded={expanded}
+          className="text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-300 inline-flex items-center justify-center w-5 h-5"
+        >
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </button>
+      </td>
       <td className="px-3 py-2 font-mono text-[11px]">{it.sku}</td>
       <td className="px-3 py-2">
         <div className="font-medium">{it.name_en}</div>
@@ -336,7 +396,7 @@ function ItemRow({
       </td>
       <td className="px-3 py-2 text-right tabular-nums text-slate-500">{it.min_qty}</td>
       <td className="px-3 py-2 text-right tabular-nums">
-        {Number(it.default_cost_egp).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+        <CostCell item={it} />
       </td>
       <td className="px-3 py-2">
         <SourceCell
@@ -371,6 +431,107 @@ function ItemRow({
         )}
       </td>
     </tr>
+    {(() => {
+      const kind = detectAmazonMismatch({
+        itemSku: it.sku,
+        itemName: it.name_en,
+        amazonName: it.amazon_eg_product_name_en,
+      });
+      if (kind === 'none') return null;
+      return (
+        <tr className="border-t border-amber-100 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10">
+          <td colSpan={colSpan} className="px-4 py-2">
+            <AmazonMismatchBanner
+              itemId={it.id}
+              itemSku={it.sku}
+              currentName={it.name_en}
+              currentBrand={it.brand}
+              amazonName={it.amazon_eg_product_name_en!}
+              amazonBrand={it.amazon_eg_brand}
+              amazonUrl={it.amazon_eg_url}
+              canEdit={canWrite}
+              kind={kind}
+            />
+          </td>
+        </tr>
+      );
+    })()}
+    {expanded && (
+      <tr className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
+        <td colSpan={colSpan} className="px-4 py-3">
+          <AiInfoCard
+            itemId={it.id}
+            itemSku={it.sku}
+            itemNameEn={it.name_en}
+            amazonEgUrl={it.amazon_eg_url}
+            aiInfo={it.ai_info}
+            generatedAt={it.ai_info_generated_at}
+            source={it.ai_info_source}
+            status={it.ai_info_status}
+            errorMsg={it.ai_info_error}
+            canEdit={canWrite}
+          />
+        </td>
+      </tr>
+    )}
+    </>
+  );
+}
+
+function CostCell({ item }: { item: ItemListRow }) {
+  // Live price = amazon_eg_price_egp / pack_size  (matches estimator.ts)
+  // Estimate    = default_cost_egp (the seeded placeholder)
+  const livePrice = (() => {
+    if (item.amazon_eg_price_egp == null) return null;
+    const ps = item.amazon_eg_pack_size && item.amazon_eg_pack_size > 0 ? item.amazon_eg_pack_size : 1;
+    return item.amazon_eg_price_egp / ps;
+  })();
+  const isEstimate = livePrice == null;
+  const displayValue = livePrice ?? Number(item.default_cost_egp);
+  const formatted = displayValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const lastChecked = item.amazon_eg_last_checked_at
+    ? new Date(item.amazon_eg_last_checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+    : null;
+
+  // When the URL is set but auto-fetch was blocked / failed, show the
+  // manual-entry button inline so the operator can type the price they
+  // see on the live Amazon page.
+  const fetchBlocked =
+    !!item.amazon_eg_url &&
+    livePrice == null &&
+    (item.amazon_eg_last_status === 'rate_limited' || item.amazon_eg_last_status === '404');
+
+  if (isEstimate) {
+    const tooltip = fetchBlocked
+      ? `Amazon ${item.amazon_eg_last_status === 'rate_limited' ? 'blocked the auto-fetch' : 'returned 404'}. Click "Manual price" to type the price you see on the live page.`
+      : 'Estimate — seeded placeholder. Set an Amazon EG URL to fetch live price (or enter manually if blocked).';
+    return (
+      <div className="flex items-center justify-end gap-1.5">
+        <span className="text-amber-700 dark:text-amber-300" title={tooltip}>
+          ~{formatted}
+        </span>
+        {item.amazon_eg_url && (
+          <ManualPriceButton
+            itemId={item.id}
+            itemSku={item.sku}
+            itemNameEn={item.name_en}
+            amazonEgUrl={item.amazon_eg_url}
+            currentPrice={item.amazon_eg_price_egp}
+            currentPackSize={item.amazon_eg_pack_size}
+            currentName={item.name_en}
+            currentBrand={item.brand}
+          />
+        )}
+      </div>
+    );
+  }
+  return (
+    <span
+      className="text-slate-700 dark:text-slate-100"
+      title={lastChecked ? `Live Amazon EG price · checked ${lastChecked}` : 'Live Amazon EG price'}
+    >
+      {formatted}
+    </span>
   );
 }
 

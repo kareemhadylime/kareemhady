@@ -9,6 +9,7 @@ import {
   ListPlus,
   History,
   ShoppingBag,
+  PowerOff,
 } from 'lucide-react';
 import { requireBeithadyPermission, canAccessSettingsSubtab, getEffectiveBeithadyRoles } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
@@ -114,6 +115,16 @@ const SUBTABS: Subtab[] = [
       description: 'Every CRM edit · auto-sent reply · ad publish · gallery upload · settings change — searchable.',
       icon: History,
       accent: 'slate',
+    },
+  },
+  {
+    slug: 'outbound',
+    tile: {
+      href: '/beithady/settings/outbound',
+      title: 'Outbound kill switches',
+      description: 'Granular pause controls — manual inbox sending + each automation (AI auto-reply, pre-arrival, CSAT, boarding pass, loyalty, upsell, cancel-risk, morning brief, digests, daily report).',
+      icon: PowerOff,
+      accent: 'rose',
     },
   },
   {
