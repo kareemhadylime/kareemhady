@@ -7,6 +7,7 @@ import type { Category, ItemListRow, Uom } from '@/lib/beithady/inventory/catalo
 import { ItemFormButton } from './item-form-button';
 import { SourceCell } from './source-cell';
 import { AiInfoCard } from './ai-info-card';
+import { ManualPriceButton } from './manual-price-button';
 import { acceptManySourcesAction } from '../actions';
 
 // Sectioned items list — one collapsible <table> per category, plus the
@@ -466,14 +467,36 @@ function CostCell({ item }: { item: ItemListRow }) {
     ? new Date(item.amazon_eg_last_checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
     : null;
 
+  // When the URL is set but auto-fetch was blocked / failed, show the
+  // manual-entry button inline so the operator can type the price they
+  // see on the live Amazon page.
+  const fetchBlocked =
+    !!item.amazon_eg_url &&
+    livePrice == null &&
+    (item.amazon_eg_last_status === 'rate_limited' || item.amazon_eg_last_status === '404');
+
   if (isEstimate) {
+    const tooltip = fetchBlocked
+      ? `Amazon ${item.amazon_eg_last_status === 'rate_limited' ? 'blocked the auto-fetch' : 'returned 404'}. Click "Manual price" to type the price you see on the live page.`
+      : 'Estimate — seeded placeholder. Set an Amazon EG URL to fetch live price (or enter manually if blocked).';
     return (
-      <span
-        className="text-amber-700 dark:text-amber-300"
-        title="Estimate — seeded placeholder. Set an Amazon EG URL and run the price sourcer to get the live price."
-      >
-        ~{formatted}
-      </span>
+      <div className="flex items-center justify-end gap-1.5">
+        <span className="text-amber-700 dark:text-amber-300" title={tooltip}>
+          ~{formatted}
+        </span>
+        {item.amazon_eg_url && (
+          <ManualPriceButton
+            itemId={item.id}
+            itemSku={item.sku}
+            itemNameEn={item.name_en}
+            amazonEgUrl={item.amazon_eg_url}
+            currentPrice={item.amazon_eg_price_egp}
+            currentPackSize={item.amazon_eg_pack_size}
+            currentName={item.name_en}
+            currentBrand={item.brand}
+          />
+        )}
+      </div>
     );
   }
   return (

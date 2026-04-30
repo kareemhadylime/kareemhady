@@ -806,3 +806,89 @@ export async function syncAllAmazonPricesAction(): Promise<
   revalidatePath('/beithady/inventory/items');
   return { ok: true, queued };
 }
+
+// ---------------------------------------------------------------------------
+// Manual price entry (Phase M.16) — fallback for items where Amazon EG
+// blocks Claude's web_fetch and the auto-sourcer can't pull live data.
+// Operator opens the product page themselves, reads price + pack_size +
+// (optionally) the canonical product name, types them in. Marks the row
+// as `amazon_eg_last_status='ok'` so the UI flips from amber estimate
+// to plain live cost.
+// ---------------------------------------------------------------------------
+
+export type ManualPriceInput = {
+  price_egp: number;
+  pack_size: number;          // ≥1
+  name_en?: string | null;    // optional — overwrites name when provided
+  brand?: string | null;
+};
+
+export async function setManualAmazonPriceAction(
+  itemId: string,
+  input: ManualPriceInput,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+
+  // Validate
+  if (!Number.isFinite(input.price_egp) || input.price_egp <= 0) {
+    return { ok: false, error: 'Price must be a positive number' };
+  }
+  const packSize = Math.max(1, Math.round(input.pack_size || 1));
+  if (input.price_egp > 100_000) {
+    return { ok: false, error: 'Price looks too high — typo? Max 100,000 EGP per unit.' };
+  }
+
+  const sb = supabaseAdmin();
+  const { data: before } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku, name_en, brand, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: 'Item not found' };
+  if (!before.amazon_eg_url) {
+    return { ok: false, error: 'Set an Amazon EG URL first — the manual price still needs a source link.' };
+  }
+
+  const namePatch: Record<string, unknown> = {};
+  if (input.name_en && input.name_en.trim()) namePatch.name_en = input.name_en.trim().slice(0, 200);
+  if (input.brand && input.brand.trim()) namePatch.brand = input.brand.trim().slice(0, 80);
+
+  const { error } = await sb
+    .from('beithady_inventory_items')
+    .update({
+      ...namePatch,
+      amazon_eg_price_egp: input.price_egp,
+      amazon_eg_pack_size: packSize,
+      amazon_eg_in_stock: true,
+      amazon_eg_last_status: 'ok',
+      amazon_eg_last_checked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: error.message };
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.amazon_price.manual_set',
+    target_type: 'item',
+    target_id: itemId,
+    before: {
+      amazon_eg_price_egp: before.amazon_eg_price_egp,
+      amazon_eg_pack_size: before.amazon_eg_pack_size,
+      name_en: before.name_en,
+      brand: before.brand,
+    },
+    after: {
+      amazon_eg_price_egp: input.price_egp,
+      amazon_eg_pack_size: packSize,
+      ...namePatch,
+    },
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true };
+}
+

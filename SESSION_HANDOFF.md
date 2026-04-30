@@ -1,6 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — URL save now auto-fetches price + name + brand from Amazon
+## 🟢 Latest turn — Manual price entry (Amazon EG blocks Claude web_fetch — confirmed in prod)
+
+User pressed "Sync prices" — price still didn't update. Investigated via `mcp__execute_sql`:
+```
+amazon_eg_last_status: 'rate_limited'
+amazon_eg_last_checked_at: 2026-04-30 12:33:34 UTC
+```
+**Confirmed: Amazon EG blocks Claude's `web_fetch` server-managed tool.** This is the R1 risk from the workflow plan now real in prod. The AI info regen survived because it has a `general_knowledge` fallback (its row showed `source: 'general_knowledge'`); the price sourcer had no fallback so it wrote `rate_limited` and bailed.
+
+**Three things shipped:**
+
+1. **Manually patched `CLN-ANTIFLY-400ML` via SQL** so the user sees results immediately:
+   ```sql
+   UPDATE … SET name_en='Raid Flying Insect Killer Odorless 300 ML',
+                brand='Raid', amazon_eg_price_egp=90, amazon_eg_pack_size=1,
+                amazon_eg_last_status='ok', amazon_eg_in_stock=true …
+   WHERE sku='CLN-ANTIFLY-400ML'
+   ```
+2. **New `setManualAmazonPriceAction(itemId, { price_egp, pack_size, name_en?, brand? })`** server action in `actions.ts`. Validates price >0 and ≤100k EGP. Requires URL to be set first. Audit-logged with before/after values.
+3. **New `ManualPriceButton` component** rendered inline in `CostCell` whenever the row has a URL set but no live price. Modal explains "Auto-fetch is blocked — open the product page below, read price + pack size, type them here." Includes "Open product" link in the modal banner. Optional name/brand override fields.
+
+**UX flow now (when Amazon blocks):**
+1. Operator pastes URL → Save (still triggers AI regen + sourcer attempt in background)
+2. Sourcer hits rate_limited → row stays amber `~55`
+3. Cost cell now shows `~55 [Manual price]` button next to it (amber pill)
+4. Click → modal opens with price/pack-size inputs + "Open product" link
+5. Operator opens product, reads price (e.g. 90 EGP), types it, clicks Save price
+6. Row flips to plain `90` slate cost. name_en + brand auto-update from the optional fields.
+
+**The tooltip when fetch is blocked is also explicit:** "Amazon blocked the auto-fetch. Click 'Manual price' to type the price you see on the live page."
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Future-proofing notes for next time we hit web_fetch limits:**
+- Daily cron will keep retrying — Amazon may unblock briefly. But realistically the sourcer is unreliable and the manual button IS the workflow.
+- Alternative options not built (would need user direction): (a) ScraperAPI/ScrapingBee subscription (~$30/mo), (b) AI-estimate fallback when fetch fails (Claude guesses typical price from name — accuracy questionable), (c) Browser automation via Playwright in a separate Lambda.
+
+---
+
+## 🟢 Earlier this turn — URL save now auto-fetches price + name + brand from Amazon
 
 User saved a valid Amazon URL on `CLN-ANTIFLY-400ML` (Raid Flying Insect Killer 300ml). Two complaints:
 1. Cost cell stayed amber `~55` — saving the URL didn't trigger the price sourcer (only triggered the AI info regen). Operator had to click the separate "Sync prices" header button.
