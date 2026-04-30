@@ -892,3 +892,72 @@ export async function setManualAmazonPriceAction(
   return { ok: true };
 }
 
+
+// ---------------------------------------------------------------------------
+// Apply Amazon-fetched product details to the SKU (Phase M.16)
+// ---------------------------------------------------------------------------
+// When the sourcer pulls a product name/brand that differs from the SKU's
+// curated name, the items page surfaces a "Use Amazon details" button.
+// This action copies amazon_eg_product_name_en/_ar/_brand into the
+// canonical name_en/name_ar/brand fields. Operator-driven — never fires
+// automatically. Audit-logged with before/after snapshot for rollback.
+
+export async function applyAmazonDetailsAction(
+  itemId: string,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+  const { data: before } = await sb
+    .from('beithady_inventory_items')
+    .select(
+      'id, sku, name_en, name_ar, brand, amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand'
+    )
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: 'Item not found' };
+  const row = before as {
+    id: string; sku: string; name_en: string; name_ar: string; brand: string | null;
+    amazon_eg_product_name_en: string | null;
+    amazon_eg_product_name_ar: string | null;
+    amazon_eg_brand: string | null;
+  };
+
+  const patch: Record<string, unknown> = {};
+  if (row.amazon_eg_product_name_en && row.amazon_eg_product_name_en.trim()) {
+    patch.name_en = row.amazon_eg_product_name_en.trim().slice(0, 200);
+  }
+  if (row.amazon_eg_product_name_ar && row.amazon_eg_product_name_ar.trim()) {
+    patch.name_ar = row.amazon_eg_product_name_ar.trim().slice(0, 200);
+  }
+  if (row.amazon_eg_brand && row.amazon_eg_brand.trim()) {
+    patch.brand = row.amazon_eg_brand.trim().slice(0, 80);
+  }
+  if (Object.keys(patch).length === 0) {
+    return {
+      ok: false,
+      error: 'No Amazon product details to apply — run a price sync first.',
+    };
+  }
+  patch.updated_at = new Date().toISOString();
+
+  const { error } = await sb
+    .from('beithady_inventory_items')
+    .update(patch)
+    .eq('id', itemId);
+  if (error) return { ok: false, error: error.message };
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.amazon_details.apply',
+    target_type: 'item',
+    target_id: itemId,
+    before: { name_en: row.name_en, name_ar: row.name_ar, brand: row.brand },
+    after: patch,
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true };
+}

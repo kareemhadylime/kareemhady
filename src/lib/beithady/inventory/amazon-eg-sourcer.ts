@@ -359,20 +359,22 @@ export async function persistProbeResult(
     }
   }
 
-  // M.16 — also overwrite item name + brand from the live Amazon listing.
-  // Operator request: "Name should change to Amazon name". We only update if
-  // the probed value is non-empty so a partial Amazon parse doesn't blank
-  // the existing name. If the operator wants to keep their seed name, they
-  // edit it back via the Edit modal.
-  const namePatch: Record<string, unknown> = {};
-  if (result.product_name_en) namePatch.name_en = result.product_name_en;
-  if (result.product_name_ar) namePatch.name_ar = result.product_name_ar;
-  if (result.brand) namePatch.brand = result.brand;
-
+  // M.16 (revised) — store the fetched Amazon name/brand in DEDICATED
+  // shadow columns instead of overwriting the operator's curated SKU
+  // name. The items page UI compares amazon_eg_product_name_en vs name_en
+  // and surfaces a "review & update SKU details" banner when they differ.
+  // This way:
+  //   • An operator who pasted a slightly-wrong URL (e.g. 4L floor cleaner
+  //     under a 1L APC SKU) sees the mismatch and can fix the URL or
+  //     accept the new product details — no silent data corruption.
+  //   • The estimator + cost cells keep using amazon_eg_price_egp /
+  //     pack_size unchanged.
   await sb
     .from('beithady_inventory_items')
     .update({
-      ...namePatch,
+      amazon_eg_product_name_en: result.product_name_en,
+      amazon_eg_product_name_ar: result.product_name_ar,
+      amazon_eg_brand: result.brand,
       amazon_eg_price_egp: newPrice,
       amazon_eg_pack_size: result.pack_size,
       amazon_eg_image_url: result.image_url,
