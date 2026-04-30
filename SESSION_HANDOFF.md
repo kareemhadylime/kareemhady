@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Fixed Airbnb/Booking replies routing through WhatsApp instead of platform in-app messaging
+## ⚪ Latest turn — Explained Guesty's sidebar sort behavior (no code change, awaiting user preference on our app's default)
+
+User screenshots: Guesty's native UI showing Hady Family thread with the most recent activity at 1:25 PM ("2m ago" badge in sidebar) but Hady Family was buried at position 4 in the conversation list, behind threads tagged "2h ago". Asked why Guesty isn't sorting newest-on-top.
+
+**Diagnosis (Guesty UX, not our app):**
+Guesty's inbox sidebar sorts by `last_message_nonuser_at` (last GUEST message), NOT by overall activity. After our team replies, the thread sinks because Guesty considers it answered. The "2m ago" badge shows last-activity timestamp for context, but it's NOT the sort key. Threads only float back up when the guest replies again. No Guesty setting to change this.
+
+For Hady Family:
+- Last guest message: 9:06 AM Cairo (original "Test Message")
+- Team replies at 9:09, 1:13, 1:25 PM did not bump it
+- Other threads with newer guest messages (Khalid, Shashi, Sireen ~2h ago) sit above
+
+**What our Beithady Unified Inbox already offers** (per `src/lib/beithady/communication/inbox.ts` `InboxSort`):
+- `recent_inbound` (default) — same as Guesty
+- `recent_activity` — ANY modification (incl. our outbound) bumps to top
+- `recent_outbound` — newest reply first
+- `sla_oldest` / `sla_newest` — breach-priority sorts
+- `name_asc` — alphabetical
+
+UI exposes these via the Sort dropdown on `/beithady/communication/unified`.
+
+**Asked user:** want me to change the site-wide default to `recent_activity` so team replies bump conversations up automatically, or keep the per-user toggle as-is?
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `81e128d` (handoff for Airbnb/Booking module-routing fix). No commits this turn.
+
+## 🟢 Earlier turn — Fixed Airbnb/Booking replies routing through WhatsApp instead of platform in-app messaging
 
 User screenshot: typed a reply on Hady Family (Airbnb thread) → message went out as `WHATSAPP · KAREEMHADY · Hello / Test - Confirm Receipt`. Asked "Why replying Shows Whatsapp? This is message should go to Airbnb Message through Guesty."
 
