@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Paperclip, Camera, FolderOpen, X, Image as ImageIcon, Check, Loader2, AlertTriangle } from 'lucide-react';
-import { sendWaCasualMultiAttachAction, sendGuestyMultiAttachAction } from '../attach-actions';
+import { sendWaCasualMultiAttachResult, sendGuestyMultiAttachResult } from '../attach-actions';
 import { LibraryPicker, type LibraryAttachment } from './library-picker';
 
 // Phase Q.3 — AttachmentMenu dropdown wrapping Device / Camera / Library.
@@ -94,14 +95,15 @@ export function AttachmentMenu({
     setItems(next);
   };
 
-  const action = channel === 'guesty' ? sendGuestyMultiAttachAction : sendWaCasualMultiAttachAction;
+  const router = useRouter();
+  const action = channel === 'guesty' ? sendGuestyMultiAttachResult : sendWaCasualMultiAttachResult;
 
-  // Programmatic submit. Bypasses native <form> submission entirely —
-  // the previous formAction-on-button approach silently dropped the
-  // request in React 19 + Next.js 16 (no audit row, no storage object,
-  // confirmed empty post-click). Build FormData ourselves, call the
-  // action inside startTransition so isPending tracks the round-trip,
-  // and let Next.js handle redirect + revalidate as usual.
+  // Programmatic submit using result-returning action variant. The
+  // earlier throw/redirect-style action surfaced as React's generic
+  // "An unexpected response was received from the server" because
+  // throws + NEXT_REDIRECT don't deserialize cleanly through a
+  // useTransition-invoked action. The new ...Result variants always
+  // return a structured { ok, error, redirectTo } that we handle here.
   const handleSend = () => {
     if (items.length === 0 || isPending) return;
     setErrorMsg(null);
@@ -120,20 +122,28 @@ export function AttachmentMenu({
     });
     startTransition(async () => {
       try {
-        await action(fd);
-        // On success, the server action redirects → page navigates → this
-        // component unmounts. We never reach here on a clean redirect.
-      } catch (e) {
-        // Next.js redirect throws a special error that the framework
-        // catches above us. ANY error reaching here is a real failure —
-        // surface it.
-        const msg = e instanceof Error ? e.message : String(e);
-        // The framework intercepts redirects with a NEXT_REDIRECT
-        // sentinel; we never see those. Any other error is a real
-        // server failure (validation throw, network blip, etc.).
-        if (!msg.includes('NEXT_REDIRECT')) {
-          setErrorMsg(msg.slice(0, 240));
+        const result = await action(fd);
+        if (result.ok) {
+          // Clear local pending items so the bag closes optimistically,
+          // then navigate. router.push handles the URL update; the
+          // server action already revalidated the inbox path so the
+          // new outbound row will be there.
+          for (const it of items) {
+            if (it.kind === 'file' && it.previewUrl) {
+              try { URL.revokeObjectURL(it.previewUrl); } catch { /* ignore */ }
+            }
+          }
+          setItems([]);
+          if (result.redirectTo) router.push(result.redirectTo);
+          else router.refresh();
+        } else {
+          setErrorMsg((result.error || 'unknown_error').slice(0, 240));
         }
+      } catch (e) {
+        // Should not happen — the result-variant doesn't throw — but
+        // catch as defense-in-depth (e.g. network/transport error).
+        const msg = e instanceof Error ? e.message : String(e);
+        setErrorMsg(`transport: ${msg.slice(0, 220)}`);
       }
     });
   };

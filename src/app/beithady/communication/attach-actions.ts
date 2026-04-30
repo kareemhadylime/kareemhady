@@ -202,6 +202,194 @@ export async function sendGuestyMultiAttachAction(formData: FormData): Promise<v
   redirect(`/beithady/communication/guesty?c=${conversationId}&sent=1`);
 }
 
+// =====================================================================
+// Result-returning variants for programmatic invocation via useTransition
+// =====================================================================
+// The redirect/throw style above is meant for native <form action={...}>
+// submission. When called programmatically (await action(fd) inside
+// startTransition), redirect() throws NEXT_REDIRECT and any other throw
+// surfaces as React's generic "An unexpected response was received from
+// the server" — losing the actual error detail. These variants NEVER
+// throw and NEVER redirect; they return a structured result the caller
+// handles client-side (router.push, error display, etc.).
+
+export type MultiAttachResult = {
+  ok: boolean;
+  error?: string;
+  redirectTo?: string;
+  count?: number;
+  status?: number;
+};
+
+export async function sendGuestyMultiAttachResult(formData: FormData): Promise<MultiAttachResult> {
+  try {
+    const user = await ensureFullPerm();
+    const conversationId = String(formData.get('conversation_id') || '').trim();
+    if (!conversationId) return { ok: false, error: 'missing_conversation_id' };
+    const body = String(formData.get('body') || '').trim();
+    const moduleRaw = String(formData.get('module') || 'whatsapp').trim();
+    const moduleVal = (['email', 'sms', 'whatsapp', 'log', 'airbnb2', 'bookingCom'] as const).find(m => m === moduleRaw) || 'whatsapp';
+
+    type AttachInput = { url: string; name: string; mime: string };
+    const attachments: AttachInput[] = [];
+    for (let i = 0; i < MAX_FILES_PER_SEND; i++) {
+      const f = formData.get(`file_${i}`);
+      const libUrl = formData.get(`library_url_${i}`);
+      if (f instanceof Blob && f.size > 0) {
+        const file = f as File;
+        const mime = file.type || 'application/octet-stream';
+        const ab = await file.arrayBuffer();
+        const uploaded = await uploadWaMedia(ab, mime, extFromMime(mime));
+        if (!uploaded.ok) {
+          return { ok: false, error: `upload_failed: ${uploaded.error}` };
+        }
+        attachments.push({ url: uploaded.url, name: file.name || `file-${i}`, mime });
+      } else if (typeof libUrl === 'string' && libUrl.trim()) {
+        attachments.push({
+          url: libUrl.trim(),
+          name: String(formData.get(`library_name_${i}`) || `library-${i}.bin`),
+          mime: String(formData.get(`library_mime_${i}`) || 'application/octet-stream'),
+        });
+      }
+    }
+
+    if (!body && attachments.length === 0) {
+      return { ok: false, error: 'no_files_or_body' };
+    }
+
+    const result = await sendGuestyMessage({
+      beithadyConversationId: conversationId,
+      body: body || '(see attachments)',
+      module: moduleVal,
+      agentUserId: user.id,
+      agentDisplayName: user.username,
+      attachments,
+    });
+
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'communication',
+      action: 'multi_attach_guesty',
+      target_type: 'conversation',
+      target_id: conversationId,
+      metadata: { count: attachments.length, ok: result.ok, status: 'status' in result ? result.status : undefined },
+    });
+
+    revalidatePath('/beithady/communication/guesty');
+    revalidatePath('/beithady/communication/unified');
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        status: result.status,
+        count: attachments.length,
+      };
+    }
+    return {
+      ok: true,
+      count: attachments.length,
+      redirectTo: `/beithady/communication/unified?c=${conversationId}&sent=1`,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+export async function sendWaCasualMultiAttachResult(formData: FormData): Promise<MultiAttachResult> {
+  try {
+    const user = await ensureFullPerm();
+    const conversationId = String(formData.get('conversation_id') || '').trim();
+    if (!conversationId) return { ok: false, error: 'missing_conversation_id' };
+    const caption = String(formData.get('body') || '').trim();
+
+    type Slot = { kind: 'file'; blob: Blob; name: string } | { kind: 'lib'; url: string; name: string; mime: string };
+    const slots: Slot[] = [];
+    for (let i = 0; i < MAX_FILES_PER_SEND; i++) {
+      const f = formData.get(`file_${i}`);
+      const libUrl = formData.get(`library_url_${i}`);
+      if (f instanceof Blob && f.size > 0) {
+        const name = (f as File).name || `file-${Date.now()}-${i}`;
+        slots.push({ kind: 'file', blob: f, name });
+      } else if (typeof libUrl === 'string' && libUrl.trim()) {
+        slots.push({
+          kind: 'lib',
+          url: libUrl.trim(),
+          name: String(formData.get(`library_name_${i}`) || `library-${i}.bin`),
+          mime: String(formData.get(`library_mime_${i}`) || 'application/octet-stream'),
+        });
+      }
+    }
+
+    if (slots.length === 0) {
+      return { ok: false, error: 'no_files' };
+    }
+
+    let succeeded = 0;
+    let lastError: string | null = null;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      let url: string;
+      let name: string;
+      let mime: string;
+      if (slot.kind === 'file') {
+        mime = slot.blob.type || 'application/octet-stream';
+        name = slot.name;
+        const ab = await slot.blob.arrayBuffer();
+        const uploaded = await uploadWaMedia(ab, mime, extFromMime(mime));
+        if (!uploaded.ok) {
+          lastError = `upload_failed: ${uploaded.error}`;
+          break;
+        }
+        url = uploaded.url;
+      } else {
+        url = slot.url;
+        name = slot.name;
+        mime = slot.mime;
+      }
+      const result = await sendWaCasualMessage({
+        beithadyConversationId: conversationId,
+        body: i === 0 ? caption : '',
+        fileUrl: url,
+        fileName: name,
+        fileMime: mime,
+        agentUserId: user.id,
+        agentDisplayName: user.username,
+      });
+      if (!result.ok) {
+        lastError = result.error;
+        break;
+      }
+      succeeded += 1;
+    }
+
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'communication',
+      action: 'multi_attach_wa_casual',
+      target_type: 'conversation',
+      target_id: conversationId,
+      metadata: { total: slots.length, succeeded, lastError: lastError || undefined },
+    });
+
+    revalidatePath('/beithady/communication/wa-casual');
+    revalidatePath('/beithady/communication/unified');
+
+    if (lastError) {
+      return { ok: false, error: `${lastError} (sent ${succeeded}/${slots.length})`, status: 500, count: succeeded };
+    }
+    return {
+      ok: true,
+      count: succeeded,
+      redirectTo: `/beithady/communication/unified?c=${conversationId}&sent=1`,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
 // --- Library asset upload (admin) ---------------------------------------
 
 export async function uploadListingAssetAction(formData: FormData): Promise<void> {
