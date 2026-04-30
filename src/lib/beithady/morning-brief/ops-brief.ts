@@ -2,7 +2,44 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase';
 import { addDays as addDaysCairo } from '@/lib/beithady-daily-report/cairo-dates';
+import { countryForBuilding, type CountryCode } from './country';
 import type { Brief, BriefSection } from './types';
+
+// Operations & Housekeeping brief — what crew + ops manager need at 8am.
+// Rendered in Arabic (RTL).
+//
+// Audit changes (2026-04-30)
+// --------------------------
+// * **Status filter tightened.** Same-day flips, departures, arrivals,
+//   long-stays, tomorrow-prep all now require status IN
+//   ('confirmed','reserved','awaiting_payment') — Guesty parity.
+//   Inquiries no longer trigger phantom housekeeping flips.
+// * **Country segregation.** Section headers carry per-country counts
+//   (مصر / الإمارات). Items prefixed with country flag.
+// * **"Currently staying" section.** New section matches Guesty's
+//   homepage tile so housekeeping has visibility on in-house guests
+//   (linen / waste / supplies pacing).
+//
+// Older audit (2026-04-28)
+// ------------------------
+// * Owner stays + manual blocks excluded from arrivals / departures /
+//   long-stays / tomorrow-prep — they're not real guest events.
+// * Open tasks filtered to ≤7 d window.
+// * Section order: Same-day flips → Departures → Arrivals → Long stays
+//   → Open tasks → Manual blocks → Tomorrow's prep.
+
+const ACTIVE_STATUSES = ['confirmed', 'reserved', 'awaiting_payment'] as const;
+
+const COUNTRY_FLAG: Record<CountryCode, string> = {
+  EG: '🇪🇬',
+  AE: '🇦🇪',
+  OTHER: '🌍',
+};
+const COUNTRY_AR: Record<CountryCode, string> = {
+  EG: 'مصر',
+  AE: 'الإمارات',
+  OTHER: 'أخرى',
+};
 
 // M.14: build the inventory stockout-risk section. Lifted out so the
 // sections array can stay declarative.
@@ -41,25 +78,6 @@ async function buildStockoutSection(sb: SupabaseClient): Promise<BriefSection> {
   };
 }
 
-// Operations & Housekeeping brief — what crew + ops manager need at 8am.
-// Rendered in Arabic per user request (RTL).
-//
-// Audit changes (2026-04-28)
-// --------------------------
-// * Owner stays + manual blocks excluded from arrivals / departures /
-//   long-stays / tomorrow-prep — they're not real guest events.
-// * Open tasks now filtered to a freshness window (overdue ≤7 d OR
-//   due in next 7 d). Pending zombie tasks no longer haunt the brief.
-// * `limit(N)` and `slice(N)` aligned at 10 (was 20 vs 10 — fetched
-//   10 wasted rows).
-// * NULL nights renders as "— ليالٍ" instead of "0 ليالٍ".
-// * Departures secondary now shows nights stayed (parity with Arrivals).
-// * Long-stay items show nights remaining ("X ليالٍ متبقية").
-// * Section order: Same-day flips → Departures → Arrivals → Long stays
-//   → Open tasks → Manual blocks → Tomorrow's prep (was: Departures →
-//   Arrivals → Flips → Tasks → Blocks → Long stays).
-// * NEW: Tomorrow's check-ins prep section — heads-up for staging.
-
 const REASON_AR: Record<string, string> = {
   owner_stay: 'إقامة المالك',
   maintenance: 'صيانة',
@@ -94,8 +112,6 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   const tomorrow = addDaysCairo(dateIso, 1);
   const taskWindowFloor = addDaysCairo(dateIso, -TASK_FRESHNESS_DAYS);
   const taskWindowCeil = addDaysCairo(dateIso, TASK_FRESHNESS_DAYS);
-  // Use ISO-day boundaries for due_at (timestamptz). Loose envelope
-  // (UTC midnight) is fine for daily-grain filtering.
   const taskWindowFloorTs = `${taskWindowFloor}T00:00:00Z`;
   const taskWindowCeilTs = `${taskWindowCeil}T23:59:59Z`;
 
@@ -103,6 +119,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     { data: checkouts },
     { data: checkins },
     { data: tomorrowCheckins },
+    { data: currentlyStaying },
     { data: openTasks },
     { data: blocks },
     { data: extensions },
@@ -111,7 +128,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_out_date', dateIso)
-      .neq('status', 'canceled')
+      .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
@@ -119,7 +136,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_in_date', dateIso)
-      .neq('status', 'canceled')
+      .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
@@ -127,11 +144,19 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_in_date', tomorrow)
-      .neq('status', 'canceled')
+      .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
-    // Open tasks within freshness window (overdue ≤7d OR due ≤7d)
+    // Currently staying — Guesty parity
+    sb.from('beithady_reservation_grid_v')
+      .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, guest_count, nights, check_in_date, check_out_date')
+      .lte('check_in_date', dateIso)
+      .gt('check_out_date', dateIso)
+      .in('status', ACTIVE_STATUSES)
+      .neq('source_label', 'owner')
+      .neq('is_manual_block', true),
+    // Open tasks within freshness window
     sb.from('beithady_tasks')
       .select('id, title, type, priority, status, due_at, building_code, reservation_id')
       .in('status', ['pending', 'in_progress'])
@@ -139,7 +164,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .lte('due_at', taskWindowCeilTs)
       .order('due_at', { ascending: true })
       .limit(10),
-    // Manual blocks starting today (narrow — only NEW disruptions)
+    // Manual blocks starting today
     sb.from('beithady_calendar_manual_blocks')
       .select('id, listing_id, start_date, end_date, reason, notes')
       .eq('start_date', dateIso),
@@ -148,7 +173,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .select('reservation_id, listing_nickname, guest_name, check_in_date, check_out_date, nights, building_code')
       .lte('check_in_date', dateIso)
       .gt('check_out_date', dateIso)
-      .neq('status', 'canceled')
+      .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .gte('nights', 7)
@@ -156,21 +181,19 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   ]);
 
   type Res = { reservation_id: string; listing_id: string; listing_nickname: string | null; building_code: string | null; guest_name: string | null; channel: string | null; nights: number | null };
+  type Stay = Res & { guest_count: number | null; check_in_date: string; check_out_date: string };
   const co = (checkouts as Res[] | null) || [];
   const ci = (checkins as Res[] | null) || [];
   const ciTomorrow = (tomorrowCheckins as Res[] | null) || [];
+  const stay = (currentlyStaying as Stay[] | null) || [];
   const tasks = (openTasks as Array<{ id: string; title: string; type: string; priority: string | null; status: string; due_at: string | null; building_code: string | null; reservation_id: string | null }> | null) || [];
   const blockRows = (blocks as Array<{ id: string; listing_id: string; start_date: string; end_date: string; reason: string; notes: string | null }> | null) || [];
-  // Segregate per user feedback: maintenance + other are operational
-  // (housekeeping/maintenance crew acts on them); owner_stay + hold
-  // are informational (no service required).
   const opsBlocks = blockRows.filter(b => b.reason === 'maintenance' || b.reason === 'other');
   const ownerBlocks = blockRows.filter(b => b.reason === 'owner_stay' || b.reason === 'hold');
   const ext = (extensions as Array<{ reservation_id: string; listing_nickname: string | null; guest_name: string | null; check_in_date: string; check_out_date: string; nights: number | null; building_code: string | null }> | null) || [];
 
   // Same-day flips: listings present in BOTH today's check-outs AND
-  // today's check-ins. Both sets already exclude owner stays + blocks,
-  // so a flip here always means real cleaning is needed.
+  // today's check-ins.
   const checkoutListings = new Set(co.map(r => r.listing_id));
   const sameDayFlips = ci.filter(r => checkoutListings.has(r.listing_id));
 
@@ -181,22 +204,62 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     return remain > 0 ? `${remain} ليالٍ متبقية` : 'تغادر اليوم';
   };
 
+  // Per-country counts.
+  const countByCountry = <T extends { building_code: string | null }>(rows: T[]) => {
+    const out: Record<CountryCode, number> = { EG: 0, AE: 0, OTHER: 0 };
+    for (const r of rows) out[countryForBuilding(r.building_code)] += 1;
+    return out;
+  };
+  const countryBreakdownAr = (counts: Record<CountryCode, number>): string => {
+    const parts: string[] = [];
+    if (counts.EG > 0) parts.push(`${COUNTRY_AR.EG}: ${counts.EG}`);
+    if (counts.AE > 0) parts.push(`${COUNTRY_AR.AE}: ${counts.AE}`);
+    if (counts.OTHER > 0) parts.push(`${COUNTRY_AR.OTHER}: ${counts.OTHER}`);
+    return parts.join(' · ');
+  };
+
+  const coCounts = countByCountry(co);
+  const ciCounts = countByCountry(ci);
+  const stayCounts = countByCountry(stay);
+  const flipCounts = countByCountry(sameDayFlips);
+  const ciTomorrowCounts = countByCountry(ciTomorrow);
+
+  const countryTag = (code: string | null): string =>
+    COUNTRY_FLAG[countryForBuilding(code)];
+
+  const totalGuestsStaying = stay.reduce((s, r) => s + (r.guest_count || 0), 0);
+
   const sections: BriefSection[] = [
     {
-      title: `تنظيف بين النزلاء في نفس اليوم (${sameDayFlips.length})`,
+      title: `تنظيف بين النزلاء في نفس اليوم (${sameDayFlips.length})${sameDayFlips.length > 0 ? ` — ${countryBreakdownAr(flipCounts)}` : ''}`,
       emoji: '⚠️',
       items: sameDayFlips.map(r => ({
-        primary: `${r.listing_nickname || r.listing_id}`,
+        primary: `${countryTag(r.building_code)} ${r.listing_nickname || r.listing_id}`,
         secondary: 'مغادرة الساعة 11 ووصول نزيل جديد نفس اليوم. أعطِ الأولوية لطاقم النظافة.',
         tag: { label: 'أولوية', tone: 'red' },
       })),
       empty_message: 'لا توجد عمليات تنظيف بين نزلاء بنفس اليوم. يمكن للطاقم التنظيم بشكل طبيعي.',
     },
     {
-      title: `المغادرات اليوم (${co.length})`,
+      title: `النزلاء الحاليون داخل الوحدات (${stay.length})${stay.length > 0 ? ` — ${countryBreakdownAr(stayCounts)} · ${totalGuestsStaying} ضيوف` : ''}`,
+      emoji: '🏨',
+      items: [
+        ...(stayCounts.EG > 0 ? [{
+          primary: `🇪🇬 ${COUNTRY_AR.EG} — ${stayCounts.EG} وحدة مأهولة`,
+          secondary: `إجمالي الضيوف: ${stay.filter(r => countryForBuilding(r.building_code) === 'EG').reduce((s, r) => s + (r.guest_count || 0), 0)}`,
+        }] : []),
+        ...(stayCounts.AE > 0 ? [{
+          primary: `🇦🇪 ${COUNTRY_AR.AE} — ${stayCounts.AE} وحدة مأهولة`,
+          secondary: `إجمالي الضيوف: ${stay.filter(r => countryForBuilding(r.building_code) === 'AE').reduce((s, r) => s + (r.guest_count || 0), 0)}`,
+        }] : []),
+      ],
+      empty_message: 'لا توجد إقامات نشطة اليوم.',
+    },
+    {
+      title: `المغادرات اليوم (${co.length})${co.length > 0 ? ` — ${countryBreakdownAr(coCounts)}` : ''}`,
       emoji: '📤',
       items: co.map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
         secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
         tag: checkoutListings.has(r.listing_id) && sameDayFlips.find(f => f.listing_id === r.listing_id)
           ? { label: 'تنظيف عاجل', tone: 'red' }
@@ -205,10 +268,10 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       empty_message: 'لا توجد مغادرات اليوم.',
     },
     {
-      title: `الوصول اليوم (${ci.length})`,
+      title: `الوصول اليوم (${ci.length})${ci.length > 0 ? ` — ${countryBreakdownAr(ciCounts)}` : ''}`,
       emoji: '📥',
       items: ci.map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
         secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
         tag: checkoutListings.has(r.listing_id)
           ? { label: 'تنظيف بين النزلاء', tone: 'red' }
@@ -220,7 +283,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       title: `إقامات طويلة لا تزال قائمة (${ext.length})`,
       emoji: '🏠',
       items: ext.slice(0, 10).map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
         secondary: `${nightsRemainingLabel(r.check_out_date, dateIso)} · حتى ${r.check_out_date}${r.building_code ? ` · ${r.building_code}` : ''}`,
       })),
       empty_message: 'لا توجد إقامات طويلة اليوم.',
@@ -258,10 +321,10 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       empty_message: 'لا توجد إقامات للمالك أو حجوزات إدارية تبدأ اليوم.',
     },
     {
-      title: `تحضير الغد (${ciTomorrow.length})`,
+      title: `تحضير الغد (${ciTomorrow.length})${ciTomorrow.length > 0 ? ` — ${countryBreakdownAr(ciTomorrowCounts)}` : ''}`,
       emoji: '🌅',
       items: ciTomorrow.slice(0, 10).map(r => ({
-        primary: `${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
         secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
         tag: { label: 'تحضير', tone: 'cyan' },
       })),
@@ -278,7 +341,15 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     sections,
     summary: {
       checkouts: co.length,
+      checkouts_eg: coCounts.EG,
+      checkouts_ae: coCounts.AE,
       checkins: ci.length,
+      checkins_eg: ciCounts.EG,
+      checkins_ae: ciCounts.AE,
+      currently_staying: stay.length,
+      currently_staying_eg: stayCounts.EG,
+      currently_staying_ae: stayCounts.AE,
+      currently_staying_guests: totalGuestsStaying,
       same_day_flips: sameDayFlips.length,
       open_tasks: tasks.length,
       manual_blocks: blockRows.length,

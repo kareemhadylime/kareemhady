@@ -1,6 +1,51 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Phase C.5 Channel Switcher SHIPPED across 6 commits
+## 🟢 Latest turn — Morning Brief audit + Egypt/UAE segregation
+
+User flagged that the 8am brief numbers don't match the Guesty homepage tile (sent screenshots showing Guesty: 6 check-ins / 15 check-outs / 2 turnovers / 43 currently staying vs brief: 11 / 21 / 5 / [missing]). Also requested standing rule: every revenue / payout figure across all briefs MUST segregate Egypt (USD) vs UAE (AED), no FX conversion.
+
+**Root causes identified:**
+1. Brief queries used `.neq('status', 'canceled')` — too broad. Included `inquiry`, `declined`, `expired`. Guesty homepage tile only counts `confirmed` / `reserved` / `awaiting_payment`. That accounted for the count gap.
+2. No country segregation anywhere — Egypt + UAE rolled up into a single currency-mix line in finance brief; not visible at all in GR / Ops briefs.
+3. No "Currently staying" surface — never built. Guesty parity tile was missing.
+4. UAE listings (`DXB` building tag) silently rode along inside `BH-*` arrival/departure counts with no visible distinction.
+
+**Files added/changed:**
+
+| File | Status | What |
+|---|---|---|
+| `src/lib/beithady/morning-brief/country.ts` | NEW | `countryForBuilding()` mapper (BH-* → EG, DXB → AE), per-country flag/label, `formatMoneyCountry()`, `sumByCountryCurrency()` helpers |
+| `src/lib/beithady/morning-brief/finance-brief.ts` | rewrite | Per-country revenue line for Yesterday + MTD ("Egypt: $X · UAE: Y AED"), country-split channel breakdown, new "Currently staying" section, country-tagged payout/unpaid items, new summary keys (`yesterday_revenue_eg_usd`, `_ae_aed`, `mtd_revenue_eg_usd`, `_ae_aed`, `currently_staying_eg`/`_ae`, etc.) |
+| `src/lib/beithady/morning-brief/gr-brief.ts` | rewrite | Status filter `IN (confirmed,reserved,awaiting_payment)` (Guesty parity), country flag prefix on every reservation row, per-country count in section headers, new "Currently staying" section with guest-count totals, summary fields `arrivals_eg`/`_ae`, `departures_eg`/`_ae`, `currently_staying_eg`/`_ae`/`_guests` |
+| `src/lib/beithady/morning-brief/ops-brief.ts` | rewrite | Same status tightening + country flags + per-country headers (Arabic), new "النزلاء الحاليون داخل الوحدات" (currently-staying) section in Arabic, summary fields `checkouts_eg`/`_ae`, `checkins_eg`/`_ae`, `currently_staying_eg`/`_ae`/`_guests` |
+
+**Country mapping (authoritative):**
+- Egypt = `BH-26`, `BH-73`, `BH-435`, `BH-OK`, `BH-ONEKAT`, `BH-MG`, `BH-GOUNA`, `BH-NEWCAI`, `BH-OKAT`, `BH-MANG`, `BH-MB34`, `BH-WS`, plus heuristic fallback (any unknown `BH-*` defaults to Egypt — every BH-* in catalog is Egyptian).
+- UAE = `DXB`, plus nickname-prefix fallback (`LIME-MA*`, `REEHAN*`, `YANSOON*`).
+- Status filter `ACTIVE_STATUSES` constant in both gr-brief.ts and ops-brief.ts; `NON_REVENUE_STATUSES` in finance-brief.ts excludes `canceled, inquiry, declined, expired`.
+
+**Behavioral changes user will see in next 8am brief:**
+- Finance: "Yesterday's revenue (X bookings)" → `Egypt: $A USD · UAE: B AED accrued` instead of `$A + B AED`. New "Currently staying" section. Channel breakdown split per country (`Egypt → airbnb2 $X · manual $Y | UAE → bookingCom Z AED`).
+- GR: Every arrival/departure row prefixed with 🇪🇬 or 🇦🇪. Section headers gain `— Egypt: N · UAE: M`. New "Currently staying (X) — Egypt: N · UAE: M · X guests" section with Guesty-parity guest count.
+- Ops (Arabic): Same with Arabic labels (`مصر / الإمارات`). New "النزلاء الحاليون داخل الوحدات" section.
+- Counts will drop ~30-40% vs prior briefs because inquiries / declined / expired are no longer counted as live arrivals/departures.
+
+**Out of scope / not changed:**
+- ❌ Guesty multi-account scope (FZCO + A1HOSPITALITY + DXB — all roll up into `guesty_reservations` already; user's Guesty homepage screenshot may be filtered to one account, which would explain residual count gap).
+- ❌ FX conversion across countries — explicitly rejected per user's standing rule "no conversion".
+- ❌ Currency for EGP-priced bookings — they'll appear in the Egypt bucket as `X EGP` alongside `Y USD` if any bookings settle in EGP; never auto-converted.
+
+**Validation:**
+- `npx tsc --noEmit -p tsconfig.json` runs clean (only pre-existing `@react-pdf/renderer` / `exceljs` errors that exist in main).
+- `npm run build` would deploy on Vercel — local node_modules missing the same two packages but that's a long-standing local env issue.
+
+**Next 8am Cairo cron:** automatic; the next run will use the new code.
+
+**Manual smoke test:** hit `/api/cron/morning-brief?role=finance&date=2026-04-30&dryRun=1` (or whichever endpoint name exists) once deployed and inspect the rendered markdown for the new country lines.
+
+---
+
+## 🟢 Previous turn — Phase C.5 Channel Switcher SHIPPED across 6 commits
 
 User asked to switch outbound transport mid-thread to Green WP / WABA / Email / SMS with no-info revert. Plan → Workflow → Code with 95% confidence gates; user accepted all 10 questions + 12 improvements + workflow as drafted; PF1 (Guesty cross-module live probe) skipped on user's request.
 
