@@ -1,6 +1,30 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Orphaned-conversation recovery SHIPPED (Hady Family bug fix)
+## 🟢 Latest turn — Orphan recovery VERIFIED in production (post-wakeup check)
+
+ScheduleWakeup fired 6 minutes after deploy. Ran the four verification queries against Supabase:
+
+**(a) Cron run sequence in `beithady_comm_sync_runs`:**
+| Time (UTC) | Code | conversations_upserted | messages_upserted |
+|---|---|---|---|
+| 06:35:42 | pre-fix | 0 | 0 |
+| **06:40:29** | **NEW** | **17** | **22** |
+| 06:45:35 | new (steady-state) | 0 | 0 |
+
+**(b) `beithady_orphan_conv_ids(500)` returns 0 rows** — down from 17.
+
+**(c) Hady Family `69f2f16b824ad00012c34e12` exists in BOTH tables:**
+- `guesty_conversations`: last_message_user_at=06:09:20 (host "Received ✅"), last_message_nonuser_at=06:06:36 (guest "Test Message")
+- `beithady_conversations`: mirrored with correct semantics — `last_inbound_at=06:06:36`, `last_outbound_at=06:09:20`
+
+**(d) Audit row at 06:40:34:**
+```json
+"recovery": { "scanned": 17, "recovered": 17, "notFound": 0, "failed": 0, "errors": [] }
+```
+
+**End-state:** zero orphans, all 17 previously-invisible conversations now in the unified inbox. User should see Hady Family + Abdullah Idrees + 14 booking auto-notifications + 1 newer thread when they refresh. Future brand-new conversations land on first webhook tick via lazy-create; cron sweeps any misses every 5 minutes.
+
+## 🟢 Earlier this turn — Orphan recovery SHIPPED (Hady Family bug fix)
 
 User: "Ship all automatically" → fix landed in 2 commits + applied migration:
 
