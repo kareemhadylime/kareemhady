@@ -202,12 +202,14 @@ async function fetchViaScrapingBee(url: string): Promise<string | null> {
 
 /** Builds a prompt that gives Claude pre-fetched HTML to parse directly. */
 function buildHtmlExtractionPrompt(itemName: string, itemUom: string, url: string, html: string): string {
-  // Trim to ~120k chars; the buy box / title / price are always near the top.
-  const trimmed = html.length > 120_000 ? html.slice(0, 120_000) : html;
+  // Trim to ~150k chars; the buy box / title / price are always near the top.
+  // Bumped from 120k after observing some Amazon EG product pages have heavy
+  // sponsored-ad headers that pushed the buy-box content past the original cap.
+  const trimmed = html.length > 150_000 ? html.slice(0, 150_000) : html;
   return `Extract structured product data from the Amazon EG HTML below.
 
 URL: ${url}
-Item name (sanity check): ${itemName}
+Item name from our catalog (sanity check, NOT a hard match — Amazon listing may differ): ${itemName}
 Item UoM (for pack-size disambiguation): ${itemUom}
 
 Output a single JSON object with exactly these keys:
@@ -225,10 +227,21 @@ Output a single JSON object with exactly these keys:
 }
 
 Rules:
-- price_egp: extract the buyable price near "Add to Cart". Ignore strikethrough/MSRP.
-- pack_size: 1 for single units; >=2 for multi-packs. Default 1 if unclear.
-- product_name_en: page H1 / product title in English, cleaned (no "(Pack of N)" suffix).
-- status="ok" when in_stock=true AND price_egp set; "oos" when out of stock; "404" if HTML is captcha / search results / error page.
+- price_egp: the BUYABLE price next to the Add-to-Cart button (the canonical product). Skip:
+    • Sponsored/promoted product injections at the top of the page (those have their own price + "Sponsored" label)
+    • Strikethrough/MSRP "was" prices
+    • "Frequently bought together" bundle prices
+    • Recommendation widgets ("Customers also viewed", etc.)
+  Only the main product's buy-box price counts. If the page has multiple sponsored ads but no main product, THEN return null.
+- pack_size: 1 for single units; >=2 for multi-packs ("Pack of N", "N-pack"). Default 1 if unclear.
+- product_name_en: the canonical product H1 in English (NOT a sponsored item title at the top).
+- in_stock: true if "In Stock" / "Add to Cart" is shown for the canonical product.
+- status:
+    • "ok"  → product page with a buyable price (in_stock=true AND price_egp set)
+    • "oos" → product page where the canonical item is explicitly Out of Stock / Currently unavailable / Sold out
+    • "404" → ONLY if the HTML is a captcha challenge, login wall, raw error page, or search-results listing (multiple unrelated products with no single canonical title). DO NOT use 404 just because there is a sponsored ad at the top — Amazon product pages routinely have those above the canonical product.
+
+Pages that show a single canonical product with a price MUST return "ok" or "oos", never "404", regardless of sponsored injections, banners, recommendation carousels, or layout quirks.
 
 Return JSON only. No markdown fences. No prose.
 
