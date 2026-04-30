@@ -58,6 +58,97 @@ User: "Ship all Phases together. Deploy & Commit Automatically." Done.
 
 ---
 
+## 🟢 Earlier turn (parallel session) — Amazon-product-name mismatch banner SHIPPED + DEPLOYED (commit `c034519`, deploy `dpl_…cnuwi7nbj`)
+
+User UX request: "When I Add the new URL, There should be message — Update item or retry. If Update, its goes to item details and edits the details as per the added url." Triggered by the APC mismatch case (user pasted URL for 4L Frida Floor Disinfectant under SKU `CLN-APC-1L "All-purpose cleaner 1L"` — the previous sourcer code would have silently overwritten the SKU's name_en to `Frida Floor Disinfectant + Cleaner 5X Power, 4 Liters` if the parser hadn't false-flagged 404).
+
+**Three changes shipped in one commit:**
+
+1. **DB migration `0060_amazon_product_name_fields.sql`** — adds 3 new columns:
+   - `amazon_eg_product_name_en text`
+   - `amazon_eg_product_name_ar text`
+   - `amazon_eg_brand text`
+   These are SHADOW columns the sourcer writes to, separate from the operator's curated `name_en`/`name_ar`/`brand`. Applied to prod via Supabase MCP.
+
+2. **`src/lib/beithady/inventory/amazon-eg-sourcer.ts`** — `persistProbeResult` no longer writes to `name_en`/`name_ar`/`brand`. It writes the fetched values to the new shadow columns instead. **No more silent overwrites.** Existing rows that already had Amazon names (Antifly) are unaffected — the previous overwrite landed before this change, and the data is preserved.
+
+3. **`src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx`** + integration into `items-section-list.tsx` — when the row has `amazon_eg_product_name_en` AND it differs from `name_en` (loose substring match — case + punctuation insensitive, treats "Bleach 1L" ⊂ "Clorox Bleach 1L Original" as matching), an amber banner appears as a third row under that item showing:
+   - Side-by-side "Your SKU" vs "Amazon EG" comparison (name + brand for each)
+   - "Open on Amazon" link
+   - **"Use Amazon details"** button → calls new `applyAmazonDetailsAction(itemId)` which copies fetched values to canonical columns
+   - **"Ignore"** button → local-state dismiss; reappears on next sync if names still differ
+
+4. **New server action `applyAmazonDetailsAction(itemId)`** in `actions.ts` — operator-driven (never fires automatically). Copies `amazon_eg_product_name_en/_ar/_brand` → `name_en/name_ar/brand`. Audit-logged with before/after for rollback.
+
+**`shouldShowAmazonMismatch()` helper** — pure function that decides whether to render the banner. Normalizes both strings (lowercase, alphanumeric only), checks for exact match OR substring containment in either direction (≥4 chars). Conservative — won't false-trigger on small prefix/suffix differences.
+
+**End-to-end flow operator now sees:**
+1. Click Set URL → paste `https://www.amazon.eg/dp/B0XXXXXXXX` → Save
+2. Background sync fires (~10s) → ScrapingBee fetches HTML → Haiku parses → name + brand land in shadow columns, price + pack + image in normal columns
+3. Items page next render: row's cost cell flips from `~55` to live cost. **If the Amazon listing's name differs from the SKU name, an amber banner appears as a third row** showing both sides + "Use Amazon details" button.
+4. Click "Use Amazon details" → SKU's name_en/brand updated to match Amazon. Banner disappears (names now match).
+5. Or click "Ignore" → banner hidden until next sync.
+6. Or paste a new URL → re-sync → new mismatch banner if the new product's name also differs.
+
+**Why the prior approach was wrong:** the previous sourcer code (`namePatch.name_en = result.product_name_en`) silently overwrote the operator's curated SKU name on every sync. For URL mismatches, this would corrupt the catalog without warning. The new approach surfaces the mismatch and requires operator confirmation.
+
+**Files touched this turn:**
+- New: `supabase/migrations/0060_amazon_product_name_fields.sql`, `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx`
+- Edited: `src/lib/beithady/inventory/amazon-eg-sourcer.ts` (write to shadow cols), `src/lib/beithady/inventory/catalog.ts` (3 new fields), `src/app/beithady/inventory/items/_components/items-section-list.tsx` (banner row), `src/app/beithady/inventory/items/actions.ts` (applyAmazonDetailsAction)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Next time the operator pastes a URL** — they'll either:
+- Get a clean ScrapingBee fetch with matching name → no banner, just the price update
+- Get a fetch with a different product → see the amber banner → choose to apply or ignore
+
+---
+
+## 🟢 Earlier this turn — ScrapingBee path PROVEN working (Antifly fetched live) + Haiku 404 false-positive bug fixed
+
+User added a 2nd Amazon URL (CLN-APC-1L → `https://www.amazon.eg/dp/B08WJJB6KV`) and clicked Sync. Two findings:
+
+### ✅ ScrapingBee end-to-end is working
+
+DB inspection of `CLN-ANTIFLY-400ML` after the sync:
+```
+amazon_eg_price_egp:        89.00         ← was 90 (manual SQL); now LIVE 89 from ScrapingBee
+has_image:                  TRUE          ← only ScrapingBee/browser fetches can populate this
+amazon_eg_last_status:      ok
+amazon_eg_last_checked_at:  2026-04-30 16:48:47
+```
+This is definitive proof — Anthropic's web_fetch can't extract image URLs and it gets rate_limited on amazon.eg, so this can ONLY have come from the ScrapingBee path. Haiku correctly parsed the HTML, populated price + name + brand + image_url + stock + rating fields.
+
+### ❌ Two separate issues with CLN-APC-1L
+
+**Issue 1 — wrong product (user error).** ASIN `B08WJJB6KV` is "Frida Floor Disinfectant + Cleaner 5X Power, 4 Liters, Floral" at EGP 164.95 — verified via Chrome MCP navigation. That's a 4L FLOOR cleaner, not a 1L all-purpose cleaner. The user's SKU `CLN-APC-1L` describes a different product. They need to either find a 1L APC URL or rename the SKU.
+
+**Issue 2 — parser bug (fixed, commit `e8f74be`, deploying).** Even with the wrong product, the parser SHOULD have extracted 164.95 EGP for "Frida Floor Disinfectant…". Instead it returned `status='404'`. Root cause: the page has a sponsored ad ("Signal Triple Clean 37.99 EGP") at the top of the HTML, and Haiku was over-classifying the whole page as "not a product page". Fix in `buildHtmlExtractionPrompt`:
+- Trim ceiling raised 120k → 150k chars (sponsored headers were pushing buy-box past the cut)
+- Prompt explicitly enumerates: skip sponsored injections, bundle prices, recommendation carousels, "was" prices
+- Hard rule: "Pages that show a single canonical product with a price MUST return ok or oos, never 404, regardless of sponsored injections."
+
+### Cosmetic fix from earlier this turn (commit `91b83f0`)
+
+`testScrapingBee()` no longer appends "concurrency ?" to the test detail string when ScrapingBee's free tier `/api/v1/usage` doesn't return `concurrency_limit`. After Test connection click, free-tier users see clean "1,000 of 1,000 credits remaining" with no trailing junk.
+
+### Active commits this session (latest first)
+
+`e8f74be` (parser 404 fix) → `2f11919` (handoff) → `91b83f0` (cosmetic) → `2f83988` (handoff) → `b0ae924` (ScrapingBee main) → `2f4cf23` (manual price entry) → `5d03fe2` (URL canonicalize) → `4c57682` (F3+F1) → `f4f9d14` (M2-M5) → `7aa2711` (M1).
+
+### Awaiting user
+
+To verify the parser fix, user needs to do one of:
+- A) Find a real 1L all-purpose cleaner URL on Amazon EG, paste over the Frida URL, save → ScrapingBee + fixed parser pull correct price for the actual product
+- B) Keep Frida URL for now, just re-paste it to re-trigger the sync → with the fix deployed, it'll save 164.95 EGP under CLN-APC-1L (mismatched product but proves the parser works)
+- B is faster for verification; A is correct for actual usage.
+
+### Deploy state
+
+`e8f74be` push to main triggered Vercel auto-deploy. Manual `vercel --prod` also fired (background task `bzmjvmzvt`). Should be READY in ~2-9 min depending on cache state.
+
+---
+
 ## 🟢 Earlier this session — Estimator UI confirmed showing live vs estimate cleanly; awaiting user sync click
 
 User shared the estimator detail screenshot showing CLN-ANTIFLY-400ML at **90 EGP plain slate** with green "Amazon EG" badge (live), and the other 16 chemicals lines all showing **~XX EGP amber** with "Search Amazon EG" (estimates). The F1 estimate-flag UX is working as designed.
