@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { getMessageTemplate } from './loyalty-config';
 import { templateRender } from './reservation-helpers';
 
@@ -17,7 +18,11 @@ export async function runLoyaltyTick(): Promise<{
   vip_synced: number;
   congrats_sent: number;
   by_tier: Record<string, unknown>;
+  paused?: boolean;
 }> {
+  if (await isAutomationPaused('loyalty_notifications')) {
+    return { promoted: 0, vip_synced: 0, congrats_sent: 0, by_tier: {}, paused: true };
+  }
   const sb = supabaseAdmin();
 
   // 1. Capture pre-state so we know who got promoted
@@ -75,6 +80,7 @@ export async function runLoyaltyTick(): Promise<{
       body,
       agentUserId: null,
       agentDisplayName: 'Beit Hady automated',
+      mode: 'automatic',
     });
     if (r.ok) congratsSent++;
   }

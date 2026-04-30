@@ -6,6 +6,7 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { resolvePaymentForReservation } from '@/lib/beithady/operations/payment-resolver';
 import { blockGuestyAvailability, unblockGuestyAvailability } from '@/lib/beithady/operations/guesty-writes';
 import { sendWhatsApp } from '@/lib/whatsapp/green-api';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 
 async function writeAudit(
   actorUserId: string,
@@ -212,6 +213,10 @@ export async function sendReconfirmationAction(input: {
   customMessage?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const { user } = await requireBeithadyPermission('operations', 'full');
+  // Phase C.5 follow-up — granular kill switch.
+  if (await isAutomationPaused('cancel_risk_reconfirm')) {
+    return { ok: false, error: 'cancel_risk_reconfirm_paused' };
+  }
   const sb = supabaseAdmin();
   const { data: r } = await sb
     .from('beithady_reservation_grid_v')

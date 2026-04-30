@@ -2,7 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendGuestyConversationPost } from '@/lib/guesty';
 import { recordAudit } from '@/lib/beithady/audit';
-import { isOutboundPaused } from '@/lib/beithady/settings';
+import { isManualOutboundPaused } from '@/lib/beithady/automations';
 
 // Server-side wrapper around sendGuestyConversationPost. Persists the
 // outbound message into beithady_messages (channel=guesty, direction=
@@ -19,6 +19,10 @@ export type SendGuestyArgs = {
   // Phase Q.3 — multi-attachment support per Q.0 finding (Guesty Open API
   // already accepts attachments[] on conversation-posts).
   attachments?: Array<{ url: string; name: string; mime: string }>;
+  // Phase C.5 follow-up — call mode. 'manual' (default) gates on the
+  // manual kill switch; 'automatic' bypasses it (caller is responsible
+  // for gating its own automation kill switch via isAutomationPaused).
+  mode?: 'manual' | 'automatic';
 };
 
 export type SendGuestyResult =
@@ -26,18 +30,20 @@ export type SendGuestyResult =
   | { ok: false; status: number; error: string; fallbackUrl?: string };
 
 export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuestyResult> {
-  // Global emergency kill switch. Refuse the send before touching the
-  // provider so a single beithady_settings flip stops every sender path.
-  if (await isOutboundPaused()) {
+  // Phase C.5 follow-up — manual kill switch only gates manual paths.
+  // Automation paths gate their own kill switch at the orchestrator
+  // layer (isAutomationPaused) and pass mode='automatic' to bypass.
+  const mode = args.mode || 'manual';
+  if (mode === 'manual' && (await isManualOutboundPaused())) {
     await recordAudit({
       actor_user_id: args.agentUserId,
       module: 'communication',
       action: 'send_guesty_blocked_killswitch',
       target_type: 'conversation',
       target_id: args.beithadyConversationId,
-      metadata: { reason: 'beithady_outbound_paused=true', body_length: args.body.length },
+      metadata: { reason: 'beithady_pause_manual_outbound=true', body_length: args.body.length },
     });
-    return { ok: false, status: 503, error: 'outbound_paused' };
+    return { ok: false, status: 503, error: 'manual_outbound_paused' };
   }
 
   const sb = supabaseAdmin();

@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { getUpcomingArrivals, matchBeithadyGuest } from './reservation-helpers';
 
 export type UpsellSku = {
@@ -81,7 +82,11 @@ export async function runUpsellDispatch(): Promise<{
   sent: number;
   skipped: number;
   errors: Array<{ reservation_id: string; error: string }>;
+  paused?: boolean;
 }> {
+  if (await isAutomationPaused('upsell_offer')) {
+    return { considered: 0, sent: 0, skipped: 0, errors: [], paused: true };
+  }
   const sb = supabaseAdmin();
   // Window: check-in is 36-60h from now (so 12:00 Cairo cron sends to
   // ~next-next-day arrivals)
@@ -127,6 +132,7 @@ export async function runUpsellDispatch(): Promise<{
       body,
       agentUserId: null,
       agentDisplayName: 'Beit Hady automated',
+      mode: 'automatic',
     });
 
     const totalUsd = skus.reduce((s, p) => s + Number(p.price_usd || 0), 0);

@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
+import { isAutomationPaused } from '@/lib/beithady/automations';
 import { getUpcomingArrivals, matchBeithadyGuest, mintToken, templateRender } from './reservation-helpers';
 
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
@@ -12,7 +13,11 @@ export async function runBoardingPassDispatch(): Promise<{
   sent: number;
   skipped: number;
   errors: Array<{ reservation_id: string; error: string }>;
+  paused?: boolean;
 }> {
+  if (await isAutomationPaused('boarding_pass')) {
+    return { considered: 0, sent: 0, skipped: 0, errors: [], paused: true };
+  }
   const sb = supabaseAdmin();
   // Window: check-in is 18-30h from now (10:30 Cairo cron after pre-arrival)
   const arrivals = await getUpcomingArrivals(18, 30);
@@ -85,6 +90,7 @@ export async function runBoardingPassDispatch(): Promise<{
       body,
       agentUserId: null,
       agentDisplayName: 'Beit Hady automated',
+      mode: 'automatic',
     });
 
     if (existing) {

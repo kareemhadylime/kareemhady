@@ -117,6 +117,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
 // even within the manager role's general 'settings: read' permission.
 export const ADMIN_ONLY_SETTINGS_SUBTABS = new Set([
   'integrations',  // credentials are admin-only
+  'outbound',      // Phase C.5 follow-up — kill switches affect production messaging
 ]);
 
 // ---- DB queries ----
