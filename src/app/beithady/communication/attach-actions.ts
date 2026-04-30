@@ -296,13 +296,28 @@ export async function sendGuestyMultiAttachResult(formData: FormData): Promise<M
       return { ok: false, error: 'no_files_or_body' };
     }
 
+    // Guesty's API rejects our attachments[] field with VALIDATION_ERROR
+    // ("attachments does not match any of the allowed types") regardless
+    // of the shape we send — likely because Airbnb-native and several
+    // other Guesty modules don't accept attachments via the Open API at
+    // all. Universal fallback: inline the URLs in the message body.
+    // The guest sees a clickable link in their channel app.
+    const linkLines = attachments.map(a => {
+      const label = a.name || (a.mime?.startsWith('image/') ? 'Photo' : 'File');
+      return `📎 ${label}: ${a.url}`;
+    });
+    const composedBody = [body, ...linkLines]
+      .filter(s => s && s.trim().length > 0)
+      .join('\n\n');
+
     const result = await sendGuestyMessage({
       beithadyConversationId: conversationId,
-      body: body || '(see attachments)',
+      body: composedBody || '(see attachments)',
       module: moduleVal,
       agentUserId: user.id,
       agentDisplayName: user.username,
-      attachments,
+      // Don't pass attachments[] to Guesty — schema mismatch. URLs are
+      // inlined in body above.
     });
 
     await recordAudit({
