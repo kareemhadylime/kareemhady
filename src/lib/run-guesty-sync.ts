@@ -26,6 +26,35 @@ import {
 // update changed ones.
 
 const BACKFILL_DAYS = 365;
+
+// Minimal HTML → plain-text. Used for Guesty system emails (booking
+// confirmations etc.) where `plainTextBody` is empty and `body` contains
+// raw HTML. We don't pull a full sanitizer dep — the source is Guesty's
+// own templated emails, not user-controlled, so a simple tag-strip is
+// safe enough for inbox display.
+function stripHtmlToText(html: string): string {
+  return html
+    // Common entities first so `&lt;br&gt;` style escapes don't break tag stripping below.
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    // <br> + block-ish closers → newlines so the text keeps structure.
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    // Drop <!DOCTYPE ...>, <script>, <style>, and all remaining tags.
+    .replace(/<!doctype[^>]*>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    // Collapse runs of whitespace introduced by the above.
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const LISTINGS_FIELDS =
   '_id nickname title active listingType masterListingId bedrooms accommodates propertyType accountId address tags customFields';
 // Includes cancelledAt + lastUpdatedAt so the daily report's cancellations
@@ -482,10 +511,15 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
             .map(p => {
               const from = (p.from || {}) as { type?: string; fullName?: string };
               const module = (p.module || {}) as { type?: string; subject?: string; reservationId?: string };
-              const text =
+              // Prefer Guesty's plain-text body. Many system emails (booking
+              // confirmations etc.) only populate `body` with HTML; strip
+              // tags so the thread doesn't render raw <!DOCTYPE html>...
+              const rawText =
                 (typeof p.plainTextBody === 'string' && p.plainTextBody) ||
                 (typeof p.body === 'string' && p.body) ||
                 '';
+              const looksLikeHtml = /<\/?(html|body|div|br|p|table|head|strong|span|h[1-6])\b/i.test(rawText);
+              const text = looksLikeHtml ? stripHtmlToText(rawText) : rawText;
               return {
                 id: String(p._id),
                 conversation_id: t.id,

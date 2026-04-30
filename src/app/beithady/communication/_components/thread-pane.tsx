@@ -330,9 +330,16 @@ function Bubble({
   guestEmail?: string | null;
 }) {
   const inbound = m.direction === 'inbound';
+  // 3 visual lanes: inbound (guest, white-on-left), manual outbound
+  // (BH staff typed, dark slate), auto outbound (Guesty template /
+  // automation, cyan-tinted with dashed border so it's visually
+  // distinct from real human replies).
+  const isAutoOutbound = !inbound && m.is_automatic;
   const tone = inbound
     ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-    : 'bg-slate-700 text-white border-slate-700';
+    : isAutoOutbound
+      ? 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-950 dark:text-cyan-100 border-cyan-300 dark:border-cyan-700 border-dashed'
+      : 'bg-slate-700 text-white border-slate-700';
   const channel = m.channel;
   const ChIcon = channel === 'guesty' ? Mail : channel === 'wa_cloud' ? Bot : Smartphone;
 
@@ -353,13 +360,34 @@ function Bubble({
   return (
     <div data-thread-msg-id={m.id} className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
       <div className={`max-w-[80%] rounded-2xl border px-4 py-2 shadow-sm ${tone}`}>
-        <div className={`flex items-center gap-2 text-[10px] uppercase tracking-wide font-semibold mb-1 ${inbound ? 'text-slate-500' : 'text-slate-300'}`}>
+        <div className={`flex items-center gap-2 text-[10px] uppercase tracking-wide font-semibold mb-1 ${
+          inbound ? 'text-slate-500'
+            : isAutoOutbound ? 'text-cyan-700 dark:text-cyan-300'
+            : 'text-slate-300'
+        }`}>
           <ChIcon size={11} />
           {(m.module_type || channel).toUpperCase()}
-          {m.from_full_name && <span className="opacity-70">· {m.from_full_name}</span>}
+          {/* Sender label: prefer the explicit name, fall back to a
+              friendly identifier for Guesty system messages so the row
+              doesn't appear orphaned (Guesty auto-emails like "NEW
+              BOOKING from …" arrive with from_full_name=null). */}
+          {m.from_full_name
+            ? <span className="opacity-70">· {m.from_full_name}</span>
+            : (channel === 'guesty' && m.is_automatic)
+              ? <span className="opacity-70">· Guesty (system)</span>
+              : null}
           {m.is_automatic && (
-            <span className={`inline-flex items-center gap-1 ${inbound ? 'text-violet-600' : 'text-violet-200'}`}>
-              <Sparkles size={10} /> auto
+            isAutoOutbound
+              ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-200/80 dark:bg-cyan-800/80 text-cyan-900 dark:text-cyan-100 text-[9px] font-bold tracking-wider">
+                  <Sparkles size={9} /> AUTO
+                </span>
+              : <span className={`inline-flex items-center gap-1 ${inbound ? 'text-violet-600' : 'text-violet-200'}`}>
+                  <Sparkles size={10} /> auto
+                </span>
+          )}
+          {!m.is_automatic && !inbound && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-600 dark:bg-slate-500 text-white text-[9px] font-bold tracking-wider">
+              MANUAL
             </span>
           )}
           {m.template_name && (
@@ -367,7 +395,11 @@ function Bubble({
           )}
         </div>
         {m.module_subject && (
-          <div className={`text-xs font-semibold mb-1 ${inbound ? 'text-slate-600' : 'text-slate-200'}`}>
+          <div className={`text-xs font-semibold mb-1 ${
+            inbound ? 'text-slate-600'
+              : isAutoOutbound ? 'text-cyan-800 dark:text-cyan-200'
+              : 'text-slate-200'
+          }`}>
             {m.module_subject}
           </div>
         )}
@@ -384,7 +416,11 @@ function Bubble({
             {m.body || <em className="opacity-60">(empty)</em>}
           </div>
         )}
-        <div className={`text-[10px] mt-1 ${inbound ? 'text-slate-400' : 'text-slate-300'}`}>
+        <div className={`text-[10px] mt-1 ${
+          inbound ? 'text-slate-400'
+            : isAutoOutbound ? 'text-cyan-700/70 dark:text-cyan-300/70'
+            : 'text-slate-300'
+        }`}>
           {fmtCairoDateTime(m.sent_at || m.created_at)}
         </div>
       </div>

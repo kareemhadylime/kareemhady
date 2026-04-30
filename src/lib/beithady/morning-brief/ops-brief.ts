@@ -2,47 +2,28 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase';
 import { addDays as addDaysCairo } from '@/lib/beithady-daily-report/cairo-dates';
-import { countryForBuilding, type CountryCode } from './country';
+import {
+  bucketForListing,
+  isExcludedFromRevenue,
+  countByBucket,
+  BUCKET_LABEL,
+  EGYPT_BUCKETS,
+  type BriefBucket,
+} from './country';
 import type { Brief, BriefSection } from './types';
 
 // Operations & Housekeeping brief — what crew + ops manager need at 8am.
 // Rendered in Arabic (RTL).
 //
-// Audit changes (2026-04-30)
-// --------------------------
-// * **Status filter tightened.** Same-day flips, departures, arrivals,
-//   long-stays, tomorrow-prep all now require status IN
-//   ('confirmed','reserved','awaiting_payment') — Guesty parity.
-//   Inquiries no longer trigger phantom housekeeping flips.
-// * **Country segregation.** Section headers carry per-country counts
-//   (مصر / الإمارات). Items prefixed with country flag.
-// * **"Currently staying" section.** New section matches Guesty's
-//   homepage tile so housekeeping has visibility on in-house guests
-//   (linen / waste / supplies pacing).
-//
-// Older audit (2026-04-28)
-// ------------------------
-// * Owner stays + manual blocks excluded from arrivals / departures /
-//   long-stays / tomorrow-prep — they're not real guest events.
-// * Open tasks filtered to ≤7 d window.
-// * Section order: Same-day flips → Departures → Arrivals → Long stays
-//   → Open tasks → Manual blocks → Tomorrow's prep.
+// Audit changes (2026-04-30 part 2)
+// ---------------------------------
+// * **Bucket rebucket.** UAE units (BH-DXB) always shown on a separate
+//   info line in Arabic ("BH-DXB: ن وحدة (مستثناة من الإجمالي)"), never
+//   counted in headlines.
+// * Status filter IN ('confirmed','reserved','awaiting_payment').
 
 const ACTIVE_STATUSES = ['confirmed', 'reserved', 'awaiting_payment'] as const;
 
-const COUNTRY_FLAG: Record<CountryCode, string> = {
-  EG: '🇪🇬',
-  AE: '🇦🇪',
-  OTHER: '🌍',
-};
-const COUNTRY_AR: Record<CountryCode, string> = {
-  EG: 'مصر',
-  AE: 'الإمارات',
-  OTHER: 'أخرى',
-};
-
-// M.14: build the inventory stockout-risk section. Lifted out so the
-// sections array can stay declarative.
 async function buildStockoutSection(sb: SupabaseClient): Promise<BriefSection> {
   const { data: stockRows } = await sb
     .from('beithady_inventory_stock')
@@ -124,7 +105,6 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     { data: blocks },
     { data: extensions },
   ] = await Promise.all([
-    // Today's check-outs (real guests + non-block reservations only)
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_out_date', dateIso)
@@ -132,7 +112,6 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
-    // Today's check-ins
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_in_date', dateIso)
@@ -140,7 +119,6 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
-    // Tomorrow's check-ins — prep heads-up
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, channel, nights')
       .eq('check_in_date', tomorrow)
@@ -148,7 +126,6 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
-    // Currently staying — Guesty parity
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, listing_id, listing_nickname, building_code, guest_name, guest_count, nights, check_in_date, check_out_date')
       .lte('check_in_date', dateIso)
@@ -156,7 +133,6 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true),
-    // Open tasks within freshness window
     sb.from('beithady_tasks')
       .select('id, title, type, priority, status, due_at, building_code, reservation_id')
       .in('status', ['pending', 'in_progress'])
@@ -164,13 +140,11 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       .lte('due_at', taskWindowCeilTs)
       .order('due_at', { ascending: true })
       .limit(10),
-    // Manual blocks starting today
     sb.from('beithady_calendar_manual_blocks')
       .select('id, listing_id, start_date, end_date, reason, notes')
       .eq('start_date', dateIso),
-    // Long stays in progress (≥7 nights)
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, listing_nickname, guest_name, check_in_date, check_out_date, nights, building_code')
+      .select('reservation_id, listing_nickname, listing_id, guest_name, check_in_date, check_out_date, nights, building_code')
       .lte('check_in_date', dateIso)
       .gt('check_out_date', dateIso)
       .in('status', ACTIVE_STATUSES)
@@ -190,12 +164,12 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   const blockRows = (blocks as Array<{ id: string; listing_id: string; start_date: string; end_date: string; reason: string; notes: string | null }> | null) || [];
   const opsBlocks = blockRows.filter(b => b.reason === 'maintenance' || b.reason === 'other');
   const ownerBlocks = blockRows.filter(b => b.reason === 'owner_stay' || b.reason === 'hold');
-  const ext = (extensions as Array<{ reservation_id: string; listing_nickname: string | null; guest_name: string | null; check_in_date: string; check_out_date: string; nights: number | null; building_code: string | null }> | null) || [];
+  const ext = (extensions as Array<{ reservation_id: string; listing_nickname: string | null; listing_id: string | null; guest_name: string | null; check_in_date: string; check_out_date: string; nights: number | null; building_code: string | null }> | null) || [];
 
   // Same-day flips: listings present in BOTH today's check-outs AND
-  // today's check-ins.
-  const checkoutListings = new Set(co.map(r => r.listing_id));
-  const sameDayFlips = ci.filter(r => checkoutListings.has(r.listing_id));
+  // today's check-ins. Egypt-only for the headline.
+  const checkoutListingIds = new Set(co.map(r => r.listing_id));
+  const sameDayFlips = ci.filter(r => checkoutListingIds.has(r.listing_id));
 
   const nightsLabel = (n: number | null): string =>
     n != null && n > 0 ? `${n} ليالٍ` : '— ليالٍ';
@@ -204,88 +178,143 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     return remain > 0 ? `${remain} ليالٍ متبقية` : 'تغادر اليوم';
   };
 
-  // Per-country counts.
-  const countByCountry = <T extends { building_code: string | null }>(rows: T[]) => {
-    const out: Record<CountryCode, number> = { EG: 0, AE: 0, OTHER: 0 };
-    for (const r of rows) out[countryForBuilding(r.building_code)] += 1;
-    return out;
+  // Per-bucket counts.
+  const coCount = countByBucket(co);
+  const ciCount = countByBucket(ci);
+  const stayCount = countByBucket(stay);
+  const flipCount = countByBucket(sameDayFlips);
+  const ciTomorrowCount = countByBucket(ciTomorrow);
+
+  const sumEgypt = (counts: Record<BriefBucket, number>): number =>
+    EGYPT_BUCKETS.reduce((s, b) => s + counts[b], 0);
+
+  const coEgypt = sumEgypt(coCount);
+  const ciEgypt = sumEgypt(ciCount);
+  const stayEgypt = sumEgypt(stayCount);
+  const flipEgypt = sumEgypt(flipCount);
+  const ciTomorrowEgypt = sumEgypt(ciTomorrowCount);
+
+  const bucketBreakdownAr = (counts: Record<BriefBucket, number>): string =>
+    EGYPT_BUCKETS.filter(b => counts[b] > 0).map(b => `${BUCKET_LABEL[b].ar}: ${counts[b]}`).join(' · ');
+
+  const dxbInfoAr = (count: number, noun = 'وحدة'): string | null => {
+    if (count === 0) return null;
+    return `BH-DXB: ${count} ${noun} (مستثناة من الإجمالي)`;
   };
-  const countryBreakdownAr = (counts: Record<CountryCode, number>): string => {
-    const parts: string[] = [];
-    if (counts.EG > 0) parts.push(`${COUNTRY_AR.EG}: ${counts.EG}`);
-    if (counts.AE > 0) parts.push(`${COUNTRY_AR.AE}: ${counts.AE}`);
-    if (counts.OTHER > 0) parts.push(`${COUNTRY_AR.OTHER}: ${counts.OTHER}`);
-    return parts.join(' · ');
-  };
 
-  const coCounts = countByCountry(co);
-  const ciCounts = countByCountry(ci);
-  const stayCounts = countByCountry(stay);
-  const flipCounts = countByCountry(sameDayFlips);
-  const ciTomorrowCounts = countByCountry(ciTomorrow);
+  const tagBucket = (r: { building_code: string | null; listing_id: string | null; listing_nickname: string | null }): string =>
+    BUCKET_LABEL[bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })].en;
 
-  const countryTag = (code: string | null): string =>
-    COUNTRY_FLAG[countryForBuilding(code)];
-
-  const totalGuestsStaying = stay.reduce((s, r) => s + (r.guest_count || 0), 0);
+  const totalGuestsEgypt = stay
+    .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+    .reduce((s, r) => s + (r.guest_count || 0), 0);
 
   const sections: BriefSection[] = [
     {
-      title: `تنظيف بين النزلاء في نفس اليوم (${sameDayFlips.length})${sameDayFlips.length > 0 ? ` — ${countryBreakdownAr(flipCounts)}` : ''}`,
+      title: `تنظيف بين النزلاء في نفس اليوم (${flipEgypt})`,
       emoji: '⚠️',
-      items: sameDayFlips.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || r.listing_id}`,
-        secondary: 'مغادرة الساعة 11 ووصول نزيل جديد نفس اليوم. أعطِ الأولوية لطاقم النظافة.',
-        tag: { label: 'أولوية', tone: 'red' },
-      })),
+      items: [
+        ...sameDayFlips
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || r.listing_id}`,
+            secondary: 'مغادرة الساعة 11 ووصول نزيل جديد نفس اليوم. أعطِ الأولوية لطاقم النظافة.',
+            tag: { label: 'أولوية', tone: 'red' as const },
+          })),
+        ...(flipCount['BH-DXB'] > 0 ? [{
+          primary: dxbInfoAr(flipCount['BH-DXB'], 'تنظيف') || '',
+          secondary: undefined,
+          tag: { label: 'الإمارات — مستثناة', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'لا توجد عمليات تنظيف بين نزلاء بنفس اليوم. يمكن للطاقم التنظيم بشكل طبيعي.',
     },
     {
-      title: `النزلاء الحاليون داخل الوحدات (${stay.length})${stay.length > 0 ? ` — ${countryBreakdownAr(stayCounts)} · ${totalGuestsStaying} ضيوف` : ''}`,
+      title: `النزلاء الحاليون داخل الوحدات (${stayEgypt})`,
       emoji: '🏨',
       items: [
-        ...(stayCounts.EG > 0 ? [{
-          primary: `🇪🇬 ${COUNTRY_AR.EG} — ${stayCounts.EG} وحدة مأهولة`,
-          secondary: `إجمالي الضيوف: ${stay.filter(r => countryForBuilding(r.building_code) === 'EG').reduce((s, r) => s + (r.guest_count || 0), 0)}`,
+        ...(stayEgypt > 0 ? [{
+          primary: `${bucketBreakdownAr(stayCount)} · إجمالي الضيوف ${totalGuestsEgypt}`,
+          secondary: 'وحدات مصر المأهولة.',
+          tag: { label: 'مأهولة', tone: 'green' as const },
         }] : []),
-        ...(stayCounts.AE > 0 ? [{
-          primary: `🇦🇪 ${COUNTRY_AR.AE} — ${stayCounts.AE} وحدة مأهولة`,
-          secondary: `إجمالي الضيوف: ${stay.filter(r => countryForBuilding(r.building_code) === 'AE').reduce((s, r) => s + (r.guest_count || 0), 0)}`,
+        ...(stayCount['BH-DXB'] > 0 ? [{
+          primary: `BH-DXB: ${stayCount['BH-DXB']} وحدة (مستثناة من الإجمالي)`,
+          secondary: undefined,
+          tag: { label: 'الإمارات — مستثناة', tone: 'slate' as const },
         }] : []),
       ],
       empty_message: 'لا توجد إقامات نشطة اليوم.',
     },
     {
-      title: `المغادرات اليوم (${co.length})${co.length > 0 ? ` — ${countryBreakdownAr(coCounts)}` : ''}`,
+      title: `المغادرات اليوم (${coEgypt})`,
       emoji: '📤',
-      items: co.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
-        secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
-        tag: checkoutListings.has(r.listing_id) && sameDayFlips.find(f => f.listing_id === r.listing_id)
-          ? { label: 'تنظيف عاجل', tone: 'red' }
-          : undefined,
-      })),
+      items: [
+        ...co
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+            secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
+            tag: checkoutListingIds.has(r.listing_id) && sameDayFlips.find(f => f.listing_id === r.listing_id)
+              ? { label: 'تنظيف عاجل', tone: 'red' as const }
+              : undefined,
+          })),
+        ...(coEgypt > 0 ? [{
+          primary: `توزيع — ${bucketBreakdownAr(coCount)}`,
+          secondary: undefined,
+          tag: { label: 'مصر', tone: 'green' as const },
+        }] : []),
+        ...(coCount['BH-DXB'] > 0 ? [{
+          primary: dxbInfoAr(coCount['BH-DXB'], 'مغادرات') || '',
+          secondary: undefined,
+          tag: { label: 'الإمارات — مستثناة', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'لا توجد مغادرات اليوم.',
     },
     {
-      title: `الوصول اليوم (${ci.length})${ci.length > 0 ? ` — ${countryBreakdownAr(ciCounts)}` : ''}`,
+      title: `الوصول اليوم (${ciEgypt})`,
       emoji: '📥',
-      items: ci.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
-        secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
-        tag: checkoutListings.has(r.listing_id)
-          ? { label: 'تنظيف بين النزلاء', tone: 'red' }
-          : undefined,
-      })),
+      items: [
+        ...ci
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+            secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
+            tag: checkoutListingIds.has(r.listing_id)
+              ? { label: 'تنظيف بين النزلاء', tone: 'red' as const }
+              : undefined,
+          })),
+        ...(ciEgypt > 0 ? [{
+          primary: `توزيع — ${bucketBreakdownAr(ciCount)}`,
+          secondary: undefined,
+          tag: { label: 'مصر', tone: 'green' as const },
+        }] : []),
+        ...(ciCount['BH-DXB'] > 0 ? [{
+          primary: dxbInfoAr(ciCount['BH-DXB'], 'وصولات') || '',
+          secondary: undefined,
+          tag: { label: 'الإمارات — مستثناة', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'لا توجد وصولات اليوم.',
     },
     {
-      title: `إقامات طويلة لا تزال قائمة (${ext.length})`,
+      title: `إقامات طويلة لا تزال قائمة (${ext.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length})`,
       emoji: '🏠',
-      items: ext.slice(0, 10).map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
-        secondary: `${nightsRemainingLabel(r.check_out_date, dateIso)} · حتى ${r.check_out_date}${r.building_code ? ` · ${r.building_code}` : ''}`,
-      })),
+      items: [
+        ...ext
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .slice(0, 10)
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+            secondary: `${nightsRemainingLabel(r.check_out_date, dateIso)} · حتى ${r.check_out_date}${r.building_code ? ` · ${r.building_code}` : ''}`,
+          })),
+        ...(ext.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length > 0 ? [{
+          primary: `BH-DXB: ${ext.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length} إقامة (مستثناة من الإجمالي)`,
+          secondary: undefined,
+          tag: { label: 'الإمارات — مستثناة', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'لا توجد إقامات طويلة اليوم.',
     },
     {
@@ -295,7 +324,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
         primary: t.title,
         secondary: `${TASK_TYPE_AR[t.type] || t.type}${t.priority ? ` · ${PRIORITY_AR[t.priority] || t.priority}` : ''}${t.due_at ? ` · موعد ${new Date(t.due_at).toLocaleDateString('ar-EG')}` : ''}${t.building_code ? ` · ${t.building_code}` : ''}`,
         tag: t.priority === 'high' || t.priority === 'urgent'
-          ? { label: PRIORITY_AR[t.priority] || t.priority, tone: 'red' }
+          ? { label: PRIORITY_AR[t.priority] || t.priority, tone: 'red' as const }
           : undefined,
       })),
       empty_message: 'لا توجد مهام مستحقة خلال ٧ أيام. عمل ممتاز.',
@@ -306,7 +335,7 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       items: opsBlocks.map(b => ({
         primary: `${b.listing_id} · ${REASON_AR[b.reason] || b.reason}`,
         secondary: `${b.start_date} ← ${b.end_date}${b.notes ? ` · ${b.notes}` : ''}`,
-        tag: { label: REASON_AR[b.reason] || b.reason, tone: 'amber' },
+        tag: { label: REASON_AR[b.reason] || b.reason, tone: 'amber' as const },
       })),
       empty_message: 'لا توجد حجوزات صيانة أو أخرى تبدأ اليوم.',
     },
@@ -316,18 +345,28 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       items: ownerBlocks.map(b => ({
         primary: `${b.listing_id} · ${REASON_AR[b.reason] || b.reason}`,
         secondary: `${b.start_date} ← ${b.end_date}${b.notes ? ` · ${b.notes}` : ''}`,
-        tag: { label: REASON_AR[b.reason] || b.reason, tone: 'slate' },
+        tag: { label: REASON_AR[b.reason] || b.reason, tone: 'slate' as const },
       })),
       empty_message: 'لا توجد إقامات للمالك أو حجوزات إدارية تبدأ اليوم.',
     },
     {
-      title: `تحضير الغد (${ciTomorrow.length})${ciTomorrow.length > 0 ? ` — ${countryBreakdownAr(ciTomorrowCounts)}` : ''}`,
+      title: `تحضير الغد (${ciTomorrowEgypt})`,
       emoji: '🌅',
-      items: ciTomorrow.slice(0, 10).map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
-        secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
-        tag: { label: 'تحضير', tone: 'cyan' },
-      })),
+      items: [
+        ...ciTomorrow
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .slice(0, 10)
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || '—'} · ${r.guest_name || 'الضيف'}`,
+            secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
+            tag: { label: 'تحضير', tone: 'cyan' as const },
+          })),
+        ...(ciTomorrowCount['BH-DXB'] > 0 ? [{
+          primary: dxbInfoAr(ciTomorrowCount['BH-DXB'], 'وصولات') || '',
+          secondary: undefined,
+          tag: { label: 'الإمارات — مستثناة', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'لا وصولات غدًا. يمكن للطاقم التخطيط بحرية.',
     },
     await buildStockoutSection(sb),
@@ -340,23 +379,22 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
     language: 'ar',
     sections,
     summary: {
-      checkouts: co.length,
-      checkouts_eg: coCounts.EG,
-      checkouts_ae: coCounts.AE,
-      checkins: ci.length,
-      checkins_eg: ciCounts.EG,
-      checkins_ae: ciCounts.AE,
-      currently_staying: stay.length,
-      currently_staying_eg: stayCounts.EG,
-      currently_staying_ae: stayCounts.AE,
-      currently_staying_guests: totalGuestsStaying,
-      same_day_flips: sameDayFlips.length,
+      checkouts: coEgypt,
+      checkouts_dxb_excluded: coCount['BH-DXB'],
+      checkins: ciEgypt,
+      checkins_dxb_excluded: ciCount['BH-DXB'],
+      currently_staying: stayEgypt,
+      currently_staying_guests: totalGuestsEgypt,
+      currently_staying_dxb_excluded: stayCount['BH-DXB'],
+      same_day_flips: flipEgypt,
+      same_day_flips_dxb_excluded: flipCount['BH-DXB'],
       open_tasks: tasks.length,
       manual_blocks: blockRows.length,
       ops_blocks: opsBlocks.length,
       owner_blocks: ownerBlocks.length,
-      long_stays: ext.length,
-      tomorrow_checkins: ciTomorrow.length,
+      long_stays: ext.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length,
+      tomorrow_checkins: ciTomorrowEgypt,
+      tomorrow_checkins_dxb_excluded: ciTomorrowCount['BH-DXB'],
     },
   };
 }

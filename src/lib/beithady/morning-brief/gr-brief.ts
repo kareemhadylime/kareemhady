@@ -1,44 +1,29 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { addDays as addDaysCairo } from '@/lib/beithady-daily-report/cairo-dates';
-import { countryForBuilding, COUNTRY_LABEL, type CountryCode } from './country';
+import {
+  bucketForListing,
+  isExcludedFromRevenue,
+  countByBucket,
+  BUCKET_LABEL,
+  EGYPT_BUCKETS,
+  type BriefBucket,
+} from './country';
 import type { Brief, BriefSection } from './types';
 
 // Guest Relations brief — what GR agents need to act on at 8am Cairo.
 //
-// Audit changes (2026-04-30)
-// --------------------------
-// * **Status filter tightened.** Arrivals/Departures/VIP/At-risk/etc.
-//   now exclude `inquiry`/`declined`/`expired` — Guesty parity. Earlier
-//   builds only excluded `canceled`, which inflated arrival/departure
-//   counts vs the Guesty homepage tile.
-// * **Country segregation.** Every reservation list shows the country
-//   tag (🇪🇬 / 🇦🇪) and the section header includes a per-country count.
-//   Standing rule from owner: Egypt and UAE are reported separately
-//   in every brief.
-// * **"Currently staying" section.** New section matches Guesty's
-//   homepage tile — confirmed reservations whose stay covers today.
-//
-// Older audit (2026-04-28)
-// ------------------------
-// * Owner stays + calendar blocks (is_manual_block=true) excluded from
-//   every reservation-grid query — they're not guest events.
-// * CSAT "yesterday" filter switched to Cairo TZ (was UTC).
-// * VIP window expanded to today → today+3.
-// * Late SLA capped at 48 h freshness.
-// * Departures now show channel + nights (parity with Arrivals).
+// Audit changes (2026-04-30 part 2)
+// ---------------------------------
+// * **Bucket rebucket.** Country-based EG/AE buckets replaced with
+//   per-building (BH-26 / BH-73 / BH-435 / BH-OK / BH-OTHERS / BH-DXB).
+//   UAE units always shown on a separate "BH-DXB: N reservations
+//   (excluded from totals)" info line, never in headline counts.
+// * **Status filter** still IN ('confirmed','reserved','awaiting_payment')
+//   for Guesty parity.
 
 const SLA_FRESHNESS_SEC = 48 * 3600;
-
-// Active = Guesty's notion of a real, action-worthy reservation.
-// Excludes inquiries (un-booked), cancellations, declined, expired.
 const ACTIVE_STATUSES = ['confirmed', 'reserved', 'awaiting_payment'] as const;
-
-const COUNTRY_FLAG: Record<CountryCode, string> = {
-  EG: '🇪🇬',
-  AE: '🇦🇪',
-  OTHER: '🌍',
-};
 
 export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> {
   const sb = supabaseAdmin();
@@ -48,7 +33,6 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
   const yesterday = addDaysCairo(dateIso, -1);
   const fourteenDaysFromTodayIso = addDaysCairo(dateIso, 14);
 
-  // CSAT freshness window: Cairo "yesterday" 00:00 → today 00:00 as UTC
   const yesterdayStartUtc = cairoStartOfDayUtc(yesterday);
   const todayStartUtc = cairoStartOfDayUtc(today);
 
@@ -62,34 +46,29 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
     { data: lateThreads },
     { data: atRiskRows },
   ] = await Promise.all([
-    // Arrivals today (real guest arrivals only)
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, listing_nickname, building_code, channel, guest_name, nights, loyalty_tier, is_vip, status')
+      .select('reservation_id, listing_nickname, listing_id, building_code, channel, guest_name, nights, loyalty_tier, is_vip, status')
       .eq('check_in_date', today)
       .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
-    // Departures today
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, listing_nickname, building_code, channel, guest_name, nights, loyalty_tier, is_vip, status')
+      .select('reservation_id, listing_nickname, listing_id, building_code, channel, guest_name, nights, loyalty_tier, is_vip, status')
       .eq('check_out_date', today)
       .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true)
       .order('listing_nickname'),
-    // Currently staying (Guesty homepage parity): confirmed reservations
-    // whose stay covers today (checked-in, not yet checked-out).
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, listing_nickname, building_code, channel, guest_name, guest_count, nights, check_in_date, check_out_date, loyalty_tier, is_vip')
+      .select('reservation_id, listing_nickname, listing_id, building_code, channel, guest_name, guest_count, nights, check_in_date, check_out_date, loyalty_tier, is_vip')
       .lte('check_in_date', today)
       .gt('check_out_date', today)
       .in('status', ACTIVE_STATUSES)
       .neq('source_label', 'owner')
       .neq('is_manual_block', true),
-    // VIP arrivals today → today+3
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, listing_nickname, building_code, guest_name, check_in_date, nights, loyalty_tier, is_vip, channel')
+      .select('reservation_id, listing_nickname, listing_id, building_code, guest_name, check_in_date, nights, loyalty_tier, is_vip, channel')
       .gte('check_in_date', today)
       .lte('check_in_date', in3Days)
       .in('status', ACTIVE_STATUSES)
@@ -97,9 +76,8 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       .neq('is_manual_block', true)
       .or('is_vip.eq.true,loyalty_tier.in.(platinum,gold,vip)')
       .order('check_in_date'),
-    // Pre-arrival not sent — today + tomorrow
     sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, listing_nickname, building_code, guest_name, check_in_date')
+      .select('reservation_id, listing_nickname, listing_id, building_code, guest_name, check_in_date')
       .gte('check_in_date', today)
       .lte('check_in_date', tomorrow)
       .is('prearrival_sent_at', null)
@@ -108,19 +86,16 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       .neq('is_manual_block', true)
       .order('check_in_date')
       .order('listing_nickname'),
-    // CSAT created during Cairo "yesterday" (UTC instants)
     sb.from('beithady_csat_responses')
       .select('id, rating, comment, building_code')
       .gte('created_at', yesterdayStartUtc)
       .lt('created_at', todayStartUtc),
-    // Late SLA breaches — capped at 48 h freshness
     sb.from('beithady_conversations')
       .select('id, channel, listing_nickname, guest_full_name, sla_age_seconds')
       .eq('sla_breach', true)
       .lte('sla_age_seconds', SLA_FRESHNESS_SEC)
       .order('sla_age_seconds', { ascending: false })
       .limit(10),
-    // At-risk re-confirms
     sb.from('beithady_reservation_overrides')
       .select('reservation_id, cancel_risk_score, last_reconfirmation_sent_at')
       .gte('cancel_risk_score', 70)
@@ -131,6 +106,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
   type ResRow = {
     reservation_id: string;
     listing_nickname: string | null;
+    listing_id: string | null;
     building_code: string | null;
     channel: string | null;
     guest_name: string | null;
@@ -144,7 +120,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
   const dep = (departures as ResRow[] | null) || [];
   const stay = (currentlyStaying as StayRow[] | null) || [];
   const vip = (vipUpcoming as VipRow[] | null) || [];
-  const pre = (prearrivalPending as Array<{ reservation_id: string; listing_nickname: string | null; building_code: string | null; guest_name: string | null; check_in_date: string }> | null) || [];
+  const pre = (prearrivalPending as Array<{ reservation_id: string; listing_nickname: string | null; listing_id: string | null; building_code: string | null; guest_name: string | null; check_in_date: string }> | null) || [];
   const csat = (yesterdayCsat as Array<{ id: string; rating: number | null; comment: string | null; building_code: string | null }> | null) || [];
   const late = (lateThreads as Array<{ id: string; channel: string; listing_nickname: string | null; guest_full_name: string | null; sla_age_seconds: number | null }> | null) || [];
 
@@ -160,7 +136,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
     .map(o => o.reservation_id);
   const { data: atRiskDetail } = candidateIds.length > 0
     ? await sb.from('beithady_reservation_grid_v')
-        .select('reservation_id, listing_nickname, building_code, guest_name, channel, check_in_date, nights, payment_status')
+        .select('reservation_id, listing_nickname, listing_id, building_code, guest_name, channel, check_in_date, nights, payment_status')
         .in('reservation_id', candidateIds)
         .gte('check_in_date', dateIso)
         .lte('check_in_date', fourteenDaysFromTodayIso)
@@ -169,7 +145,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
         .neq('is_manual_block', true)
     : { data: [] };
   const atRiskScoreById = new Map(atRiskOverrides.map(o => [o.reservation_id, o.cancel_risk_score]));
-  type AtRiskDetail = { reservation_id: string; listing_nickname: string | null; building_code: string | null; guest_name: string | null; channel: string | null; check_in_date: string; nights: number | null; payment_status: string | null };
+  type AtRiskDetail = { reservation_id: string; listing_nickname: string | null; listing_id: string | null; building_code: string | null; guest_name: string | null; channel: string | null; check_in_date: string; nights: number | null; payment_status: string | null };
   const atRiskRowsHydrated = ((atRiskDetail as AtRiskDetail[] | null) || [])
     .filter(r => atRiskScoreById.has(r.reservation_id))
     .sort((a, b) => (atRiskScoreById.get(b.reservation_id) || 0) - (atRiskScoreById.get(a.reservation_id) || 0))
@@ -181,24 +157,27 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
   const nightsLabel = (n: number | null): string =>
     n != null && n > 0 ? `${n} night${n === 1 ? '' : 's'}` : '— nights';
 
-  // Per-country counts for headline display.
-  const countByCountry = <T extends { building_code: string | null }>(rows: T[]) => {
-    const out: Record<CountryCode, number> = { EG: 0, AE: 0, OTHER: 0 };
-    for (const r of rows) out[countryForBuilding(r.building_code)] += 1;
-    return out;
-  };
-  const countryBreakdownLine = (counts: Record<CountryCode, number>): string => {
-    const parts: string[] = [];
-    if (counts.EG > 0) parts.push(`Egypt: ${counts.EG}`);
-    if (counts.AE > 0) parts.push(`UAE: ${counts.AE}`);
-    if (counts.OTHER > 0) parts.push(`Other: ${counts.OTHER}`);
-    return parts.join(' · ');
-  };
+  // Per-bucket counts; Egypt-only headline.
+  const arrCount = countByBucket(arr);
+  const depCount = countByBucket(dep);
+  const stayCount = countByBucket(stay);
+  const vipCount = countByBucket(vip);
 
-  const arrCounts = countByCountry(arr);
-  const depCounts = countByCountry(dep);
-  const stayCounts = countByCountry(stay);
-  const vipCounts = countByCountry(vip);
+  const sumEgypt = (counts: Record<BriefBucket, number>): number =>
+    EGYPT_BUCKETS.reduce((s, b) => s + counts[b], 0);
+
+  const arrEgypt = sumEgypt(arrCount);
+  const depEgypt = sumEgypt(depCount);
+  const stayEgypt = sumEgypt(stayCount);
+  const vipEgypt = sumEgypt(vipCount);
+
+  const bucketBreakdownLine = (counts: Record<BriefBucket, number>): string =>
+    EGYPT_BUCKETS.filter(b => counts[b] > 0).map(b => `${BUCKET_LABEL[b].en}: ${counts[b]}`).join(' · ');
+
+  const dxbLine = (count: number, sectionVerb = 'reservations'): string | null => {
+    if (count === 0) return null;
+    return `BH-DXB: ${count} ${sectionVerb} (excluded from totals)`;
+  };
 
   // CSAT — average ignores null ratings (comment-only responses).
   const ratedCsat = csat.filter(c => c.rating != null);
@@ -207,82 +186,144 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
     : null;
   const csatLow = ratedCsat.filter(c => (c.rating || 0) <= 6).length;
 
-  const countryTag = (code: string | null): string =>
-    COUNTRY_FLAG[countryForBuilding(code)];
+  // Bucket-tag a reservation row for inline rendering.
+  const tagBucket = (r: { building_code: string | null; listing_id: string | null; listing_nickname: string | null }): string =>
+    BUCKET_LABEL[bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })].en;
 
-  // Total guests currently staying (for the headline parity with Guesty's
-  // "92 guests in total" label).
-  const totalGuestsStaying = stay.reduce((s, r) => s + (r.guest_count || 0), 0);
+  // Total guests currently staying — Egypt only.
+  const totalGuestsEgypt = stay
+    .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+    .reduce((s, r) => s + (r.guest_count || 0), 0);
+
+  const dxbStaying = stay.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })));
+  const dxbStayingGuests = dxbStaying.reduce((s, r) => s + (r.guest_count || 0), 0);
 
   const sections: BriefSection[] = [
     {
-      title: `Arrivals today (${arr.length})${arr.length > 0 ? ` — ${countryBreakdownLine(arrCounts)}` : ''}`,
+      title: `Arrivals today (${arrEgypt})`,
       emoji: '📥',
-      items: arr.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
-        tag: isVipFlag(r) ? { label: '⭐ VIP', tone: 'violet' } : undefined,
-        href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
-      })),
+      items: [
+        ...arr
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+            secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
+            tag: isVipFlag(r) ? { label: '⭐ VIP', tone: 'violet' as const } : undefined,
+            href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
+          })),
+        ...(arrEgypt > 0 ? [{
+          primary: `Bucket breakdown — ${bucketBreakdownLine(arrCount)}`,
+          secondary: undefined,
+          tag: { label: 'Egypt', tone: 'green' as const },
+        }] : []),
+        ...(arrCount['BH-DXB'] > 0 ? [{
+          primary: dxbLine(arrCount['BH-DXB'], 'arrivals') || '',
+          secondary: undefined,
+          tag: { label: 'UAE — excluded', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'No arrivals today.',
     },
     {
-      title: `Currently staying (${stay.length})${stay.length > 0 ? ` — ${countryBreakdownLine(stayCounts)} · ${totalGuestsStaying} guests` : ''}`,
+      title: `Currently staying (${stayEgypt})`,
       emoji: '🏨',
       items: [
-        ...(stayCounts.EG > 0 ? [{
-          primary: `🇪🇬 Egypt — ${stayCounts.EG} reservation${stayCounts.EG === 1 ? '' : 's'} in-house`,
-          secondary: `Guests: ${stay.filter(r => countryForBuilding(r.building_code) === 'EG').reduce((s, r) => s + (r.guest_count || 0), 0)}`,
+        ...(stayEgypt > 0 ? [{
+          primary: `${bucketBreakdownLine(stayCount)} · ${totalGuestsEgypt} guests`,
+          secondary: 'Egypt-side in-house reservations.',
+          tag: { label: 'In-house', tone: 'green' as const },
         }] : []),
-        ...(stayCounts.AE > 0 ? [{
-          primary: `🇦🇪 UAE — ${stayCounts.AE} reservation${stayCounts.AE === 1 ? '' : 's'} in-house`,
-          secondary: `Guests: ${stay.filter(r => countryForBuilding(r.building_code) === 'AE').reduce((s, r) => s + (r.guest_count || 0), 0)}`,
+        ...(stayCount['BH-DXB'] > 0 ? [{
+          primary: `BH-DXB: ${stayCount['BH-DXB']} reservation${stayCount['BH-DXB'] === 1 ? '' : 's'} · ${dxbStayingGuests} guests (excluded from totals)`,
+          secondary: undefined,
+          tag: { label: 'UAE — excluded', tone: 'slate' as const },
         }] : []),
       ],
       empty_message: 'No active stays today.',
     },
     {
-      title: `VIP arrivals today → 3 days (${vip.length})${vip.length > 0 ? ` — ${countryBreakdownLine(vipCounts)}` : ''}`,
+      title: `VIP arrivals today → 3 days (${vipEgypt})`,
       emoji: '⭐',
-      items: vip.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: `${r.loyalty_tier || (r.is_vip ? 'VIP' : '—')} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
-        tag: { label: 'VIP', tone: 'violet' },
-        href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
-      })),
+      items: [
+        ...vip
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+            secondary: `${r.loyalty_tier || (r.is_vip ? 'VIP' : '—')} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
+            tag: { label: 'VIP', tone: 'violet' as const },
+            href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
+          })),
+        ...(vipCount['BH-DXB'] > 0 ? [{
+          primary: dxbLine(vipCount['BH-DXB'], 'VIP arrivals') || '',
+          secondary: undefined,
+          tag: { label: 'UAE — excluded', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'No VIP arrivals in the next 3 days.',
     },
     {
-      title: `Departures today (${dep.length})${dep.length > 0 ? ` — ${countryBreakdownLine(depCounts)}` : ''}`,
+      title: `Departures today (${depEgypt})`,
       emoji: '📤',
-      items: dep.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
-        tag: isVipFlag(r) ? { label: '⭐ VIP', tone: 'violet' } : undefined,
-        href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
-      })),
+      items: [
+        ...dep
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+            secondary: `${r.channel || ''} · ${nightsLabel(r.nights)}${r.building_code ? ` · ${r.building_code}` : ''}`,
+            tag: isVipFlag(r) ? { label: '⭐ VIP', tone: 'violet' as const } : undefined,
+            href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
+          })),
+        ...(depEgypt > 0 ? [{
+          primary: `Bucket breakdown — ${bucketBreakdownLine(depCount)}`,
+          secondary: undefined,
+          tag: { label: 'Egypt', tone: 'green' as const },
+        }] : []),
+        ...(depCount['BH-DXB'] > 0 ? [{
+          primary: dxbLine(depCount['BH-DXB'], 'departures') || '',
+          secondary: undefined,
+          tag: { label: 'UAE — excluded', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'No departures today.',
     },
     {
-      title: `Pre-arrival not sent — today + tomorrow (${pre.length})`,
+      title: `Pre-arrival not sent — today + tomorrow (${pre.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length})`,
       emoji: '📨',
-      items: pre.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.check_in_date === today ? 'Today' : 'Tomorrow'} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: 'Send pre-arrival message',
-        tag: { label: 'Action', tone: 'amber' },
-        href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
-      })),
+      items: [
+        ...pre
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.check_in_date === today ? 'Today' : 'Tomorrow'} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+            secondary: 'Send pre-arrival message',
+            tag: { label: 'Action', tone: 'amber' as const },
+            href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
+          })),
+        ...(pre.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length > 0 ? [{
+          primary: `BH-DXB: ${pre.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length} pending (excluded from totals)`,
+          secondary: undefined,
+          tag: { label: 'UAE — excluded', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'All today + tomorrow arrivals have been messaged. ✓',
     },
     {
-      title: `At-risk re-confirms — cancel-risk ≥70, ≤14d (${atRiskRowsHydrated.length})`,
+      title: `At-risk re-confirms — cancel-risk ≥70, ≤14d (${atRiskRowsHydrated.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length})`,
       emoji: '🚨',
-      items: atRiskRowsHydrated.map(r => ({
-        primary: `${countryTag(r.building_code)} ${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-        secondary: `${r.channel || ''}${r.payment_status ? ` · ${r.payment_status}` : ''}${r.building_code ? ` · ${r.building_code}` : ''} · risk ${atRiskScoreById.get(r.reservation_id)}`,
-        tag: { label: 'Re-confirm', tone: 'red' },
-        href: `/beithady/operations/cancel-risk`,
-      })),
+      items: [
+        ...atRiskRowsHydrated
+          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
+          .map(r => ({
+            primary: `[${tagBucket(r)}] ${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
+            secondary: `${r.channel || ''}${r.payment_status ? ` · ${r.payment_status}` : ''}${r.building_code ? ` · ${r.building_code}` : ''} · risk ${atRiskScoreById.get(r.reservation_id)}`,
+            tag: { label: 'Re-confirm', tone: 'red' as const },
+            href: `/beithady/operations/cancel-risk`,
+          })),
+        ...(atRiskRowsHydrated.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length > 0 ? [{
+          primary: `BH-DXB: ${atRiskRowsHydrated.filter(r => isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length} at-risk (excluded from totals)`,
+          secondary: undefined,
+          tag: { label: 'UAE — excluded', tone: 'slate' as const },
+        }] : []),
+      ],
       empty_message: 'No high-risk reservations need re-confirmation in the next 14 days. ✓',
     },
     {
@@ -291,7 +332,7 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       items: late.map(c => ({
         primary: `${c.guest_full_name || 'Guest'} · ${c.channel}`,
         secondary: `${Math.round((c.sla_age_seconds || 0) / 60)} min waiting${c.listing_nickname ? ` · ${c.listing_nickname}` : ''}`,
-        tag: { label: 'SLA', tone: 'red' },
+        tag: { label: 'SLA', tone: 'red' as const },
         href: `/beithady/communication/${c.channel}/${c.id}`,
       })),
       empty_message: 'All conversations within SLA. ✓',
@@ -305,8 +346,8 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
           ? `${csatLow} score(s) ≤ 6 — review needed`
           : 'No low scores',
         tag: csatLow > 0
-          ? { label: 'Review', tone: 'amber' }
-          : { label: 'Healthy', tone: 'green' },
+          ? { label: 'Review', tone: 'amber' as const }
+          : { label: 'Healthy', tone: 'green' as const },
       }] : [],
       empty_message: csat.length > 0
         ? `${csat.length} comment-only response${csat.length === 1 ? '' : 's'} (no ratings).`
@@ -321,28 +362,34 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
     language: 'en',
     sections,
     summary: {
-      arrivals: arr.length,
-      arrivals_eg: arrCounts.EG,
-      arrivals_ae: arrCounts.AE,
-      departures: dep.length,
-      departures_eg: depCounts.EG,
-      departures_ae: depCounts.AE,
-      currently_staying: stay.length,
-      currently_staying_eg: stayCounts.EG,
-      currently_staying_ae: stayCounts.AE,
-      currently_staying_guests: totalGuestsStaying,
-      vip_upcoming: vip.length,
-      prearrival_pending: pre.length,
+      arrivals: arrEgypt,
+      arrivals_bh26: arrCount['BH-26'],
+      arrivals_bh73: arrCount['BH-73'],
+      arrivals_bh435: arrCount['BH-435'],
+      arrivals_bhok: arrCount['BH-OK'],
+      arrivals_bhothers: arrCount['BH-OTHERS'],
+      arrivals_dxb_excluded: arrCount['BH-DXB'],
+      departures: depEgypt,
+      departures_bh26: depCount['BH-26'],
+      departures_bh73: depCount['BH-73'],
+      departures_bh435: depCount['BH-435'],
+      departures_bhok: depCount['BH-OK'],
+      departures_bhothers: depCount['BH-OTHERS'],
+      departures_dxb_excluded: depCount['BH-DXB'],
+      currently_staying: stayEgypt,
+      currently_staying_guests: totalGuestsEgypt,
+      currently_staying_dxb_excluded: stayCount['BH-DXB'],
+      vip_upcoming: vipEgypt,
+      vip_dxb_excluded: vipCount['BH-DXB'],
+      prearrival_pending: pre.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length,
       sla_breaches: late.length,
       csat_yesterday: ratedCsat.length,
       csat_low: csatLow,
-      at_risk_reconfirms: atRiskRowsHydrated.length,
+      at_risk_reconfirms: atRiskRowsHydrated.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).length,
     },
   };
 }
 
-// UTC ISO timestamp of "00:00:00 Cairo" on the given Cairo calendar
-// date.
 function cairoStartOfDayUtc(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number);
   const naiveUtc = Date.UTC(y, m - 1, d, 0, 0, 0);
