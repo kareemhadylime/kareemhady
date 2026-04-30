@@ -187,9 +187,12 @@ async function testScrapingBee(): Promise<TestResult> {
     const max = json.max_api_credit ?? 0;
     const used = json.used_api_credit ?? 0;
     const remaining = Math.max(0, max - used);
+    const concurrencyPart = json.concurrency_limit
+      ? ` · concurrency ${json.concurrency_limit}`
+      : '';
     return {
       ok: true,
-      detail: `${remaining.toLocaleString()} of ${max.toLocaleString()} credits remaining · concurrency ${json.concurrency_limit ?? '?'}`,
+      detail: `${remaining.toLocaleString()} of ${max.toLocaleString()} credits remaining${concurrencyPart}`,
     };
   } finally {
     clearTimeout(timer);
