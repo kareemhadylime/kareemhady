@@ -6,6 +6,7 @@ import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage, uploadWaMedia } from '@/lib/beithady/communication/send-wa-casual';
 import { sendGuestyMessage } from '@/lib/beithady/communication/send-guesty';
+import { createGallery } from '@/lib/beithady/communication/attachment-gallery';
 import { recordAudit } from '@/lib/beithady/audit';
 
 // Phase Q.3 — multi-attachment send actions.
@@ -297,15 +298,34 @@ export async function sendGuestyMultiAttachResult(formData: FormData): Promise<M
     }
 
     // Guesty's API rejects our attachments[] field with VALIDATION_ERROR
-    // ("attachments does not match any of the allowed types") regardless
-    // of the shape we send — likely because Airbnb-native and several
-    // other Guesty modules don't accept attachments via the Open API at
-    // all. Universal fallback: inline the URLs in the message body.
-    // The guest sees a clickable link in their channel app.
-    const linkLines = attachments.map(a => {
+    // regardless of shape, so URLs are inlined in body text instead.
+    //
+    // For N>1 attachments: mint a single /g/<token> gallery URL that
+    // renders a left/right carousel — one link to share instead of N.
+    // For N=1: keep the direct file link (no need for a gallery wrapper).
+    let linkLines: string[];
+    if (attachments.length === 1) {
+      const a = attachments[0];
       const label = a.name || (a.mime?.startsWith('image/') ? 'Photo' : 'File');
-      return `📎 ${label}: ${a.url}`;
-    });
+      linkLines = [`📎 ${label}: ${a.url}`];
+    } else {
+      const gallery = await createGallery(
+        attachments.map(a => ({ url: a.url, name: a.name, mime: a.mime })),
+        {
+          conversationId,
+          createdByUserId: user.id,
+          expiresInDays: 90,
+        },
+      );
+      if (!gallery.ok) {
+        return { ok: false, error: `gallery_create_failed: ${gallery.error}` };
+      }
+      const imageCount = attachments.filter(a => a.mime?.startsWith('image/')).length;
+      const label = imageCount === attachments.length
+        ? `${attachments.length} photos`
+        : `${attachments.length} files`;
+      linkLines = [`📎 ${label}: ${gallery.publicUrl}`];
+    }
     const composedBody = [body, ...linkLines]
       .filter(s => s && s.trim().length > 0)
       .join('\n\n');
