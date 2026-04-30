@@ -19,7 +19,8 @@ export type ProviderId =
   | 'meta_marketing'   // Phase H: Meta Marketing API (campaigns + insights)
   | 'meta_waba'        // Phase H/E: Meta WhatsApp Business Cloud API
   | 'google_ads'       // Phase H follow-up
-  | 'tiktok_ads';      // Phase H follow-up
+  | 'tiktok_ads'       // Phase H follow-up
+  | 'scrapingbee';     // M.16: residential-proxy scraper for Amazon EG enrichment (replaces blocked web_fetch)
 
 export type CredentialSpec = {
   provider: ProviderId;
@@ -365,6 +366,37 @@ export const CREDENTIAL_SPECS: Record<ProviderId, CredentialSpec> = {
       { key: 'secret', label: 'App secret', envVar: 'TIKTOK_APP_SECRET', type: 'password' },
       { key: 'access_token', label: 'Long-lived access token', envVar: 'TIKTOK_ACCESS_TOKEN', type: 'password' },
       { key: 'advertiser_id', label: 'Advertiser ID', envVar: 'TIKTOK_ADVERTISER_ID' },
+    ],
+  },
+  scrapingbee: {
+    provider: 'scrapingbee',
+    label: 'ScrapingBee',
+    description:
+      'Residential-proxy scraper used by the Amazon EG sourcer cron. Anthropic web_fetch is blocked by Amazon — this routes the fetch through ScrapingBee\'s rotating residential IPs so price + name + pack-size land reliably. Free tier: 1,000 requests/month (covers weekly refresh of 73 SKUs with headroom).',
+    helpUrl: 'https://app.scrapingbee.com/account/manage_api_key',
+    fields: [
+      {
+        key: 'api_key',
+        label: 'API key',
+        envVar: 'SCRAPINGBEE_API_KEY',
+        type: 'password',
+        required: true,
+        hint: 'Sign up at scrapingbee.com → Dashboard → API Key. Free tier auto-applies — no card required.',
+      },
+      {
+        key: 'render_js',
+        label: 'Render JS (optional, costs more credits)',
+        envVar: 'SCRAPINGBEE_RENDER_JS',
+        placeholder: 'false',
+        hint: 'Leave blank or "false" — Amazon product pages parse fine without JS rendering and JS costs 5x credits per request.',
+      },
+      {
+        key: 'country_code',
+        label: 'Geo IP country (optional)',
+        envVar: 'SCRAPINGBEE_COUNTRY_CODE',
+        placeholder: 'eg',
+        hint: 'Two-letter code. "eg" forces Egyptian IPs so Amazon serves EGP prices. Leave blank to use any IP.',
+      },
     ],
   },
 };

@@ -29,6 +29,8 @@ export async function testProvider(provider: ProviderId): Promise<TestResult> {
           detail:
             'No direct Airbnb API — reservation + payout data flows via Guesty. Nothing to test here.',
         };
+      case 'scrapingbee':
+        return await testScrapingBee();
       default:
         return { ok: false, error: `unknown_provider:${provider}` };
     }
@@ -159,4 +161,37 @@ async function testGreen(): Promise<TestResult> {
     ok: false,
     error: `stateInstance=${state} — credentials reached Green-API but the WhatsApp session is not authorized. Re-link in the console.`,
   };
+}
+
+// --- ScrapingBee ---
+// Hits ScrapingBee's /usage endpoint to verify the API key works and surface
+// remaining credits. Cheap (1 credit, may even be free depending on plan).
+async function testScrapingBee(): Promise<TestResult> {
+  const apiKey = await getCredential('scrapingbee', 'api_key', { required: true });
+  const url = `https://app.scrapingbee.com/api/v1/usage?api_key=${encodeURIComponent(apiKey)}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      return {
+        ok: false,
+        error: `ScrapingBee returned HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ''}`,
+      };
+    }
+    const json = (await res.json().catch(() => null)) as
+      | { max_api_credit?: number; used_api_credit?: number; concurrency_limit?: number }
+      | null;
+    if (!json) return { ok: false, error: 'ScrapingBee usage endpoint returned non-JSON' };
+    const max = json.max_api_credit ?? 0;
+    const used = json.used_api_credit ?? 0;
+    const remaining = Math.max(0, max - used);
+    return {
+      ok: true,
+      detail: `${remaining.toLocaleString()} of ${max.toLocaleString()} credits remaining · concurrency ${json.concurrency_limit ?? '?'}`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }

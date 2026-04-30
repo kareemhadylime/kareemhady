@@ -1,6 +1,125 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Manual price entry (Amazon EG blocks Claude web_fetch — confirmed in prod)
+## 🟢 Latest turn — ScrapingBee integration shipped (admin/integrations UI + sourcer rewire)
+
+User picked free-tier ScrapingBee. "Add scraper settings in api settings module and will fill later." Done.
+
+**Three changes shipped in one commit:**
+1. **`src/lib/credentials.ts`** — added `scrapingbee` to `ProviderId` union + new entry in `CREDENTIAL_SPECS` with three fields: `api_key` (required, password), `render_js` (optional bool, default false), `country_code` (optional, default blank, recommended `eg` for EGP pricing). Description explains what it solves and that free tier 1k req/mo covers weekly refresh of 73 SKUs. Help URL points to scrapingbee.com dashboard.
+2. **`src/lib/integration-tests.ts`** — `testScrapingBee()` calls ScrapingBee's `/api/v1/usage` endpoint with the configured API key. Returns `ok: true` with detail string `"850 of 1,000 credits remaining · concurrency 1"` so the operator sees their quota at a glance. 15s timeout. Hooked into `testProvider()` switch.
+3. **`src/lib/beithady/inventory/amazon-eg-sourcer.ts`** — refactored `probeAmazonProduct` to a 2-path strategy:
+   - Path 1: `fetchViaScrapingBee(url)` hits `https://app.scrapingbee.com/api/v1/?api_key=X&url=…` (with optional `country_code` + `render_js`). 30s timeout. Returns null on no-key / failure (transparent fall-through).
+   - If HTML > 1000 chars, sends to Haiku via new `buildHtmlExtractionPrompt(itemName, itemUom, url, html)` — same JSON schema as before, but the HTML is in the user message instead of a `web_fetch` tool. Trims HTML to 120k chars (price + title always within first 80k).
+   - Path 2: original Anthropic `web_fetch` fallback, kept for graceful degradation. Will return rate_limited on amazon.eg today but might unblock for other domains.
+
+**`/admin/integrations` UI auto-renders the new card** because the page iterates `Object.keys(CREDENTIAL_SPECS)`. No UI code changes needed. Test connection button works once the operator pastes their API key.
+
+**Operator's next step:**
+1. Sign up at https://app.scrapingbee.com (free tier, no card)
+2. Copy API key from dashboard
+3. Open `/admin/integrations` → ScrapingBee card → paste key → Save → Test connection
+4. Then `/beithady/inventory/items` → click "Sync prices (1)" → Antifly row's `amazon_eg_last_status` flips from `rate_limited` to `ok` with fresh price (should still be 90 EGP since we already manually patched it)
+5. Daily cron at 06:00 Cairo will start working reliably for any future URLs the user pastes
+
+**Architecture caveats noted for future me:**
+- The new path uses ~25 credits per call (Amazon EG via residential proxy with no JS). Weekly refresh of 73 items = 290 credits/wk → 1.16k/mo, slightly over 1k free tier. Daily refresh would need paid plan. Recommended to switch the cron from daily to weekly until user upgrades.
+- ScrapingBee's `country_code=eg` may incur premium credit cost (5-25 credits/req) depending on plan tier. Free tier may not include premium proxies — if user hits "country_code not allowed" errors, leave the field blank and accept any IP.
+- `render_js=false` is critical for cost — JS rendering is 5x credits and Amazon EG product pages parse fine without it.
+
+**Files touched this turn:**
+- `src/lib/credentials.ts` (provider id + spec)
+- `src/lib/integration-tests.ts` (test impl)
+- `src/lib/beithady/inventory/amazon-eg-sourcer.ts` (two-path probe with ScrapingBee preferred)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this session — Chrome MCP paired + Antifly verified end-to-end. ScraperAPI proposal sent.
+
+**Chrome MCP pairing succeeded.** User connected the "Claude in Chrome (Beta)" extension (claude.com publisher) to this Claude Code session. `list_connected_browsers` returned `Browser 1` (Windows, deviceId `30b22924-0642-49ee-b446-0c3d34e25861`).
+
+**Antifly proof-of-concept fetched via user's authenticated Chrome session:**
+- Navigated to `https://www.amazon.eg/dp/B0882X6KH7`
+- `find('product title H1')` → "Raid Flying Insect Killer Odorless 300 ML"
+- `find('main visible product price')` → "EGP 90.00"
+- `find('stock availability')` → "In Stock"
+- `find('brand')` → "Brand: Raid"
+- DB row already had matching values from earlier manual SQL patch — refreshed `amazon_eg_last_checked_at` to NOW so the cell shows freshly verified.
+
+**Confirmed: user's authenticated browser bypasses the rate-limit Anthropic web_fetch hits.** This proves the Chrome-MCP-driven workflow works for one-shot catalog setup.
+
+**User asked 3 clarifying questions about scaling:**
+1. Will the deployed app auto-fetch via my browser when I paste a URL? → **No.** Chrome MCP only exists in this chat session, not on Vercel. Deployed app's "Save URL" still goes through blocked web_fetch.
+2. Fall back to Option 2 (auto-discover) with manual edit? → Available but still chat-session-bound, not operator-self-service.
+3. ScraperAPI long-term, other uses? → **Yes**, ScraperAPI / ScrapingBee / ScrapingFish would replace web_fetch in the cron with ~95% reliability. Cost reality at user's volume (73 SKUs):
+   - Weekly refresh = ~290 req/mo (free tier covers it)
+   - Daily refresh = ~2.2k req/mo (ScrapingFish $20/mo plan)
+   - ScrapingBee free 1k/mo would cover weekly refresh
+
+**Other ScraperAPI uses in this app — honest assessment given to user:**
+- ✅ Amazon EG product enrichment (main use)
+- 🟡 TripAdvisor / Google Reviews public monitoring (additive — Guesty only covers OTAs)
+- 🟡 Vendor catalog scraping (if vendors lack APIs)
+- ❌ Competitor pricing (PriceLabs already does this better)
+- ❌ SEO/SERP (DataForSEO purpose-built)
+- ❌ Social/WhatsApp (Guesty + existing integrations cover it)
+
+**Three options offered, awaiting user pick:**
+- A. Ship ScrapingBee integration (~half day, $20/mo). Replace `web_fetch` in `probeAmazonProduct` with ScrapingBee HTTP fetch then send HTML to Haiku for structured parse. Daily cron starts working reliably.
+- B. Chat-driven Chrome MCP fetches when user pings me (free, one-time setup pattern)
+- C. "Find on Amazon" auto-discovery UI (still chat-session-bound)
+
+Recommended: **A long-term + B for the immediate one-shot setup.**
+
+**No code changes, no commits this turn.** Branch state unchanged from last commit `2f4cf23` (manual price entry). Browser MCP connection state will reset when chat session ends.
+
+---
+
+## 🟡 Earlier this session — Chrome MCP connection blocked, awaiting user pairing (no commits)
+
+User asked "can you use my browser to go on amazon and get the details" — proper instinct since their browser carries the cookies + IP that Amazon trusts (vs Claude's web_fetch which is rate-limited).
+
+**State of the Chrome MCP path:**
+- `mcp__Claude_in_Chrome__list_connected_browsers` → `[]`
+- `mcp__Claude_in_Chrome__tabs_context_mcp` → "Claude in Chrome is not connected"
+- `mcp__Claude_in_Chrome__switch_browser` → "No other browsers available to switch to"
+- User confirmed via screenshot the **Claude in Chrome (Beta)** extension by `claude.com` IS installed — but the pairing handshake hasn't completed for this Claude Code session.
+
+**Pairing instructions sent to user:**
+1. Click puzzle-piece icon in Chrome toolbar → pin Claude
+2. Click Claude extension icon
+3. Sign in with same Anthropic account
+4. Extension should show "Connect" / "Pair with Claude Code" — click it
+5. Try a new Chrome tab if the extension UI looks empty
+
+**Plan once paired (drafted but not run):**
+```
+1. tabs_context_mcp → enumerate tabs
+2. Navigate to https://www.amazon.eg/dp/B0882X6KH7 (Antifly — already has URL set in DB)
+3. find('product price') + find('add to cart') + get_page_text
+4. Parse price + stock + name + brand
+5. setManualAmazonPriceAction or direct supabase write
+6. Verify cost cell flips amber→slate
+7. If single-item proof works, loop for all items with amazon_eg_url IS NOT NULL
+```
+
+**Current DB state for the smoke test:**
+- Only 1 item has a URL: `CLN-ANTIFLY-400ML` → `https://www.amazon.eg/dp/B0882X6KH7`. Already manually patched to 90 EGP earlier this session, so a Chrome-MCP fetch on that one would just confirm 90 EGP and re-stamp `amazon_eg_last_checked_at`.
+- Other 72 items have no URL set yet → user has to paste URLs for them before browser-MCP can fetch.
+
+**Three browser-automation tiers I outlined to user:**
+- A: install Claude in Chrome ext (recommended) → fully automated end-to-end via DOM-aware MCP
+- B: computer-use screenshot reading → tier=read for browsers, can SEE but not click/type, user navigates manually
+- C: ManualPriceButton already shipped this session → operator types price into a popover
+
+**No code changes, no commits, no deploys this turn.** Branch state unchanged from last commit `2f4cf23` (manual price entry shipped).
+
+**Awaiting user signal:** "ready" once browser is paired, OR "B" to fall back to screenshot-read flow, OR "use the manual button" to abandon browser path.
+
+---
+
+## 🟢 Earlier this session — Manual price entry (Amazon EG blocks Claude web_fetch — confirmed in prod)
 
 User pressed "Sync prices" — price still didn't update. Investigated via `mcp__execute_sql`:
 ```

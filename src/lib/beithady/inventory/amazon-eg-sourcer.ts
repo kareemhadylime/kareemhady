@@ -1,13 +1,13 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getCredential } from '@/lib/credentials';
 
 // Phase M.16 / M.15.4 — Amazon EG product sourcer.
 //
-// Walks every active item with a canonical amazon_eg_url and asks Claude
-// Haiku 4.5 (with web_fetch_20250910) to pull live price + pack size +
-// stock status off the actual product page. Result populates the
-// amazon_eg_* columns the estimator already reads from
+// Walks every active item with a canonical amazon_eg_url and extracts
+// price + pack size + stock + name + brand from the live page. Result
+// populates the amazon_eg_* columns the estimator already reads from
 // (estimator.ts:191 → unitCost = amazon_eg_price_egp / amazon_eg_pack_size).
 //
 // Falls back gracefully:
@@ -166,14 +166,114 @@ function validate(o: unknown): AmazonProbeResult {
 }
 
 /**
- * Probe one Amazon EG product page for current price + stock + pack size.
- * Pure function — caller decides what to do with the result.
+ * Fetch raw HTML for an Amazon EG product page via ScrapingBee's residential
+ * proxy. Returns null when no API key is configured or the fetch fails so
+ * the caller can transparently fall through to the Anthropic web_fetch path.
+ */
+async function fetchViaScrapingBee(url: string): Promise<string | null> {
+  const apiKey = await getCredential('scrapingbee', 'api_key');
+  if (!apiKey) return null;
+
+  const renderJsRaw = (await getCredential('scrapingbee', 'render_js')).toLowerCase();
+  const renderJs = renderJsRaw === 'true' || renderJsRaw === '1';
+  const country = (await getCredential('scrapingbee', 'country_code')).toLowerCase().trim();
+
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    url,
+    render_js: renderJs ? 'true' : 'false',
+  });
+  if (country) params.set('country_code', country);
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30_000);
+  try {
+    const res = await fetch(`https://app.scrapingbee.com/api/v1/?${params.toString()}`, {
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Builds a prompt that gives Claude pre-fetched HTML to parse directly. */
+function buildHtmlExtractionPrompt(itemName: string, itemUom: string, url: string, html: string): string {
+  // Trim to ~120k chars; the buy box / title / price are always near the top.
+  const trimmed = html.length > 120_000 ? html.slice(0, 120_000) : html;
+  return `Extract structured product data from the Amazon EG HTML below.
+
+URL: ${url}
+Item name (sanity check): ${itemName}
+Item UoM (for pack-size disambiguation): ${itemUom}
+
+Output a single JSON object with exactly these keys:
+{
+  "status": "ok" | "oos" | "404",
+  "price_egp": number | null,
+  "pack_size": number,
+  "in_stock": boolean,
+  "rating": number | null,
+  "review_count": number | null,
+  "image_url": string | null,
+  "product_name_en": string | null,
+  "product_name_ar": string | null,
+  "brand": string | null
+}
+
+Rules:
+- price_egp: extract the buyable price near "Add to Cart". Ignore strikethrough/MSRP.
+- pack_size: 1 for single units; >=2 for multi-packs. Default 1 if unclear.
+- product_name_en: page H1 / product title in English, cleaned (no "(Pack of N)" suffix).
+- status="ok" when in_stock=true AND price_egp set; "oos" when out of stock; "404" if HTML is captcha / search results / error page.
+
+Return JSON only. No markdown fences. No prose.
+
+HTML:
+${trimmed}`;
+}
+
+/**
+ * Probe one Amazon EG product page for current price + stock + pack size + name.
+ * Strategy:
+ *   1. Try ScrapingBee residential proxy (preferred — Amazon doesn't block it).
+ *   2. Fall back to Anthropic web_fetch (kept for graceful degradation, but
+ *      Amazon EG returns rate_limited consistently for that path today).
+ * Either way, the same Claude Haiku validator turns markup into structured JSON.
  */
 export async function probeAmazonProduct(input: {
   itemName: string;
   itemUom: string;
   url: string;
 }): Promise<AmazonProbeResult> {
+  // Path 1 — ScrapingBee
+  const html = await fetchViaScrapingBee(input.url);
+  if (html && html.length > 1000) {
+    try {
+      const res = await client().messages.create({
+        model: MODEL,
+        max_tokens: 800,
+        temperature: 0.0,
+        system: SYSTEM_PROMPT,
+        messages: [
+          { role: 'user', content: buildHtmlExtractionPrompt(input.itemName, input.itemUom, input.url, html) },
+        ],
+      });
+      const textBlocks: string[] = [];
+      for (const block of res.content) if (block.type === 'text') textBlocks.push(block.text);
+      if (textBlocks.length > 0) {
+        const parsed = extractJson(textBlocks.join('\n').trim());
+        return validate(parsed);
+      }
+    } catch {
+      /* fall through to web_fetch */
+    }
+  }
+
+  // Path 2 — Anthropic web_fetch fallback
   try {
     const res = await client().messages.create(
       {
