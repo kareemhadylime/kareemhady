@@ -17,9 +17,25 @@ User screenshot: tried sending a manual reply on Hady Family (conv `69f2f16b824a
 
 **Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `d1fea00` pushed to `main`. Vercel auto-deploy via GitHub integration lands within ~1-2 min.
 
-## 🟢 Earlier this session — AI item info cards COMPLETE (M1–M5 shipped, all milestones live)
+## 🟢 Earlier this session — AI item info cards COMPLETE (M1–M5 shipped, both prod deploys VERIFIED)
 
-User said "All Default - Do All changes to Vercel & Supabase automatically" → skipped sign-off gate, executed entire workflow plan in one turn. Two commits planned: M1 (already shipped earlier this turn — see lower section) and M2–M5 in a single follow-up commit.
+**End-state confirmation (post-deploy):**
+- Commit `7aa2711` (M1: schema + 43-item seed) → Vercel deploy `dpl_bq3ScXnGcrJmAy2eU52dYWcushVm` → READY
+- Commit `f4f9d14` (M2–M5: lib + actions + UI + tooltip) → Vercel deploy `dpl_3tvs5eUoYWQzJQMGqPXcJgKENH4z` → READY (production target)
+- 3 Supabase migrations applied via MCP: `0053_amazon_eg_review_state`, `0058_inventory_ai_info`, `0059_seed_extra_inventory_items`
+- DB verified post-seed: **73 active items across 9 categories** (chemicals 17, sanitary 17, fnb 12, linen 7, branded 8, maintenance 5, welcome_tray 2, consumables 5)
+- `npx tsc --noEmit` clean, `npm run build` clean
+
+
+**End-state confirmation (post-deploy):**
+- Commit `7aa2711` (M1: schema + 43-item seed) → Vercel deploy `dpl_bq3ScXnGcrJmAy2eU52dYWcushVm` → READY
+- Commit `f4f9d14` (M2–M5: lib + actions + UI + tooltip) → Vercel deploy `dpl_3tvs5eUoYWQzJQMGqPXcJgKENH4z` → READY (production target)
+- 3 Supabase migrations applied via MCP: `0053_amazon_eg_review_state`, `0058_inventory_ai_info`, `0059_seed_extra_inventory_items`
+- DB verified post-seed: **73 active items across 9 categories** (chemicals 17, sanitary 17, fnb 12, linen 7, branded 8, maintenance 5, welcome_tray 2, consumables 5)
+- `npx tsc --noEmit` clean, `npm run build` clean
+- Rebase encountered: parallel session pushed `e7632b3` (auto-archive Guesty system-notifs) + `6f89fe0` while M2–M5 was being written. Resolved cleanly — both their `0058_beithady_auto_archive_*` and my `0058_inventory_ai_info` migration files coexist on disk (different applied-names in DB, no collision). SESSION_HANDOFF.md conflict resolved by demoting their entry to "Earlier today (parallel session)".
+
+**User said "All Default - Do All changes to Vercel & Supabase automatically"** → skipped sign-off gate, executed entire workflow plan in one turn.
 
 **M2 — AI lib `src/lib/beithady/inventory/ai-item-info.ts` (new file, 240 lines):**
 - `generateItemInfo()` — single Haiku 4.5 call with `web_fetch_20250910` server-managed tool when `amazon_eg_url` is set. Adds `anthropic-beta: web-fetch-2025-09-10` header. Falls back to general housekeeping knowledge when fetch fails — Claude self-tags `source` field.
