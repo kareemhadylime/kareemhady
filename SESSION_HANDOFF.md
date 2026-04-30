@@ -1,6 +1,148 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Split kill switch SHIPPED (1 manual + 12 per-automation switches + admin UI)
+## 🟢 Latest turn — AI item info cards M1 SHIPPED — schema + 43-item seed live in Supabase prod
+
+User confirmed all defaults ("All Default - Do All changes to Vercel & Supabase automatically"). Skipped to coding immediately. M1 = database side complete.
+
+**Migrations applied via Supabase MCP `apply_migration` (live in prod DB now):**
+- `0053_amazon_eg_review_state` — adds `amazon_eg_url_reviewed_at` + `amazon_eg_url_reviewed_by` to `beithady_inventory_items`. Was missing from prod since the file was written. Unblocks the existing Accept-button flow that was throwing `MISSING_REVIEW_COLUMN_HINT`.
+- `0058_inventory_ai_info` — new columns on `beithady_inventory_items`: `ai_info jsonb`, `ai_info_generated_at timestamptz`, `ai_info_source text` (CHECK in 'amazon_eg_fetch'/'general_knowledge'), `ai_info_model text`, `ai_info_status text` (DEFAULT 'idle' CHECK idle/queued/running/error), `ai_info_error text`. Plus partial index `…_ai_info_missing_idx WHERE ai_info IS NULL AND active` (drives bulk-regen-missing button). Plus new history table `beithady_inventory_items_ai_info_history` (one row per regen, app prunes to last 10) with `(item_id, generated_at DESC)` index.
+- `0059_seed_extra_inventory_items` — 43 new SKUs + 28 global consumption rules. **Catalog now 73 active items** vs old 30. Verified via SELECT — counts: chemicals 17 (+10), sanitary 17 (+9), fnb 12 (+5), linen 7 (+7), branded 8 (+4), maintenance 5 (+5), welcome_tray 2 (+2), consumables 5 (+1 LIN-LAUNDRY-BAG). Linen/maintenance/welcome-tray fixtures all flagged `is_asset=true` and got NO consumption rule (they don't replenish per check-in).
+
+**Files in repo (committed in this turn):**
+- `supabase/migrations/0058_inventory_ai_info.sql` — full schema + comments
+- `supabase/migrations/0059_seed_extra_inventory_items.sql` — VALUES list + rules
+
+**No app-code changes yet — Items page + estimator still render the old 30-item catalog from `listItems` (no schema awareness needed since query is `SELECT *`)** — but the new 43 items will appear in the Items page UI as soon as the next page load happens, since `listItems` reads everything active. Likewise the housekeeping estimator now resolves rules for the 28 new consumables.
+
+**Smoke check for next turn:** load `/beithady/inventory/items` after deploy → should show 73 items grouped across 9 category sections instead of 30 across 5. Estimator detail for STUDIO-1BA-STANDARD should now show ~28 more line items per group.
+
+**Remaining milestones (this turn continues):**
+- M2 — `src/lib/beithady/inventory/ai-item-info.ts` lib + Haiku prompt + web_fetch tool (next)
+- M3 — server actions: `generateAiInfoAction`, `generateAllMissingAiInfoAction`, extend `setAmazonSourceAction:394`
+- M4 — UI: chevron expand row, `AiInfoCard.tsx`, bulk header button
+- M5 — estimator tooltip (polish)
+
+**Architecture decisions confirmed for the rest:**
+- Background execution = `waitUntil()` from `@vercel/functions` (Option α). Will check installed during M3 — fall back to optimistic-poll Option β if missing.
+- 24h cooldown on URL-change auto-regen; manual button bypasses cooldown.
+- Concurrency cap = 5 for bulk regen (R4 mitigation).
+
+---
+
+## 🟡 Earlier this turn — AI item info cards: WORKFLOW PHASE v1 sent, awaiting 4 final clarifications (no commits)
+
+User confirmed all Plan-v1 dimensions: **Q1=a** (expandable row), **Q2=ALL** (seed everything), **Q3=c** (hybrid web_fetch + LLM fallback), **Q4=schema OK**, **Q5=b+c** (background regen + manual button), **S1–S5 all confirmed**. Moved to Workflow Phase v1 per user's gate ("95% confidence on plan → workflow → 95% confidence on workflow → code").
+
+**Verified before drafting:** `@anthropic-ai/sdk` is `^0.90.0` in package.json — supports `web_fetch_20250910` server-managed tool. Good for hybrid Q3.c.
+
+**Workflow Phase v1 sent — 9 sections:**
+
+1. **Decisions recap** with concrete impact per choice
+2. **Migrations** (3 files in order):
+   - 1a re-apply existing `0053_amazon_eg_review_state.sql` (S1 unblock — review-state cols still missing in prod)
+   - 1b new `0058_inventory_ai_info.sql` — `ai_info jsonb`, `ai_info_generated_at timestamptz`, `ai_info_source text` (CHECK in 'amazon_eg_fetch'/'general_knowledge'), `ai_info_model text`, `ai_info_status text` (CHECK idle/queued/running/error). Plus history table `beithady_inventory_items_ai_info_history` (S2)
+   - 1c new `0059_seed_extra_inventory_items.sql` — needs §3 approval first
+3. **AI module** `src/lib/beithady/inventory/ai-item-info.ts` — typed `AiItemInfo`, `generateItemInfo()`, `persistItemInfo()`. Single Haiku 4.5 call with `tools: [{ type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 2 }]`. Full prompt drafted. Failure modes: 403 → general_knowledge fallback; JSON parse fail → retry @ temp 0; persistent fail → status='error'
+4. **Items to seed (Q2=ALL) — 43 new SKUs proposed across 6 categories:**
+   - Cleaning +10 (dish/laundry/drain/oven/bathroom/gloves/scrub/trash)
+   - Sanitary +9 (shower-cap, dental, shaving, sewing, comb, makeup-wipes, earbuds, nail-file, vanity-kit)
+   - Tray +5 (fruit-basket, chocolate, dates, milk-100ml, napkin)
+   - Linen +8 (bedsheet/pillowcase/duvet/towels×3/bath-mat/laundry-bag) — most as `is_asset=true`
+   - Branded +4 (door-hanger, wifi-card, welcome-letter, receipt-pad)
+   - Welcome-tray +2 assets (fruit-bowl, tray)
+   - Maintenance +5 assets (lightbulb, ac-filter, hinge, screws, putty)
+   - **Total catalog after seed = 73**, full table with cost-EGP shown to user
+5. **Server actions** — `generateAiInfoAction(itemId)` (Q5.c, bypasses cooldown), `generateAllMissingAiInfoAction()` (S4 bulk), and extension to existing `setAmazonSourceAction:394` to enqueue background regen if cooldown elapsed OR url changed. Background model: **Option α `waitUntil()` from `@vercel/functions`** preferred; β optimistic-sync-with-poll as fallback if package missing
+6. **UI** — chevron expand row in `items-section-list.tsx:284`; new `AiInfoCard.tsx` (mocked layout: summary EN+AR-RTL, key features, usage tips, ingredients, warnings, pack details, source badge, refresh button); new `bulk-ai-info-button.tsx` for header (S4); estimator tooltip (S5) on `estimator/[configId]/page.tsx:267`
+7. **Acceptance checks M1–M8** — one per milestone, each commit-gateable
+8. **Files to touch** — 5 new, 7 edited, with line numbers
+9. **Risk log R1–R6** — Amazon block fallback, JSON parse retry, waitUntil portability, rate-limit pool of 5, ON CONFLICT for seed, cost cap
+
+**4 OPEN QUESTIONS BLOCKING CODE START (currently 92% confidence):**
+- (a) Approve §3 43-SKU list as-is, or trim/add?
+- (b) Should the 28 consumable additions auto-get global consumption rules (so they appear in estimator) or stay rule-less?
+- (c) Background-execution model — α `waitUntil()` (recommended) vs β optimistic-poll? OK to default to α?
+- (d) Skip estimator tooltip (§5d / S5) since chevron expand on items page already gives the info? Or keep as last polish milestone?
+
+**When user replies, immediate next steps:**
+1. Apply 0053 via `mcp__f6afcc50…__apply_migration`
+2. Write + apply 0058
+3. Write + apply 0059 (with confirmed seed list)
+4. Build `ai-item-info.ts` + smoke-test 3 SKUs
+5. Wire server actions + extend `setAmazonSourceAction`
+6. Build `AiInfoCard` + chevron expand
+7. Bulk button + header
+8. (Optional) Estimator tooltip
+9. Each milestone = own commit, push to main, `vercel --prod`, update SESSION_HANDOFF.md
+
+**Files referenced this turn (no edits made):**
+- `package.json` (verified SDK 0.90.0)
+- All Plan-v1 files still relevant (estimator detail page, items page + components, actions.ts, catalog.ts, anthropic.ts, gallery/ai-label.ts as the prompt-pattern reference)
+
+No code written. No commits. Awaiting user reply on (a)–(d) above.
+
+---
+
+## 🟡 Earlier this turn — AI item info cards + editable Amazon URL: PLAN v1 sent, awaiting Q1–Q5 + S1–S5 sign-off (no commits)
+
+User on the **estimator detail page** (`/beithady/inventory/rules/estimator/[configId]`) for STUDIO-1BA-STANDARD asked to: add all items per category with 0 balance + suggested Amazon link + edit-link button + AI-generated info card under each item that auto-updates when the Amazon URL changes. Followed the user's "Plan → 95% confidence → Workflow → 95% confidence → Code" gate.
+
+**Codebase reality after exploration (saves rework next turn):**
+- All 30 seeded items exist in DB (`0052d_seed…`) — 7 chemicals, 8 sanitary, 7 fnb, 4 consumables (linen group), 4 branded. The estimator screenshot's 7+8+7+4+4 = 30 matches.
+- Items page already groups by category, shows 0 on-hand (no GRN posted), already has Amazon search-fallback link, already has Edit/Set/Change URL flow via `SourceCell`. So 3 of the user's 4 asks are **already built** — only the AI info card is genuinely new work.
+- ⚠️ Migration `0053_amazon_eg_review_state.sql` **NOT applied to prod** — `amazon_eg_url_reviewed_at` column missing. Verified via `mcp__f6afcc50…__execute_sql` against `information_schema.columns`. Means the existing Accept-button flow currently throws `MISSING_REVIEW_COLUMN_HINT` until applied. Flagged as suggestion S1.
+- Anthropic Haiku 4.5 already wired (`src/lib/anthropic.ts`, used in `gallery/ai-label.ts`, `crm/ai-summary.ts`, `ads/ai-copy.ts`) — pattern to copy.
+- Amazon-derived columns (`amazon_eg_price_egp`, `_pack_size`, `_image_url`, `_alternatives` jsonb, etc.) exist in schema but **never populated** — M.15.4 sourcer was scaffolded but not built.
+- All 30 items have `description = NULL` and `amazon_eg_url = NULL` — clean slate.
+
+**Plan v1 dimensions sent to user (5 questions + 5 improvement flags):**
+- Q1 where AI card renders (a expandable row / b sub-page / c drawer / d edit-modal tab) — recommended (a)
+- Q2 add MORE items beyond 30 (a no / b yes ~25 more across empty `linen`/`welcome_tray`/`maintenance` categories) — recommended (b)
+- Q3 AI source (a pure LLM / b web_fetch Amazon / c hybrid with source tag) — recommended (c)
+- Q4 `ai_info` jsonb schema: summary_en/ar, key_features[], usage_tips, ingredients_or_materials, warnings, pack_details, source, source_url, model, generated_at — fields up for negotiation
+- Q5 regen trigger (a sync on save / b background + spinner / c manual button) — recommended (b)
+- S1 apply migration 0053 first (independent blocker)
+- S2 keep `ai_info_history` for rollback on bad URL change
+- S3 24h cooldown to cap LLM cost (~$0.50-2/day worst case on Haiku × 30 items × multiple ops)
+- S4 bulk "generate AI info for all missing" header button
+- S5 surface info preview as estimator row tooltip (polish)
+
+**Proposed architecture (high level — NOT YET BUILT):**
+- New migration `0058_inventory_ai_info.sql` — adds `ai_info jsonb`, `ai_info_generated_at timestamptz`, `ai_info_source text` to `beithady_inventory_items`
+- Re-apply `0053_amazon_eg_review_state.sql` (S1)
+- New lib `src/lib/beithady/inventory/ai-item-info.ts` — `generateItemInfo(item)` calls Haiku with structured-JSON prompt, tries Claude `web_fetch` against `amazon_eg_url`, falls back to general-knowledge tagged in payload
+- Extend `setAmazonSourceAction` in `src/app/beithady/inventory/items/actions.ts:394` to enqueue background regen (only if >24h stale per S3)
+- New `<AiInfoCard />` component as expandable row in `items-section-list.tsx:284` `ItemRow`
+- New header button "Generate AI info for N missing" hitting bulk action
+
+**Next turn (after user signs off):**
+1. Apply 0053 migration via Supabase SQL Editor (or MCP `apply_migration`)
+2. Write 0058 migration
+3. Build `ai-item-info.ts` lib + smoke-test against 3 SKUs (e.g. CLN-BLEACH-1L, SAN-SHAMPOO-30ML, BRN-WELCOME-CARD)
+4. Wire server action + extend `setAmazonSourceAction`
+5. Build `<AiInfoCard />` + extend `ItemRow` with chevron
+6. Bulk-regen button + header
+7. Commit each milestone separately, push to main, `vercel --prod`, update SESSION_HANDOFF.md
+
+**Key files referenced (to avoid re-reading next turn):**
+- `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` (where user was)
+- `src/app/beithady/inventory/items/page.tsx` + `_components/items-section-list.tsx` + `_components/source-cell.tsx`
+- `src/app/beithady/inventory/items/actions.ts` (server actions — `setAmazonSourceAction` is line 394, will need extension)
+- `src/lib/beithady/inventory/catalog.ts` (`ItemRow` / `ItemListRow` types — will add `ai_info` field)
+- `src/lib/beithady/inventory/estimator-shared.ts` (`AmazonEgCandidate`, `AMAZON_EG_URL_PATTERN`)
+- `src/lib/anthropic.ts` (Haiku client + model constant)
+- `src/lib/beithady/gallery/ai-label.ts` (pattern for structured-JSON Claude calls)
+- `supabase/migrations/0048b_beithady_inventory_tables.sql:180` (items table DDL)
+- `supabase/migrations/0052c_amazon_eg_sourcing.sql` (already-existing Amazon columns)
+- `supabase/migrations/0052d_seed_unit_configs_categories_uoms_items_rules.sql` (the 30 seeded SKUs)
+- `supabase/migrations/0053_amazon_eg_review_state.sql` (NOT YET APPLIED — review flow blocker)
+
+No code written this turn. No commits. Awaiting user reply on Q1–Q5 + S1–S5.
+
+---
+
+## 🟢 Earlier turn — Split kill switch SHIPPED (1 manual + 12 per-automation switches + admin UI)
 
 User confirmed Q1–Q5: include AI under automatic, **separate switch per automation**, carry over current state (TRUE = paused), add settings UI. One commit `d7e5314` pushed to main.
 
