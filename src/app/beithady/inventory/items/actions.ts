@@ -7,7 +7,7 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
 import { listCategories, type ItemRow } from '@/lib/beithady/inventory/catalog';
 import { parseItemTemplate } from '@/lib/beithady/inventory/excel';
-import { AMAZON_EG_URL_PATTERN } from '@/lib/beithady/inventory/estimator-shared';
+import { canonicalizeAmazonEgUrl } from '@/lib/beithady/inventory/estimator-shared';
 import {
   regenerateItemInfo,
   setAiInfoStatus,
@@ -407,17 +407,21 @@ export async function setAmazonSourceAction(
 ): Promise<SourceActionResult> {
   const { user } = await requireBeithadyPermission('inventory', 'full');
 
+  // Accept any Amazon EG product URL shape: bare /dp/<ASIN>, /gp/product/<ASIN>,
+  // or the SEO-slug form `/Some-Product-Name/dp/<ASIN>/ref=...?query`. The
+  // helper extracts the ASIN and returns the bare canonical form so storage
+  // is always normalised — two pastes of the same product never differ.
   let cleanUrl: string | null = null;
   if (url && url.trim()) {
-    const trimmed = url.trim();
-    if (!AMAZON_EG_URL_PATTERN.test(trimmed)) {
+    const canonical = canonicalizeAmazonEgUrl(url);
+    if (!canonical) {
       return {
         ok: false,
         error:
-          'URL must be a canonical Amazon EG product link, e.g. https://www.amazon.eg/dp/B0XXXXXXXX or /gp/product/B0XXXXXXXX.',
+          'URL must be an Amazon EG product link with a 10-char ASIN. Examples: https://www.amazon.eg/dp/B0XXXXXXXX, https://www.amazon.eg/gp/product/B0XXXXXXXX, or the SEO-slug form https://www.amazon.eg/Product-Name/dp/B0XXXXXXXX/ref=… are all OK.',
       };
     }
-    cleanUrl = trimmed;
+    cleanUrl = canonical;
   }
 
   const sb = supabaseAdmin();

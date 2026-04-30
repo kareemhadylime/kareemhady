@@ -1,6 +1,25 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — clarified two-layer permission model + scheduled verification routine
+## 🟢 Latest turn — Amazon URL validation accepts SEO-slug form (canonicalize on save)
+
+User pasted `https://www.amazon.eg/Raid-Flying-Insect-Killer-Odorless/dp/B0882X6KH7/ref=sr_1_1_sspa?crid=...` into the "Set URL" popover for `CLN-ANTIFLY-400ML`. Got rejected: "URL must be a canonical Amazon EG product link, e.g. https://www.amazon.eg/dp/B0XXXXXXXX or /gp/product/B0XXXXXXXX." That URL IS valid — Amazon emits 4+ legitimate URL shapes for the same product. Our regex `^https:\/\/www\.amazon\.eg\/(dp|gp\/product)\/[A-Z0-9]{10}/` only matched two of them.
+
+**Fix shipped:**
+- New helpers in `estimator-shared.ts:142-180`:
+  - `extractAmazonEgAsin(url)` — pulls the 10-char ASIN out of any of the 4 known shapes (bare `/dp/<ASIN>`, `/gp/product/<ASIN>`, `/Product-Name/dp/<ASIN>/ref=…`, all + query strings). Regex: `/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i`. Domain check: `^https:\/\/(www\.)?amazon\.eg\//i`.
+  - `canonicalizeAmazonEgUrl(url)` — extracts ASIN and returns `https://www.amazon.eg/dp/<ASIN>`. Two pastes of the same product now always store identical strings (no slug, no `/ref=`, no `?crid=`).
+- `setAmazonSourceAction` in `actions.ts:411` swapped from regex test → `canonicalizeAmazonEgUrl()`. New error message lists all 3 acceptable forms.
+- Source-cell popover help text updated to mention the SEO-slug form is OK.
+
+**Side effect (good):** when the operator pastes a long messy URL with tracking params, the row now stores the clean `/dp/<ASIN>` form. Sourcer fetches against the clean URL too — slightly less likely to trigger Amazon anti-bot detection than fetching with `?crid=...&aref=...` query strings.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**No DB migration needed** — fix is pure app code.
+
+---
+
+## 🟢 Earlier today (parallel session) — clarified two-layer permission model + scheduled verification routine
 
 User created their first BA user (`ashargamal`) on `/admin/users` and asked: (a) what to pick in the Role dropdown (only sees admin/editor/viewer — no `business_analyst`); (b) whether the 3 app-level roles need to change to reflect the new Beit Hady roles; (c) confirmation that the prior change shipped.
 

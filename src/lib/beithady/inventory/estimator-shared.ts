@@ -140,6 +140,38 @@ export type AmazonEgCandidate = {
 
 export const AMAZON_EG_URL_PATTERN = /^https:\/\/www\.amazon\.eg\/(dp|gp\/product)\/[A-Z0-9]{10}/;
 
+/**
+ * Extract the 10-char ASIN from any Amazon EG product URL shape.
+ * Accepts:
+ *   • https://www.amazon.eg/dp/B0XXXXXXXX
+ *   • https://www.amazon.eg/dp/B0XXXXXXXX/ref=...
+ *   • https://www.amazon.eg/gp/product/B0XXXXXXXX
+ *   • https://www.amazon.eg/<seo-slug>/dp/B0XXXXXXXX/ref=...?crid=...
+ *   • Same with ?query=string trailing
+ *
+ * Returns null if no ASIN can be located. Lookup is intentionally lenient
+ * because Amazon emits 4+ legitimate URL shapes for the same product and
+ * the user pasting from the address bar shouldn't have to clean it up.
+ */
+export function extractAmazonEgAsin(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!/^https:\/\/(www\.)?amazon\.eg\//i.test(trimmed)) return null;
+  const m = trimmed.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/**
+ * Canonicalize any accepted Amazon EG URL shape to the bare
+ * `https://www.amazon.eg/dp/<ASIN>` form. Strips tracking refs, slugs,
+ * and query strings so two pastes of the same product always store
+ * identical strings. Returns null when no ASIN can be extracted.
+ */
+export function canonicalizeAmazonEgUrl(url: string): string | null {
+  const asin = extractAmazonEgAsin(url);
+  return asin ? `https://www.amazon.eg/dp/${asin}` : null;
+}
+
 /** Score formula per workflow §5: prefer high rating + many reviews + bulk pack + in-stock, penalise high per-unit price. */
 export function scoreAmazonCandidate(c: AmazonEgCandidate): number {
   const ppu = c.pack_size > 0 ? c.price_egp / c.pack_size : c.price_egp;
