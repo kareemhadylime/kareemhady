@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Amazon URL validation accepts SEO-slug form (canonicalize on save)
+## 🟢 Latest turn — URL save now auto-fetches price + name + brand from Amazon
+
+User saved a valid Amazon URL on `CLN-ANTIFLY-400ML` (Raid Flying Insect Killer 300ml). Two complaints:
+1. Cost cell stayed amber `~55` — saving the URL didn't trigger the price sourcer (only triggered the AI info regen). Operator had to click the separate "Sync prices" header button.
+2. Item name stayed "Anti-flies spray 400ml" — the seed name. Should change to the Amazon product title.
+
+**Both fixed in one commit:**
+
+**Sourcer extracts more fields:**
+- `AmazonProbeResult` extended with `product_name_en`, `product_name_ar`, `brand` (all `string | null`).
+- Prompt asks Claude to extract the product title (English + Arabic if listed) and the brand. New `cleanName()` helper strips Amazon noise like "(Pack of 1)" / dangling redundant parens.
+- `persistProbeResult` writes `name_en` / `name_ar` / `brand` columns when the probe returns non-empty values. Operator-edited names get preserved when probe fails or returns null fields.
+
+**Auto-fire sourcer on URL save:**
+- `setAmazonSourceAction` in `actions.ts:474-510` now schedules BOTH tasks via `waitUntil(Promise.allSettled([...]))`:
+  1. **Always** — `syncOneItemPrice(itemId)` (operator just gave us a fresh ASIN; existing price is stale by definition).
+  2. **Cooldown-gated** — `regenerateItemInfo(itemId, user.id)` (24h cooldown still applies; first regen always runs).
+- They run in parallel — both hit Claude with `web_fetch` on the same URL but extract different fields, so doubling the cost is acceptable (~$0.002 per save vs $0.001 before).
+
+**Items-page auto-poll extended:**
+- Previous trigger: `ai_info_status === 'queued' | 'running'`
+- Now also: `amazon_eg_url IS NOT NULL && amazon_eg_price_egp IS NULL && (no checked-at OR checked within last 60s)` — i.e. price sourcer in flight. So the cost cell flips from amber `~55` to plain `90` automatically when the background fetch lands, without the operator hitting refresh.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Smoke flow now:**
+1. Operator pastes URL → clicks Save
+2. Save returns instantly. Row shows amber `~55` + "Open product" + ✓ reviewed
+3. Within ~10s the auto-poll picks up the new state: name = "Raid Flying Insect Killer Odorless 300 ML", brand = "Raid", cost flips to plain slate `90 EGP` with "checked DD MMM" tooltip
+4. AI info card chevron expand also shows fresh content based on the live page
+
+---
+
+## 🟢 Earlier this turn — Amazon URL validation accepts SEO-slug form (canonicalize on save)
 
 User pasted `https://www.amazon.eg/Raid-Flying-Insect-Killer-Odorless/dp/B0882X6KH7/ref=sr_1_1_sspa?crid=...` into the "Set URL" popover for `CLN-ANTIFLY-400ML`. Got rejected: "URL must be a canonical Amazon EG product link, e.g. https://www.amazon.eg/dp/B0XXXXXXXX or /gp/product/B0XXXXXXXX." That URL IS valid — Amazon emits 4+ legitimate URL shapes for the same product. Our regex `^https:\/\/www\.amazon\.eg\/(dp|gp\/product)\/[A-Z0-9]{10}/` only matched two of them.
 

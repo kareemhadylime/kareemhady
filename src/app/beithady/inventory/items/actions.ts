@@ -467,30 +467,48 @@ export async function setAmazonSourceAction(
     after: { amazon_eg_url: cleanUrl },
   });
 
-  // Background AI info regen: only when the URL actually changed (avoids
-  // burning tokens on repeated saves of the same value) and only when the
-  // existing card is older than the cooldown OR doesn't exist yet. Manual
-  // refresh button bypasses cooldown — that's a separate action.
+  // On URL change with a non-null URL: kick off TWO background tasks via
+  // waitUntil so the operator's save returns instantly while the heavy
+  // work runs after the response is flushed:
+  //   1) Amazon EG price sourcer — fetches price + pack_size + product name
+  //      + brand from the live Amazon page and overwrites the items row.
+  //   2) AI info regen — generates the structured info card (24h cooldown
+  //      respected; first-ever regen bypasses it).
+  // Both calls hit Claude with web_fetch on the same URL but they extract
+  // different fields, so we run them in parallel.
   const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
-  if (urlChanged) {
+  if (urlChanged && cleanUrl) {
     const { data: aiState } = await sb
       .from('beithady_inventory_items')
       .select('ai_info, ai_info_generated_at')
       .eq('id', itemId)
       .maybeSingle();
-    const skipCooldown = !aiState?.ai_info;  // first-ever regen always runs
+    const skipCooldown = !aiState?.ai_info;
+    const userIdForAudit = user.id;
+
+    const tasks: Promise<unknown>[] = [];
+
+    // Task 1: price sourcer (always run on URL change — operator just gave
+    // us a fresh ASIN, the existing price is stale by definition).
+    tasks.push(
+      syncOneItemPrice(itemId).then(() => {
+        revalidatePath('/beithady/inventory/items');
+        revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+      }),
+    );
+
+    // Task 2: AI info regen (cooldown-gated)
     if (skipCooldown || !isWithinCooldown(aiState?.ai_info_generated_at)) {
-      // Mark as queued synchronously so the UI shows the spinner immediately;
-      // the actual call runs after the response is flushed.
       await setAiInfoStatus(itemId, 'queued');
-      const userIdForAudit = user.id;
-      waitUntil(
+      tasks.push(
         regenerateItemInfo(itemId, userIdForAudit).then(() => {
           revalidatePath('/beithady/inventory/items');
           revalidatePath('/beithady/inventory/rules/estimator', 'layout');
         }),
       );
     }
+
+    waitUntil(Promise.allSettled(tasks));
   }
 
   revalidatePath('/beithady/inventory/items');

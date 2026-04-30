@@ -41,6 +41,9 @@ export type AmazonProbeResult = {
   rating: number | null;
   review_count: number | null;
   image_url: string | null;
+  product_name_en: string | null;   // M.16 — Amazon product title (English)
+  product_name_ar: string | null;   // M.16 — Arabic title if present in listing
+  brand: string | null;             // M.16 — extracted brand name
   status: 'ok' | 'oos' | 'price_changed' | 'rate_limited' | '404';
 } | {
   ok: false;
@@ -68,13 +71,17 @@ Output a single JSON object with exactly these keys:
   "in_stock": boolean,                // true if the product page shows "In stock" or buyable; false if "Currently unavailable" / "Out of stock"
   "rating": number | null,            // 0..5 stars, null if no ratings yet
   "review_count": number | null,      // integer number of ratings, null if none
-  "image_url": string | null          // direct URL of the primary product image; null if not extractable
+  "image_url": string | null,         // direct URL of the primary product image; null if not extractable
+  "product_name_en": string | null,   // the page's H1 / product title in ENGLISH, cleaned (≤120 chars). Strip noise like "(Pack of 1)" / brand prefix duplicates / channel-specific suffixes.
+  "product_name_ar": string | null,   // Arabic title if visible on the page (Egyptian listings often have both); null if only English
+  "brand": string | null              // the manufacturer/brand (the "Brand: X" value or the first word of the title — e.g. "Raid", "Dettol", "Finish")
 }
 
 Rules:
 - Always include every key. Use null for fields you genuinely cannot determine; don't fabricate.
 - price_egp: extract the buyable price (the one near the "Add to Cart" button). Ignore strikethrough/MSRP unless that's the only price.
 - pack_size: read the title and bullets for "Pack of N", "N-pack", or "set of N". If the title says "1L bottle" and UoM is "bottle", pack_size=1.
+- product_name_en: the natural product title someone would type — e.g. "Raid Flying Insect Killer Odorless 300 ML", not "Raid Brand 300 mL Aerosol Insecticide Spray (Pack of 1) – Free Shipping".
 - status="ok" when in_stock=true AND price_egp is set; "oos" when explicitly out-of-stock; "404"/"rate_limited" per fetch outcome above.
 
 Return JSON only. No markdown fences. No prose before or after.`;
@@ -133,6 +140,16 @@ function validate(o: unknown): AmazonProbeResult {
     return Math.round(n);
   })();
 
+  // Trim Amazon noise: drop "(Pack of N)" suffixes and dangling parens
+  const cleanName = (s: string | null, maxLen = 200): string | null => {
+    if (!s) return null;
+    let t = s.trim();
+    t = t.replace(/\s*\((?:pack|set|box|case|bundle)\s+of\s+\d+\)\s*$/i, '');
+    t = t.replace(/\s*\(\s*\d+\s*[a-z]*\s*\)\s*$/i, ''); // "(1pc)" / "(500ml)" — Amazon redundant size suffix
+    t = t.replace(/\s+/g, ' ').trim();
+    return t.length === 0 ? null : t.length > maxLen ? t.slice(0, maxLen) : t;
+  };
+
   return {
     ok: true,
     price_egp: num('price_egp'),
@@ -141,6 +158,9 @@ function validate(o: unknown): AmazonProbeResult {
     rating: num('rating'),
     review_count: num('review_count'),
     image_url: str('image_url'),
+    product_name_en: cleanName(str('product_name_en'), 200),
+    product_name_ar: cleanName(str('product_name_ar'), 200),
+    brand: cleanName(str('brand'), 80),
     status,
   };
 }
@@ -226,9 +246,20 @@ export async function persistProbeResult(
     }
   }
 
+  // M.16 — also overwrite item name + brand from the live Amazon listing.
+  // Operator request: "Name should change to Amazon name". We only update if
+  // the probed value is non-empty so a partial Amazon parse doesn't blank
+  // the existing name. If the operator wants to keep their seed name, they
+  // edit it back via the Edit modal.
+  const namePatch: Record<string, unknown> = {};
+  if (result.product_name_en) namePatch.name_en = result.product_name_en;
+  if (result.product_name_ar) namePatch.name_ar = result.product_name_ar;
+  if (result.brand) namePatch.brand = result.brand;
+
   await sb
     .from('beithady_inventory_items')
     .update({
+      ...namePatch,
       amazon_eg_price_egp: newPrice,
       amazon_eg_pack_size: result.pack_size,
       amazon_eg_image_url: result.image_url,

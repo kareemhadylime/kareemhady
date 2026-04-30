@@ -36,12 +36,26 @@ export function ItemsSectionList({
   const [pending, startTransition] = useTransition();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Auto-refresh while any row is in the queued/running state — the
-  // Vercel waitUntil() background regen has no client push channel,
-  // so we poll the page every 4 s while a spinner is on screen.
+  // Auto-refresh while any background work is in flight — Vercel waitUntil()
+  // has no client push channel, so we poll the page every 4s. Two trigger
+  // conditions:
+  //   1) AI info status flag = queued/running (regen task running)
+  //   2) Item has an Amazon URL set but no live price yet AND it was
+  //      checked recently (within 60s) — the price sourcer is mid-fetch
   useEffect(() => {
+    const cutoff = Date.now() - 60_000;
     const anyInFlight = sections.some(s =>
-      s.items.some(it => it.ai_info_status === 'queued' || it.ai_info_status === 'running'),
+      s.items.some(it => {
+        if (it.ai_info_status === 'queued' || it.ai_info_status === 'running') return true;
+        if (it.amazon_eg_url && it.amazon_eg_price_egp == null) {
+          // No checked-at yet → freshly saved URL, sourcer just queued
+          if (!it.amazon_eg_last_checked_at) return true;
+          // Or checked within the last minute → sourcer probably in flight
+          const checkedAt = Date.parse(it.amazon_eg_last_checked_at);
+          if (Number.isFinite(checkedAt) && checkedAt > cutoff) return true;
+        }
+        return false;
+      }),
     );
     if (!anyInFlight) return;
     const t = window.setInterval(() => router.refresh(), 4000);
