@@ -1,6 +1,30 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Beit Hady "+ Add user" CTA shipped (commit `dacad44`)
+## 🟢 Latest turn — `business_analyst` Beit Hady role shipped (commit `b9ac678`)
+
+User asked for a "Business Analyst & Reporting" role. Suggested matrix; user locked in `financial: none` ("Only Numbers Coming From Booking Channels & Pricelabs") and `communication: none`.
+
+**Final permission matrix:**
+- analytics: **full** (primary domain — segments, dashboards, saved reports)
+- crm / ops / inv / ads / settings: **read** (broad context for analysis)
+- financial: **none** (Odoo P&L excluded — segregation of duties)
+- communication: **none** (no inbox / message bodies — privacy)
+- gallery: **none**
+
+Booking-channel + PriceLabs numbers reach the BA via `/beithady/analytics/*` (gated by `analytics`) and `/beithady/pricing` (currently un-gated entirely — see flag below).
+
+**Files:**
+- `supabase/migrations/0060_beithady_role_business_analyst.sql` — `alter type beithady_role add value if not exists 'business_analyst'`. Applied to `bpjproljatbrbmszwbov` via Supabase MCP. `enum_range(null::beithady_role)` confirms 8 values now.
+- `src/lib/beithady/auth.ts` — added to `BEITHADY_ROLES` tuple + permission row in the matrix.
+- `src/app/beithady/settings/users/page.tsx` — footer "matrix at a glance" copy updated to mention the new role; the Grant picker auto-picks it up since it iterates `BEITHADY_ROLES`.
+
+**Deploy state:** commit `b9ac678` pushed to `main`. Vercel CLI sibling project deploy `dpl_3jE9hR23mY4PKWcj1Tbh7Zg59C4L` READY. Real prod deploy goes via GitHub→Vercel integration on the main push.
+
+**🚩 Flag for future me — un-gated routes:** `/beithady/financials/page.tsx` (plural) and `/beithady/pricing/page.tsx` do NOT call `requireBeithadyPermission`. They rely on the upstream `requireDomainAccess('beithady')` gate only — meaning ANY user with `beithady` domain access can see Odoo financial detail and PriceLabs pricing, regardless of their fine-grained role. For the BA role this is actually *desired* (they want PriceLabs numbers), but it's a hole for guest_relations / housekeeper / warehouse_manager who are matrix-blocked from `financial: 'none'` but can still URL-walk to `/beithady/financials`. Worth a follow-up to add `requireBeithadyPermission('financial', 'read')` to `/beithady/financials/page.tsx` and decide whether `/beithady/pricing` should be gated by `analytics` or stay open.
+
+---
+
+## 🟢 Earlier this session — Beit Hady "+ Add user" CTA shipped (commit `dacad44`)
 
 User was on `/beithady/settings/users` and asked "Where to add users?" — there was no UI hint pointing them to the global user-creation page at `/admin/users`. The Beit Hady page only grants existing users to one of the five property-roles; it never created users.
 
