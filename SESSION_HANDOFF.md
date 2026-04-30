@@ -1,6 +1,14 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — SHIPPED: webhook column-swap fix + Awaiting Reply banner + 2170-row SLA backfill + UAE building_code backfill, then merged main
+## 🟢 Latest turn — SHIPPED + merged to main: webhook column-swap fix + Awaiting Reply banner + 2170-row SLA backfill + UAE building_code backfill
+
+**Push to main:** merge commit `49f3492` integrating 42 parallel-session commits + my 10 fix commits. `git push origin claude/zen-euler-d3bd5e:main` → success (`fa874ec..49f3492`). Vercel `--prod` deploy READY at `https://zen-euler-d3bd5e-qwb11fnsy-lime-investments.vercel.app` (alias `zen-euler-d3bd5e.vercel.app`). Branch state: zero divergence with origin/main now.
+
+**Merge conflicts resolved:**
+- `sidebar-list.tsx`: kept main's `is_unanswered` timestamp-derived field for the bold + NEW pill UX. Combined with my new "Awaiting reply" stripe + pill so the same `is_unanswered` flag now drives both signals (one source of truth, fresher than the 5-min SLA recompute).
+- `SESSION_HANDOFF.md`: kept this turn's recent stack on top, transitioned into a "🔵 Parallel-session turns" section preserving main's history (SKU-size mismatch detector, Generate Report module, ScrapingBee integration, business_analyst role, etc.).
+
+
 
 User said "ship". Commit `43f0b95` shipped three fixes plus two data backfills.
 
