@@ -1,6 +1,45 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Critical sourcer regression fixed (commit `fd1fed3`, pushed to main)
+## 🟢 Latest turn — AI-suggested SKU rename shipped + critical sourcer regression fixed
+
+User: "Rename SKU code By AI based on URL". Implemented as a third button in the Amazon mismatch banner: "Rename SKU via AI".
+
+**Why the rename is safe**: `items.id` is the FK target for stock/transactions/consumption_rules/etc. — `items.sku` is just a unique-text label. Renaming `items.sku` does NOT cascade or break references. Verified by reading the 0048b schema (stock has `item_id uuid`, transactions has `item_id uuid`).
+
+**New module `src/lib/beithady/inventory/ai-sku-rename.ts`**:
+- `suggestSkuRename(input)` → calls Claude Haiku 4.5 with the catalog's existing SKU patterns as few-shot examples (CLN-ANTIFLY-400ML, SAN-SHAMPOO-30ML, BRN-PEN, MNT-LIGHTBULB-LED-9W, etc.).
+- Prompt enforces: prefix MUST match category code (CLN/SAN/TRAY/WTR/LIN/BRN/MNT/AST). KEY-WORD must be the most distinctive product noun. SIZE uses ML/L/G/KG/PK abbreviations. Total ≤30 chars, A-Z/0-9/hyphen only.
+- Returns `{ ok, sku, rationale }` — rationale shown in confirm dialog.
+
+**Two new server actions in `actions.ts`**:
+- `suggestSkuRenameAction(itemId)` → reads item + fetched Amazon details + category code, calls Haiku, returns `{ old_sku, suggested_sku, rationale }`. Refuses if Amazon details haven't been synced yet.
+- `applySkuRenameAction(itemId, newSku)` → validates regex `^[A-Z][A-Z0-9-]{1,29}$`, checks uniqueness against all other rows, updates `items.sku`. Audit-logged.
+
+**UI extension in `amazon-mismatch-banner.tsx`**:
+- New cyan "Rename SKU via AI" button next to "Use Amazon details" / "Ignore"
+- Click → calls `suggestSkuRenameAction` → modal opens showing old/new SKU side-by-side + AI rationale + a "Safe to rename" reassurance note
+- Click "Apply rename" → calls `applySkuRenameAction` → row's SKU updates, banner dismisses, page refreshes
+
+**Operator workflow (end-to-end):**
+1. Paste Amazon URL → save → background sync fires
+2. After sync, if Amazon's product name differs from SKU's `name_en`, amber banner appears
+3. Three choices in banner:
+   - **Use Amazon details** → applies name + brand only (existing flow)
+   - **Rename SKU via AI** → opens confirm modal with AI suggestion, click Apply
+   - **Ignore** → dismisses locally
+4. After applying both, the row has matching name + matching SKU code with the actual product
+
+**Earlier this turn — sourcer validate hardening (commit `fd1fed3`):** detailed in the entry below. Also restored Antifly's 89 EGP price (wiped by bad sync) + cleared CLN-FLOOR-DISIN-1L's wrong URL.
+
+**Files touched this turn:**
+- New: `src/lib/beithady/inventory/ai-sku-rename.ts`
+- Edited: `src/app/beithady/inventory/items/actions.ts` (suggestSku + applySku actions), `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx` (button + modal)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this turn — Critical sourcer regression fixed (commit `fd1fed3`, pushed to main)
 
 User screenshot showed cost cells still amber `~55` `~45` `~40` after clicking Sync prices. Investigation via `mcp__execute_sql`:
 ```

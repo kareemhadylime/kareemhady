@@ -961,3 +961,125 @@ export async function applyAmazonDetailsAction(
   revalidatePath('/beithady/inventory');
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// AI-suggested SKU rename (Phase M.16)
+// ---------------------------------------------------------------------------
+// Operator's flow when an Amazon URL points to a different size/brand than
+// the SKU code suggests (e.g., CLN-ANTIFLY-400ML pointing at a 300ML can):
+//   1) Click "Suggest SKU rename" in the mismatch banner
+//      → calls suggestSkuRenameAction → returns AI-proposed new SKU + rationale
+//   2) UI shows confirmation modal with old/new comparison
+//   3) Operator clicks Apply → calls applySkuRenameAction → updates items.sku
+//
+// items.id is the FK target across stock/transactions/rules/etc, NOT the SKU
+// text — so renaming items.sku is a label-only change, no cascade needed.
+
+export type SkuSuggestionResult =
+  | { ok: true; old_sku: string; suggested_sku: string; rationale: string }
+  | { ok: false; error: string };
+
+export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggestionResult> {
+  await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+  const { data: row } = await sb
+    .from('beithady_inventory_items')
+    .select(`
+      sku, name_en, uom,
+      amazon_eg_product_name_en, amazon_eg_brand, amazon_eg_pack_size,
+      category:beithady_inventory_categories!inner(code)
+    `)
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!row) return { ok: false, error: 'Item not found' };
+  const item = row as unknown as {
+    sku: string;
+    name_en: string;
+    uom: string;
+    amazon_eg_product_name_en: string | null;
+    amazon_eg_brand: string | null;
+    amazon_eg_pack_size: number | null;
+    category: { code: string };
+  };
+
+  if (!item.amazon_eg_product_name_en) {
+    return {
+      ok: false,
+      error: 'No Amazon product details on this row yet — set a URL and run sync first.',
+    };
+  }
+
+  const { suggestSkuRename } = await import('@/lib/beithady/inventory/ai-sku-rename');
+  const res = await suggestSkuRename({
+    oldSku: item.sku,
+    categoryCode: item.category.code,
+    oldNameEn: item.name_en,
+    newNameEn: item.amazon_eg_product_name_en,
+    newBrand: item.amazon_eg_brand,
+    uom: item.uom,
+    packSize: item.amazon_eg_pack_size,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+  if (res.sku === item.sku) {
+    return { ok: false, error: 'AI suggested the same SKU — no change needed.' };
+  }
+  return { ok: true, old_sku: item.sku, suggested_sku: res.sku, rationale: res.rationale };
+}
+
+export type SkuApplyResult = { ok: true; old_sku: string; new_sku: string } | { ok: false; error: string };
+
+export async function applySkuRenameAction(
+  itemId: string,
+  newSku: string,
+): Promise<SkuApplyResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+
+  const cleanSku = (newSku || '').trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9-]{1,29}$/.test(cleanSku)) {
+    return { ok: false, error: 'SKU must be 2–30 chars, A-Z / 0-9 / hyphen, starting with a letter.' };
+  }
+
+  const sb = supabaseAdmin();
+  const { data: before } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku')
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: 'Item not found' };
+  const beforeRow = before as { id: string; sku: string };
+  if (beforeRow.sku === cleanSku) {
+    return { ok: false, error: 'New SKU is identical to the current one — no change.' };
+  }
+
+  // Uniqueness check
+  const { data: clash } = await sb
+    .from('beithady_inventory_items')
+    .select('id, sku')
+    .eq('sku', cleanSku)
+    .neq('id', itemId)
+    .maybeSingle();
+  if (clash) {
+    return { ok: false, error: `SKU "${cleanSku}" is already used by another item.` };
+  }
+
+  const { error } = await sb
+    .from('beithady_inventory_items')
+    .update({ sku: cleanSku, updated_at: new Date().toISOString() })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: error.message };
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.sku.rename',
+    target_type: 'item',
+    target_id: itemId,
+    before: { sku: beforeRow.sku },
+    after: { sku: cleanSku },
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true, old_sku: beforeRow.sku, new_sku: cleanSku };
+}
