@@ -56,12 +56,33 @@ export async function GET(req: NextRequest) {
     const row = (Array.isArray(data) ? data[0] : data) as
       | { conversations_upserted: number; messages_upserted: number; total_conversations: number; total_messages: number }
       | undefined;
+
+    // Step 3 — auto-archive Guesty system-notification emails (Phase C.5
+    // follow-up). Best-effort: don't fail the cron if classification
+    // throws.
+    let classify: { archived: number; restored: number } | { error: string } = { archived: 0, restored: 0 };
+    try {
+      const { data: c, error: cErr } = await sb.rpc('beithady_classify_system_notifications');
+      if (cErr) throw new Error(cErr.message);
+      const cRow = (Array.isArray(c) ? c[0] : c) as { archived: number; restored: number } | undefined;
+      if (cRow) classify = cRow;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // eslint-disable-next-line no-console
+      console.warn('[beithady-comm-sync] system-notification classify threw:', msg);
+      classify = { error: msg };
+    }
+
     await recordAudit({
       module: 'communication',
       action: 'comm_sync_run',
-      metadata: { ...(row as Record<string, unknown> || {}), recovery: recovery as Record<string, unknown> },
+      metadata: {
+        ...(row as Record<string, unknown> || {}),
+        recovery: recovery as Record<string, unknown>,
+        classify: classify as Record<string, unknown>,
+      },
     });
-    return NextResponse.json({ ok: true, result: row, recovery });
+    return NextResponse.json({ ok: true, result: row, recovery, classify });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
