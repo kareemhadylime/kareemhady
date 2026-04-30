@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Unanswered-first default sort + lazy-fetch rehydrate SHIPPED (commit `4690bce`)
+## 🟢 Latest turn — Fixed "NEW" badge stuck on answered threads (commit `6f76eb3`)
+
+User screenshot: Amr (Airbnb inquiry BH73-3BR-SB-3-305) showed "1 NEW" badge in sidebar even though the team had replied via the templated "Hello, Thanks for your interest" outbound. Asked "Why Amr Message shows new, although team has responded".
+
+**Diagnosis:** `unread_count` was sourced from Guesty's `gc.state_read` flag, which only flips when the conversation is OPENED in Guesty's UI. API-only replies (via send-guesty) don't bump state_read upstream — so even though we replied, our mirror saw `state_read=false` → `unread_count=1` → "1 NEW" badge.
+
+DB confirmed: `last_inbound_at: 05:10:29 UTC`, `last_outbound_at: 03:04:57 UTC` (older log entry), `is_unanswered: true`, `unread_count: 1`. The 8:10 outbound visible in the UI was likely a Guesty-side log auto-templated reply that we do mirror, but the timestamps showed the inbound came LAST.
+
+**Fix shipped (commit `6f76eb3`):**
+- Sidebar "NEW" pill + bold-name styling now read `is_unanswered` (the timestamp-derived generated column from migration 0059) instead of `unread_count > 0`.
+- `is_unanswered` = `last_inbound_at IS NOT NULL AND (last_outbound_at IS NULL OR last_inbound_at > last_outbound_at)` — flips the moment we reply because `last_outbound_at` jumps past `last_inbound_at` in the same transaction.
+- `unreadOnly` filter on `listInbox()` + `getInboxStats().unread` counter both switched to `.eq('is_unanswered', true)` for consistency.
+- `send-guesty.ts` outbound update now also sets `unread_count: 0` for parity with `send-wa-casual.ts` (defense in depth — legacy callers reading unread_count still get the correct value).
+
+**Pill text** simplified from "1 new" to "NEW" since is_unanswered is binary (no count to surface).
+
+**Why this is the right fix:** Guesty's `state_read` is a Guesty-UI-driven signal. Our app's "needs reply" indicator should be based on what WE control — whether `last_outbound_at` has caught up to `last_inbound_at`. Migration 0059 already gave us that as a generated column; this commit just wires the UI to the right source of truth.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `6f76eb3` pushed to `main`. Vercel auto-deploys via GitHub integration.
+
+## 🟢 Earlier turn — Unanswered-first default sort + lazy-fetch rehydrate SHIPPED (commit `4690bce`)
 
 User: "The Default Sorting should be Unanswered First then Recent Activity. Another bug — Still Unknown Messages show up." Two parallel issues, both fixed in one commit.
 
