@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { Trash2, UserPlus } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -48,6 +49,15 @@ export default async function BeithadyUsersSettingsPage() {
         eyebrow="Beit Hady · Settings · Users"
         title="Users & roles"
         subtitle="Five-role permission matrix for Beit Hady. App-admins get every role implicitly."
+        right={user.is_admin ? (
+          <Link
+            href="/admin/users"
+            className="ix-btn-primary text-sm inline-flex items-center gap-2"
+            title="Create new app users (app-admin only)"
+          >
+            <UserPlus size={14} /> Add user
+          </Link>
+        ) : null}
       />
 
       <div className="ix-card p-5">
