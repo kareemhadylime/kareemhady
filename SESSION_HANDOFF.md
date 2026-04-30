@@ -1,6 +1,61 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Generate Report module SHIPPED + PUSHED to main (commit `8599ee8`)
+## 🟢 Latest turn — Critical sourcer regression fixed (commit `fd1fed3`, pushed to main)
+
+User screenshot showed cost cells still amber `~55` `~45` `~40` after clicking Sync prices. Investigation via `mcp__execute_sql`:
+```
+CLN-ANTIFLY-400ML: price=null, in_stock=false, last_status='ok'  ← contradictory!
+CLN-APC-1L:        price=null, in_stock=false, last_status='404'
+CLN-FLOOR-DISIN-1L: price=null, last_status='404'
+```
+
+**Two bugs found:**
+
+1. **Sourcer was actively destroying good data.** ScrapingBee fetched the Amazon page, but Haiku returned `status='ok'` with `price_egp=null` AND `in_stock=false` — impossible combo. The previous `validate()` accepted this; `persistProbeResult` then overwrote Antifly's cached 89 EGP with null. Every Sync click was wiping the previous good price.
+
+2. **User pasted same URL for two SKUs.** `https://www.amazon.eg/dp/B08WJN8HWQ` was set on BOTH `CLN-APC-1L` AND `CLN-FLOOR-DISIN-1L`. Both got status='404'. Two SKUs can't share a URL.
+
+**Fix shipped in `src/lib/beithady/inventory/amazon-eg-sourcer.ts:153-178`:**
+- `validate()` now downgrades to `parse_error` when:
+  - `status='ok'` AND `price_egp == null` (Claude couldn't actually find a price)
+  - `status='ok'` AND `in_stock == false` (contradictory)
+- On `parse_error`, `persistProbeResult` writes ONLY `amazon_eg_last_status='unchecked'` + timestamp. Price/pack_size/image stay at their previous values. **Flaky Claude responses can never wipe known-good cached data again.**
+
+**DB cleanup via Supabase MCP:**
+- Restored Antifly's `amazon_eg_price_egp = 89.00`, `in_stock = true`, `last_status = 'ok'` from prior verified sync
+- Cleared all amazon_eg_* fields on `CLN-FLOOR-DISIN-1L` so user can paste a real 1L floor disinfectant ASIN (separate from APC's URL)
+
+**Auxiliary:** parallel session shipped Generate Report with `recharts` import but never installed the dep. Build was failing. Fixed via `npm install recharts` (now `^2.15.4` in package.json). Build clean.
+
+**Deploy state:** `vercel --prod` first attempt errored on `getaddrinfo ENOTFOUND api.vercel.com` (transient DNS), retrying in background as `blifp2wh1`. The GitHub→Vercel integration will auto-deploy `fd1fed3` regardless within ~3 min of the push, so the fix lands either way.
+
+**User's secondary concern** ("Size has to update and name"): names ARE updating via the existing apply-Amazon-details flow (APC's `name_en` is now "Frida floor cleaner - lemon, 4 litre"). For sizes:
+- `amazon_eg_pack_size` IS being captured (APC = 4 for "4 litre")
+- Volume info is in the name itself ("4 litre" / "300 ML")
+- The SKU code suffix (`CLN-ANTIFLY-400ML` while actual is 300ML) is the only thing not auto-updating, because SKU codes are FK references in stock/transactions/rules tables. Renaming them is a destructive cascade. **Deferred** — added to "ask user to confirm SKU rename" as a future feature, will build if user explicitly requests.
+
+**Files touched:**
+- `src/lib/beithady/inventory/amazon-eg-sourcer.ts` (validate hardening)
+- `package.json` + `package-lock.json` (recharts install for parallel-session unblock)
+- DB: 2 row updates via Supabase MCP
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Smoke test for next time:**
+1. After deploy lands, click Sync prices on items page
+2. Antifly should stay at 89 (preserved if Claude misbehaves) or land on a fresh live price
+3. APC should retry with Haiku 404 prompt fix (commit `e8f74be` from earlier this turn) — likely succeeds
+4. Floor-Disin row will not have a URL — operator pastes a fresh 1L floor disinfectant ASIN to source it
+
+---
+
+## 🟢 Earlier — Amazon-product-name mismatch banner SHIPPED + DEPLOYED (commit `c034519`)
+
+Operator-confirmation flow for fetched Amazon names that differ from SKU names. Three new shadow columns (`amazon_eg_product_name_en/_ar` + `amazon_eg_brand`) populated by sourcer. Mismatch banner UI surfaces them with "Use Amazon details" / "Ignore" buttons. New `applyAmazonDetailsAction(itemId)` server action copies shadow → canonical when accepted. Sourcer NEVER overwrites name_en/brand silently anymore.
+
+---
+
+## 🟢 Earlier — Generate Report module SHIPPED + PUSHED to main (commit `8599ee8`)
 
 User: "Ship all Phases together. Deploy & Commit Automatically." Done.
 
