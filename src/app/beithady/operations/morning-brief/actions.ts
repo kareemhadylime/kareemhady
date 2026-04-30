@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getCurrentUser } from '@/lib/auth';
 import type { BriefRole } from '@/lib/beithady/morning-brief/types';
-import { runMorningBrief } from '@/lib/beithady/morning-brief/run';
+import { runMorningBrief, runMorningBriefAll } from '@/lib/beithady/morning-brief/run';
 import { buildGuestRelationsBrief } from '@/lib/beithady/morning-brief/gr-brief';
 import { buildOpsBrief } from '@/lib/beithady/morning-brief/ops-brief';
 import { buildFinanceBrief } from '@/lib/beithady/morning-brief/finance-brief';
@@ -137,6 +137,60 @@ export async function sendBriefNowAction(input: {
     return {
       ok: false,
       duration_ms: 0,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+// Fire ALL 3 briefs NOW (Guest Relations + Ops + Finance) in parallel
+// to all configured recipients. Wipes today's log rows first so the
+// runMorningBrief idempotency check doesn't short-circuit. Used for
+// post-deploy verification — re-sends the briefs against the latest
+// code so the user sees the new format immediately.
+export async function sendAllBriefsNowAction(input: {
+  dateIso: string;
+}): Promise<{
+  ok: boolean;
+  duration_ms: number;
+  per_role: Array<{
+    role: BriefRole;
+    ok: boolean;
+    recipients: number;
+    delivered_whatsapp: number;
+    delivered_email: number;
+    failed: number;
+    error?: string;
+  }>;
+  error?: string;
+}> {
+  await requireBeithadyPermission('operations', 'full');
+  const t0 = Date.now();
+  const sb = supabaseAdmin();
+  // Wipe all 3 log rows so runMorningBrief doesn't skip.
+  await sb.from('beithady_morning_brief_log')
+    .delete()
+    .eq('run_date', input.dateIso);
+  try {
+    const results = await runMorningBriefAll({ dateIso: input.dateIso });
+    revalidatePath('/beithady/operations/morning-brief');
+    return {
+      ok: results.every(r => r.status !== 'failed'),
+      duration_ms: Date.now() - t0,
+      per_role: results.map(r => ({
+        role: r.role,
+        ok: r.status !== 'failed',
+        recipients: r.recipients,
+        delivered_whatsapp: r.delivered_whatsapp,
+        delivered_email: r.delivered_email,
+        failed: r.failed,
+        error: r.status === 'failed' ? 'All deliveries failed' : undefined,
+      })),
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      duration_ms: Date.now() - t0,
+      per_role: [],
       error: e instanceof Error ? e.message : String(e),
     };
   }

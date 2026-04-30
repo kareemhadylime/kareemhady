@@ -10,6 +10,7 @@ import { buildFinanceBrief } from '@/lib/beithady/morning-brief/finance-brief';
 import type { BriefRole } from '@/lib/beithady/morning-brief/types';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { TestPanel } from './_test-panel';
+import { SendAllBriefsButton } from './_send-all-button';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -135,6 +136,9 @@ export default async function MorningBriefArchive({
           Live preview — this brief has not been sent yet for {date}.
         </section>
       )}
+
+      {/* Send-all-3 button (post-deploy audit re-send) */}
+      <SendAllBriefsButton dateIso={date} />
 
       {/* Test panel */}
       <TestPanel role={role} dateIso={date} />
