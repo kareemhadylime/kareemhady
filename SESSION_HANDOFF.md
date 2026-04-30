@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn (parallel session) — Fixed "NEW" badge stuck on answered threads (commit `6f76eb3`)
+## 🟢 Latest turn (this session) — F3 (Amazon EG sourcer) + F1 (estimate flags) SHIPPED + DEPLOYED
+
+**End-state confirmation (post-deploy):**
+- Commit `4c57682` pushed to main
+- Vercel prod deploy `dpl_4WxALj4LcKQYHYhRefmZdgocCYQD` → READY (production target)
+- `npx tsc --noEmit` clean, `npm run build` clean
+- Daily Vercel cron `/api/cron/beithady-amazon-eg-sourcer` scheduled `0 4 * * *` UTC = 06:00 Cairo
+- Two parallel-session migrations (`0058_beithady_auto_archive_*` and `0059_beithady_unanswered_first_sort.sql`) coexist on disk with my `0058_inventory_ai_info.sql` and `0059_seed_extra_inventory_items.sql` — no DB collision since Supabase tracks by applied-name.
+
+**Deferred follow-ups (NOT this turn):**
+- Set Amazon EG URLs on the actual seeded items so the sourcer has something to probe (currently 0/73 have a URL → "Sync prices (0)" button is hidden until first URL is set)
+- Optional: schedule a 2h check to verify the first manual sync actually returns data (Amazon may block → would force F1-only fallback as the long-term reality)
+- M.15.4 `amazon_eg_alternatives` jsonb is still untouched — currently the sourcer only re-validates the canonical URL, doesn't propose alternates
+
+**Architecture caveat for future me:** the sourcer relies on Claude's `web_fetch` tool succeeding against amazon.eg. Anthropic's tool docs warn that high-volume e-commerce sites often refuse fetches. If we see `rate_limited` rates >50% in production, fall back to: (a) third-party scrape proxy like ScraperAPI, or (b) manual URL paste + manual price field on the items form. The estimate-flag UI (F1) handles either failure mode gracefully — costs just stay amber until live data arrives.
+
+---
+
+## 🟢 Earlier today (parallel session) — Fixed "NEW" badge stuck on answered threads (commit `6f76eb3`)
 
 User screenshot: Amr (Airbnb inquiry BH73-3BR-SB-3-305) showed "1 NEW" badge in sidebar even though the team had replied via the templated "Hello, Thanks for your interest" outbound. Asked "Why Amr Message shows new, although team has responded".
 
