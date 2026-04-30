@@ -1,5 +1,49 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
+## 🟢 Latest turn — Orphaned-conversation recovery SHIPPED (Hady Family bug fix)
+
+User: "Ship all automatically" → fix landed in 2 commits + applied migration:
+
+| Commit | What |
+|---|---|
+| `6347899` | feat code: lazy-create + orphan-scan recovery |
+| `4d51b21` | merge resolution to keep upstream handoff |
+
+Migration `0056_beithady_orphan_conv_recovery.sql` — applied via Supabase MCP. Adds RPC `beithady_orphan_conv_ids(p_limit int)` that returns up to 500 orphan conversation_ids ordered by latest post recency.
+
+**Confirmed via the new RPC:** 17 orphans currently in the system, including:
+- `69f2f7ee961ab90013cd53ff` (newest, ~9:34 Cairo)
+- `69f2f16b824ad00012c34e12` (Hady Family, 2 posts)
+- `69f2e786aa8177001222e798` (Abdullah Idrees, 5 posts)
+- 14 booking auto-notification threads going back to 4/28
+
+**New artefacts:**
+- `src/lib/guesty.ts` — `getGuestyConversation(id, fields?)` — fetches single conversation via `GET /v1/communication/conversations/{id}` with `data` envelope unwrap. Returns null on 4xx/5xx (caller decides what to do).
+- `src/lib/run-guesty-sync.ts` — `normalizeConversationRow` is now exported (was internal). No behavior change.
+- `src/lib/guesty-conversation-recovery.ts` — `fetchAndUpsertConversation(id)` (single-id recovery, with fast-path skip when row already exists) + `recoverOrphanedConversations(maxToFetch=50, throttleMs=200)` (batch scan, sequential, throttled to keep Guesty rate-limit headroom).
+- `src/lib/guesty-webhook.ts` `ingestMessage` — calls `fetchAndUpsertConversation(conversationId)` before upserting the post. Fast-path no-op when row exists. Best-effort: logs and continues on failure (next cron tick will recover).
+- `src/app/api/cron/beithady-comm-sync/route.ts` — runs `recoverOrphanedConversations(50, 200)` BEFORE the SQL mirror. Best-effort: if recovery throws, the SQL mirror still runs. Audit row now includes recovery stats.
+
+**Why the bug existed:** Guesty's webhook subscription on this Beithady account does NOT fire `conversation.created` events. Only `reservation.messageReceived` / `reservation.messageSent` arrive. Verified via `guesty_webhook_events` query — 0 rows ever for `event_name like 'conversation.%'`. The webhook handler's `ingestMessage` did `UPDATE guesty_conversations` for the parent — silent no-op when the conv didn't exist. Posts upserted into `guesty_conversation_posts` correctly but were orphaned. The SQL ingest proc `beithady_communication_ingest()` LEFT JOINs posts → conversations and skips orphans entirely.
+
+**Pre-existed Phase C.5 by months** — was hidden because the daily 4:40 UTC `/api/cron/guesty` pull catches up overnight. Affected every brand-new conversation message between daily syncs.
+
+**Risk register status:**
+- R1 — Guesty Open API rate limit on parent fetches: mitigated by 50 cap + 200ms throttle
+- R2 — webhook race condition (parent fetched while concurrent webhook fires): existing `onConflict:id` upsert handles
+- R3 — Guesty 404 on very-fresh conversation: returns null, logged, next cron tick retries
+- R4 — recovery failure blocks SQL mirror: mitigated by try/catch around recovery; SQL mirror runs even if recovery throws
+
+**Validation pending:** next 5-min cron tick (next firing at the 5-minute boundary in UTC) should:
+1. Call `beithady_orphan_conv_ids(50)` → 17 rows
+2. Fetch each from Guesty Open API and upsert into `guesty_conversations` (or skip if 404)
+3. Call SQL mirror — `beithady_communication_ingest()` joins now-non-orphan posts → mirrored to `beithady_conversations` + `beithady_messages`
+4. Hady Family + others appear in `/beithady/communication/unified` within ≤5 min of deploy
+
+User should refresh their unified inbox in ~5-10 minutes; "Hady Family" + 16 other conversations should land. Audit row at `/beithady/settings/audit` will show `comm_sync_run` with new `recovery: {scanned: 17, recovered: N, ...}` field.
+
+
+
 ## 🟠 Latest turn — Diagnosed pre-existing orphaned-conversation bug (NOT shipped — awaiting user "go")
 
 User screenshot showed they sent "This is a Test Message" via Guesty (Hady Family inquiry, Airbnb, BH73-3BR-SB-3-305, 9:06 AM Cairo / 06:06 UTC) but the message never appeared in our Unified Inbox at limeinc.vercel.app. They asked: "Where is my Test Message, it doesn't show up in inbox on app".
