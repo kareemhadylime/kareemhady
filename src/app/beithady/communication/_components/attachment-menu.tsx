@@ -1,6 +1,6 @@
 'use client';
-import { useRef, useState } from 'react';
-import { Paperclip, Camera, FolderOpen, X, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Paperclip, Camera, FolderOpen, X, Image as ImageIcon, Check, Loader2, AlertTriangle } from 'lucide-react';
 import { sendWaCasualMultiAttachAction, sendGuestyMultiAttachAction } from '../attach-actions';
 import { LibraryPicker, type LibraryAttachment } from './library-picker';
 
@@ -31,9 +31,24 @@ export function AttachmentMenu({
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PendingItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [stalled, setStalled] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Watchdog: if submitting hasn't resolved within 90s, surface a stall
+  // banner so the user can cancel and retry instead of staring at the
+  // spinner forever. Vercel's serverless function default timeout is
+  // 60s — anything past 90s on the client means the action either
+  // crashed without redirecting or got swallowed at the edge layer.
+  useEffect(() => {
+    if (!submitting) {
+      setStalled(false);
+      return;
+    }
+    const id = setTimeout(() => setStalled(true), 90_000);
+    return () => clearTimeout(id);
+  }, [submitting]);
 
   const pickFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -197,7 +212,29 @@ export function AttachmentMenu({
 
           <NativeFileBag items={items} />
 
-          {submitting ? (
+          {/* CRITICAL: keep the submit button mounted at all times. The
+              earlier conditional-render approach (button vs progress
+              card) caused a React re-render race where setSubmitting(true)
+              from onClick would unmount the button BEFORE the browser
+              committed the submit, leaving the request never sent. Toggle
+              `disabled` instead of remounting. */}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500">{items.length} ready · max {MAX_FILES}</span>
+            <button
+              type="submit"
+              formAction={action}
+              formEncType="multipart/form-data"
+              onClick={() => setSubmitting(true)}
+              disabled={submitting}
+              className="ix-btn-primary text-xs disabled:opacity-50"
+            >
+              {submitting
+                ? <><Loader2 size={11} className="animate-spin" /> Sending…</>
+                : <><Check size={11} /> Send {items.length}</>}
+            </button>
+          </div>
+
+          {submitting && !stalled && (
             <div className="rounded-lg border border-violet-200 bg-violet-50 dark:bg-violet-950 dark:border-violet-800 p-2 text-xs text-violet-800 dark:text-violet-200 flex items-center gap-2">
               <Loader2 size={12} className="animate-spin shrink-0" />
               <div className="flex-1">
@@ -211,27 +248,35 @@ export function AttachmentMenu({
                 <div className="h-full w-1/2 bg-violet-600 animate-pulse" />
               </div>
             </div>
-          ) : (
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500">{items.length} ready · max {MAX_FILES}</span>
-              <button
-                type="submit"
-                formAction={action}
-                formEncType="multipart/form-data"
-                onClick={() => setSubmitting(true)}
-                disabled={submitting}
-                className="ix-btn-primary text-xs disabled:opacity-50"
-              >
-                <Check size={11} /> Send {items.length}
-              </button>
+          )}
+
+          {stalled && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <div className="font-semibold">Send appears to have stalled.</div>
+                <div className="text-[10px] opacity-90">
+                  No response from server after 90s. The upload may have failed silently
+                  (file too large for the function timeout, or Guesty rejected it). Click
+                  Cancel to reset and retry; check Settings → Audit for any &quot;multi_attach_guesty&quot;
+                  row to confirm whether the send actually went through.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setSubmitting(false); setStalled(false); }}
+                  className="ix-btn-secondary text-[11px] mt-1"
+                >
+                  Cancel and reset
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
     </>
   );
-  // module currently consumed via the parent form's hidden input, kept on
-  // signature for type symmetry with the (now-deferred) nested-form path.
+  // module / caption consumed via the parent form's hidden inputs +
+  // textarea — props kept for type symmetry.
   void module;
   void caption;
 }
