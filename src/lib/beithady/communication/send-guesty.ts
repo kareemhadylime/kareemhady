@@ -66,11 +66,12 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     return { ok: false, status: 400, error: 'wrong_channel_use_dedicated_path' };
   }
 
-  // Send via Guesty Open API
+  // Send via Guesty Open API. `type` is no longer sent (Guesty rejects
+  // it as VALIDATION_ERROR since 2026-04-30); the helper ignores the
+  // field but we leave it off the payload for clarity.
   const result = await sendGuestyConversationPost({
     conversationId: c.external_id,
     body: args.body,
-    type: 'message',
     module: args.module,
     subject: args.subject,
     attachments: args.attachments,
