@@ -203,6 +203,45 @@ export async function sendGuestyMultiAttachAction(formData: FormData): Promise<v
 }
 
 // =====================================================================
+// Tiny action that mints a signed upload URL for direct-to-Storage
+// client uploads. Used by AttachmentMenu to bypass Vercel function
+// body limits + timeouts for large files. Caller uploads to the
+// returned URL directly, then calls the multi-attach Result action
+// with library_url_${i} entries pointing at the resulting public URL.
+// =====================================================================
+
+export type SignedUploadUrlResult =
+  | { ok: true; path: string; token: string; publicUrl: string }
+  | { ok: false; error: string };
+
+export async function createMediaSignedUploadUrl(
+  ext: string,
+): Promise<SignedUploadUrlResult> {
+  try {
+    const user = await ensureFullPerm();
+    void user;
+    const safeExt = (ext || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const id = Math.random().toString(36).slice(2, 10);
+    const path = `wa-casual/${ts}-${id}.${safeExt}`;
+    const sb = supabaseAdmin();
+    const { data, error } = await sb.storage
+      .from('beithady-wa-media')
+      .createSignedUploadUrl(path);
+    if (error || !data) {
+      return { ok: false, error: error?.message || 'create_signed_url_failed' };
+    }
+    const { data: pub } = sb.storage
+      .from('beithady-wa-media')
+      .getPublicUrl(path);
+    return { ok: true, path, token: data.token, publicUrl: pub.publicUrl };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+// =====================================================================
 // Result-returning variants for programmatic invocation via useTransition
 // =====================================================================
 // The redirect/throw style above is meant for native <form action={...}>

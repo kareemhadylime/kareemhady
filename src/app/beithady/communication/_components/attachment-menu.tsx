@@ -2,8 +2,24 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Paperclip, Camera, FolderOpen, X, Image as ImageIcon, Check, Loader2, AlertTriangle } from 'lucide-react';
-import { sendWaCasualMultiAttachResult, sendGuestyMultiAttachResult } from '../attach-actions';
+import {
+  sendWaCasualMultiAttachResult,
+  sendGuestyMultiAttachResult,
+  createMediaSignedUploadUrl,
+} from '../attach-actions';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 import { LibraryPicker, type LibraryAttachment } from './library-picker';
+
+function extFromMimeBrowser(mime: string): string {
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('mp4')) return 'm4a';
+  if (mime.startsWith('image/jpeg')) return 'jpg';
+  if (mime.startsWith('image/png')) return 'png';
+  if (mime.startsWith('image/webp')) return 'webp';
+  if (mime === 'application/pdf') return 'pdf';
+  return 'bin';
+}
 
 // Phase Q.3 — AttachmentMenu dropdown wrapping Device / Camera / Library.
 // Holds a queue of pending attachments (file blobs + library refs)
@@ -98,36 +114,65 @@ export function AttachmentMenu({
   const router = useRouter();
   const action = channel === 'guesty' ? sendGuestyMultiAttachResult : sendWaCasualMultiAttachResult;
 
-  // Programmatic submit using result-returning action variant. The
-  // earlier throw/redirect-style action surfaced as React's generic
-  // "An unexpected response was received from the server" because
-  // throws + NEXT_REDIRECT don't deserialize cleanly through a
-  // useTransition-invoked action. The new ...Result variants always
-  // return a structured { ok, error, redirectTo } that we handle here.
+  // Direct-to-Storage upload pattern. Sending file bytes through a
+  // server action via useTransition repeatedly failed with React's
+  // "unexpected response" / transport errors at the framework layer
+  // (most likely Vercel function body re-encoding for large multipart).
+  //
+  // Bypass: upload each file directly to Supabase Storage via signed
+  // upload URL (no Vercel function in the path), THEN call the action
+  // with library_url_${i} entries pointing at the resulting public
+  // URLs. Action payload is now URL-strings only — small + fast.
   const handleSend = () => {
     if (items.length === 0 || isPending) return;
     setErrorMsg(null);
-    const fd = new FormData();
-    fd.append('conversation_id', conversationId);
-    fd.append('body', caption);
-    if (channel === 'guesty' && module) fd.append('module', module);
-    items.forEach((it, i) => {
-      if (it.kind === 'file') {
-        fd.append(`file_${i}`, it.file, it.file.name);
-      } else {
-        fd.append(`library_url_${i}`, it.url);
-        fd.append(`library_name_${i}`, it.name);
-        fd.append(`library_mime_${i}`, it.mime);
-      }
-    });
     startTransition(async () => {
       try {
+        // Step 1 — upload every file item directly to Supabase Storage.
+        // Library items already have URLs and are passed through.
+        type Resolved = { url: string; name: string; mime: string };
+        const resolved: Resolved[] = [];
+        const sb = supabaseBrowser();
+        for (const it of items) {
+          if (it.kind === 'lib') {
+            resolved.push({ url: it.url, name: it.name, mime: it.mime });
+            continue;
+          }
+          const mime = it.file.type || 'application/octet-stream';
+          const ext = extFromMimeBrowser(mime);
+          const signed = await createMediaSignedUploadUrl(ext);
+          if (!signed.ok) {
+            setErrorMsg(`signed_url_failed: ${signed.error}`);
+            return;
+          }
+          const { error: upErr } = await sb.storage
+            .from('beithady-wa-media')
+            .uploadToSignedUrl(signed.path, signed.token, it.file, {
+              contentType: mime,
+              upsert: false,
+            });
+          if (upErr) {
+            setErrorMsg(`storage_upload_failed: ${upErr.message}`);
+            return;
+          }
+          resolved.push({ url: signed.publicUrl, name: it.file.name || 'file', mime });
+        }
+
+        // Step 2 — call the multi-attach action with all entries as
+        // library refs. Action only sees URL strings now — no file
+        // bytes, no multipart-through-Vercel issues.
+        const fd = new FormData();
+        fd.append('conversation_id', conversationId);
+        fd.append('body', caption);
+        if (channel === 'guesty' && module) fd.append('module', module);
+        resolved.forEach((r, i) => {
+          fd.append(`library_url_${i}`, r.url);
+          fd.append(`library_name_${i}`, r.name);
+          fd.append(`library_mime_${i}`, r.mime);
+        });
         const result = await action(fd);
+
         if (result.ok) {
-          // Clear local pending items so the bag closes optimistically,
-          // then navigate. router.push handles the URL update; the
-          // server action already revalidated the inbox path so the
-          // new outbound row will be there.
           for (const it of items) {
             if (it.kind === 'file' && it.previewUrl) {
               try { URL.revokeObjectURL(it.previewUrl); } catch { /* ignore */ }
@@ -140,10 +185,8 @@ export function AttachmentMenu({
           setErrorMsg((result.error || 'unknown_error').slice(0, 240));
         }
       } catch (e) {
-        // Should not happen — the result-variant doesn't throw — but
-        // catch as defense-in-depth (e.g. network/transport error).
         const msg = e instanceof Error ? e.message : String(e);
-        setErrorMsg(`transport: ${msg.slice(0, 220)}`);
+        setErrorMsg(msg.slice(0, 240));
       }
     });
   };
