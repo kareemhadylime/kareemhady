@@ -579,7 +579,26 @@ export async function sendGuestyConversationPost(
   };
   if (input.subject) payload.subject = input.subject;
   if (input.module) payload.module = { type: input.module };
-  if (input.attachments && input.attachments.length) payload.attachments = input.attachments;
+  // Guesty's attachments schema (per VALIDATION_ERROR observed
+  // 2026-05-01): { fileName, type, url } — type is a coarse class
+  // ('image' | 'audio' | 'video' | 'file'), NOT the MIME. The previous
+  // payload shape `{ url, name, mime }` was rejected with "attachments
+  // does not match any of the allowed types".
+  if (input.attachments && input.attachments.length) {
+    payload.attachments = input.attachments.map(a => {
+      const m = (a.mime || '').toLowerCase();
+      const type =
+        m.startsWith('image/') ? 'image' :
+        m.startsWith('audio/') ? 'audio' :
+        m.startsWith('video/') ? 'video' :
+        'file';
+      return {
+        url: a.url,
+        type,
+        ...(a.name ? { fileName: a.name } : {}),
+      };
+    });
+  }
 
   try {
     const raw = await guestyFetch<unknown>(
