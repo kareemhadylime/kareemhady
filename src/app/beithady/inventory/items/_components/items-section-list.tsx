@@ -8,7 +8,7 @@ import { ItemFormButton } from './item-form-button';
 import { SourceCell } from './source-cell';
 import { AiInfoCard } from './ai-info-card';
 import { ManualPriceButton } from './manual-price-button';
-import { AmazonMismatchBanner, shouldShowAmazonMismatch } from './amazon-mismatch-banner';
+import { AmazonMismatchBanner, detectAmazonMismatch } from './amazon-mismatch-banner';
 import { acceptManySourcesAction } from '../actions';
 
 // Sectioned items list — one collapsible <table> per category, plus the
@@ -431,27 +431,31 @@ function ItemRow({
         )}
       </td>
     </tr>
-    {shouldShowAmazonMismatch({
-      itemName: it.name_en,
-      itemBrand: it.brand,
-      amazonName: it.amazon_eg_product_name_en,
-      amazonBrand: it.amazon_eg_brand,
-    }) && (
-      <tr className="border-t border-amber-100 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10">
-        <td colSpan={colSpan} className="px-4 py-2">
-          <AmazonMismatchBanner
-            itemId={it.id}
-            itemSku={it.sku}
-            currentName={it.name_en}
-            currentBrand={it.brand}
-            amazonName={it.amazon_eg_product_name_en!}
-            amazonBrand={it.amazon_eg_brand}
-            amazonUrl={it.amazon_eg_url}
-            canEdit={canWrite}
-          />
-        </td>
-      </tr>
-    )}
+    {(() => {
+      const kind = detectAmazonMismatch({
+        itemSku: it.sku,
+        itemName: it.name_en,
+        amazonName: it.amazon_eg_product_name_en,
+      });
+      if (kind === 'none') return null;
+      return (
+        <tr className="border-t border-amber-100 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10">
+          <td colSpan={colSpan} className="px-4 py-2">
+            <AmazonMismatchBanner
+              itemId={it.id}
+              itemSku={it.sku}
+              currentName={it.name_en}
+              currentBrand={it.brand}
+              amazonName={it.amazon_eg_product_name_en!}
+              amazonBrand={it.amazon_eg_brand}
+              amazonUrl={it.amazon_eg_url}
+              canEdit={canWrite}
+              kind={kind}
+            />
+          </td>
+        </tr>
+      );
+    })()}
     {expanded && (
       <tr className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30">
         <td colSpan={colSpan} className="px-4 py-3">

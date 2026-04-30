@@ -25,6 +25,7 @@ export function AmazonMismatchBanner({
   amazonBrand,
   amazonUrl,
   canEdit,
+  kind = 'name',
 }: {
   itemId: string;
   itemSku: string;
@@ -34,6 +35,8 @@ export function AmazonMismatchBanner({
   amazonBrand: string | null;
   amazonUrl: string | null;
   canEdit: boolean;
+  /** What kind of mismatch this banner is surfacing — controls copy + buttons. */
+  kind?: MismatchKind;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -100,7 +103,13 @@ export function AmazonMismatchBanner({
       <AlertTriangle size={13} className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0 space-y-1">
         <div>
-          <strong>Amazon listing differs from your SKU</strong>
+          <strong>
+            {kind === 'size'
+              ? 'SKU size code is stale vs Amazon listing'
+              : kind === 'both'
+                ? 'Amazon listing differs (name + size) from your SKU'
+                : 'Amazon listing differs from your SKU'}
+          </strong>
           <span className="text-amber-700 dark:text-amber-300 ml-1 font-mono">({itemSku})</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
@@ -132,16 +141,18 @@ export function AmazonMismatchBanner({
           )}
           {canEdit && (
             <>
-              <button
-                type="button"
-                onClick={apply}
-                disabled={pending}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-medium hover:bg-emerald-700 disabled:opacity-50"
-                title="Update SKU name + brand to match the Amazon listing"
-              >
-                {pending ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} strokeWidth={3} />}
-                {pending ? 'Updating…' : 'Use Amazon details'}
-              </button>
+              {kind !== 'size' && (
+                <button
+                  type="button"
+                  onClick={apply}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-medium hover:bg-emerald-700 disabled:opacity-50"
+                  title="Update SKU name + brand to match the Amazon listing"
+                >
+                  {pending ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} strokeWidth={3} />}
+                  {pending ? 'Updating…' : 'Use Amazon details'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={suggestSkuRename}
@@ -255,24 +266,91 @@ export function AmazonMismatchBanner({
 }
 
 /**
- * Returns true when the canonical SKU label clearly differs from the
- * Amazon listing. Loose match — case + punctuation + extra whitespace
- * don't trigger a mismatch. Used as the gate for showing the banner.
+ * Extract a normalized size token from any free-text product label.
+ * Examples:
+ *   "Raid Flying Insect Killer Odorless 300 ML"   → "300ML"
+ *   "Frida floor cleaner - lemon, 4 litre"        → "4L"
+ *   "Bleach 1L"                                    → "1L"
+ *   "CLN-ANTIFLY-400ML"                            → "400ML"
+ *   "SAN-SHAMPOO-30ML"                             → "30ML"
+ *   "BRN-PEN"                                      → null   (no size)
+ * Used by the SKU-vs-Amazon mismatch detector — when the SKU's size
+ * suffix doesn't match the Amazon product's size, the operator should
+ * be prompted to rename the SKU even if names otherwise match.
  */
+export function extractSize(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const normalized = text
+    .toUpperCase()
+    .replace(/LITRES?|LITERS?/g, 'L')
+    .replace(/MILLILITRES?|MILLILITERS?/g, 'ML')
+    .replace(/GRAMS?/g, 'G')
+    .replace(/KILOGRAMS?/g, 'KG')
+    .replace(/PACK\s+OF\s+/g, '')
+    .replace(/(\d+)\s*PACK\b/g, '$1PK');
+  // Match longest first: KG before G, ML before L
+  const match = normalized.match(/\b(\d+(?:\.\d+)?)\s*(ML|KG|G|L|PK)\b/);
+  if (!match) return null;
+  const num = match[1].replace(/\.0+$/, '');
+  return `${num}${match[2]}`;
+}
+
+export type MismatchKind = 'none' | 'name' | 'size' | 'both';
+
+/**
+ * Detects whether the Amazon listing meaningfully differs from the SKU
+ * label. Returns:
+ *   • 'none'  — names + sizes align (banner hidden)
+ *   • 'name'  — names clearly differ (was the only case in v1)
+ *   • 'size'  — names match (or contain) but the SKU's size suffix is
+ *               stale vs the Amazon product (e.g. SKU has 400ML when
+ *               actual Amazon listing is 300ML — Phase B)
+ *   • 'both'  — both differ
+ */
+export function detectAmazonMismatch(args: {
+  itemSku: string;
+  itemName: string;
+  amazonName: string | null;
+}): MismatchKind {
+  if (!args.amazonName || args.amazonName.trim().length === 0) return 'none';
+
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const a = normalize(args.itemName);
+  const b = normalize(args.amazonName);
+
+  let nameMatches = false;
+  if (a === b) nameMatches = true;
+  else if (a.length >= 4 && b.includes(a)) nameMatches = true;
+  else if (b.length >= 4 && a.includes(b)) nameMatches = true;
+
+  // Size comparison — SKU code OR item name vs Amazon product name.
+  // SKU code carries the canonical operator-defined size (CLN-ANTIFLY-400ML).
+  const skuSize = extractSize(args.itemSku) || extractSize(args.itemName);
+  const amazonSize = extractSize(args.amazonName);
+  const sizeMismatch = !!(skuSize && amazonSize && skuSize !== amazonSize);
+
+  if (!nameMatches && sizeMismatch) return 'both';
+  if (!nameMatches) return 'name';
+  if (sizeMismatch) return 'size';
+  return 'none';
+}
+
+/** Backwards-compat — boolean form used in earlier code. */
 export function shouldShowAmazonMismatch(args: {
   itemName: string;
   itemBrand: string | null;
   amazonName: string | null;
   amazonBrand: string | null;
 }): boolean {
+  // Approximate — without the SKU we can't detect size mismatch. Callers
+  // should migrate to detectAmazonMismatch() with itemSku.
   if (!args.amazonName || args.amazonName.trim().length === 0) return false;
   const normalize = (s: string) =>
     s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   const a = normalize(args.itemName);
   const b = normalize(args.amazonName);
   if (a === b) return false;
-  // Substring match either way — operator's short label is contained in
-  // Amazon's longer title, or vice versa. e.g. "Bleach 1L" ⊂ "Clorox Bleach 1L Original".
   if (a.length >= 4 && b.includes(a)) return false;
   if (b.length >= 4 && a.includes(b)) return false;
   return true;

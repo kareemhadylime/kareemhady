@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — AI-suggested SKU rename shipped + critical sourcer regression fixed
+## 🟢 Latest turn — SKU-size mismatch detector (Option B) — banner now surfaces stale size suffixes
+
+User picked **Option B**: extend the mismatch detector to also flag size-only mismatches when names already align (e.g., SKU `CLN-ANTIFLY-400ML` paired with Amazon's "Raid Flying Insect Killer Odorless 300 ML" — names match via substring containment, but the `400ML` suffix is stale).
+
+**New helpers in `amazon-mismatch-banner.tsx`:**
+- `extractSize(text)` — pulls a normalized size token (e.g. `300ML`, `4L`, `12PK`, `500G`) from any free-text label or SKU code. Handles "litre"/"liter"/"litres" → `L`, "pack of N" → `NPK`, etc.
+- `detectAmazonMismatch({ itemSku, itemName, amazonName })` — returns `'none' | 'name' | 'size' | 'both'`. Compares names by case+punctuation-insensitive substring containment, sizes by extracted-token equality.
+- Old `shouldShowAmazonMismatch` kept for backwards compat (boolean form).
+
+**Banner UI now adapts** based on `kind`:
+- `'name'` (or `'both'`): full banner — "Use Amazon details" + "Rename SKU via AI" + "Ignore"
+- `'size'`: same banner with **adjusted headline** "SKU size code is stale vs Amazon listing", and **"Use Amazon details" hidden** (names already match — that button would no-op). Operator just gets "Rename SKU via AI" + "Ignore".
+
+**`items-section-list.tsx` switched** from `shouldShowAmazonMismatch` to `detectAmazonMismatch` — passes the resulting `kind` to the banner.
+
+**Concrete impact for your Antifly row:** `name_en` and `amazon_eg_product_name_en` are both "Raid Flying Insect Killer Odorless 300 ML" (match). But `extractSize('CLN-ANTIFLY-400ML')` returns `400ML` while `extractSize('Raid Flying Insect Killer Odorless 300 ML')` returns `300ML`. So `detectAmazonMismatch` returns `'size'` → banner appears with "Rename SKU via AI" button → click → Haiku suggests something like `CLN-RAID-300ML` → confirm → SKU updated.
+
+**Files touched this turn:**
+- Edited: `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx` (added `extractSize`, `detectAmazonMismatch`, `MismatchKind` types, banner adapts copy + buttons by kind)
+- Edited: `src/app/beithady/inventory/items/_components/items-section-list.tsx` (switched to `detectAmazonMismatch`, passes kind)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this turn — AI-suggested SKU rename shipped + critical sourcer regression fixed
 
 User: "Rename SKU code By AI based on URL". Implemented as a third button in the Amazon mismatch banner: "Rename SKU via AI".
 
