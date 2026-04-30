@@ -1,6 +1,21 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — `business_analyst` Beit Hady role shipped (commit `b9ac678`)
+## 🟢 Latest turn — clarified two-layer permission model + scheduled verification routine
+
+User created their first BA user (`ashargamal`) on `/admin/users` and asked: (a) what to pick in the Role dropdown (only sees admin/editor/viewer — no `business_analyst`); (b) whether the 3 app-level roles need to change to reflect the new Beit Hady roles; (c) confirmation that the prior change shipped.
+
+**Answers given:**
+- App role for BA → `editor`. NOT `admin` (would bypass matrix entirely via `if (user.is_admin) return true` in `src/lib/beithady/auth.ts` and leak financial/comm). NOT `viewer` (semantically no-write, but BA needs `analytics: full` write to save dashboards).
+- App-level roles (admin/editor/viewer) DO NOT change. They're the outer layer (cross-portfolio). Beit Hady roles (business_analyst, guest_relations, etc.) are a fine-grained inner layer that only applies inside Beit Hady. They compose; they don't replace.
+- 3-step workflow given to user: (1) `/admin/users` → create user as `editor`; (2) per-row Edit → grant `beithady` domain access; (3) `/beithady/settings/users` → Grant `business_analyst` role.
+
+**Verification routine scheduled:** `trig_01PA5ETNjNSjXTJsERxg7E6i` fires once on `2026-05-07T11:00:00Z` (Cairo Thu May 7, 2pm). Auto-attached MCP connectors include Supabase (`bpjproljatbrbmszwbov`) so the agent can query the live `beithady_role` enum and the `beithady_user_roles` grant table. Routine URL: `https://claude.ai/code/routines/trig_01PA5ETNjNSjXTJsERxg7E6i`. No commits/PRs from the agent — just a structured PASS/FAIL transcript.
+
+**Previous change confirmed live:** commit `b9ac678` on `main`, deploy `dpl_3jE9hR23mY4PKWcj1Tbh7Zg59C4L` READY, `business_analyst` appears in the Grant picker on `/beithady/settings/users`.
+
+---
+
+## 🟢 Earlier — `business_analyst` Beit Hady role shipped (commit `b9ac678`)
 
 User asked for a "Business Analyst & Reporting" role. Suggested matrix; user locked in `financial: none` ("Only Numbers Coming From Booking Channels & Pricelabs") and `communication: none`.
 
