@@ -1,4 +1,4 @@
-import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply } from 'lucide-react';
+import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { BeithadyLauncher, type LauncherTile } from '../_components/beithady-launcher';
@@ -42,6 +42,14 @@ export default async function BeithadyAnalyticsPage() {
       icon: MessageSquareReply,
       accent: 'rose',
       badge: { label: 'AI', tone: 'gold' },
+    },
+    {
+      href: '/beithady/analytics/reports',
+      title: 'Generate Report',
+      description: 'Build custom dashboards · pivot tables · BCG matrix · A4 PDF · scheduled email + WhatsApp delivery.',
+      icon: FileBarChart,
+      accent: 'indigo',
+      badge: { label: 'New', tone: 'gold' },
     },
   ];
 
