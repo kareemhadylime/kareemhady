@@ -1,6 +1,48 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## ⚪ Latest turn — Explained Guesty's sidebar sort behavior (no code change, awaiting user preference on our app's default)
+## 🟢 Latest turn — Unanswered-first default sort + lazy-fetch rehydrate SHIPPED (commit `4690bce`)
+
+User: "The Default Sorting should be Unanswered First then Recent Activity. Another bug — Still Unknown Messages show up." Two parallel issues, both fixed in one commit.
+
+### Issue 1 — new default sort
+Migration 0059 adds `beithady_conversations.is_unanswered` as a STORED generated column:
+```sql
+last_inbound_at IS NOT NULL AND (last_outbound_at IS NULL OR last_inbound_at > last_outbound_at)
+```
+Plus partial index `idx_bh_conv_unanswered_recent` for the open + active scope.
+
+`listInbox()` gets a new `unanswered_first` case ordering by `is_unanswered DESC, modified_at_external DESC, last_inbound_at DESC` — surfaces guest-replied-last threads at the top, then sorts the answered tail by recent activity (so team replies bump conversations up within the answered group).
+
+`unanswered_first` is now the default. Sidebar dropdown labels updated:
+- "Unanswered first, then recent activity (default)" ← new top
+- "Most recent activity"
+- "Newest guest message first" (was the old default)
+- ...etc
+
+Counts post-migration: 227 unanswered / 1035 answered / 0 null on open+active scope.
+
+### Issue 2 — "Unknown guest" still showed for Habiba
+Diagnosed: conversation `2ce2d09f-0a33-472a-a23e-1156fc3cab6b` (BH-26-001 Airbnb inquiry, Habiba) was lazy-created by the orphan-recovery flow at 10:18 UTC. Guesty's API at the time returned a SPARSE payload — `meta.guest`, `meta.reservations[0].source`, `meta.reservations[0].listing.nickname` all NULL. The row got upserted with NULLs and stuck that way even after 7 messages including a guest reply with `from_full_name: 'Habiba'` flowed through.
+
+Different bug from the earlier system-notification one — Habiba is a real conversation, not a system email.
+
+**Fix:** new `rehydrateUnpopulatedConversations(maxToFetch=30, throttleMs=200)` in `src/lib/guesty-conversation-recovery.ts`. Finds rows with NULL `guest_full_name`, re-fetches via Guesty Open API, upserts. Skips the upsert if Guesty STILL returns null (saves a no-op write). Cron runs it as Step 1b after orphan recovery.
+
+Audit row metadata for `comm_sync_run` gains `rehydrate: { scanned, rehydrated, unchanged, failed, errors }`.
+
+**Verification path:** next 5-min cron tick will rehydrate Habiba + any other null-guest conversations. User should refresh `/beithady/communication/unified` ~5 min after deploy → Habiba appears at top (unanswered + most recent activity) with proper guest name + listing.
+
+### Files touched
+- `supabase/migrations/0059_beithady_unanswered_first_sort.sql` (new)
+- `src/lib/guesty-conversation-recovery.ts` — `rehydrateUnpopulatedConversations` added
+- `src/app/api/cron/beithady-comm-sync/route.ts` — Step 1b wired
+- `src/lib/beithady/communication/inbox.ts` — new sort case + new default
+- `src/app/beithady/communication/_components/stat-link.tsx` — VALID_SORTS + SORT_LABELS
+
+### Branch state
+`claude/gallant-brahmagupta-1d925c`. Last commit `4690bce` pushed to `main`. Vercel auto-deploys via GitHub integration.
+
+## ⚪ Earlier turn — Explained Guesty's sidebar sort behavior (no code change, awaiting user preference on our app's default)
 
 User screenshots: Guesty's native UI showing Hady Family thread with the most recent activity at 1:25 PM ("2m ago" badge in sidebar) but Hady Family was buried at position 4 in the conversation list, behind threads tagged "2h ago". Asked why Guesty isn't sorting newest-on-top.
 
