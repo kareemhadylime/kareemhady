@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-04-30)
 
-## 🟢 Latest turn — Sync: pulled 36 parallel commits from origin/main + ran missed `vercel --prod`
+## 🟢 Latest turn — Fixed swapped last_inbound_at / last_outbound_at on Yara + 2169 other rows (commit `efa0276`)
+
+User: "why Yara Message waiting Reply ??? Still same Bug ....Its Beithady Reply on Guesty the last reply ...This is considered replied"
+
+**Diagnosis:** Yara's `last_inbound_at` and `last_outbound_at` were swapped — `14:35:45` (= host's outbound time) was stored as inbound; `14:33:45` (= guest's inbound time) was stored as outbound. So `is_unanswered=true` even though the host had replied last.
+
+**Root cause:** OLD `guesty-webhook.ts` code had inverted semantics for `last_message_user_at` / `last_message_nonuser_at`. The recently-merged parallel commit `43f0b95` fixed the webhook handler, but rows already touched by the broken code stayed swapped because the ingest proc preserves the column values on subsequent runs.
+
+Verified the inversion across rows:
+- Hady Family (older row, daily-pull-populated): `gc.last_message_user_at = 06:09:20` = host time ✓
+- Yara (webhook-only-populated): `gc.last_message_user_at = 14:33:45` = GUEST time (swapped) ✗
+- Yara's `raw.lastMessageFrom` ≠ `gc.last_message_*_at` columns (raw shows `user: 14:34:01`, columns show `14:33:45`) — the webhook handler wrote columns directly, bypassing raw.
+
+**Fix shipped (commit `efa0276`, migration 0062):**
+
+1. `beithady_communication_ingest()` rewritten — derives `last_inbound_at` and `last_outbound_at` directly from `guesty_conversation_posts`:
+   ```sql
+   last_inbound_at  = max(gp.created_at_guesty) where gp.from_type='guest'
+   last_outbound_at = max(gp.created_at_guesty) where gp.from_type IN ('host','employee','user')
+   ```
+   `gp.from_type` is canonical and matches the message-direction mapping already used in the same proc. No more dependency on the unreliable `gc.last_message_user_at` / `nonuser_at` columns.
+
+2. **One-shot backfill** in the same migration: recomputes `last_inbound_at` / `last_outbound_at` on every existing `beithady_conversations` row from `beithady_messages` (canonical `direction` column). Healed all historical rows touched by the old swap-broken code.
+
+3. **SLA recompute** ran post-backfill — 2170 rows recomputed.
+
+**Verification:**
+- Yara: `last_inbound_at: 14:33:45` (guest) ✓, `last_outbound_at: 14:35:45` (host) ✓, `is_unanswered: false` ✓, `sla_bucket: null` ✓.
+- All 2170 conversations had SLA recomputed.
+- New rows that arrive after this commit will be correct because the ingest proc derives from `guesty_conversation_posts` directly.
+
+**Branch state:** `claude/gallant-brahmagupta-1d925c`. Last commit `efa0276` pushed to `main`. Vercel deploy fired.
+
+## 🟢 Earlier turn — Sync: pulled 36 parallel commits from origin/main + ran missed `vercel --prod`
 
 User flagged "you didn't push to main, take care of other newer commits". Push HAD succeeded earlier (`6f76eb3` + `b97d46b`) but I'd skipped the explicit `vercel --prod` step on commit `6f76eb3` (the `is_unanswered` NEW badge fix). Verified state, pulled upstream, redeployed.
 
