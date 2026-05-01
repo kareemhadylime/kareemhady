@@ -1,6 +1,49 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — Volumetric consumption math (Q1–Q6 all answered, all shipped in one commit)
+## 🟢 Latest turn — Volumetric UI affordances shipped (items form + rules editor + GRN restate)
+
+User said "go on and ship everything" — picked up the 3 deferred UI pieces from the previous turn so volumetric semantics are no longer SQL-only.
+
+**Items form (`item-form-button.tsx`):**
+- New section "Pack volume (value)" + "Pack volume (UoM)" right above Barcode field
+- UoM dropdown grouped by measure_kind: Mass (kg, g), Volume (L, ml), Count (pcs, pack, sachet, bottle, can, box, roll, pair) — pulled from `uoms` prop
+- Both nullable; "— None (legacy count math) —" option means the row keeps the old count-based semantics
+- `Field` helper extended with optional `hint` prop for the inline help text under the input
+- `ItemFormInput` (server action) extended with `pack_volume_value: number | null` + `pack_volume_uom: string | null`
+- `createItemAction` writes the new fields on insert; `updateItemAction` already accepts arbitrary patches via `Partial<ItemFormInput>` so no extra wiring needed
+
+**Rules editor (`rule-form-button.tsx`):**
+- New "Volumetric override (optional)" section below the Base qty + Loss factor row
+- Two inputs: numeric value + UoM dropdown (same Mass/Volume/Count groupings)
+- Helper copy: "Estimator divides by the item's pack_volume to compute accurate units-per-trigger. Leave blank to skip."
+- `RuleFormInput` extended with `consumes_volume_value` + `consumes_volume_uom`
+- `createRuleAction` writes them; `updateRuleAction` patches them
+- Backend type `ConsumptionRule` + `ConsumptionRuleListRow` extended with the same fields PLUS `item_pack_volume_value/uom` (for live cost preview on the rules list)
+- `listConsumptionRules` mapper updated to pull `pack_volume_value/uom` via the `item:beithady_inventory_items` join
+
+**GRN restate UI (`restate-pack-volume-button.tsx`):**
+- New client component shown inline next to the Qty cell on each GRN line, only when `canEdit && grnIsOpen` (draft/submitted)
+- Amber pill: "Restate" if no value yet, otherwise shows the current value (e.g., "4 kg")
+- Click opens modal with: Received volume input, UoM dropdown, "Also update SKU's pack_volume" checkbox (default true), Save/Cancel
+- Calls `restateGrnLinePackVolumeAction` (already shipped in the previous turn). Audit-logged with before/after.
+- `GrnLine` type + GRN detail page select query extended with `received_pack_volume_value` + `received_pack_volume_uom`
+- The button is hidden on posted/approved GRNs (action would refuse anyway)
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Files touched this turn:**
+- New: `src/app/beithady/inventory/grn/_components/restate-pack-volume-button.tsx`
+- Edited: `src/app/beithady/inventory/items/actions.ts` (ItemFormInput + createItemAction insert), `src/app/beithady/inventory/items/_components/item-form-button.tsx` (initial state + UI fields + Field hint), `src/app/beithady/inventory/rules/actions.ts` (RuleFormInput + insert), `src/app/beithady/inventory/rules/_components/rule-form-button.tsx` (initial state + UI fields), `src/lib/beithady/inventory/rules-shared.ts` (ConsumptionRule + ListRow fields), `src/lib/beithady/inventory/rules.ts` (mapper join + cast), `src/lib/beithady/inventory/grn.ts` (GrnLine fields + select), `src/app/beithady/inventory/grn/[id]/page.tsx` (RestatePackVolumeButton wire-in)
+
+**End-to-end demo flow now possible without SQL:**
+1. Open `/beithady/inventory/items` → click Edit on any chemical item → set Pack volume = 4 + UoM = kg → Save
+2. Open `/beithady/inventory/rules` → click Edit on the matching consumption rule → set Volumetric override Consumes = 100, UoM = ml → Save
+3. Estimator now computes that line as `100 ml ÷ 4000 ml-pack = 0.025 packs/trigger × multiplier × Amazon price`
+4. When the next GRN arrives with a 5 kg pack instead of 4 kg → click "Restate" on the line → enter 5, kg, leave "Also update SKU" checked → Save → SKU's pack_volume bumps to 5 kg, future estimator runs use the new value
+
+---
+
+## 🟢 Earlier this turn — Volumetric consumption math (Q1–Q6 all answered, all shipped in one commit)
 
 User answers: Q1=C (mixed count + volume), Q2=C (Amazon default + GRN override), Q3=C (force new SKU when listing differs), Q4=base-unit semantics on rules, Q5=update everything, Q6=a (re-receive workflow). Plus: "Commit all together, do everything on Vercel + Supabase automatically, don't wait for approval."
 

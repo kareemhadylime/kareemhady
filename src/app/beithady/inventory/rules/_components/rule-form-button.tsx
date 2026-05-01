@@ -35,6 +35,8 @@ export function RuleFormButton({
         qty: existing.qty,
         loss_factor_pct: existing.loss_factor_pct,
         notes: existing.notes,
+        consumes_volume_value: existing.consumes_volume_value,
+        consumes_volume_uom: existing.consumes_volume_uom,
       }
     : {
         scope: 'global',
@@ -44,6 +46,8 @@ export function RuleFormButton({
         qty: 1,
         loss_factor_pct: 12,
         notes: null,
+        consumes_volume_value: null,
+        consumes_volume_uom: null,
       };
 
   const [form, setForm] = useState<RuleFormInput>(initial);
@@ -124,6 +128,71 @@ export function RuleFormButton({
                 <Field label="Loss factor (%)">
                   <input type="number" min="0" max="100" step="0.1" value={form.loss_factor_pct} onChange={e => update('loss_factor_pct', parseFloat(e.target.value) || 0)} className="ix-input w-full text-right" />
                 </Field>
+              </div>
+
+              {/* M.16 — base-unit consumption.
+                  When operator sets BOTH consumes_volume_value/uom HERE and
+                  the item has pack_volume_value/uom set, the estimator
+                  computes units-per-trigger via UoM conversion (e.g.
+                  "100 ml per check-in" ÷ "4 kg pack" = 0.025 packs).
+                  Leave both blank to use the legacy raw-qty math above. */}
+              <div className="border-t border-slate-200 pt-3 mt-3">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-2">
+                  Volumetric override (optional)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+                      Consumes (value)
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.consumes_volume_value ?? ''}
+                      onChange={e =>
+                        update(
+                          'consumes_volume_value',
+                          e.target.value ? parseFloat(e.target.value) : null,
+                        )
+                      }
+                      placeholder="e.g. 100 for 100 ml"
+                      className="ix-input w-full text-right"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+                      Consumes (UoM)
+                    </span>
+                    <select
+                      value={form.consumes_volume_uom ?? ''}
+                      onChange={e =>
+                        update('consumes_volume_uom', e.target.value || null)
+                      }
+                      className="ix-input w-full"
+                    >
+                      <option value="">— None (legacy raw qty) —</option>
+                      <optgroup label="Mass">
+                        <option value="kg">kg (Kilogram)</option>
+                        <option value="g">g (Gram)</option>
+                      </optgroup>
+                      <optgroup label="Volume">
+                        <option value="L">L (Liter)</option>
+                        <option value="ml">ml (Milliliter)</option>
+                      </optgroup>
+                      <optgroup label="Count">
+                        <option value="pcs">pcs</option>
+                        <option value="pack">pack</option>
+                        <option value="sachet">sachet</option>
+                      </optgroup>
+                    </select>
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Set to override the count-based qty. Estimator divides by the
+                  item&apos;s <code>pack_volume</code> to compute accurate
+                  units-per-trigger. Leave blank to skip.
+                </p>
               </div>
 
               <div className="ix-card border-cyan-200 bg-cyan-50 p-2 text-[10px] text-cyan-900">

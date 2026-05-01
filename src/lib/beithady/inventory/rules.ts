@@ -26,23 +26,30 @@ export async function listConsumptionRules(opts: { activeOnly?: boolean } = {}):
     .from('beithady_inventory_consumption_rules')
     .select(`
       *,
-      item:beithady_inventory_items!inner(sku, name_en, uom)
+      item:beithady_inventory_items!inner(sku, name_en, uom, pack_volume_value, pack_volume_uom)
     `)
     .order('scope', { ascending: true })
     .order('scope_value', { ascending: true, nullsFirst: true });
   if (opts.activeOnly) q = q.eq('active', true);
 
   const { data } = await q;
-  type Joined = ConsumptionRule & { item: Array<{ sku: string; name_en: string; uom: string }> | { sku: string; name_en: string; uom: string } };
+  type Joined = ConsumptionRule & {
+    item: Array<{ sku: string; name_en: string; uom: string; pack_volume_value: number | null; pack_volume_uom: string | null }>
+        | { sku: string; name_en: string; uom: string; pack_volume_value: number | null; pack_volume_uom: string | null };
+  };
   return (((data as unknown) as Joined[]) || []).map(r => {
     const item = Array.isArray(r.item) ? r.item[0] : r.item;
     return {
       ...r,
       qty: Number(r.qty),
       loss_factor_pct: Number(r.loss_factor_pct),
+      consumes_volume_value: r.consumes_volume_value != null ? Number(r.consumes_volume_value) : null,
+      consumes_volume_uom: r.consumes_volume_uom,
       item_sku: item?.sku || '—',
       item_name_en: item?.name_en || '—',
       item_uom: item?.uom || '',
+      item_pack_volume_value: item?.pack_volume_value != null ? Number(item.pack_volume_value) : null,
+      item_pack_volume_uom: item?.pack_volume_uom || null,
     };
   });
 }

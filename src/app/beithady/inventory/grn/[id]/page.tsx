@@ -5,6 +5,7 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { getGrn, GRN_STATUS_LABEL } from '@/lib/beithady/inventory/grn';
 import { GrnTransitionButtons } from '../_components/grn-transition-buttons';
+import { RestatePackVolumeButton } from '../_components/restate-pack-volume-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,7 +104,21 @@ export default async function GrnDetailPage({
                     <div className="font-mono text-[11px]">{l.item_sku}</div>
                     <div className="text-[10px] text-slate-500">{l.item_name_en}</div>
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{l.qty_received} {l.item_uom}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">
+                    <div className="inline-flex items-center gap-2 justify-end">
+                      <span>{l.qty_received} {l.item_uom}</span>
+                      <RestatePackVolumeButton
+                        grnId={grn.id}
+                        lineId={l.id}
+                        itemSku={l.item_sku}
+                        itemName={l.item_name_en}
+                        currentValue={l.received_pack_volume_value}
+                        currentUom={l.received_pack_volume_uom}
+                        canEdit={canWrite}
+                        grnIsOpen={grn.status === 'draft' || grn.status === 'submitted'}
+                      />
+                    </div>
+                  </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">{l.qty_rejected || '—'}</td>
                   <td className="px-3 py-1.5 text-right tabular-nums">
                     {Number(l.unit_cost_egp).toLocaleString('en-US', { maximumFractionDigits: 2 })}

@@ -39,6 +39,8 @@ export type ItemFormInput = {
   is_asset: boolean;
   amazon_eg_url: string | null;
   photo_url: string | null;
+  pack_volume_value: number | null;
+  pack_volume_uom: string | null;
 };
 
 function validate(input: ItemFormInput): string | null {
@@ -86,6 +88,8 @@ export async function createItemAction(input: ItemFormInput): Promise<ItemAction
       is_asset: input.is_asset,
       amazon_eg_url: input.amazon_eg_url,
       photo_url: input.photo_url,
+      pack_volume_value: input.pack_volume_value,
+      pack_volume_uom: input.pack_volume_uom,
       created_by_user: user.id,
       active: true,
     })

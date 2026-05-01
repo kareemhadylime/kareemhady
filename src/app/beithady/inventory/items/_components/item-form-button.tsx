@@ -43,6 +43,8 @@ export function ItemFormButton({
         is_asset: existing.is_asset,
         amazon_eg_url: existing.amazon_eg_url,
         photo_url: existing.photo_url,
+        pack_volume_value: existing.pack_volume_value,
+        pack_volume_uom: existing.pack_volume_uom,
       }
     : {
         sku: '',
@@ -65,6 +67,8 @@ export function ItemFormButton({
         is_asset: false,
         amazon_eg_url: null,
         photo_url: null,
+        pack_volume_value: null,
+        pack_volume_uom: null,
       };
 
   const [form, setForm] = useState<ItemFormInput>(initial);
@@ -184,6 +188,56 @@ export function ItemFormButton({
                 </Field>
               </div>
 
+              {/* M.16 — pack volume drives the volumetric estimator math.
+                  Operator sets one purchasable unit's content (e.g., "4 kg",
+                  "1 L", "300 ml"). Together with rule.consumes_volume_*,
+                  estimator computes accurate units-per-trigger via UoM
+                  conversion. Optional — null falls back to legacy count math. */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Pack volume (value)" hint="One purchasable unit contains this much. Leave blank for unitary items (pens, towels).">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.pack_volume_value ?? ''}
+                    onChange={e =>
+                      update(
+                        'pack_volume_value',
+                        e.target.value ? parseFloat(e.target.value) : null,
+                      )
+                    }
+                    placeholder="e.g. 4 for a 4 kg pack"
+                    className="ix-input w-full"
+                  />
+                </Field>
+                <Field label="Pack volume (UoM)" hint="kg, g, L, ml, or pcs/pack/sachet/etc.">
+                  <select
+                    value={form.pack_volume_uom ?? ''}
+                    onChange={e => update('pack_volume_uom', e.target.value || null)}
+                    className="ix-input w-full"
+                  >
+                    <option value="">— None (legacy count math) —</option>
+                    <optgroup label="Mass">
+                      <option value="kg">kg (Kilogram)</option>
+                      <option value="g">g (Gram)</option>
+                    </optgroup>
+                    <optgroup label="Volume">
+                      <option value="L">L (Liter)</option>
+                      <option value="ml">ml (Milliliter)</option>
+                    </optgroup>
+                    <optgroup label="Count">
+                      {uoms
+                        .filter(u => u.measure_kind === 'count')
+                        .map(u => (
+                          <option key={u.code} value={u.code}>
+                            {u.code} ({u.name_en})
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                </Field>
+              </div>
+
               <Field label="Barcode">
                 <input type="text" value={form.barcode || ''} onChange={e => update('barcode', e.target.value || null)} className="ix-input w-full font-mono" />
               </Field>
@@ -231,13 +285,14 @@ export function ItemFormButton({
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
       <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
         {label}{required && <span className="text-rose-500"> *</span>}
       </span>
       {children}
+      {hint && <span className="block mt-1 text-[10px] text-slate-500">{hint}</span>}
     </label>
   );
 }
