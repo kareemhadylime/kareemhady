@@ -46,7 +46,8 @@ export default async function InventoryItemsPage({
     listUoms(),
   ]);
 
-  const lowStockCount = items.filter(it => it.total_on_hand < it.min_qty).length;
+  // Audit fix H6: was `<`. Items at min_qty count as low stock.
+  const lowStockCount = items.filter(it => it.total_on_hand <= it.min_qty).length;
   const needsReviewCount = items.filter(it => it.amazon_eg_url && !it.amazon_eg_url_reviewed_at).length;
   const sourcedCount = items.filter(it => it.amazon_eg_url).length;
   const reviewedCount = items.filter(it => it.amazon_eg_url_reviewed_at).length;

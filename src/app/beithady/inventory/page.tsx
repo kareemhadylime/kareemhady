@@ -79,7 +79,8 @@ async function getInventorySnapshot(): Promise<InventorySnapshot> {
       const total = (it.beithady_inventory_stock || []).reduce(
         (s, r) => s + Number(r.qty_on_hand || 0), 0,
       );
-      if (total < Number(it.min_qty || 0)) belowReorder++;
+      // Audit fix H6: was `<`. Items at min_qty are at the reorder floor.
+      if (total <= Number(it.min_qty || 0)) belowReorder++;
     }
   }
 

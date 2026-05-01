@@ -232,7 +232,9 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
   });
 
   if (filters.lowStock) {
-    return mapped.filter(it => it.total_on_hand < it.min_qty);
+    // Audit fix H6: was `<`. Items exactly at min_qty are at the reorder
+    // floor and should appear in the low-stock filter.
+    return mapped.filter(it => it.total_on_hand <= it.min_qty);
   }
   return mapped;
 }

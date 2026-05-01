@@ -203,7 +203,16 @@ export async function approveCountAction(sessionId: string): Promise<CountAction
 
   const { error } = await sb
     .from('beithady_inventory_count_sessions')
-    .update({ approver_user: user.id, approved_at: new Date().toISOString() })
+    .update({
+      // Bug fix C2: previously only stamped approver_user/approved_at and
+      // left status as 'pending_approval'. The post RPC also accepted
+      // 'in_progress', so a count could be posted without ever going
+      // through approveCountAction. Now we move status to 'approved' so
+      // the RPC's tightened guard (only 'approved') matches.
+      status: 'approved',
+      approver_user: user.id,
+      approved_at: new Date().toISOString(),
+    })
     .eq('id', sessionId);
   if (error) return { ok: false, error: error.message };
 
@@ -222,6 +231,22 @@ export async function approveCountAction(sessionId: string): Promise<CountAction
 export async function postCountAction(sessionId: string): Promise<CountActionResult> {
   const { user } = await requireBeithadyPermission('inventory', 'full');
   const sb = supabaseAdmin();
+
+  // Bug fix C2: pre-flight status check. Previously the RPC accepted both
+  // 'approved' and 'in_progress', so calling postCountAction on an
+  // in_progress session bypassed approveCountAction (and its variance-pct
+  // → warehouse_manager rule). The RPC is now tightened to 'approved'
+  // only, but the TS check gives a clearer error message and avoids the
+  // round-trip.
+  const { data: session } = await sb
+    .from('beithady_inventory_count_sessions')
+    .select('status')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (!session) return { ok: false, error: 'Session not found' };
+  if (session.status !== 'approved') {
+    return { ok: false, error: `Cannot post a ${session.status} count session — must be approved first` };
+  }
 
   const { data: rpcResult, error } = await sb.rpc('beithady_inv_post_count_session', {
     p_session_id: sessionId,

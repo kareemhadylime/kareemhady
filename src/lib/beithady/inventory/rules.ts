@@ -7,6 +7,7 @@ import type {
   ConsumptionRuleListRow,
   CostSample,
 } from './rules-shared';
+import { resolveUnitCostEgp } from './unit-cost';
 
 // Re-export shared types/constants so existing server-side imports
 // (`@/lib/beithady/inventory/rules`) continue to work unchanged.
@@ -62,19 +63,27 @@ export async function computeCostSample(
 ): Promise<CostSample> {
   const sb = supabaseAdmin();
 
-  // Fetch all active rules + the items they reference
+  // Fetch all active rules + the items they reference. Need all four
+  // cost fields so resolveUnitCostEgp can apply the canonical preference
+  // (amazon → avg → last → default).
   const { data: rules } = await sb
     .from('beithady_inventory_consumption_rules')
     .select(`
       *,
-      item:beithady_inventory_items!inner(sku, name_en, avg_cost_egp, default_cost_egp)
+      item:beithady_inventory_items!inner(sku, name_en, avg_cost_egp, last_cost_egp, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size)
     `)
     .eq('active', true);
 
-  type Row = ConsumptionRule & {
-    item: Array<{ sku: string; name_en: string; avg_cost_egp: number; default_cost_egp: number }>
-        | { sku: string; name_en: string; avg_cost_egp: number; default_cost_egp: number };
+  type ItemCost = {
+    sku: string;
+    name_en: string;
+    avg_cost_egp: number;
+    last_cost_egp: number | null;
+    default_cost_egp: number;
+    amazon_eg_price_egp: number | null;
+    amazon_eg_pack_size: number | null;
   };
+  type Row = ConsumptionRule & { item: ItemCost[] | ItemCost };
   const all = ((rules as unknown) as Row[] | null) || [];
 
   // Filter by scope
@@ -106,7 +115,7 @@ export async function computeCostSample(
     }
     qty *= 1 + Number(r.loss_factor_pct) / 100;
     qty = Math.ceil(qty * 100) / 100;
-    const unit_cost = Number(item?.avg_cost_egp || 0) || Number(item?.default_cost_egp || 0);
+    const unit_cost = item ? resolveUnitCostEgp(item).unitCostEgp : 0;
     return {
       item_id: r.item_id,
       item_sku: item?.sku || '—',

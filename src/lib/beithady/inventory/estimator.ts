@@ -11,6 +11,7 @@ import {
   type RuleScope,
 } from './estimator-shared';
 import { unitsConsumedPerTrigger } from './volumetric';
+import { resolveUnitCostEgp } from './unit-cost';
 
 // Server-side queries powering the Housekeeping Estimator (Phase M.15).
 // Pure data fetch + cost computation — no UI here.
@@ -126,7 +127,7 @@ export async function computeEstimatorOutput(
   // 2. All active items + their categories
   const [itemsRes, catsRes, rulesRes] = await Promise.all([
     sb.from('beithady_inventory_items')
-      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, pack_volume_value, pack_volume_uom, active')
+      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, avg_cost_egp, last_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, pack_volume_value, pack_volume_uom, active')
       .eq('active', true),
     sb.from('beithady_inventory_categories')
       .select('id, code'),
@@ -217,17 +218,9 @@ export async function computeEstimatorOutput(
     const finalQty = override ? Number(override.qty_override) : computedQty;
     const effectiveQty = finalQty * (1 + lossFactor);
 
-    // Unit cost: prefer Amazon-sourced price-per-pack-unit, fall back to default_cost_egp.
-    // Track whether we used the fallback so the UI can flag estimates.
-    let unitCost = Number(it.default_cost_egp || 0);
-    let unitCostIsEstimate = true;
-    if (it.amazon_eg_price_egp != null && it.amazon_eg_pack_size && it.amazon_eg_pack_size > 0) {
-      unitCost = Number(it.amazon_eg_price_egp) / it.amazon_eg_pack_size;
-      unitCostIsEstimate = false;
-    } else if (it.amazon_eg_price_egp != null) {
-      unitCost = Number(it.amazon_eg_price_egp);
-      unitCostIsEstimate = false;
-    }
+    // Unit cost: centralised in resolveUnitCostEgp — preference order is
+    // amazon (price/pack_size) → avg → last → default. See unit-cost.ts.
+    const { unitCostEgp: unitCost, isEstimate: unitCostIsEstimate } = resolveUnitCostEgp(it);
 
     lines.push({
       item_id: it.id,
