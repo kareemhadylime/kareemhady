@@ -1,4 +1,7 @@
 {
+  "enabledPlugins": {
+    "superpowers@superpowers-dev": true
+  },
   "hooks": {
     "Stop": [
       {
