@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit } from '@/lib/beithady/audit';
 import {
@@ -9,6 +10,8 @@ import {
   writeMobileSession,
   clearMobileSession,
   readMobileSession,
+  checkPinRateLimit,
+  recordPinAttempt,
 } from '@/lib/beithady/inventory/mobile-pin';
 import { nextIssueNo } from '@/lib/beithady/inventory/issue';
 
@@ -23,8 +26,42 @@ export async function loginMobileAction(formData: FormData): Promise<LoginResult
   if (!cleanerName || cleanerName.length < 2) return { ok: false, error: 'الاسم مطلوب' };
   if (!pin || pin.length !== 6) return { ok: false, error: 'الرمز يجب أن يكون 6 أرقام' };
 
+  // Audit fix C4: per-IP rate-limit. The pre-fix endpoint had no
+  // counter, so a 6-digit PIN was brute-forceable in hours. Now we
+  // record every attempt and lock out after 5 failures in 5 minutes.
+  const h = await headers();
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || h.get('x-real-ip')
+    || null;
+  const userAgent = h.get('user-agent') || null;
+
+  const rl = await checkPinRateLimit(ip);
+  if (rl.locked) {
+    await recordPinAttempt({ warehouseCode, ip, userAgent, cleanerName, success: false });
+    await recordAudit({
+      actor_user_id: null,
+      module: 'inventory',
+      action: 'mobile.login.rate_limited',
+      target_type: 'warehouse',
+      metadata: { warehouse_code: warehouseCode, ip, retry_after_sec: rl.retryAfterSec },
+    });
+    return { ok: false, error: `محاولات كثيرة — أعد المحاولة بعد ${Math.ceil(rl.retryAfterSec / 60)} دقيقة` };
+  }
+
   const wh = await validateBuildingPin(warehouseCode, pin);
-  if (!wh) return { ok: false, error: 'الرمز غير صحيح' };
+  if (!wh) {
+    await recordPinAttempt({ warehouseCode, ip, userAgent, cleanerName, success: false });
+    await recordAudit({
+      actor_user_id: null,
+      module: 'inventory',
+      action: 'mobile.login.fail',
+      target_type: 'warehouse',
+      metadata: { warehouse_code: warehouseCode, ip, cleaner_name: cleanerName },
+    });
+    return { ok: false, error: 'الرمز غير صحيح' };
+  }
+
+  await recordPinAttempt({ warehouseCode, ip, userAgent, cleanerName, success: true });
 
   await writeMobileSession({
     warehouseCode: wh.code,
@@ -40,7 +77,7 @@ export async function loginMobileAction(formData: FormData): Promise<LoginResult
     action: 'mobile.login',
     target_type: 'warehouse',
     target_id: wh.id,
-    metadata: { cleaner_name: cleanerName, warehouse_code: warehouseCode },
+    metadata: { cleaner_name: cleanerName, warehouse_code: warehouseCode, ip },
   });
 
   redirect('/beithady/inventory/m');
