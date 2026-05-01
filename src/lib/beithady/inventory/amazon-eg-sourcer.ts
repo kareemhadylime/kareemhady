@@ -372,13 +372,22 @@ export async function probeAmazonProduct(input: {
 export async function persistProbeResult(
   itemId: string,
   result: AmazonProbeResult,
-): Promise<{ priceChanged: boolean }> {
+  /**
+   * Audit fix C7 — race-condition guard. The URL the probe was run
+   * against. Writes are gated by `.eq('amazon_eg_url', expectedUrl)`
+   * so a slow probe of URL A cannot overwrite freshly-fetched data for
+   * URL B if the operator changed the URL between probe-start and
+   * probe-finish. If this argument is omitted (legacy callers), the
+   * gate is skipped — pass it from new code.
+   */
+  expectedUrl?: string | null,
+): Promise<{ priceChanged: boolean; staleUrlSkipped?: boolean }> {
   const sb = supabaseAdmin();
   const nowIso = new Date().toISOString();
 
   if (!result.ok) {
     // Failed probe — record the status, don't overwrite price.
-    await sb
+    let q = sb
       .from('beithady_inventory_items')
       .update({
         amazon_eg_last_status: result.status === 'parse_error' ? 'unchecked' : result.status,
@@ -386,6 +395,11 @@ export async function persistProbeResult(
         updated_at: nowIso,
       })
       .eq('id', itemId);
+    if (expectedUrl !== undefined) q = q.eq('amazon_eg_url', expectedUrl as string);
+    const { data: updated } = await q.select('id');
+    if (expectedUrl !== undefined && (!updated || updated.length === 0)) {
+      return { priceChanged: false, staleUrlSkipped: true };
+    }
     return { priceChanged: false };
   }
 
@@ -424,7 +438,7 @@ export async function persistProbeResult(
   // the "Create new SKU" workflow (Q3=C) when they differ.
   const parsedVolume = parseVolumeFromText(result.product_name_en);
 
-  await sb
+  let writeQ = sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_product_name_en: result.product_name_en,
@@ -443,6 +457,13 @@ export async function persistProbeResult(
       updated_at: nowIso,
     })
     .eq('id', itemId);
+  if (expectedUrl !== undefined) writeQ = writeQ.eq('amazon_eg_url', expectedUrl as string);
+  const { data: writeUpdated } = await writeQ.select('id');
+  if (expectedUrl !== undefined && (!writeUpdated || writeUpdated.length === 0)) {
+    // Audit fix C7: URL changed under us — drop the result rather than
+    // overwrite the now-current URL's freshly-fetched data.
+    return { priceChanged: false, staleUrlSkipped: true };
+  }
 
   // Append snapshot — UNIQUE (item_id, snapshot_date) so re-runs same day
   // overwrite with the latest probe.
@@ -489,7 +510,10 @@ export async function syncOneItemPrice(
     itemUom: row.uom,
     url: row.amazon_eg_url,
   });
-  const persist = await persistProbeResult(itemId, probe);
+  // Audit fix C7: pass the URL the probe was run against so
+  // persistProbeResult can drop the write if the row's URL has changed
+  // out from under us (concurrent operator edit, fork, etc).
+  const persist = await persistProbeResult(itemId, probe, row.amazon_eg_url);
   if (!probe.ok) return { ok: true, status: probe.status, price_egp: null, price_changed: false };
   return { ok: true, status: probe.status, price_egp: probe.price_egp, price_changed: persist.priceChanged };
 }

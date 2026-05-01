@@ -11,7 +11,6 @@ import { canonicalizeAmazonEgUrl } from '@/lib/beithady/inventory/estimator-shar
 import {
   regenerateItemInfo,
   setAiInfoStatus,
-  isWithinCooldown,
 } from '@/lib/beithady/inventory/ai-item-info';
 import {
   syncOneItemPrice,
@@ -440,30 +439,48 @@ export async function setAmazonSourceAction(
     .maybeSingle();
   if (!before) return { ok: false, error: 'Item not found' };
 
+  // Audit fix C6: when the URL actually changes, ai_info also describes
+  // a stale product (the OLD listing's summary, ingredients, warnings,
+  // source_url). Without clearing it, the cooldown gate prevents regen
+  // and the AI card silently misrepresents the new product. We only
+  // wipe ai_info on a true URL change to avoid losing useful info when
+  // the operator re-saves the same URL.
+  const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
+
+  const updatePatch: Record<string, unknown> = {
+    amazon_eg_url: cleanUrl,
+    amazon_eg_last_status: cleanUrl ? 'unchecked' : null,
+    amazon_eg_price_egp: null,
+    amazon_eg_pack_size: null,
+    amazon_eg_image_url: null,
+    amazon_eg_url_reviewed_at: null,
+    amazon_eg_url_reviewed_by: null,
+    // M.16 — also clear the product-name + brand + pack_volume shadow
+    // columns so stale data from the PREVIOUS URL's sync doesn't
+    // persist between when the operator pastes a new URL and when the
+    // background sync writes fresh values. Otherwise the mismatch banner
+    // and Rename SKU AI suggestion read the old name/brand and produce
+    // wrong recommendations (e.g. suggesting CLN-FRIDA-4L when the new
+    // URL is actually a Clorel product).
+    amazon_eg_product_name_en: null,
+    amazon_eg_product_name_ar: null,
+    amazon_eg_brand: null,
+    amazon_eg_pack_volume_value: null,
+    amazon_eg_pack_volume_uom: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (urlChanged) {
+    updatePatch.ai_info = null;
+    updatePatch.ai_info_source = null;
+    updatePatch.ai_info_generated_at = null;
+    updatePatch.ai_info_model = null;
+    updatePatch.ai_info_error = null;
+    updatePatch.ai_info_status = cleanUrl ? 'queued' : 'idle';
+  }
+
   const { error } = await sb
     .from('beithady_inventory_items')
-    .update({
-      amazon_eg_url: cleanUrl,
-      amazon_eg_last_status: cleanUrl ? 'unchecked' : null,
-      amazon_eg_price_egp: null,
-      amazon_eg_pack_size: null,
-      amazon_eg_image_url: null,
-      amazon_eg_url_reviewed_at: null,
-      amazon_eg_url_reviewed_by: null,
-      // M.16 — also clear the product-name + brand + pack_volume shadow
-      // columns so stale data from the PREVIOUS URL's sync doesn't
-      // persist between when the operator pastes a new URL and when the
-      // background sync writes fresh values. Otherwise the mismatch banner
-      // and Rename SKU AI suggestion read the old name/brand and produce
-      // wrong recommendations (e.g. suggesting CLN-FRIDA-4L when the new
-      // URL is actually a Clorel product).
-      amazon_eg_product_name_en: null,
-      amazon_eg_product_name_ar: null,
-      amazon_eg_brand: null,
-      amazon_eg_pack_volume_value: null,
-      amazon_eg_pack_volume_uom: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePatch)
     .eq('id', itemId);
 
   if (error) {
@@ -492,24 +509,15 @@ export async function setAmazonSourceAction(
   // work runs after the response is flushed:
   //   1) Amazon EG price sourcer — fetches price + pack_size + product name
   //      + brand from the live Amazon page and overwrites the items row.
-  //   2) AI info regen — generates the structured info card (24h cooldown
-  //      respected; first-ever regen bypasses it).
+  //   2) AI info regen — ai_info was already wiped above (audit fix C6),
+  //      so the cooldown gate is moot and regen runs unconditionally.
   // Both calls hit Claude with web_fetch on the same URL but they extract
   // different fields, so we run them in parallel.
-  const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
   if (urlChanged && cleanUrl) {
-    const { data: aiState } = await sb
-      .from('beithady_inventory_items')
-      .select('ai_info, ai_info_generated_at')
-      .eq('id', itemId)
-      .maybeSingle();
-    const skipCooldown = !aiState?.ai_info;
     const userIdForAudit = user.id;
-
     const tasks: Promise<unknown>[] = [];
 
-    // Task 1: price sourcer (always run on URL change — operator just gave
-    // us a fresh ASIN, the existing price is stale by definition).
+    // Task 1: price sourcer
     tasks.push(
       syncOneItemPrice(itemId).then(() => {
         revalidatePath('/beithady/inventory/items');
@@ -517,16 +525,13 @@ export async function setAmazonSourceAction(
       }),
     );
 
-    // Task 2: AI info regen (cooldown-gated)
-    if (skipCooldown || !isWithinCooldown(aiState?.ai_info_generated_at)) {
-      await setAiInfoStatus(itemId, 'queued');
-      tasks.push(
-        regenerateItemInfo(itemId, userIdForAudit).then(() => {
-          revalidatePath('/beithady/inventory/items');
-          revalidatePath('/beithady/inventory/rules/estimator', 'layout');
-        }),
-      );
-    }
+    // Task 2: AI info regen (status was set to 'queued' above)
+    tasks.push(
+      regenerateItemInfo(itemId, userIdForAudit).then(() => {
+        revalidatePath('/beithady/inventory/items');
+        revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+      }),
+    );
 
     waitUntil(Promise.allSettled(tasks));
   }
@@ -873,6 +878,11 @@ export async function setManualAmazonPriceAction(
   if (input.name_en && input.name_en.trim()) namePatch.name_en = input.name_en.trim().slice(0, 200);
   if (input.brand && input.brand.trim()) namePatch.brand = input.brand.trim().slice(0, 80);
 
+  // Audit fix H12: also clear product-name + brand + pack_volume + image
+  // + rating/review_count shadow columns from the prior failed/stale fetch.
+  // Without this, the mismatch banner reads stale amazon_eg_product_name_en
+  // and falsely surfaces "Amazon listing differs" against the name the
+  // operator just typed in.
   const { error } = await sb
     .from('beithady_inventory_items')
     .update({
@@ -882,6 +892,14 @@ export async function setManualAmazonPriceAction(
       amazon_eg_in_stock: true,
       amazon_eg_last_status: 'ok',
       amazon_eg_last_checked_at: new Date().toISOString(),
+      amazon_eg_product_name_en: null,
+      amazon_eg_product_name_ar: null,
+      amazon_eg_brand: null,
+      amazon_eg_pack_volume_value: null,
+      amazon_eg_pack_volume_uom: null,
+      amazon_eg_image_url: null,
+      amazon_eg_rating: null,
+      amazon_eg_review_count: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', itemId);
@@ -1278,6 +1296,9 @@ export async function forkSkuFromAmazonAction(
 
   // Clear the source SKU's URL — the Amazon listing now belongs to the
   // forked SKU; the original keeps its other curated details.
+  // Audit fix H11: also clear ai_info so the source SKU's AI card
+  // doesn't keep describing the product that just left the row (same
+  // root cause as C6 in setAmazonSourceAction).
   await sb
     .from('beithady_inventory_items')
     .update({
@@ -1294,6 +1315,12 @@ export async function forkSkuFromAmazonAction(
       amazon_eg_brand: null,
       amazon_eg_pack_volume_value: null,
       amazon_eg_pack_volume_uom: null,
+      ai_info: null,
+      ai_info_source: null,
+      ai_info_generated_at: null,
+      ai_info_model: null,
+      ai_info_error: null,
+      ai_info_status: 'idle',
       updated_at: new Date().toISOString(),
     })
     .eq('id', itemId);
