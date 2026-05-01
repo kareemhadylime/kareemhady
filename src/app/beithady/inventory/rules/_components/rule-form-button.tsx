@@ -136,13 +136,13 @@ export function RuleFormButton({
                   computes units-per-trigger via UoM conversion (e.g.
                   "100 ml per check-in" ÷ "4 kg pack" = 0.025 packs).
                   Leave both blank to use the legacy raw-qty math above. */}
-              <div className="border-t border-slate-200 pt-3 mt-3">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-2">
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
+                <p className="text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-300 font-semibold mb-2">
                   Volumetric override (optional)
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-300 font-semibold mb-1">
                       Consumes (value)
                     </span>
                     <input
@@ -161,7 +161,7 @@ export function RuleFormButton({
                     />
                   </label>
                   <label className="block">
-                    <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+                    <span className="block text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-300 font-semibold mb-1">
                       Consumes (UoM)
                     </span>
                     <select
@@ -234,7 +234,7 @@ export function RuleFormButton({
 function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+      <span className="block text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-300 font-semibold mb-1">
         {label}{required && <span className="text-rose-500"> *</span>}
       </span>
       {children}

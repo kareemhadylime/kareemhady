@@ -283,6 +283,7 @@ Rules:
   Only the main product's buy-box price counts. If the page has multiple sponsored ads but no main product, THEN return null.
 - pack_size: 1 for single units; >=2 for multi-packs ("Pack of N", "N-pack"). Default 1 if unclear.
 - product_name_en: the canonical product H1 in English (NOT a sponsored item title at the top).
+- product_name_ar: the canonical product H1 in Arabic. Many Amazon EG pages have only English titles — if no Arabic title is on the page, GENERATE a faithful Arabic translation of product_name_en yourself (don't return null). Use Modern Standard Arabic, keep brand names latinized, preserve numeric pack sizes ("4 kg" → "4 كجم"). Example: "Clorel liquid multi purpose cleaner 4 in 1 with lavender scent, 4 kg" → "كلوريل سائل تنظيف متعدد الاستخدامات 4 في 1 برائحة اللافندر، 4 كجم".
 - in_stock: true if "In Stock" / "Add to Cart" is shown for the canonical product.
 - status:
     • "ok"  → product page with a buyable price (in_stock=true AND price_egp set)

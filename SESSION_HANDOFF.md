@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — AI rename now respects Amazon pack volume; Apply Amazon details copies pack_volume too
+## 🟢 Latest turn — Apply Amazon details now syncs cost + Arabic name + description; sourcer auto-translates AR; dark mode contrast fixed
+
+User reported four issues on the items form for `CLN-APC-1L`: Arabic name not updated, Cost still seed value, Pack Volume Kg/L unclear, Description empty, label text hard to read in dark mode.
+
+**Four fixes:**
+
+1. **`applyAmazonDetailsAction`** (`actions.ts`) — extended SELECT + patch logic. When operator clicks "Use Amazon details", now also propagates:
+   - `default_cost_egp` ← `amazon_eg_price_egp / max(1, amazon_eg_pack_size)` (live unit cost from Amazon)
+   - `pack_volume_value/uom` ← Amazon shadow values (already shipped earlier — but reaffirmed)
+   - `description` ← `ai_info.summary_en` (only if operator hasn't set their own description)
+   - Audit log captures pack_volume + cost + description before/after
+
+2. **Sourcer prompt** (`amazon-eg-sourcer.ts`) — Haiku is now told: "Many Amazon EG pages have only English titles — if no Arabic title is on the page, GENERATE a faithful Arabic translation of product_name_en yourself (don't return null). Use Modern Standard Arabic, keep brand names latinized, preserve numeric pack sizes." Includes a worked example. Future syncs auto-fill Arabic for items that don't have it on the Amazon page.
+
+3. **Dark mode contrast** — `Field` helper in both `item-form-button.tsx` and `rule-form-button.tsx` updated:
+   - Label spans: `text-slate-500 font-medium` → `text-slate-600 dark:text-slate-300 font-semibold`
+   - Hint spans: `text-slate-500` → `text-slate-500 dark:text-slate-400`
+   - Cancel buttons: `text-slate-500` → `text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white`
+   - Border: `border-slate-200` → `border-slate-200 dark:border-slate-700`
+   - Volumetric override section's inline label spans bumped same way
+
+4. **Manual SQL patch** of `CLN-APC-1L` so user sees correct data immediately:
+   - `name_ar` set to "كلوريل سائل تنظيف متعدد الاستخدامات 4 في 1 برائحة اللافندر، 4 كجم"
+   - `default_cost_egp` set to 71.95 (from live Amazon)
+   - `description` populated with English summary mentioning the 4kg / 71.95 EGP
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Files touched:**
+- `src/app/beithady/inventory/items/actions.ts` — `applyAmazonDetailsAction` SELECT + patch
+- `src/lib/beithady/inventory/amazon-eg-sourcer.ts` — prompt rule for Arabic auto-translate
+- `src/app/beithady/inventory/items/_components/item-form-button.tsx` — Field helper + Cancel button dark mode
+- `src/app/beithady/inventory/rules/_components/rule-form-button.tsx` — Field helper + volumetric section dark mode
+
+---
+
+## 🟢 Earlier this turn — AI rename now respects Amazon pack volume; Apply Amazon details copies pack_volume too
 
 User clicked Rename SKU via AI on `CLN-APC-1L` (which now correctly has Clorel shadow data). Got back suggestion `CLN-CLOREL-1L` — wrong size suffix because the AI was inheriting the OLD SKU's `1L` instead of using the actual Amazon pack volume of `4 kg`.
 

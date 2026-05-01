@@ -271,7 +271,7 @@ export function ItemFormButton({
                   </button>
                 )}
                 <div className="flex items-center gap-2 ml-auto">
-                  <button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 text-[11px] text-slate-500 hover:text-slate-700">Cancel</button>
+                  <button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 text-[11px] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Cancel</button>
                   <button type="submit" disabled={pending} className="px-3 py-1.5 text-[11px] font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">
                     {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create item'}
                   </button>
@@ -288,11 +288,11 @@ export function ItemFormButton({
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+      <span className="block text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-300 font-semibold mb-1">
         {label}{required && <span className="text-rose-500"> *</span>}
       </span>
       {children}
-      {hint && <span className="block mt-1 text-[10px] text-slate-500">{hint}</span>}
+      {hint && <span className="block mt-1 text-[10px] text-slate-500 dark:text-slate-400">{hint}</span>}
     </label>
   );
 }

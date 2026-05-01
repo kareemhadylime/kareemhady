@@ -926,9 +926,10 @@ export async function applyAmazonDetailsAction(
   const { data: before } = await sb
     .from('beithady_inventory_items')
     .select(
-      'id, sku, name_en, name_ar, brand, pack_volume_value, pack_volume_uom, ' +
+      'id, sku, name_en, name_ar, brand, pack_volume_value, pack_volume_uom, default_cost_egp, description, ' +
       'amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand, ' +
-      'amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom'
+      'amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom, ' +
+      'amazon_eg_price_egp, amazon_eg_pack_size, ai_info'
     )
     .eq('id', itemId)
     .maybeSingle();
@@ -937,11 +938,16 @@ export async function applyAmazonDetailsAction(
     id: string; sku: string; name_en: string; name_ar: string; brand: string | null;
     pack_volume_value: number | string | null;
     pack_volume_uom: string | null;
+    default_cost_egp: number | string;
+    description: string | null;
     amazon_eg_product_name_en: string | null;
     amazon_eg_product_name_ar: string | null;
     amazon_eg_brand: string | null;
     amazon_eg_pack_volume_value: number | string | null;
     amazon_eg_pack_volume_uom: string | null;
+    amazon_eg_price_egp: number | string | null;
+    amazon_eg_pack_size: number | null;
+    ai_info: { summary_en?: string | null; summary_ar?: string | null } | null;
   };
 
   const patch: Record<string, unknown> = {};
@@ -960,6 +966,24 @@ export async function applyAmazonDetailsAction(
   if (row.amazon_eg_pack_volume_value != null && row.amazon_eg_pack_volume_uom) {
     patch.pack_volume_value = Number(row.amazon_eg_pack_volume_value);
     patch.pack_volume_uom = row.amazon_eg_pack_volume_uom;
+  }
+  // M.16 — sync default_cost_egp to the live Amazon per-pack price so the
+  // operator's cost field reflects what they actually pay (was a seed
+  // placeholder until now). For multi-packs use price ÷ pack_size to get
+  // the per-unit cost; otherwise the raw price.
+  if (row.amazon_eg_price_egp != null) {
+    const price = Number(row.amazon_eg_price_egp);
+    const packCount = row.amazon_eg_pack_size && row.amazon_eg_pack_size > 0
+      ? row.amazon_eg_pack_size : 1;
+    if (Number.isFinite(price) && price > 0) {
+      patch.default_cost_egp = price / packCount;
+    }
+  }
+  // M.16 — fill description from the AI info card's summary if the operator
+  // hasn't set their own description yet. Doesn't overwrite — leaves manual
+  // descriptions intact.
+  if (!row.description && row.ai_info?.summary_en) {
+    patch.description = String(row.ai_info.summary_en).slice(0, 500);
   }
   if (Object.keys(patch).length === 0) {
     return {
