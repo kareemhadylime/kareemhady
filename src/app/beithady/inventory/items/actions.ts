@@ -963,9 +963,25 @@ export async function applyAmazonDetailsAction(
   // M.16 — also propagate the Amazon pack_volume to the canonical column
   // so the estimator's volumetric math + the size mismatch detector both
   // see the new pack size, not the old SKU's stale 1L assumption.
+  //
+  // Liquid heuristic: Amazon EG often labels liquid products by net-weight
+  // ("4 Kg" for a 4-litre bottle of cleaner) because that's the shipping
+  // weight. Operators track liquids in volume — when the product name
+  // contains liquid/cleaner/detergent/shampoo/etc AND Amazon labelled it
+  // in kg or g, convert to L or ml assuming density ≈ 1 (water-based,
+  // close enough for cost estimation; concentrated cleaners off by ≤20%).
   if (row.amazon_eg_pack_volume_value != null && row.amazon_eg_pack_volume_uom) {
-    patch.pack_volume_value = Number(row.amazon_eg_pack_volume_value);
-    patch.pack_volume_uom = row.amazon_eg_pack_volume_uom;
+    let v = Number(row.amazon_eg_pack_volume_value);
+    let u = row.amazon_eg_pack_volume_uom;
+    const nameForCheck = (row.amazon_eg_product_name_en || row.name_en || '').toLowerCase();
+    const isLiquid = /\b(liquid|detergent|shampoo|conditioner|softener|cleaner|spray|bleach|oil|sauce|lotion|gel|syrup|vinegar|polish|disinfectant|deodoriz|deodoris|sanitiz|sanitis)/i.test(nameForCheck);
+    if (isLiquid) {
+      if (u === 'kg') { u = 'L'; }
+      else if (u === 'g') { u = 'ml'; }
+    }
+    patch.pack_volume_value = v;
+    patch.pack_volume_uom = u;
+    void v; // satisfy linter — v intentionally not converted (1:1 mapping)
   }
   // M.16 — sync default_cost_egp to the live Amazon per-pack price so the
   // operator's cost field reflects what they actually pay (was a seed
