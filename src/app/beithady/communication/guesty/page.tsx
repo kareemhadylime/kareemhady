@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Search, AlertTriangle, Mail } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, BOOKING_STATUS_LABELS, type InboxFilter, type BookingStatus } from '@/lib/beithady/communication/inbox';
 import { listActiveTemplates, getListingSecrets } from '@/lib/beithady/communication/templates';
 import { buildContextFromHeader } from '@/lib/beithady/communication/templates-shared';
 import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
@@ -26,6 +26,7 @@ type SearchParams = {
   sla?: string;
   unread?: string;
   breach?: string;
+  bs?: string;
   sort?: string;
   send_error?: string;
   send_status?: string;
@@ -38,6 +39,8 @@ type SearchParams = {
   via?: string;
 };
 
+const VALID_BOOKING_STATUSES: ReadonlyArray<BookingStatus> = ['inquiry', 'future', 'in_house', 'past', 'cancelled'];
+
 function parseFilter(sp: SearchParams): InboxFilter {
   const f: InboxFilter = { channel: 'guesty' };
   if (sp.q) f.search = sp.q;
@@ -48,6 +51,9 @@ function parseFilter(sp: SearchParams): InboxFilter {
   }
   if (sp.unread === '1') f.unreadOnly = true;
   if (sp.breach === '1') f.breachOnly = true;
+  if (sp.bs && (VALID_BOOKING_STATUSES as readonly string[]).includes(sp.bs)) {
+    f.bookingStatus = sp.bs as BookingStatus;
+  }
   if (sp.sort && (VALID_SORTS as readonly string[]).includes(sp.sort)) {
     f.sort = sp.sort as typeof VALID_SORTS[number];
   }
@@ -62,6 +68,7 @@ function preserveQuery(sp: SearchParams): string {
   if (sp.sla) params.push(`sla=${encodeURIComponent(sp.sla)}`);
   if (sp.unread === '1') params.push('unread=1');
   if (sp.breach === '1') params.push('breach=1');
+  if (sp.bs) params.push(`bs=${encodeURIComponent(sp.bs)}`);
   if (sp.sort) params.push(`sort=${encodeURIComponent(sp.sort)}`);
   return params.join('&');
 }
@@ -121,7 +128,7 @@ export default async function GuestyInboxPage({
       </section>
 
       {/* Filter form */}
-      <form className="ix-card p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-sm">
+      <form className="ix-card p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-2 text-sm">
         <input name="q" placeholder="Search guest, listing…" defaultValue={sp.q || ''} className="ix-input col-span-2" />
         <select name="source" defaultValue={sp.source || ''} className="ix-input">
           <option value="">Any source</option>
@@ -130,6 +137,12 @@ export default async function GuestyInboxPage({
           ))}
         </select>
         <input name="building" placeholder="BH-26…" defaultValue={sp.building || ''} className="ix-input" />
+        <select name="bs" defaultValue={sp.bs || ''} className="ix-input" title="Filter by booking status">
+          <option value="">Any booking status</option>
+          {VALID_BOOKING_STATUSES.map(b => (
+            <option key={b} value={b}>{BOOKING_STATUS_LABELS[b]}</option>
+          ))}
+        </select>
         <select name="sla" defaultValue={sp.sla || ''} className="ix-input">
           <option value="">Any SLA</option>
           <option value="red">🔴 Red &gt; 12h</option>

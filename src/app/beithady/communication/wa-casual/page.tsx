@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Smartphone, ExternalLink, Search, Activity } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
-import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, type InboxFilter } from '@/lib/beithady/communication/inbox';
+import { listInbox, loadThread, getInboxStats, getArchiveTotalCount, BOOKING_STATUS_LABELS, type InboxFilter, type BookingStatus } from '@/lib/beithady/communication/inbox';
 import { listActiveTemplates, getListingSecrets } from '@/lib/beithady/communication/templates';
 import { buildContextFromHeader } from '@/lib/beithady/communication/templates-shared';
 import { getPendingSuggestion } from '@/lib/beithady/ai/auto-reply';
@@ -25,6 +25,7 @@ type SearchParams = {
   sla?: string;
   unread?: string;
   breach?: string;
+  bs?: string;
   sort?: string;
   send_error?: string;
   send_status?: string;
@@ -37,6 +38,8 @@ type SearchParams = {
   via?: string;
 };
 
+const VALID_BOOKING_STATUSES: ReadonlyArray<BookingStatus> = ['inquiry', 'future', 'in_house', 'past', 'cancelled'];
+
 function parseFilter(sp: SearchParams): InboxFilter {
   const f: InboxFilter = { channel: 'wa_casual' };
   if (sp.q) f.search = sp.q;
@@ -45,6 +48,9 @@ function parseFilter(sp: SearchParams): InboxFilter {
   }
   if (sp.unread === '1') f.unreadOnly = true;
   if (sp.breach === '1') f.breachOnly = true;
+  if (sp.bs && (VALID_BOOKING_STATUSES as readonly string[]).includes(sp.bs)) {
+    f.bookingStatus = sp.bs as BookingStatus;
+  }
   if (sp.sort && (VALID_SORTS as readonly string[]).includes(sp.sort)) {
     f.sort = sp.sort as typeof VALID_SORTS[number];
   }
@@ -135,8 +141,14 @@ export default async function WaCasualPage({
         <StatLink label="Breach" value={stats.breach} accent="rose" href={buildStatHref(BASE_PATH, sp, { breachOnly: true })} active={sp.breach === '1'} />
       </section>
 
-      <form className="ix-card p-3 grid grid-cols-2 lg:grid-cols-6 gap-2 text-sm">
+      <form className="ix-card p-3 grid grid-cols-2 lg:grid-cols-7 gap-2 text-sm">
         <input name="q" placeholder="Search guest, phone…" defaultValue={sp.q || ''} className="ix-input col-span-2" />
+        <select name="bs" defaultValue={sp.bs || ''} className="ix-input" title="Filter by booking status">
+          <option value="">Any booking status</option>
+          {VALID_BOOKING_STATUSES.map(b => (
+            <option key={b} value={b}>{BOOKING_STATUS_LABELS[b]}</option>
+          ))}
+        </select>
         <select name="sla" defaultValue={sp.sla || ''} className="ix-input">
           <option value="">Any SLA</option>
           <option value="red">🔴 Red &gt; 12h</option>

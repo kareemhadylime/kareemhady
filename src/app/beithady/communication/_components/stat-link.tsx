@@ -56,11 +56,12 @@ export function buildStatHref(
   apply: { sla?: 'red' | 'orange' | 'yellow' | 'green' | 'none' | null; unread?: boolean | null; breachOnly?: boolean | null },
 ): string {
   const next = new URLSearchParams();
-  // Carry over search + sort but clear any prior sla / unread / breach
+  // Carry over search + sort + booking-status but clear any prior sla / unread / breach
   if (currentSp.q) next.set('q', currentSp.q);
   if (currentSp.sort) next.set('sort', currentSp.sort);
   if (currentSp.source) next.set('source', currentSp.source);
   if (currentSp.building) next.set('building', currentSp.building);
+  if (currentSp.bs) next.set('bs', currentSp.bs);
   if (apply.sla === null) next.delete('sla');
   else if (apply.sla) next.set('sla', apply.sla);
   if (apply.unread === true) next.set('unread', '1');

@@ -1,6 +1,42 @@
-# Kareemhady — Session Handoff (2026-04-30)
+# Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — Multi-attachment gallery viewer with one shareable URL (commit `5e64c44`)
+## 🟢 Latest turn — Booking-status filter on inbox pages (migration 0064)
+
+User: "In the Messaging Filters, need to have one Filter By Buttons to Choose from Messages with: Inquiry - Confirmed Booking - Inhouse Now - Checked Out - Cancelled".
+
+**Implemented:** new "Any booking status" dropdown in the filter form on Unified, Guesty, and WhatsApp Casual inbox pages. Selecting a value scopes the inbox to conversations whose linked Guesty reservation matches that lifecycle stage.
+
+**Filter values (`?bs=` URL param):**
+- `inquiry` → Inquiry (unconfirmed quote)
+- `future` → Confirmed Booking (status=confirmed/reserved, check_in > today)
+- `in_house` → In-house Now (today ∈ [check_in, check_out])
+- `past` → Checked Out (status=confirmed/checked_out, check_out < today)
+- `cancelled` → Cancelled (canceled/cancelled/declined/closed)
+
+**Migration 0064** adds view `public.bh_conversations_with_booking_status`:
+- `select c.*, <case-expr> as booking_status_variant from beithady_conversations c left join guesty_reservations r on r.id = c.reservation_id`
+- Today computed in `Africa/Cairo` wall-time to match Guesty's date semantics
+- All `c.*` columns preserved including the `is_unanswered` generated column and `archived_at`
+- Verified bucket counts on open + active conversations: past=611, inquiry=424, cancelled=141, in_house=35, future=22, none=21, pending_sync=15 — sum=1,269 = OPEN tile in dashboard
+
+**Wiring:**
+- `InboxFilter.bookingStatus?: BookingStatus` added to `src/lib/beithady/communication/inbox.ts`
+- `BookingStatus` and `BOOKING_STATUS_LABELS` exported alongside
+- `listInbox()` swaps source from `beithady_conversations` to `bh_conversations_with_booking_status` only when `bookingStatus` is set, then `.eq('booking_status_variant', value)`. When unset, base table is queried as before — no extra join cost
+- Three pages updated identically: parse `bs` param, validate against allowlist, pass to filter, add `<select name="bs">` between search and SLA selects, add `bs` to `preserveQuery()` for navigation
+- `stat-link.tsx` `buildStatHref()` carries `bs` along when stat tiles are clicked so the booking-status filter survives SLA/unread/breach toggles
+
+**Files touched:**
+- `supabase/migrations/0064_beithady_conv_booking_status_view.sql` (new)
+- `src/lib/beithady/communication/inbox.ts` (BookingStatus type + listInbox source-table swap)
+- `src/app/beithady/communication/_components/stat-link.tsx` (preserve `bs` in `buildStatHref`)
+- `src/app/beithady/communication/unified/page.tsx`
+- `src/app/beithady/communication/guesty/page.tsx`
+- `src/app/beithady/communication/wa-casual/page.tsx`
+
+**Migration applied to prod via Supabase MCP** (`mcp__supabase__apply_migration` → `{"success":true}`).
+
+## 🟢 Earlier turn — Multi-attachment gallery viewer with one shareable URL (commit `5e64c44`)
 
 User: "Fine URL Received, if several pictures are attached, they should go in one URL, and the receiver have the ability to scroll them left and right".
 

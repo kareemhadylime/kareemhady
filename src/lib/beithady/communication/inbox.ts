@@ -17,6 +17,26 @@ export type InboxSort =
   | 'recent_outbound' // last_outbound_at desc — most recently replied first
   | 'name_asc';       // guest_full_name asc
 
+// Booking-status filter values — match ReservationVariant in
+// src/lib/beithady/communication/reservation-status.ts. Backed by the
+// bh_conversations_with_booking_status view (migration 0064) which
+// joins beithady_conversations to guesty_reservations and computes the
+// variant in SQL using Africa/Cairo wall-time.
+export type BookingStatus =
+  | 'inquiry'
+  | 'future'        // confirmed booking, check-in in the future
+  | 'in_house'      // currently staying
+  | 'past'          // checked out
+  | 'cancelled';
+
+export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
+  inquiry: 'Inquiry',
+  future: 'Confirmed Booking',
+  in_house: 'In-house Now',
+  past: 'Checked Out',
+  cancelled: 'Cancelled',
+};
+
 export type InboxFilter = {
   channel?: Channel;
   search?: string;          // matches guest_full_name | guest_email | guest_phone | listing_nickname
@@ -25,6 +45,7 @@ export type InboxFilter = {
   slaBucket?: SlaBucket;    // 'red' to surface breaches
   unreadOnly?: boolean;
   breachOnly?: boolean;     // sla_breach=true (any bucket past the breach threshold)
+  bookingStatus?: BookingStatus;  // filter by reservation lifecycle stage
   state?: 'open' | 'closed' | 'all';
   sort?: InboxSort;
   // Phase R — archive scoping. By default the active inbox excludes
@@ -85,12 +106,23 @@ export async function listInbox(opts: {
   const pageSize = Math.max(10, Math.min(200, opts.pageSize ?? 50));
   const f = opts.filter ?? {};
 
+  // When bookingStatus filter is active, query through the view
+  // (migration 0064) which exposes a computed booking_status_variant
+  // column. Otherwise hit the base table directly to skip the join.
+  const sourceTable = f.bookingStatus
+    ? 'bh_conversations_with_booking_status'
+    : 'beithady_conversations';
+
   let q = sb
-    .from('beithady_conversations')
+    .from(sourceTable)
     .select(
       'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, is_unanswered, archived_at, archived_reason',
       { count: 'exact' }
     );
+
+  if (f.bookingStatus) {
+    q = q.eq('booking_status_variant', f.bookingStatus);
+  }
 
   // Phase R — archive scoping. Default = 'active' = archived_at is null.
   const scope = f.archiveScope || 'active';
