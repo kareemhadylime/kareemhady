@@ -227,12 +227,32 @@ async function fetchViaScrapingBee(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * Strip the noisiest parts of an Amazon HTML page so the buy-box stays
+ * within Claude's context window. Observed on a real product page
+ * (Clorel multi-purpose cleaner): raw page is 1.58 MB, the price first
+ * appears at offset 224k — past the 150k truncation. After stripping
+ * <script>/<style>/<noscript>/comments and collapsing whitespace, the
+ * page shrinks to ~600 KB and the price moves to offset 72k.
+ */
+function stripHtmlBloat(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Builds a prompt that gives Claude pre-fetched HTML to parse directly. */
 function buildHtmlExtractionPrompt(itemName: string, itemUom: string, url: string, html: string): string {
-  // Trim to ~150k chars; the buy box / title / price are always near the top.
-  // Bumped from 120k after observing some Amazon EG product pages have heavy
-  // sponsored-ad headers that pushed the buy-box content past the original cap.
-  const trimmed = html.length > 150_000 ? html.slice(0, 150_000) : html;
+  // Strip script/style/noscript/comments first — Amazon pages are 1-2 MB raw
+  // and the buy-box price is often past 200k chars under sponsored-ad bloat.
+  // After stripping, even the largest pages stay well under the truncation
+  // limit and the price/title/availability are near the top.
+  const cleaned = stripHtmlBloat(html);
+  const trimmed = cleaned.length > 200_000 ? cleaned.slice(0, 200_000) : cleaned;
   return `Extract structured product data from the Amazon EG HTML below.
 
 URL: ${url}
