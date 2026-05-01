@@ -1,6 +1,30 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Edit-modal showed stale SKU after AI rename
+## 🟢 Latest turn — Inventory module deep audit: 3 sibling React bugs fixed, full bug ledger compiled
+
+User asked to "Research Inventory Module deeply and systematically to Debug any inconsistencies." Dispatched 4 parallel general-purpose agents (React state, math/calc, stock integrity, data sync) plus a parallel DB-level integrity audit via Supabase MCP. Live data is currently clean (0 stock drift, 0 negatives, 0 orphan headers, 0 oversold) but the operational flows (counts, GRNs, posted issues) haven't been exercised at volume yet — the bugs identified are LATENT.
+
+**Shipped this turn** (commit 54ba412):
+1. **3 React state-sync bugs** — same anti-pattern as the Dish sponge fix earlier today: `useState(initial)` captures props once and never re-syncs. Applied the `openModal()` pattern to `rule-form-button.tsx`, `vendor-form-button.tsx`, and `warehouse-form-button.tsx`. Warehouse form already had a `reset()` but only called it on close — wired it to fire on open too.
+2. **DB cleanup** — Dish sponge item (`d1fc00f1…`) had 9 stale Amazon shadow cols from BEFORE the 267afe6 fix shipped (row last touched 21:03 on 2026-05-01; fix landed 23:09 same day). Wiped via direct UPDATE; new code prevents recurrence.
+
+**Latent bugs found but NOT yet fixed** — see `INVENTORY_AUDIT_2026_05_02.md` for the full ledger. Top by severity:
+- **RPC accepts `submitted`/`draft` for posting** (no `posted` exclusion) — direct double-post via service role would double stock and re-weight `avg_cost_egp`.
+- **`approveCountAction` never sets `status='approved'`** AND `postCountAction` accepts `in_progress` → approval can be skipped entirely.
+- **`submitIssueAction` always passes `p_sub_total_egp: 0`** → the >1000 EGP threshold rule never fires for issues.
+- **Mobile PIN no rate-limit / no anti-replay** → 6-digit PINs brute-forceable in hours.
+- **Currency=USD silently treated as EGP everywhere** (form labels say "USD" but writes to `default_cost_egp`).
+- **AI info card not invalidated when Amazon URL changes** → stale card describes the previous product on a row whose URL now points elsewhere.
+- **Race condition on concurrent URL changes** — slow probe of URL A can overwrite freshly-fetched URL B data.
+- **`applyAmazonDetailsAction` overwrites operator-edited names/cost** without checking if operator manually edited since last apply.
+- **`<` vs `<=` low-stock comparator** — items exactly at min_qty never trigger reorder UI.
+- Plus ~15 HIGH/MEDIUM items in the audit doc.
+
+User to triage which to tackle next. None of these are currently corrupting data — they're latent risks that will bite once GRN/Issue/Count flows go into volume use.
+
+---
+
+## 🟢 Earlier — Edit-modal showed stale SKU after AI rename
 
 User reported the items list row showed `CLN-KITCHEN-SPONGE-3PK` / cost `6.28` for "Dish sponge (3-pack)", but clicking Edit opened the modal with `CLN-DISH-SPONGE` / cost `25`. DB query confirmed only ONE item exists (id `d1fc00f1…`) with current SKU `CLN-KITCHEN-SPONGE-3PK`, default_cost_egp `25`, amazon_eg_price_egp `18.84` over 3-pack → live `6.28` (matches row). Cost in modal is correct (`25` is the seed `default_cost_egp` field, distinct from the live amazon-derived row price). **The bug was the stale SKU.**
 
