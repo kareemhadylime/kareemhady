@@ -1,6 +1,22 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — Apply Amazon details now syncs cost + Arabic name + description; sourcer auto-translates AR; dark mode contrast fixed
+## 🟢 Latest turn — Liquid heuristic in apply-amazon-details (kg→L for cleaners/shampoos/etc)
+
+User noted APC's pack_volume_uom stayed at 'kg' when "Use Amazon details" ran. Verified via Chrome MCP that the Amazon page literally says "4 Kg" / "Item Weight: 4 Kilograms" — Amazon labels Clorel by net weight even though it's a 4 L liquid cleaner. Operators track liquids by volume.
+
+**Fix in `applyAmazonDetailsAction` (`actions.ts`):** when the product name matches a liquid-product regex (`liquid|detergent|shampoo|conditioner|softener|cleaner|spray|bleach|oil|sauce|lotion|gel|syrup|vinegar|polish|disinfectant|deodorize|sanitize`) AND the Amazon-extracted pack volume is in mass (`kg` or `g`), convert to volume:
+- `kg` → `L` (1:1, water-density)
+- `g` → `ml` (same)
+
+Numerical value stays the same — assumes ~1 kg/L density (true for water-based cleaning supplies; off by ≤20% for concentrated formulas which is acceptable for cost estimation). Operator can still override via the edit form's UoM dropdown.
+
+**Manual patch:** `CLN-APC-1L` row's `pack_volume_uom` set from `kg` → `L` so user sees correct data on next refresh without re-applying.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+---
+
+## 🟢 Earlier this turn — Apply Amazon details now syncs cost + Arabic name + description; sourcer auto-translates AR; dark mode contrast fixed
 
 User reported four issues on the items form for `CLN-APC-1L`: Arabic name not updated, Cost still seed value, Pack Volume Kg/L unclear, Description empty, label text hard to read in dark mode.
 
