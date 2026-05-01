@@ -646,17 +646,19 @@ export async function acceptAmazonSourceAction(
     return { ok: false, error: 'Set an Amazon EG URL before accepting it.' };
   }
 
-  const nextStatus =
-    before.amazon_eg_last_status === 'unchecked' || !before.amazon_eg_last_status
-      ? 'ok'
-      : before.amazon_eg_last_status;
-
+  // Audit fix C8: previously flipped amazon_eg_last_status from
+  // 'unchecked' → 'ok' here. That conflated "human reviewed the URL"
+  // (reviewed_at/by) with "Amazon probe returned 200 + price"
+  // (last_status). The source-cell pill turned green and the items
+  // list showed live-data styling on rows where amazon_eg_price_egp
+  // was still null — operator confidence misplaced. Now we only stamp
+  // the review fields; last_status only changes via an actual probe
+  // in persistProbeResult.
   const { error } = await sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_url_reviewed_at: new Date().toISOString(),
       amazon_eg_url_reviewed_by: user.id,
-      amazon_eg_last_status: nextStatus,
       updated_at: new Date().toISOString(),
     })
     .eq('id', itemId);
@@ -697,10 +699,10 @@ export async function acceptManySourcesAction(
   }
 
   const sb = supabaseAdmin();
-  // Filter to ids that actually have a URL — protects the audit log + status flip.
+  // Filter to ids that actually have a URL — protects the audit log + review stamp.
   const { data: eligible, error: lookupErr } = await sb
     .from('beithady_inventory_items')
-    .select('id, amazon_eg_last_status')
+    .select('id')
     .in('id', itemIds)
     .not('amazon_eg_url', 'is', null);
   if (lookupErr) {
@@ -709,7 +711,7 @@ export async function acceptManySourcesAction(
     }
     return { ok: false, error: lookupErr.message };
   }
-  const eligibleRows = (eligible as Array<{ id: string; amazon_eg_last_status: string | null }> | null) || [];
+  const eligibleRows = (eligible as Array<{ id: string }> | null) || [];
   const eligibleIds = eligibleRows.map(r => r.id);
   const skipped = itemIds.length - eligibleIds.length;
 
@@ -717,14 +719,17 @@ export async function acceptManySourcesAction(
     return { ok: true, accepted: 0, skipped };
   }
 
+  // Audit fix C8/H13: was also flipping amazon_eg_last_status from
+  // 'unchecked' → 'ok' for the unchecked subset, conflating "human
+  // confirmed the URL" with "Amazon probe succeeded". Removed — review
+  // and probe state are now independent. last_status only changes via
+  // a real probe in persistProbeResult.
   const nowIso = new Date().toISOString();
   const { error } = await sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_url_reviewed_at: nowIso,
       amazon_eg_url_reviewed_by: user.id,
-      // Bump unchecked → ok in one shot; preserve other states (price_changed, oos…)
-      // via a follow-up per-row update only where status was unchecked/null.
       updated_at: nowIso,
     })
     .in('id', eligibleIds);
@@ -733,17 +738,6 @@ export async function acceptManySourcesAction(
       return { ok: false, error: MISSING_REVIEW_COLUMN_HINT };
     }
     return { ok: false, error: error.message };
-  }
-
-  // Status flip for the unchecked/null subset only.
-  const promotable = eligibleRows
-    .filter(r => r.amazon_eg_last_status === 'unchecked' || r.amazon_eg_last_status == null)
-    .map(r => r.id);
-  if (promotable.length > 0) {
-    await sb
-      .from('beithady_inventory_items')
-      .update({ amazon_eg_last_status: 'ok' })
-      .in('id', promotable);
   }
 
   await recordAudit({
