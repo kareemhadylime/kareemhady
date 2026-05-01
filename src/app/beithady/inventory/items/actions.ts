@@ -32,7 +32,11 @@ export type ItemFormInput = {
   max_qty: number | null;
   reorder_qty: number | null;
   default_cost_egp: number;
-  currency: 'EGP' | 'USD';
+  // Audit fix C5: previously 'EGP' | 'USD' but no read site converted —
+  // a USD-flagged value silently lived in default_cost_egp and would be
+  // treated as EGP everywhere. Inventory items are EGP-only; the form's
+  // dropdown was removed and the type narrowed.
+  currency: 'EGP';
   batch_tracked: boolean;
   expiry_tracked: boolean;
   owner_billable: boolean;
@@ -1196,7 +1200,7 @@ export async function forkSkuFromAmazonAction(
   const s = src as unknown as {
     id: string; sku: string; name_en: string; name_ar: string;
     brand: string | null; category_id: string; uom: string;
-    currency: 'EGP' | 'USD'; batch_tracked: boolean; expiry_tracked: boolean;
+    currency: 'EGP'; batch_tracked: boolean; expiry_tracked: boolean;
     owner_billable: boolean; is_asset: boolean;
     amazon_eg_url: string | null;
     amazon_eg_price_egp: number | string | null;

@@ -166,7 +166,7 @@ export function ItemFormButton({
                 </Field>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Category" required>
                   <select value={form.category_id} onChange={e => pickCategory(e.target.value)} required className="ix-input w-full">
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name_en}</option>)}
@@ -177,14 +177,12 @@ export function ItemFormButton({
                     {uoms.map(u => <option key={u.code} value={u.code}>{u.code} — {u.name_en}</option>)}
                   </select>
                 </Field>
-                <Field label="Currency">
-                  <select value={form.currency} onChange={e => update('currency', e.target.value as 'EGP' | 'USD')} className="ix-input w-full">
-                    <option value="EGP">EGP</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </Field>
               </div>
 
+              {/* Audit fix C5: Currency selector dropped — every item is
+                  EGP. Was a USD option but no read site converted, so a
+                  USD-flagged value silently lived in default_cost_egp and
+                  caused ~50× under-pricing in totals. */}
               <div className="grid grid-cols-4 gap-3">
                 <Field label="Min qty">
                   <input type="number" min="0" step="0.01" value={form.min_qty} onChange={e => update('min_qty', parseFloat(e.target.value) || 0)} className="ix-input w-full" />
@@ -195,7 +193,7 @@ export function ItemFormButton({
                 <Field label="Reorder qty">
                   <input type="number" min="0" step="0.01" value={form.reorder_qty ?? ''} onChange={e => update('reorder_qty', e.target.value ? parseFloat(e.target.value) : null)} className="ix-input w-full" />
                 </Field>
-                <Field label={`Cost (${form.currency})`}>
+                <Field label="Cost (EGP)">
                   <input type="number" min="0" step="0.01" value={form.default_cost_egp} onChange={e => update('default_cost_egp', parseFloat(e.target.value) || 0)} className="ix-input w-full" />
                 </Field>
               </div>

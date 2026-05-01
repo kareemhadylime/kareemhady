@@ -56,7 +56,10 @@ export type ItemRow = {
   reorder_qty: number | null;
   default_cost_egp: number;
   default_cost_usd: number | null;
-  currency: 'EGP' | 'USD';
+  // Audit fix C5: USD option removed from the form (no read site
+  // converts). Type narrowed to 'EGP'; new schema CHECK constraint in
+  // migration 0068 enforces this at the DB layer too.
+  currency: 'EGP';
   avg_cost_egp: number;
   last_cost_egp: number | null;
   batch_tracked: boolean;
