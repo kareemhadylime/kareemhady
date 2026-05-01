@@ -56,6 +56,16 @@ export function RuleFormButton({
     setForm(f => ({ ...f, [k]: v }));
   }
 
+  // useState(initial) only captures props on the FIRST mount. Re-sync on
+  // open so the modal always reflects the latest `existing` row data
+  // (e.g. after toggleRuleActiveAction or another admin's edit triggered
+  // a server re-render). Mirrors the fix in item-form-button.tsx.
+  function openModal() {
+    setForm(initial);
+    setError(null);
+    setOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -70,7 +80,7 @@ export function RuleFormButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={triggerClass}>{triggerLabel}</button>
+      <button type="button" onClick={openModal} className={triggerClass}>{triggerLabel}</button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-xl my-4">

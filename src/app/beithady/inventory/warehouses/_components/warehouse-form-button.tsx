@@ -79,6 +79,15 @@ export function WarehouseFormButton({
     setError(null);
   }
 
+  // useState(initial) only captures props on the FIRST mount, and reset()
+  // was previously only called on cancel/close/post-submit — so reopening
+  // an Edit modal after a server-side rename or a sibling tree edit
+  // displayed stale data. Re-sync on open. Mirrors item-form-button.tsx.
+  function openModal() {
+    reset();
+    setOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -109,7 +118,7 @@ export function WarehouseFormButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={triggerClass}>
+      <button type="button" onClick={openModal} className={triggerClass}>
         {triggerLabel}
       </button>
 
