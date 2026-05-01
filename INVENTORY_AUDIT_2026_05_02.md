@@ -10,7 +10,28 @@ Symbols: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · ✅ Already fixed in this 
 
 ---
 
-## ✅ Fixed in this turn (commit 54ba412)
+## ✅ Fixed across the audit work (chronological, by commit)
+
+| Commit | Audit IDs | What |
+|--------|-----------|------|
+| [4d0287b](https://github.com/kareemhadylime/kareemhady/commit/4d0287b) | F1 | Item edit-modal stale SKU bug |
+| [54ba412](https://github.com/kareemhadylime/kareemhady/commit/54ba412) | F2 + F3 + F4 + F5 | 3 sibling React form-state bugs + Dish sponge stale data cleanup |
+| [0173734](https://github.com/kareemhadylime/kareemhady/commit/0173734) | **C2** + **C9** + **H6** | Count approval bypass, `resolveUnitCostEgp` helper across 4 sites, low-stock `<=` across 7 sites + RPC migration 0067 |
+| [76b87ef](https://github.com/kareemhadylime/kareemhady/commit/76b87ef) | **C3** | submitIssueAction estimates sub_total_egp at submit |
+| [3d9c31d](https://github.com/kareemhadylime/kareemhady/commit/3d9c31d) | **C5** | Drop USD currency option entirely + DB CHECK constraint (migration 0068) |
+| [12b6c8c](https://github.com/kareemhadylime/kareemhady/commit/12b6c8c) | **C6** + **C7** + **H11** + **H12** | ai_info wiped on URL change, race-condition guard, fork ai_info clear, manual price clears name shadows |
+| [f6461cf](https://github.com/kareemhadylime/kareemhady/commit/f6461cf) | **C8** + **H13** | Accept actions no longer flip last_status — review/probe state independent |
+| [0a0b79e](https://github.com/kareemhadylime/kareemhady/commit/0a0b79e) | **C4** | Mobile PIN rate-limit + audit trail (migration 0069) |
+
+All 9 CRITICAL items shipped. 4 HIGH items (H6, H11, H12, H13) shipped alongside their CRITICAL siblings.
+
+**Outstanding HIGH items (12):** H1 (count panel state sync), H2 (mismatch banner dismiss reset), H3 (Apply overwrites edits), H4 (default_cost_egp rebased on Apply), H5 (issue draft form unit_cost_egp), H7 (qty_reserved not subtracted), H8 (draft create non-atomic), H9 (saveCountedQty no transaction), H10 (transfer estimate vs RPC mismatch), H14 (WA fuzzy always 'exact'), H15 (__bulk__ batch-tracked merge), H16 (avg_cost stale after stockout).
+
+**Outstanding MEDIUM items (19):** see list at the end of this doc.
+
+---
+
+## ✅ Original turn-1 fixes (commit 54ba412)
 
 | # | Bug | File | Fix |
 |---|-----|------|-----|

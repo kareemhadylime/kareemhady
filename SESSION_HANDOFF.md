@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Inventory module deep audit: 3 sibling React bugs fixed, full bug ledger compiled
+## 🟢 Latest turn — Inventory audit critical fixes shipped (6 PRs, all 9 CRITICAL + 4 HIGH)
+
+After compiling the full audit ledger (`INVENTORY_AUDIT_2026_05_02.md`), user asked to "Follow on all batches automatically till you finish". Shipped 6 PRs back-to-back, addressing every CRITICAL finding plus tightly-coupled HIGH items. All committed to main, deployed to prod (`dpl_…mecgiq131…`, READY).
+
+**Migrations applied to prod DB:**
+- 0067 — RPC tightening (post_grn / post_issue / post_count_session require status='approved' only)
+- 0068 — items.currency CHECK ('EGP') constraint
+- 0069 — beithady_inventory_mobile_pin_attempts table for PIN rate-limit + audit
+
+**Fixes by PR:**
+
+| PR | Audit IDs | One-liner |
+|----|-----------|-----------|
+| PR1 (`0173734`) | C2 + C9 + H6 | Count approval bypass closed, `resolveUnitCostEgp` helper centralizes 4 cost-source surfaces, low-stock comparator `<` → `<=` across 7 sites |
+| PR2 (`76b87ef`) | C3 | submitIssueAction estimates `sub_total_egp` at submit (was always 0, threshold rule never fired) |
+| PR3 (`3d9c31d`) | C5 | Dropped USD currency option from inventory items entirely (no read site converted; silent ~50× under-pricing) |
+| PR4 (`12b6c8c`) | C6 + C7 + H11 + H12 | ai_info wiped on URL change, persistProbeResult guards against stale-URL races, fork clears source ai_info, manual price clears name shadows |
+| PR5 (`f6461cf`) | C8 + H13 | Accept actions no longer flip `last_status='unchecked'`→`'ok'` (was conflating "human-reviewed" with "probe-OK") |
+| PR6 (`0a0b79e`) | C4 | Mobile PIN rate-limit (5 fails / 5 min / IP), every attempt audit-logged with IP + UA + cleaner name |
+
+Plus prior turn (this same session):
+- 5 React state-sync fixes (item/rule/vendor/warehouse form modals + Dish sponge stale data cleanup)
+
+**Outstanding from audit (not in this batch):** ~12 HIGH and 19 MEDIUM. None are corrupting data today; they're robustness / clarity / future-proofing items. See `INVENTORY_AUDIT_2026_05_02.md` for the ledger.
+
+---
+
+## 🟢 Earlier — Inventory module deep audit: 3 sibling React bugs fixed, full bug ledger compiled
 
 User asked to "Research Inventory Module deeply and systematically to Debug any inconsistencies." Dispatched 4 parallel general-purpose agents (React state, math/calc, stock integrity, data sync) plus a parallel DB-level integrity audit via Supabase MCP. Live data is currently clean (0 stock drift, 0 negatives, 0 orphan headers, 0 oversold) but the operational flows (counts, GRNs, posted issues) haven't been exercised at volume yet — the bugs identified are LATENT.
 
