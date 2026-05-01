@@ -926,16 +926,22 @@ export async function applyAmazonDetailsAction(
   const { data: before } = await sb
     .from('beithady_inventory_items')
     .select(
-      'id, sku, name_en, name_ar, brand, amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand'
+      'id, sku, name_en, name_ar, brand, pack_volume_value, pack_volume_uom, ' +
+      'amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand, ' +
+      'amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom'
     )
     .eq('id', itemId)
     .maybeSingle();
   if (!before) return { ok: false, error: 'Item not found' };
-  const row = before as {
+  const row = before as unknown as {
     id: string; sku: string; name_en: string; name_ar: string; brand: string | null;
+    pack_volume_value: number | string | null;
+    pack_volume_uom: string | null;
     amazon_eg_product_name_en: string | null;
     amazon_eg_product_name_ar: string | null;
     amazon_eg_brand: string | null;
+    amazon_eg_pack_volume_value: number | string | null;
+    amazon_eg_pack_volume_uom: string | null;
   };
 
   const patch: Record<string, unknown> = {};
@@ -947,6 +953,13 @@ export async function applyAmazonDetailsAction(
   }
   if (row.amazon_eg_brand && row.amazon_eg_brand.trim()) {
     patch.brand = row.amazon_eg_brand.trim().slice(0, 80);
+  }
+  // M.16 — also propagate the Amazon pack_volume to the canonical column
+  // so the estimator's volumetric math + the size mismatch detector both
+  // see the new pack size, not the old SKU's stale 1L assumption.
+  if (row.amazon_eg_pack_volume_value != null && row.amazon_eg_pack_volume_uom) {
+    patch.pack_volume_value = Number(row.amazon_eg_pack_volume_value);
+    patch.pack_volume_uom = row.amazon_eg_pack_volume_uom;
   }
   if (Object.keys(patch).length === 0) {
     return {
@@ -968,7 +981,10 @@ export async function applyAmazonDetailsAction(
     action: 'item.amazon_details.apply',
     target_type: 'item',
     target_id: itemId,
-    before: { name_en: row.name_en, name_ar: row.name_ar, brand: row.brand },
+    before: {
+      name_en: row.name_en, name_ar: row.name_ar, brand: row.brand,
+      pack_volume_value: row.pack_volume_value, pack_volume_uom: row.pack_volume_uom,
+    },
     after: patch,
   });
 
@@ -1003,6 +1019,7 @@ export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggest
     .select(`
       sku, name_en, uom,
       amazon_eg_product_name_en, amazon_eg_brand, amazon_eg_pack_size,
+      amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom,
       category:beithady_inventory_categories!inner(code)
     `)
     .eq('id', itemId)
@@ -1015,6 +1032,8 @@ export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggest
     amazon_eg_product_name_en: string | null;
     amazon_eg_brand: string | null;
     amazon_eg_pack_size: number | null;
+    amazon_eg_pack_volume_value: number | string | null;
+    amazon_eg_pack_volume_uom: string | null;
     category: { code: string };
   };
 
@@ -1034,6 +1053,13 @@ export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggest
     newBrand: item.amazon_eg_brand,
     uom: item.uom,
     packSize: item.amazon_eg_pack_size,
+    // M.16 — pass the Amazon-fetched pack volume so the AI uses the
+    // ACTUAL size (4 kg) instead of inheriting the OLD SKU's stale
+    // size suffix (1L). Without this, "CLN-APC-1L" got renamed to
+    // "CLN-CLOREL-1L" even though the new product is 4 kg.
+    amazonPackVolumeValue: item.amazon_eg_pack_volume_value != null
+      ? Number(item.amazon_eg_pack_volume_value) : null,
+    amazonPackVolumeUom: item.amazon_eg_pack_volume_uom,
   });
   if (!res.ok) return { ok: false, error: res.error };
   if (res.sku === item.sku) {

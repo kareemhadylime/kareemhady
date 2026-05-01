@@ -38,7 +38,14 @@ export type SkuRenameInput = {
   newNameEn: string;          // from Amazon (canonical)
   newBrand: string | null;
   uom: string;
-  packSize: number | null;    // amazon_eg_pack_size
+  packSize: number | null;    // amazon_eg_pack_size — count of UoM units in one pack (1 = single, 4 = pack of 4)
+  /**
+   * M.16 — Amazon-fetched pack volume (e.g. 4 + 'kg', 300 + 'ml').
+   * The KEY signal for the AI to encode in the SKU's SIZE suffix —
+   * without this, the AI inherits the OLD SKU's stale size suffix.
+   */
+  amazonPackVolumeValue?: number | null;
+  amazonPackVolumeUom?: string | null;
 };
 
 const SYSTEM = `You generate inventory SKU codes for Beit Hady, a serviced-apartment business in Egypt. Output strict JSON only — no preamble, no code fence.`;
@@ -78,13 +85,18 @@ Rules:
 - Avoid generic words like PRODUCT, ITEM, NEW, AMAZON.
 
 Item:
-- Old SKU: ${input.oldSku}
+- Old SKU: ${input.oldSku}   ← IGNORE the size suffix at the end of this. It's stale; you MUST use the new pack volume below.
 - Category: ${input.categoryCode}
 - Old name: ${input.oldNameEn}
 - New name (from Amazon): ${input.newNameEn}
 - Brand: ${input.newBrand || '—'}
-- UoM: ${input.uom}
-- Pack size: ${input.packSize ?? 1}
+- UoM (purchasable unit): ${input.uom}
+- Pack count (units per pack): ${input.packSize ?? 1}
+- ACTUAL PACK VOLUME (use this for the SIZE suffix): ${
+    input.amazonPackVolumeValue && input.amazonPackVolumeUom
+      ? `${input.amazonPackVolumeValue} ${input.amazonPackVolumeUom}  ← encode as ${formatSizeToken(input.amazonPackVolumeValue, input.amazonPackVolumeUom)}`
+      : '(unknown — fall back to extracting from the new name, or omit SIZE entirely)'
+  }
 
 Output:
 {
@@ -94,6 +106,17 @@ Output:
 }
 
 const SKU_PATTERN = /^[A-Z][A-Z0-9-]{1,29}$/;
+
+/**
+ * Normalize a numeric pack-volume + UoM into the SKU SIZE suffix format
+ * the catalog uses (300ML, 1L, 4KG, 50G, 12PK). Strips trailing .0 and
+ * uppercases the unit.
+ */
+function formatSizeToken(value: number, uom: string): string {
+  const cleanNum = String(value).replace(/\.0+$/, '');
+  const upperUom = uom.toUpperCase();
+  return `${cleanNum}${upperUom}`;
+}
 
 export async function suggestSkuRename(
   input: SkuRenameInput,

@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — URL-change now clears stale Amazon shadow columns (Frida-vs-Clorel rename bug fixed)
+## 🟢 Latest turn — AI rename now respects Amazon pack volume; Apply Amazon details copies pack_volume too
+
+User clicked Rename SKU via AI on `CLN-APC-1L` (which now correctly has Clorel shadow data). Got back suggestion `CLN-CLOREL-1L` — wrong size suffix because the AI was inheriting the OLD SKU's `1L` instead of using the actual Amazon pack volume of `4 kg`.
+
+**Two structural fixes:**
+
+1. **`src/lib/beithady/inventory/ai-sku-rename.ts`** — `SkuRenameInput` extended with optional `amazonPackVolumeValue` + `amazonPackVolumeUom`. Prompt now includes a **dedicated line** "ACTUAL PACK VOLUME (use this for the SIZE suffix): 4 kg ← encode as 4KG" with explicit guidance to ignore the old SKU's stale size suffix. Helper `formatSizeToken(value, uom)` renders the canonical SIZE token (300ML, 4KG, 12PK, etc.).
+
+2. **`src/app/beithady/inventory/items/actions.ts`** — `suggestSkuRenameAction` SELECT extended with `amazon_eg_pack_volume_value/uom`, passes them into the AI rename. **`applyAmazonDetailsAction`** also extended: when copying Amazon details to canonical fields, ALSO propagates `amazon_eg_pack_volume_value/uom` → `pack_volume_value/uom` so the estimator's volumetric math + the size mismatch detector both see the correct pack size. Audit log captures pack_volume before/after.
+
+3. **Manual SQL patch** — `CLN-APC-1L`'s canonical `pack_volume_value` updated 1 → 4 and `pack_volume_uom` 'L' → 'kg' so user sees correct data immediately on next refresh.
+
+**Result the user should now see** when clicking Rename SKU via AI on the APC row:
+- Old SKU: `CLN-APC-1L`
+- New SKU: `CLN-CLOREL-4KG` (or similar — AI uses 4kg now)
+- Rationale will mention "Clorel" brand + "4kg" pack size
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Files touched:**
+- `src/lib/beithady/inventory/ai-sku-rename.ts` (input shape + prompt + formatSizeToken helper)
+- `src/app/beithady/inventory/items/actions.ts` (suggestSkuRenameAction SELECT + applyAmazonDetailsAction propagates pack_volume)
+
+---
+
+## 🟢 Earlier this turn — URL-change now clears stale Amazon shadow columns (Frida-vs-Clorel rename bug fixed)
 
 User pasted a new URL `B08WJLC3HW?th=1` (Clorel 4kg cleaner) on `CLN-APC-1L`. The price sourcer's last successful run was at 08:58 UTC for the previous Frida URL — meaning `setAmazonSourceAction`'s `waitUntil(syncOneItemPrice)` apparently died silently when the URL was changed today. Result: row had new URL `B08WJLC3HW` but `amazon_eg_product_name_en = "Frida floor cleaner"` and `amazon_eg_brand = "Frida"` still cached from the OLD sync. When user clicked "Rename SKU via AI" the suggestion came back as `CLN-FRIDA-4L` because Haiku read the stale "Frida" data.
 
