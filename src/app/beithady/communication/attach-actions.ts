@@ -25,12 +25,24 @@ async function ensureFullPerm(): Promise<{ id: string; username: string }> {
 }
 
 function extFromMime(mime: string): string {
+  // Video first — must precede generic 'mp4'/'webm' substring checks so a
+  // video/mp4 file doesn't get tagged with the audio .m4a extension.
+  if (mime === 'video/mp4') return 'mp4';
+  if (mime === 'video/webm') return 'webm';
+  if (mime === 'video/quicktime') return 'mov';
+  if (mime === 'video/3gpp') return '3gp';
+  if (mime === 'video/x-msvideo') return 'avi';
+  if (mime === 'video/x-matroska') return 'mkv';
+  if (mime.startsWith('video/')) return 'mp4';
+  // Audio
   if (mime.includes('ogg')) return 'ogg';
   if (mime.includes('webm')) return 'webm';
   if (mime.includes('mp4')) return 'm4a';
+  // Images / docs
   if (mime.startsWith('image/jpeg')) return 'jpg';
   if (mime.startsWith('image/png')) return 'png';
   if (mime.startsWith('image/webp')) return 'webp';
+  if (mime.startsWith('image/gif')) return 'gif';
   if (mime === 'application/pdf') return 'pdf';
   return 'bin';
 }
@@ -306,7 +318,12 @@ export async function sendGuestyMultiAttachResult(formData: FormData): Promise<M
     let linkLines: string[];
     if (attachments.length === 1) {
       const a = attachments[0];
-      const label = a.name || (a.mime?.startsWith('image/') ? 'Photo' : 'File');
+      const kind = a.mime?.startsWith('image/')
+        ? 'Photo'
+        : a.mime?.startsWith('video/')
+          ? 'Video'
+          : 'File';
+      const label = a.name || kind;
       linkLines = [`📎 ${label}: ${a.url}`];
     } else {
       const gallery = await createGallery(
@@ -321,9 +338,13 @@ export async function sendGuestyMultiAttachResult(formData: FormData): Promise<M
         return { ok: false, error: `gallery_create_failed: ${gallery.error}` };
       }
       const imageCount = attachments.filter(a => a.mime?.startsWith('image/')).length;
-      const label = imageCount === attachments.length
-        ? `${attachments.length} photos`
-        : `${attachments.length} files`;
+      const videoCount = attachments.filter(a => a.mime?.startsWith('video/')).length;
+      const total = attachments.length;
+      let label: string;
+      if (imageCount === total) label = `${total} photos`;
+      else if (videoCount === total) label = `${total} videos`;
+      else if (imageCount + videoCount === total) label = `${total} photos & videos`;
+      else label = `${total} files`;
       linkLines = [`📎 ${label}: ${gallery.publicUrl}`];
     }
     const composedBody = [body, ...linkLines]

@@ -16,8 +16,15 @@ export default async function PublicGalleryPage({
   if (!row) notFound();
 
   const items = row.items;
-  const imageItems = items.filter(it => it.mime?.startsWith('image/'));
-  const fileItems = items.filter(it => !it.mime?.startsWith('image/'));
+  // Media = anything renderable inline in the carousel: images + videos.
+  // Everything else (PDF, zip, etc.) drops to the "Other files"
+  // download list below.
+  const mediaItems = items.filter(it =>
+    it.mime?.startsWith('image/') || it.mime?.startsWith('video/'),
+  );
+  const fileItems = items.filter(it =>
+    !it.mime?.startsWith('image/') && !it.mime?.startsWith('video/'),
+  );
 
   return (
     <div className="bh-gallery">
@@ -30,26 +37,39 @@ export default async function PublicGalleryPage({
         </div>
       </header>
 
-      {imageItems.length > 0 && (
+      {mediaItems.length > 0 && (
         <section className="bhg-carousel">
-          {imageItems.length > 1 && (
+          {mediaItems.length > 1 && (
             <button id="bhg-prev" className="bhg-nav bhg-prev" aria-label="Previous" type="button">‹</button>
           )}
           <div id="bhg-track" className="bhg-track">
-            {imageItems.map((it, i) => (
-              <div key={i} className="bhg-slide" data-idx={i}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={it.url} alt={it.name} loading={i < 2 ? 'eager' : 'lazy'} />
-                <div className="bhg-caption">{it.name}</div>
-              </div>
-            ))}
+            {mediaItems.map((it, i) => {
+              const isVideo = it.mime?.startsWith('video/');
+              return (
+                <div key={i} className="bhg-slide" data-idx={i}>
+                  {isVideo ? (
+                    <video
+                      src={it.url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="bhg-video"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={it.url} alt={it.name} loading={i < 2 ? 'eager' : 'lazy'} />
+                  )}
+                  <div className="bhg-caption">{it.name}</div>
+                </div>
+              );
+            })}
           </div>
-          {imageItems.length > 1 && (
+          {mediaItems.length > 1 && (
             <button id="bhg-next" className="bhg-nav bhg-next" aria-label="Next" type="button">›</button>
           )}
-          {imageItems.length > 1 && (
+          {mediaItems.length > 1 && (
             <div className="bhg-dots">
-              {imageItems.map((_, i) => (
+              {mediaItems.map((_, i) => (
                 <span key={i} className="bhg-dot" data-idx={i} />
               ))}
             </div>
@@ -78,7 +98,7 @@ export default async function PublicGalleryPage({
         Shared securely by Beit Hady Hospitality.
       </footer>
 
-      {imageItems.length > 1 && (
+      {mediaItems.length > 1 && (
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -180,12 +200,19 @@ const GALLERY_CSS = `
     flex-direction: column;
     padding: 16px;
   }
-  .bhg-slide img {
+  .bhg-slide img,
+  .bhg-slide .bhg-video {
     max-width: 100%;
     max-height: calc(100% - 60px);
     object-fit: contain;
     border-radius: 8px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    background: #000;
+  }
+  .bhg-slide .bhg-video {
+    width: auto;
+    height: auto;
+    display: block;
   }
   .bhg-caption {
     margin-top: 12px;

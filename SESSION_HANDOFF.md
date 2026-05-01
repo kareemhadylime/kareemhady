@@ -1,6 +1,56 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — Booking-status filter on inbox pages (migration 0064)
+## 🟢 Latest turn — Video attachments end-to-end (migration 0065)
+
+User: "want to make sure we can attach videos to messages and sent to guests by all platforms as url like pictures".
+
+**Implemented:** end-to-end video attachment support across the device picker, upload, storage, send, gallery viewer, and inline thread render. Same flow as images — bytes upload to Supabase Storage, the public URL is shared with the guest (inlined in body for Guesty channels, sent via Green-API `sendFileByUrl` for wa_casual).
+
+**Migration 0065 — `beithady-wa-media` bucket extended:**
+- File-size cap raised from **20MB → 100MB** (Green-API's per-file ceiling; iPhone 1080p ≈ 50MB/min)
+- MIME allowlist adds: `video/mp4`, `video/webm`, `video/quicktime`, `video/3gpp`, `video/x-msvideo`, `video/x-matroska`
+- Verified live via Supabase MCP — `file_size_limit=104857600` on prod
+
+**Bug fixed: `mp4 → m4a` mistake.** Both `extFromMime` (server) and `extFromMimeBrowser` (client) used `mime.includes('mp4')` first, which matched `video/mp4` and tagged the upload `.m4a` (audio). Reordered: video MIMEs are pattern-matched explicitly before the generic substring fallbacks, with proper extensions (mp4, mov, webm, 3gp, avi, mkv).
+
+**Picker (`attachment-menu.tsx`):**
+- Device input `accept` now `image/*,video/*,application/pdf` (was image+pdf only)
+- Camera input `accept` now `image/*,video/*` (capture=environment for both still + clip on mobile)
+- `addFiles` mints `URL.createObjectURL` previews for videos too
+- Pending tray renders `<video muted playsInline preload=metadata>` thumbnails for video items, with a tiny `VIDEO` badge in the corner so the user can tell at a glance
+
+**Public gallery viewer (`/g/[token]/page.tsx`):**
+- Renamed local `imageItems` → `mediaItems` (images **and** videos go in the carousel)
+- Each slide branches: `<video controls playsInline preload=metadata>` for video MIME, `<img>` otherwise
+- CSS adds `.bhg-video` matching slide-image sizing rules with black background
+- Carousel JS, dots, prev/next nav, keyboard arrows all driven off `mediaItems` count — works seamlessly across mixed photo/video galleries
+- Non-media files (pdf, zip) still drop to the "Other files" download list as before
+
+**Inline thread render (`thread-pane.tsx`):**
+- Added video branch before the image branch in `Attachments`: matches `type === 'video'` or `mime.startsWith('video/')`
+- Renders `<video controls playsInline preload=metadata>` capped at 280×280 with black background
+
+**`send-wa-casual.ts`:**
+- Outbound `attachments[]` JSONB now tags `type: 'video'` for video MIMEs (was lumping into `'file'`), so the inline renderer picks the right element on subsequent renders even if MIME stripped
+
+**Body-link labels (`sendGuestyMultiAttachResult`):**
+- Single attachment: `📎 Photo:` / `📎 Video:` / `📎 File:` based on MIME
+- Multi-attachment gallery label resolves to one of: `N photos`, `N videos`, `N photos & videos`, `N files`
+
+**Send paths verified:**
+- **Guesty** (Airbnb/Booking.com/Direct/Email): Guesty's `attachments[]` field is rejected by the API regardless of shape, so URLs are inlined as `📎 Video: https://…` in the message body. The guest's native client (Airbnb app, Booking.com inbox, email client) renders the URL as a tappable link → opens in browser → browser plays the .mp4 natively.
+- **wa_casual** (Green-API): `sendWhatsAppFile` posts the public URL to `sendFileByUrl`, which Green-API auto-detects as video and ships as a native WhatsApp video message (not a link). No code change needed in green-api.ts — it already handles any media type by URL.
+- **wa_cloud** (Meta WABA): not yet wired (still pending Beit Hady WABA provisioning per existing `/wa-cloud` page state). When it lands, the same upload-and-URL pipeline applies.
+
+**Files touched:**
+- `supabase/migrations/0065_beithady_wa_media_video_support.sql` (new)
+- `src/app/beithady/communication/attach-actions.ts` (extFromMime, body-link labels)
+- `src/app/beithady/communication/_components/attachment-menu.tsx` (extFromMimeBrowser, accept attrs, video previews)
+- `src/app/g/[token]/page.tsx` (mediaItems carousel, .bhg-video CSS)
+- `src/app/beithady/communication/_components/thread-pane.tsx` (video branch in Attachments)
+- `src/lib/beithady/communication/send-wa-casual.ts` (type='video' tagging)
+
+## 🟢 Earlier turn — Booking-status filter on inbox pages (migration 0064)
 
 User: "In the Messaging Filters, need to have one Filter By Buttons to Choose from Messages with: Inquiry - Confirmed Booking - Inhouse Now - Checked Out - Cancelled".
 

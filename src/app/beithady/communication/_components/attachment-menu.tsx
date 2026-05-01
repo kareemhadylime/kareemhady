@@ -11,12 +11,24 @@ import { supabaseBrowser } from '@/lib/supabase-browser';
 import { LibraryPicker, type LibraryAttachment } from './library-picker';
 
 function extFromMimeBrowser(mime: string): string {
+  // Video first — must precede 'mp4' substring check so video/mp4 doesn't
+  // get tagged with the audio .m4a extension.
+  if (mime === 'video/mp4') return 'mp4';
+  if (mime === 'video/webm') return 'webm';
+  if (mime === 'video/quicktime') return 'mov';
+  if (mime === 'video/3gpp') return '3gp';
+  if (mime === 'video/x-msvideo') return 'avi';
+  if (mime === 'video/x-matroska') return 'mkv';
+  if (mime.startsWith('video/')) return 'mp4';
+  // Audio
   if (mime.includes('ogg')) return 'ogg';
   if (mime.includes('webm')) return 'webm';
   if (mime.includes('mp4')) return 'm4a';
+  // Images / docs
   if (mime.startsWith('image/jpeg')) return 'jpg';
   if (mime.startsWith('image/png')) return 'png';
   if (mime.startsWith('image/webp')) return 'webp';
+  if (mime.startsWith('image/gif')) return 'gif';
   if (mime === 'application/pdf') return 'pdf';
   return 'bin';
 }
@@ -78,7 +90,11 @@ export function AttachmentMenu({
     const next: PendingItem[] = [...items];
     for (const f of files) {
       if (next.length >= MAX_FILES) break;
-      const previewUrl = f.type.startsWith('image/') ? URL.createObjectURL(f) : null;
+      // Generate a previewUrl for both images and videos — the
+      // preview grid renders <img> for images and <video> for videos.
+      const previewUrl = (f.type.startsWith('image/') || f.type.startsWith('video/'))
+        ? URL.createObjectURL(f)
+        : null;
       next.push({ kind: 'file', file: f, previewUrl });
     }
     setItems(next);
@@ -240,14 +256,14 @@ export function AttachmentMenu({
           type="file"
           className="hidden"
           multiple
-          accept="image/*,application/pdf"
+          accept="image/*,video/*,application/pdf"
           onChange={pickFiles}
         />
         <input
           ref={cameraInputRef}
           type="file"
           className="hidden"
-          accept="image/*"
+          accept="image/*,video/*"
           capture="environment"
           onChange={pickFiles}
         />
@@ -272,30 +288,49 @@ export function AttachmentMenu({
         // action(fd) directly inside startTransition.
         <div className="ix-card p-2 mt-2 space-y-2">
           <div className="flex flex-wrap gap-2">
-            {items.map((it, i) => (
-              <div key={i} className="relative group">
-                {it.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={it.previewUrl}
-                    alt={it.kind === 'file' ? it.file.name : it.name}
-                    className="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] text-slate-500 bg-slate-50 dark:bg-slate-800 p-1 text-center break-all">
-                    {it.kind === 'file' ? it.file.name.slice(0, 14) : it.name.slice(0, 14)}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => removeAt(i)}
-                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white inline-flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition"
-                  title="Remove"
-                >
-                  <X size={10} />
-                </button>
-              </div>
-            ))}
+            {items.map((it, i) => {
+              const mime = it.kind === 'file' ? it.file.type : it.mime;
+              const isVideo = mime.startsWith('video/');
+              const isImage = mime.startsWith('image/');
+              const label = it.kind === 'file' ? it.file.name : it.name;
+              return (
+                <div key={i} className="relative group">
+                  {it.previewUrl && isVideo ? (
+                    <video
+                      src={it.previewUrl}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700 bg-black"
+                    />
+                  ) : it.previewUrl && isImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={it.previewUrl}
+                      alt={label}
+                      className="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] text-slate-500 bg-slate-50 dark:bg-slate-800 p-1 text-center break-all">
+                      {label.slice(0, 14)}
+                    </div>
+                  )}
+                  {isVideo && (
+                    <span className="absolute bottom-0.5 left-0.5 px-1 py-px rounded bg-black/60 text-white text-[9px] font-bold leading-none">
+                      VIDEO
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeAt(i)}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-600 text-white inline-flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition"
+                    title="Remove"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between text-xs">

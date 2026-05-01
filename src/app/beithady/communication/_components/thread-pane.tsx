@@ -442,6 +442,18 @@ function Attachments({ attachments, inbound }: { attachments: unknown; inbound: 
         if (type === 'voice' || type === 'audio' || mime.startsWith('audio/')) {
           return <audio key={i} src={url} controls className="max-w-full" />;
         }
+        if (type === 'video' || mime.startsWith('video/')) {
+          return (
+            <video
+              key={i}
+              src={url}
+              controls
+              playsInline
+              preload="metadata"
+              className="rounded-lg max-w-[280px] max-h-[280px] bg-black"
+            />
+          );
+        }
         if (type === 'image' || mime.startsWith('image/')) {
           // eslint-disable-next-line @next/next/no-img-element
           return <img key={i} src={url} alt={name || 'image'} className="rounded-lg max-w-[240px] max-h-[240px] object-cover" />;

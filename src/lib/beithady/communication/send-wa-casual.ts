@@ -85,8 +85,16 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
   const sentAtIso = new Date().toISOString();
   const attachments: Array<Record<string, unknown>> = [];
   if (args.fileUrl) {
+    const m = args.fileMime || '';
+    const inferredType = m.startsWith('audio/')
+      ? 'voice'
+      : m.startsWith('image/')
+        ? 'image'
+        : m.startsWith('video/')
+          ? 'video'
+          : 'file';
     attachments.push({
-      type: args.fileMime?.startsWith('audio/') ? 'voice' : args.fileMime?.startsWith('image/') ? 'image' : 'file',
+      type: inferredType,
       downloadUrl: args.fileUrl,
       fileName: args.fileName,
       mimeType: args.fileMime,
