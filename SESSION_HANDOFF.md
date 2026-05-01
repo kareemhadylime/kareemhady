@@ -1,6 +1,14 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — Volumetric UI affordances shipped (items form + rules editor + GRN restate)
+## 🟢 Latest turn — Volumetric UI affordances SHIPPED + DEPLOYED (commit `310f632`, deploy `dpl_CL1oG7CzS9UmKAFhAVgZsw4X1r6T` Ready)
+
+Deploy verified Ready via `vercel inspect`. Both volumetric core (40c245f) and UI affordances (310f632) are live in production. Operator can now use pack_volume + consumes_volume + GRN restate from the UI alone — no SQL required. Full session arc: ScrapingBee integration → mismatch banner → AI SKU rename → size detection → HTML bloat fix → validate hardening → volumetric core → volumetric UI. Catalog at 73 items, 22 with pack_volume backfilled from name parsing, 51 unitary stay null.
+
+(Full technical details below.)
+
+---
+
+## 🟢 Earlier this turn — Volumetric UI affordances shipped (items form + rules editor + GRN restate)
 
 User said "go on and ship everything" — picked up the 3 deferred UI pieces from the previous turn so volumetric semantics are no longer SQL-only.
 
