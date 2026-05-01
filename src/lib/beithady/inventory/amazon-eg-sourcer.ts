@@ -2,6 +2,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCredential } from '@/lib/credentials';
+import { parseVolumeFromText } from './volumetric';
 
 // Phase M.16 / M.15.4 — Amazon EG product sourcer.
 //
@@ -416,12 +417,20 @@ export async function persistProbeResult(
   //     accept the new product details — no silent data corruption.
   //   • The estimator + cost cells keep using amazon_eg_price_egp /
   //     pack_size unchanged.
+  // Parse pack volume from the Amazon product name (e.g. "4 kg" → 4 kg,
+  // "300 ML" → 300 ml, "1 L" → 1 L). Stored in shadow columns —
+  // mismatch banner compares to SKU's pack_volume_value/uom and offers
+  // the "Create new SKU" workflow (Q3=C) when they differ.
+  const parsedVolume = parseVolumeFromText(result.product_name_en);
+
   await sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_product_name_en: result.product_name_en,
       amazon_eg_product_name_ar: result.product_name_ar,
       amazon_eg_brand: result.brand,
+      amazon_eg_pack_volume_value: parsedVolume?.value ?? null,
+      amazon_eg_pack_volume_uom: parsedVolume?.uom ?? null,
       amazon_eg_price_egp: newPrice,
       amazon_eg_pack_size: result.pack_size,
       amazon_eg_image_url: result.image_url,

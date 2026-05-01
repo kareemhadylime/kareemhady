@@ -10,6 +10,7 @@ import {
   type EstimatorCategoryGroup,
   type RuleScope,
 } from './estimator-shared';
+import { unitsConsumedPerTrigger } from './volumetric';
 
 // Server-side queries powering the Housekeeping Estimator (Phase M.15).
 // Pure data fetch + cost computation — no UI here.
@@ -78,6 +79,8 @@ type RawItem = {
   amazon_eg_image_url: string | null;
   amazon_eg_last_status: string | null;
   ai_info: { summary_en?: string | null } | null;
+  pack_volume_value: number | string | null;
+  pack_volume_uom: string | null;
   active: boolean;
 };
 
@@ -95,6 +98,8 @@ type RawRule = {
   qty: number | string;
   loss_factor_pct: number | string;
   active: boolean;
+  consumes_volume_value: number | string | null;
+  consumes_volume_uom: string | null;
 };
 
 type RawOverride = {
@@ -121,12 +126,12 @@ export async function computeEstimatorOutput(
   // 2. All active items + their categories
   const [itemsRes, catsRes, rulesRes] = await Promise.all([
     sb.from('beithady_inventory_items')
-      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, active')
+      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, pack_volume_value, pack_volume_uom, active')
       .eq('active', true),
     sb.from('beithady_inventory_categories')
       .select('id, code'),
     sb.from('beithady_inventory_consumption_rules')
-      .select('id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct, active')
+      .select('id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct, active, consumes_volume_value, consumes_volume_uom')
       .eq('active', true),
   ]);
 
@@ -173,13 +178,37 @@ export async function computeEstimatorOutput(
     });
     if (!rulePicked) continue;
 
-    const baseQty = Number(rulePicked.qty);
     const lossFactor = Number(rulePicked.loss_factor_pct) / 100;
     const multiplier = formulaMultiplier(rulePicked.formula_kind, {
       bedrooms: config.bedrooms,
       bathrooms: config.bathrooms,
       guest_capacity: config.guest_capacity,
     });
+
+    // M.16 — volumetric path: when the rule specifies consumes_volume_value
+    // (e.g. "100 ml per check-in per bathroom") AND the item has a stored
+    // pack_volume_value (e.g. "4 kg pack"), compute units consumed per
+    // trigger via UoM conversion. Falls back to legacy raw-qty math when
+    // either side is missing or UoMs are incompatible. baseQty becomes the
+    // units-per-trigger derived from volumetric math.
+    let baseQty = Number(rulePicked.qty);
+    const ruleConsumesValue = rulePicked.consumes_volume_value != null
+      ? Number(rulePicked.consumes_volume_value) : null;
+    const ruleConsumesUom = rulePicked.consumes_volume_uom;
+    const itemPackValue = it.pack_volume_value != null ? Number(it.pack_volume_value) : null;
+    const itemPackUom = it.pack_volume_uom;
+    if (ruleConsumesValue != null && ruleConsumesUom && itemPackValue != null && itemPackUom) {
+      const unitsPer = unitsConsumedPerTrigger({
+        consumesValue: ruleConsumesValue,
+        consumesUom: ruleConsumesUom,
+        packVolumeValue: itemPackValue,
+        packVolumeUom: itemPackUom,
+      });
+      if (unitsPer != null) baseQty = unitsPer;
+      // If incompatible UoMs (e.g. rule says ml but pack is kg), keep the
+      // legacy raw qty — operator should fix the mismatch via the items
+      // page banner.
+    }
 
     const computedQty = baseQty * multiplier;
 

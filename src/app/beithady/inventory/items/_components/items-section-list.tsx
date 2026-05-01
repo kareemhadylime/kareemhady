@@ -436,6 +436,10 @@ function ItemRow({
         itemSku: it.sku,
         itemName: it.name_en,
         amazonName: it.amazon_eg_product_name_en,
+        itemPackVolumeValue: it.pack_volume_value,
+        itemPackVolumeUom: it.pack_volume_uom,
+        amazonPackVolumeValue: it.amazon_eg_pack_volume_value,
+        amazonPackVolumeUom: it.amazon_eg_pack_volume_uom,
       });
       if (kind === 'none') return null;
       return (

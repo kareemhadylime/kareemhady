@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertTriangle, Check, Loader2, X, ExternalLink, Wand2, Tag } from 'lucide-react';
+import { AlertTriangle, Check, Loader2, X, ExternalLink, Wand2, Tag, Copy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   applyAmazonDetailsAction,
   suggestSkuRenameAction,
   applySkuRenameAction,
+  forkSkuFromAmazonAction,
 } from '../actions';
+import { packVolumeMismatch } from '@/lib/beithady/inventory/volumetric';
 
 // Mismatch banner shown inline on a row when the Amazon-fetched product
 // name/brand differ from the SKU's curated name/brand. Tells the operator
@@ -79,6 +81,21 @@ export function AmazonMismatchBanner({
         router.refresh();
       } else {
         setSkuModal(prev => prev ? { ...prev, pending: false, error: res.error } : null);
+      }
+    });
+  }
+
+  function forkSku() {
+    setError(null);
+    startTransition(async () => {
+      const res = await forkSkuFromAmazonAction(itemId);
+      if (res.ok) {
+        // Old SKU keeps its data, new SKU created with Amazon details +
+        // pack_volume + URL. Refresh shows the new row in the table.
+        setDismissed(true);
+        router.refresh();
+      } else {
+        setError(res.error);
       }
     });
   }
@@ -162,6 +179,16 @@ export function AmazonMismatchBanner({
               >
                 {pending ? <Loader2 size={10} className="animate-spin" /> : <Wand2 size={10} />}
                 Rename SKU via AI
+              </button>
+              <button
+                type="button"
+                onClick={forkSku}
+                disabled={pending}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-violet-600 text-white text-[10px] font-medium hover:bg-violet-700 disabled:opacity-50"
+                title="Q3: Create a NEW SKU populated with the Amazon details (name, brand, pack volume, URL). Old SKU keeps all its history (rules, GRNs, issues). Use this when the Amazon listing is genuinely a different product."
+              >
+                {pending ? <Loader2 size={10} className="animate-spin" /> : <Copy size={10} />}
+                Create new SKU
               </button>
               <button
                 type="button"
@@ -311,6 +338,11 @@ export function detectAmazonMismatch(args: {
   itemSku: string;
   itemName: string;
   amazonName: string | null;
+  /** M.16 — when both are provided, compares pack volumes via convert+ratio. */
+  itemPackVolumeValue?: number | null;
+  itemPackVolumeUom?: string | null;
+  amazonPackVolumeValue?: number | null;
+  amazonPackVolumeUom?: string | null;
 }): MismatchKind {
   if (!args.amazonName || args.amazonName.trim().length === 0) return 'none';
 
@@ -324,11 +356,23 @@ export function detectAmazonMismatch(args: {
   else if (a.length >= 4 && b.includes(a)) nameMatches = true;
   else if (b.length >= 4 && a.includes(b)) nameMatches = true;
 
-  // Size comparison — SKU code OR item name vs Amazon product name.
-  // SKU code carries the canonical operator-defined size (CLN-ANTIFLY-400ML).
-  const skuSize = extractSize(args.itemSku) || extractSize(args.itemName);
-  const amazonSize = extractSize(args.amazonName);
-  const sizeMismatch = !!(skuSize && amazonSize && skuSize !== amazonSize);
+  // Size mismatch — prefer the structured pack_volume comparison when both
+  // sides have it (more reliable than text parsing). Falls back to the
+  // SKU-suffix vs Amazon-name regex extractor for items where pack_volume
+  // hasn't been backfilled yet.
+  let sizeMismatch = false;
+  if (args.amazonPackVolumeValue != null && args.amazonPackVolumeUom) {
+    sizeMismatch = packVolumeMismatch({
+      skuValue: args.itemPackVolumeValue ?? null,
+      skuUom: args.itemPackVolumeUom ?? null,
+      amazonValue: args.amazonPackVolumeValue,
+      amazonUom: args.amazonPackVolumeUom,
+    });
+  } else {
+    const skuSize = extractSize(args.itemSku) || extractSize(args.itemName);
+    const amazonSize = extractSize(args.amazonName);
+    sizeMismatch = !!(skuSize && amazonSize && skuSize !== amazonSize);
+  }
 
   if (!nameMatches && sizeMismatch) return 'both';
   if (!nameMatches) return 'name';

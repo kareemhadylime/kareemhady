@@ -75,6 +75,10 @@ export type ItemRow = {
   amazon_eg_product_name_en: string | null;
   amazon_eg_product_name_ar: string | null;
   amazon_eg_brand: string | null;
+  amazon_eg_pack_volume_value: number | null;
+  amazon_eg_pack_volume_uom: string | null;
+  pack_volume_value: number | null;
+  pack_volume_uom: string | null;
   ai_info: AiItemInfoPayload | null;
   ai_info_generated_at: string | null;
   ai_info_source: 'amazon_eg_fetch' | 'general_knowledge' | null;
@@ -205,6 +209,10 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       amazon_eg_product_name_en: r.amazon_eg_product_name_en,
       amazon_eg_product_name_ar: r.amazon_eg_product_name_ar,
       amazon_eg_brand: r.amazon_eg_brand,
+      amazon_eg_pack_volume_value: r.amazon_eg_pack_volume_value != null ? Number(r.amazon_eg_pack_volume_value) : null,
+      amazon_eg_pack_volume_uom: r.amazon_eg_pack_volume_uom,
+      pack_volume_value: r.pack_volume_value != null ? Number(r.pack_volume_value) : null,
+      pack_volume_uom: r.pack_volume_uom,
       ai_info: r.ai_info,
       ai_info_generated_at: r.ai_info_generated_at,
       ai_info_source: r.ai_info_source,

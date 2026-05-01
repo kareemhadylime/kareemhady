@@ -1083,3 +1083,146 @@ export async function applySkuRenameAction(
   revalidatePath('/beithady/inventory');
   return { ok: true, old_sku: beforeRow.sku, new_sku: cleanSku };
 }
+
+// ---------------------------------------------------------------------------
+// Fork SKU from Amazon listing (Q3=C — create NEW SKU, preserve old)
+// ---------------------------------------------------------------------------
+// When the operator pastes a URL whose Amazon product is genuinely a
+// different size/variant (e.g. SKU was 1L cleaner, Amazon listing is 4kg),
+// "Use Amazon details" would corrupt the old SKU's history. "Create new
+// SKU" forks: the old SKU keeps its name/rules/GRNs/issues; a new SKU is
+// inserted populated with the Amazon-fetched name, brand, URL, pack volume,
+// price, and image. Generated SKU code = old prefix + "-FORK<N>".
+
+export async function forkSkuFromAmazonAction(
+  itemId: string,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+
+  const { data: src } = await sb
+    .from('beithady_inventory_items')
+    .select(
+      'id, sku, name_en, name_ar, brand, category_id, uom, currency, batch_tracked, expiry_tracked, owner_billable, is_asset, ' +
+      'amazon_eg_url, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_image_url, ' +
+      'amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand, ' +
+      'amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom, default_cost_egp, min_qty'
+    )
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!src) return { ok: false, error: 'Source item not found' };
+  const s = src as unknown as {
+    id: string; sku: string; name_en: string; name_ar: string;
+    brand: string | null; category_id: string; uom: string;
+    currency: 'EGP' | 'USD'; batch_tracked: boolean; expiry_tracked: boolean;
+    owner_billable: boolean; is_asset: boolean;
+    amazon_eg_url: string | null;
+    amazon_eg_price_egp: number | string | null;
+    amazon_eg_pack_size: number | null;
+    amazon_eg_image_url: string | null;
+    amazon_eg_product_name_en: string | null;
+    amazon_eg_product_name_ar: string | null;
+    amazon_eg_brand: string | null;
+    amazon_eg_pack_volume_value: number | string | null;
+    amazon_eg_pack_volume_uom: string | null;
+    default_cost_egp: number | string;
+    min_qty: number | string;
+  };
+
+  if (!s.amazon_eg_product_name_en) {
+    return { ok: false, error: 'No Amazon product details on the source — run a sync first.' };
+  }
+
+  // Generate a unique fork SKU code. Strip any existing -FORK suffix and try
+  // -FORK, -FORK2, -FORK3, etc. until vacant.
+  const baseSku = s.sku.replace(/-FORK\d*$/i, '');
+  let newSku = `${baseSku}-FORK`;
+  for (let n = 2; n < 50; n++) {
+    const { data: dup } = await sb
+      .from('beithady_inventory_items')
+      .select('id')
+      .eq('sku', newSku)
+      .maybeSingle();
+    if (!dup) break;
+    newSku = `${baseSku}-FORK${n}`;
+  }
+
+  const newName = s.amazon_eg_product_name_en.slice(0, 200);
+  const newNameAr = (s.amazon_eg_product_name_ar || s.name_ar).slice(0, 200);
+  const newBrand = s.amazon_eg_brand || s.brand;
+  const newCost = s.amazon_eg_price_egp != null
+    ? Number(s.amazon_eg_price_egp)
+    : Number(s.default_cost_egp);
+
+  const { data: inserted, error } = await sb
+    .from('beithady_inventory_items')
+    .insert({
+      sku: newSku,
+      name_en: newName,
+      name_ar: newNameAr,
+      category_id: s.category_id,
+      uom: s.uom,
+      brand: newBrand,
+      currency: s.currency,
+      batch_tracked: s.batch_tracked,
+      expiry_tracked: s.expiry_tracked,
+      owner_billable: s.owner_billable,
+      is_asset: s.is_asset,
+      default_cost_egp: newCost,
+      min_qty: Number(s.min_qty),
+      amazon_eg_url: s.amazon_eg_url,
+      amazon_eg_price_egp: s.amazon_eg_price_egp,
+      amazon_eg_pack_size: s.amazon_eg_pack_size,
+      amazon_eg_image_url: s.amazon_eg_image_url,
+      amazon_eg_product_name_en: s.amazon_eg_product_name_en,
+      amazon_eg_product_name_ar: s.amazon_eg_product_name_ar,
+      amazon_eg_brand: s.amazon_eg_brand,
+      amazon_eg_pack_volume_value: s.amazon_eg_pack_volume_value,
+      amazon_eg_pack_volume_uom: s.amazon_eg_pack_volume_uom,
+      pack_volume_value: s.amazon_eg_pack_volume_value,
+      pack_volume_uom: s.amazon_eg_pack_volume_uom,
+      amazon_eg_last_status: 'ok',
+      amazon_eg_in_stock: true,
+      created_by_user: user.id,
+      active: true,
+    })
+    .select('id')
+    .single();
+  if (error || !inserted) return { ok: false, error: error?.message || 'Insert failed' };
+
+  // Clear the source SKU's URL — the Amazon listing now belongs to the
+  // forked SKU; the original keeps its other curated details.
+  await sb
+    .from('beithady_inventory_items')
+    .update({
+      amazon_eg_url: null,
+      amazon_eg_price_egp: null,
+      amazon_eg_pack_size: null,
+      amazon_eg_image_url: null,
+      amazon_eg_in_stock: null,
+      amazon_eg_last_status: null,
+      amazon_eg_url_reviewed_at: null,
+      amazon_eg_url_reviewed_by: null,
+      amazon_eg_product_name_en: null,
+      amazon_eg_product_name_ar: null,
+      amazon_eg_brand: null,
+      amazon_eg_pack_volume_value: null,
+      amazon_eg_pack_volume_uom: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', itemId);
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.fork_from_amazon',
+    target_type: 'item',
+    target_id: itemId,
+    metadata: { source_sku: s.sku, new_sku: newSku, new_item_id: (inserted as { id: string }).id },
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true };
+}

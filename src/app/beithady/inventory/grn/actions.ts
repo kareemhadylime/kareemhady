@@ -249,3 +249,103 @@ export async function postGrnAction(grnId: string): Promise<GrnActionResult> {
   revalidatePath('/beithady/inventory');
   return { ok: true, grn_id: grnId, status: 'posted' };
 }
+
+// ---------------------------------------------------------------------------
+// M.16 (Q6=a) — restate GRN line received_pack_volume + reconcile SKU
+// ---------------------------------------------------------------------------
+// When a GRN is being captured and the operator notices the actual delivered
+// pack-volume differs from what the SKU's stored pack_volume_value says,
+// they call this action with the line index + corrected pack_volume. Two
+// effects:
+//   1) The GRN line records the received pack volume on
+//      received_pack_volume_value/uom for audit
+//   2) The item's pack_volume_value/uom is updated to match the new shipment
+//      so future estimator runs use accurate per-unit costs.
+//
+// Cost recompute: unit_cost_egp on the line stays as entered (operator
+// already typed the per-pack cost). The downstream estimator picks up the
+// corrected pack_volume on next render.
+
+export type RestatePackVolumeResult =
+  | { ok: true; line_id: string }
+  | { ok: false; error: string };
+
+export async function restateGrnLinePackVolumeAction(args: {
+  grnId: string;
+  lineId: string;
+  receivedPackVolumeValue: number;
+  receivedPackVolumeUom: string;
+  alsoUpdateSkuPackVolume: boolean;
+}): Promise<RestatePackVolumeResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+
+  if (!Number.isFinite(args.receivedPackVolumeValue) || args.receivedPackVolumeValue <= 0) {
+    return { ok: false, error: 'received_pack_volume_value must be positive' };
+  }
+  if (!args.receivedPackVolumeUom?.trim()) {
+    return { ok: false, error: 'received_pack_volume_uom required' };
+  }
+
+  // GRN must still be open to amend a line
+  const { data: grn } = await sb
+    .from('beithady_inventory_grns')
+    .select('id, status')
+    .eq('id', args.grnId)
+    .maybeSingle();
+  if (!grn) return { ok: false, error: 'GRN not found' };
+  const grnRow = grn as { id: string; status: string };
+  if (grnRow.status !== 'draft' && grnRow.status !== 'submitted') {
+    return { ok: false, error: `Cannot amend a ${grnRow.status} GRN line` };
+  }
+
+  const { data: line } = await sb
+    .from('beithady_inventory_grn_lines')
+    .select('id, item_id, received_pack_volume_value, received_pack_volume_uom')
+    .eq('id', args.lineId)
+    .eq('grn_id', args.grnId)
+    .maybeSingle();
+  if (!line) return { ok: false, error: 'GRN line not found' };
+  const lineRow = line as { id: string; item_id: string; received_pack_volume_value: number | null; received_pack_volume_uom: string | null };
+
+  const { error: lineErr } = await sb
+    .from('beithady_inventory_grn_lines')
+    .update({
+      received_pack_volume_value: args.receivedPackVolumeValue,
+      received_pack_volume_uom: args.receivedPackVolumeUom,
+    })
+    .eq('id', args.lineId);
+  if (lineErr) return { ok: false, error: lineErr.message };
+
+  if (args.alsoUpdateSkuPackVolume) {
+    await sb
+      .from('beithady_inventory_items')
+      .update({
+        pack_volume_value: args.receivedPackVolumeValue,
+        pack_volume_uom: args.receivedPackVolumeUom,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', lineRow.item_id);
+  }
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'grn.line.restate_pack_volume',
+    target_type: 'grn_line',
+    target_id: args.lineId,
+    before: {
+      received_pack_volume_value: lineRow.received_pack_volume_value,
+      received_pack_volume_uom: lineRow.received_pack_volume_uom,
+    },
+    after: {
+      received_pack_volume_value: args.receivedPackVolumeValue,
+      received_pack_volume_uom: args.receivedPackVolumeUom,
+      sku_updated: args.alsoUpdateSkuPackVolume,
+    },
+  });
+
+  revalidatePath(`/beithady/inventory/grn/${args.grnId}`);
+  revalidatePath('/beithady/inventory/items');
+  return { ok: true, line_id: args.lineId };
+}
