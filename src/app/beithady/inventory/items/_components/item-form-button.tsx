@@ -77,6 +77,18 @@ export function ItemFormButton({
     setForm(f => ({ ...f, [k]: v }));
   }
 
+  // useState(initial) only captures props on the FIRST mount. If
+  // `existing` is updated server-side (e.g. AI SKU rename after Amazon
+  // fetch promotes CLN-DISH-SPONGE → CLN-KITCHEN-SPONGE-3PK) and the
+  // page re-renders, the modal would still display the stale SKU/cost/
+  // name. Re-syncing on open guarantees the modal reflects current row
+  // data and discards any unsaved edits from a previous open-then-cancel.
+  function openModal() {
+    setForm(initial);
+    setError(null);
+    setOpen(true);
+  }
+
   // When category changes, auto-apply category defaults for batch/expiry
   function pickCategory(catId: string) {
     const cat = categories.find(c => c.id === catId);
@@ -122,7 +134,7 @@ export function ItemFormButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={triggerClass}>
+      <button type="button" onClick={openModal} className={triggerClass}>
         {triggerLabel}
       </button>
       {open && (
