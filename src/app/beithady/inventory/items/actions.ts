@@ -446,6 +446,18 @@ export async function setAmazonSourceAction(
       amazon_eg_image_url: null,
       amazon_eg_url_reviewed_at: null,
       amazon_eg_url_reviewed_by: null,
+      // M.16 — also clear the product-name + brand + pack_volume shadow
+      // columns so stale data from the PREVIOUS URL's sync doesn't
+      // persist between when the operator pastes a new URL and when the
+      // background sync writes fresh values. Otherwise the mismatch banner
+      // and Rename SKU AI suggestion read the old name/brand and produce
+      // wrong recommendations (e.g. suggesting CLN-FRIDA-4L when the new
+      // URL is actually a Clorel product).
+      amazon_eg_product_name_en: null,
+      amazon_eg_product_name_ar: null,
+      amazon_eg_brand: null,
+      amazon_eg_pack_volume_value: null,
+      amazon_eg_pack_volume_uom: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', itemId);

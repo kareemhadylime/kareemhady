@@ -1,6 +1,29 @@
 # Kareemhady — Session Handoff (2026-05-01)
 
-## 🟢 Latest turn — Volumetric UI affordances SHIPPED + DEPLOYED (commit `310f632`, deploy `dpl_CL1oG7CzS9UmKAFhAVgZsw4X1r6T` Ready)
+## 🟢 Latest turn — URL-change now clears stale Amazon shadow columns (Frida-vs-Clorel rename bug fixed)
+
+User pasted a new URL `B08WJLC3HW?th=1` (Clorel 4kg cleaner) on `CLN-APC-1L`. The price sourcer's last successful run was at 08:58 UTC for the previous Frida URL — meaning `setAmazonSourceAction`'s `waitUntil(syncOneItemPrice)` apparently died silently when the URL was changed today. Result: row had new URL `B08WJLC3HW` but `amazon_eg_product_name_en = "Frida floor cleaner"` and `amazon_eg_brand = "Frida"` still cached from the OLD sync. When user clicked "Rename SKU via AI" the suggestion came back as `CLN-FRIDA-4L` because Haiku read the stale "Frida" data.
+
+**Two fixes this turn:**
+
+1. **Manual SQL patch** — backfilled `CLN-APC-1L` row with verified Clorel data (`amazon_eg_product_name_en`/`brand`/`pack_volume_value=4`/`pack_volume_uom=kg`/`price=71.95`) so user sees correct rename suggestion immediately. Verified earlier via Chrome MCP + direct ScrapingBee curl that the URL serves "Clorel liquid multi purpose cleaner 4 in 1 with lavender scent, 4 kg" at EGP 71.95 In Stock.
+
+2. **Code fix** in `setAmazonSourceAction` (`actions.ts`) — when URL changes, now ALSO nulls these shadow columns: `amazon_eg_product_name_en`, `amazon_eg_product_name_ar`, `amazon_eg_brand`, `amazon_eg_pack_volume_value`, `amazon_eg_pack_volume_uom`. Previously only price/pack_size/image/review were cleared. The shadow name+brand persisted between URL change and successful sync, causing the rename AI to read stale data. Now: if sync runs successfully, fresh data lands; if sync fails, row shows null Amazon data → mismatch banner won't show → operator knows to retry sync.
+
+**Root-cause hypothesis on why waitUntil didn't fire:** Vercel serverless functions sometimes kill background tasks early when the response cycle completes very quickly. The `waitUntil(Promise.allSettled([sourcer, aiInfo]))` may have lost its handle. Future hardening could:
+- Add audit logs at start + end of each waitUntil task to confirm execution
+- Add a 15s synchronous-attempt-first with waitUntil-fallback pattern
+- Or use a proper job queue (Vercel Queues, Inngest, etc.) for these background tasks
+Out of scope for this turn — deferred until we see it happen again with the new shadow-clear in place.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean.
+
+**Files touched:**
+- `src/app/beithady/inventory/items/actions.ts` — `setAmazonSourceAction` shadow-column clear
+
+---
+
+## 🟢 Earlier this turn — Volumetric UI affordances SHIPPED + DEPLOYED (commit `310f632`, deploy `dpl_CL1oG7CzS9UmKAFhAVgZsw4X1r6T` Ready)
 
 Deploy verified Ready via `vercel inspect`. Both volumetric core (40c245f) and UI affordances (310f632) are live in production. Operator can now use pack_volume + consumes_volume + GRN restate from the UI alone — no SQL required. Full session arc: ScrapingBee integration → mismatch banner → AI SKU rename → size detection → HTML bloat fix → validate hardening → volumetric core → volumetric UI. Catalog at 73 items, 22 with pack_volume backfilled from name parsing, 51 unitary stay null.
 
