@@ -1,6 +1,18 @@
-# Kareemhady — Session Handoff (2026-05-01)
+# Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Liquid heuristic in apply-amazon-details (kg→L for cleaners/shampoos/etc)
+## 🟢 Latest turn — Edit-modal showed stale SKU after AI rename
+
+User reported the items list row showed `CLN-KITCHEN-SPONGE-3PK` / cost `6.28` for "Dish sponge (3-pack)", but clicking Edit opened the modal with `CLN-DISH-SPONGE` / cost `25`. DB query confirmed only ONE item exists (id `d1fc00f1…`) with current SKU `CLN-KITCHEN-SPONGE-3PK`, default_cost_egp `25`, amazon_eg_price_egp `18.84` over 3-pack → live `6.28` (matches row). Cost in modal is correct (`25` is the seed `default_cost_egp` field, distinct from the live amazon-derived row price). **The bug was the stale SKU.**
+
+**Root cause:** `item-form-button.tsx:70` used `useState<ItemFormInput>(initial)` — `initial` is computed from `existing` props each render, but `useState` only consumes its argument on the FIRST mount. After AI SKU rename (`ai-sku-rename.ts`) renamed `CLN-DISH-SPONGE` → `CLN-KITCHEN-SPONGE-3PK` server-side and the page re-rendered, the row reflected the new SKU but the form's state still held the captured-at-mount value.
+
+**Fix:** added `openModal()` that calls `setForm(initial)` + `setError(null)` + `setOpen(true)`, and wired the trigger button to it. Modal now re-syncs to current `existing` props every time it opens (also discards any unsaved edits from a prior cancel — desired behavior). Grep confirmed no other `useState(initial)` instances in the codebase.
+
+Pushed as 4d0287b on main, deployed to prod via `vercel --prod` (dpl_9849oSLsGPLDkitTK6pS7PoJEjJi, READY).
+
+---
+
+## 🟢 Earlier — Liquid heuristic in apply-amazon-details (kg→L for cleaners/shampoos/etc)
 
 User noted APC's pack_volume_uom stayed at 'kg' when "Use Amazon details" ran. Verified via Chrome MCP that the Amazon page literally says "4 Kg" / "Item Weight: 4 Kilograms" — Amazon labels Clorel by net weight even though it's a 4 L liquid cleaner. Operators track liquids by volume.
 
