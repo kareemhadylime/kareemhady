@@ -1,6 +1,29 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Task 3: payment-balance.ts helper with TDD (DONE)
+## 🟢 Latest turn — Phase 1 (Foundation) COMPLETE — Tasks 1–8 of 32 (25%)
+
+**Boat owner-features expansion is in execution mode.** Per user choice, using subagent-driven-development (fresh implementer per task + spec compliance review + code quality review). Each implementer subagent is told explicitly: commit on worktree branch only, NO push to main, NO `vercel --prod`, NO touch SESSION_HANDOFF (controller handles it). Single-shot release plan — final ship at Task 32.
+
+**Work shipped this turn (Tasks 4–8, building on Tasks 1–3):**
+- ✅ Task 4: `supabase/migrations/0066_boat_skippers_roster.sql` — multi-skipper roster + backfill from existing `boats.skipper_name/whatsapp` (commit `98c688b`)
+- ✅ Task 5: `supabase/migrations/0067_boat_external_brokers_and_reservation_source.sql` — owner address book + `source` enum + `external_broker_id` + `created_by_role` + `reminder_24h_sent_at` + consistency CHECK (commit `7ce8246`)
+- ✅ Task 6: `supabase/migrations/0069_boat_expenses_and_payments.sql` — 10-category expense ledger + multi-payment ledger per expense (commit `32ca656`)
+- ✅ Task 7: `supabase/migrations/0070_boat_recurring_expense_templates.sql` — templates + owner_settings (default fuel price, lang prefs) + deferred FK from expenses (commit `032d454`)
+- ✅ Task 8: `supabase/migrations/0068_boat_payments_ledger.sql` — drops UNIQUE(reservation_id), adds index. **Plus full refactor of 7 reader files** (booking detail, owner reservations, broker pages, admin bookings) and 2 writer files (owner/broker actions: upsert→insert) to handle 0..N payments per trip. `npm run build` passes clean. (commits `8b6f241` + `6fe305e` for the post-review DRY extraction of `summarizePayments` helper)
+
+**Test status:** 14 vitest tests passing across `recurring.ts` and `payment-balance.ts`. UI/server actions get manual QA only (per project convention).
+
+**Migrations 0066–0070 NOT YET APPLIED to live Supabase.** They will be applied as a batch on a Supabase branch during Task 31 (QA), per the spec.
+
+**Next task: Task 9 — Skipper resolver helper** (`src/lib/boat-rental/skipper-resolver.ts` — `getDefaultSkipper(boatId)` + `getSkippersForBoat(boatId)`). Used by Task 27 (24h cron) and Task 11 (Skippers tab) and Task 29 (legacy reader refactors).
+
+**Pacing checkpoint sent to user.** Asked A/B/C: continue solo (will eventually run out of context around Task 18-22), switch to executing-plans parallel session, or pause for user to review. Defaulted to A (continue) per Auto Mode. Awaiting user direction.
+
+**Plan file:** `docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md` — 32 tasks across 10 phases. Final phase (31-32) does QA on Supabase branch + merge to main + `vercel --prod`.
+
+---
+
+## Previous turn — Task 3: payment-balance.ts helper with TDD (DONE)
 
 **Completed:** `src/lib/boat-rental/payment-balance.ts` + `payment-balance.test.ts`
 - `computeBalance(total, paymentAmounts)` — sums payments, returns `{ total_paid, remaining, is_complete }`
