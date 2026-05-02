@@ -30,7 +30,16 @@ export default async function EstimatorConfigDetailPage({
   const output = await computeEstimatorOutput(configId);
   if (!output) notFound();
 
-  const { unit_config: config, lines, totals_by_group, total_per_checkin_egp, total_per_guest_egp } = output;
+  const {
+    unit_config: config,
+    lines,
+    totals_by_group,
+    total_per_checkin_egp,
+    total_per_guest_egp,
+    monthly_need_total_packs,
+    est_monthly_bookings_used,
+    est_monthly_bookings_source,
+  } = output;
   const tierLabel = TIER_LABEL[config.tier].en;
   const tierCls =
     config.tier === 'vip'
@@ -109,6 +118,23 @@ export default async function EstimatorConfigDetailPage({
             <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-300">Per guest</div>
             <div className={`text-lg font-semibold tabular-nums ${anyEstimate ? 'text-amber-700 dark:text-amber-300' : 'text-slate-700 dark:text-slate-100'}`}>
               {total_per_guest_egp > 0 ? `${anyEstimate ? '~' : ''}${total_per_guest_egp.toFixed(0)} EGP` : '—'}
+            </div>
+          </div>
+          <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-6">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-300">
+              Monthly procurement need
+            </div>
+            <div className="text-lg font-semibold tabular-nums text-slate-700 dark:text-slate-100">
+              {monthly_need_total_packs} <span className="text-xs font-normal text-slate-400">packs</span>
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+              Based on {est_monthly_bookings_used.toFixed(1)} bookings/mo (
+              {est_monthly_bookings_source === 'manual_override' && 'manual override'}
+              {est_monthly_bookings_source === 'guesty_90d_avg' && '90-day Guesty avg'}
+              {est_monthly_bookings_source === 'default_constant' && (
+                <span className="text-amber-600 dark:text-amber-400">default — no Guesty data</span>
+              )}
+              )
             </div>
           </div>
         </div>
@@ -207,6 +233,9 @@ export default async function EstimatorConfigDetailPage({
                       <th className="text-right py-2 px-3 whitespace-nowrap">Effective</th>
                       <th className="text-right py-2 px-3 whitespace-nowrap">Unit cost</th>
                       <th className="text-right py-2 px-3 whitespace-nowrap">Line total</th>
+                      <th className="text-right py-2 px-3 whitespace-nowrap" title="Whole packs to buy monthly to support this line. ceil(effective_qty × est_monthly_bookings).">
+                        Monthly need
+                      </th>
                       <th className="text-left py-2 px-3 whitespace-nowrap">Source</th>
                       <th className="text-left py-2 px-3 whitespace-nowrap">Rule scope</th>
                     </tr>
@@ -320,6 +349,10 @@ function LineRow({ l }: { l: EstimatorLine }) {
         {l.line_total_egp > 0
           ? `${l.unit_cost_is_estimate ? '~' : ''}${l.line_total_egp.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP`
           : '—'}
+      </td>
+      <td className="py-2 px-3 text-right tabular-nums">
+        <span className="font-semibold text-slate-700 dark:text-slate-200">{l.monthly_need_packs}</span>
+        <span className="text-[10px] text-slate-400 ml-1">{l.monthly_need_packs === 1 ? 'pack' : 'packs'}</span>
       </td>
       <td className="py-2 px-3">
         {isDirectMatch ? (
