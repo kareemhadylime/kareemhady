@@ -24,13 +24,23 @@ export function AutoScrollThread({
   useEffect(() => {
     // Slight delay so DOM has paint-finished from the parent server render.
     const t = setTimeout(() => {
+      // Audit fix M-6: use CSS.escape to safely interpolate IDs into
+      // querySelector — defends against future ID schemes that could
+      // contain `"`, `]`, or other selector metacharacters. Today
+      // these are UUIDs (safe) but the escape is cheap insurance.
+      const safeUnread = firstUnreadId && typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(firstUnreadId)
+        : firstUnreadId;
+      const safeConv = typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(conversationId)
+        : conversationId;
       const target =
-        (firstUnreadId &&
+        (safeUnread &&
           document.querySelector<HTMLElement>(
-            `[data-thread-msg-id="${firstUnreadId}"]`,
+            `[data-thread-msg-id="${safeUnread}"]`,
           )) ||
         document.querySelector<HTMLElement>(
-          `[data-thread-tail="${conversationId}"]`,
+          `[data-thread-tail="${safeConv}"]`,
         );
       if (target && typeof target.scrollIntoView === 'function') {
         target.scrollIntoView({ behavior: 'instant', block: firstUnreadId ? 'start' : 'end' });

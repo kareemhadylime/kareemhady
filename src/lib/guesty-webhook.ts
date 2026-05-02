@@ -75,11 +75,18 @@ function deriveUniqueKey(eventName: string, payload: AnyJson): string | null {
     if (messageId) return `${eventName}:${messageId}`;
     if (reservationId && createdAt) return `${eventName}:${reservationId}:${createdAt}`;
   }
+  // Audit fix M-7: dropped the `Date.now()` fallback. Pre-fix every
+  // retry generated a fresh key, defeating the unique-index dedupe and
+  // re-firing beithady_communication_ingest on every redelivery. Now
+  // we either dedupe on a stable (event:id:createdAt) tuple or return
+  // null (caller logs as 'no_unique_key' but doesn't retry).
   if (eventName.startsWith('conversation.')) {
-    if (conversationId) return `${eventName}:${conversationId}:${createdAt || Date.now()}`;
+    if (conversationId && createdAt) return `${eventName}:${conversationId}:${createdAt}`;
+    if (conversationId) return `${eventName}:${conversationId}`;
   }
   if (eventName.startsWith('reservation.')) {
-    if (reservationId) return `${eventName}:${reservationId}:${createdAt || Date.now()}`;
+    if (reservationId && createdAt) return `${eventName}:${reservationId}:${createdAt}`;
+    if (reservationId) return `${eventName}:${reservationId}`;
   }
   return null;
 }
