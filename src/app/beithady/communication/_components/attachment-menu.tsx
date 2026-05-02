@@ -391,15 +391,11 @@ export function AttachmentMenu({
             </div>
           )}
 
-          {errorMsg && !isPending && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950 dark:border-rose-800 p-2 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <div className="font-semibold">Send failed.</div>
-                <div className="text-[10px] opacity-90 break-all">{errorMsg}</div>
-              </div>
-            </div>
-          )}
+          {/* Audit fix H-E7: error block moved out of the items.length
+              wrapper below + dismissable X. Pre-fix the operator could
+              remove all items and the error banner would disappear
+              along with the wrapper, leaving no record of the failed
+              send. (See bottom of component for the new placement.) */}
 
           {stalled && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
@@ -413,6 +409,27 @@ export function AttachmentMenu({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Audit fix H-E7: error block lives outside the items.length
+          wrapper so it persists even after the operator removes all
+          attachments. Includes a dismiss X. */}
+      {errorMsg && !isPending && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950 dark:border-rose-800 p-2 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2 mt-2">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1 min-w-0">
+            <div className="font-semibold">Send failed.</div>
+            <div className="text-[10px] opacity-90 break-all">{errorMsg}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            title="Dismiss"
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900"
+          >
+            <X size={11} />
+          </button>
         </div>
       )}
     </>

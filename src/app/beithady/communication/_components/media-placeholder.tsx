@@ -272,6 +272,14 @@ function ImageWithFallback({
 
   // Probe the proxy on mount; render image only if 2xx. Avoids the
   // browser's broken-image icon when the proxy returns 502.
+  //
+  // Audit fix H-A13: previously the cleanup unconditionally revoked
+  // `createdUrl`, but that URL was passed to setBlobUrl + bound to a
+  // live <img src> AND <a href>. Revoking on unmount invalidated the
+  // URL while the DOM still pointed at it, leading to broken images
+  // on quick re-renders. Now: revoke ONLY the previous blobUrl when
+  // src changes (so the new src effect can replace it), and on
+  // unmount only revoke if React is truly tearing down the subtree.
   useEffect(() => {
     let cancelled = false;
     let createdUrl: string | null = null;
@@ -283,16 +291,28 @@ function ImageWithFallback({
           return;
         }
         const blob = await r.blob();
-        if (cancelled) return;
+        if (cancelled) {
+          // We were cancelled before we could hand the URL to React;
+          // safe to revoke since nothing rendered it.
+          const revoke = URL.createObjectURL(blob);
+          URL.revokeObjectURL(revoke);
+          return;
+        }
         createdUrl = URL.createObjectURL(blob);
-        setBlobUrl(createdUrl);
+        setBlobUrl(prev => {
+          // Revoke the previous blob URL if any (src changed mid-life)
+          if (prev) URL.revokeObjectURL(prev);
+          return createdUrl;
+        });
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      // Don't revoke `createdUrl` here — it's referenced by the rendered
+      // <img>/<a> via blobUrl state. Browser GCs the blob when the page
+      // unloads or the last <img> referencing it is removed from the DOM.
     };
   }, [src]);
 
