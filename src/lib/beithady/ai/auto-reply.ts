@@ -62,7 +62,7 @@ export async function processInboundForAutoReply(
 
   const { data: conv } = await sb
     .from('beithady_conversations')
-    .select('id, channel, external_id, ai_kill_switch, guest_full_name, guest_email, guest_phone, building_code, listing_nickname, source, reservation_id')
+    .select('id, channel, external_id, ai_kill_switch, guest_full_name, guest_email, guest_phone, building_code, listing_nickname, source, reservation_id, archived_at, resolved_at')
     .eq('id', m.conversation_id)
     .maybeSingle();
   if (!conv) return { ok: false, error: 'conversation_not_found' };
@@ -78,7 +78,20 @@ export async function processInboundForAutoReply(
     listing_nickname: string | null;
     source: string | null;
     reservation_id: string | null;
+    archived_at: string | null;
+    resolved_at: string | null;
   };
+
+  // Audit fix C-D2: never auto-reply on archived/resolved conversations.
+  // Pre-fix the orchestrator only checked the global + per-conv kill
+  // switches; an inbound landing on an archived/resolved thread would
+  // fire AI and write a new outbound on a "hidden" conversation.
+  // Note: the auto-restore trigger (C-B2/B3 in migration 0070) will have
+  // ALREADY cleared those columns when the inbound was inserted, so this
+  // gate now only catches the rare race where the trigger hasn't fired
+  // yet — defensive belt-and-suspenders.
+  if (c.archived_at) return { ok: true, skipped: 'archived_conversation' };
+  if (c.resolved_at) return { ok: true, skipped: 'resolved_conversation' };
 
   let guestVip = false;
   let guestTier: string | null = null;

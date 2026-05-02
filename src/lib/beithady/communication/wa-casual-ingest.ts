@@ -232,16 +232,46 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
     .single();
   if (insErr) return { ok: false, error: `msg_insert: ${insErr.message}` };
 
-  // Update conversation: bump last_inbound_at + unread_count
-  await sb
+  // Update conversation on every inbound:
+  //   - bump last_inbound_at + modified_at_external
+  //   - audit fix H-B4: INCREMENT unread_count (was hard-set to 1, so
+  //     5 unread looked like 1 in the inbox sidebar). Read-then-write
+  //     is mildly racy under burst, but acceptable — worst case is
+  //     unread_count off by one for a few seconds.
+  //   - audit fix C-B2: clear archived_at on inbound so an archived
+  //     conversation auto-restores. UI promised this but the code never
+  //     did it; DB confirmed 1 row stuck in archived-with-inbound state.
+  //   - audit fix C-B3: clear resolved_at + flip state to 'open' so a
+  //     resolved thread auto-reopens when the guest replies.
+  //   - guest_full_name: only set on first inbound (don't overwrite a
+  //     richer prior name with whatever the guest changes their WA
+  //     display name to mid-conversation).
+  const { data: convPrev } = await sb
     .from('beithady_conversations')
-    .update({
-      last_inbound_at: sentAtIso,
-      modified_at_external: sentAtIso,
-      unread_count: 1, // simple — could increment instead but Phase E owns read-state refinement
-      guest_full_name: senderName ?? undefined,
-    })
-    .eq('id', conversationId);
+    .select('unread_count, archived_at, resolved_at, state, guest_full_name')
+    .eq('id', conversationId)
+    .maybeSingle();
+  const prevUnread = Number((convPrev as { unread_count: number | null } | null)?.unread_count ?? 0);
+  const wasArchived = !!(convPrev as { archived_at: string | null } | null)?.archived_at;
+  const wasResolved = !!(convPrev as { resolved_at: string | null } | null)?.resolved_at;
+  const hadName = !!(convPrev as { guest_full_name: string | null } | null)?.guest_full_name;
+  const convPatch: Record<string, unknown> = {
+    last_inbound_at: sentAtIso,
+    modified_at_external: sentAtIso,
+    unread_count: prevUnread + 1,
+  };
+  if (wasArchived) {
+    convPatch.archived_at = null;
+    convPatch.archived_reason = 'restore_undo';
+  }
+  if (wasResolved) {
+    convPatch.resolved_at = null;
+    convPatch.state = 'open';
+  }
+  if (!hadName && senderName) {
+    convPatch.guest_full_name = senderName;
+  }
+  await sb.from('beithady_conversations').update(convPatch).eq('id', conversationId);
 
   // Recompute SLA so the inbox sidebar lights up immediately
   await sb.rpc('beithady_communication_sla_recompute');
