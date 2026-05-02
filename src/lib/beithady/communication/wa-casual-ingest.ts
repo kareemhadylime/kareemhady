@@ -112,6 +112,25 @@ export async function ingestGreenWebhookEvent(payload: AnyJson): Promise<IngestR
         .eq('id', logId);
       return { ok: true, skipped: 'outbound_echo' };
     }
+    // Audit fix H-C7: edit/delete propagation. Green-API event names
+    // are tentative (varies per instance config); we recognise the
+    // common shapes. The body of an edited/deleted message either
+    // appears at the top-level idMessage or in messageData.editedIdMessage
+    // depending on instance version. Schema columns added in 0075.
+    if (typeWebhook === 'editedMessage' || typeWebhook === 'editedMessageReceived') {
+      const r = await ingestEditDelete(payload, 'edited');
+      await sb.from('beithady_green_webhook_events')
+        .update({ processed: true, processed_at: new Date().toISOString() })
+        .eq('id', logId);
+      return r;
+    }
+    if (typeWebhook === 'deletedMessage' || typeWebhook === 'deletedMessageReceived') {
+      const r = await ingestEditDelete(payload, 'deleted');
+      await sb.from('beithady_green_webhook_events')
+        .update({ processed: true, processed_at: new Date().toISOString() })
+        .eq('id', logId);
+      return r;
+    }
     // State, quota, etc. — log only.
     await sb
       .from('beithady_green_webhook_events')
@@ -307,15 +326,28 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
       waitUntil: (p: Promise<unknown>) => { void p; },
     }));
 
-    waitUntil((async () => {
-      try {
-        const { processInboundForAutoReply } = await import('@/lib/beithady/ai/auto-reply');
-        await processInboundForAutoReply(newMessageId);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('[wa-casual-ingest] auto-reply failed:', e);
-      }
-    })());
+    // Audit fix C-C3: per-phone trust check before firing downstream
+    // side-effects. The slug-only auth is fragile — if the slug ever
+    // leaks (admin screenshot, error tracker, support ticket), an
+    // attacker can fabricate inbound from any phone and trigger AI
+    // auto-reply / reorder draft on attacker-chosen content.
+    // Trust = the sender phone matches an existing beithady_guests row
+    // (real guest) OR a known cleaner phone in beithady_settings.
+    // Unknown senders still get their message persisted (operator can
+    // see and react manually) but do NOT trigger AI / reorder.
+    const isTrustedSender = await isWaCasualSenderTrusted(phoneDigits);
+
+    if (isTrustedSender && detectedDirection === 'inbound') {
+      waitUntil((async () => {
+        try {
+          const { processInboundForAutoReply } = await import('@/lib/beithady/ai/auto-reply');
+          await processInboundForAutoReply(newMessageId);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[wa-casual-ingest] auto-reply failed:', e);
+        }
+      })());
+    }
 
     // Audit fix H-E11: WA media URLs from Green-API CDN expire (~7d).
     // Mirror them into our durable beithady-wa-media bucket so older
@@ -336,7 +368,10 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
     // Phase M.13: detect inbound inventory reorder requests from cleaners.
     // Heuristic gate first (no API call) → AI parse if matched → draft Issue
     // tagged created_via='wa_inbound' for manager approval.
-    if (typeof body === 'string' && body.length > 0) {
+    // Audit fix C-C3: also gate on isTrustedSender — reorder draft
+    // creation is high-impact (creates inventory issue rows) so we
+    // never run it for unknown senders.
+    if (isTrustedSender && typeof body === 'string' && body.length > 0) {
       waitUntil((async () => {
         try {
           const { looksLikeReorder, parseReorderMessage, createReorderDraftFromWa } =
@@ -365,6 +400,50 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
     message_id: newMessageId,
     conversation_id: conversationId,
   };
+}
+
+// Audit fix C-C3: trusted-sender check before AI auto-reply / reorder
+// draft fires. Slug-only auth means a leaked URL = inbound forging
+// surface; downstream side-effects must NOT trigger for unknown
+// phones. Trusted = phone matches an existing beithady_guests row
+// OR an existing beithady_conversations.guest_phone (we've spoken
+// before) OR a known cleaner phone in the cleaner allowlist setting.
+async function isWaCasualSenderTrusted(phoneDigits: string): Promise<boolean> {
+  if (!phoneDigits) return false;
+  const sb = supabaseAdmin();
+  const e164 = '+' + phoneDigits;
+
+  // 1) Guest already in CRM
+  const { data: guest } = await sb
+    .from('beithady_guests')
+    .select('id')
+    .eq('phone_e164', e164)
+    .maybeSingle();
+  if (guest) return true;
+
+  // 2) Conversation already exists with prior outbound from us
+  // (so we've already validated this phone in some earlier session)
+  const { data: convWithOutbound } = await sb
+    .from('beithady_conversations')
+    .select('id')
+    .eq('channel', 'wa_casual')
+    .eq('external_id', e164)
+    .not('last_outbound_at', 'is', null)
+    .maybeSingle();
+  if (convWithOutbound) return true;
+
+  // 3) Cleaner phone allowlist in settings
+  const { data: setting } = await sb
+    .from('beithady_settings')
+    .select('value')
+    .eq('key', 'comm_wa_trusted_cleaner_phones')
+    .maybeSingle();
+  if (setting) {
+    const list = (setting as { value: { phones?: string[] } }).value?.phones || [];
+    if (list.includes(e164) || list.includes(phoneDigits)) return true;
+  }
+
+  return false;
 }
 
 // Audit fix H-E11: download Green-API CDN media into our durable
@@ -426,6 +505,59 @@ async function mirrorWaAttachmentsToStorage(
       .update({ attachments: next })
       .eq('id', messageId);
   }
+}
+
+// Audit fix H-C7: edit/delete propagation. Looks up the prior
+// beithady_messages row by external_id (the original idMessage), then
+// either marks deleted_at + clears body or appends to edit_history +
+// updates body. Best-effort across known Green-API event shapes;
+// unrecognised shapes log + skip without throwing.
+async function ingestEditDelete(
+  payload: AnyJson,
+  kind: 'edited' | 'deleted',
+): Promise<IngestResult> {
+  const sb = supabaseAdmin();
+  const idMessage =
+    asString(get(payload, 'editedIdMessage')) ||
+    asString(get(payload, 'messageData', 'editedIdMessage')) ||
+    asString(get(payload, 'deletedIdMessage')) ||
+    asString(get(payload, 'idMessage'));
+  if (!idMessage) return { ok: true, skipped: 'no_id_message' };
+
+  if (kind === 'deleted') {
+    await sb
+      .from('beithady_messages')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('channel', 'wa_casual')
+      .eq('external_id', idMessage);
+    return { ok: true };
+  }
+
+  // edited — pull current body, append to history, update body
+  const newBody =
+    asString(get(payload, 'messageData', 'textMessageData', 'textMessage')) ||
+    asString(get(payload, 'messageData', 'extendedTextMessageData', 'text'));
+  if (!newBody) return { ok: true, skipped: 'no_new_body' };
+
+  const { data: prevRow } = await sb
+    .from('beithady_messages')
+    .select('id, body, edit_history')
+    .eq('channel', 'wa_casual')
+    .eq('external_id', idMessage)
+    .maybeSingle();
+  if (!prevRow) return { ok: true, skipped: 'message_not_found' };
+  const prev = prevRow as { id: string; body: string | null; edit_history: unknown };
+  const history = Array.isArray(prev.edit_history) ? prev.edit_history : [];
+  history.push({ at: new Date().toISOString(), prev_body: prev.body });
+  await sb
+    .from('beithady_messages')
+    .update({
+      body: newBody,
+      edited_at: new Date().toISOString(),
+      edit_history: history,
+    })
+    .eq('id', prev.id);
+  return { ok: true };
 }
 
 async function ingestOutgoingStatus(payload: AnyJson): Promise<IngestResult> {
