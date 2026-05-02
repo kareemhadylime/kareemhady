@@ -40,7 +40,10 @@ export default async function GeneralBuildingAreaPage({
     getTopTags(filter, 12),
     getListingsForBuilding(buildingCode),
   ]);
-  const onlyGeneral = list.rows.filter(a => a.listing_id === null);
+  // True General Building Area = no listing scope AND no template scope.
+  // Templated uploads have listing_id NULL but unit_template_id set; they
+  // belong to the template's shared library, not the common area.
+  const onlyGeneral = list.rows.filter(a => a.listing_id === null && a.unit_template_id === null);
   const items = await resolveAssetUrls(onlyGeneral);
   const idsInOrder = items.map(i => i.asset.id);
 

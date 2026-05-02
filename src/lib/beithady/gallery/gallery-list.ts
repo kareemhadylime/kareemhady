@@ -383,13 +383,13 @@ export async function getCommonAreaSummary(buildingCode: string): Promise<{
   const sb = supabaseAdmin();
   const [{ count: total }, { count: photos }, { count: videos }, { data: coverData }] = await Promise.all([
     sb.from('beithady_gallery_assets').select('id', { count: 'exact', head: true })
-      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null),
+      .eq('building_code', buildingCode).is('listing_id', null).is('unit_template_id', null).is('deleted_at', null),
     sb.from('beithady_gallery_assets').select('id', { count: 'exact', head: true })
-      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null).eq('category', 'photo'),
+      .eq('building_code', buildingCode).is('listing_id', null).is('unit_template_id', null).is('deleted_at', null).eq('category', 'photo'),
     sb.from('beithady_gallery_assets').select('id', { count: 'exact', head: true })
-      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null).eq('category', 'video'),
+      .eq('building_code', buildingCode).is('listing_id', null).is('unit_template_id', null).is('deleted_at', null).eq('category', 'video'),
     sb.from('beithady_gallery_assets').select('storage_bucket, storage_path, public_url')
-      .eq('building_code', buildingCode).is('listing_id', null).is('deleted_at', null).eq('category', 'photo')
+      .eq('building_code', buildingCode).is('listing_id', null).is('unit_template_id', null).is('deleted_at', null).eq('category', 'photo')
       .order('created_at', { ascending: false }).limit(1),
   ]);
   const first = ((coverData as Array<{ storage_bucket: GalleryBucket; storage_path: string; public_url: string | null }> | null) || [])[0];
