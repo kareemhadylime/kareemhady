@@ -3,9 +3,15 @@
 import { useState, useTransition, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { FORMULA_KIND_LABEL, SCOPE_LABEL, type RuleScope, type FormulaKind, type ConsumptionRuleListRow } from '@/lib/beithady/inventory/rules-shared';
+import { areUomsCompatible } from '@/lib/beithady/inventory/volumetric';
 import { createRuleAction, updateRuleAction, type RuleFormInput } from '../actions';
 
-type ItemOpt = { id: string; label: string };
+type ItemOpt = {
+  id: string;
+  label: string;
+  pack_volume_value: number | null;
+  pack_volume_uom: string | null;
+};
 type BuildingOpt = { code: string; label: string };
 type Mode = 'create' | 'edit';
 
@@ -56,6 +62,18 @@ export function RuleFormButton({
     setForm(f => ({ ...f, [k]: v }));
   }
 
+  // Q3 — auto-default consumes_volume_uom from the picked item's
+  // pack_volume_uom, but only if the operator hasn't manually set one
+  // for this rule already.
+  function pickItem(itemId: string) {
+    const item = items.find(i => i.id === itemId);
+    setForm(f => ({
+      ...f,
+      item_id: itemId,
+      consumes_volume_uom: f.consumes_volume_uom || item?.pack_volume_uom || null,
+    }));
+  }
+
   // useState(initial) only captures props on the FIRST mount. Re-sync on
   // open so the modal always reflects the latest `existing` row data
   // (e.g. after toggleRuleActiveAction or another admin's edit triggered
@@ -69,6 +87,21 @@ export function RuleFormButton({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Q3 — UoM compatibility check before save: rule consumption UoM must
+    // be in the same dimensional family as item pack UoM (mass / volume /
+    // count). Reject "100 kg" for a "4 L" item etc.
+    if (form.consumes_volume_uom && form.item_id) {
+      const item = items.find(i => i.id === form.item_id);
+      if (item?.pack_volume_uom && !areUomsCompatible(form.consumes_volume_uom, item.pack_volume_uom)) {
+        setError(
+          `Rule UoM "${form.consumes_volume_uom}" is incompatible with item's pack UoM "${item.pack_volume_uom}". ` +
+          `Pick a compatible UoM (same dimensional family — mass, volume, or count).`,
+        );
+        return;
+      }
+    }
+
     startTransition(async () => {
       const res = mode === 'edit' && existing
         ? await updateRuleAction(existing.id, form)
@@ -93,10 +126,21 @@ export function RuleFormButton({
 
             <form onSubmit={handleSubmit} className="p-5 space-y-3 text-xs">
               <Field label="Item" required>
-                <select value={form.item_id} onChange={e => update('item_id', e.target.value)} required className="ix-input w-full">
+                <select value={form.item_id} onChange={e => pickItem(e.target.value)} required className="ix-input w-full">
                   <option value="">— Pick item —</option>
                   {items.map(i => <option key={i.id} value={i.id}>{i.label}</option>)}
                 </select>
+                {(() => {
+                  const it = items.find(i => i.id === form.item_id);
+                  if (it?.pack_volume_value && it.pack_volume_uom) {
+                    return (
+                      <span className="block text-[10px] text-slate-400 mt-1">
+                        Pack contents: {it.pack_volume_value} {it.pack_volume_uom} per pack — consumption UoM defaults to <code>{it.pack_volume_uom}</code> below.
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
