@@ -20,6 +20,30 @@ User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete)
 
 ---
 
+## 🟡 Latest turn — Implementation plan ready: Inventory procurement-first restructure
+
+**Phase:** Plan-phase complete. Workflow phase complete (implementation plan written + self-reviewed). Awaiting user choice of execution approach (subagent-driven vs. inline).
+
+**Plan deliverable:** [docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md](docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md) — 10 bite-sized tasks covering migration 0077 → estimator types → Monthly Need on landing → procurement-first detail rows → auto-issue hybrid grain → cron insert → rule UoM auto-default → item form 4-block layout → final smoke + handoff.
+
+**Tasks at a glance:**
+1. Migration 0077 — adds `consumed_qty/uom` to issue_lines + `est_monthly_bookings` to unit_configs
+2. Extend `EstimatorLine` and `EstimatorOutput` types with monthly_need_packs etc.
+3. `estimator.ts` — `est_monthly_bookings` resolver (manual override → Guesty 90d avg → default 4) + per-line monthly_need_packs + per-config rollup
+4. Matrix landing page — MONTHLY NEED column
+5. Matrix detail page — procurement-first rows + Monthly Need column + summary tile
+6. `issue.ts` `computeAutoIssueLines` — hybrid grain via `unitsConsumedPerTrigger` from existing `volumetric.ts`
+7. Cron route — insert consumed_qty/uom alongside qty
+8. Rule form — auto-default consumes_volume_uom from item; areUomsCompatible validation
+9. Item form — 4-block procurement-first layout (Identification / Procurement / Stock / Classification); Pack Volume → Pack contents UI rename
+10. Final integration smoke + handoff
+
+**Verification model (no test framework wired):** `npm run build` + manual smoke in dev server + Supabase MCP queries for migration + cron output.
+
+**Next:** User picks subagent-driven or inline execution. Coding starts when user picks.
+
+---
+
 ## 🟡 Earlier this session — Brainstorm spec REVISED: Inventory = procurement / Housekeeping = consumption
 
 **Phase:** Plan-phase complete (v2); spec revised after main-state audit. Workflow phase (implementation plan) is next.
