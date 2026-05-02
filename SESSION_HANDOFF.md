@@ -98,19 +98,55 @@ ALTER TABLE boat_rental_reservations
 - Testing: bring in `vitest` for `src/lib/boat-rental/` pure functions only (recurring date math, overpayment, payment-completion). UI = manual QA. 9-item QA checklist defined.
 - Risks documented: payment UNIQUE drop side-effects (audit ALL reads of `boat_rental_payments`), offline `MarkPaidForm` queue refactor, 24h reminder uses CURRENT default skipper (not at-creation-time), external broker name normalization (trim+lowercase for unique key)
 
-**Status: awaiting user "approve" on Section 3** — then proceed to:
-1. Write spec to `docs/superpowers/specs/2026-05-02-boat-owner-features-design.md`
-2. Self-review spec for placeholders/contradictions/scope/ambiguity
-3. User reviews spec file before plan-phase
-4. Invoke `superpowers:writing-plans` skill (the user's "Workflow Phase")
-5. After plan approval → coding (the user's "Coding Phase")
+**Section 3 approved with one adjustment from user:** "drop boat_rental_boats.skipper_name/whatsapp columns in this same release" → added as migration 0072 (LAST step, runs after all UI readers refactored).
 
-Push-back questions sent with Section 3:
-- 24h reminder cron schedule: hourly (default) or every 30 min?
-- Add vitest, or skip tests entirely?
-- Drop `boat_rental_boats.skipper_name/whatsapp` columns in this release, or defer to follow-up?
+**Spec written, self-reviewed, and committed.**
 
-**No code written. No spec file written yet.** Auto mode active.
+- **Path:** `docs/superpowers/specs/2026-05-02-boat-owner-features-design.md` (891 lines, 15 sections)
+- **Commit:** `9642c95` on branch `claude/inspiring-booth-3d348a` (this worktree, not main — auto-deploy doesn't fire until implementation lands)
+- **Self-review fixes applied:**
+  1. Section 5 migration count corrected: was "Six new files" listing 7 → now correctly 6 (0066, 0067, 0068, 0069, 0070, 0072 — gap at 0071 because the reminder partial index was folded into 0067)
+  2. Section 12 done criteria: "All 7 migrations" → "All 6 migrations"
+  3. Section 6.7 "Pay now" semantics clarified: pay-now creates expense + 1 payment for FULL amount on expense_date with picked method; partial payments require leaving Pay-now off then recording via the expense detail page
+- **No placeholders found** (grep TBD/TODO/FIXME/XXX returned zero matches)
+
+**Spec approved by user.** Moved to Workflow Phase via `superpowers:writing-plans` skill.
+
+**Implementation plan written, self-reviewed, and committed.**
+
+- **Path:** `docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md`
+- **Size:** 3,717 lines, 32 tasks across 10 phases
+- **Commit:** `0bd07ee` on branch `claude/inspiring-booth-3d348a`
+- **Format:** TDD steps for pure helpers (vitest), code-first for UI/server actions (matches project convention of manual-QA after deploy). Each task has bite-sized steps with actual TypeScript/SQL — no pseudocode.
+- **Self-review:** all 17 spec sections traced to specific tasks (zero gaps), no placeholders in actionable steps, type names consistent across tasks (`Skipper`, `Balance`, `RecurringFrequency`)
+
+**32 tasks across 10 phases:**
+1. Foundation (Tasks 1–8): vitest setup, recurring.ts + payment-balance.ts helpers with TDD, migrations 0066/0067/0069/0070, payments UNIQUE drop (0068)
+2. Skippers (9–11): resolver helper + 4 server actions + Skippers tab page + AddSkipperModal
+3. Manual reservation (12–14): external broker picker + createManualReservationAction + /reservations/new page + calendar right-click/long-press context menu
+4. Trip payment ledger (15–17): recordTripPaymentAction with overpayment guard + booking detail rebuild + mark-paid-replay refactor (extract recordPaymentCore helper, per-payment idempotency keys)
+5. Expenses (18–23): notification renderers (manual_res / payment_complete / recurring / 24h_ar) + createExpenseAction + recordExpensePaymentAction + cancelExpenseAction + ExpenseForm component + Money Overview (Fleet P&L) + Expenses ledger + Bills (open payables) + sub-nav
+6. Recurring (24–26): template actions + manager UI + daily cron at 06:00 UTC
+7. 24h reminder (27): hourly cron sending Arabic WhatsApp to owner+default skipper, idempotent via reminder_24h_sent_at
+8. Owner Settings (28): page + saveOwnerSettingsAction
+9. Legacy cleanup (29–30): refactor 13 files reading skipper_name/whatsapp → use boat_rental_skippers, then migration 0072 drops the columns
+10. QA + ship (31–32): full 17-item QA checklist + merge to main + apply migrations to prod Supabase + vercel --prod
+
+**Status: awaiting user choice on execution approach:**
+- **Option 1 (RECOMMENDED): Subagent-driven** — fresh subagent per task, review between tasks, no context bloat
+- **Option 2: Inline execution** — same session with batched checkpoints, faster end-to-end but context fills around task 15-20
+
+User's "Coding Phase" begins after this choice is made.
+
+**No code written. No production deploy.** Spec + plan only.
+
+**Resume instructions for new session:**
+1. Read `docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md` for the full task breakdown
+2. Read `docs/superpowers/specs/2026-05-02-boat-owner-features-design.md` for design rationale
+3. Read this SESSION_HANDOFF.md for status
+4. If user picked subagent-driven: invoke `Skill` with `superpowers:subagent-driven-development` and pass plan path
+5. If user picked inline: invoke `Skill` with `superpowers:executing-plans` and pass plan path
+6. Per CLAUDE.md auto-deploy: each task's commit goes to main + triggers vercel --prod (forward-deploys are implicitly authorized; only destructive ops need separate ask)
 
 ---
 
@@ -4801,3 +4837,15 @@ beithady-wa-media   — Phase C.3
 - Or any slice in any order; pieces stack cleanly.
 
 Each completed phase has been pushed to main + auto-deployed to `limeinc.vercel.app`. To pick up in a new session, continue from any phase letter; the migrations + ingest data are already in production Supabase.
+
+---
+
+## Boat Module Owner-role: Task 2 complete (2026-05-02)
+
+**Task 2 — `recurring.ts` helper with TDD** — DONE on branch `claude/inspiring-booth-3d348a`, commit `ece3b23`.
+
+Created:
+- `src/lib/boat-rental/recurring.ts` — `computeNextRunDate(frequency, dayOfPeriod, monthOfYear, fromDateStr)` for monthly/quarterly/yearly recurring expense templates
+- `src/lib/boat-rental/recurring.test.ts` — 7 vitest tests (3 monthly, 2 quarterly, 2 yearly), all passing
+
+Next task: Task 3 of 32.
