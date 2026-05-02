@@ -78,15 +78,26 @@ export async function POST(req: NextRequest) {
     contentType: req.headers.get('content-type'),
   });
 
-  // Always 2xx — even on error. We've logged the error in the events
-  // table; making Guesty retry doesn't help. Caller can replay from the
-  // events table via /api/webhook/guesty/conversation/replay (future).
   if (result.ok) {
     return NextResponse.json(result, { status: 200 });
   }
-  // Internal error — return 200 to prevent retries but include error
-  // for visibility in Guesty's webhook logs.
-  return NextResponse.json(result, { status: 200 });
+  // Audit fix H-B6: distinguish recoverable from non-recoverable errors.
+  // Pre-fix the route returned 200 on EVERY internal error, including
+  // transient Supabase 5xx during ingest — Guesty marked the event
+  // delivered and dropped it from its retry queue, silently losing the
+  // message. Now: parse errors / unknown event shapes / unauthorized-
+  // looking payloads stay 200 (replay won't help). DB errors / network
+  // errors return 5xx so Guesty retries (typical exponential backoff).
+  const errStr = String((result as { error?: string }).error || '').toLowerCase();
+  const recoverable =
+    errStr.includes('database') ||
+    errStr.includes('timeout') ||
+    errStr.includes('connection') ||
+    errStr.includes('network') ||
+    errStr.includes('econnreset') ||
+    errStr.includes('etimedout') ||
+    errStr.includes('5') && errStr.includes('supabase');
+  return NextResponse.json(result, { status: recoverable ? 503 : 200 });
 }
 
 // Healthcheck — Guesty's webhook UI tests with a GET to verify the URL is alive.

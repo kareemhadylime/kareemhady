@@ -278,12 +278,20 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
 
   const newMessageId = (insMsg as { id: string } | null)?.id;
 
-  // Phase E: kick off AI auto-reply asynchronously. We don't await
-  // because Green-API webhooks have a tight timeout — fire-and-forget,
-  // log errors. The classification + decision land back in the
-  // beithady_ai_reply_log table within ~2s.
+  // Phase E: kick off AI auto-reply + reorder parser asynchronously.
+  //
+  // Audit fix H-B7: pre-fix used bare `void (async () => {...})()` which
+  // Vercel kills the moment the response is flushed. Long Claude calls
+  // (~5-10s) silently dropped on production. Now wrapped in
+  // `waitUntil()` so the function continues running after the response
+  // returns. Falls back to bare void on local/non-Vercel environments
+  // where waitUntil isn't available.
   if (newMessageId) {
-    void (async () => {
+    const { waitUntil } = await import('@vercel/functions').catch(() => ({
+      waitUntil: (p: Promise<unknown>) => { void p; },
+    }));
+
+    waitUntil((async () => {
       try {
         const { processInboundForAutoReply } = await import('@/lib/beithady/ai/auto-reply');
         await processInboundForAutoReply(newMessageId);
@@ -291,13 +299,13 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
         // eslint-disable-next-line no-console
         console.warn('[wa-casual-ingest] auto-reply failed:', e);
       }
-    })();
+    })());
 
     // Phase M.13: detect inbound inventory reorder requests from cleaners.
     // Heuristic gate first (no API call) → AI parse if matched → draft Issue
     // tagged created_via='wa_inbound' for manager approval.
     if (typeof body === 'string' && body.length > 0) {
-      void (async () => {
+      waitUntil((async () => {
         try {
           const { looksLikeReorder, parseReorderMessage, createReorderDraftFromWa } =
             await import('@/lib/beithady/inventory/wa-reorder-parser');
@@ -316,7 +324,7 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
           // eslint-disable-next-line no-console
           console.warn('[wa-casual-ingest] inventory reorder parse failed:', e);
         }
-      })();
+      })());
     }
   }
 

@@ -463,6 +463,14 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
     // Beithady-relevant statuses. Full backfill of history is handled by
     // a one-off script (sync-guesty-classify.mjs) — this loop catches
     // daily changes so the aggregators stay fresh.
+    //
+    // Audit fix H-B10: high-water mark — skip conversations whose
+    // posts_synced_at is newer than modified_at_guesty (no Guesty-side
+    // changes since our last sync). Pre-fix the cron re-fetched 50 posts
+    // per conversation regardless of whether Guesty had any new posts,
+    // burning Guesty quota and triggering needless beithady_communication_ingest
+    // RPC calls. Filter is applied in JS post-fetch since supabase-js
+    // can't directly compare two timestamp columns.
     {
       const since = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
       const { data: targets } = await sb
@@ -470,7 +478,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         .select(
           `id, reservation_status, reservation_check_in,
            reservation_check_out, listing_title, listing_nickname,
-           classification_input_hash`
+           classification_input_hash, modified_at_guesty, posts_synced_at`
         )
         .in('reservation_status', [
           'inquiry',
@@ -484,7 +492,7 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
         .limit(500);
 
       const rowsToProcess =
-        (targets as Array<{
+        ((targets as Array<{
           id: string;
           reservation_status: string | null;
           reservation_check_in: string | null;
@@ -492,7 +500,18 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
           listing_title: string | null;
           listing_nickname: string | null;
           classification_input_hash: string | null;
-        }> | null) || [];
+          modified_at_guesty: string | null;
+          posts_synced_at: string | null;
+        }> | null) || [])
+        // Audit fix H-B10: skip if we've already synced posts past
+        // Guesty's most recent change. modified_at_guesty bumps on
+        // ANY conversation update (incl. new post arrival), so
+        // posts_synced_at >= modified_at_guesty means "no new posts
+        // since our last sync".
+        .filter(t => {
+          if (!t.modified_at_guesty || !t.posts_synced_at) return true;
+          return t.posts_synced_at < t.modified_at_guesty;
+        });
 
       // Process sequentially — keeps Anthropic + Guesty call rates low.
       // Daily window is small enough that sequential is fine.
