@@ -1,6 +1,41 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Final audit cleanup (PR19-PR20: H-C7 UI + M-14 wiring)
+## 🟢 Latest turn — Gallery upload fix: bypass Vercel 4.5 MB body cap (commit `439c1d5`, deployed)
+
+**Symptom:** User screenshot showed `Uploading 59 of 78 — 17 errors` at BH-26 General. Files in the 6-15 MB range (typical iPhone HEIC) all failing with red triangles. Even files at 6.6 MB failed.
+
+**Root cause:** Vercel's serverless functions have a hard ~4.5 MB request body limit that overrides Next.js's `serverActions.bodySizeLimit` setting. The Next.js config of `15mb` (bumped from `12mb` earlier this session in commit `467377c`/`0d2c87e`) was a no-op because the platform cap rejected the request first.
+
+**Fix:** switched the gallery uploader to direct-to-Supabase signed-URL uploads — same pattern already used by `src/app/api/boat-rental/admin/boat-image/sign/route.ts` and `src/app/beithady/communication/_components/attachment-menu.tsx`. Bytes now flow `browser → Supabase Storage` directly via `uploadToSignedUrl()`, skipping Vercel entirely.
+
+**Two new server actions in `src/app/beithady/gallery/actions.ts`:**
+- `signGalleryUploadAction({ fileName, mime, building, listingId, category })` — calls `requirePermission('full')`, computes path via `buildAssetPath()`, returns `{ ok, signedUrl, path, bucket, token }`. Tiny request/response — well under any limit.
+- `registerGalleryUploadAction({ path, bucket, fileName, mime, sizeBytes, building, listingId, category })` — does the existing `uploadAssetAction` post-upload work: computes `sort_order = min - 1`, inserts the DB row, queues AI label for photos, audit logs, revalidatePath. On error, best-effort deletes the orphan storage object.
+
+**`src/app/beithady/gallery/_components/gallery-provider.tsx` worker rewritten to:**
+1. `signGalleryUploadAction(metadata)` — get signed URL + path + token
+2. `supabaseBrowser().storage.from(bucket).uploadToSignedUrl(path, token, file, {contentType, upsert: false})` — direct PUT, no Vercel hop
+3. `registerGalleryUploadAction(metadata)` — DB row insert
+
+**`uploadAssetAction` (FormData) is preserved** for back-compat with the broker-payments receipt-upload flow.
+
+**Effective limit now:** matches bucket cap — **50 MB for photos/videos, 100 MB for documents**. UI copy in `uploader.tsx` restored to "50MB max" (was changed to 15MB in the prior commit `467377c`/`0d2c87e` which was based on the wrong root-cause assumption).
+
+**Deploy chain (this session, all to main):**
+- `04ccee7` (15-commit gallery overhaul rebased onto origin/main + handoff)
+- `bff9f3f` (handoff: deploy state)
+- `0d2c87e` (next.config 12mb→15mb — no-op, Vercel cap masked it)
+- `439c1d5` (direct-to-Supabase fix — current HEAD on main)
+
+Memory updated: `feedback_deployment_direct_to_prod.md` now reflects "Vercel's GitHub integration auto-deploys on push to main, no `vercel --prod` step needed."
+
+**Verification step for user:** once deploy goes green, hit "Retry" on the 17 failed rows in the upload tray — they'll re-queue and use the new direct-upload flow.
+
+## 🟢 Earlier this session — BH Gallery UX overhaul (SHIPPED, commits `c13016e..bff9f3f`)
+
+Migration 0066 (sort_order column, 50 rows backfilled), 6 new bulk server actions (reorder/delete/move/tag/ad-eligible/nuke), 7 new components (gallery-provider, upload-tray, selectable-asset-grid, bulk-action-bar, move-to-unit-modal, nuke-album-button + new gallery/layout.tsx), uploader rewritten to delegate to provider. dnd-kit drag + click-to-select-then-move + multi-select bulk + typed-`DELETE` "Wipe album". Spec at `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md`, plan at `docs/superpowers/plans/2026-05-02-bh-gallery-overhaul.md`.
+
+## 🟢 Earlier turn — Final audit cleanup (PR19-PR20: H-C7 UI + M-14 wiring)
 
 User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete) into the thread-pane renderer and M-14 (reply_to_message_id) through the send paths. Final state: **20 PRs for comm + 6 for inventory = 26 PRs total**, **9 comm migrations (0067-0076) + 3 inventory migrations**, prod deploy `dpl_…jdyokafsp…` READY.
 
