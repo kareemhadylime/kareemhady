@@ -1,6 +1,32 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Gallery upload fix: bypass Vercel 4.5 MB body cap (commit `439c1d5`, deployed)
+## 🟢 Latest turn — Gallery thumbnail performance (commit `3db7e16`, deployed)
+
+**Symptom:** "Every Time we load a page with a lot of photos, it keeps loading for ever, even when scrolling down very slow." User wanted thumbnails by default, full-size only on click.
+
+**Root cause:** the grid was serving the full-size original (5-15 MB each) for every tile. At 200 photos that's 1-3 GB of bandwidth. Even with `loading="lazy"`, full-size images would download as the user scrolled.
+
+**Fix:** leverage Supabase Storage's built-in `/render/image/` transform endpoint — pass `?width=N&height=N&resize=cover&quality=N` on signed/public URLs, server re-encodes on the fly. No new storage, no new column, no upload-side change.
+
+**Changes:**
+- `src/lib/beithady/gallery/storage.ts`: added optional `transform?: ImageTransform` parameter to `signedUrlFor()` and `publicUrlFor()`. Threads through to `createSignedUrl(path, ttl, { transform })` and `getPublicUrl(path, { transform })` from `@supabase/supabase-js`.
+- `src/lib/beithady/gallery/gallery-list.ts`: added two transform constants — `THUMBNAIL_TRANSFORM` (400×400 cover, q=70) for grid tiles, `COVER_TRANSFORM` (300×300 cover, q=65) for unit-folder cards on the building landing page. `viewableUrlForAsset()` accepts `options.transform`. `resolveAssetUrls()` (used by `<SelectableAssetGrid>`) now requests the thumbnail transform. `getUnitFoldersForBuilding` and `getCommonAreaSummary` cover URLs use `COVER_TRANSFORM`.
+- For ad-eligible assets, the cached `public_url` (full-size) is **bypassed** when a transform is requested — we re-mint via `getPublicUrl(path, { transform })` to avoid falling back to the full-size cache.
+- `src/app/beithady/gallery/_components/selectable-asset-grid.tsx`: grid `<img>` now has `loading="lazy"` + `decoding="async"` so the browser only fetches a tile when it scrolls into the viewport.
+- Asset detail modal still mints the full-size URL via `signedUrlFor(...)` (no transform) — clicking a tile shows the original.
+- Videos / PDFs / non-images bypass the transform entirely (no-op for them).
+
+**Bandwidth:** typical 200-photo unit grid drops from ~1-3 GB → ~5-10 MB. With lazy-load, only the ~30-50 viewport tiles actually download up-front; scrolling pulls in more progressively.
+
+**User action needed after deploy:** hard-refresh (Ctrl+Shift+R) to bypass any cached full-size images from prior visits.
+
+**Deploy chain (this session, all to main, in order):**
+- `c13016e..bff9f3f` — gallery UX overhaul (sort_order, persistent uploader, multi-select bulk, dnd-kit, nuke-album)
+- `0d2c87e` — bumped Next.js `serverActions.bodySizeLimit` 12mb→15mb (no-op; Vercel platform cap masked it)
+- `439c1d5` — direct-to-Supabase signed-URL upload (bypasses Vercel 4.5 MB body cap; effective ceiling now matches bucket cap, 50 MB media / 100 MB docs)
+- `3db7e16` — thumbnail transforms + native lazy-load (current HEAD on main)
+
+## 🟢 Earlier turn — Gallery upload fix: bypass Vercel 4.5 MB body cap (commit `439c1d5`, deployed)
 
 **Symptom:** User screenshot showed `Uploading 59 of 78 — 17 errors` at BH-26 General. Files in the 6-15 MB range (typical iPhone HEIC) all failing with red triangles. Even files at 6.6 MB failed.
 
