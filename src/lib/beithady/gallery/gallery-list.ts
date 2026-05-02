@@ -65,6 +65,7 @@ export async function listAssets(opts: {
   }
 
   q = q
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
 
