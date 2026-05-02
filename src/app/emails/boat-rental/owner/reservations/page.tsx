@@ -47,7 +47,7 @@ export default async function OwnerReservations() {
               boat:boat_rental_boats ( name ),
               broker:app_users!boat_rental_reservations_broker_id_fkey ( id, username ),
               booking:boat_rental_bookings ( client_name, guest_count, trip_ready_time, destination:boat_rental_destinations ( name ) ),
-              payment:boat_rental_payments ( amount_egp, paid_at )
+              payments:boat_rental_payments ( id, amount_egp, paid_at )
             `
             )
             .in('boat_id', boatIds)
@@ -64,7 +64,7 @@ export default async function OwnerReservations() {
     ['confirmed', 'details_filled'].includes(r.status) && r.booking_date >= today
   ).sort((a, b) => a.booking_date.localeCompare(b.booking_date));
   const awaitingPayment = reservations.filter(r =>
-    ['confirmed', 'details_filled'].includes(r.status) && r.booking_date < today && !r.payment
+    ['confirmed', 'details_filled'].includes(r.status) && r.booking_date < today && (!r.payments || r.payments.length === 0)
   );
   const past = reservations.filter(r =>
     ['paid_to_owner', 'cancelled', 'expired'].includes(r.status)

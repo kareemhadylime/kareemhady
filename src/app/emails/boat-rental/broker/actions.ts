@@ -348,19 +348,16 @@ export async function uploadReceiptAction(formData: FormData): Promise<void> {
   });
   if (up.error) throw new Error(up.error.message);
 
-  await sb.from('boat_rental_payments').upsert(
-    {
-      reservation_id: id,
-      amount_egp: amount,
-      receipt_path: key,
-      paid_at: new Date().toISOString(),
-      recorded_by: me.id,
-      recorded_by_role: 'broker',
-      method: method || null,
-      note,
-    },
-    { onConflict: 'reservation_id' }
-  );
+  await sb.from('boat_rental_payments').insert({
+    reservation_id: id,
+    amount_egp: amount,
+    receipt_path: key,
+    paid_at: new Date().toISOString(),
+    recorded_by: me.id,
+    recorded_by_role: 'broker',
+    method: method || null,
+    note,
+  });
   await sb
     .from('boat_rental_reservations')
     .update({ status: 'paid_to_owner', updated_at: new Date().toISOString() })

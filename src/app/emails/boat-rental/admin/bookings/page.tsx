@@ -35,7 +35,7 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
       boat:boat_rental_boats ( id, name, owner:boat_rental_owners ( name ) ),
       broker:app_users!boat_rental_reservations_broker_id_fkey ( id, username ),
       booking:boat_rental_bookings ( client_name, guest_count, destination:boat_rental_destinations ( name ) ),
-      payment:boat_rental_payments ( amount_egp, paid_at, recorded_by_role )
+      payments:boat_rental_payments ( id, amount_egp, paid_at, recorded_by_role )
     `
     )
     .order('booking_date', { ascending })

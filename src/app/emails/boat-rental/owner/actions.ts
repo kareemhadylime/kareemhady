@@ -77,19 +77,16 @@ export async function markPaidManuallyAction(formData: FormData): Promise<void> 
   if (!['confirmed', 'details_filled'].includes(r.status)) throw new Error('bad_status');
 
   const sb = supabaseAdmin();
-  await sb.from('boat_rental_payments').upsert(
-    {
-      reservation_id: id,
-      amount_egp: amount,
-      receipt_path: null,
-      paid_at: new Date().toISOString(),
-      recorded_by: me.id,
-      recorded_by_role: 'owner',
-      method: method || 'manual_override',
-      note,
-    },
-    { onConflict: 'reservation_id' }
-  );
+  await sb.from('boat_rental_payments').insert({
+    reservation_id: id,
+    amount_egp: amount,
+    receipt_path: null,
+    paid_at: new Date().toISOString(),
+    recorded_by: me.id,
+    recorded_by_role: 'owner',
+    method: method || 'manual_override',
+    note,
+  });
   await sb
     .from('boat_rental_reservations')
     .update({ status: 'paid_to_owner', updated_at: new Date().toISOString() })

@@ -23,7 +23,7 @@ export type Balance = {
  */
 export function computeBalance(total: Numeric, paymentAmounts: Numeric[]): Balance {
   const totalNum = toNum(total, 'total');
-  const paid = paymentAmounts.reduce(
+  const paid = paymentAmounts.reduce<number>(
     (sum, a, i) => sum + toNum(a, `paymentAmounts[${i}]`),
     0
   );
@@ -52,7 +52,7 @@ export function validatePaymentAmount(
     return { ok: false, error: 'Amount must be greater than zero' };
   }
   const totalNum = toNum(total, 'total');
-  const paid = existingPaymentAmounts.reduce(
+  const paid = existingPaymentAmounts.reduce<number>(
     (sum, a, i) => sum + toNum(a, `existingPaymentAmounts[${i}]`),
     0
   );

@@ -8,9 +8,9 @@ import { cairoTodayStr } from '@/lib/boat-rental/pricing';
 // to paid_to_owner — same end state as a broker-uploaded receipt, just
 // recorded by the system on behalf of the skipper/owner.
 //
-// Runs once daily after Cairo midnight. Idempotent: the unique
-// boat_rental_payments.reservation_id index prevents double-inserts, and
-// we re-check the status on each row before updating.
+// Runs once daily after Cairo midnight. Idempotent: we pre-check existing
+// payments for the reservation_id set and skip any already processed,
+// then re-check the status on each row before updating.
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;

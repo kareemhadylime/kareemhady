@@ -30,7 +30,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
       boat:boat_rental_boats ( name, owner_id, skipper_name ),
       broker:app_users!boat_rental_reservations_broker_id_fkey ( id, username ),
       booking:boat_rental_bookings ( client_name, client_phone, guest_count, trip_ready_time, extra_notes, destination:boat_rental_destinations ( name ) ),
-      payment:boat_rental_payments ( amount_egp, paid_at, receipt_path, method, note, recorded_by_role )
+      payments:boat_rental_payments ( id, amount_egp, paid_at, receipt_path, method, note, recorded_by_role )
     `
     )
     .eq('id', id)
@@ -39,7 +39,18 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
   if (!r) notFound();
   if (!ownerIds.includes(r.boat.owner_id)) notFound();
 
-  const receiptUrl = r.payment?.receipt_path ? await signedImageUrl(r.payment.receipt_path) : null;
+  const payments = (r.payments ?? []) as Array<{
+    id: string;
+    amount_egp: string | number;
+    paid_at: string;
+    receipt_path: string | null;
+    method: string | null;
+    note: string | null;
+    recorded_by_role: string | null;
+  }>;
+  const latestPayment = payments.length > 0 ? payments[payments.length - 1] : null;
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount_egp), 0);
+  const receiptUrl = latestPayment?.receipt_path ? await signedImageUrl(latestPayment.receipt_path) : null;
   const canCancel = ['held', 'confirmed'].includes(r.status) && isWithinCancellationWindow(r.booking_date);
   const canMarkPaid = ['confirmed', 'details_filled'].includes(r.status);
 
@@ -115,14 +126,23 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
           </div>
         )}
 
-        {r.payment && (
+        {payments.length > 0 && (
           <div className="mt-6">
-            <h2 className="font-semibold mb-2">Payment</h2>
-            <div className="text-sm text-slate-700">
-              EGP {Number(r.payment.amount_egp).toLocaleString()} on{' '}
-              {new Date(r.payment.paid_at).toLocaleString()} · {r.payment.method || '—'} · recorded by {r.payment.recorded_by_role}
+            <h2 className="font-semibold mb-2">Payment{payments.length > 1 ? `s (${payments.length})` : ''}</h2>
+            {payments.length > 1 && (
+              <div className="text-sm font-semibold text-slate-700 mb-2">
+                Total paid: EGP {totalPaid.toLocaleString()}
+              </div>
+            )}
+            <div className="space-y-2">
+              {payments.map((p) => (
+                <div key={p.id} className="text-sm text-slate-700">
+                  EGP {Number(p.amount_egp).toLocaleString()} on{' '}
+                  {new Date(p.paid_at).toLocaleString()} · {p.method || '—'} · recorded by {p.recorded_by_role}
+                  {p.note && <div className="text-xs text-slate-500 mt-0.5">Note: {p.note}</div>}
+                </div>
+              ))}
             </div>
-            {r.payment.note && <div className="text-xs text-slate-500 mt-1">Note: {r.payment.note}</div>}
             {receiptUrl && (
               <a href={receiptUrl} target="_blank" rel="noreferrer" className="text-xs text-cyan-700 hover:underline mt-2 inline-block">
                 View receipt →

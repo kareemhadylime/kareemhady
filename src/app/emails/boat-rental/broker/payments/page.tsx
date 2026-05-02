@@ -16,7 +16,7 @@ type Row = {
   price_egp_snapshot: string | number;
   boat: { name: string; owner: { name: string } | null } | null;
   booking: { client_name: string; skipper_collects_cash: boolean | null } | null;
-  payment: { amount_egp: string | number; paid_at: string; receipt_path: string | null } | null;
+  payments: Array<{ id: string; amount_egp: string | number; paid_at: string; receipt_path: string | null }>;
 };
 
 type SearchParams = Promise<{ id?: string }>;
@@ -43,7 +43,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
       id, booking_date, status, price_egp_snapshot,
       boat:boat_rental_boats ( name, owner:boat_rental_owners ( name ) ),
       booking:boat_rental_bookings ( client_name, skipper_collects_cash ),
-      payment:boat_rental_payments ( amount_egp, paid_at, receipt_path )
+      payments:boat_rental_payments ( id, amount_egp, paid_at, receipt_path )
     `
     )
     .eq('broker_id', me!.id)
@@ -51,7 +51,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
     .order('booking_date', { ascending: true });
   const pendingRaw = ((pendingRes.data as unknown) as Row[] | null) || [];
   // Filter out any that already have a payment (paid_to_owner status).
-  const pending = pendingRaw.filter(r => !r.payment);
+  const pending = pendingRaw.filter(r => !r.payments || r.payments.length === 0);
 
   const doneRes = await sb
     .from('boat_rental_reservations')
@@ -60,7 +60,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
       id, booking_date, status, price_egp_snapshot,
       boat:boat_rental_boats ( name, owner:boat_rental_owners ( name ) ),
       booking:boat_rental_bookings ( client_name, skipper_collects_cash ),
-      payment:boat_rental_payments ( amount_egp, paid_at, receipt_path )
+      payments:boat_rental_payments ( id, amount_egp, paid_at, receipt_path )
     `
     )
     .eq('broker_id', me!.id)
@@ -68,7 +68,7 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
     .order('booking_date', { ascending: false })
     .limit(20);
   const done = ((doneRes.data as unknown) as Row[] | null) || [];
-  const doneReceiptUrls = await signedImageUrls(done.map(r => r.payment?.receipt_path || null));
+  const doneReceiptUrls = await signedImageUrls(done.map(r => (r.payments && r.payments.length > 0 ? r.payments[r.payments.length - 1].receipt_path : null)));
 
   // If a specific id is in the URL, render Step 2 — but never for a
   // skipper-cash trip; the broker has nothing to upload there.
@@ -216,12 +216,16 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
                     <div>
                       <span className="font-medium">{r.boat?.name || '(boat)'}</span>
                       <span className="text-slate-500 dark:text-slate-400"> · {r.booking_date}</span>
-                      {r.payment && (
+                      {r.payments && r.payments.length > 0 && (() => {
+                      const totalPaid = r.payments.reduce((s, p) => s + Number(p.amount_egp), 0);
+                      const latestPmt = r.payments[r.payments.length - 1];
+                      return (
                         <span className="text-slate-500 dark:text-slate-400 ml-2">
-                          · EGP {Number(r.payment.amount_egp).toLocaleString()} paid{' '}
-                          {new Date(r.payment.paid_at).toLocaleDateString()}
+                          · EGP {totalPaid.toLocaleString()} paid{' '}
+                          {new Date(latestPmt.paid_at).toLocaleDateString()}
                         </span>
-                      )}
+                      );
+                    })()}
                     </div>
                     {doneReceiptUrls[i] && (
                       <a
