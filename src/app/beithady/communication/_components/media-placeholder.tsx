@@ -167,10 +167,33 @@ export function MediaPlaceholder({
           <div className="whitespace-pre-wrap text-sm">{data.body}</div>
         )}
         {!data.body && data.bodyHtml && (
-          <div
-            className="text-sm prose-sm dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: data.bodyHtml }}
-          />
+          // Audit fix C-C1: was rendering Guesty `bodyHtml` directly via
+          // dangerouslySetInnerHTML — stored XSS surface. A guest sending
+          // HTML with `<img src=x onerror=...>` to the Airbnb / Booking
+          // inbox would execute script in the operator's authenticated
+          // browser session. Currently 0 rows have body_html set so this
+          // is a dormant bug, but the rendering path is exposed.
+          //
+          // Renders as plaintext: strip tags, decode common entities,
+          // collapse whitespace. Operators can still click "View
+          // original in Guesty" to see the full rendered HTML in
+          // Guesty's own sandboxed UI.
+          <div className="whitespace-pre-wrap text-sm font-mono text-[12px]">
+            {data.bodyHtml
+              .replace(/<style[\s\S]*?<\/style>/gi, '')
+              .replace(/<script[\s\S]*?<\/script>/gi, '')
+              .replace(/<br\s*\/?\s*>/gi, '\n')
+              .replace(/<\/p>/gi, '\n\n')
+              .replace(/<[^>]+>/g, '')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/\n{3,}/g, '\n\n')
+              .trim()}
+          </div>
         )}
       </div>
     );

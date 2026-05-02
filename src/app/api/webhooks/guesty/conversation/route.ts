@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { processGuestyWebhook } from '@/lib/guesty-webhook';
 import { supabaseAdmin } from '@/lib/supabase';
 
@@ -22,11 +23,23 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 function checkAuth(req: NextRequest): boolean {
+  // Audit fix C-C2: was plain `!==` string comparison, leaking timing
+  // information per byte. Now uses crypto.timingSafeEqual on equal-
+  // length buffers. Note: the secret still lives in the URL query
+  // string (Guesty doesn't yet support header auth) — that exposure is
+  // tracked separately and ideally migrated to header HMAC.
   const expected = process.env.GUESTY_WEBHOOK_SECRET || '';
   if (!expected) return false;
   const got = req.nextUrl.searchParams.get('secret') || '';
-  if (got !== expected) return false;
-  return true;
+  if (!got) return false;
+  const a = Buffer.from(got);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
