@@ -47,11 +47,11 @@ User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete)
 - Important: 2 (#1 Q3 fallback to 'pcs' — FIXED inline in c5aae73; #2 process risk on intermediate broken commit — already shipped, just a future-process note)
 - Minor: 7 — #6 IssueLine type extended (FIXED in c5aae73); #7 boilerplate text (FIXED in c5aae73); rest deferred
 
-**Deferred follow-ups (out of scope for this branch):**
-- F3: ✅ done (#6 above)
-- F4: widen status filter in `resolveMonthlyBookings` (estimator.ts) to include `checked_in` — confirm with product first
-- F5: add `revalidateTag('inventory-estimator-monthly-bookings')` to `src/lib/run-guesty-sync.ts` after reservation upsert batch
-- F6: future-proof rounding in `issue.ts:249` for very-small fractional packs (e.g., switch from 2-decimal to 4-decimal for `qty` field)
+**Deferred follow-ups — ALL NOW SHIPPED in `9e81e69`:**
+- F3: ✅ done in c5aae73 (IssueLine type extended)
+- F4: ✅ done in 9e81e69 — widened status filter to `['confirmed', 'checked_in', 'checked_out']`
+- F5: ✅ done in 9e81e69 — `revalidateTag('inventory-estimator-monthly-bookings', 'max')` after reservation-upsert batch in `run-guesty-sync.ts`. Note: Next 16 deprecated single-arg `revalidateTag(tag)`; second-arg `profile` is now required. Used `'max'` (stale-while-revalidate). Wrapped in try/catch because revalidateTag throws outside App Router context.
+- F6: ✅ done in 9e81e69 — `qty` field now uses 4-decimal precision (`Math.ceil(qtyPacks * 10000) / 10000`); `consumed_qty` stays 2-decimal since it's human-readable.
 
 **Next user input expected:**
 - "3" → keep branch + worktree as-is (good if planning to address F4/F5/F6 next)
