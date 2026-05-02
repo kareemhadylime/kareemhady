@@ -1,6 +1,120 @@
-# Kareemhady — Session Handoff (2026-05-01)
+# Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Video attachments end-to-end (migration 0065)
+## 🟢 Latest turn — Boat Module Owner-role expansion (BRAINSTORMING — Q6 of 7 in flight)
+
+User wants to add Owner-role features to `/emails/boat-rental/owner/*`:
+1. **Add Skipper To Boat** — Name, Mobile (today: single skipper as columns on `boat_rental_boats`)
+2. **Manual Reservation screen** — Date / Trip Price / Broker-or-Direct / Special Requests (today: broker-only via 2h hold flow)
+3. **Reservation blocks calendar** — already shipped via `boat_rental_owner_blocks` (migration 0018)
+4. **Record Payment per Trip** — Date / How Received / Amount; running balance vs trip price (today: `boat_rental_payments` has UNIQUE(reservation_id) → only ONE payment per trip)
+5. **Record Expenses** — NEW domain. Two buckets (trip-related + general)
+
+Workflow user requested: **Plan (95% confidence) → Workflow (95% confidence) → Coding** — matches superpowers brainstorming → writing-plans → executing-plans.
+
+**Decisions locked from Q1–Q5:**
+
+| Q | Decision | Implication |
+|---|----------|-------------|
+| Q1 Skipper model | **A — multi-skipper roster per boat** | New `boat_rental_skippers` table (one default + N part-timers). Migrate existing `skipper_name/whatsapp` columns into the new table as the default skipper for each existing boat. |
+| Q2 Lifecycle | **A — skip the hold, start as `confirmed`** | Manual reservations created by owner go straight to `confirmed`. Trip details fillable later (same as broker UX). |
+| Q2 Source | **Z — broker dropdown + inline "+ add new broker"** | New `boat_rental_external_brokers` directory keyed to owner. Reservations get `source` enum (`registered_broker` / `external_broker` / `client_direct`), `broker_id` becomes nullable, new `external_broker_id` nullable FK. |
+| Q3 Auto-close | **A — auto-flip to `paid_to_owner` on `sum(payments) >= trip_price`** | Drop UNIQUE(reservation_id) on `boat_rental_payments` → becomes a true ledger. Auto-close fires WhatsApp like manual mark-paid does today. |
+| Q3 Overpayment | **i — block** | Reject any payment that would exceed trip_price. Server-side validation. |
+| Q4 Receipts | **A1 — optional photo per expense** | Reuse `boat-rental` Storage bucket pattern. New path: `expense-receipts/{expense_id}/{uuid}.{ext}`. |
+| Q4 Recurring | **B2 — recurring template + cron auto-generate** | New `boat_rental_recurring_expense_templates` table + new cron at `/api/cron/boat-rental/generate-recurring-expenses` (daily, creates expense rows from due templates). |
+| Q4+Q5 Payable model | **C — every expense form has Pay-now / Pay-later toggle** | Universal payment ledger: `boat_rental_expense_payments` table (no UNIQUE constraint, mirrors trip-payment ledger). "Pay now" creates expense + 1 payment in same tx. "Pay later" leaves expense status=`open`. |
+| Q4 Fuel tips | **Yes — separate `fuel_tips_egp` column** | Total = (liters × price_per_liter) + tips. P&L shows "Fuel EGP 4,200 (incl. EGP 200 tips)". |
+| Categories (assumption) | Include all 10: Amenities, Part-time Skipper Fees, Marina Docking, Fuel, Repair, **Insurance, Boat License, Full-time Skipper Salary, Maintenance Contract**, Other | Comprehensive enum from day one; hide unused in UI later. Zero risk to add now. |
+
+**Schema sketch (final, pending Q6/Q7 confirmation):**
+```sql
+-- New tables
+boat_rental_skippers (id, boat_id, name, whatsapp, is_default, active, created_at)
+boat_rental_external_brokers (id, owner_id, name, phone, created_at)
+boat_rental_expenses (id, boat_id, owner_id, reservation_id?, category, expense_date, amount_egp, description?, fuel_liters?, fuel_price_per_liter?, fuel_tips_egp?, skipper_id?, recurring_template_id?, receipt_path?, status, created_at, updated_at)
+boat_rental_expense_payments (id, expense_id, amount_egp, paid_date, method, note, recorded_by, created_at)  -- NO unique
+boat_rental_recurring_expense_templates (id, boat_id, category, amount_egp, frequency, day_of_period, vendor_name, active, next_run_date, created_at, updated_at)
+
+-- Schema migrations
+ALTER TABLE boat_rental_payments DROP CONSTRAINT boat_rental_payments_reservation_id_key;  -- drop UNIQUE
+ALTER TABLE boat_rental_reservations
+  ALTER COLUMN broker_id DROP NOT NULL,
+  ADD COLUMN source text NOT NULL DEFAULT 'registered_broker' CHECK (source IN ('registered_broker','external_broker','client_direct')),
+  ADD COLUMN external_broker_id uuid REFERENCES boat_rental_external_brokers(id);
+-- After data migration, drop skipper_name/whatsapp from boats and use boat_rental_skippers exclusively
+```
+
+**Q6 decisions:**
+- **A3** — 6 owner tabs total: My Boats, Boat Catalogue, Calendar, Reservations, **Skippers**, **Money** (Money tab houses Expenses + Bills + P&L)
+- **B3** — Fleet P&L with per-boat drill-down lives at top of Money tab
+- **C1** — Admin sees everything (no separate gates on new tables)
+- **D3** — Both: tap empty future day on calendar → modal gets a "Reserve this day" option, AND a dedicated `/owner/reservations/new` page reachable from Reservations tab
+
+**Q7 decisions:** Default WhatsApp notification set ✅:
+- Manual reservation created → notify assigned skipper
+- Trip auto-flips to `paid_to_owner` → owner + registered broker (if any) get confirmation
+- Recurring expense template auto-generates a bill → owner gets "Marina docking EGP 5,000 generated for May, payment due"
+- **NEW (added by user):** 24h pre-trip reminder in **Arabic** to Owner + Default Skipper with full reservation details (date, ready time, destination, client, special requests). Adds `reminder_24h_sent_at` column on reservations + new hourly cron at `/api/cron/boat-rental/trip-reminders-24h` (idempotent, fires for trips exactly T-24h out).
+
+**Final scope (all 7 questions answered):**
+- 5 features + 1 cron-based reminder
+- 4 new tables: `boat_rental_skippers`, `boat_rental_external_brokers`, `boat_rental_expenses`, `boat_rental_expense_payments`, `boat_rental_recurring_expense_templates`
+- 2 schema modifications: drop UNIQUE on `boat_rental_payments`, add nullable `broker_id` + `external_broker_id` + `source` enum on `boat_rental_reservations`, add `reminder_24h_sent_at` to reservations
+- 2 new owner tabs (Skippers, Money) — `OWNER_TABS` grows from 4 to 6
+- 2 new crons: `generate-recurring-expenses` (daily) + `trip-reminders-24h` (hourly)
+- 10 expense categories: Amenities, Part-time Skipper Fees, Marina Docking, Fuel, Repair, Insurance, Boat License, Full-time Skipper Salary, Maintenance Contract, Other
+
+**Rollout approach picked: Option 2 — Single-shot release.** One feature branch (`claude/inspiring-booth-3d348a` worktree, already in it), all features in one mega-migration set + one big deploy at the end.
+
+**Design sections all presented and approved (3 of 3):**
+
+**Section 1 — Data Model & Migrations** ✅ approved
+- Migration files 0066–0071 (6 ordered files)
+- 5 new tables: `boat_rental_skippers`, `boat_rental_external_brokers`, `boat_rental_expenses`, `boat_rental_expense_payments`, `boat_rental_recurring_expense_templates`, `boat_rental_owner_settings`
+- ALTERs: drop UNIQUE on `boat_rental_payments`, add `source` enum + nullable `broker_id` + `external_broker_id` + `created_by_role` + `reminder_24h_sent_at` to reservations, plus reservation_source_consistency CHECK constraint
+- Backfill existing `boats.skipper_name/whatsapp` → `boat_rental_skippers` (is_default=true). Legacy columns NOT dropped in this release.
+- Storage path: `expense-receipts/{expense_id}/{uuid}.{ext}` in existing `boat-rental` bucket
+- New audit_log actions: `manual_reservation_create`, `expense_create`, `expense_payment`, `expense_cancel`, `recurring_expense_generate`, `trip_reminder_24h_sent`
+
+**Section 2 — UI / Tabs / Flows** ✅ approved with adjustments:
+- `OWNER_TABS` 4 → 6: My Boats, Boat Catalogue, Calendar, Reservations, **Skippers**, **Money**
+- **Calendar interaction (user adjustment):** desktop right-click → context dropdown (Block date / Reserve trip); mobile long-press → action sheet
+- **Money tab (user adjustment):** SEPARATE ROUTES — `/owner/money` (overview/Fleet P&L), `/owner/money/expenses`, `/owner/money/bills`, `/owner/money/recurring` — sub-nav links between them
+- Manual reservation: 2 entry points (calendar context-menu + dedicated `/owner/reservations/new`), shared server action `createManualReservationAction`. Status starts as `confirmed`, `created_by_role='owner'`
+- External broker inline-add: dropdown's last option is "+ Add new broker…" → swaps to inline name+phone form, INSERTs and re-renders
+- Booking detail rebuilt: payment ledger with running balance, "[+ Record payment]" inline form, server-validates overpayment, auto-flip on `sum >= price`. Existing offline `MarkPaidForm` refactored for partial payments (idempotency key per payment, not per reservation)
+- Money sub-pages detailed: Fleet P&L table with bar charts by category, Expenses ledger with filters, Bills (open payables) with [Pay now], Recurring templates manager
+- Universal expense create form with per-category field rendering (fuel = liters×price+tips computed; part-time skipper = skipper picker; etc.) + Pay-now/Pay-later toggle (Q5 C)
+- Owner Settings page at `/owner/settings`: default fuel price/liter, preferred Marina vendor, notification language, WhatsApp number — backed by `boat_rental_owner_settings` table (1 row per owner, JSONB column for forward-compat)
+- Calendar manual-reservation color = `confirmed` blue (no new color)
+
+**Section 3 — Crons / Notifications / Migrations / Testing** ✅ approved (just sent to user, awaiting "approve" reply):
+- 2 new crons in vercel.json:
+  - `/api/cron/boat-rental/generate-recurring-expenses` daily 06:00 UTC — picks templates where `next_run_date <= today`, INSERTs expense (status=open), advances `next_run_date`, enqueues notification. Idempotent via `(boat_id, template_id, expense_date)` lookup.
+  - `/api/cron/boat-rental/trip-reminders-24h` hourly — picks reservations where `booking_date = (cairoToday + 1) AND reminder_24h_sent_at IS NULL AND status IN ('confirmed','details_filled')`, enqueues AR WhatsApp to owner+default_skipper, sets `reminder_24h_sent_at`
+- 4 new notification template_keys: `manual_reservation_created` (EN to skipper), `trip_payment_complete` (EN to owner+broker), `recurring_expense_generated` (EN to owner), `trip_reminder_24h` (**AR** to owner+default skipper)
+- All notifications use existing `boat_rental_notifications` table + `enqueueNotification()` helper + Green-API outbox flusher — NO new outbox infra
+- Migration order: 0066→0071, additive-only, rollback DOWN SQL kept as comment block at top of each file. Pre-deploy: run on Supabase branch first via `mcp__supabase__create_branch`
+- Testing: bring in `vitest` for `src/lib/boat-rental/` pure functions only (recurring date math, overpayment, payment-completion). UI = manual QA. 9-item QA checklist defined.
+- Risks documented: payment UNIQUE drop side-effects (audit ALL reads of `boat_rental_payments`), offline `MarkPaidForm` queue refactor, 24h reminder uses CURRENT default skipper (not at-creation-time), external broker name normalization (trim+lowercase for unique key)
+
+**Status: awaiting user "approve" on Section 3** — then proceed to:
+1. Write spec to `docs/superpowers/specs/2026-05-02-boat-owner-features-design.md`
+2. Self-review spec for placeholders/contradictions/scope/ambiguity
+3. User reviews spec file before plan-phase
+4. Invoke `superpowers:writing-plans` skill (the user's "Workflow Phase")
+5. After plan approval → coding (the user's "Coding Phase")
+
+Push-back questions sent with Section 3:
+- 24h reminder cron schedule: hourly (default) or every 30 min?
+- Add vitest, or skip tests entirely?
+- Drop `boat_rental_boats.skipper_name/whatsapp` columns in this release, or defer to follow-up?
+
+**No code written. No spec file written yet.** Auto mode active.
+
+---
+
+## 🟡 Previous turn — Video attachments end-to-end (migration 0065)
 
 User: "want to make sure we can attach videos to messages and sent to guests by all platforms as url like pictures".
 
