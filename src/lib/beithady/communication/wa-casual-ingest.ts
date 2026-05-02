@@ -317,6 +317,22 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
       }
     })());
 
+    // Audit fix H-E11: WA media URLs from Green-API CDN expire (~7d).
+    // Mirror them into our durable beithady-wa-media bucket so older
+    // messages keep rendering. Background task — webhook returns
+    // immediately. Updates the message row's `attachments[i].downloadUrl`
+    // in place once the mirror completes.
+    if (attachments.length > 0) {
+      waitUntil((async () => {
+        try {
+          await mirrorWaAttachmentsToStorage(newMessageId, attachments);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[wa-casual-ingest] media mirror failed:', e);
+        }
+      })());
+    }
+
     // Phase M.13: detect inbound inventory reorder requests from cleaners.
     // Heuristic gate first (no API call) → AI parse if matched → draft Issue
     // tagged created_via='wa_inbound' for manager approval.
@@ -349,6 +365,67 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
     message_id: newMessageId,
     conversation_id: conversationId,
   };
+}
+
+// Audit fix H-E11: download Green-API CDN media into our durable
+// beithady-wa-media Supabase bucket and rewrite the message's
+// attachments[i].downloadUrl to the long-lived public URL. Green-API
+// signed URLs expire after ~7 days; without mirroring, older
+// messages render broken images / 404 audio.
+async function mirrorWaAttachmentsToStorage(
+  messageId: string,
+  attachments: Array<Record<string, unknown>>,
+): Promise<void> {
+  const sb = supabaseAdmin();
+  const SUPABASE_HOST_HINT = '/storage/v1/object/public/';
+  const next: Array<Record<string, unknown>> = [];
+  let mutated = false;
+  for (const a of attachments) {
+    const url = typeof a.downloadUrl === 'string' ? a.downloadUrl : '';
+    if (!url || url.includes(SUPABASE_HOST_HINT)) {
+      // No URL or already on Supabase — pass through.
+      next.push(a);
+      continue;
+    }
+    try {
+      const res = await fetch(url, { redirect: 'follow' });
+      if (!res.ok) { next.push(a); continue; }
+      const contentType =
+        (typeof a.mimeType === 'string' && a.mimeType) ||
+        res.headers.get('content-type') ||
+        'application/octet-stream';
+      const ext =
+        contentType.startsWith('image/jpeg') ? 'jpg' :
+        contentType.startsWith('image/png') ? 'png' :
+        contentType.startsWith('image/webp') ? 'webp' :
+        contentType.startsWith('video/mp4') ? 'mp4' :
+        contentType.startsWith('video/') ? 'webm' :
+        contentType.startsWith('audio/ogg') ? 'ogg' :
+        contentType.startsWith('audio/mpeg') ? 'mp3' :
+        contentType.startsWith('audio/') ? 'm4a' :
+        contentType === 'application/pdf' ? 'pdf' :
+        'bin';
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const id = Math.random().toString(36).slice(2, 10);
+      const path = `wa-casual/inbound/${ts}-${id}.${ext}`;
+      const buf = Buffer.from(await res.arrayBuffer());
+      const { error: upErr } = await sb.storage
+        .from('beithady-wa-media')
+        .upload(path, buf, { contentType, upsert: false });
+      if (upErr) { next.push(a); continue; }
+      const { data: pub } = sb.storage.from('beithady-wa-media').getPublicUrl(path);
+      next.push({ ...a, downloadUrl: pub.publicUrl, originalDownloadUrl: url });
+      mutated = true;
+    } catch {
+      next.push(a);
+    }
+  }
+  if (mutated) {
+    await sb
+      .from('beithady_messages')
+      .update({ attachments: next })
+      .eq('id', messageId);
+  }
 }
 
 async function ingestOutgoingStatus(payload: AnyJson): Promise<IngestResult> {

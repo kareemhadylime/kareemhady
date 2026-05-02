@@ -167,6 +167,20 @@ export async function sendWaCasualVoiceAction(formData: FormData): Promise<void>
   revalidatePath('/beithady/communication/unified');
 
   if (!result.ok) {
+    // Audit fix H-E9: clean up the just-uploaded blob if the send
+    // failed. Pre-fix, an aborted send (kill switch flipped, Green-API
+    // down, network blip) left the audio/file in beithady-wa-media
+    // forever with no message row referencing it. Cleanup is best-
+    // effort; we still surface the original error.
+    if (uploaded.path) {
+      try {
+        const sb = supabaseAdmin();
+        await sb.storage.from('beithady-wa-media').remove([uploaded.path]);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[sendWaCasualVoiceAction] orphan blob cleanup failed:', e);
+      }
+    }
     const params = new URLSearchParams();
     params.set('c', conversationId);
     params.set('send_error', result.error.slice(0, 200));

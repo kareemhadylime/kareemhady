@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, ExternalLink, AlertTriangle, Sparkles, AtSign, MessageCircle, Phone, AlertCircle, Home, BookOpen } from 'lucide-react';
 import { sendGuestyMessageAction } from '../actions';
 import { TemplatePicker } from './template-picker';
@@ -68,7 +68,31 @@ export function GuestyComposer({
   // SMS module hint is irrelevant on Airbnb / Booking / WhatsApp threads —
   // those don't have an SMS sub-channel inside Guesty.
   const showSmsChip = !isAirbnbThread && !isBookingThread;
-  const [body, setBody] = useState('');
+  // Audit fix H-E10: composer draft persistence. Hydrate from
+  // localStorage on mount keyed by conversation id, save on every
+  // change (debounced via React's batched updates), clear on
+  // successful send (initialSent flips). Operator who accidentally
+  // navigates / refreshes / Cmd+Rs no longer loses their draft.
+  const draftKey = `bh-comm-draft:${conversationId}`;
+  const [body, setBody] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return window.localStorage.getItem(draftKey) || '';
+    } catch { return ''; }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (body) window.localStorage.setItem(draftKey, body);
+      else window.localStorage.removeItem(draftKey);
+    } catch { /* quota / private mode — silently ignore */ }
+  }, [body, draftKey]);
+  useEffect(() => {
+    if (initialSent && typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+      setBody('');
+    }
+  }, [initialSent, draftKey]);
   const [moduleHint, setModuleHint] = useState<ChannelHint>(defaultModule || sourceDefault);
   const [submitting, setSubmitting] = useState(false);
   const [unresolvedVars, setUnresolvedVars] = useState<string[]>([]);
