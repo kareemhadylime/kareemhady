@@ -1,6 +1,38 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Comm audit deferred-list cleanup (PR16-18, 4 deferrals reduced)
+## 🟡 Latest turn — Brainstorm spec: Inventory = procurement / Housekeeping = consumption
+
+**Phase:** Plan-phase complete; spec written and shipped. Workflow phase (implementation plan) is next.
+
+**Branch worked from:** `claude/eager-johnson-cce95a` (worktree, was behind main; reset to `origin/main` and replayed spec on top before push).
+
+**User ask (verbatim):** "The Pricing And Details inside Inventory Modules-Items should reflect The Item as the Procurement team will use to Buy the Product as Packaged and as sold ...Dividing to sub component and partial use will be reflected in The Housekeeping Matrix , But in Inventory it should be as will purchased."
+
+**Locked-in design (5 Q&A + approach):**
+- Q1 → A: `pack_size` (count) on item as procurement metadata only; volumetric math moves to rules
+- Q2 → A: pack contents (e.g., 4 L) lives on item, labeled as procurement spec
+- Q3 → A: rule auto-picks UoM from item (defaults `'piece'` for pure-count, item's `pack_contents_uom` for volumetric); operator can override; UoM compatibility validated at save
+- Q4 → A + bonus: matrix display is procurement-first, plus a Monthly Procurement Need column
+- Q5 → C: hybrid — stock stays in packs, issue lines record both `consumed_qty/uom` (audit grain) AND `qty` (packs deducted)
+- Approach 1: greenfield single-PR rebuild; discard volumetric branches `claude/festive-lamport-b23de0` and `claude/sweet-lovelace-fa4cf6`; cherry-pick only the `volumetric.ts` math library
+
+**Spec deliverable:** [docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md](docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md) — 9 sections covering data model, item form layout, matrix UI, stock posting math, Amazon sourcer extension, GRN restate workflow, migration plan, files-touched preview (~14 files + 1 migration), out-of-scope.
+
+**Spec self-review fixes applied inline before commit:**
+1. §5.1: `amazon_eg_pack_size` "Dropped column" → "Repurposed column" (kept as shadow column for the mismatch banner)
+2. §11.2: removed phantom migration 0067 (the drop) — the column stays
+3. §11.2 backward-compat: clarified the estimator math is identical for pure-count items, but volumetric items need a manual operator transition (fill `pack_contents` on the item + rewrite rules to volumetric grain). Added a 4-step migration runbook.
+
+**Status:** Spec approved by user ("Approvd"), shipped to main per auto-deploy rule. Next: invoke `superpowers:writing-plans` for the detailed implementation plan, then user reviews plan, then code phase.
+
+**Important context for any resumer:**
+- Main does NOT have the volumetric work (`pack_volume_value/uom` fields). The user's screenshots showing those fields are from `claude/festive-lamport-b23de0` (or `claude/sweet-lovelace-fa4cf6`), neither merged.
+- User authorized autonomous proceed: revisions self-applied without coming back; commit + push to main + auto-deploy without asking. The `feedback_deployment_direct_to_prod.md` memory rule applies in full, including for plan-phase docs commits.
+- Coding has NOT started. The spec is the contract; the writing-plans output will be the construction sequence.
+
+---
+
+## 🟢 Earlier turn — Comm audit deferred-list cleanup (PR16-18, 4 deferrals reduced)
 
 User asked "What about these" pointing at the deferred items from the prior comm-audit turn. Shipped PR16-PR18 covering most. Final state: **18 PRs total for comm**, **8 DB migrations (0067-0076)**, prod deploy `dpl_…h7ghepwsa…` READY.
 
