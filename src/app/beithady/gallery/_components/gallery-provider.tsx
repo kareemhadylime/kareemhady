@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { uploadAssetAction } from '../actions';
+import { signGalleryUploadAction, registerGalleryUploadAction } from '../actions';
+import { supabaseBrowser } from '@/lib/supabase-browser';
 
 export type AlbumKey = { building: string | null; listingId: string | null };
 
@@ -58,7 +59,12 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
   const [selectionAlbum, setSelectionAlbum] = useState<AlbumKey | null>(null);
   const lastAnchorRef = useRef<string | null>(null);
 
-  // Worker effect: whenever jobs change, kick the next queued job if a slot is free.
+  // Worker effect: whenever jobs change, kick the next queued job if a
+  // slot is free. Direct-to-Supabase signed-URL upload bypasses Vercel's
+  // ~4.5 MB serverless body cap. Flow:
+  //   1. signGalleryUploadAction → server returns { signedUrl, path, token, bucket }
+  //   2. supabaseBrowser().storage.uploadToSignedUrl(...) → bytes go straight to Supabase
+  //   3. registerGalleryUploadAction → server inserts the DB row + queues AI label
   useEffect(() => {
     const inFlight = jobs.filter(j => j.status === 'uploading').length;
     if (inFlight >= MAX_CONCURRENT) return;
@@ -71,13 +77,37 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const fd = new FormData();
-        fd.append('file', next.file);
-        fd.append('file_name', next.file.name);
-        if (next.building) fd.append('building', next.building);
-        if (next.listingId) fd.append('listing_id', next.listingId);
-        fd.append('category', next.category);
-        await uploadAssetAction(fd);
+        const mime = next.file.type || 'application/octet-stream';
+        const signed = await signGalleryUploadAction({
+          fileName: next.file.name,
+          mime,
+          building: next.building,
+          listingId: next.listingId,
+          category: next.category,
+        });
+        if (!signed.ok) throw new Error(`sign_failed: ${signed.error}`);
+
+        const sb = supabaseBrowser();
+        const { error: upErr } = await sb.storage
+          .from(signed.bucket)
+          .uploadToSignedUrl(signed.path, signed.token, next.file, {
+            contentType: mime,
+            upsert: false,
+          });
+        if (upErr) throw new Error(`storage_upload_failed: ${upErr.message}`);
+
+        const reg = await registerGalleryUploadAction({
+          path: signed.path,
+          bucket: signed.bucket,
+          fileName: next.file.name,
+          mime,
+          sizeBytes: next.file.size,
+          building: next.building,
+          listingId: next.listingId,
+          category: next.category,
+        });
+        if (!reg.ok) throw new Error(`register_failed: ${reg.error}`);
+
         setJobs(prev => prev.map(j => j.id === next.id
           ? { ...j, status: 'done' as const, finishedAt: Date.now() }
           : j));

@@ -92,7 +92,7 @@ export function Uploader({
                   ? `Files land at ${building} general area`
                   : 'Files land at Beithady library root')}
           {' · '}
-          15MB max · JPG/PNG/WEBP/HEIC + MP4/WEBM · AI labels in ~2 min
+          50MB max · JPG/PNG/WEBP/HEIC + MP4/WEBM · AI labels in ~2 min
           {myActive > 0 && <> · <strong>{myActive} in progress</strong> (see tray ↘)</>}
         </p>
         <input

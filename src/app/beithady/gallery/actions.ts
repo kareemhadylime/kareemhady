@@ -16,6 +16,8 @@ import {
   type GalleryBucket,
 } from '@/lib/beithady/gallery/storage';
 
+type UploadCategory = 'photo' | 'video' | 'document' | 'brand_asset' | 'ad_creative';
+
 async function requirePermission(level: 'read' | 'full') {
   const user = await getCurrentUser();
   if (!user) throw new Error('not_authenticated');
@@ -42,6 +44,132 @@ function categoryForMime(mime: string): 'photo' | 'video' | 'document' {
   if (mime.startsWith('image/')) return 'photo';
   if (mime.startsWith('video/')) return 'video';
   return 'document';
+}
+
+// =====================================================================
+// Direct-to-Supabase upload (bypasses Vercel's ~4.5 MB function body cap)
+// =====================================================================
+// Pattern: client calls signGalleryUploadAction → gets signed URL +
+// path/token → uses supabaseBrowser().storage.uploadToSignedUrl() to
+// PUT bytes directly to Supabase → calls registerGalleryUploadAction
+// to insert the DB row. The file bytes never traverse Vercel.
+
+export async function signGalleryUploadAction(input: {
+  fileName: string;
+  mime: string;
+  building: string | null;
+  listingId: string | null;
+  category?: UploadCategory;
+}): Promise<
+  | { ok: true; signedUrl: string; path: string; bucket: GalleryBucket; token: string }
+  | { ok: false; error: string }
+> {
+  await requirePermission('full');
+  const fileName = String(input.fileName || 'upload');
+  const mime = input.mime || 'application/octet-stream';
+  const explicitCategory = input.category;
+  const category: UploadCategory = (explicitCategory && ['photo','video','document','brand_asset','ad_creative'].includes(explicitCategory))
+    ? explicitCategory
+    : categoryForMime(mime);
+  const ext = extFor(fileName, mime);
+  const path = buildAssetPath({
+    category,
+    building: input.building,
+    listing: input.listingId,
+    ext,
+  });
+  const bucket: GalleryBucket = category === 'document' ? DOCUMENTS_BUCKET : PRIVATE_BUCKET;
+
+  const sb = supabaseAdmin();
+  const { data, error } = await sb.storage.from(bucket).createSignedUploadUrl(path);
+  if (error || !data) {
+    return { ok: false, error: error?.message || 'sign_failed' };
+  }
+  return { ok: true, signedUrl: data.signedUrl, path: data.path, bucket, token: data.token };
+}
+
+export async function registerGalleryUploadAction(input: {
+  path: string;
+  bucket: GalleryBucket;
+  fileName: string;
+  mime: string;
+  sizeBytes: number;
+  building: string | null;
+  listingId: string | null;
+  category?: UploadCategory;
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const user = await requirePermission('full');
+  const explicitCategory = input.category;
+  const category: UploadCategory = (explicitCategory && ['photo','video','document','brand_asset','ad_creative'].includes(explicitCategory))
+    ? explicitCategory
+    : categoryForMime(input.mime);
+
+  const sb = supabaseAdmin();
+  // Compute sort_order so new uploads land at the top of the album.
+  let sortOrderForInsert = 0;
+  {
+    let minQuery = sb
+      .from('beithady_gallery_assets')
+      .select('sort_order')
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .limit(1);
+    if (input.building) minQuery = minQuery.eq('building_code', input.building);
+    else minQuery = minQuery.is('building_code', null);
+    if (input.listingId) minQuery = minQuery.eq('listing_id', input.listingId);
+    else minQuery = minQuery.is('listing_id', null);
+    const { data: minRow } = await minQuery.maybeSingle();
+    sortOrderForInsert = ((minRow as { sort_order: number } | null)?.sort_order ?? 0) - 1;
+  }
+
+  const { data: ins, error } = await sb
+    .from('beithady_gallery_assets')
+    .insert({
+      building_code: input.building,
+      listing_id: input.listingId,
+      category,
+      storage_bucket: input.bucket,
+      storage_path: input.path,
+      file_name: input.fileName,
+      mime_type: input.mime,
+      size_bytes: input.sizeBytes,
+      uploaded_by: user.id,
+      sort_order: sortOrderForInsert,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    // Best-effort cleanup of the orphan storage object.
+    await deleteFromBucket(input.bucket, input.path).catch(() => {});
+    return { ok: false, error: error.message };
+  }
+  const id = (ins as { id: string }).id;
+
+  if (category === 'photo') {
+    await queueLabelJob(id);
+  }
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'gallery',
+    action: 'asset_uploaded',
+    target_type: 'asset',
+    target_id: id,
+    metadata: {
+      building: input.building,
+      listing_id: input.listingId,
+      category,
+      mime: input.mime,
+      size_bytes: input.sizeBytes,
+      transport: 'direct-supabase',
+    },
+  });
+
+  revalidatePath('/beithady/gallery');
+  if (input.building) revalidatePath(`/beithady/gallery/${input.building}`);
+  if (input.building && input.listingId) revalidatePath(`/beithady/gallery/${input.building}/${input.listingId}`);
+  if (input.building && !input.listingId) revalidatePath(`/beithady/gallery/${input.building}/general`);
+  return { ok: true, id };
 }
 
 // Upload a single file from a multipart form. Files smaller than 50MB
