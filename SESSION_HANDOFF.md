@@ -1,6 +1,28 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Inventory audit critical fixes shipped (6 PRs, all 9 CRITICAL + 4 HIGH)
+## 🟢 Latest turn — Communication module audit compiled (70 findings, no fixes shipped yet)
+
+Same systematic methodology as the inventory audit applied to the communication module. **5 parallel research agents** (UI/React state, webhook+ingest integrity, conversation lifecycle, outbound+AI reply pipeline, attachments+media) plus a **parallel DB-level integrity scan** via Supabase MCP. All findings cross-checked against actual production data.
+
+Live data state: 6,836 conversations · 2,764 messages · 5,511 archived · 0 resolved · 0 AI auto-reply uses in production (so AI bugs are LATENT). One row of hard evidence: conv `9a8c6d16-29fa-4abb-bb78-0ed89ade9a6f` has **5 inbound messages AFTER its `auto_cron_90d` archive timestamp** — operator can't see them in the active inbox.
+
+**70 findings: 16 CRITICAL · 31 HIGH · 23 MEDIUM.** Full ledger committed at `COMMUNICATION_AUDIT_2026_05_02.md`.
+
+**Top critical clusters (collapsed for handoff):**
+1. **Cluster A (10 React leaks, 1 fix):** `<ThreadPane>` lacks `key={header.id}` → composer drafts, attachments, internal notes, channel-switcher banners, voice-recorder mic stream, suggestion-strip "Sending…" state ALL leak across conversation switches. Type "hello Alice", click Bob, hit Send → goes to Bob.
+2. **Cluster B (silent message loss):** Auto-archive cron archives unanswered convs after 90d; webhook ingest does NOT auto-restore on inbound and does NOT auto-unresolve on inbound. Confirmed by DB row above. UI even tells operators "auto-restores on inbound" (false promise).
+3. **Cluster C (security):** Stored XSS via Guesty `bodyHtml` rendered with `dangerouslySetInnerHTML` (currently dormant — 0 rows have body_html, but first guest with HTML triggers it). Guesty webhook secret in URL query string + non-timing-safe `!==`. Green-API webhook impersonation possible if URL slug leaks.
+4. **Cluster D (outbound + AI):** AI auto-reply has zero per-conv rate limit / loop guard. AI auto-reply runs on archived/resolved convs. Guesty send retries 5xx without idempotency-key (duplicate guest messages). WA Casual conv creation race in plpgsql with no advisory lock.
+5. **Cluster E (attachments):** Orphan blobs in `beithady-wa-media` on multi-attach partial-failure. No server-side mime-type validation (.exe renamed .jpg accepted). Library asset deletion 404s every past message (URL stored live, not copied).
+6. **Cluster F:** Direction inferred from `gp.from_type` / `gp.sent_by` — host echo via external channel can land as inbound and trigger AI auto-reply on our own message.
+
+**No code shipped this turn** — presented findings + proposed PR1-PR10 batches and asked user to confirm "go" (mirroring how the inventory flow ran). User has not yet replied. PR1-PR8 are LOW/MED risk and ready to ship as soon as confirmed; PR9-PR10 need product decisions / new infra (Green allowlist, WA media durable mirror cron + bucket policies).
+
+Recommended starting point if any future session resumes: re-read `COMMUNICATION_AUDIT_2026_05_02.md`, then ship PR1 (`key={header.id}` on `<ThreadPane>` in `unified/page.tsx`, `guesty/page.tsx`, `wa-casual/page.tsx`, `archive/[year]/[month]/page.tsx` + AutoScrollThread `fired.current` reset). Verify with type-check, commit + push to main + `vercel --prod`.
+
+---
+
+## 🟢 Earlier this session — Inventory audit critical fixes shipped (6 PRs, all 9 CRITICAL + 4 HIGH)
 
 After compiling the full audit ledger (`INVENTORY_AUDIT_2026_05_02.md`), user asked to "Follow on all batches automatically till you finish". Shipped 6 PRs back-to-back, addressing every CRITICAL finding plus tightly-coupled HIGH items. All committed to main, deployed to prod (`dpl_…mecgiq131…`, READY).
 
