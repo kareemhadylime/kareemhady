@@ -1,6 +1,71 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Phase 1 (Foundation) COMPLETE — Tasks 1–8 of 32 (25%)
+## 🟡 Latest turn — Phase 2 (Skippers) COMPLETE — Tasks 1–11 of 32 (34%) — HANDOFF TO PARALLEL SESSION
+
+**Status:** User chose to switch from same-session subagent-driven execution to a parallel session via `superpowers:executing-plans`. This session is stopping; a fresh session should pick up at Task 12.
+
+### How to resume in a fresh session
+
+Open a new Claude Code session in this same worktree (`C:\kareemhady\.claude\worktrees\inspiring-booth-3d348a`, branch `claude/inspiring-booth-3d348a`). Then invoke:
+
+```
+/superpowers:executing-plans
+plan=docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md
+```
+
+Or just paste this prompt:
+> Use the superpowers:executing-plans skill to continue executing `docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md` starting from Task 12. Tasks 1–11 are already complete and committed (see git log). The plan contains 32 tasks total. Stay on worktree branch `claude/inspiring-booth-3d348a` — do NOT push to main or run `vercel --prod` until Task 32. Skip the SESSION_HANDOFF chore commits during implementation; the controller updates handoff at phase boundaries.
+
+### Tasks 1–11 shipped this session (all on `claude/inspiring-booth-3d348a`, no push)
+
+| # | Task | Commit |
+|---|------|--------|
+| 1 | vitest setup | `10eed52` |
+| 2 | recurring.ts helper + 8 tests | `ece3b23` (+ defensive fix `9da7d6a`) |
+| 3 | payment-balance.ts helper + 6 tests | `b83b668` |
+| 4 | Migration 0066 — skippers roster + backfill | `98c688b` |
+| 5 | Migration 0067 — external brokers + reservation source + reminder col | `7ce8246` |
+| 6 | Migration 0069 — expenses + expense payments | `32ca656` |
+| 7 | Migration 0070 — recurring templates + owner settings | `032d454` |
+| 8 | Migration 0068 — drop payments UNIQUE + refactor 7 readers + 2 writers | `8b6f241` (+ DRY extract `6fe305e`) |
+| 9 | skipper-resolver.ts helper | `f413130` |
+| 10 | Skipper server actions (add/setDefault/deactivate/edit) | `025f990` |
+| 11 | Skippers tab UI + tabs.tsx now has 6 entries (added Skippers, Money) | `1847f81` |
+
+**Test status:** 14 vitest tests passing across `recurring.ts` (8) and `payment-balance.ts` (6, plus 2 for `summarizePayments`). `npm run build` passes clean.
+
+**Migrations applied to live Supabase?** No — they're only files in `supabase/migrations/`. Per the spec, all 6 migrations (0066, 0067, 0068, 0069, 0070, 0072) get applied as a batch on a Supabase branch during Task 31 QA, then merged to prod during Task 32.
+
+### Where Task 12 (next) starts
+
+**Task 12: External broker picker + server action.** Two changes:
+1. Append `addExternalBrokerAction` to `src/app/emails/boat-rental/owner/actions.ts` (this file already exists and has other owner actions — match the existing imports/style)
+2. Create new client component at `src/app/emails/boat-rental/owner/_components/external-broker-picker.tsx`
+
+Full code is in the plan at the Task 12 section. The picker uses `+ Add new broker…` sentinel pattern, calls the action via fetch+FormData, prepends the new broker to the list state, auto-selects it.
+
+### Tasks 12–32 remaining
+
+Phase 3 (Manual reservation): Tasks 12, 13, 14
+Phase 4 (Trip payment ledger UI): Tasks 15, 16, 17
+Phase 5 (Expenses domain): Tasks 18, 19, 20, 21, 22, 23
+Phase 6 (Recurring expenses): Tasks 24, 25, 26
+Phase 7 (24h reminder cron): Task 27
+Phase 8 (Owner Settings): Task 28
+Phase 9 (Legacy cleanup): Tasks 29, 30
+Phase 10 (QA + ship): Tasks 31, 32
+
+### Critical guardrails for the next session
+
+- ✅ Commit on worktree branch `claude/inspiring-booth-3d348a` only
+- ❌ Do NOT `git push origin main` until Task 32
+- ❌ Do NOT run `vercel --prod` until Task 32
+- ❌ Do NOT apply migrations to live Supabase project (`bpjproljatbrbmszwbov`) until Task 31 QA — use Supabase branches for testing if needed
+- ✅ Update SESSION_HANDOFF.md at phase boundaries (after Tasks 14, 17, 23, 26, 28, 30) — NOT after every task
+
+---
+
+## Previous turn — Phase 1 (Foundation) COMPLETE — Tasks 1–8 of 32 (25%)
 
 **Boat owner-features expansion is in execution mode.** Per user choice, using subagent-driven-development (fresh implementer per task + spec compliance review + code quality review). Each implementer subagent is told explicitly: commit on worktree branch only, NO push to main, NO `vercel --prod`, NO touch SESSION_HANDOFF (controller handles it). Single-shot release plan — final ship at Task 32.
 
