@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import { ChevronLeft, Building2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { getAsset, getTopTags } from '@/lib/beithady/gallery/gallery-list';
+import { listAssets, getAsset, getTopTags, resolveAssetUrls, getListingsForBuilding } from '@/lib/beithady/gallery/gallery-list';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { Uploader } from '../../_components/uploader';
-import { AssetGrid } from '../../_components/asset-grid';
+import { SelectableAssetGrid } from '../../_components/selectable-asset-grid';
 import { AssetDetailModal } from '../../_components/asset-detail-modal';
+import { BulkActionBar } from '../../_components/bulk-action-bar';
+import { NukeAlbumButton } from '../../_components/nuke-album-button';
+import type { MoveTarget } from '../../_components/move-to-unit-modal';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,29 +30,27 @@ export default async function GeneralBuildingAreaPage({
   if (!VALID.has(buildingCode)) notFound();
   const sp = await searchParams;
 
-  const sb = supabaseAdmin();
-  let q = sb
-    .from('beithady_gallery_assets')
-    .select(
-      'id, building_code, listing_id, category, storage_bucket, storage_path, public_url, file_name, mime_type, width, height, duration_sec, size_bytes, ai_tags, ai_caption, ai_quality_score, ai_processed_at, manual_tags, ad_eligible, uploaded_by, notes, created_at',
-      { count: 'exact' }
-    )
-    .eq('building_code', buildingCode)
-    .is('listing_id', null)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .limit(60);
-  if (sp.tag) {
-    const t = sp.tag.toLowerCase();
-    q = q.or(`ai_tags.cs.{${t}},manual_tags.cs.{${t}}`);
-  }
-  const [{ data: rows, count }, asset, topTags] = await Promise.all([
-    q,
+  // Use listAssets for consistent ordering (sort_order ASC). We pass
+  // listingId: undefined to fetch all rows in this building, then keep
+  // only those with listing_id === null.
+  const filter = { building: buildingCode, searchTag: sp.tag };
+  const [list, asset, topTags, siblings] = await Promise.all([
+    listAssets({ filter, page: 1, pageSize: 200 }),
     sp.asset ? getAsset(sp.asset) : Promise.resolve(null),
-    getTopTags({ building: buildingCode, searchTag: sp.tag }, 12),
+    getTopTags(filter, 12),
+    getListingsForBuilding(buildingCode),
   ]);
+  const onlyGeneral = list.rows.filter(a => a.listing_id === null);
+  const items = await resolveAssetUrls(onlyGeneral);
+  const idsInOrder = items.map(i => i.asset.id);
+
+  // Move targets: every unit in this building (general is the current album, exclude it)
+  const moveTargets: MoveTarget[] = siblings.map(s => ({
+    buildingCode, listingId: s.listing_id, label: `🛏️ ${s.nickname}`,
+  }));
 
   const baseHref = `/beithady/gallery/${buildingCode}/general`;
+  const albumLabel = `${buildingCode} · General Building Area`;
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -61,11 +61,19 @@ export default async function GeneralBuildingAreaPage({
       <BeithadyHeader
         eyebrow={`Beit Hady · Gallery · ${buildingCode}`}
         title="General Building Area"
-        subtitle={`${(count ?? 0).toLocaleString()} asset${(count ?? 0) === 1 ? '' : 's'} · lobby, pool, gym, exterior, and other building-wide content not tied to a specific unit.`}
+        subtitle={`${onlyGeneral.length.toLocaleString()} asset${onlyGeneral.length === 1 ? '' : 's'} · lobby, pool, gym, exterior, and other building-wide content not tied to a specific unit.`}
         right={
-          <Link href={`/beithady/gallery/${buildingCode}`} className="ix-btn-secondary text-xs">
-            <ChevronLeft size={12} /> Back to {buildingCode}
-          </Link>
+          <div className="flex items-center gap-2">
+            <NukeAlbumButton
+              buildingCode={buildingCode}
+              listingId={null}
+              totalAssets={onlyGeneral.length}
+              albumLabel={albumLabel}
+            />
+            <Link href={`/beithady/gallery/${buildingCode}`} className="ix-btn-secondary text-xs">
+              <ChevronLeft size={12} /> Back to {buildingCode}
+            </Link>
+          </div>
         }
       />
 
@@ -104,17 +112,18 @@ export default async function GeneralBuildingAreaPage({
         </section>
       )}
 
-      {(rows && rows.length > 0) ? (
-        <AssetGrid
-          assets={rows as unknown as Parameters<typeof AssetGrid>[0]['assets']}
-          detailHrefBase={baseHref + (sp.tag ? `?tag=${sp.tag}&` : '?')}
-        />
-      ) : (
-        <div className="ix-card p-10 text-center text-sm text-slate-500">
-          <Building2 size={20} className="mx-auto mb-2 text-slate-300" />
-          No general-area photos for {buildingCode} yet. Drag files in above to start.
-        </div>
-      )}
+      <SelectableAssetGrid
+        items={items}
+        album={{ building: buildingCode, listingId: null }}
+        detailHrefBase={baseHref + (sp.tag ? `?tag=${sp.tag}&` : '?')}
+      />
+
+      <BulkActionBar
+        album={{ building: buildingCode, listingId: null }}
+        idsInOrder={idsInOrder}
+        moveTargets={moveTargets}
+        allAdEligibleSelected={false}
+      />
     </BeithadyShell>
   );
 }

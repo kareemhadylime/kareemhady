@@ -94,6 +94,14 @@ export async function viewableUrlForAsset(asset: Pick<GalleryAsset, 'storage_buc
   return signedUrlFor(asset.storage_bucket as GalleryBucket, asset.storage_path);
 }
 
+// Resolve URLs for an array of assets in parallel (RSC-side).
+// Used by pages that render <SelectableAssetGrid> — the client grid
+// receives pre-resolved URLs as props so it doesn't need its own
+// signed-URL fetcher.
+export async function resolveAssetUrls(assets: GalleryAsset[]): Promise<Array<{ asset: GalleryAsset; url: string | null }>> {
+  return Promise.all(assets.map(async asset => ({ asset, url: await viewableUrlForAsset(asset) })));
+}
+
 // Building summary view
 export type BuildingSummary = {
   building_code: string | null;
