@@ -473,3 +473,33 @@ export async function rejectCancellationAction(formData: FormData): Promise<void
 
   revalidatePath('/emails/boat-rental/owner');
 }
+
+export async function addExternalBrokerAction(formData: FormData): Promise<{ id: string; name: string }> {
+  const me = await requireBoatRoleOrThrow('owner');
+  const name = s(formData.get('name')).trim();
+  const phone = sOrNull(formData.get('phone'));
+  if (!name) throw new Error('invalid_input');
+
+  const ownerIds = await getOwnedOwnerIds(me);
+  if (ownerIds.length === 0) throw new Error('no_owner');
+  // Use the first owner — the picker is per-boat, and a user typically owns one owner record.
+  const ownerId = ownerIds[0];
+
+  const sb = supabaseAdmin();
+  // Upsert by name (case-insensitive) within owner.
+  const { data: existing } = await sb
+    .from('boat_rental_external_brokers')
+    .select('id, name')
+    .eq('owner_id', ownerId)
+    .ilike('name', name)
+    .maybeSingle();
+  if (existing) return existing as { id: string; name: string };
+
+  const { data, error } = await sb
+    .from('boat_rental_external_brokers')
+    .insert({ owner_id: ownerId, name, phone })
+    .select('id, name')
+    .single();
+  if (error) throw error;
+  return data as { id: string; name: string };
+}
