@@ -18,7 +18,15 @@ export function computeNextRunDate(
   if (dayOfPeriod < 1 || dayOfPeriod > 28) {
     throw new Error(`day_of_period must be 1-28, got ${dayOfPeriod}`);
   }
-  const [y, m] = fromDateStr.split('-').map(Number);
+  // Issue 1: Validate fromDateStr format (YYYY-MM-DD)
+  const parts = fromDateStr.split('-');
+  if (parts.length !== 3) {
+    throw new Error(`fromDateStr must be YYYY-MM-DD, got "${fromDateStr}"`);
+  }
+  const [y, m, d] = parts.map(Number);
+  if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d) || m < 1 || m > 12) {
+    throw new Error(`Invalid date format: "${fromDateStr}"`);
+  }
   let nextY = y;
   let nextM = m;
   if (frequency === 'monthly') {
@@ -28,6 +36,10 @@ export function computeNextRunDate(
     nextM = m + 3;
     while (nextM > 12) { nextM -= 12; nextY += 1; }
   } else if (frequency === 'yearly') {
+    // Issue 2: Validate monthOfYear bounds before checking existence
+    if (monthOfYear !== null && (monthOfYear < 1 || monthOfYear > 12)) {
+      throw new Error(`monthOfYear must be 1-12, got ${monthOfYear}`);
+    }
     if (!monthOfYear) throw new Error('monthOfYear required for yearly frequency');
     nextY = y + 1;
     nextM = monthOfYear;

@@ -29,4 +29,30 @@ describe('computeNextRunDate', () => {
       expect(computeNextRunDate('yearly', 5, 6, '2026-06-05')).toBe('2027-06-05');
     });
   });
+  describe('input validation', () => {
+    it('throws on dayOfPeriod < 1', () => {
+      expect(() => computeNextRunDate('monthly', 0, null, '2026-05-15')).toThrow(/day_of_period/);
+    });
+    it('throws on dayOfPeriod > 28', () => {
+      expect(() => computeNextRunDate('monthly', 29, null, '2026-05-15')).toThrow(/day_of_period/);
+    });
+    it('throws on malformed fromDateStr', () => {
+      expect(() => computeNextRunDate('monthly', 15, null, 'invalid')).toThrow(/YYYY-MM-DD/);
+    });
+    it('throws on incomplete fromDateStr', () => {
+      expect(() => computeNextRunDate('monthly', 15, null, '2026-05')).toThrow(/YYYY-MM-DD/);
+    });
+    it('throws on out-of-range month in fromDateStr', () => {
+      expect(() => computeNextRunDate('monthly', 15, null, '2026-13-15')).toThrow(/Invalid date format/);
+    });
+    it('throws on yearly with monthOfYear < 1', () => {
+      expect(() => computeNextRunDate('yearly', 5, -1, '2026-01-05')).toThrow(/monthOfYear/);
+    });
+    it('throws on yearly with monthOfYear > 12', () => {
+      expect(() => computeNextRunDate('yearly', 5, 13, '2026-01-05')).toThrow(/monthOfYear/);
+    });
+    it('throws on yearly with monthOfYear missing (null)', () => {
+      expect(() => computeNextRunDate('yearly', 5, null, '2026-01-05')).toThrow(/monthOfYear required/);
+    });
+  });
 });
