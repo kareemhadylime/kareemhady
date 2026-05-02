@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — BH Gallery UX overhaul (SHIPPED 2026-05-02)
+## 🟢 Latest turn — Comm audit deferred-list cleanup (PR16-18, 4 deferrals reduced)
+
+User asked "What about these" pointing at the deferred items from the prior comm-audit turn. Shipped PR16-PR18 covering most. Final state: **18 PRs total for comm**, **8 DB migrations (0067-0076)**, prod deploy `dpl_…h7ghepwsa…` READY.
+
+**This turn:**
+
+| PR | IDs | Summary |
+|----|-----|---------|
+| PR16 (`3b6a494`) | C-C3, H-C7 (H-B9 already covered) | Per-phone trust check (`isWaCasualSenderTrusted`) gates AI auto-reply + reorder draft so leaked Green-API slug can't trigger downstream side-effects on attacker phones; H-C7 schema (mig 0075: `edited_at`, `deleted_at`, `edit_history`) + Green-API editedMessage/deletedMessage handlers |
+| PR17 (`84cefd7`) | M-12, M-13 (M-11 skipped) | Explicit `templateInserted` flag for unresolved-var guard (no longer bypassable by deleting `{` braces); AI prompt thread context now synthesises body from module_subject for empty-body Airbnb cards |
+| PR18 (`11809fb`) | M-4, M-5, M-14 | New SidebarScrollRestore client wrapper saves+restores scrollTop per filter; SlaPill → client component with 60s live tick when `lastInboundAt` provided; mig 0076 adds `reply_to_message_id` column + partial index for future Reply-to UI |
+
+**Remaining truly-deferred (4 items, all justified):**
+- **H-B11** (cross-channel guest threads merge) — likely intentional design (separate SLA per channel). Needs product call.
+- **H-C5** (booking-status midnight cache) — confirmed non-issue: all comm pages already `force-dynamic`.
+- **M-8** (beithady_communication_ingest full-table scan on every webhook) — needs proc rewrite; current ~6k-convo scale doesn't bite.
+- **M-10** (gallery rate-limit) — M-2's crypto.randomBytes(16) makes brute-force infeasible; rate-limit belongs at edge/proxy if needed.
+- **M-11** (useFormStatus) — existing `submitting` state is functionally equivalent.
+
+**New schema columns added but NOT yet wired into UI** (groundwork):
+- `beithady_messages.edited_at` / `deleted_at` / `edit_history` (H-C7 — needs UI for "edited" tag + "[deleted]" placeholder)
+- `beithady_messages.reply_to_message_id` (M-14 — needs Reply-to UI then send-path threading)
+
+---
+
+## 🟢 Earlier — BH Gallery UX overhaul (SHIPPED 2026-05-02)
 
 User reported three gallery problems and approved the design + plan + ship.
 
