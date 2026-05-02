@@ -159,8 +159,8 @@ export async function computeEstimatorOutput(
   const config = await getUnitConfiguration(unitConfigId);
   if (!config) return null;
 
-  // 2. All active items + their categories
-  const [itemsRes, catsRes, rulesRes] = await Promise.all([
+  // 2. All active items + their categories + monthly-bookings resolution (parallel)
+  const [itemsRes, catsRes, rulesRes, monthlyBookings] = await Promise.all([
     sb.from('beithady_inventory_items')
       .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, avg_cost_egp, last_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, pack_volume_value, pack_volume_uom, active')
       .eq('active', true),
@@ -169,6 +169,7 @@ export async function computeEstimatorOutput(
     sb.from('beithady_inventory_consumption_rules')
       .select('id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct, active, consumes_volume_value, consumes_volume_uom')
       .eq('active', true),
+    resolveMonthlyBookings(config),
   ]);
 
   const items = (itemsRes.data as RawItem[] | null) || [];
@@ -197,7 +198,6 @@ export async function computeEstimatorOutput(
   // 4. For each item, resolve the most-specific rule that applies.
   //    Specificity ladder: listing > unit_config > category > building > global
   const lines: EstimatorLine[] = [];
-  const monthlyBookings = await resolveMonthlyBookings(config);
   for (const it of items) {
     const catCode = catById.get(it.category_id) || '';
     const group = categoryToGroup(catCode);
@@ -336,21 +336,25 @@ export type UnitConfigSummary = {
 };
 
 export async function listUnitConfigSummaries(): Promise<UnitConfigSummary[]> {
-  const configs = await listUnitConfigurations();
-  const counts = await countListingsPerConfig();
-  const out: UnitConfigSummary[] = [];
-  for (const c of configs) {
-    const o = await computeEstimatorOutput(c.id);
-    out.push({
+  const [configs, counts] = await Promise.all([
+    listUnitConfigurations(),
+    countListingsPerConfig(),
+  ]);
+  // Compute per-config outputs in parallel — each call hits Supabase + the
+  // monthly-bookings cache; running them serially in a for-of loop made the
+  // matrix landing page do N × (5+ queries) round-trips on cold cache.
+  const outputs = await Promise.all(configs.map(c => computeEstimatorOutput(c.id)));
+  return configs.map((c, i) => {
+    const o = outputs[i];
+    return {
       config: c,
       total_per_checkin_egp: o?.total_per_checkin_egp || 0,
       line_count: o?.lines.length || 0,
       listing_count: counts[c.id] || 0,
       monthly_need_total_packs: o?.monthly_need_total_packs || 0,
       est_monthly_bookings_source: o?.est_monthly_bookings_source || 'default_constant',
-    });
-  }
-  return out;
+    };
+  });
 }
 
 // ---------------------------------------------------------------
