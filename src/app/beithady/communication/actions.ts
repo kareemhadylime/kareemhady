@@ -20,6 +20,23 @@ import { recordAudit } from '@/lib/beithady/audit';
 // AI kill-switch toggle. Phase C.3 adds Green-API send + voice + file;
 // Phase E hooks AI auto-reply gating into the same send pipeline.
 
+// Audit fix H-D9: prefix the multi-channel backup body with a short
+// explanatory tag so the guest sees "Email backup of WhatsApp message"
+// instead of two unannotated copies. Returns null if both channels
+// resolve to the same friendly label (no useful prefix to show).
+function backupChannelLabel(backup: ChannelTarget, primary: ChannelTarget): string | null {
+  const friendly = (t: ChannelTarget): string => {
+    if (t === 'guesty_email') return 'Email';
+    if (t === 'guesty_sms') return 'SMS';
+    if (t === 'guesty_whatsapp' || t === 'wa_cloud' || t === 'wa_casual') return 'WhatsApp';
+    return t;
+  };
+  const a = friendly(backup);
+  const b = friendly(primary);
+  if (a === b) return null;
+  return `(${a} backup of our ${b} message — same content)`;
+}
+
 export async function sendGuestyMessageAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
   if (!user) throw new Error('not_authenticated');
@@ -308,21 +325,23 @@ export async function sendMessageWithSwitchAction(formData: FormData): Promise<v
       backup,
     );
     if (backupResolved.ok) {
+      // Audit fix H-D9: prefix the backup body with a soft de-dup tag
+      // so the guest sees "Email backup of WhatsApp message" / "WA
+      // backup of email message" instead of two identical
+      // unannotated copies. Pre-fix transactional templates (booking
+      // confirmation with payment link) could be paid twice if the
+      // guest got two unannotated copies.
+      const backupPrefix = backupChannelLabel(backup, target);
+      const backupBody = backupPrefix ? `${backupPrefix}\n\n${body}` : body;
+      const isCrossBackup = targetIsCrossChannel(backup, c.channel);
       const backupResult = await sendViaChannel(backup, {
         beithadyConversationId: c.id,
-        body,
+        body: backupBody,
         agentUserId: user.id,
         agentDisplayName: user.username,
+        wasChannelSwitched: isCrossBackup,
+        originalThreadChannel: isCrossBackup ? c.channel : null,
       });
-      if (backupResult.ok && backupResult.messageId && targetIsCrossChannel(backup, c.channel)) {
-        await sb
-          .from('beithady_messages')
-          .update({
-            was_channel_switched: true,
-            original_thread_channel: c.channel,
-          })
-          .eq('id', backupResult.messageId);
-      }
       await recordAudit({
         actor_user_id: user.id,
         module: 'communication',

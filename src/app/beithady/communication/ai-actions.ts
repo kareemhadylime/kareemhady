@@ -73,7 +73,14 @@ export async function acceptSuggestionAction(formData: FormData): Promise<void> 
       target_id: logId,
       metadata: { error: errMsg || 'unknown' },
     });
+    // Audit fix H-D10: explicit return after redirect. Today
+    // Next.js's redirect() throws an internal error to abort
+    // execution, but if that contract ever changes (or a future
+    // try/catch is added around the call site), the code below
+    // would log `agent_action='sent_as_is'` against an outboundId
+    // of null — fabricating a successful-send audit row.
     redirect(`/beithady/communication/${l.channel === 'guesty' ? 'guesty' : 'wa-casual'}?c=${conversationId}&send_error=${encodeURIComponent(errMsg || 'unknown')}`);
+    return; // unreachable today, defensive against future regression
   }
 
   // Mark outbound as AI-driven + link back to the log row

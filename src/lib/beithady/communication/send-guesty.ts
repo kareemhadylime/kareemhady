@@ -72,6 +72,23 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     return { ok: false, status: 400, error: 'wrong_channel_use_dedicated_path' };
   }
 
+  // Audit fix H-D8: re-check kill switch immediately before the
+  // network call. Pre-fix the switch was read once at function entry,
+  // and an admin flipping it ON during the ~30-3000ms gap between
+  // the gate check and the actual API call still let the message
+  // through. For batch automations (cron loops) this race is amplified.
+  if (mode === 'manual' && (await isManualOutboundPaused())) {
+    await recordAudit({
+      actor_user_id: args.agentUserId,
+      module: 'communication',
+      action: 'send_guesty_blocked_killswitch_late',
+      target_type: 'conversation',
+      target_id: args.beithadyConversationId,
+      metadata: { reason: 'killswitch_flipped_during_send', body_length: args.body.length },
+    });
+    return { ok: false, status: 503, error: 'manual_outbound_paused' };
+  }
+
   // Send via Guesty Open API. `type` is no longer sent (Guesty rejects
   // it as VALIDATION_ERROR since 2026-04-30); the helper ignores the
   // field but we leave it off the payload for clarity.

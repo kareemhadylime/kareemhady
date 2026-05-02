@@ -60,6 +60,22 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
 
   const phone = c.external_id.replace(/[^0-9]/g, '');
 
+  // Audit fix H-D8: re-check kill switch immediately before the
+  // network call (parity with send-guesty.ts). Pre-fix the gap
+  // between the entry-time check and the actual provider POST let
+  // in-flight messages through after the switch was flipped.
+  if (mode === 'manual' && (await isManualOutboundPaused())) {
+    await recordAudit({
+      actor_user_id: args.agentUserId,
+      module: 'communication',
+      action: 'send_wa_casual_blocked_killswitch_late',
+      target_type: 'conversation',
+      target_id: c.id,
+      metadata: { reason: 'killswitch_flipped_during_send', body_length: args.body.length },
+    });
+    return { ok: false, status: 503, error: 'manual_outbound_paused' };
+  }
+
   let providerResult;
   if (args.fileUrl) {
     providerResult = await sendWhatsAppFile({
