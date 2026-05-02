@@ -271,27 +271,20 @@ export async function sendMessageWithSwitchAction(formData: FormData): Promise<v
     redirect(`${returnPath}?${params.toString()}`);
   }
 
-  // F2: dispatch primary send
+  // F2: dispatch primary send.
+  // Audit fix H-C3: cross-channel flags now passed atomically into the
+  // send path so they're written in the original INSERT — pre-fix did
+  // a post-insert UPDATE which left a race window where webhook ingest
+  // / realtime saw the row with the column defaults.
+  const isCross = targetIsCrossChannel(target, c.channel);
   const result = await sendViaChannel(target, {
     beithadyConversationId: c.id,
     body,
     agentUserId: user.id,
     agentDisplayName: user.username,
+    wasChannelSwitched: isCross,
+    originalThreadChannel: isCross ? c.channel : null,
   });
-
-  // Mark cross-channel rows on beithady_messages so the thread bubble
-  // can render the "via X" badge. The send-* libs already wrote the row
-  // with channel matching the actual transport — we only need to add
-  // the audit columns when the transport differs from home.
-  if (result.ok && result.messageId && targetIsCrossChannel(target, c.channel)) {
-    await sb
-      .from('beithady_messages')
-      .update({
-        was_channel_switched: true,
-        original_thread_channel: c.channel,
-      })
-      .eq('id', result.messageId);
-  }
 
   // Persist preferred channel if "Remember" was checked (Q3-c).
   if (remember && result.ok) {

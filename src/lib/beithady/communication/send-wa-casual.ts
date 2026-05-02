@@ -19,6 +19,9 @@ export type SendWaCasualArgs = {
   // Phase C.5 follow-up — 'manual' (default) gates on the manual kill
   // switch; 'automatic' bypasses (caller gates via isAutomationPaused).
   mode?: 'manual' | 'automatic';
+  // Audit fix H-C3: cross-channel switch metadata. See send-guesty.ts.
+  wasChannelSwitched?: boolean;
+  originalThreadChannel?: string | null;
 };
 
 export type SendWaCasualResult =
@@ -128,6 +131,9 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
       delivery_status: 'sent',
       raw: { providerMessageId: providerResult.providerMessageId, fileUrl: args.fileUrl, fileName: args.fileName },
       sent_at: sentAtIso,
+      // Audit fix H-C3: write atomically.
+      was_channel_switched: !!args.wasChannelSwitched,
+      original_thread_channel: args.originalThreadChannel ?? null,
     }, { onConflict: 'channel,external_id', ignoreDuplicates: false })
     .select('id')
     .single();

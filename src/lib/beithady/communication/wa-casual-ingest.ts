@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getCredential } from '@/lib/credentials';
 
 // Green-API webhook event → beithady tables. Idempotent on the
 // (green_event_id) unique index in beithady_green_webhook_events.
@@ -145,6 +146,20 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
   // Skip group chats for Phase C.3 — they need different handling.
   if (chatId.endsWith('@g.us')) return { ok: true, skipped: 'group_chat_unsupported' };
 
+  // Audit fix H-C6: detect direction. Some Green-API instances deliver
+  // the operator's out-of-band reply (typed on the personal WhatsApp
+  // app rather than via composer) through `incomingMessageReceived`
+  // with sender == the instance's own number. Pre-fix we hardcoded
+  // direction='inbound' for every event, misclassifying these as guest
+  // messages and triggering AI auto-reply on our own message.
+  const instanceWid = await getCredential('green', 'wid').catch(() => null);
+  const isOwnNumber = instanceWid && (
+    chatId === instanceWid ||
+    `${phoneDigits}@c.us` === instanceWid ||
+    chatId.startsWith(`${instanceWid.replace(/@.*/, '')}@`)
+  );
+  const detectedDirection: 'inbound' | 'outbound' = isOwnNumber ? 'outbound' : 'inbound';
+
   // Ensure conversation exists
   const { data: convData, error: convErr } = await sb.rpc(
     'beithady_ensure_wa_casual_conversation',
@@ -217,12 +232,13 @@ async function ingestIncoming(payload: AnyJson): Promise<IngestResult> {
         external_id: externalId,
         conversation_id: conversationId,
         conversation_external_id: '+' + phoneDigits,
-        direction: 'inbound',
+        // Audit fix H-C6: see direction-detection block above.
+        direction: detectedDirection,
         module_type: 'whatsapp',
         body,
         attachments: attachments.length ? attachments : [],
         from_full_name: senderName,
-        from_type: 'guest',
+        from_type: detectedDirection === 'outbound' ? 'employee' : 'guest',
         sent_at: sentAtIso,
         raw: payload as object,
       },

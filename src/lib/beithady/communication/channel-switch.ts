@@ -144,6 +144,13 @@ export type DispatchPayload = {
   agentDisplayName?: string | null;
   // Phase C.5 follow-up — manual kill switch gating mode.
   mode?: 'manual' | 'automatic';
+  // Audit fix H-C3: pass cross-channel info into the send path so the
+  // beithady_messages row is INSERTED with was_channel_switched +
+  // original_thread_channel set atomically. Pre-fix actions.ts did a
+  // post-insert UPDATE which left a race window where webhook ingest
+  // / realtime subscribers saw the row with the default false / null.
+  wasChannelSwitched?: boolean;
+  originalThreadChannel?: string | null;
 };
 
 export type DispatchResult =
@@ -167,6 +174,8 @@ export async function sendViaChannel(
         agentUserId: payload.agentUserId,
         agentDisplayName: payload.agentDisplayName,
         mode: payload.mode,
+        wasChannelSwitched: payload.wasChannelSwitched,
+        originalThreadChannel: payload.originalThreadChannel,
       });
       if (r.ok) return { ok: true, provider: 'guesty', messageId: r.messageId, providerMessageId: r.externalId };
       return { ok: false, provider: 'guesty', status: r.status, error: r.error, fallbackUrl: r.fallbackUrl };
@@ -181,6 +190,8 @@ export async function sendViaChannel(
         agentUserId: payload.agentUserId,
         agentDisplayName: payload.agentDisplayName,
         mode: payload.mode,
+        wasChannelSwitched: payload.wasChannelSwitched,
+        originalThreadChannel: payload.originalThreadChannel,
       });
       if (r.ok) return { ok: true, provider: 'wa_casual', messageId: r.messageId, providerMessageId: r.providerMessageId };
       return { ok: false, provider: 'wa_casual', status: r.status, error: r.error };

@@ -23,6 +23,12 @@ export type SendGuestyArgs = {
   // manual kill switch; 'automatic' bypasses it (caller is responsible
   // for gating its own automation kill switch via isAutomationPaused).
   mode?: 'manual' | 'automatic';
+  // Audit fix H-C3: cross-channel switch metadata. Written into the
+  // INSERT atomically so realtime/webhook readers don't see the row
+  // with the column defaults during the race window between insert
+  // and the post-insert UPDATE that used to set these.
+  wasChannelSwitched?: boolean;
+  originalThreadChannel?: string | null;
 };
 
 export type SendGuestyResult =
@@ -127,6 +133,9 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     sent_by_user_id: args.agentUserId,
     raw: result.raw as object,
     sent_at: sentAtIso,
+    // Audit fix H-C3: write atomically with the rest of the row.
+    was_channel_switched: !!args.wasChannelSwitched,
+    original_thread_channel: args.originalThreadChannel ?? null,
   };
   // Audit fix C-D5: was a plain `.insert(insertRow).single()`, which
   // throws 23505 unique-violation if Guesty's `reservation.messageSent`

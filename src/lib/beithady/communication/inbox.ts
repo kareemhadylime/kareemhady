@@ -197,10 +197,20 @@ export async function listInbox(opts: {
       // is_unanswered=true (guest replied last) at the top, then by
       // recent activity within each group. Generated column added in
       // migration 0059; partial index backs the open + active scope.
+      //
+      // Audit fix H-C4: was sorting unanswered branch by
+      // `modified_at_external desc` first — but Guesty's sync re-bumps
+      // modified_at_external on ANY conversation update (rename,
+      // re-sync, reservation status flip), so freshly-bumped
+      // older-inbound conversations rose above truly-fresh
+      // newer-inbound ones inside the same `is_unanswered=true` group.
+      // Switched the tiebreaker to `last_inbound_at desc` which is the
+      // signal the operator actually cares about — recent guest
+      // activity surfaces first.
       q = q
         .order('is_unanswered', { ascending: false, nullsFirst: false })
-        .order('modified_at_external', { ascending: false, nullsFirst: false })
-        .order('last_inbound_at', { ascending: false, nullsFirst: false });
+        .order('last_inbound_at', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false });
   }
   q = q.range((page - 1) * pageSize, page * pageSize - 1);
 
