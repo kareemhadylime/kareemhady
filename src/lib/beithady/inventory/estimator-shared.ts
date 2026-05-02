@@ -31,6 +31,7 @@ export type UnitConfiguration = {
   active: boolean;
   created_at: string;
   updated_at: string;
+  est_monthly_bookings: number | null;  // M.17 — manual override; null falls back to Guesty avg
 };
 
 export type ListingUnitConfigAssignment = {
@@ -233,6 +234,11 @@ export type EstimatorLine = {
   has_listing_override: boolean;
   ai_info_summary_en: string | null;  // M.16 — short LLM-generated summary for hover tooltip
   unit_cost_is_estimate: boolean;     // M.16 — true when unit_cost_egp came from default_cost_egp seed (no live Amazon price)
+  // M.17 — Procurement Need (whole packs to buy monthly)
+  monthly_need_packs: number;   // ceil(effective_qty × est_monthly_bookings)
+  // M.17 — echo of consumes_volume on the rule (for procurement-first display)
+  consumes_volume_value: number | null;
+  consumes_volume_uom: string | null;
 };
 
 export type EstimatorOutput = {
@@ -243,6 +249,11 @@ export type EstimatorOutput = {
   total_per_checkin_egp: number;
   total_per_guest_egp: number;     // total / guest_capacity
   computed_at: string;
+  // M.17 — total whole-pack monthly need across all lines in this config
+  monthly_need_total_packs: number;
+  // M.17 — which est_monthly_bookings value drove the calc, and where it came from
+  est_monthly_bookings_used: number;
+  est_monthly_bookings_source: 'manual_override' | 'guesty_90d_avg' | 'default_constant';
 };
 
 // ---------------------------------------------------------------
