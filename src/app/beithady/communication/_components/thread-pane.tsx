@@ -213,7 +213,7 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-semibold truncate">{h.guest_full_name || h.guest_email || h.guest_phone || 'Unknown guest'}</h2>
-            <SlaPill bucket={h.sla_bucket} ageSeconds={h.sla_age_seconds} />
+            <SlaPill bucket={h.sla_bucket} ageSeconds={h.sla_age_seconds} lastInboundAt={h.last_inbound_at} />
             {h.source && (
               <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 {h.source.replace('2', '')}
