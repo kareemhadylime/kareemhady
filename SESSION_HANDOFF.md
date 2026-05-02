@@ -1,6 +1,47 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — AI label backlog fix + unit-template proposal (commit `21eb30d`, deployed)
+## 🟢 Latest turn — Unit Templates SHIPPED (commit `6f63408`, deployed)
+
+User picked **option B** from the architecture proposal. Unit templates now ship: identical units share one photo library without DB row duplication. Auto-deployed via push to main.
+
+### Migration 0067 — applied to prod + seeded BH-26
+- New table `beithady_unit_templates(id, building_code, name, description)`.
+- New `guesty_listings.unit_template_id uuid FK` (nullable).
+- New `beithady_gallery_assets.unit_template_id uuid FK` (nullable).
+- Indexes: `idx_bh_gallery_unit_template`, `idx_bh_gallery_template_sort`, `idx_guesty_listings_unit_template`.
+- **Seeded 4 templates for BH-26:** Type A (3BR Pool), Type B (2BR Pool), Type C (Smart Studio), Type D (3BR Apt Pool). 16 listings assigned across the four (101/201/301/401, 102/202/302/402, 103/203/303/403, 104/204/304/404). Verified via SQL query.
+- File: `supabase/migrations/0067_beithady_unit_templates.sql` committed.
+
+### Code changes
+- **`gallery-list.ts`:** `GalleryAsset` + `GalleryFilter` gain `unit_template_id`/`unitTemplateId`. `listAssets` filter logic: template scope wins when `unitTemplateId` is set, else falls back to listing scope. `UnitFolder` adds `unit_template_id` + `member_listing_ids`. `getUnitFoldersForBuilding` rewritten to collapse templated listings into one folder per template (canonical `listing_id` = first member, used for click-through). `getListingsForBuilding` returns `unit_template_id` on each row + tally includes both per-listing and per-template counts.
+- **`actions.ts`:**
+  - `registerGalleryUploadAction` looks up the target listing's `unit_template_id`. If set, asset is inserted with `unit_template_id` filled and `listing_id NULL` so it shows up in every member listing's gallery.
+  - `reorderAssetsAction` accepts optional `unitTemplateId`. Validates ids ⊂ template scope when templated; full-list renumber unchanged.
+  - `bulkMoveAssetsAction` looks up target listing's template; if templated, asset retargets to the template (cross-album move into shared library).
+  - `nukeAlbumAction` accepts optional `unitTemplateId` for wiping a template's shared library.
+- **Unit page (`[listingId]/page.tsx`):** resolves `listing.unit_template_id`, fetches template name + member nicknames, passes everything to the filter and to `<SelectableAssetGrid>` / `<BulkActionBar>` / `<NukeAlbumButton>`. Title becomes the template name when templated, subtitle reads "shown in 101 / 201 / 301 / 401". Move-to-unit dropdown collapses same-template siblings to avoid 4 identical entries.
+- **Components:** `AlbumKey.unitTemplateId` threaded through `gallery-provider.tsx` (sameAlbum check templated-aware), `selectable-asset-grid.tsx` (drag-end calls reorderAssetsAction with templateId), `bulk-action-bar.tsx` (visibility check templated-aware; reorderTo passes templateId), `nuke-album-button.tsx` (passes templateId to action).
+- **`unit-folder-card.tsx`:** added violet "shared · N units" badge on templated folders (uses `member_listing_ids.length`).
+
+### Key behaviors after this ships
+- Building landing for BH-26 now shows: 4 standalone units (001-005, 501) + 4 template cards (A/B/C/D) + General Building Area = 10 cards instead of 22.
+- Click any template card → standard listing page, but content is template-scoped. URL stays as `/beithady/gallery/BH-26/{firstMemberId}`.
+- Upload to any member of a templated group → photo lands in template's shared library, visible from all 4 member URLs.
+- Reorder / multi-select / bulk delete / wipe-album all work on the template's shared library when on a templated page.
+- Message-attachment picker auto-inherits this — it reads from the gallery, so template-shared photos appear when picking from any member listing.
+
+### Caveats / not done
+- **Existing pre-template photos stay listing-scoped.** Photos uploaded before this migration retain their `listing_id` and are visible only in that one unit. To migrate existing photos, would need a one-time SQL: `UPDATE beithady_gallery_assets a SET unit_template_id = l.unit_template_id, listing_id = NULL FROM guesty_listings l WHERE a.listing_id = l.id AND l.unit_template_id IS NOT NULL`. Not run yet — let user verify behavior on new uploads first before mass-migrating.
+- **No admin UI yet** to create/edit templates or reassign listings. The 4 BH-26 templates were seeded via the migration. If user wants to add templates for BH-73/BH-435/etc., or swap a listing's template, today they'd need a SQL update. An admin page at `/beithady/gallery/templates` is the natural follow-up.
+- **AI label backlog still clearing** from the earlier turn (~590 jobs queued, draining at 5 / 2min via cron).
+
+### Commits this turn
+- `6f63408` — feat(gallery): unit templates — shared photo library across identical units (9 files, +365 / -78)
+- Plus migration 0067 file added.
+
+---
+
+## 🟢 Earlier turn — AI label backlog fix + unit-template proposal (commit `21eb30d`, deployed)
 
 User screenshot showed "✨ AI labeling…" indicators stuck indefinitely on every newly-uploaded card. Asked to fix it AND proposed an architectural question about shared photos for identical units (101/201/301/401 groupings).
 
