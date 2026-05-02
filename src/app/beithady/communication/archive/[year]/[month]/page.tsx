@@ -128,7 +128,8 @@ export default async function ArchiveMonthPage({
             )}
           </div>
         }
-        threadPane={<ThreadPane bundle={thread} />}
+        // Audit fix C-A1..A10: see unified/page.tsx for full rationale.
+        threadPane={<ThreadPane key={thread?.header.id ?? 'empty'} bundle={thread} />}
       />
     </BeithadyShell>
   );

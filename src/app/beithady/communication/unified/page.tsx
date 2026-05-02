@@ -176,6 +176,14 @@ export default async function UnifiedInboxPage({
         }
         threadPane={
           <ThreadPane
+            // Audit fix C-A1..A10: key on conversation id forces React to
+            // unmount the entire ThreadPane subtree when the operator
+            // switches conversations. Without it, composer drafts,
+            // pending attachments + blob URLs, internal-notes textarea,
+            // channel-switcher banner, voice-recorder mic stream, etc.
+            // all leaked into the next conversation — typing "hello
+            // Alice" then clicking Bob delivered Alice's draft to Bob.
+            key={thread?.header.id ?? 'empty'}
             bundle={thread}
             composerHints={{
               send_error: sp.send_error,

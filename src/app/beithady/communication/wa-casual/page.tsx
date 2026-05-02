@@ -198,6 +198,8 @@ export default async function WaCasualPage({
         }
         threadPane={
           <ThreadPane
+            // Audit fix C-A1..A10: see unified/page.tsx for full rationale.
+            key={thread?.header.id ?? 'empty'}
             bundle={thread}
             composerHints={{
               send_error: sp.send_error,
