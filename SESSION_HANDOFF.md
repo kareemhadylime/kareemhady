@@ -1,6 +1,20 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Boat Module Owner-role expansion (BRAINSTORMING — Q6 of 7 in flight)
+## 🟢 Latest turn — Task 3: payment-balance.ts helper with TDD (DONE)
+
+**Completed:** `src/lib/boat-rental/payment-balance.ts` + `payment-balance.test.ts`
+- `computeBalance(total, paymentAmounts)` — sums payments, returns `{ total_paid, remaining, is_complete }`
+- `validatePaymentAmount(total, existing, newAmount)` — overpayment guard, returns `{ ok: true }` or `{ ok: false, error, overage? }`
+- Defensive validation: throws on non-numeric or negative `total`/payment values (guards against Postgres `NaN` from bad strings)
+- 12 vitest tests, all green
+- **Commit:** `b83b668` on `claude/inspiring-booth-3d348a`
+- **Next task:** Task 4 (migration 0066 — skippers + external brokers schema)
+
+**Plan progress: 3/32 tasks done (Tasks 1–3: vitest setup, recurring.ts, payment-balance.ts)**
+
+---
+
+## Previous turn — Boat Module Owner-role expansion (BRAINSTORMING — Q6 of 7 in flight)
 
 User wants to add Owner-role features to `/emails/boat-rental/owner/*`:
 1. **Add Skipper To Boat** — Name, Mobile (today: single skipper as columns on `boat_rental_boats`)
