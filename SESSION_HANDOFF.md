@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Unit Templates SHIPPED (commit `6f63408`, deployed)
+## 🟢 Latest turn — General Building Area double-count fix (commit `1982df2`, deployed)
+
+User screenshot: BH-26 General Building Area folder card showed 242 photos when it should have been ~75 building-wide ones. Template-scoped uploads were leaking in.
+
+**Root cause:** templated uploads correctly set `listing_id = NULL` and `unit_template_id = X` (shared across template members). The General Building Area scope was "WHERE listing_id IS NULL" — which matched BOTH true general-area photos AND every template-scoped asset. SQL audit on prod: BH-26 had 75 truly general, 220 templated leaking in, 562 listing-scoped. Total 857 active assets in BH-26.
+
+**Fix:** General Building Area scope is now `(listing_id IS NULL AND unit_template_id IS NULL)`.
+
+**Files changed:**
+- `src/lib/beithady/gallery/gallery-list.ts` — `getCommonAreaSummary`: added `.is('unit_template_id', null)` to all 4 count queries (total/photos/videos) + the cover-photo lookup. Used `replace_all: true` so all 4 occurrences in that function were patched in one Edit call.
+- `src/app/beithady/gallery/[buildingCode]/general/page.tsx` — post-filter changed from `a => a.listing_id === null` to `a => a.listing_id === null && a.unit_template_id === null` (the page calls `listAssets` with no listingId or templateId, returning all building assets, then filters down to the common-area subset client-side).
+
+**Build:** ✓ Compiled successfully in 20.1s.
+
+**Commit:** `1982df2` on main. Vercel auto-deploying.
+
+After the deploy, BH-26 General card should show ~75 photos. The 220 templated assets still appear correctly in their respective template folders (Type A/B/C/D).
+
+---
+
+## 🟢 Earlier turn — Unit Templates SHIPPED (commit `6f63408`, deployed)
 
 User picked **option B** from the architecture proposal. Unit templates now ship: identical units share one photo library without DB row duplication. Auto-deployed via push to main.
 
