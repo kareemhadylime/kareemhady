@@ -54,6 +54,11 @@ User reported three gallery problems and approved the design + plan + ship.
 
 **Smoke test plan (12 cases) deferred to live testing on prod** — see `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md` section 13.
 
+**Deploy state:**
+- Branch `claude/busy-carson-e5604b` pushed to origin (visible at https://github.com/kareemhadylime/kareemhady/tree/claude/busy-carson-e5604b).
+- **Auto-merge to main NOT performed** — origin/main is 36 commits ahead of the worktree's fork point with unrelated comm/inventory fixes (e.g. `124dbf3 fix(comm): attachments HIGH`, `abc5c82 fix(comm): MEDIUM batch`, `0a0b79e fix(inventory): C4 mobile PIN rate-limit`). Rebase hit a SESSION_HANDOFF.md conflict and was aborted to preserve work.
+- **To ship:** open a PR at https://github.com/kareemhadylime/kareemhady/pull/new/claude/busy-carson-e5604b and merge to main. Vercel's GitHub integration will auto-deploy on merge. Migration 0066 already applied to prod (no manual step needed before the deploy).
+
 ## 🟢 Earlier turn — BH Gallery UX overhaul (BRAINSTORMING phase)
 
 User reported three gallery problems and wants to plan before coding:
