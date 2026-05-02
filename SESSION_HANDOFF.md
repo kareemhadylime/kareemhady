@@ -55,9 +55,11 @@ User reported three gallery problems and approved the design + plan + ship.
 **Smoke test plan (12 cases) deferred to live testing on prod** — see `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md` section 13.
 
 **Deploy state:**
-- Branch `claude/busy-carson-e5604b` pushed to origin (visible at https://github.com/kareemhadylime/kareemhady/tree/claude/busy-carson-e5604b).
-- **Auto-merge to main NOT performed** — origin/main is 36 commits ahead of the worktree's fork point with unrelated comm/inventory fixes (e.g. `124dbf3 fix(comm): attachments HIGH`, `abc5c82 fix(comm): MEDIUM batch`, `0a0b79e fix(inventory): C4 mobile PIN rate-limit`). Rebase hit a SESSION_HANDOFF.md conflict and was aborted to preserve work.
-- **To ship:** open a PR at https://github.com/kareemhadylime/kareemhady/pull/new/claude/busy-carson-e5604b and merge to main. Vercel's GitHub integration will auto-deploy on merge. Migration 0066 already applied to prod (no manual step needed before the deploy).
+- ✅ Rebased onto `origin/main` cleanly with `-X theirs` (origin/main had 36 unrelated comm/inventory fix commits — no gallery overlap). Build verified clean post-rebase (38.9s).
+- ✅ Force-pushed `claude/busy-carson-e5604b` to origin.
+- ✅ **Pushed `claude/busy-carson-e5604b:main` to origin** — fast-forward `3a52028..04ccee7`, 14 commits added.
+- ✅ Vercel's GitHub integration auto-deploys on push to main — deploy triggered automatically (no `vercel --prod` CLI step needed).
+- Migration 0066 was already applied to prod via Supabase MCP earlier in the session, so the schema is ready when the new code reaches the runtime.
 
 ## 🟢 Earlier turn — BH Gallery UX overhaul (BRAINSTORMING phase)
 
