@@ -96,12 +96,21 @@ export function GuestyComposer({
   const [moduleHint, setModuleHint] = useState<ChannelHint>(defaultModule || sourceDefault);
   const [submitting, setSubmitting] = useState(false);
   const [unresolvedVars, setUnresolvedVars] = useState<string[]>([]);
+  // Audit fix M-12: explicit "a template was inserted" flag instead
+  // of the body.includes('{') heuristic. Pre-fix the operator could
+  // delete the `{` braces but leave 'guest_first_name' as literal
+  // text and the guard would silently de-activate. Now the
+  // TemplatePicker calls onTemplateInserted, the flag stays true
+  // until the operator clears the textarea or sends, and the guard
+  // is on flag-AND-unresolved (not body-includes-brace).
+  const [templateInserted, setTemplateInserted] = useState(false);
 
   const remaining = MAX_LEN - body.length;
   const tooLong = remaining < 0;
   const hasError = !!initialError;
   const showSent = initialSent && !hasError;
-  const blockSendForUnresolved = unresolvedVars.length > 0 && body.includes('{');
+  const blockSendForUnresolved =
+    unresolvedVars.length > 0 && templateInserted;
 
   return (
     <form
@@ -229,6 +238,10 @@ export function GuestyComposer({
               onInsert={(text, unresolved) => {
                 setBody(text);
                 setUnresolvedVars(unresolved);
+                // Audit fix M-12: mark as template-inserted so the
+                // "unresolved variable" guard sticks even if the
+                // operator deletes the surrounding `{...}` braces.
+                setTemplateInserted(true);
               }}
             />
           )}

@@ -133,18 +133,27 @@ export async function processInboundForAutoReply(
     }
   }
 
-  // 2. Pull recent thread (last 5 messages) for context
+  // 2. Pull recent thread (last 5 messages) for context.
+  // Audit fix M-13: also include module_type + module_subject so
+  // structured Airbnb cards (which often have an empty body but a
+  // descriptive subject like "Inquiry: 2 guests, Sep 12-15") still
+  // surface to the classifier instead of being filtered out by the
+  // body!=NULL guard.
   const { data: recent } = await sb
     .from('beithady_messages')
-    .select('direction, body, sent_at')
+    .select('direction, body, sent_at, module_type, module_subject')
     .eq('conversation_id', c.id)
     .lt('sent_at', m.sent_at)
     .order('sent_at', { ascending: false })
     .limit(5);
-  const recentThread = ((recent as Array<{ direction: 'inbound' | 'outbound'; body: string | null; sent_at: string }> | null) || [])
+  const recentThread = ((recent as Array<{ direction: 'inbound' | 'outbound'; body: string | null; sent_at: string; module_type: string | null; module_subject: string | null }> | null) || [])
+    .map(r => {
+      // Synthesise a body from subject when body is empty (Airbnb cards).
+      const body = r.body && r.body.trim() ? r.body : (r.module_subject ? `[${r.module_type || 'card'}] ${r.module_subject}` : '');
+      return { direction: r.direction, body, sent_at: r.sent_at };
+    })
     .filter(r => !!r.body)
-    .reverse()
-    .map(r => ({ direction: r.direction, body: r.body || '', sent_at: r.sent_at }));
+    .reverse();
 
   // 3. Pull reservation if linked
   let reservationCtx: { listing_nickname: string | null; building_code: string | null; check_in: string | null; check_out: string | null; nights: number | null; source: string | null } | null = null;
