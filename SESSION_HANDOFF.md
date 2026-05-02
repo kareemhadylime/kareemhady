@@ -20,7 +20,31 @@ User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete)
 
 ---
 
-## 🟢 Latest turn — Inventory procurement restructure: ALL DONE, awaiting branch-finish choice (3 vs 4)
+## 🟢 Latest turn — Awaiting typed `discard` to remove local branch + worktree
+
+**Phase:** All work shipped + deployed. User picked option 4 (discard local branch + worktree) but with a safety condition ("If no danger on main, choose 4"). I performed the safety analysis and per the `superpowers:finishing-a-development-branch` skill rules, I'm awaiting the typed `discard` confirmation.
+
+**Safety analysis confirmed risk-free:**
+- All 14 commits exist on `origin/main`
+- Local branch `claude/eager-johnson-cce95a` is identical to origin/main
+- Worktree path `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a` is just a working copy; main checkout at `C:\kareemhady` is untouched
+- Nothing on main, nothing in production, nothing in origin/main history will be removed
+
+**Awaiting:** user types `discard` to authorize the local branch deletion + worktree removal. If user confirms with anything other than that exact word, the skill says to NOT proceed with deletion.
+
+**On confirmation, will run:**
+```
+git -C C:\kareemhady checkout main             # switch parent repo to main
+git -C C:\kareemhady branch -D claude/eager-johnson-cce95a   # delete local branch
+git -C C:\kareemhady worktree remove C:\kareemhady\.claude\worktrees\eager-johnson-cce95a
+```
+(Note: worktree removal command is run from the parent repo, not from inside the worktree.)
+
+**Important:** Do NOT proceed with any destructive action without the explicit typed `discard` from the user. The user's pattern in this session is autonomous-friendly but the skill's red flag is "Never delete work without confirmation."
+
+---
+
+## 🟢 Earlier this session — Inventory procurement restructure: ALL DONE, awaiting branch-finish choice (3 vs 4)
 
 **Phase:** Coding complete + final code review complete + final-review nit fixes shipped. `superpowers:finishing-a-development-branch` skill invoked. **Awaiting user choice between option 3 (keep branch + worktree) and option 4 (discard).**
 
