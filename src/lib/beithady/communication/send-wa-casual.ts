@@ -100,9 +100,17 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
       mimeType: args.fileMime,
     });
   }
-  const { data: ins } = await sb
+  // Audit fix H-D7: was discarding `error` from the destructure, so a
+  // Green-API success + local insert failure (RLS, schema drift,
+  // network hiccup) returned `messageId: ''` to the caller — operator
+  // saw "send failed" UI and clicked retry, guest got two messages.
+  // Now: capture + log + audit so the caller can decide.
+  // Also switched to upsert on (channel, external_id) so a webhook
+  // echo arriving first doesn't 23505 the local insert (parity with
+  // send-guesty fix C-D5).
+  const { data: ins, error: insErr } = await sb
     .from('beithady_messages')
-    .insert({
+    .upsert({
       channel: 'wa_casual',
       external_id: providerResult.providerMessageId,
       conversation_id: c.id,
@@ -120,9 +128,13 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
       delivery_status: 'sent',
       raw: { providerMessageId: providerResult.providerMessageId, fileUrl: args.fileUrl, fileName: args.fileName },
       sent_at: sentAtIso,
-    })
+    }, { onConflict: 'channel,external_id', ignoreDuplicates: false })
     .select('id')
     .single();
+  if (insErr) {
+    // eslint-disable-next-line no-console
+    console.warn('[send-wa-casual] beithady_messages upsert failed:', insErr.message);
+  }
 
   await sb
     .from('beithady_conversations')

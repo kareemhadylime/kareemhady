@@ -117,15 +117,22 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     raw: result.raw as object,
     sent_at: sentAtIso,
   };
+  // Audit fix C-D5: was a plain `.insert(insertRow).single()`, which
+  // throws 23505 unique-violation if Guesty's `reservation.messageSent`
+  // webhook lands FIRST and the SQL ingest beat us to the (channel,
+  // external_id) row. Switched to upsert on the conflict key so:
+  //   - Webhook-first race: SELECT returns the existing id (idempotent).
+  //   - Send-first (normal): INSERT writes a new row.
+  // Either way we get an id back without throwing on race.
   const { data: ins, error: insErr } = await sb
     .from('beithady_messages')
-    .insert(insertRow)
+    .upsert(insertRow, { onConflict: 'channel,external_id', ignoreDuplicates: false })
     .select('id')
     .single();
   if (insErr) {
-    // Message reached Guesty but local insert failed — log and continue.
+    // Message reached Guesty but local upsert failed — log and continue.
     // eslint-disable-next-line no-console
-    console.warn('[send-guesty] beithady_messages insert failed:', insErr.message);
+    console.warn('[send-guesty] beithady_messages upsert failed:', insErr.message);
   }
 
   // Update conversation: last_outbound_at + clear SLA bucket + clear
