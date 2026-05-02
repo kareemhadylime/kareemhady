@@ -13,6 +13,7 @@ import {
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
 import { isWithinCancellationWindow } from '@/lib/boat-rental/pricing';
 import { enqueueNotification, flushPendingForReservation } from '@/lib/boat-rental/notifications';
+import { computeBalance, validatePaymentAmount } from '@/lib/boat-rental/payment-balance';
 
 const VALID_BLOCK_REASONS = ['personal_use', 'maintenance', 'owner_trip', 'repair', 'other'] as const;
 
@@ -502,4 +503,123 @@ export async function addExternalBrokerAction(formData: FormData): Promise<{ id:
     .single();
   if (error) throw error;
   return data as { id: string; name: string };
+}
+
+export async function recordTripPaymentAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireBoatRoleOrThrow('owner');
+  const reservationId = s(formData.get('reservation_id'));
+  const amount = Number(s(formData.get('amount_egp')));
+  const method = s(formData.get('method'));
+  const paidDate = s(formData.get('paid_date'));
+  const note = sOrNull(formData.get('note'));
+
+  if (!reservationId || !method || !paidDate) throw new Error('invalid_input');
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: 'Amount must be greater than zero' };
+  }
+
+  const ownerIds = await getOwnedOwnerIds(me);
+  const sb = supabaseAdmin();
+
+  const { data: r } = await sb
+    .from('boat_rental_reservations')
+    .select(
+      `
+      id, status, price_egp_snapshot, booking_date, broker_id,
+      boat:boat_rental_boats ( name, owner_id ),
+      payments:boat_rental_payments ( amount_egp )
+    `
+    )
+    .eq('id', reservationId)
+    .maybeSingle();
+  if (!r) throw new Error('not_found');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reservation = r as any as {
+    id: string;
+    status: string;
+    price_egp_snapshot: string | number;
+    booking_date: string;
+    broker_id: string | null;
+    boat: { name: string; owner_id: string };
+    payments: Array<{ amount_egp: string | number }>;
+  };
+  if (!ownerIds.includes(reservation.boat.owner_id)) throw new Error('forbidden');
+  if (!['confirmed', 'details_filled'].includes(reservation.status)) {
+    return {
+      ok: false,
+      error: `Reservation not in payable status (currently ${reservation.status})`,
+    };
+  }
+
+  const existingAmounts = (reservation.payments ?? []).map((p) => p.amount_egp);
+  const validation = validatePaymentAmount(reservation.price_egp_snapshot, existingAmounts, amount);
+  if (!validation.ok) return validation;
+
+  const { error: insErr } = await sb.from('boat_rental_payments').insert({
+    reservation_id: reservationId,
+    amount_egp: amount,
+    paid_at: new Date(paidDate).toISOString(),
+    method,
+    note,
+    recorded_by: me.id,
+    recorded_by_role: 'owner',
+  });
+  if (insErr) throw insErr;
+
+  const balance = computeBalance(reservation.price_egp_snapshot, [...existingAmounts, amount]);
+  const paymentCount = existingAmounts.length + 1;
+
+  if (balance.is_complete && reservation.status !== 'paid_to_owner') {
+    await sb
+      .from('boat_rental_reservations')
+      .update({ status: 'paid_to_owner', updated_at: new Date().toISOString() })
+      .eq('id', reservationId);
+
+    await logAudit({
+      reservationId,
+      actorUserId: me.id,
+      actorRole: 'owner',
+      action: 'auto_paid_to_owner',
+      fromStatus: reservation.status,
+      toStatus: 'paid_to_owner',
+      payload: { total_paid: balance.total_paid, payment_count: paymentCount },
+    });
+
+    // Notify the registered broker (if any) that the trip is fully settled.
+    if (reservation.broker_id) {
+      await enqueueNotification({
+        reservationId,
+        to: { userId: reservation.broker_id, phone: '', role: 'broker' },
+        templateKey: 'trip_payment_complete',
+        language: 'en',
+        context: {
+          boatName: reservation.boat.name,
+          bookingDate: reservation.booking_date,
+          totalAmount: balance.total_paid,
+          paymentCount,
+          shortRef: shortRef(reservationId),
+        },
+      });
+      await flushPendingForReservation(reservationId);
+    }
+  } else {
+    await logAudit({
+      reservationId,
+      actorUserId: me.id,
+      actorRole: 'owner',
+      action: 'payment_recorded',
+      payload: {
+        amount,
+        method,
+        total_paid: balance.total_paid,
+        remaining: balance.remaining,
+      },
+    });
+  }
+
+  revalidatePath(`/emails/boat-rental/owner/booking/${reservationId}`);
+  revalidatePath('/emails/boat-rental/owner');
+  return { ok: true };
 }
