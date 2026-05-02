@@ -60,6 +60,27 @@ export async function processInboundForAutoReply(
     .maybeSingle();
   if (existing) return { ok: true, skipped: 'already_processed' };
 
+  // Audit fix C-D1: per-conversation rate limit. Pre-fix, a guest who
+  // sent 30 short messages in a row triggered 30 Claude calls + 30
+  // outbound auto-sends in seconds — WhatsApp anti-spam ban risk on
+  // the Green-API number, plus runaway AI bill, plus a guest-bot
+  // ping-pong loop scenario. Cap at AI_AUTO_REPLY_MAX_PER_WINDOW
+  // auto-sends per AI_AUTO_REPLY_WINDOW_MS per conversation. Counts
+  // only `decision='auto_sent'` (suggested-only and killed don't
+  // burn the rate limit because no message was sent to the guest).
+  const AI_AUTO_REPLY_MAX_PER_WINDOW = 3;
+  const AI_AUTO_REPLY_WINDOW_MS = 10 * 60 * 1000;
+  const since = new Date(Date.now() - AI_AUTO_REPLY_WINDOW_MS).toISOString();
+  const { count: recentSends } = await sb
+    .from('beithady_ai_reply_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', m.conversation_id)
+    .eq('decision', 'auto_sent')
+    .gte('created_at', since);
+  if ((recentSends ?? 0) >= AI_AUTO_REPLY_MAX_PER_WINDOW) {
+    return { ok: true, skipped: 'rate_limited_per_conversation' };
+  }
+
   const { data: conv } = await sb
     .from('beithady_conversations')
     .select('id, channel, external_id, ai_kill_switch, guest_full_name, guest_email, guest_phone, building_code, listing_nickname, source, reservation_id, archived_at, resolved_at')
