@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { signedImageUrls } from '@/lib/boat-rental/storage';
+import { summarizePayments } from '@/lib/boat-rental/payment-balance';
 import { TabNav, BROKER_TABS } from '../../_components/tabs';
 import { uploadReceiptAction } from '../actions';
 
@@ -211,34 +212,33 @@ export default async function BrokerPayments({ searchParams }: { searchParams: S
                 Recent transfers
               </h2>
               <div className="space-y-2">
-                {done.map((r, i) => (
-                  <div key={r.id} className="ix-card p-4 text-sm flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <span className="font-medium">{r.boat?.name || '(boat)'}</span>
-                      <span className="text-slate-500 dark:text-slate-400"> · {r.booking_date}</span>
-                      {r.payments && r.payments.length > 0 && (() => {
-                      const totalPaid = r.payments.reduce((s, p) => s + Number(p.amount_egp), 0);
-                      const latestPmt = r.payments[r.payments.length - 1];
-                      return (
-                        <span className="text-slate-500 dark:text-slate-400 ml-2">
-                          · EGP {totalPaid.toLocaleString()} paid{' '}
-                          {new Date(latestPmt.paid_at).toLocaleDateString()}
-                        </span>
-                      );
-                    })()}
+                {done.map((r, i) => {
+                  const { totalPaid, latestPayment } = summarizePayments(r.payments || []);
+                  return (
+                    <div key={r.id} className="ix-card p-4 text-sm flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <span className="font-medium">{r.boat?.name || '(boat)'}</span>
+                        <span className="text-slate-500 dark:text-slate-400"> · {r.booking_date}</span>
+                        {latestPayment && (
+                          <span className="text-slate-500 dark:text-slate-400 ml-2">
+                            · EGP {totalPaid.toLocaleString()} paid{' '}
+                            {new Date(latestPayment.paid_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      {doneReceiptUrls[i] && (
+                        <a
+                          href={doneReceiptUrls[i] as string}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-cyan-700 dark:text-cyan-300 hover:underline inline-flex items-center gap-1"
+                        >
+                          <Receipt size={12} /> View receipt
+                        </a>
+                      )}
                     </div>
-                    {doneReceiptUrls[i] && (
-                      <a
-                        href={doneReceiptUrls[i] as string}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-cyan-700 dark:text-cyan-300 hover:underline inline-flex items-center gap-1"
-                      >
-                        <Receipt size={12} /> View receipt
-                      </a>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}

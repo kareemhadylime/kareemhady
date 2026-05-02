@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBalance, validatePaymentAmount } from './payment-balance';
+import { computeBalance, validatePaymentAmount, summarizePayments } from './payment-balance';
 
 describe('computeBalance', () => {
   it('returns full remaining when no payments', () => {
@@ -57,5 +57,20 @@ describe('validatePaymentAmount', () => {
   });
   it('throws on non-numeric existing payment in validate', () => {
     expect(() => validatePaymentAmount(8000, ['xyz' as unknown as number], 100)).toThrow();
+  });
+});
+
+describe('summarizePayments', () => {
+  it('returns zeros and null when empty', () => {
+    expect(summarizePayments([])).toEqual({ totalPaid: 0, latestPayment: null });
+  });
+  it('sums and picks last', () => {
+    const payments = [
+      { amount_egp: 1000, paid_at: '2026-05-10T00:00:00Z' },
+      { amount_egp: '2000', paid_at: '2026-05-15T00:00:00Z' },
+    ];
+    const result = summarizePayments(payments);
+    expect(result.totalPaid).toBe(3000);
+    expect(result.latestPayment).toBe(payments[1]);
   });
 });

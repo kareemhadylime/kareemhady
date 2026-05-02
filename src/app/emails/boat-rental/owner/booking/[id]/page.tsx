@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
 import { isWithinCancellationWindow } from '@/lib/boat-rental/pricing';
+import { summarizePayments } from '@/lib/boat-rental/payment-balance';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { ClickToContact } from '../../../_components/click-to-contact';
 import { MarkPaidForm } from '../../_components/mark-paid-form';
@@ -48,8 +49,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
     note: string | null;
     recorded_by_role: string | null;
   }>;
-  const latestPayment = payments.length > 0 ? payments[payments.length - 1] : null;
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount_egp), 0);
+  const { totalPaid, latestPayment } = summarizePayments(payments);
   const receiptUrl = latestPayment?.receipt_path ? await signedImageUrl(latestPayment.receipt_path) : null;
   const canCancel = ['held', 'confirmed'].includes(r.status) && isWithinCancellationWindow(r.booking_date);
   const canMarkPaid = ['confirmed', 'details_filled'].includes(r.status);

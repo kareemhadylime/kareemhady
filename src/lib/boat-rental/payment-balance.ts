@@ -63,3 +63,28 @@ export function validatePaymentAmount(
   }
   return { ok: true };
 }
+
+type PaymentRow = { amount_egp: number | string; paid_at?: string };
+
+export type PaymentSummary<T extends PaymentRow = PaymentRow> = {
+  totalPaid: number;
+  latestPayment: T | null;
+};
+
+/**
+ * Sum payment amounts and pick the latest (last in array) payment row.
+ * Used by booking detail UIs that show "total received" + "most recent payment".
+ * Pass the payments array as already returned from Supabase (sorted by paid_at desc preferred,
+ * but the latest pick uses array end position regardless of sort).
+ */
+export function summarizePayments<T extends PaymentRow>(payments: T[]): PaymentSummary<T> {
+  let total = 0;
+  for (const p of payments) {
+    const n = typeof p.amount_egp === 'string' ? Number(p.amount_egp) : p.amount_egp;
+    if (Number.isFinite(n)) total += n;
+  }
+  return {
+    totalPaid: total,
+    latestPayment: payments.length > 0 ? payments[payments.length - 1] : null,
+  };
+}
