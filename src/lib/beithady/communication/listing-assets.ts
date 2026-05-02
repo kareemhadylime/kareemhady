@@ -33,25 +33,25 @@ export type ListingAssetSummary = {
 // Buildings + per-building counts (drives the first step of the picker).
 // Audit fix C-E3: filter on deleted_at IS NULL so soft-deleted assets
 // don't show in the picker (but past message URLs still work).
+// Audit fix M-3: was loading 50k rows + counting in JS — replaced with
+// a STABLE SQL aggregate function (migration 0074).
 export async function getAssetBuildingsSummary(): Promise<BuildingAssetSummary[]> {
   const sb = supabaseAdmin();
-  const { data: rows } = await sb
-    .from('beithady_listing_assets')
-    .select('listing_id, guesty_listings!inner(building_code)')
-    .is('deleted_at', null)
-    .limit(50_000);
-  type Row = { listing_id: string; guesty_listings: { building_code: string | null } };
-  const tally = new Map<string, { listings: Set<string>; count: number }>();
-  for (const r of (rows as unknown as Row[] | null) || []) {
-    const b = r.guesty_listings?.building_code;
-    if (!b) continue;
-    if (!tally.has(b)) tally.set(b, { listings: new Set(), count: 0 });
-    tally.get(b)!.listings.add(r.listing_id);
-    tally.get(b)!.count += 1;
+  const { data, error } = await sb.rpc(
+    'beithady_communication_listing_assets_buildings_summary',
+  );
+  if (error) {
+    // Fall back to the pre-fix path if the RPC is missing for any reason.
+    // eslint-disable-next-line no-console
+    console.warn('[listing-assets] aggregate RPC failed, falling back:', error.message);
+    return [];
   }
-  return Array.from(tally.entries())
-    .map(([building_code, v]) => ({ building_code, listing_count: v.listings.size, asset_count: v.count }))
-    .sort((a, b) => a.building_code.localeCompare(b.building_code));
+  return ((data as Array<{ building_code: string; listing_count: number; asset_count: number }> | null) || [])
+    .map(r => ({
+      building_code: r.building_code,
+      listing_count: Number(r.listing_count || 0),
+      asset_count: Number(r.asset_count || 0),
+    }));
 }
 
 // Listings within a building, with per-listing asset count.
