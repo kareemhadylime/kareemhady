@@ -1,22 +1,84 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟡 Active turn — BH Gallery UX overhaul (BRAINSTORMING phase)
+## 🟢 Latest turn — BH Gallery UX overhaul (SHIPPED 2026-05-02)
+
+User reported three gallery problems and approved the design + plan + ship.
+
+**Migration 0066** — added `sort_order int not null default 0` column to `beithady_gallery_assets`, backfilled 50 existing rows with `-extract(epoch from created_at)::int` so newest-first ordering preserved. Index `idx_bh_gallery_sort` on `(building_code, listing_id, sort_order) WHERE deleted_at IS NULL`. Applied via Supabase MCP `apply_migration`.
+
+**6 new server actions in `actions.ts`:**
+- `reorderAssetsAction({buildingCode, listingId, orderedIds})` — full-list renumber 1..N, validates ids ⊂ album, 200-id cap
+- `bulkDeleteAssetsAction({ids})` — soft-delete (sets `deleted_at`) + best-effort storage purge + ad-eligible demote, concurrency 3
+- `bulkMoveAssetsAction({ids, targetBuildingCode, targetListingId})` — UPDATEs building_code+listing_id, sets sort_order = (top - count..top - 1) so moved batch lands at destination top preserving relative order
+- `bulkTagAssetsAction({ids, addTags, removeTags})` — array union/diff with 30-tag cap and lowercase normalize
+- `bulkAdEligibleAction({ids, eligible})` — promote/demote concurrency 3 against public bucket via existing `beithady_gallery_set_ad_eligible` RPC
+- `nukeAlbumAction({buildingCode, listingId, confirmation})` — strict `confirmation === 'DELETE'` gate, chunks 200, delegates to bulkDelete
+- Plus `uploadAssetAction` modified: computes `sort_order = min(sort_order in album) - 1` so new uploads land at album top
+
+**Components (all under `src/app/beithady/gallery/_components/`):**
+- `gallery-provider.tsx` (new) — React context, owns `jobs[]` + `selection: Set<string>` + `selectionAlbum`, worker effect kicks queued uploads up to MAX_CONCURRENT=3
+- `upload-tray.tsx` (new) — floating bottom-right pill, expanded view groups jobs by `(building, listingId)`, per-row cancel/retry, auto-collapse 30s after last `done`
+- `selectable-asset-grid.tsx` (new) — replaces server-only `asset-grid.tsx` for unit + general pages; uses `@dnd-kit/core` + `/sortable` + `/utilities`; checkbox on hover or always-visible when any selected; shift+click checkbox = range select; drag handle (GripVertical icon) on hover; group-drag when 2+ selected (preserves relative order, drops at over.id position); optimistic order with revert-on-error
+- `bulk-action-bar.tsx` (new) — floating bottom-center, only renders when `selection.size > 0` AND `selectionAlbum` matches current page album; reorder buttons (↑↓⤴⤵), Move-to-unit, Tag (add/remove modes), Ad-eligible toggle, Delete-N (with confirm), Clear
+- `move-to-unit-modal.tsx` (new) — single-select picker for target unit/general, calls `bulkMoveAssetsAction` and clears selection on success
+- `nuke-album-button.tsx` (new) — top-right of unit + general pages, opens modal requiring literal `DELETE` text input (case-sensitive, strict equality on server)
+- `gallery/layout.tsx` (new) — wraps `<GalleryProvider>` + `<UploadTray>` so they survive intra-`/beithady/gallery/**` navigation
+- `uploader.tsx` (rewritten) — drops local state, calls `provider.enqueueUpload(files, {building, listingId, category})`. Shows lightweight inline `myActive` count derived from provider jobs
+
+**Pages updated:**
+- `[buildingCode]/[listingId]/page.tsx` — wires `<SelectableAssetGrid>` + `<BulkActionBar>` + `<NukeAlbumButton>`. PageSize bumped 60→200 for richer reorder. `moveTargets` = General + every other unit in same building.
+- `[buildingCode]/general/page.tsx` — same wiring with `listingId: null`. PageSize 60→200. `moveTargets` = every unit in same building (general is current album).
+
+**Library:**
+- `gallery-list.ts` — `listAssets` now `ORDER BY sort_order ASC, created_at DESC`. New `resolveAssetUrls(assets)` helper for parallel URL minting on RSC side.
+
+**`asset-grid.tsx` NOT deleted** — still used by `ad-creatives` and `brand-library` pages which were out of scope for this overhaul. Preserved as-is.
+
+**npm deps added:** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` (~13 KB gzipped combined).
+
+**Files touched:** 11 created, 6 modified, 0 deleted. ~1900 LOC net add. All commits on branch `claude/busy-carson-e5604b`.
+
+**Commits (worktree branch):**
+- `c13016e` migration 0066
+- `3c4b568` dnd-kit packages
+- `7ce6371` listAssets ordering
+- `ccc4719` uploadAssetAction sort_order
+- `b4e34c3` 6 bulk server actions
+- `b9a0b52` GalleryProvider + UploadTray + layout
+- `3e37397` Uploader refactor to provider
+- `a735ba8` SelectableAssetGrid w/ dnd-kit
+- `642f6f2` MoveToUnitModal + BulkActionBar + NukeAlbumButton
+- `24dde3b` wire into unit + general pages
+
+**Build verified:** `npm run build` ✓ Compiled successfully in 19.7s, 12/12 static pages.
+
+**Smoke test plan (12 cases) deferred to live testing on prod** — see `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md` section 13.
+
+## 🟢 Earlier turn — BH Gallery UX overhaul (BRAINSTORMING phase)
 
 User reported three gallery problems and wants to plan before coding:
 1. **Upload queue dies on navigation** — uploader is a client component with local state in `src/app/beithady/gallery/_components/uploader.tsx`. Navigating to another unit unmounts it and kills in-flight uploads.
 2. **Need reorder UX** — currently sorted by `created_at desc` only. No `sort_order` column exists in `0037_beithady_gallery.sql`.
 3. **Need multi-select + bulk delete + nuke-album** — only single `deleteAssetAction` exists today.
 
-**Brainstorming progress (using superpowers:brainstorming skill):**
-- ✅ Q1 Reorder UX → user picked **(C) drag-and-drop + click-to-select-then-move** (both)
-- ✅ Q2 Multi-select scope → user picked **(D) Delete + Move-to-another-unit + Bulk tag + Bulk ad-eligible toggle**
-- ✅ Q3 "Delete all in album" → user picked **(B) Per-unit + General Building Area, typed `DELETE` to confirm** (literal "DELETE" string, simpler than typing nickname)
-- 🟡 Q4 (just sent, awaiting answer) — Persistent uploader scope — recommended **(A) Global floating tray** that persists across the entire site (root-layout provider). Each job tags itself with building+listingId so navigating doesn't kill in-flight uploads.
+**Brainstorming COMPLETE — all 6 questions answered:**
+- ✅ Q1 Reorder UX → **(C) drag-and-drop + click-to-select-then-move** (both)
+- ✅ Q2 Multi-select scope → **(D) Delete + Move-to-unit + Bulk tag + Bulk ad-eligible**
+- ✅ Q3 "Delete all in album" → **(B) Per-unit + General-Area, type `DELETE` to confirm**
+- ✅ Q4 Persistent uploader scope → **(B) Gallery-section tray** (provider in `gallery/layout.tsx`, dies when leaving `/beithady/gallery/**`)
+- ✅ Q5 Upload concurrency → **(B) Parallel with limit = 3**
+- ✅ Q6 Cover photo behavior → **(A) First-in-order = cover** (no separate "pin")
 
-**Remaining questions to ask after Q4:**
-- Q5: Upload concurrency — keep sequential, or parallel with limit (3-5)?
-- Q6: Reorder scope — per-listing only, or also allow drag across listings (drag-to-move-between-units)?
-- Q7: Cover photo — should sort_order rank-1 = cover, or separate "pin as cover" boolean?
+**Spec written + committed (62b243f) on branch `claude/busy-carson-e5604b`:**
+- Path: `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md`
+- Self-review pass: no placeholders, internally consistent, single-plan scope, ambiguities resolved (DELETE is case-sensitive strict equality, group-drag uses dnd-kit `over.id`, selection persists across detail-modal viewing).
+- 17 sections: problem statement, goals, non-goals, decisions table, architecture (dnd-kit + batch actions), data model (migration 0066, sort_order int with -epoch backfill), 8 components (gallery-provider, upload-tray, uploader rewrite, selectable-asset-grid, bulk-action-bar, nuke-album-button, move-to-unit-modal, gallery/layout.tsx), 7 server actions (1 modified + 6 new: reorder, bulkDelete, bulkMove, bulkTag, bulkAdEligible, nukeAlbum), 5 data flows, error handling matrix, permissions, audit log, 12-item manual test plan, files-touched table, npm deps (~13KB total), rollout (in-place, no flag), future extensions.
+
+**🟡 STATUS: awaiting user review of spec before invoking `writing-plans` skill.**
+
+**Worktree note:** committed on `claude/busy-carson-e5604b`, NOT pushed to main / NOT vercel-deployed. Per `AGENTS.md` auto-deploy convention, deploys happen on code merges; spec-only docs wait for branch merge. If user wants push-to-main now, do `git checkout main && git merge claude/busy-carson-e5604b && git push origin main && vercel --prod`.
+
+**Next step on resume:** if user approves spec → invoke `superpowers:writing-plans` skill to draft implementation plan. If user wants spec changes → edit the spec file, re-self-review, ask again.
 
 **Then:** propose 2-3 architectural approaches → present design → write spec to `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md` → self-review → user reviews spec → invoke `writing-plans` skill.
 
