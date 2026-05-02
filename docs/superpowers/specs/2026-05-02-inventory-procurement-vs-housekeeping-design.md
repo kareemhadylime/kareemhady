@@ -1,38 +1,46 @@
 # Inventory = Procurement / Housekeeping = Consumption — Design Spec
 
-**Date:** 2026-05-02
-**Status:** Approved (user signoff: "Approvd", 2026-05-02)
+**Date:** 2026-05-02 (revised same day after main-state audit)
+**Status:** Approved (user signoff: "Approvd", 2026-05-02 + autonomous-revise authorization "Automatically and more to ship and commit to main automatically without reverting to me")
 **Author:** Claude (brainstormed with Kareem)
-**Branch:** target = `main` (greenfield single-PR rebuild)
-**Discarded predecessors:** `claude/festive-lamport-b23de0`, `claude/sweet-lovelace-fa4cf6`
+**Branch:** target = `main` (worktree: `claude/eager-johnson-cce95a`)
+
+## ⚠ Revision note (read before §1)
+
+The first version of this spec assumed main was greenfield (no volumetric work shipped). That was wrong. **Main already ships migration `0066_volumetric_consumption.sql`, the `volumetric.ts` math library, item/rule form fields for `pack_volume_*` and `consumes_volume_*`, the mismatch banner, and the GRN restate workflow.** The user's screenshots showing "Pack Volume (Value) / (UoM)" fields are PROD STATE — not an experimental branch.
+
+This revised spec narrows the scope to the **actual delta**: a UI/UX restructure that reframes what's already in prod as procurement-first, plus three genuinely-new pieces (hybrid issue lines, rule UoM auto-default, Procurement Need column). The data model from migration 0066 stays as-is — column names, math library, and shadow-column pattern all remain. We change UI labels + add a small migration for the new pieces.
 
 ## 1. Problem statement
 
-Today's `beithady_inventory_items` mixes two semantics in a single row:
+The system shipped to prod on 2026-05-01 already correctly computes consumption math (item `pack_volume_value/uom` + rule `consumes_volume_value/uom` → fractional packs via `volumetric.ts`). The data model is right.
 
-- `default_cost_egp` is per-pack (procurement view) — what the buyer pays the vendor
-- `amazon_eg_pack_size` is the count of pieces inside a pack — used silently by the estimator (`src/lib/beithady/inventory/estimator.ts:195-201`) to divide the pack price into a per-piece cost for housekeeping math
+What's wrong is the **framing**. The Item edit modal labels the volumetric metadata as "Pack Volume (Value)" and "Pack Volume (UoM)" with a "— None (legacy count math) —" placeholder. To a procurement operator, this reads as consumption math leaking into the catalog form. Operators report (via the user) that the form mixes "what you bought" with "how it gets used".
 
-This works, but the form and list UIs surface the per-pack number with no signal that the matrix downstream is dividing it. The volumetric experimental branches (`festive-lamport-b23de0`, `sweet-lovelace-fa4cf6`) tried to fix this by adding `pack_volume_value/uom` fields directly to the item form alongside a "None (legacy count math)" affordance. That made the contradiction worse — the item form became a mix of "what you bought" and "how it gets consumed".
+The auto-issue cron in `src/lib/beithady/inventory/issue.ts` already converts consumption to packs at write time, but it only writes `qty` (in packs) to the issue line — it does NOT preserve the consumption-grain audit trail. So a housekeeper looking at a posted issue can see "0.025 packs" but not "100 mL", which is the unit they actually understand.
 
-The auto-issue cron in `src/lib/beithady/inventory/issue.ts:172-190` compounds the problem: it deducts `rule.qty` directly from `stock.qty_on_hand` (which is in pack-units), so a rule that says "1 sponge per check-in" deducts 1 *pack* from stock — three times the intended consumption.
+The matrix UI shows `TOTAL / CHECK-IN` and `PER GUEST` (consumption-cost views) but offers no procurement-actionable column — operators can't open the matrix to answer "how many packs of cleaner do I need to order this month".
 
-User mandate: **Inventory module reflects the item as procurement buys it. All sub-pack / partial-use math lives in the Housekeeping Matrix.**
+User mandate: **Inventory module is presented as procurement-first. Housekeeping Matrix exposes both consumption math and procurement-need rollup.**
 
 ## 2. Goals
 
-1. Item form contains only procurement-facing data — no consumption math fields.
-2. Pack-content metadata (e.g., "4 L per bottle") lives on the item as a single source of truth, framed as a vendor spec.
-3. Consumption rules carry their own UoM (`piece`, `mL`, `g`) and can be expressed in any unit dimensionally compatible with the item's pack contents.
-4. Housekeeping Matrix display is procurement-first: rows show what you buy and how much, with consumption math as secondary detail.
-5. Stock balance stays in pack units (procurement-aligned). Issue lines record both consumption-grain (audit) and pack-grain (stock movement) values.
-6. Matrix landing page exposes a "Monthly procurement need" column so the matrix is actionable for reorder, not just costing.
+1. Item form is reorganized into 4 visual blocks that frame every field as procurement-facing.
+2. Volumetric metadata stays on the item (single source of truth) but is relabeled "Pack contents" and grouped under the Procurement block alongside Brand/UoM/Cost.
+3. Rule form's UoM dropdown auto-defaults from the selected item's `pack_volume_uom` (Q3) — operator can override but rarely needs to.
+4. Auto-issue cron + issue-line schema record consumption grain (`consumed_qty`/`consumed_uom`) AND pack grain (`qty`) — Q5C hybrid.
+5. Matrix per-config detail page renders rows procurement-first (pack info as primary, consumption math as secondary detail), and adds a **Procurement Need** column.
+6. Matrix landing page adds a **Monthly Need** column summing whole-pack procurement needs across all line items per config.
 
 ## 3. Non-goals
 
-- Multi-pack-profile SKUs (e.g., "12 × 250 mL bottles" as one SKU). One `pack_contents` per item.
-- Stock tracked at finest grain (pieces / mL / g). Stock stays in packs; counts reconcile drift.
-- Weighted-average-cost recompute changes. `avg_cost_egp` stays per-pack.
+- Renaming existing `pack_volume_*` columns to `pack_contents_*`. The DB columns keep their migration-0066 names; only UI labels change. Cosmetic rename would touch every consumer for zero functional gain.
+- Adding a separate `pack_size` integer column. Multi-packs (e.g., "3-pack of sponges") use the existing `pack_volume_value=3, pack_volume_uom='pcs'` model since `'pcs'` is a valid UoM in `beithady_inventory_uoms`.
+- Changing the volumetric math itself (`volumetric.ts` is correct).
+- Changing the post-issue RPC (`beithady_inv_post_issue`) — already deducts `qty` from `qty_on_hand`, no change needed.
+- Multi-pack profiles ("12 × 250 mL bottles" as a single SKU).
+- Stock tracked at finest grain (Q5B option).
+- Weighted-average-cost recompute changes.
 - Owner-billable register UI (still V2).
 - Asset (V2) flag behavior changes.
 
@@ -40,57 +48,40 @@ User mandate: **Inventory module reflects the item as procurement buys it. All s
 
 | # | Question | Choice | Why |
 |---|---|---|---|
-| Q1 | What stays on the item as procurement metadata? | **A** — `pack_size` (count) only; volumetric math moves to rules | Procurement clarity; "as purchased" mandate |
-| Q2 | Where does "1 bottle = 4 L" live? | **A** — on the item, labeled as procurement metadata | Single source of truth; rules read it; no per-rule duplication |
-| Q3 | How does a rule express its consumption qty? | **A** — rule auto-picks UoM from item; operator can override | Least friction; item is source of truth; UoM compatibility validated at save |
+| Q1 | What stays on the item as procurement metadata? | **A** — pack contents (`pack_volume_value/uom`) only; the item form frames this as a vendor spec | Procurement clarity; "as purchased" mandate |
+| Q2 | Where does "1 bottle = 4 L" live? | **A** — on the item, labeled as "Pack contents" in UI | Already shipped this way in DB; only the UI label needs procurement framing |
+| Q3 | How does a rule express its consumption qty? | **A** — rule's UoM dropdown auto-defaults from item's `pack_volume_uom` | Least friction; item is source of truth; UoM compatibility validated at save |
 | Q4 | Matrix line display style | **A + bonus** — procurement-first primary line, consumption math secondary, plus Monthly procurement need column | Matrix should be actionable for buying, not just costing |
 | Q5 | Stock grain | **C** — hybrid: stock in packs, issue records both consumed-grain and pack-grain | Procurement-aligned stock; full audit trail of what was actually consumed |
-| Approach | How to ship | **1** — greenfield single-PR rebuild | Volumetric branch UI choices are exactly what we're redesigning; refactor cost > rebuild cost |
+| Approach | How to ship | **1** — narrow restructure on top of existing main state | Volumetric DB + math library already correct; only UI + Q5C hybrid + Q3 auto-default + Procurement Need are new |
 
-## 5. Data model
+## 5. Data model — what's already there vs new
 
-### 5.1 Items (`beithady_inventory_items`)
+### 5.1 Already shipped (no change)
 
-| Column | Type | Default | Purpose |
+- `beithady_inventory_items.pack_volume_value` (numeric, `> 0`)
+- `beithady_inventory_items.pack_volume_uom` (text, FK to `beithady_inventory_uoms`)
+- `beithady_inventory_items.amazon_eg_pack_volume_value/uom` (shadow columns for mismatch banner)
+- `beithady_inventory_items.amazon_eg_pack_size` (int, kept as Amazon-derived multi-pack count; mismatch banner reads it)
+- `beithady_inventory_consumption_rules.consumes_volume_value/uom`
+- `beithady_inventory_grn_lines.received_pack_volume_value/uom` (used by restate workflow)
+- `volumetric.ts` library: `convertVolume`, `parseVolumeFromText`, `unitsConsumedPerTrigger`, `packVolumeMismatch`, `uomKind`, `areUomsCompatible`
+
+### 5.2 New schema (migration `0077_inventory_procurement_restructure.sql`)
+
+| Table | Column | Type | Purpose |
 |---|---|---|---|
-| `pack_size` | `int` | `1`, `NOT NULL`, `CHECK (pack_size >= 1)` | Count of pieces inside one procurement pack (3-pack of sponges → 3; single bottle → 1) |
-| `pack_contents_value` | `numeric` | nullable | For volumetric/mass items: amount inside one pack (4 L bottle → 4) |
-| `pack_contents_uom` | `text` | nullable, `CHECK in ('L','mL','kg','g')` | UoM of pack contents |
-| `default_cost_egp` | unchanged | — | Stays per **pack** (procurement-correct) |
+| `beithady_inventory_issue_lines` | `consumed_qty` | `numeric NULL` | Q5C audit grain (100 mL, 1 piece) |
+| `beithady_inventory_issue_lines` | `consumed_uom` | `text NULL` (FK `beithady_inventory_uoms`) | UoM of consumption |
+| `beithady_inventory_unit_configurations` | `est_monthly_bookings` | `numeric NULL CHECK (>= 0)` | Manual override for Procurement Need calc |
 
-**Constraint:** `CHECK ((pack_contents_value IS NULL) = (pack_contents_uom IS NULL))` — both set or both null.
+`consumed_qty/consumed_uom` are nullable for back-compat with manual issues that may not have a rule trail. Auto-issues from rules always set them.
 
-**Repurposed column:** `amazon_eg_pack_size` is **kept** as a shadow column — its role shifts from "the canonical pack-size used silently by the estimator" to "what the AI extracted from the Amazon listing, used by the mismatch banner to flag drift vs the live `pack_size`". Same data, narrower contract. The new `amazon_eg_pack_contents_value/uom` columns play the same shadow role for volumetric metadata.
-
-### 5.2 Consumption rules (`beithady_inventory_consumption_rules`)
-
-| Column | Change | Purpose |
-|---|---|---|
-| `qty` | rename → `consumes_qty` | Same semantics, clearer name |
-| `consumes_uom` | new `text NOT NULL DEFAULT 'piece'` | UoM the rule consumes in |
-
-**Validation at save (application layer):**
-- `consumes_uom` must be `'piece'` if item has no `pack_contents_uom`
-- Otherwise must be in the same dimensional family as `pack_contents_uom` (mass family: `kg`/`g`; volume family: `L`/`mL`)
-- Reject `100 kg` for a `4 L` item
-
-### 5.3 Issue lines (`beithady_inventory_issue_lines`) — Q5C hybrid
-
-| Column | Change | Purpose |
-|---|---|---|
-| `consumed_qty` | new `numeric NULL` | Audit grain (100 mL, 1 piece) |
-| `consumed_uom` | new `text NULL` | UoM of consumption (`piece`, `mL`, `g`) |
-| `qty` | unchanged | Stays as packs deducted from stock |
-
-`consumed_qty`/`consumed_uom` are nullable for back-compat with manual issues that may not have a rule trail; auto-issues from rules always set them.
-
-### 5.4 Stock balance (`beithady_inventory_stock`)
-
-No schema change. `qty_on_hand` stays in pack units (already `numeric`, fractional decimals already allowed).
+`est_monthly_bookings` defaults null; falls back to "90-day Guesty avg / 3" then to constant `4`.
 
 ## 6. Item form layout (procurement-first)
 
-Reorganized into 4 visual blocks under one modal:
+Existing modal at `src/app/beithady/inventory/items/_components/item-form-button.tsx` is reorganized in place — no rename, no new component. Field order changes; some labels change; helper text updates.
 
 ```
 ┌─ IDENTIFICATION ─────────────────────────────────────────┐
@@ -98,8 +89,9 @@ Reorganized into 4 visual blocks under one modal:
 └──────────────────────────────────────────────────────────┘
 ┌─ PROCUREMENT (how it's bought) ──────────────────────────┐
 │ Category · UoM (pack / box / bottle / each)              │
-│ Pack size: [3]   ⓘ pieces inside one pack                │
-│ Pack contents: [4] [L ▼]   ⓘ for volumetric items only   │
+│ Pack contents: [4] [L ▼]   ⓘ for items sold by volume or │
+│   weight (cleaner, detergent, etc.); leave blank for     │
+│   unitary items like sponges or towels                   │
 │ Cost / pack (EGP): [6.28]                                │
 │ Vendor                                                    │
 └──────────────────────────────────────────────────────────┘
@@ -113,13 +105,14 @@ Reorganized into 4 visual blocks under one modal:
 └──────────────────────────────────────────────────────────┘
 ```
 
-**Killed:** the "Pack Volume (Value)" / "Pack Volume (UoM)" header from the volumetric branches with its "None (legacy count math)" placeholder. Replaced by "Pack contents" inside the Procurement block, framed as a vendor spec.
+**UI label changes:**
+- "PACK VOLUME (VALUE)" → "PACK CONTENTS" (combined header for the value + UoM pair)
+- "PACK VOLUME (UOM)" → (merged into the same field as a dropdown to the right of the value)
+- "— None (legacy count math) —" placeholder → removed; UoM dropdown shows actual UoMs from `beithady_inventory_uoms`, with a "— select —" placeholder when blank
 
-**Field rules in the form:**
-- `pack_size` always shown (defaults to 1, must be >= 1)
-- `pack_contents_value` + `pack_contents_uom` shown together; clearing one clears the other
-- `pack_size` placeholder text: "pieces inside one pack" (not "qty per pack" — clarity)
-- `pack_contents` helper text: "for items sold by volume or weight (cleaner, detergent, etc.); leave blank for unitary items"
+**Field rules in the form (no change to logic):**
+- `pack_volume_value` and `pack_volume_uom` shown together; clearing one clears the other (existing behavior preserved)
+- `pack_volume_value` + `pack_volume_uom` are optional — a unitary item like a sponge leaves them blank
 
 ## 7. Matrix UI
 
@@ -129,258 +122,145 @@ Each row's primary line is procurement; secondary detail explains the consumptio
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Kitchen Sponge 3-Pack    pack    6.28 EGP/pack                  │
-│ ↳ Consumes 1 piece per check-in (= 0.33 packs)                  │
-│ ↳ Line cost: 2.09 EGP   ·   Monthly need: 10 packs              │
+│ Multi-purpose Cleaner   pack    25.50 EGP/pack                  │
+│ ↳ Consumes 100 mL per check-in (= 0.025 packs from a 4 L pack)  │
+│ ↳ Line cost: 0.64 EGP   ·   Monthly need: 1 pack                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-New columns on the per-config table:
-- **Line cost** — `effective_qty × unit_cost` in EGP, where `effective_qty` is fractional packs and `unit_cost` is pack price
-- **Monthly procurement need** — `ceil(consumption_per_checkin × est_monthly_bookings / pack_size_or_pack_contents_value)` rendered as whole packs
+New column on the per-config table:
+- **Monthly procurement need** — `ceil(effective_qty_per_checkin × est_monthly_bookings)` rendered as whole packs
+
+(Existing columns are kept: `Line cost`, formula details, etc.)
 
 ### 7.2 Matrix landing page (`/beithady/inventory/rules/estimator`)
 
 Adds one column to the existing `UNIT CONFIGURATIONS` table:
-- **MONTHLY NEED** — sum of all per-line monthly needs across the config (in pack-units, summed across heterogeneous items as a count)
+- **MONTHLY NEED** — sum of whole-pack monthly needs across all items in the config (rendered as integer count of packs)
 
-Existing columns kept: `TOTAL / CHECK-IN`, `PER GUEST` (these remain consumption-cost views, useful for COGS attribution).
+Existing columns kept: `TOTAL / CHECK-IN`, `PER GUEST`.
 
-### 7.3 Estimated bookings source
+### 7.3 Estimated bookings source (helper)
 
-`est_monthly_bookings` per config:
-1. If a per-config `est_monthly_bookings` value is set on `beithady_inventory_unit_configurations`, use it
-2. Else, query Guesty `confirmed`+`checked_out` reservations from the last 90 days, divided by 3, scoped to listings where `unit_config_id` = current config
-3. Else, fallback constant `4` (sensible default for a small portfolio)
+`estMonthlyBookings(unitConfigId)`:
+1. If `unit_configurations.est_monthly_bookings` is not null, use it
+2. Else, query Guesty `confirmed`+`checked_out` reservations from the last 90 days, scoped to listings where `unit_config_id` = current config, then divide by 3
+3. Else fallback constant `4`
 
 Source visibility: small `ⓘ` next to the Monthly Need column header explains the source ("90-day Guesty avg" / "manual override" / "default").
 
-## 8. Stock posting & auto-issue cron
+Cache the per-config Guesty average for 1 hour in a small in-memory map (Next.js `unstable_cache` keyed by `unitConfigId`).
 
-### 8.1 New helper: `consumptionToPacks(rule, item) → number`
+## 8. Auto-issue cron — Q5C hybrid
 
-Located in `src/lib/beithady/inventory/volumetric.ts` (new file, cherry-picked structure from `claude/festive-lamport-b23de0` then renamed and slimmed):
-
-```typescript
-export function consumptionToPacks(
-  rule: { consumes_qty: number; consumes_uom: string },
-  item: { pack_size: number; pack_contents_value: number | null; pack_contents_uom: string | null },
-): number {
-  // Pure-count item: rule must be in 'piece'
-  if (!item.pack_contents_value || !item.pack_contents_uom) {
-    if (rule.consumes_uom !== 'piece') {
-      throw new Error(`Rule UoM '${rule.consumes_uom}' incompatible with pure-count item`);
-    }
-    return rule.consumes_qty / item.pack_size;
-  }
-  // Volumetric item: convert rule UoM to item's pack_contents UoM, then divide
-  const ruleAmtInItemUom = convertVolume(
-    rule.consumes_qty,
-    rule.consumes_uom,
-    item.pack_contents_uom,
-  );
-  return ruleAmtInItemUom / item.pack_contents_value;
-}
-```
-
-`convertVolume` and `parseVolumeFromText` are cherry-picked from the volumetric branch's `volumetric.ts` (math is already correct).
-
-### 8.2 Auto-issue cron (`src/app/api/cron/beithady-inventory-auto-issue/route.ts`)
-
-Currently writes one `qty` per issue line. Updated to write three values:
+`src/app/api/cron/beithady-inventory-auto-issue/route.ts` and the underlying helper in `src/lib/beithady/inventory/issue.ts` currently compute one `qty` per issue line (in packs). Updated to compute both grains:
 
 ```typescript
-const consumedQty = rule.consumes_qty * formulaMultiplier * (1 + lossFactor);
-const packsQty = consumptionToPacks(rule, item) * formulaMultiplier * (1 + lossFactor);
+// Pure-count item OR rule has no consumes_volume:
+//   consumed_qty = rule.qty (legacy semantic = pieces if pure-count)
+//   consumed_uom = item.uom (or 'pcs' for legacy rules)
+//   qty = rule.qty / item.pack_volume_value (when both 'pcs')
+//        OR rule.qty / item.amazon_eg_pack_size (legacy fallback)
 
-return {
-  item_id: item.id,
-  consumed_qty: round2(consumedQty),
-  consumed_uom: rule.consumes_uom,
-  qty: round2(packsQty),  // packs, deducted from stock
-  rule_id: rule.id,
-};
+// Volumetric item AND rule has consumes_volume_value/uom:
+//   consumed_qty = rule.consumes_volume_value × multiplier × (1 + lossFactor)
+//   consumed_uom = rule.consumes_volume_uom
+//   qty         = unitsConsumedPerTrigger(...) × multiplier × (1 + lossFactor)
 ```
 
-### 8.3 Post-issue RPC (`beithady_inv_post_issue` in `0050_beithady_inventory_issue_posting.sql`)
+`unitsConsumedPerTrigger` already exists in `volumetric.ts` and returns fractional packs. We just preserve the consumed_qty + consumed_uom alongside.
 
-**No math change.** Already deducts `qty` from `qty_on_hand`. We only ensure callers compute `qty` in packs — no SQL changes needed.
+The post-issue RPC (`beithady_inv_post_issue`) needs no change — it deducts `qty` from `stock.qty_on_hand`, which is procurement-grain.
 
-### 8.4 Estimator cost computation (`src/lib/beithady/inventory/estimator.ts:191-225`)
+## 9. Rule form — Q3 auto-default UoM
 
-Current code divides `amazon_eg_price_egp / amazon_eg_pack_size` for unit cost. Replaced by:
+`src/app/beithady/inventory/rules/_components/rule-form-button.tsx` currently has `consumes_volume_value` + `consumes_volume_uom` as manual inputs. Updated:
 
-```typescript
-const fractionalPacks = consumptionToPacks(rulePicked, it) * multiplier;
-const effectivePacks = fractionalPacks * (1 + lossFactor);
-const lineTotal = effectivePacks * unitCostPerPack;  // unitCostPerPack = default_cost_egp or amazon_eg_price_egp
-```
+- When operator selects an item, the form fetches that item's `pack_volume_uom` and pre-selects it in the rule's `consumes_volume_uom` dropdown
+- If item has no `pack_volume_uom` (pure-count item), default `consumes_volume_uom` to `'pcs'`
+- Operator can override — dropdown shows all UoMs, with item's UoM marked as "(default)"
+- Validation at save: `consumes_volume_uom` must be in the same `MeasureKind` as item's `pack_volume_uom` (mass/volume/count) — reuse existing `areUomsCompatible` from `volumetric.ts`
 
-`unit_cost_is_estimate` flag stays — true when no Amazon price exists, false when Amazon price drives the pack cost.
+## 10. Mismatch banner — already covers pack_volume
 
-## 9. Amazon EG sourcer
+`src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx` already compares `amazon_eg_pack_volume_value/uom` (shadow) vs `pack_volume_value/uom` (live). Keep as-is.
 
-### 9.1 AI extraction
+The "Fork to new SKU" button (Q3 from the volumetric branch) is already shipped. Keep as-is.
 
-The Haiku prompt in `src/lib/beithady/inventory/amazon-eg-sourcer.ts` already extracts pack size from product names. Updated to also extract `pack_contents_value` + `pack_contents_uom`:
+## 11. GRN restate workflow — already shipped
 
-- "Cleaner 4L Bottle" → `pack_size: 1, pack_contents_value: 4, pack_contents_uom: 'L'`
-- "Sponges 3-Pack" → `pack_size: 3, pack_contents_value: null, pack_contents_uom: null`
-- "Detergent 2.5 kg Box" → `pack_size: 1, pack_contents_value: 2.5, pack_contents_uom: 'kg'`
+`src/app/beithady/inventory/grn/_components/restate-pack-volume-button.tsx` already exists, allows operator to update `received_pack_volume_value/uom` per GRN line, and optionally cascade to the SKU master. **Keep as-is.** No rename — the file name is fine internally; the user-visible UI doesn't surface "pack volume" terminology in the modal.
 
-### 9.2 Shadow columns
+## 12. Migration plan
 
-New shadow columns on `beithady_inventory_items` for the review-before-apply pattern (existing pattern for `amazon_eg_url_reviewed_at`):
-- `amazon_eg_pack_contents_value` `numeric NULL`
-- `amazon_eg_pack_contents_uom` `text NULL`
-
-`Apply Amazon details` action (existing) is extended to copy shadow → live columns and stamp `amazon_eg_url_reviewed_at`.
-
-### 9.3 Mismatch banner
-
-The existing SKU-size-mismatch banner concept is kept and extended to cover `pack_contents` mismatches:
-- Banner fires when `amazon_eg_pack_size != pack_size` OR `amazon_eg_pack_contents_value/uom != pack_contents_value/uom`
-- Three resolution buttons (existing): Accept Amazon, Keep current, Open Amazon URL
-- Fourth violet button: "Fork to new SKU" (kept from volumetric branch design — used when Amazon listing is genuinely a different product, not just shrinkflation)
-
-## 10. GRN restate workflow
-
-Kept and renamed:
-
-- File rename: `src/app/beithady/inventory/grn/_components/restate-pack-volume-button.tsx` → `restate-pack-contents-button.tsx`
-- Action rename: `restateGrnLinePackVolumeAction` → `restateGrnLinePackContentsAction`
-- Modal updates `received_pack_size` and/or `received_pack_contents_value/uom` on the GRN line
-- Checkbox: "Also update SKU master" — when checked, cascades to item's `pack_size` / `pack_contents_*`
-- Audit-logged via `beithady_inventory_audit_logs` (existing pattern) with before/after values
-- Refuses on `posted` / `approved` GRN status
-
-GRN line columns added in migration 0066:
-- `received_pack_size` `int NULL`
-- `received_pack_contents_value` `numeric NULL`
-- `received_pack_contents_uom` `text NULL`
-
-These default to NULL (= "received as declared on item master"). Restate workflow populates them when actual receipt differs.
-
-## 11. Migration plan
-
-### 11.1 Migration 0066 — additive only
-
-`supabase/migrations/0066_inventory_procurement_consumption_split.sql`:
+Single migration: `supabase/migrations/0077_inventory_procurement_restructure.sql`
 
 ```sql
--- Items
-ALTER TABLE beithady_inventory_items
-  ADD COLUMN pack_size int NOT NULL DEFAULT 1 CHECK (pack_size >= 1),
-  ADD COLUMN pack_contents_value numeric NULL,
-  ADD COLUMN pack_contents_uom text NULL CHECK (
-    pack_contents_uom IS NULL OR pack_contents_uom IN ('L','mL','kg','g')
-  ),
-  ADD CONSTRAINT pack_contents_both_or_neither
-    CHECK ((pack_contents_value IS NULL) = (pack_contents_uom IS NULL)),
-  ADD COLUMN amazon_eg_pack_contents_value numeric NULL,
-  ADD COLUMN amazon_eg_pack_contents_uom text NULL CHECK (
-    amazon_eg_pack_contents_uom IS NULL OR amazon_eg_pack_contents_uom IN ('L','mL','kg','g')
-  );
-
--- Backfill pack_size from existing amazon_eg_pack_size
-UPDATE beithady_inventory_items
-  SET pack_size = COALESCE(amazon_eg_pack_size, 1)
-  WHERE pack_size = 1;
-
--- Consumption rules
-ALTER TABLE beithady_inventory_consumption_rules
-  RENAME COLUMN qty TO consumes_qty;
-ALTER TABLE beithady_inventory_consumption_rules
-  ADD COLUMN consumes_uom text NOT NULL DEFAULT 'piece' CHECK (
-    consumes_uom IN ('piece','L','mL','kg','g')
-  );
-
--- Issue lines
 ALTER TABLE beithady_inventory_issue_lines
-  ADD COLUMN consumed_qty numeric NULL,
-  ADD COLUMN consumed_uom text NULL CHECK (
-    consumed_uom IS NULL OR consumed_uom IN ('piece','L','mL','kg','g')
-  );
+  ADD COLUMN consumed_qty numeric NULL CHECK (consumed_qty IS NULL OR consumed_qty >= 0),
+  ADD COLUMN consumed_uom text NULL REFERENCES beithady_inventory_uoms(code);
 
--- GRN lines (restate columns)
-ALTER TABLE beithady_inventory_grn_lines
-  ADD COLUMN received_pack_size int NULL CHECK (
-    received_pack_size IS NULL OR received_pack_size >= 1
-  ),
-  ADD COLUMN received_pack_contents_value numeric NULL,
-  ADD COLUMN received_pack_contents_uom text NULL CHECK (
-    received_pack_contents_uom IS NULL OR received_pack_contents_uom IN ('L','mL','kg','g')
-  );
+COMMENT ON COLUMN beithady_inventory_issue_lines.consumed_qty IS
+  'Q5C hybrid grain — consumption-grain qty (e.g., 100 for "100 mL"). NULL for manual issues without a rule trail. Auto-issues from rules always set this.';
+COMMENT ON COLUMN beithady_inventory_issue_lines.consumed_uom IS
+  'UoM of consumed_qty (mL, g, pcs, etc.). NULL if consumed_qty is NULL.';
 
--- Unit configurations: optional manual override for monthly bookings
 ALTER TABLE beithady_inventory_unit_configurations
-  ADD COLUMN est_monthly_bookings numeric NULL CHECK (
-    est_monthly_bookings IS NULL OR est_monthly_bookings >= 0
-  );
+  ADD COLUMN est_monthly_bookings numeric NULL CHECK (est_monthly_bookings IS NULL OR est_monthly_bookings >= 0);
+
+COMMENT ON COLUMN beithady_inventory_unit_configurations.est_monthly_bookings IS
+  'Manual override for the Procurement Need calculation in the Housekeeping Matrix. NULL falls back to "90-day Guesty avg / 3" then constant 4.';
 ```
 
-### 11.2 Backward compatibility
+No data backfill needed (both columns default null). No drops, no renames.
 
-- Existing rules without `consumes_uom` get the default `'piece'` from migration — semantically identical for **pure-count** items (where today's rules implicitly mean "1 piece")
-- Existing items without `pack_size` set get `1` — semantically identical (pure-count single-piece items)
-- Existing items where `amazon_eg_pack_size` is set get `pack_size` backfilled from that value
-- Existing issue lines have null `consumed_qty`/`consumed_uom` — the audit grain only populates going forward
-- **Estimator math is consistent for pure-count items only.** For an existing 3-pack of sponges with rule `qty: 1, formula: per_checkin`, today's `unitCost = amazon_eg_price / amazon_eg_pack_size = 6.28/3 = 2.09 EGP/piece × 1 = 2.09 EGP/checkin` matches new `fractionalPacks = 1/3 × pack_price 6.28 = 2.09 EGP/checkin`. ✓
-- **Volumetric items need a manual transition.** For an existing 4 L cleaner bottle with rule `qty: 1, formula: per_checkin` (today: deducts 1 bottle/check-in), after migration: rule auto-gets `consumes_uom='piece'`, but item has no `pack_contents` set yet, so `consumptionToPacks` runs the pure-count branch and returns `1/1 = 1 pack` — same as today, no breakage. **Operator action required to unlock fractional volumetric:** open the item, set `pack_contents = 4 L`. After that, the rule must be updated to volumetric (e.g., `consumes_qty: 100, consumes_uom: 'mL'`) — until then, the rule still works in piece-mode. So the transition is non-breaking but requires manual rule rewrites to actually realize the new feature for volumetric items.
+## 13. Files touched
 
-**Migration runbook (post-deploy):**
-1. Deploy 0066 + code (estimator reads new `pack_size`, defaults `pack_contents` to null).
-2. For each volumetric item, operator opens item form, fills in `pack_contents` (e.g., `4 L`).
-3. For each rule pointing at a now-volumetric item, operator opens rule form, switches `consumes_qty` + `consumes_uom` to volumetric grain (e.g., `100 mL`).
-4. Validate by spot-checking the estimator output for one config that uses each volumetric item.
+**New file (1):** `supabase/migrations/0077_inventory_procurement_restructure.sql`
 
-## 12. Files touched (preview, ~14 files + 1 migration)
-
-**New files:**
-- `supabase/migrations/0066_inventory_procurement_consumption_split.sql`
-- `src/lib/beithady/inventory/volumetric.ts` (cherry-pick parseVolumeFromText/convertVolume/consumptionToPacks)
-
-**Renamed files:**
-- `src/app/beithady/inventory/grn/_components/restate-pack-volume-button.tsx` → `restate-pack-contents-button.tsx` (note: this file does NOT exist on main; it's a new file matching the old branch's concept)
-
-**Modified files:**
-- `src/lib/beithady/inventory/catalog.ts` — `ItemRow` type adds `pack_size` + `pack_contents_value/uom` + `amazon_eg_pack_contents_value/uom`; SELECT queries return both live and shadow columns for the mismatch banner to compare
-- `src/lib/beithady/inventory/estimator.ts` — replace per-piece division with `consumptionToPacks`
-- `src/lib/beithady/inventory/issue.ts` — auto-issue computes consumed_qty + qty (packs)
-- `src/lib/beithady/inventory/rules.ts` — `ConsumptionRule` type adds `consumes_uom`, save validation
-- `src/lib/beithady/inventory/amazon-eg-sourcer.ts` — Haiku prompt extracts pack_contents; writes shadow cols
-- `src/app/beithady/inventory/items/_components/item-form-button.tsx` — 4-block layout, Pack size + Pack contents fields
-- `src/app/beithady/inventory/items/_components/items-section-list.tsx` — list rows show "/pack" suffix on price; Pack contents badge
-- `src/app/beithady/inventory/items/actions.ts` — `ItemFormInput` type adds new fields, validation
-- `src/app/beithady/inventory/rules/_components/rule-form-button.tsx` — `consumes_uom` dropdown that defaults from item
-- `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` — procurement-first row display + Procurement Need column
+**Modified files (8):**
+- `src/lib/beithady/inventory/catalog.ts` — `ItemRow` already has `pack_volume_*`; no type change needed unless we display est_monthly_bookings
+- `src/lib/beithady/inventory/issue.ts` — `buildIssueLinesForReservation` (or wherever the auto-issue line construction lives) returns `{ consumed_qty, consumed_uom, qty }` instead of just `{ qty }`
+- `src/lib/beithady/inventory/estimator.ts` — add `est_monthly_bookings` resolution + `monthly_need_packs` per line + per-config rollup
+- `src/lib/beithady/inventory/estimator-shared.ts` — extend `EstimatorLine` type with `monthly_need_packs`; extend `EstimatorOutput` with `est_monthly_bookings_used` + `monthly_need_total`
+- `src/app/beithady/inventory/items/_components/item-form-button.tsx` — 4-block layout; relabel Pack Volume → Pack contents; helper text
+- `src/app/beithady/inventory/items/actions.ts` — no field changes; just labels (this file is server actions, no UI labels — likely no change)
+- `src/app/beithady/inventory/rules/_components/rule-form-button.tsx` — auto-default `consumes_volume_uom` from selected item's `pack_volume_uom`
 - `src/app/beithady/inventory/rules/estimator/page.tsx` — Monthly Need column on landing matrix
-- `src/app/beithady/inventory/grn/[id]/page.tsx` — wire restate-pack-contents-button on GRN lines
-- `src/app/api/cron/beithady-inventory-auto-issue/route.ts` — write consumed_qty + qty from new helper
-- `src/app/beithady/inventory/items/_components/amazon-mismatch-banner.tsx` — extend mismatch detection to pack_contents
+- `src/app/beithady/inventory/rules/estimator/[configId]/page.tsx` — procurement-first row layout + Monthly Need column on detail
+- `src/app/api/cron/beithady-inventory-auto-issue/route.ts` — write consumed_qty + consumed_uom alongside qty
 
-**Estimated LOC:** ~600 net (additions outnumber deletions; volumetric.ts ~150, item-form rework ~120, estimator ~80, mismatch banner ~50, others smaller).
+**Estimated LOC:** ~300 net (item-form rework ~80, rule-form auto-default ~30, estimator + shared types ~80, estimator pages ~80, auto-issue cron ~30).
 
-## 13. Testing strategy
+## 14. Testing strategy
 
-- **Unit tests** for `volumetric.ts` (`convertVolume`, `consumptionToPacks`) covering: pure-count items, L↔mL conversion, kg↔g conversion, dimensional-mismatch errors
-- **Estimator integration test** using a seeded unit_config + 3 items (sponge 3-pack pure-count; cleaner 4 L volumetric; detergent 2.5 kg mass) + rules consuming 1 piece / 100 mL / 200 g — assert per-line costs and Monthly Need totals
-- **Auto-issue cron test** asserting both `consumed_qty` (audit grain) and `qty` (packs) are written correctly for one of each item type
-- **Item form UI test** (existing test pattern) verifying form submits with valid pack_size/pack_contents and rejects mismatched both-or-neither
-- **Migration smoke test:** run 0066 against a copy of prod data (Supabase MCP `apply_migration` to a branch), spot-check that `pack_size` backfilled from `amazon_eg_pack_size` correctly, that no rules lost their qty values
+This codebase has no test framework wired into `package.json` (no `vitest`/`jest`). Verification is done via:
 
-## 14. Open questions / risks
+1. **`npm run build`** — type-checks every change; catches signature drift between caller and callee
+2. **Manual smoke in dev server** (`npm run dev`):
+   - Open `/beithady/inventory/items`, edit a volumetric item (e.g., a 4 L cleaner), confirm 4-block layout renders correctly with values pre-filled
+   - Open a non-volumetric item (e.g., a sponge), confirm Pack contents fields are blank
+   - Open `/beithady/inventory/rules/estimator/[some-config-id]` for a config that has a volumetric item; confirm row shows procurement-first layout, Line cost matches expectations, Monthly Need shows whole pack count
+   - Open `/beithady/inventory/rules/estimator` (landing), confirm new MONTHLY NEED column populated
+   - Add/edit a rule; selecting a volumetric item auto-fills `consumes_volume_uom`; selecting a unitary item defaults to 'pcs'
+3. **Supabase MCP queries** for migration smoke + cron verification:
+   - After 0077 applies, `SELECT column_name FROM information_schema.columns WHERE table_name='beithady_inventory_issue_lines'` returns `consumed_qty` + `consumed_uom`
+   - After auto-issue cron runs (or local invocation), `SELECT consumed_qty, consumed_uom, qty FROM beithady_inventory_issue_lines WHERE issue_id IN (recent issues)` shows three populated values
+4. **Spot-check estimator output** via a small server script that calls `computeEstimatorOutput(configId)` with a known config and asserts `monthly_need_packs` for one volumetric line equals the hand-computed value
 
-- **`amazon_eg_pack_size` column repurposed as shadow** — kept indefinitely for the mismatch banner to compare AI-extracted vs live `pack_size`. Some references in code (e.g., `catalog.ts` SELECT lists, mismatch banner) still read it, by design.
-- **Existing issue lines have null `consumed_qty`/`consumed_uom`.** Acceptable — audit grain only populates going forward.
-- **Volumetric-item rules need manual rewrite to unlock fractional consumption.** See migration runbook in §11.2. Until rewritten, volumetric items behave exactly as today (1 bottle deducted per trigger).
-- **`restate-pack-contents-button.tsx` is a new file, not a rename.** The volumetric-branch's `restate-pack-volume-button.tsx` does not exist on main. §10 builds this fresh.
-- **Bookings-per-month query performance.** If per-config Guesty 90-day average is computed on every matrix landing page render, it's a heavy query. Mitigation: cache per-config result for 1 hour in a small in-memory map, bust on `revalidateTag`.
+## 15. Risks
 
-## 15. Out of scope (deferred)
+- **Auto-issue cron writing both grains has a backfill question.** Existing posted issues have null `consumed_qty/uom`. Acceptable — we don't backfill historical issues; audit grain only populates going forward.
+- **Procurement Need depends on `est_monthly_bookings`.** If Guesty 90-day data is sparse for a config (new building), the fallback constant `4` will produce a misleadingly small Monthly Need. Mitigation: surface the source via the `ⓘ` tooltip so operator knows when manual override is recommended.
+- **Re-rendering the matrix landing page on every visit will run N Guesty queries (one per config).** Mitigation: `unstable_cache` with 1h TTL keyed by `unitConfigId`, plus a single batched query that gets all configs at once.
+- **The first version of this spec described a greenfield rebuild.** That version is preserved in git history (commit `be05c4f`) so the wrong-direction work is not silently lost — it just got superseded.
 
-- Multi-pack profiles ("12 × 250 mL bottles" as a single SKU)
+## 16. Out of scope (deferred)
+
+- Renaming `pack_volume_*` columns to `pack_contents_*` (cosmetic; touches every consumer; UI labels do the framing job)
+- Adding a `pack_size` integer column (existing `pack_volume_value, pack_volume_uom='pcs'` model handles multi-packs)
+- Multi-pack-profile SKUs ("12 × 250 mL bottles" as one SKU)
 - Stock tracked at finest grain (Q5B option)
-- Weighted-average-cost recompute changes
+- WAC math change
 - Owner-billable register UI
 - Asset (V2) flag behavior

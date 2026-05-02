@@ -20,9 +20,11 @@ User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete)
 
 ---
 
-## 🟡 Earlier this session — Brainstorm spec: Inventory = procurement / Housekeeping = consumption
+## 🟡 Earlier this session — Brainstorm spec REVISED: Inventory = procurement / Housekeeping = consumption
 
-**Phase:** Plan-phase complete; spec written and shipped. Workflow phase (implementation plan) is next.
+**Phase:** Plan-phase complete (v2); spec revised after main-state audit. Workflow phase (implementation plan) is next.
+
+**Revision reason:** The first version assumed main was greenfield (no volumetric work). That was wrong — main already ships migration `0066_volumetric_consumption.sql`, the `volumetric.ts` math library, item/rule form fields for `pack_volume_*` and `consumes_volume_*`, the mismatch banner, and the GRN restate workflow. The user's screenshots of the "Pack Volume" form fields are PROD STATE. The first spec described re-implementing all this from scratch — wrong direction. The revised spec narrows to the actual delta (UI restructure + Q5C hybrid + Q3 auto-default + Procurement Need column).
 
 **Branch worked from:** `claude/eager-johnson-cce95a` (worktree, was behind main; reset to `origin/main` and replayed spec on top before push).
 
