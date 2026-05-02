@@ -21,6 +21,27 @@ Symbols: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · ✅ Already fixed in this 
 
 ---
 
+## ✅ Shipped across the audit work (chronological, by commit)
+
+| Commit | Audit IDs | What |
+|--------|-----------|------|
+| [0a4fb5b](https://github.com/kareemhadylime/kareemhady/commit/0a4fb5b) | **C-A1..C-A10** | `key={header.id}` on `<ThreadPane>` across 4 route files + AutoScrollThread `fired.current` guard removed |
+| [dff84e0](https://github.com/kareemhadylime/kareemhady/commit/dff84e0) | **C-B2 + C-B3** + **C-D2** + **H-B4** | Auto-restore trigger (mig 0070) + AI gate on archived/resolved + WA Casual unread_count increment |
+| [0a88cef](https://github.com/kareemhadylime/kareemhady/commit/0a88cef) | **C-D1** | AI auto-reply per-conversation rate limit (3 sends per 10 min) |
+| [4d5f9bc](https://github.com/kareemhadylime/kareemhady/commit/4d5f9bc) | **C-C1** + **C-C2** + **H-C2** | Plaintext fallback for Guesty bodyHtml + crypto.timingSafeEqual + bulkRestore archive guard |
+| [72fbb8e](https://github.com/kareemhadylime/kareemhady/commit/72fbb8e) | **C-D6** + **C-D5** + **H-D7** | WA conv create race fixed via ON CONFLICT (mig 0071) + send paths switched to upsert + WA capture insert error |
+| [2737579](https://github.com/kareemhadylime/kareemhady/commit/2737579) | **C-D3** + **C-D4** | Guesty Idempotency-Key + retries:0 on POST + fallback URL only on 4xx |
+| [9594acb](https://github.com/kareemhadylime/kareemhady/commit/9594acb) | **C-B1** | Auto-archive cron predicate now requires answered before archiving open convs |
+| [e9e49c4](https://github.com/kareemhadylime/kareemhady/commit/e9e49c4) | **C-E1** + **C-E2** + **C-E3** | Multi-attach orphan-blob cleanup + extension allowlist + library asset soft-delete (mig 0072) |
+
+**All 16 CRITICAL items shipped. Plus 4 HIGH items (H-B4, H-C2, H-D7, F-direction-via-from_type covered indirectly via C-D5 upsert).**
+
+DB-evidenced healing: archived-with-recent-inbound count went from 1 → 0.
+
+**Remaining:** 27 HIGH + 23 MEDIUM items in the lists below. None are corrupting data today.
+
+---
+
 ## Summary table
 
 | Severity | Count | Notes |

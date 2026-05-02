@@ -1,6 +1,37 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Communication module audit compiled (70 findings, no fixes shipped yet)
+## 🟢 Latest turn — Communication audit critical fixes shipped (8 PRs, all 16 CRITICAL + 4 HIGH)
+
+User said "Go - Moving from Batch to Batch Automatically". Shipped 8 PRs back-to-back. All committed to main, deployed to prod (`dpl_…q0vb2316c…`, READY).
+
+**Migrations applied to prod DB:**
+- 0070 — auto-restore-on-inbound trigger on beithady_messages (clears archived_at + resolved_at + flips state='open' atomically; one-time backfill healed the 1 stuck row)
+- 0071 — beithady_ensure_wa_casual_conversation rewritten with ON CONFLICT DO NOTHING (race-fix)
+- 0072 — beithady_listing_assets.deleted_at column + active partial index (soft-delete)
+
+**Fixes by PR:**
+
+| PR | Audit IDs | One-liner |
+|----|-----------|-----------|
+| PR1 (`0a4fb5b`) | C-A1..C-A10 | `key={thread?.header.id ?? 'empty'}` on `<ThreadPane>` across 4 routes + AutoScrollThread guard removed → 10 React state leaks across conversation switches closed in one shot |
+| PR2 (`dff84e0`) | C-B2 + C-B3 + C-D2 + H-B4 | Auto-restore trigger + auto-unresolve + WA Casual unread_count increment + AI gate on archived/resolved |
+| PR3 (`0a88cef`) | C-D1 | AI auto-reply per-conversation rate limit (3 sends per 10 min) |
+| PR4 (`4d5f9bc`) | C-C1 + C-C2 + H-C2 | Plaintext fallback for Guesty bodyHtml (kills XSS) + crypto.timingSafeEqual + bulkRestore archive guard |
+| PR5 (`72fbb8e`) | C-D6 + C-D5 + H-D7 | WA conv create race-fixed via ON CONFLICT + send-guesty/send-wa-casual switched to upsert + WA capture insert error |
+| PR6 (`2737579`) | C-D3 + C-D4 | Guesty Idempotency-Key + retries:0 on POST + fallback URL only on 4xx pre-send failures |
+| PR7 (`9594acb`) | C-B1 | Auto-archive cron predicate now requires answered (last_outbound_at >= last_inbound_at) before archiving open convs |
+| PR8 (`e9e49c4`) | C-E1 + C-E2 + C-E3 | Multi-attach orphan-blob cleanup + extension allowlist + library asset soft-delete |
+
+**Remaining audit work:** 27 HIGH + 23 MEDIUM items not yet addressed (per `COMMUNICATION_AUDIT_2026_05_02.md`). None are corrupting data today; they're robustness / clarity / future-proofing items. Notable HIGH items deferred for product input or new infra:
+- C-C3 (Green-API webhook IP allowlist) — needs Green-API IP list confirmed by ops
+- H-B7 (AI auto-reply via void promise — Vercel kills before completion) — needs `waitUntil()` wiring, probably wraps several other deferred work
+- H-E11 (WA media URLs from Green-API CDN expire ~7 days) — needs new bucket + cron job to mirror media to durable storage
+
+Recommended next-session starting point: H-C7 (no edit/delete propagation from Guesty/Green) and H-B5 (concurrent webhook race with no `WHERE last_message_*_at < $newTime` guard) — both are bounded changes.
+
+---
+
+## 🟢 Earlier this session — Communication module audit compiled (70 findings)
 
 Same systematic methodology as the inventory audit applied to the communication module. **5 parallel research agents** (UI/React state, webhook+ingest integrity, conversation lifecycle, outbound+AI reply pipeline, attachments+media) plus a **parallel DB-level integrity scan** via Supabase MCP. All findings cross-checked against actual production data.
 
