@@ -1,4 +1,5 @@
 import 'server-only';
+import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
   formulaMultiplier,
@@ -12,6 +13,40 @@ import {
 } from './estimator-shared';
 import { unitsConsumedPerTrigger } from './volumetric';
 import { resolveUnitCostEgp } from './unit-cost';
+
+async function resolveMonthlyBookings(
+  config: UnitConfiguration,
+): Promise<{ value: number; source: 'manual_override' | 'guesty_90d_avg' | 'default_constant' }> {
+  if (config.est_monthly_bookings != null && config.est_monthly_bookings >= 0) {
+    return { value: Number(config.est_monthly_bookings), source: 'manual_override' };
+  }
+  const guesty = await guestyAvgFor(config.id);
+  if (guesty != null) return { value: guesty, source: 'guesty_90d_avg' };
+  return { value: 4, source: 'default_constant' };
+}
+
+const guestyAvgFor = unstable_cache(
+  async (unitConfigId: string): Promise<number | null> => {
+    const sb = supabaseAdmin();
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data } = await sb
+      .from('beithady_inventory_listing_unit_config')
+      .select('listing_id')
+      .eq('unit_config_id', unitConfigId);
+    const listingIds = (data || []).map(r => (r as { listing_id: string }).listing_id);
+    if (listingIds.length === 0) return null;
+    const { count } = await sb
+      .from('guesty_reservations')
+      .select('id', { count: 'exact', head: true })
+      .in('listing_id', listingIds)
+      .in('status', ['confirmed', 'checked_out'])
+      .gte('check_in_date', cutoff);
+    if (count == null) return null;
+    return count / 3;
+  },
+  ['inventory-estimator-monthly-bookings'],
+  { revalidate: 3600, tags: ['inventory-estimator-monthly-bookings'] },
+);
 
 // Server-side queries powering the Housekeeping Estimator (Phase M.15).
 // Pure data fetch + cost computation — no UI here.
@@ -162,6 +197,7 @@ export async function computeEstimatorOutput(
   // 4. For each item, resolve the most-specific rule that applies.
   //    Specificity ladder: listing > unit_config > category > building > global
   const lines: EstimatorLine[] = [];
+  const monthlyBookings = await resolveMonthlyBookings(config);
   for (const it of items) {
     const catCode = catById.get(it.category_id) || '';
     const group = categoryToGroup(catCode);
@@ -222,6 +258,9 @@ export async function computeEstimatorOutput(
     // amazon (price/pack_size) → avg → last → default. See unit-cost.ts.
     const { unitCostEgp: unitCost, isEstimate: unitCostIsEstimate } = resolveUnitCostEgp(it);
 
+    // M.17 — Procurement Need: whole packs to buy monthly. Round up.
+    const monthlyNeedPacks = Math.ceil(effectiveQty * monthlyBookings.value);
+
     lines.push({
       item_id: it.id,
       item_sku: it.sku,
@@ -244,6 +283,9 @@ export async function computeEstimatorOutput(
       has_listing_override: !!override,
       ai_info_summary_en: it.ai_info?.summary_en ?? null,
       unit_cost_is_estimate: unitCostIsEstimate,
+      monthly_need_packs: monthlyNeedPacks,
+      consumes_volume_value: rulePicked.consumes_volume_value != null ? Number(rulePicked.consumes_volume_value) : null,
+      consumes_volume_uom: rulePicked.consumes_volume_uom,
     });
   }
 
@@ -263,6 +305,8 @@ export async function computeEstimatorOutput(
     total += l.line_total_egp;
   }
 
+  const monthlyNeedTotalPacks = lines.reduce((acc, l) => acc + l.monthly_need_packs, 0);
+
   return {
     unit_config: config,
     listing_id: listingId || null,
@@ -271,6 +315,9 @@ export async function computeEstimatorOutput(
     total_per_checkin_egp: total,
     total_per_guest_egp: config.guest_capacity > 0 ? total / config.guest_capacity : 0,
     computed_at: new Date().toISOString(),
+    monthly_need_total_packs: monthlyNeedTotalPacks,
+    est_monthly_bookings_used: monthlyBookings.value,
+    est_monthly_bookings_source: monthlyBookings.source,
   };
 }
 
@@ -284,6 +331,8 @@ export type UnitConfigSummary = {
   total_per_checkin_egp: number;
   line_count: number;
   listing_count: number;
+  monthly_need_total_packs: number;
+  est_monthly_bookings_source: 'manual_override' | 'guesty_90d_avg' | 'default_constant';
 };
 
 export async function listUnitConfigSummaries(): Promise<UnitConfigSummary[]> {
@@ -297,6 +346,8 @@ export async function listUnitConfigSummaries(): Promise<UnitConfigSummary[]> {
       total_per_checkin_egp: o?.total_per_checkin_egp || 0,
       line_count: o?.lines.length || 0,
       listing_count: counts[c.id] || 0,
+      monthly_need_total_packs: o?.monthly_need_total_packs || 0,
+      est_monthly_bookings_source: o?.est_monthly_bookings_source || 'default_constant',
     });
   }
   return out;
