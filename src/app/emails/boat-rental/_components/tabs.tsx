@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   LayoutDashboard, Ship, Tag, CalendarRange, MapPin, Users, Bell, ListOrdered, History,
-  Search, Clock, Receipt, Calendar, User2, BookOpen,
+  Search, Clock, Receipt, Calendar, User2, BookOpen, Wallet,
 } from 'lucide-react';
 
 // Tab groups per role. Kept as plain data so the active tab can be
@@ -39,6 +39,8 @@ export const OWNER_TABS: TabItem[] = [
   { href: '/emails/boat-rental/owner/inventory', label: 'Boat Catalogue', icon: BookOpen },
   { href: '/emails/boat-rental/owner/calendar', label: 'Calendar', icon: Calendar },
   { href: '/emails/boat-rental/owner/reservations', label: 'Reservations', icon: ListOrdered },
+  { href: '/emails/boat-rental/owner/skippers', label: 'Skippers', icon: Users },
+  { href: '/emails/boat-rental/owner/money', label: 'Money', icon: Wallet },
 ];
 
 // Mobile column layout per total tab count. Picked so rows are roughly
