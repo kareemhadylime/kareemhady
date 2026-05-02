@@ -305,8 +305,28 @@ export async function flushPendingForReservation(reservationId: string): Promise
     .select('id, to_phone, rendered_body')
     .eq('reservation_id', reservationId)
     .eq('status', 'pending');
-  const rows = (data as Array<{ id: number; to_phone: string; rendered_body: string }> | null) || [];
+  return flushRows(sb, (data as Array<{ id: number; to_phone: string; rendered_body: string }> | null) || []);
+}
 
+// Flush all pending non-reservation notifications (e.g. recurring expense
+// generated, ad-hoc owner messages). Bounded by `limit` to keep cron runs
+// short — pending rows older than that get picked up on the next pass.
+export async function flushPendingNonReservation(limit = 50): Promise<{ sent: number; failed: number }> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('boat_rental_notifications')
+    .select('id, to_phone, rendered_body')
+    .is('reservation_id', null)
+    .eq('status', 'pending')
+    .order('id', { ascending: true })
+    .limit(limit);
+  return flushRows(sb, (data as Array<{ id: number; to_phone: string; rendered_body: string }> | null) || []);
+}
+
+async function flushRows(
+  sb: ReturnType<typeof supabaseAdmin>,
+  rows: Array<{ id: number; to_phone: string; rendered_body: string }>
+): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
   for (const row of rows) {
