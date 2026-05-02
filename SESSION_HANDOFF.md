@@ -56,6 +56,14 @@ User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete)
 **Next user input expected:**
 - "3" → keep branch + worktree as-is (good if planning to address F4/F5/F6 next)
 - "4" → discard local branch + worktree (safe — main has all commits, nothing lost; just removes local refs)
+- Or pick to ship F4/F5/F6 inline now (~10 LOC total) before answering 3-vs-4
+
+**Last sub-turn (this turn):** User asked "what are F4, F5, F6". I explained:
+- **F4** — `src/lib/beithady/inventory/estimator.ts:42` — widen status filter `.in('status', ['confirmed', 'checked_out'])` to also include `'checked_in'` so mid-stay guests count toward the 90-day Guesty avg. Spec deviation that under-counts active demand. ~2-line change. Deferred to confirm with product.
+- **F5** — `src/lib/beithady/inventory/estimator.ts:46-49` declares cache tag `'inventory-estimator-monthly-bookings'` but `src/lib/run-guesty-sync.ts` never calls `revalidateTag(...)` after reservation upsert. Result: Monthly Need lags reality by up to 60 min. ~3-line change in run-guesty-sync.ts.
+- **F6** — `src/lib/beithady/inventory/issue.ts:249` rounds `qty` to 2 decimals via `Math.ceil(qtyPacks * 100) / 100`. For 100 mL from a 4 L bottle (= 0.025 packs), this rounds UP to 0.03 — 20% over-deduction per trigger. Fix: 4 decimals for `qty`, keep 2 for `consumed_qty`. ~2-line change.
+
+I offered to ship all three inline (~10 LOC total) before answering the 3-vs-4 finish question. Awaiting user decision.
 
 **Important context for any resumer:**
 - Worktree path: `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a`. Branch: `claude/eager-johnson-cce95a`.
