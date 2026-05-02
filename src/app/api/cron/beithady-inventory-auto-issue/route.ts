@@ -100,6 +100,8 @@ export async function GET(req: NextRequest) {
         line_no: i + 1,
         item_id: l.item_id,
         qty: l.qty,
+        consumed_qty: l.consumed_qty,    // M.17 — audit grain
+        consumed_uom: l.consumed_uom,    // M.17 — audit grain UoM
         batch_no_picked: '__bulk__',
         note: `${l.formula_kind} (rule ${l.rule_id})`,
       }));

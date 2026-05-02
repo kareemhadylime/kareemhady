@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import { unitsConsumedPerTrigger } from './volumetric';
 import type {
   IssueStatus, IssueType, IssueCreatedVia,
   IssueRow, IssueLine, IssueListRow, IssueDetail, IssueFilters,
@@ -117,7 +118,14 @@ export type AutoIssueComputation = {
   reservation_id: string;
   building_code: string;
   warehouse_id: string | null;
-  lines: Array<{ item_id: string; qty: number; rule_id: string; formula_kind: string }>;
+  lines: Array<{
+    item_id: string;
+    qty: number;                 // packs deducted from stock (procurement grain)
+    consumed_qty: number;        // M.17 — consumption grain (mL, g, pcs)
+    consumed_uom: string;        // M.17 — UoM of consumed_qty
+    rule_id: string;
+    formula_kind: string;
+  }>;
 };
 
 export async function computeAutoIssueLines(
@@ -139,16 +147,29 @@ export async function computeAutoIssueLines(
     warehouseId = wh && wh.length > 0 ? (wh[0] as { id: string }).id : null;
   }
 
-  // Find applicable rules (most-specific first: listing → building → category-of-item → global)
-  const { data: rules } = await sb
+  // Find applicable rules + their items' volumetric/UoM data (most-specific
+  // first: listing → building → category-of-item → global)
+  const { data: rulesRaw } = await sb
     .from('beithady_inventory_consumption_rules')
-    .select('id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct')
+    .select(`
+      id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct,
+      consumes_volume_value, consumes_volume_uom,
+      item:beithady_inventory_items(uom, pack_volume_value, pack_volume_uom)
+    `)
     .eq('active', true);
 
-  const all = (rules as Array<{
+  type RuleRow = {
     id: string; scope: string; scope_value: string | null;
     item_id: string; formula_kind: string; qty: number; loss_factor_pct: number;
-  }> | null) || [];
+    consumes_volume_value: number | null; consumes_volume_uom: string | null;
+    // Supabase typegen renders nested join as either object or array depending on
+    // the relationship cardinality — items has one row per FK so we narrow to
+    // either shape and pull the first.
+    item: { uom: string; pack_volume_value: number | null; pack_volume_uom: string | null }
+        | Array<{ uom: string; pack_volume_value: number | null; pack_volume_uom: string | null }>
+        | null;
+  };
+  const all = (rulesRaw as RuleRow[] | null) || [];
 
   // Filter by scope match for this reservation
   const matching = all.filter(r => {
@@ -170,20 +191,64 @@ export async function computeAutoIssueLines(
   }
 
   const lines = Array.from(byItem.values()).map(r => {
-    let baseQty = Number(r.qty);
+    // M.17 — multiplier from the formula
+    let multiplier = 1;
     switch (r.formula_kind) {
-      case 'per_guest_per_night': baseQty *= (reservation.guests * reservation.nights); break;
-      case 'per_night': baseQty *= reservation.nights; break;
-      case 'per_2_guests_per_night': baseQty *= (Math.ceil(reservation.guests / 2) * reservation.nights); break;
-      case 'per_checkin': /* base qty as-is */ break;
-      case 'fixed_per_stay': /* base qty as-is */ break;
-      default: break;
+      case 'per_guest_per_night': multiplier = reservation.guests * reservation.nights; break;
+      case 'per_night': multiplier = reservation.nights; break;
+      case 'per_2_guests_per_night': multiplier = Math.ceil(reservation.guests / 2) * reservation.nights; break;
+      case 'per_checkin': multiplier = 1; break;
+      case 'fixed_per_stay': multiplier = 1; break;
+      default: multiplier = 1;
     }
-    // Apply loss factor — bump up by the wastage cushion
-    const withLoss = baseQty * (1 + (Number(r.loss_factor_pct) / 100));
+    const lossMul = 1 + (Number(r.loss_factor_pct) / 100);
+
+    // Normalize the joined item record (Supabase may return as array or object)
+    const itemRec = Array.isArray(r.item) ? r.item[0] : r.item;
+    const itemUom = itemRec?.uom ?? 'pcs';
+    const packValue = itemRec?.pack_volume_value != null ? Number(itemRec.pack_volume_value) : null;
+    const packUom = itemRec?.pack_volume_uom ?? null;
+    const consumesValue = r.consumes_volume_value != null ? Number(r.consumes_volume_value) : null;
+    const consumesUom = r.consumes_volume_uom;
+
+    let qtyPacks: number;
+    let consumedQty: number;
+    let consumedUom: string;
+
+    if (
+      packValue != null && packUom != null &&
+      consumesValue != null && consumesUom != null
+    ) {
+      // Volumetric path — e.g., 100 mL of cleaner from a 4 L bottle = 0.025 packs
+      const packsPerTrigger = unitsConsumedPerTrigger({
+        consumesValue,
+        consumesUom,
+        packVolumeValue: packValue,
+        packVolumeUom: packUom,
+      });
+      // Fall back to legacy if UoMs are dimensionally incompatible
+      if (packsPerTrigger != null) {
+        qtyPacks = packsPerTrigger * multiplier * lossMul;
+        consumedQty = consumesValue * multiplier * lossMul;
+        consumedUom = consumesUom;
+      } else {
+        qtyPacks = Number(r.qty) * multiplier * lossMul;
+        consumedQty = Number(r.qty) * multiplier * lossMul;
+        consumedUom = itemUom;
+      }
+    } else {
+      // Legacy raw-qty path (rule has no consumes_volume; treat rule.qty as
+      // the per-formula consumption in item.uom units)
+      qtyPacks = Number(r.qty) * multiplier * lossMul;
+      consumedQty = Number(r.qty) * multiplier * lossMul;
+      consumedUom = itemUom;
+    }
+
     return {
       item_id: r.item_id,
-      qty: Math.ceil(withLoss * 100) / 100,  // round to 2 decimals up
+      qty: Math.ceil(qtyPacks * 100) / 100,
+      consumed_qty: Math.ceil(consumedQty * 100) / 100,
+      consumed_uom: consumedUom,
       rule_id: r.id,
       formula_kind: r.formula_kind,
     };
