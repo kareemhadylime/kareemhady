@@ -64,13 +64,15 @@ export function RuleFormButton({
 
   // Q3 — auto-default consumes_volume_uom from the picked item's
   // pack_volume_uom, but only if the operator hasn't manually set one
-  // for this rule already.
+  // for this rule already. For pure-count items (no pack_volume_uom),
+  // default to 'pcs' per spec — operator gets a sensible starting UoM
+  // without an extra click.
   function pickItem(itemId: string) {
     const item = items.find(i => i.id === itemId);
     setForm(f => ({
       ...f,
       item_id: itemId,
-      consumes_volume_uom: f.consumes_volume_uom || item?.pack_volume_uom || null,
+      consumes_volume_uom: f.consumes_volume_uom || item?.pack_volume_uom || 'pcs',
     }));
   }
 
@@ -244,8 +246,8 @@ export function RuleFormButton({
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">
                   Set to override the count-based qty. Estimator divides by the
-                  item&apos;s <code>pack_volume</code> to compute accurate
-                  units-per-trigger. Leave blank to skip.
+                  item&apos;s pack contents to compute accurate units-per-trigger
+                  (e.g. 100 mL ÷ 4 L pack = 0.025 packs). Leave blank to skip.
                 </p>
               </div>
 
