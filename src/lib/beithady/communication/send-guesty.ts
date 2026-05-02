@@ -86,9 +86,20 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
       target_id: c.id,
       metadata: { status: result.status, error: result.error },
     });
-    // Provide a fallback URL the UI can deep-link to (composes the
-    // message into the Guesty inbox compose pane via query string).
-    const fallbackUrl = `https://app.guesty.com/inbox/${c.external_id}?reply=${encodeURIComponent(args.body.slice(0, 500))}`;
+    // Audit fix C-D4: only show the deep-link fallback for unambiguous
+    // pre-send failures (4xx validation, no idempotency-key conflict).
+    // For 5xx / timeout / network we don't actually know whether
+    // Guesty processed the request — operator clicking the fallback
+    // and re-typing in the Guesty inbox could deliver the same
+    // message TWICE. With the new Idempotency-Key (C-D3), Guesty
+    // should dedupe a deliberate re-POST within the same minute, but
+    // we still don't surface a "click here to type again" CTA on
+    // ambiguous failures.
+    const isPreSendFailure =
+      result.status >= 400 && result.status < 500 && result.status !== 0;
+    const fallbackUrl = isPreSendFailure
+      ? `https://app.guesty.com/inbox/${c.external_id}?reply=${encodeURIComponent(args.body.slice(0, 500))}`
+      : undefined;
     return { ok: false, status: result.status, error: result.error, fallbackUrl };
   }
 
