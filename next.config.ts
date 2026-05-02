@@ -3,11 +3,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Most image uploads now go direct-to-Supabase via signed URLs (the
   // boat photo path), which bypasses Vercel's function payload limit.
-  // The receipt-upload server action (broker payments) still goes through
-  // a Server Action; allow up to 12MB for that single-file path.
+  // The receipt-upload server action (broker payments) and the
+  // Beit Hady gallery uploader still go through a Server Action;
+  // allow up to 15MB for those single-file paths (covers iPhone HEIC
+  // burst photos which often land in the 8-14 MB range).
   experimental: {
     serverActions: {
-      bodySizeLimit: '12mb',
+      bodySizeLimit: '15mb',
     },
   },
   // Backward-compat redirects after pulling Beit Hady out of the
