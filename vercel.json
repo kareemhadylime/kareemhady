@@ -17,6 +17,7 @@
     { "path": "/api/cron/boat-rental/hold-warnings", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/boat-rental/auto-close-skipper-cash", "schedule": "30 1 * * *" },
     { "path": "/api/cron/boat-rental/generate-recurring-expenses", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/boat-rental/trip-reminders-24h", "schedule": "0 * * * *" },
     { "path": "/api/cron/beithady-daily-report", "schedule": "*/30 6-21 * * *" },
     { "path": "/api/cron/kika-daily-report", "schedule": "*/30 6-21 * * *" },
     { "path": "/api/cron/beithady-daily-report-cleanup", "schedule": "0 * * * *" },
