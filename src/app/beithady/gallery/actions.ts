@@ -69,6 +69,24 @@ export async function uploadAssetAction(formData: FormData): Promise<void> {
   if (!upload.ok) throw new Error(`upload_failed: ${upload.error}`);
 
   const sb = supabaseAdmin();
+  // Compute sort_order so new uploads land at the top of the album
+  // (one less than current min, scoped to the same building+listing).
+  let sortOrderForInsert = 0;
+  {
+    let minQuery = sb
+      .from('beithady_gallery_assets')
+      .select('sort_order')
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true })
+      .limit(1);
+    if (building) minQuery = minQuery.eq('building_code', building);
+    else minQuery = minQuery.is('building_code', null);
+    if (listingId) minQuery = minQuery.eq('listing_id', listingId);
+    else minQuery = minQuery.is('listing_id', null);
+    const { data: minRow } = await minQuery.maybeSingle();
+    sortOrderForInsert = ((minRow as { sort_order: number } | null)?.sort_order ?? 0) - 1;
+  }
+
   const { data: ins, error } = await sb
     .from('beithady_gallery_assets')
     .insert({
@@ -81,6 +99,7 @@ export async function uploadAssetAction(formData: FormData): Promise<void> {
       mime_type: mime,
       size_bytes: ab.byteLength,
       uploaded_by: user.id,
+      sort_order: sortOrderForInsert,
     })
     .select('id')
     .single();
