@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { OwnerBlockDialog } from './block-dialog';
+import { CellContextMenu } from './cell-context-menu';
 
 type ReservationRow = { id: string; booking_date: string; status: string; price_egp_snapshot: string | number };
 type BlockRow = { id: string; blocked_date: string; reason: string };
@@ -42,6 +43,25 @@ export function InteractiveMonthGrid({
   boatId, dates, firstDow, today, reservations, blocks,
 }: Props) {
   const [dialogDate, setDialogDate] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ date: string; x: number; y: number } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function openContextAt(date: string, clientX: number, clientY: number) {
+    setCtxMenu({ date, x: clientX, y: clientY });
+  }
+  function startLongPress(e: React.TouchEvent, date: string) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    const x = touch.clientX;
+    const y = touch.clientY;
+    longPressTimer.current = setTimeout(() => openContextAt(date, x, y), 500);
+  }
+  function cancelLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
 
   const resByDate = new Map<string, ReservationRow>();
   const priority: Record<string, number> = {
@@ -127,14 +147,22 @@ export function InteractiveMonthGrid({
             );
           }
 
-          // Empty future day — clickable to open block dialog.
+          // Empty future day — left-click opens block dialog; right-click / long-press opens context menu.
           return (
             <button
               key={date}
               type="button"
               onClick={() => setDialogDate(date)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openContextAt(date, e.clientX, e.clientY);
+              }}
+              onTouchStart={(e) => startLongPress(e, date)}
+              onTouchEnd={cancelLongPress}
+              onTouchMove={cancelLongPress}
+              onTouchCancel={cancelLongPress}
               className={`aspect-square p-1.5 rounded border bg-white hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-cyan-950/30 border-slate-200 dark:border-slate-700 text-left transition ${isToday ? 'ring-1 ring-cyan-500' : ''}`}
-              title="Click to block this date"
+              title="Click to block · right-click / long-press for more"
             >
               <div className={`text-sm font-semibold ${isToday ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-900 dark:text-slate-100'}`}>
                 {dayNum}
@@ -150,6 +178,16 @@ export function InteractiveMonthGrid({
           initialDate={dialogDate}
           existingBlock={dialogBlock ? { id: dialogBlock.id, reason: dialogBlock.reason } : null}
           onClose={() => setDialogDate(null)}
+        />
+      )}
+      {ctxMenu && (
+        <CellContextMenu
+          date={ctxMenu.date}
+          boatId={boatId}
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+          onBlock={() => setDialogDate(ctxMenu.date)}
         />
       )}
     </>
