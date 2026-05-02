@@ -20,7 +20,52 @@ User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete)
 
 ---
 
-## 🟢 Latest turn — Inventory procurement restructure: ALL 10 tasks shipped to main
+## 🟢 Latest turn — Inventory procurement restructure: ALL DONE, awaiting branch-finish choice (3 vs 4)
+
+**Phase:** Coding complete + final code review complete + final-review nit fixes shipped. `superpowers:finishing-a-development-branch` skill invoked. **Awaiting user choice between option 3 (keep branch + worktree) and option 4 (discard).**
+
+**11 commits on origin/main (ad8bf17 → c5aae73):**
+1. `ad8bf17` migration 0077 — issue_lines hybrid grain + est_monthly_bookings
+2. `30ed1be` extend EstimatorLine + EstimatorOutput types
+3. `2151ad0` estimator computes monthly_need_packs + est_monthly_bookings resolution
+4. `2a73965` perf: parallelize estimator monthly-bookings resolution (I-1+I-2 fixes)
+5. `f4c997a` matrix landing — Monthly need column with source-attribution hint
+6. `7c562b7` matrix detail — Monthly procurement need tile + per-line column
+7. `3f681f8` auto-issue cron writes hybrid grain (consumed_qty + qty in packs)
+8. `cc148a7` rule form auto-defaults consumes_volume_uom from item
+9. `f42f529` item form 4-block procurement-first layout
+10. `1853fed` docs: handoff (sub-section)
+11. `c5aae73` final-review nits — Q3 'pcs' fallback + IssueLine grain types + UI text
+
+**Verification status (per finishing-a-development-branch Step 1):**
+- `npx tsc --noEmit -p .` clean for ALL 12 files touched by this restructure
+- Pre-existing TS errors in unrelated files (`analytics/reports/builder/_components/charts/index.tsx`, `lib/beithady-daily-report/render-pdf.tsx`, `lib/beithady/inventory/excel.ts`, `lib/beithady/reports/render-pdf.tsx`, `lib/beithady/sop/pdf.tsx`, `lib/kika-daily-report/render-pdf.tsx`) are background noise — not blockers
+- `git merge-base HEAD origin/main` = HEAD → branch is already fully merged via the direct-push pattern
+
+**Final code review outcome (subagent `ae9667ae0f686c009`):** Approved with follow-ups.
+- Critical: 0
+- Important: 2 (#1 Q3 fallback to 'pcs' — FIXED inline in c5aae73; #2 process risk on intermediate broken commit — already shipped, just a future-process note)
+- Minor: 7 — #6 IssueLine type extended (FIXED in c5aae73); #7 boilerplate text (FIXED in c5aae73); rest deferred
+
+**Deferred follow-ups (out of scope for this branch):**
+- F3: ✅ done (#6 above)
+- F4: widen status filter in `resolveMonthlyBookings` (estimator.ts) to include `checked_in` — confirm with product first
+- F5: add `revalidateTag('inventory-estimator-monthly-bookings')` to `src/lib/run-guesty-sync.ts` after reservation upsert batch
+- F6: future-proof rounding in `issue.ts:249` for very-small fractional packs (e.g., switch from 2-decimal to 4-decimal for `qty` field)
+
+**Next user input expected:**
+- "3" → keep branch + worktree as-is (good if planning to address F4/F5/F6 next)
+- "4" → discard local branch + worktree (safe — main has all commits, nothing lost; just removes local refs)
+
+**Important context for any resumer:**
+- Worktree path: `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a`. Branch: `claude/eager-johnson-cce95a`.
+- Origin/main HEAD: `c5aae73`. The local branch and origin/main are identical.
+- All deployed via Vercel auto-deploy. The user's `feedback_deployment_direct_to_prod.md` memory authorizes the direct-to-main push pattern.
+- Plan: `docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md`. Spec: `docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md`.
+
+---
+
+## 🟢 Earlier this session — Inventory procurement restructure: ALL 10 tasks shipped to main
 
 **Phase:** Coding phase complete (hybrid approach — Tasks 1-3 via subagent-driven, Tasks 4-9 inline after user picked option C). All 9 commits live on origin/main, Vercel deploying.
 
