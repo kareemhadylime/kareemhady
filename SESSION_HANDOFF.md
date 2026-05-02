@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟡 Latest turn — Brainstorm spec: Inventory = procurement / Housekeeping = consumption
+## 🟢 Latest turn — Final audit cleanup (PR19-PR20: H-C7 UI + M-14 wiring)
+
+User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete) into the thread-pane renderer and M-14 (reply_to_message_id) through the send paths. Final state: **20 PRs for comm + 6 for inventory = 26 PRs total**, **9 comm migrations (0067-0076) + 3 inventory migrations**, prod deploy `dpl_…jdyokafsp…` READY.
+
+| PR | IDs | What |
+|----|-----|------|
+| PR19 (`b11b9d1`) | H-C7 UI | thread-pane renders "[message deleted (by guest)]" with Ban icon when `deleted_at` set; "· edited" footer with hover-tooltip timestamp when `edited_at` set. ThreadMessage type + loadThread query extended to select the new columns. |
+| PR20 (`6d307b2`) | M-14 wiring | `replyToMessageId?` arg threaded through DispatchPayload → sendGuestyMessage / sendWaCasualMessage → INSERT row. Per-message Reply UI + provider-side `replyTo`/`quotedMessageId` payload threading deferred until UI lands. |
+
+**M-8** (ingest proc rewrite for high-water mark) — deferred as documented; at current ~6k-convo scale not urgent, rewrite carries breakage risk for tested code paths. Documented in COMMUNICATION_AUDIT_2026_05_02.md.
+
+**Three truly-deferred items remain (all justified):**
+- **H-B11** — cross-channel guest threads merge: needs product call (separate SLA per channel may be intentional)
+- **H-C5** — non-issue (force-dynamic everywhere)
+- **M-10** — gallery rate-limit: M-2's 128-bit tokens make brute-force infeasible; rate-limit belongs at edge layer if ever needed
+
+**Inventory + Communication audit grand total:** 26 PRs · 12 DB migrations · ~125 findings closed across both modules.
+
+---
+
+## 🟡 Earlier this session — Brainstorm spec: Inventory = procurement / Housekeeping = consumption
 
 **Phase:** Plan-phase complete; spec written and shipped. Workflow phase (implementation plan) is next.
 
