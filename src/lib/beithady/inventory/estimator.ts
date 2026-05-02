@@ -39,7 +39,7 @@ const guestyAvgFor = unstable_cache(
       .from('guesty_reservations')
       .select('id', { count: 'exact', head: true })
       .in('listing_id', listingIds)
-      .in('status', ['confirmed', 'checked_out'])
+      .in('status', ['confirmed', 'checked_in', 'checked_out'])
       .gte('check_in_date', cutoff);
     if (count == null) return null;
     return count / 3;

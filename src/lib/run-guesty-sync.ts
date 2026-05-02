@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { revalidateTag } from 'next/cache';
 import { supabaseAdmin } from './supabase';
 import {
   listGuestyListings,
@@ -351,6 +352,26 @@ export async function runGuestySync(trigger: 'cron' | 'manual') {
       reservationsSynced += results.length;
       if (results.length < 100) break;
       rOffset += 100;
+    }
+
+    // F5 — bust the inventory estimator's monthly-bookings cache once new
+    // reservations have landed. Cache lives in src/lib/beithady/inventory/
+    // estimator.ts (`unstable_cache` with tag 'inventory-estimator-monthly-
+    // bookings', 1h TTL). Without this, the Housekeeping Matrix's Monthly
+    // Need column lags newly-confirmed reservations by up to 60 minutes.
+    //
+    // Next 16 note: `revalidateTag(tag, profile)` requires the profile arg;
+    // 'max' picks stale-while-revalidate semantics — Matrix viewers see the
+    // stale value once and trigger a fresh fetch in the background. Single-
+    // arg form is deprecated in Next 16.
+    if (reservationsSynced > 0) {
+      try {
+        revalidateTag('inventory-estimator-monthly-bookings', 'max');
+      } catch {
+        // revalidateTag throws outside an App Router context; sync may run
+        // from a Vercel cron route which is fine, but a node script run
+        // would fail. Swallow — stale cache will self-heal on TTL expiry.
+      }
     }
 
     // 3. Backfill listing_nickname on reservation rows (one SQL update).

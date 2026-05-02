@@ -246,7 +246,13 @@ export async function computeAutoIssueLines(
 
     return {
       item_id: r.item_id,
-      qty: Math.ceil(qtyPacks * 100) / 100,
+      // F6 — 4-decimal precision on `qty` (packs deducted from stock) so
+      // tiny fractional consumption like 100 mL ÷ 4 L = 0.025 packs is
+      // not silently rounded UP to 0.03 (20% over-deduction per trigger).
+      // Aggregated over many auto-issues, the 2-decimal version drifted.
+      qty: Math.ceil(qtyPacks * 10000) / 10000,
+      // 2-decimal stays fine for `consumed_qty` since it's the human-
+      // readable mL/g/pcs value (e.g., 100 mL is exact, no fractional drift).
       consumed_qty: Math.ceil(consumedQty * 100) / 100,
       consumed_uom: consumedUom,
       rule_id: r.id,
