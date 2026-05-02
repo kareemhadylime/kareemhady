@@ -143,10 +143,17 @@ export function AttachmentMenu({
     if (items.length === 0 || isPending) return;
     setErrorMsg(null);
     startTransition(async () => {
+      // Audit fix C-E1: track storage paths the CLIENT uploaded so we
+      // can clean them up on partial-failure send. Pre-fix, every file
+      // we uploaded stayed in beithady-wa-media forever even if the
+      // send failed before reaching the recipient — orphan blobs in
+      // perpetuity. Library items (kind==='lib') are pre-existing
+      // assets and are NOT cleaned up.
+      const uploadedPathsForCleanup: string[] = [];
       try {
         // Step 1 — upload every file item directly to Supabase Storage.
         // Library items already have URLs and are passed through.
-        type Resolved = { url: string; name: string; mime: string };
+        type Resolved = { url: string; name: string; mime: string; clientUploadedPath?: string };
         const resolved: Resolved[] = [];
         const sb = supabaseBrowser();
         for (const it of items) {
@@ -159,6 +166,10 @@ export function AttachmentMenu({
           const signed = await createMediaSignedUploadUrl(ext);
           if (!signed.ok) {
             setErrorMsg(`signed_url_failed: ${signed.error}`);
+            // Cleanup any prior uploads from this batch.
+            if (uploadedPathsForCleanup.length > 0) {
+              await sb.storage.from('beithady-wa-media').remove(uploadedPathsForCleanup).catch(() => {});
+            }
             return;
           }
           const { error: upErr } = await sb.storage
@@ -169,9 +180,13 @@ export function AttachmentMenu({
             });
           if (upErr) {
             setErrorMsg(`storage_upload_failed: ${upErr.message}`);
+            if (uploadedPathsForCleanup.length > 0) {
+              await sb.storage.from('beithady-wa-media').remove(uploadedPathsForCleanup).catch(() => {});
+            }
             return;
           }
-          resolved.push({ url: signed.publicUrl, name: it.file.name || 'file', mime });
+          uploadedPathsForCleanup.push(signed.path);
+          resolved.push({ url: signed.publicUrl, name: it.file.name || 'file', mime, clientUploadedPath: signed.path });
         }
 
         // Step 2 — call the multi-attach action with all entries as
@@ -185,6 +200,11 @@ export function AttachmentMenu({
           fd.append(`library_url_${i}`, r.url);
           fd.append(`library_name_${i}`, r.name);
           fd.append(`library_mime_${i}`, r.mime);
+          // Pass the cleanup path so the server can delete unsent
+          // uploads if the multi-send loop breaks partway.
+          if (r.clientUploadedPath) {
+            fd.append(`cleanup_path_${i}`, r.clientUploadedPath);
+          }
         });
         const result = await action(fd);
 
@@ -198,11 +218,20 @@ export function AttachmentMenu({
           if (result.redirectTo) router.push(result.redirectTo);
           else router.refresh();
         } else {
+          // Server already cleaned up unsent uploads (audit fix C-E1).
+          // Just surface the error.
           setErrorMsg((result.error || 'unknown_error').slice(0, 240));
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setErrorMsg(msg.slice(0, 240));
+        // Best-effort: try to clean up anything we uploaded before the throw.
+        if (uploadedPathsForCleanup.length > 0) {
+          try {
+            const sb = supabaseBrowser();
+            await sb.storage.from('beithady-wa-media').remove(uploadedPathsForCleanup);
+          } catch { /* ignore */ }
+        }
       }
     });
   };

@@ -31,11 +31,14 @@ export type ListingAssetSummary = {
 };
 
 // Buildings + per-building counts (drives the first step of the picker).
+// Audit fix C-E3: filter on deleted_at IS NULL so soft-deleted assets
+// don't show in the picker (but past message URLs still work).
 export async function getAssetBuildingsSummary(): Promise<BuildingAssetSummary[]> {
   const sb = supabaseAdmin();
   const { data: rows } = await sb
     .from('beithady_listing_assets')
     .select('listing_id, guesty_listings!inner(building_code)')
+    .is('deleted_at', null)
     .limit(50_000);
   type Row = { listing_id: string; guesty_listings: { building_code: string | null } };
   const tally = new Map<string, { listings: Set<string>; count: number }>();
@@ -67,6 +70,7 @@ export async function getListingsInBuildingWithAssets(buildingCode: string): Pro
       .from('beithady_listing_assets')
       .select('listing_id')
       .in('listing_id', ids)
+      .is('deleted_at', null)
       .limit(50_000);
     for (const r of (assetRows as Array<{ listing_id: string }> | null) || []) {
       counts.set(r.listing_id, (counts.get(r.listing_id) || 0) + 1);
@@ -87,6 +91,7 @@ export async function getListingAssets(listingId: string): Promise<ListingAsset[
     .from('beithady_listing_assets')
     .select('*')
     .eq('listing_id', listingId)
+    .is('deleted_at', null)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
     .limit(200);
