@@ -39,15 +39,25 @@ const PROMPT = `You are tagging an interior/property photo for Beit Hady, a serv
 If the image is a document scan, blueprint, screenshot, branded merch, or otherwise not a property photo, return tags=["non_property"], caption describing what it is, quality_score=0.`;
 
 async function fetchAsBase64(bucket: GalleryBucket, path: string): Promise<{ data: string; mime: string } | null> {
-  const url = await signedUrlFor(bucket, path);
+  // Use Supabase Storage's /render/image/ endpoint to fetch a downscaled
+  // re-encoded variant (1024 px max edge, q=85 JPEG). Anthropic vision
+  // works great at this resolution and the variant always fits under
+  // the 5 MB base64 cap regardless of original file size.
+  const url = await signedUrlFor(bucket, path, 3600, {
+    width: 1024,
+    height: 1024,
+    resize: 'contain',
+    quality: 85,
+  });
   if (!url) return null;
   const res = await fetch(url);
   if (!res.ok) return null;
   const mime = res.headers.get('content-type') || 'image/jpeg';
   const buf = await res.arrayBuffer();
-  // Anthropic accepts up to ~5MB images via base64. Skip if larger.
+  // Defensive guard — transform should always keep us under 5 MB, but
+  // if a future change ever produces a larger blob, fail closed rather
+  // than blow up Anthropic's API call.
   if (buf.byteLength > 5 * 1024 * 1024) return null;
-  // Convert ArrayBuffer to base64 (Node 20+ has Buffer.from)
   const b64 = Buffer.from(buf).toString('base64');
   return { data: b64, mime };
 }
