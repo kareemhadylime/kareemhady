@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Ship, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Ship, AlertTriangle, CheckCircle2, XCircle, Plus } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
@@ -85,6 +85,15 @@ export default async function OwnerReservations() {
         </div>
       </header>
       <TabNav tabs={OWNER_TABS} currentPath="/emails/boat-rental/owner/reservations" />
+
+      <div className="flex justify-end mt-6 mb-2">
+        <Link
+          href="/emails/boat-rental/owner/reservations/new"
+          className="ix-btn-primary inline-flex items-center gap-1"
+        >
+          <Plus size={14} /> Create reservation
+        </Link>
+      </div>
 
       {pendingApprovals.length > 0 && (
         <section className="mt-8">
