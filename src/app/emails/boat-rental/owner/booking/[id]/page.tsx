@@ -7,6 +7,7 @@ import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
 import { isWithinCancellationWindow, cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { computeBalance } from '@/lib/boat-rental/payment-balance';
+import { getDefaultSkipper } from '@/lib/boat-rental/skipper-resolver';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { ClickToContact } from '../../../_components/click-to-contact';
 import { RecordPaymentForm } from '../../_components/record-payment-form';
@@ -39,7 +40,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
       id, booking_date, status, price_egp_snapshot, pricing_tier_snapshot, notes,
       cancelled_at, cancelled_by_role, cancel_reason, refund_pending,
       source, external_broker_id,
-      boat:boat_rental_boats ( name, owner_id, skipper_name ),
+      boat:boat_rental_boats ( id, name, owner_id ),
       broker:app_users!boat_rental_reservations_broker_id_fkey ( id, username ),
       external_broker:boat_rental_external_brokers ( id, name, phone ),
       booking:boat_rental_bookings ( client_name, client_phone, guest_count, trip_ready_time, extra_notes, destination:boat_rental_destinations ( name ) ),
@@ -51,6 +52,8 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
   const r = data as Res | null;
   if (!r) notFound();
   if (!ownerIds.includes(r.boat.owner_id)) notFound();
+
+  const defaultSkipper = await getDefaultSkipper(r.boat.id as string);
 
   const payments = ((r.payments ?? []) as PaymentRow[]).slice().sort((a, b) =>
     new Date(a.paid_at).getTime() - new Date(b.paid_at).getTime()
@@ -93,8 +96,8 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
               <span className="font-bold tabular-nums">EGP {price.toLocaleString()}</span>{' '}
               <span className="text-xs text-slate-500">({r.pricing_tier_snapshot})</span>
             </div>
-            {r.boat.skipper_name && (
-              <div className="text-slate-700 mt-1">Skipper: {r.boat.skipper_name}</div>
+            {defaultSkipper && (
+              <div className="text-slate-700 mt-1">Skipper: {defaultSkipper.name}</div>
             )}
             {r.notes && (
               <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">

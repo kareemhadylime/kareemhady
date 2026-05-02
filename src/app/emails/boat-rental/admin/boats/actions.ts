@@ -50,11 +50,21 @@ export async function createBoatAction(formData: FormData): Promise<void> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from('boat_rental_boats')
-    .insert({ name, size, hull, description, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp })
+    .insert({ name, size, hull, description, features_md, features, capacity_guests, owner_id })
     .select('id')
     .single();
   if (error || !data) throw new Error(error?.message || 'create_failed');
   const boatId = (data as { id: string }).id;
+
+  // Default skipper now lives in boat_rental_skippers (multi-skipper roster).
+  // Legacy boats.skipper_name/whatsapp columns are removed in migration 0072.
+  await sb.from('boat_rental_skippers').insert({
+    boat_id: boatId,
+    name: skipper_name,
+    whatsapp: skipper_whatsapp,
+    is_default: true,
+    active: true,
+  });
 
   // No image handling here — the user lands on the detail page, which
   // hosts the direct-upload widget (BoatImageUploader).
@@ -101,12 +111,39 @@ export async function updateBoatAction(formData: FormData): Promise<void> {
       features,
       capacity_guests,
       owner_id,
-      skipper_name,
-      skipper_whatsapp,
       status,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id);
+
+  // Sync the boat's default skipper from the form. If a default+active
+  // skipper exists, update it; otherwise insert a fresh default row.
+  const { data: existingDefault } = await sb
+    .from('boat_rental_skippers')
+    .select('id')
+    .eq('boat_id', id)
+    .eq('is_default', true)
+    .eq('active', true)
+    .maybeSingle();
+  if (existingDefault) {
+    await sb
+      .from('boat_rental_skippers')
+      .update({
+        name: skipper_name,
+        whatsapp: skipper_whatsapp,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', (existingDefault as { id: string }).id);
+  } else {
+    await sb.from('boat_rental_skippers').insert({
+      boat_id: id,
+      name: skipper_name,
+      whatsapp: skipper_whatsapp,
+      is_default: true,
+      active: true,
+    });
+  }
+
   revalidatePath(`/emails/boat-rental/admin/boats/${id}`);
   revalidatePath('/emails/boat-rental/admin/boats');
   revalidatePath('/emails/boat-rental/broker/inventory');

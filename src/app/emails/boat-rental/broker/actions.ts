@@ -15,6 +15,7 @@ import {
 import { isWithinCancellationWindow } from '@/lib/boat-rental/pricing';
 import { checkAvailability } from '@/lib/boat-rental/availability';
 import { enqueueNotification, flushPendingForReservation } from '@/lib/boat-rental/notifications';
+import { getDefaultSkipper } from '@/lib/boat-rental/skipper-resolver';
 
 // Shared helper: gather recipients + context for notifications tied to a reservation.
 async function getReservationContext(reservationId: string) {
@@ -23,9 +24,9 @@ async function getReservationContext(reservationId: string) {
     .from('boat_rental_reservations')
     .select(
       `
-      id, booking_date, status, price_egp_snapshot, notes, broker_id,
+      id, booking_date, status, price_egp_snapshot, notes, broker_id, boat_id,
       boat:boat_rental_boats (
-        name, skipper_name, skipper_whatsapp, capacity_guests,
+        id, name, capacity_guests,
         owner:boat_rental_owners ( id, name, whatsapp, user_id )
       )
     `
@@ -35,25 +36,25 @@ async function getReservationContext(reservationId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const r = data as any;
   if (!r) return null;
-  const { data: brokerRow } = await sb
-    .from('app_users')
-    .select('id, username')
-    .eq('id', r.broker_id)
-    .maybeSingle();
+  const [brokerRowRes, defaultSkipper] = await Promise.all([
+    sb.from('app_users').select('id, username').eq('id', r.broker_id).maybeSingle(),
+    getDefaultSkipper(r.boat.id as string),
+  ]);
   return {
     id: r.id as string,
     bookingDate: r.booking_date as string,
     status: r.status as string,
     priceEgp: Number(r.price_egp_snapshot),
     notes: (r.notes as string | null) ?? null,
-    boat: r.boat as {
-      name: string;
-      skipper_name: string;
-      skipper_whatsapp: string;
-      capacity_guests: number;
-      owner: { id: string; name: string; whatsapp: string; user_id: string | null };
+    boat: {
+      name: r.boat.name as string,
+      // Default-skipper info hoisted to the boat shape so existing callers continue to work.
+      skipper_name: defaultSkipper?.name ?? '—',
+      skipper_whatsapp: defaultSkipper?.whatsapp ?? '',
+      capacity_guests: r.boat.capacity_guests as number,
+      owner: r.boat.owner as { id: string; name: string; whatsapp: string; user_id: string | null },
     },
-    broker: brokerRow as { id: string; username: string } | null,
+    broker: brokerRowRes.data as { id: string; username: string } | null,
   };
 }
 
