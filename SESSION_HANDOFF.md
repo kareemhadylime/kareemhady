@@ -1,6 +1,61 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Gallery thumbnail performance (commit `3db7e16`, deployed)
+## 🟢 Latest turn — AI label backlog fix + unit-template proposal (commit `21eb30d`, deployed)
+
+User screenshot showed "✨ AI labeling…" indicators stuck indefinitely on every newly-uploaded card. Asked to fix it AND proposed an architectural question about shared photos for identical units (101/201/301/401 groupings).
+
+### Part 1 — AI labeling stuck (fixed + deployed)
+
+**Symptom:** 627 photos uploaded, only 43 labeled. Cards stuck on "AI labeling…" forever.
+
+**Root cause:** `src/lib/beithady/gallery/ai-label.ts:fetchAsBase64()` downloaded the full original (5-15 MB after the direct-upload change) and rejected anything > 5 MB before sending to Anthropic. Anthropic also enforces a 5 MB base64 cap. So every newer photo failed silently after 3 retries (`status='failed'`, `last_error='image_too_large_or_unfetchable'`). Queue audit confirmed: 65 jobs failed with that exact error, plus one with the explicit Anthropic 400 ("base64: image exceeds 5 MB maximum").
+
+**Fix:** request a Supabase image transform (1024×1024 contain, q=85) when fetching the image for vision. Output is always under 5 MB regardless of original size, and 1024 px is plenty for room-type / feature tagging. No model change, no Anthropic API change, just a bandwidth fix on the upstream fetch.
+
+**Code change:** `fetchAsBase64()` now calls `signedUrlFor(bucket, path, 3600, { width: 1024, height: 1024, resize: 'contain', quality: 85 })`. Defensive 5 MB guard preserved as a fail-safe.
+
+**Backlog clearing:** ran a SQL UPDATE to flip 65 failed jobs back to `queued` and reset their attempts. Also INSERT'd queue rows for 525 orphaned unlabeled photos that had no job row at all. Final queue state: 590 queued, 1 failed (real error, not the size bug), 62 succeeded. At 5 jobs / 2 min via the existing `/api/cron/beithady-ai-label-queue` cron, full backlog clears in ~4 hours.
+
+**Files touched:**
+- `src/lib/beithady/gallery/ai-label.ts` — `fetchAsBase64()` rewrite (~13 lines).
+
+**Commit:** `21eb30d` on main.
+
+### Part 2 — Identical-units architecture proposal (NOT shipped, awaiting user pick)
+
+User has 4 groups of vertically-stacked identical units in BH-26:
+- Group A: 101/201/301/401
+- Group B: 102/202/302/402
+- Group C: 103/203/303/403
+- Group D: 104/204/304/404
+
+Wants photos from one to appear in all members of its group, no DB row duplication, accessible to team for message attachments. **Asked for a suggestion before code changes.**
+
+Proposed 4 options in chat:
+- **A — Guesty MTL:** mark as Guesty sub-units of one parent (zero code, but messes with reservation/billing/Booking.com listings).
+- **B — Unit Template (RECOMMENDED):** new `beithady_unit_templates` table + `unit_template_id` FK on `guesty_listings` and `beithady_gallery_assets`. Upload to a templated listing stores the asset against the template (one row, one storage object). Query is `WHERE listing_id = $X OR unit_template_id = $template`. Clean, no Guesty entanglement, ~50 LOC + small admin UI.
+- **C — Many-to-many junction:** one asset row + N junction rows per group. More rows than B, fragile if you forget to write all junction rows on upload.
+- **D — Tag-based:** zero schema, tag photos `type_a` / `type_b`. Fragile, depends on tagging discipline.
+
+Recommended B. **Waiting for user to pick** before implementing.
+
+If they pick B, the rough plan is:
+1. Migration `0067_beithady_unit_templates.sql`: new templates table, two new FK columns, indexes.
+2. New admin page `/beithady/gallery/templates` to create templates + assign listings to them.
+3. `signGalleryUploadAction` + `registerGalleryUploadAction` rewrite to set `unit_template_id` when target listing has one (and clear `listing_id`).
+4. `listAssets` filter logic: `WHERE listing_id = X OR (unit_template_id = X.unit_template_id AND X.unit_template_id IS NOT NULL)`.
+5. Building landing folder summary collapses templated listings into a single template-folder card.
+6. Seed migration assigning the 4 BH-26 groups to templates.
+
+### Deploy state
+- All commits on `main` via worktree push.
+- Vercel auto-deploy: `0398088 → 3db7e16 → 21eb30d` deployed sequentially.
+- AI label backlog will clear gradually over ~4 hours via cron; no manual intervention needed.
+- Hard-refresh tip: thumbnail perf works on new page loads; users may see old cache hits until they Ctrl+Shift+R.
+
+---
+
+## 🟢 Earlier turn — Gallery thumbnail performance (commit `3db7e16`, deployed)
 
 **Symptom:** "Every Time we load a page with a lot of photos, it keeps loading for ever, even when scrolling down very slow." User wanted thumbnails by default, full-size only on click.
 
