@@ -22,6 +22,10 @@ export type SendWaCasualArgs = {
   // Audit fix H-C3: cross-channel switch metadata. See send-guesty.ts.
   wasChannelSwitched?: boolean;
   originalThreadChannel?: string | null;
+  // Audit fix M-14: reply-to anchor for thread render. Stored in
+  // our row; provider-side threading via Green-API quotedMessageId
+  // lands when the UI surfaces per-message reply.
+  replyToMessageId?: string | null;
 };
 
 export type SendWaCasualResult =
@@ -150,6 +154,8 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
       // Audit fix H-C3: write atomically.
       was_channel_switched: !!args.wasChannelSwitched,
       original_thread_channel: args.originalThreadChannel ?? null,
+      // Audit fix M-14.
+      reply_to_message_id: args.replyToMessageId ?? null,
     }, { onConflict: 'channel,external_id', ignoreDuplicates: false })
     .select('id')
     .single();

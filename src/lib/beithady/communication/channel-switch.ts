@@ -151,6 +151,8 @@ export type DispatchPayload = {
   // / realtime subscribers saw the row with the default false / null.
   wasChannelSwitched?: boolean;
   originalThreadChannel?: string | null;
+  // Audit fix M-14: reply-to anchor for thread render.
+  replyToMessageId?: string | null;
 };
 
 export type DispatchResult =
@@ -176,6 +178,7 @@ export async function sendViaChannel(
         mode: payload.mode,
         wasChannelSwitched: payload.wasChannelSwitched,
         originalThreadChannel: payload.originalThreadChannel,
+        replyToMessageId: payload.replyToMessageId,
       });
       if (r.ok) return { ok: true, provider: 'guesty', messageId: r.messageId, providerMessageId: r.externalId };
       return { ok: false, provider: 'guesty', status: r.status, error: r.error, fallbackUrl: r.fallbackUrl };
@@ -192,6 +195,7 @@ export async function sendViaChannel(
         mode: payload.mode,
         wasChannelSwitched: payload.wasChannelSwitched,
         originalThreadChannel: payload.originalThreadChannel,
+        replyToMessageId: payload.replyToMessageId,
       });
       if (r.ok) return { ok: true, provider: 'wa_casual', messageId: r.messageId, providerMessageId: r.providerMessageId };
       return { ok: false, provider: 'wa_casual', status: r.status, error: r.error };

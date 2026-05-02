@@ -29,6 +29,10 @@ export type SendGuestyArgs = {
   // and the post-insert UPDATE that used to set these.
   wasChannelSwitched?: boolean;
   originalThreadChannel?: string | null;
+  // Audit fix M-14: reply-to threading. beithady_messages.id of the
+  // message we're replying to. Stored in our row + threaded to
+  // Guesty's `replyTo` field on the API call.
+  replyToMessageId?: string | null;
 };
 
 export type SendGuestyResult =
@@ -153,6 +157,8 @@ export async function sendGuestyMessage(args: SendGuestyArgs): Promise<SendGuest
     // Audit fix H-C3: write atomically with the rest of the row.
     was_channel_switched: !!args.wasChannelSwitched,
     original_thread_channel: args.originalThreadChannel ?? null,
+    // Audit fix M-14: persist the reply-to anchor for thread render.
+    reply_to_message_id: args.replyToMessageId ?? null,
   };
   // Audit fix C-D5: was a plain `.insert(insertRow).single()`, which
   // throws 23505 unique-violation if Guesty's `reservation.messageSent`
