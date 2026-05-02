@@ -29,8 +29,13 @@ export function BulkActionBar({
   const [error, setError] = useState<string | null>(null);
 
   if (selection.size === 0) return null;
-  if (selectionAlbum && (selectionAlbum.building !== album.building || selectionAlbum.listingId !== album.listingId)) {
-    return null;
+  if (selectionAlbum) {
+    const sameBuilding = selectionAlbum.building === album.building;
+    const isTemplate = !!album.unitTemplateId || !!selectionAlbum.unitTemplateId;
+    const sameAlbum = isTemplate
+      ? sameBuilding && (selectionAlbum.unitTemplateId || null) === (album.unitTemplateId || null)
+      : sameBuilding && selectionAlbum.listingId === album.listingId;
+    if (!sameAlbum) return null;
   }
 
   const selectedIds = Array.from(selection);
@@ -61,6 +66,7 @@ export function BulkActionBar({
       const result = await reorderAssetsAction({
         buildingCode: album.building,
         listingId: album.listingId,
+        unitTemplateId: album.unitTemplateId || null,
         orderedIds: next,
       });
       if (!result.ok) setError(result.error || 'reorder_failed');

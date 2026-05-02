@@ -105,7 +105,27 @@ export async function registerGalleryUploadAction(input: {
     : categoryForMime(input.mime);
 
   const sb = supabaseAdmin();
+
+  // If the target listing belongs to a unit template, store the asset
+  // against the template (and clear listing_id) so it appears in every
+  // member listing's gallery via one row + one storage object.
+  let unitTemplateId: string | null = null;
+  let effectiveListingId: string | null = input.listingId;
+  if (input.listingId) {
+    const { data: lst } = await sb
+      .from('guesty_listings')
+      .select('unit_template_id')
+      .eq('id', input.listingId)
+      .maybeSingle();
+    const tplId = (lst as { unit_template_id: string | null } | null)?.unit_template_id || null;
+    if (tplId) {
+      unitTemplateId = tplId;
+      effectiveListingId = null;
+    }
+  }
+
   // Compute sort_order so new uploads land at the top of the album.
+  // Scope by template if the asset is templated, otherwise by listing.
   let sortOrderForInsert = 0;
   {
     let minQuery = sb
@@ -114,10 +134,14 @@ export async function registerGalleryUploadAction(input: {
       .is('deleted_at', null)
       .order('sort_order', { ascending: true })
       .limit(1);
-    if (input.building) minQuery = minQuery.eq('building_code', input.building);
-    else minQuery = minQuery.is('building_code', null);
-    if (input.listingId) minQuery = minQuery.eq('listing_id', input.listingId);
-    else minQuery = minQuery.is('listing_id', null);
+    if (unitTemplateId) {
+      minQuery = minQuery.eq('unit_template_id', unitTemplateId);
+    } else {
+      if (input.building) minQuery = minQuery.eq('building_code', input.building);
+      else minQuery = minQuery.is('building_code', null);
+      if (effectiveListingId) minQuery = minQuery.eq('listing_id', effectiveListingId);
+      else minQuery = minQuery.is('listing_id', null);
+    }
     const { data: minRow } = await minQuery.maybeSingle();
     sortOrderForInsert = ((minRow as { sort_order: number } | null)?.sort_order ?? 0) - 1;
   }
@@ -126,7 +150,8 @@ export async function registerGalleryUploadAction(input: {
     .from('beithady_gallery_assets')
     .insert({
       building_code: input.building,
-      listing_id: input.listingId,
+      listing_id: effectiveListingId,
+      unit_template_id: unitTemplateId,
       category,
       storage_bucket: input.bucket,
       storage_path: input.path,
@@ -158,6 +183,7 @@ export async function registerGalleryUploadAction(input: {
     metadata: {
       building: input.building,
       listing_id: input.listingId,
+      unit_template_id: unitTemplateId,
       category,
       mime: input.mime,
       size_bytes: input.sizeBytes,
@@ -412,10 +438,11 @@ type BulkResult = { ok: string[]; failed: Array<{ id: string; error: string }> }
 export async function reorderAssetsAction(input: {
   buildingCode: string | null;
   listingId: string | null;
+  unitTemplateId?: string | null;   // when set, scope is the template's shared library
   orderedIds: string[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await requirePermission('full');
-  const { buildingCode, listingId, orderedIds } = input;
+  const { buildingCode, listingId, unitTemplateId, orderedIds } = input;
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
     return { ok: false, error: 'empty_orderedIds' };
   }
@@ -424,16 +451,21 @@ export async function reorderAssetsAction(input: {
   }
 
   const sb = supabaseAdmin();
-  // Validate every id belongs to this album and isn't deleted.
+  // Validate every id belongs to this album and isn't deleted. Template
+  // scope takes precedence over listing scope.
   let validate = sb
     .from('beithady_gallery_assets')
     .select('id')
     .in('id', orderedIds)
     .is('deleted_at', null);
-  if (buildingCode) validate = validate.eq('building_code', buildingCode);
-  else validate = validate.is('building_code', null);
-  if (listingId) validate = validate.eq('listing_id', listingId);
-  else validate = validate.is('listing_id', null);
+  if (unitTemplateId) {
+    validate = validate.eq('unit_template_id', unitTemplateId);
+  } else {
+    if (buildingCode) validate = validate.eq('building_code', buildingCode);
+    else validate = validate.is('building_code', null);
+    if (listingId) validate = validate.eq('listing_id', listingId);
+    else validate = validate.is('listing_id', null);
+  }
 
   const { data: validRows, error: vErr } = await validate;
   if (vErr) return { ok: false, error: vErr.message };
@@ -442,8 +474,7 @@ export async function reorderAssetsAction(input: {
     return { ok: false, error: 'ids_not_in_album' };
   }
 
-  // Renumber: one UPDATE per id (Supabase JS doesn't expose VALUES tables).
-  // 200 ids max, runs in well under a second.
+  // Renumber: one UPDATE per id. 200 ids max, runs in well under a second.
   const errors: string[] = [];
   for (let i = 0; i < orderedIds.length; i++) {
     const { error } = await sb
@@ -458,7 +489,12 @@ export async function reorderAssetsAction(input: {
     actor_user_id: user.id,
     module: 'gallery',
     action: 'assets_reordered',
-    metadata: { building: buildingCode, listing_id: listingId, count: orderedIds.length },
+    metadata: {
+      building: buildingCode,
+      listing_id: listingId,
+      unit_template_id: unitTemplateId || null,
+      count: orderedIds.length,
+    },
   });
 
   revalidatePath('/beithady/gallery');
@@ -552,22 +588,43 @@ export async function bulkMoveAssetsAction(input: {
   // Source records (for revalidation paths)
   const { data: srcRows } = await sb
     .from('beithady_gallery_assets')
-    .select('id, building_code, listing_id')
+    .select('id, building_code, listing_id, unit_template_id')
     .in('id', ids)
     .is('deleted_at', null);
-  const sources = (srcRows as Array<{ id: string; building_code: string | null; listing_id: string | null }> | null) || [];
+  const sources = (srcRows as Array<{ id: string; building_code: string | null; listing_id: string | null; unit_template_id: string | null }> | null) || [];
 
-  // Compute destination top
+  // If target listing belongs to a unit template, retarget to the
+  // template (asset becomes shared across all member listings).
+  let targetUnitTemplateId: string | null = null;
+  let effectiveTargetListingId: string | null = targetListingId;
+  if (targetListingId) {
+    const { data: lst } = await sb
+      .from('guesty_listings')
+      .select('unit_template_id')
+      .eq('id', targetListingId)
+      .maybeSingle();
+    const tplId = (lst as { unit_template_id: string | null } | null)?.unit_template_id || null;
+    if (tplId) {
+      targetUnitTemplateId = tplId;
+      effectiveTargetListingId = null;
+    }
+  }
+
+  // Compute destination top sort_order — scope by template if templated.
   let minQuery = sb
     .from('beithady_gallery_assets')
     .select('sort_order')
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
     .limit(1);
-  if (targetBuildingCode) minQuery = minQuery.eq('building_code', targetBuildingCode);
-  else minQuery = minQuery.is('building_code', null);
-  if (targetListingId) minQuery = minQuery.eq('listing_id', targetListingId);
-  else minQuery = minQuery.is('listing_id', null);
+  if (targetUnitTemplateId) {
+    minQuery = minQuery.eq('unit_template_id', targetUnitTemplateId);
+  } else {
+    if (targetBuildingCode) minQuery = minQuery.eq('building_code', targetBuildingCode);
+    else minQuery = minQuery.is('building_code', null);
+    if (effectiveTargetListingId) minQuery = minQuery.eq('listing_id', effectiveTargetListingId);
+    else minQuery = minQuery.is('listing_id', null);
+  }
   const { data: minRow } = await minQuery.maybeSingle();
   const top = ((minRow as { sort_order: number } | null)?.sort_order ?? 0);
 
@@ -580,7 +637,8 @@ export async function bulkMoveAssetsAction(input: {
       .from('beithady_gallery_assets')
       .update({
         building_code: targetBuildingCode,
-        listing_id: targetListingId,
+        listing_id: effectiveTargetListingId,
+        unit_template_id: targetUnitTemplateId,
         sort_order: newSort,
       })
       .eq('id', ids[i])
@@ -727,6 +785,7 @@ export async function bulkAdEligibleAction(input: {
 export async function nukeAlbumAction(input: {
   buildingCode: string | null;
   listingId: string | null;
+  unitTemplateId?: string | null;   // when set, wipes the template's shared library
   confirmation: string;
 }): Promise<{ ok: true; deleted: number } | { ok: false; error: string }> {
   const user = await requirePermission('full');
@@ -739,10 +798,14 @@ export async function nukeAlbumAction(input: {
     .from('beithady_gallery_assets')
     .select('id')
     .is('deleted_at', null);
-  if (input.buildingCode) q = q.eq('building_code', input.buildingCode);
-  else q = q.is('building_code', null);
-  if (input.listingId) q = q.eq('listing_id', input.listingId);
-  else q = q.is('listing_id', null);
+  if (input.unitTemplateId) {
+    q = q.eq('unit_template_id', input.unitTemplateId);
+  } else {
+    if (input.buildingCode) q = q.eq('building_code', input.buildingCode);
+    else q = q.is('building_code', null);
+    if (input.listingId) q = q.eq('listing_id', input.listingId);
+    else q = q.is('listing_id', null);
+  }
   const { data: rows } = await q;
   const allIds = ((rows as Array<{ id: string }> | null) || []).map(r => r.id);
   if (allIds.length === 0) return { ok: true, deleted: 0 };
@@ -762,6 +825,7 @@ export async function nukeAlbumAction(input: {
     metadata: {
       building: input.buildingCode,
       listing_id: input.listingId,
+      unit_template_id: input.unitTemplateId || null,
       deleted: totalOk,
     },
   });

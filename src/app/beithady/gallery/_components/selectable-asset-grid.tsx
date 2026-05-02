@@ -99,6 +99,7 @@ export function SelectableAssetGrid({
       const result = await reorderAssetsAction({
         buildingCode: album.building,
         listingId: album.listingId,
+        unitTemplateId: album.unitTemplateId || null,
         orderedIds: newOrderedIds,
       });
       if (!result.ok) {

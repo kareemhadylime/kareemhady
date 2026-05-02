@@ -6,11 +6,13 @@ import { nukeAlbumAction } from '../actions';
 export function NukeAlbumButton({
   buildingCode,
   listingId,
+  unitTemplateId,
   totalAssets,
   albumLabel,
 }: {
   buildingCode: string;
   listingId: string | null;
+  unitTemplateId?: string | null;
   totalAssets: number;
   albumLabel: string;
 }) {
@@ -30,6 +32,7 @@ export function NukeAlbumButton({
       const result = await nukeAlbumAction({
         buildingCode,
         listingId,
+        unitTemplateId: unitTemplateId || null,
         confirmation: 'DELETE',
       });
       if (!result.ok) {

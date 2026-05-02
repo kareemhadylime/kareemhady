@@ -3,7 +3,11 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { signGalleryUploadAction, registerGalleryUploadAction } from '../actions';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 
-export type AlbumKey = { building: string | null; listingId: string | null };
+export type AlbumKey = {
+  building: string | null;
+  listingId: string | null;
+  unitTemplateId?: string | null;   // when set, scope is the shared template library
+};
 
 export type UploadJobCategory = 'photo' | 'video' | 'document' | 'brand_asset' | 'ad_creative';
 
@@ -50,7 +54,13 @@ function categoryForMime(mime: string): UploadJobCategory {
 }
 
 function sameAlbum(a: AlbumKey, b: AlbumKey | null): boolean {
-  return !!b && a.building === b.building && a.listingId === b.listingId;
+  if (!b) return false;
+  // Templated albums match on (building + unitTemplateId); listingId is
+  // ignored because every member of the template shares the same library.
+  if (a.unitTemplateId || b.unitTemplateId) {
+    return a.building === b.building && (a.unitTemplateId || null) === (b.unitTemplateId || null);
+  }
+  return a.building === b.building && a.listingId === b.listingId;
 }
 
 export function GalleryProvider({ children }: { children: ReactNode }) {
