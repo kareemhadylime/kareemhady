@@ -1,22 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
-import { UploadCloud, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { uploadAssetAction } from '../actions';
-
-// Drag-and-drop uploader. Submits one file at a time via the server
-// action (no parallel for now — keeps Supabase Storage rate-limit
-// pressure low). Shows per-file progress + tally.
-//
-// Phase D follow-up: optional unit picker. When `units` is provided
-// (building-page case), renders a dropdown so the agent picks which
-// unit folder (or "General Building Area") the upload targets.
-
-type UploadJob = {
-  name: string;
-  size: number;
-  status: 'pending' | 'uploading' | 'done' | 'error';
-  error?: string;
-};
+import { UploadCloud } from 'lucide-react';
+import { useGallery, type UploadJobCategory } from './gallery-provider';
 
 export type UploaderUnit = { listing_id: string; nickname: string; total?: number };
 
@@ -28,14 +13,10 @@ export function Uploader({
 }: {
   building?: string | null;
   listingId?: string | null;
-  category?: 'photo' | 'video' | 'document' | 'brand_asset' | 'ad_creative';
-  /** When provided: renders a unit-target dropdown so the user picks
-      which folder this upload lands in. Empty string = General
-      Building Area (building-level common areas). */
+  category?: UploadJobCategory;
   units?: UploaderUnit[];
 }) {
-  const [jobs, setJobs] = useState<UploadJob[]>([]);
-  const [busy, setBusy] = useState(false);
+  const { enqueueUpload, jobs } = useGallery();
   const [dragOver, setDragOver] = useState(false);
   const [target, setTarget] = useState<string>(listingId || '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -43,42 +24,27 @@ export function Uploader({
   const showsUnitPicker = !!units && units.length > 0 && !listingId;
   const effectiveListingId = listingId || (target || null);
 
-  async function uploadOne(file: File, idx: number) {
-    setJobs(j => j.map((x, i) => i === idx ? { ...x, status: 'uploading' } : x));
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('file_name', file.name);
-      if (building) fd.append('building', building);
-      if (effectiveListingId) fd.append('listing_id', effectiveListingId);
-      if (category) fd.append('category', category);
-      await uploadAssetAction(fd);
-      setJobs(j => j.map((x, i) => i === idx ? { ...x, status: 'done' } : x));
-    } catch (e) {
-      setJobs(j => j.map((x, i) => i === idx
-        ? { ...x, status: 'error', error: e instanceof Error ? e.message : 'upload_failed' }
-        : x));
-    }
-  }
-
-  async function startUpload(files: File[]) {
+  function handleFiles(files: File[]) {
     if (files.length === 0) return;
-    setBusy(true);
-    const newJobs: UploadJob[] = files.map(f => ({ name: f.name, size: f.size, status: 'pending' }));
-    setJobs(prev => [...prev, ...newJobs]);
-    const startIdx = jobs.length;
-    for (let i = 0; i < files.length; i++) {
-      await uploadOne(files[i], startIdx + i);
-    }
-    setBusy(false);
+    enqueueUpload(files, {
+      building: building || null,
+      listingId: effectiveListingId,
+      category,
+    });
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    startUpload(files);
+    handleFiles(Array.from(e.dataTransfer.files));
   }
+
+  // Lightweight inline status — the floating UploadTray is the source of truth.
+  const myActive = jobs.filter(j =>
+    (j.status === 'queued' || j.status === 'uploading')
+    && (j.building || null) === (building || null)
+    && (j.listingId || null) === effectiveListingId
+  ).length;
 
   return (
     <div className="space-y-3">
@@ -127,6 +93,7 @@ export function Uploader({
                   : 'Files land at Beithady library root')}
           {' · '}
           50MB max · JPG/PNG/WEBP/HEIC + MP4/WEBM · AI labels in ~2 min
+          {myActive > 0 && <> · <strong>{myActive} in progress</strong> (see tray ↘)</>}
         </p>
         <input
           ref={inputRef}
@@ -139,40 +106,11 @@ export function Uploader({
               : 'image/*,video/mp4,video/webm,video/quicktime'
           }
           onChange={e => {
-            const files = Array.from(e.target.files || []);
-            startUpload(files);
+            handleFiles(Array.from(e.target.files || []));
             e.target.value = '';
           }}
         />
       </div>
-
-      {jobs.length > 0 && (
-        <div className="ix-card p-3 space-y-1 text-sm max-h-60 overflow-y-auto">
-          {jobs.map((j, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 text-xs py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
-              <span className="truncate flex-1">{j.name}</span>
-              <span className="text-slate-400 tabular-nums">{(j.size / 1024 / 1024).toFixed(1)} MB</span>
-              <span className="w-24 text-right">
-                {j.status === 'pending' && <span className="text-slate-400">queued</span>}
-                {j.status === 'uploading' && <Loader2 size={12} className="inline animate-spin text-slate-500" />}
-                {j.status === 'done' && (
-                  <span className="text-emerald-600 inline-flex items-center gap-1"><CheckCircle2 size={11} /> done</span>
-                )}
-                {j.status === 'error' && (
-                  <span className="text-rose-600 inline-flex items-center gap-1" title={j.error}>
-                    <AlertTriangle size={11} /> error
-                  </span>
-                )}
-              </span>
-            </div>
-          ))}
-          {!busy && jobs.some(j => j.status === 'done') && (
-            <p className="text-[10px] text-slate-500 pt-1">
-              Refresh the page (or open the unit folder) to see new assets in the grid.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
