@@ -1,6 +1,24 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
-import { signedUrlFor, publicUrlFor, type GalleryBucket } from './storage';
+import { signedUrlFor, publicUrlFor, type GalleryBucket, type ImageTransform } from './storage';
+
+// Tile size in the grid is ~300-350 px on desktop (6 columns at 1920 px).
+// 400 px gives a 1.1x DPR margin and ~95% bandwidth savings vs. originals.
+const THUMBNAIL_TRANSFORM: ImageTransform = {
+  width: 400,
+  height: 400,
+  resize: 'cover',
+  quality: 70,
+};
+
+// Smaller thumbnail used for unit-folder covers on the building landing
+// (each folder card is ~150-200 px square).
+const COVER_TRANSFORM: ImageTransform = {
+  width: 300,
+  height: 300,
+  resize: 'cover',
+  quality: 65,
+};
 
 export type GalleryAsset = {
   id: string;
@@ -85,21 +103,50 @@ export async function getAsset(id: string): Promise<GalleryAsset | null> {
 }
 
 // Resolve a viewable URL for an asset — public URL if ad-eligible &
-// mirrored, else fresh signed URL.
-export async function viewableUrlForAsset(asset: Pick<GalleryAsset, 'storage_bucket' | 'storage_path' | 'public_url' | 'ad_eligible'>): Promise<string | null> {
-  if (asset.ad_eligible && asset.public_url) return asset.public_url;
-  if (asset.storage_bucket === 'beithady-gallery-public') {
-    return publicUrlFor(asset.storage_bucket as GalleryBucket, asset.storage_path);
+// mirrored, else fresh signed URL. Pass transform for a downscaled
+// thumbnail via Supabase's /render/image/ endpoint.
+export async function viewableUrlForAsset(
+  asset: Pick<GalleryAsset, 'storage_bucket' | 'storage_path' | 'public_url' | 'ad_eligible' | 'mime_type'>,
+  options?: { transform?: ImageTransform },
+): Promise<string | null> {
+  const transform = options?.transform;
+  // Image transforms only apply to images. Videos / PDFs / other → original URL.
+  const wantsTransform = !!transform && (asset.mime_type?.startsWith('image/') ?? false);
+
+  // Ad-eligible asset has a cached public_url for the FULL-SIZE image.
+  // For thumbnails we re-mint via getPublicUrl with transform options.
+  if (asset.ad_eligible && asset.public_url && !wantsTransform) {
+    return asset.public_url;
   }
-  return signedUrlFor(asset.storage_bucket as GalleryBucket, asset.storage_path);
+  if (asset.storage_bucket === 'beithady-gallery-public' || asset.ad_eligible) {
+    return publicUrlFor(
+      'beithady-gallery-public' as GalleryBucket,
+      asset.storage_path,
+      wantsTransform ? transform : undefined,
+    );
+  }
+  return signedUrlFor(
+    asset.storage_bucket as GalleryBucket,
+    asset.storage_path,
+    undefined,
+    wantsTransform ? transform : undefined,
+  );
 }
 
 // Resolve URLs for an array of assets in parallel (RSC-side).
 // Used by pages that render <SelectableAssetGrid> — the client grid
 // receives pre-resolved URLs as props so it doesn't need its own
 // signed-URL fetcher.
+// For images, returns thumbnails (400×400 cover, q=70) via Supabase's
+// /render/image/ transform endpoint — typically 20-50 KB each instead
+// of 5-15 MB originals. Videos / PDFs / non-images return the regular
+// URL (transforms only apply to images). The full-size URL is fetched
+// on demand by the asset detail modal.
 export async function resolveAssetUrls(assets: GalleryAsset[]): Promise<Array<{ asset: GalleryAsset; url: string | null }>> {
-  return Promise.all(assets.map(async asset => ({ asset, url: await viewableUrlForAsset(asset) })));
+  return Promise.all(assets.map(async asset => ({
+    asset,
+    url: await viewableUrlForAsset(asset, { transform: THUMBNAIL_TRANSFORM }),
+  })));
 }
 
 // Building summary view
@@ -225,7 +272,11 @@ export async function getUnitFoldersForBuilding(buildingCode: string): Promise<U
     const coverAsset = list.find(a => a.category === 'photo');
     let coverUrl: string | null = null;
     if (coverAsset) {
-      coverUrl = coverAsset.public_url || (await signedUrlFor(coverAsset.storage_bucket, coverAsset.storage_path, 3600));
+      // Always fetch a thumbnail-sized cover (300x300 q=65) — even for
+      // ad-eligible assets where public_url points at the full-size original.
+      coverUrl = coverAsset.ad_eligible
+        ? publicUrlFor('beithady-gallery-public' as GalleryBucket, coverAsset.storage_path, COVER_TRANSFORM)
+        : await signedUrlFor(coverAsset.storage_bucket, coverAsset.storage_path, 3600, COVER_TRANSFORM);
     }
     return {
       listing_id: l.id,
@@ -267,7 +318,8 @@ export async function getCommonAreaSummary(buildingCode: string): Promise<{
   const first = ((coverData as Array<{ storage_bucket: GalleryBucket; storage_path: string; public_url: string | null }> | null) || [])[0];
   let coverUrl: string | null = null;
   if (first) {
-    coverUrl = first.public_url || (await signedUrlFor(first.storage_bucket, first.storage_path, 3600));
+    // Thumbnail-sized cover (300x300 q=65) — bypasses full-size public_url cache.
+    coverUrl = await signedUrlFor(first.storage_bucket, first.storage_path, 3600, COVER_TRANSFORM);
   }
   return { count: total ?? 0, photos: photos ?? 0, videos: videos ?? 0, cover_url: coverUrl };
 }

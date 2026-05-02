@@ -219,7 +219,14 @@ function SortableAssetCard(props: {
         <div className="aspect-square bg-stone-100 dark:bg-slate-900 relative overflow-hidden">
           {url && asset.mime_type?.startsWith('image/') ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={url} alt={asset.ai_caption || asset.file_name || ''} className="w-full h-full object-cover group-hover:scale-105 transition" draggable={false} />
+            <img
+              src={url}
+              alt={asset.ai_caption || asset.file_name || ''}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover group-hover:scale-105 transition"
+              draggable={false}
+            />
           ) : url && asset.mime_type?.startsWith('video/') ? (
             <div className="w-full h-full flex items-center justify-center bg-slate-900 text-white">
               <Video size={32} />

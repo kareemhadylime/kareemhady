@@ -16,20 +16,37 @@ export type GalleryBucket =
 
 const SIGNED_URL_TTL_SEC = 3600; // 1h
 
+// Supabase Storage image-transform options. Passing this triggers the
+// /storage/v1/render/image/... endpoint which serves a downscaled
+// re-encoded variant — saves >95% bandwidth for grid thumbnails.
+export type ImageTransform = {
+  width?: number;
+  height?: number;
+  resize?: 'cover' | 'contain' | 'fill';
+  quality?: number;
+};
+
 export async function signedUrlFor(
   bucket: GalleryBucket,
   path: string,
   ttlSec: number = SIGNED_URL_TTL_SEC,
+  transform?: ImageTransform,
 ): Promise<string | null> {
   const sb = supabaseAdmin();
-  const { data, error } = await sb.storage.from(bucket).createSignedUrl(path, ttlSec);
+  const { data, error } = await sb.storage
+    .from(bucket)
+    .createSignedUrl(path, ttlSec, transform ? { transform } : undefined);
   if (error || !data) return null;
   return data.signedUrl;
 }
 
-export function publicUrlFor(bucket: GalleryBucket, path: string): string | null {
+export function publicUrlFor(
+  bucket: GalleryBucket,
+  path: string,
+  transform?: ImageTransform,
+): string | null {
   const sb = supabaseAdmin();
-  const { data } = sb.storage.from(bucket).getPublicUrl(path);
+  const { data } = sb.storage.from(bucket).getPublicUrl(path, transform ? { transform } : undefined);
   return data.publicUrl ?? null;
 }
 
