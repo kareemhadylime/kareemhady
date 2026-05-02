@@ -404,7 +404,15 @@ function Bubble({
           </div>
         )}
         <Attachments attachments={m.attachments} inbound={inbound} />
-        {looksLikeMedia ? (
+        {/* Audit fix H-C7: render the message body based on
+            edited/deleted state. Pre-fix the operator saw stale text
+            after a guest revoked or edited the original message. */}
+        {m.deleted_at ? (
+          <div className={`text-sm italic ${inbound ? 'text-slate-400' : 'text-slate-300'}`}>
+            <Ban size={11} className="inline mr-1" />
+            [message deleted{m.from_type === 'guest' ? ' by guest' : ''}]
+          </div>
+        ) : looksLikeMedia ? (
           <MediaPlaceholder
             conversationId={guestyExternalId}
             sentAt={m.sent_at || m.created_at}
@@ -422,6 +430,14 @@ function Bubble({
             : 'text-slate-300'
         }`}>
           {fmtCairoDateTime(m.sent_at || m.created_at)}
+          {m.edited_at && !m.deleted_at && (
+            <span
+              className="ml-1.5 italic opacity-80"
+              title={`Edited ${fmtCairoDateTime(m.edited_at)}`}
+            >
+              · edited
+            </span>
+          )}
         </div>
       </div>
     </div>
