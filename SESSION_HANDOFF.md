@@ -1,6 +1,37 @@
 # Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — General Building Area double-count fix (commit `1982df2`, deployed)
+## 🟡 Latest turn — General Building Area "exaggerated count" diagnosis (NOT a count bug — content triage)
+
+User screenshot post-fix: General Building Area shows 137 photos · 4 videos. User says the count is "exaggerated".
+
+**Investigation:** queried prod DB. Count is genuinely correct — 171 photos + 8 videos truly general (`listing_id IS NULL AND unit_template_id IS NULL`). Earlier `1982df2` fix is working: pre-fix would have been 456 photos (with template-scoped leakage); post-fix is 171 (template leakage gone). UI showing 137 is just a slight RSC stale render — DB has 171.
+
+**Real problem found via filename pattern audit:**
+
+| Filename pattern | Count | What it is |
+|---|---:|---|
+| `IMG_Bait1 (NN).jpg` | 142 | Team / staff / photoshoot photos |
+| `IMG_Pool1 (NN).jpg` | 45 | Pool — legit building-wide |
+| Other | 18 | Lobby / exterior — legit |
+| `WhatsApp Image/Video` | 14 | Mixed |
+
+So 142 of 219 General-Area files (~65%) are team/staff photos that were uploaded to General but don't match the card's labeled scope ("Lobby · pool · gym · exterior · building-wide"). The count is right; the *content* is mis-categorized.
+
+**Presented 3 cleanup options to user, awaiting pick:**
+- **A) Delete the 142 team photos** if not needed long-term.
+- **B) Bulk-move them to category `brand_asset`** so they appear under `/beithady/gallery/brand-library` instead of General. Schema already supports this enum value. Needs ~15 LOC for a new `bulkChangeCategoryAction` server action; no migration. (RECOMMENDED — they're semantically brand/marketing assets.)
+- **C) New "Team & Events" category** with its own folder card on the building landing. Schema migration + folder UI; bigger.
+
+**No code shipped this turn.** Waiting for user's pick (A/B/C or "leave it, I'll triage manually").
+
+**Other state from this session still relevant:**
+- AI label backlog still draining via cron (~5 jobs / 2 min).
+- 142 unprocessed photos in `beithady_gallery_label_jobs` queue (not blocking).
+- Vercel auto-deploy on push to main is the live deploy mechanism — no `vercel --prod` CLI step needed (memory updated earlier this session to reflect this).
+
+---
+
+## 🟢 Earlier turn — General Building Area double-count fix (commit `1982df2`, deployed)
 
 User screenshot: BH-26 General Building Area folder card showed 242 photos when it should have been ~75 building-wide ones. Template-scoped uploads were leaking in.
 
