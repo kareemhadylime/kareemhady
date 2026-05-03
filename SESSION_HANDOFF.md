@@ -5685,3 +5685,60 @@ After Q3–Q8 answered → propose 2-3 architectural approaches → present full
 **Awaiting**: user verdict on plan phase — "Approved, write the spec" / "Change [X]" / "Show [Y] in more detail". On approval: write `docs/superpowers/specs/2026-05-03-personal-email-design.md`, commit, run inline self-review, then ask user to review the file before transitioning to `superpowers:writing-plans`.
 
 **Still no code, no migrations, no commits, no deploys.** Plan phase only — per user's gated workflow.
+
+---
+
+## Personal → Email — spec written + committed (2026-05-03, follow-up)
+
+User: **Approved**.
+
+**Spec written**: [docs/superpowers/specs/2026-05-03-personal-email-design.md](docs/superpowers/specs/2026-05-03-personal-email-design.md) — 19 sections, 836 insertions.
+
+Sections: purpose · why now · 13 locked plan-phase decisions · routes & nav · 9 seeded categories · main triage view ASCII · detail page ASCII · 5 setup pages · schema for mig 0081 (extends `accounts` + `email_logs`, adds 5 `personal_email_*` tables) · 26 seeded heuristic rules · classification pipeline (rule-pass → AI-pass with always-AI for action_required/personal) · AI prompt design (Haiku 4.5, ~$3.78/mo, prompt-cached system prompt with last-10-corrections-per-category few-shot) · two-way Gmail label sync (Lime/* namespace, user-edits-in-Gmail authoritative at ingest) · 15-min cron `0,15,30,45 4-21 * * *` UTC (DST-safe Cairo gate) · access control · v1 scope cuts · risks · success criteria · out-of-scope clarifications.
+
+**Inline self-review fixes applied before commit**:
+- Removed phantom `gmail_label_ids_synced` column reference in §11 step 6 (label IDs already live in `personal_email_account_labels` join table; cleaner to look them up there).
+- Removed broad seed rules `vercel.com → bills_receipts` and `aws.amazon.com → bills_receipts` from §10 — priority 40 would have hijacked ALL Vercel/AWS emails (mostly notifications) into bills. Subject-based rules at priority 40 (`invoice`, `receipt`, `payment confirmation`) still catch invoice-shaped emails from any vendor. Added clarifying note explaining the priority intent.
+- Added missing `idx_personal_email_runs_started` index on `personal_email_classification_runs` for the daily cost-cap query (`sum(ai_cost_usd) WHERE started_at >= today_utc`).
+- Clarified §16 v2 backlog: per-account rules schema IS supported in v1 (`personal_email_rules.account_id`); only the UI picker is v2.
+- Added "Recompute all" button to §8.4 AI setup tab (referenced in §17 mitigations but not previously documented).
+
+**Commit**: `4d23d8f docs(personal): add Email module design spec` — on branch `claude/mystifying-clarke-dfacd6` (worktree branch). Not pushed to main yet (kept locally with implementation; main push will happen at end of feature when code lands).
+
+**Awaiting**: user spec review — "Spec approved, write the implementation plan" → I invoke `superpowers:writing-plans` to produce verifiable milestones (M1 schema → M2 ingest pipeline + rules → M3 classification + AI → M4 triage UI → M5 setup pages → M6 label sync → M7 cron → M8 success-criteria validation). Or "Change [X]" → I revise the spec and re-commit.
+
+**Still no code, no migrations, no deploys.** Spec doc only.
+
+---
+
+## Personal → Email — implementation plan written (2026-05-03, follow-up)
+
+User: **Spec Approved** → invoked `superpowers:writing-plans` skill → wrote [docs/superpowers/plans/2026-05-03-personal-email-implementation.md](docs/superpowers/plans/2026-05-03-personal-email-implementation.md), 3951 lines across **8 phases / 33 tasks**.
+
+**Phase 1 — Foundation (Tasks 1–4):** mig 0081 SQL with full DDL + 9 category seeds + 25 rule seeds; Zod schemas (`schema.ts`); types (`types.ts`); `categories.ts` with `CATEGORIES`, `ALWAYS_AI_CATEGORIES`, `TIER_LABELS`, `getCategory`, `getCategoriesByTier`; auth verification.
+
+**Phase 2 — Personal-domain shell (Tasks 5–8):** OAuth `start` + `callback` extended to pass `domain=personal` through `state` param and set on `accounts` row; `deriveDisplayName(email)` derives GMAIL/LIME/FM+; `/personal` landing layout + page (Email + Boat Rental cards); home-page Personal card wired; admin/accounts shows new columns.
+
+**Phase 3 — Classification engine (Tasks 9–13):** all TDD with Vitest. `feature-extractor.ts` (parses headers, list-unsubscribe, gmail labels — pure fn); `rule-matcher.ts` (priority sort, first-match, all 6 match types, account scoping); `cost-guard.ts` (daily UTC sum, env override); `corrections.ts` (recent-by-category for few-shot); `prompt.ts` (system + user builders, 9-category definitions baked in); `ai-classifier.ts` (Haiku 4.5 with `cache_control: ephemeral` system prompt, JSON parse + low-confidence flag + parse-failure fallback to notifications, cost computed from `usage` field).
+
+**Phase 4 — Pipeline + ingest cron (Tasks 14–17):** `label-sync.ts` (ensureLabelsForAccount with idempotent label create, syncLabelChange via batchModify, removeAllLimeLabels paginated for disconnect); `pipeline.ts` orchestrator (rule → AI gate via ALWAYS_AI_CATEGORIES → persist → label sync, cost-cap fallback to needs_review); `ingest.ts` (per-account scan loop, MIME body excerpt extraction with HTML strip, run-row counters); `/api/cron/personal-email-ingest/route.ts` with Bearer-CRON_SECRET auth + Cairo window gate + force=1 escape.
+
+**Phase 5 — Triage UI (Tasks 18–22):** `inbox-query.ts` (loadInbox with filters + loadCategoryCounts with RPC fallback); `/personal/email/layout.tsx`, main `page.tsx` (tier-grouped cards OR flat category-filtered list), `_components/account-filter.tsx` (pills), `tier-section.tsx`, `category-card.tsx`, `refresh-button.tsx` (client w/ useTransition); `actions.ts` (moveEmail with audit + label sync, archiveInGmail per-account batchModify, markAsRead, manualRefresh); `/needs-review/page.tsx`. Bulk-action-bar marked OPTIONAL (v2).
+
+**Phase 6 — Detail page (Task 23):** `/personal/email/[messageId]/page.tsx` with classification card, MoveDropdown client component, archive form, "Open in Gmail" deep link (acknowledged `/u/0/` limitation).
+
+**Phase 7 — Setup pages (Tasks 25–29):** `setup/layout.tsx` + `SetupTabs` client component; **/accounts** (tagDomainPersonal, disconnect+removeAllLimeLabels); **/rules** (table + new + [id] edit, shared `_form.tsx` with all 6 match types + account picker, saveRule/deleteRule/toggleRule actions); **/categories**, **/ai**, **/corrections** documented with the same shape (full code for /accounts and /rules; structure-only for the smaller three since they follow identical patterns).
+
+**Phase 8 — Cron registration + validation (Tasks 30–33):** vercel.json entry `0,15,30,45 4-21 * * *`; smoke test of full path (connect account → 9 labels created → manual refresh → run row + classifications appear); 90-email accuracy sample (10 per category, target ≥85%); 7-day stability watch with SQL acceptance gate.
+
+**Self-review at end of plan**: spec coverage table maps every spec section to a task; placeholder scan clean; type consistency confirmed (`CategorySlug`, `EmailFeatures`, `PersonalEmailRule`, `ClassifierResult` all defined once, used consistently); dependencies linear (no circular).
+
+**Key architectural decisions baked into the plan:**
+- DB-only helpers (`pipeline-db.ts`, `label-sync-db.ts`) split from pure logic so the orchestrator + label sync can be unit-tested with `vi.mock`.
+- Single `personal_email_account_labels` join table replaces the spec's earlier draft of putting label IDs on each `email_logs` row — cleaner, also caught + fixed in spec self-review.
+- Cost guard reads from env (`PERSONAL_EMAIL_DAILY_CAP_USD`, default $0.50) with optional v1.5 KV migration; avoids extra schema in v1.
+- AI prompt defines "always-AI" categories in code (`ALWAYS_AI_CATEGORIES = {action_required, personal}`) so seeded rules that target those still fall through to AI for semantic confirmation.
+
+**Plan NOT yet committed.** Awaiting: about to commit + offer execution choice (subagent-driven vs inline). Two unstaged files: `docs/superpowers/plans/2026-05-03-personal-email-implementation.md` (new), `SESSION_HANDOFF.md` (this update).
+
+**Still no code, no migrations, no deploys** beyond docs. Plan phase finished — Workflow phase ready to start on user's "go".
