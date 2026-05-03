@@ -50,3 +50,4 @@ next-env.d.ts
 .vercel
 .claude/Documents/
 .claude/scheduled_tasks.lock
+.superpowers/

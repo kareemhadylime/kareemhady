@@ -420,9 +420,29 @@ function Bubble({
             moduleKey={moduleKey}
           />
         ) : (
-          <div className="whitespace-pre-wrap text-sm">
-            {m.body || <em className="opacity-60">(empty)</em>}
-          </div>
+          <>
+            <div className="whitespace-pre-wrap text-sm">
+              {m.body || <em className="opacity-60">(empty)</em>}
+            </div>
+            {/* 2026-05 (mig 0079) — inline English translation for
+                non-EN/AR inbound messages. Auto-filled by loadThread()
+                via Claude Haiku ($0.001/msg) and cached on the row, so
+                this only renders when there's something useful to show.
+                Visually offset so the agent can tell at a glance which
+                text is theirs to act on. */}
+            {m.translation_en && (
+              <div className={`mt-1.5 pt-1.5 border-t text-sm whitespace-pre-wrap italic ${
+                inbound
+                  ? 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+                  : 'border-white/20 text-white/85'
+              }`}>
+                <span className="text-[10px] not-italic uppercase tracking-wider opacity-70 mr-1">
+                  EN{m.translation_lang ? ` ← ${m.translation_lang}` : ''}
+                </span>
+                {m.translation_en}
+              </div>
+            )}
+          </>
         )}
         <div className={`text-[10px] mt-1 ${
           inbound ? 'text-slate-400'
