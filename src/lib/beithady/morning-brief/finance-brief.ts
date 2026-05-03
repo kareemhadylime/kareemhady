@@ -15,6 +15,7 @@ import {
   EGYPT_BUCKETS,
   type BriefBucket,
 } from './country';
+import { getCurrentlyStaying, CANONICAL_FOOTER_EN } from '@/lib/beithady/guesty-metrics';
 import type { Brief, BriefSection } from './types';
 
 // Finance & Accounting brief — what finance needs at 8am.
@@ -61,7 +62,6 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
     { data: directBookingsYesterday },
     { data: payouts2d },
     { data: payoutsMonth },
-    { data: currentlyStaying },
   ] = await Promise.all([
     sb.from('beithady_reservation_grid_v')
       .select('reservation_id, host_payout, commission, fare_accommodation, channel, currency, building_code, listing_id, listing_nickname, check_in_date, created_at_odoo, status')
@@ -109,14 +109,12 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       .eq('status', 'confirmed')
       .neq('source_label', 'owner')
       .neq('is_manual_block', true),
-    sb.from('beithady_reservation_grid_v')
-      .select('reservation_id, host_payout, currency, building_code, listing_id, listing_nickname, guest_count, nights, check_in_date, check_out_date')
-      .lte('check_in_date', dateIso)
-      .gt('check_out_date', dateIso)
-      .eq('status', 'confirmed')
-      .neq('source_label', 'owner')
-      .neq('is_manual_block', true),
   ]);
+
+  // Currently staying — uses canonical guesty-metrics module so this number
+  // matches every other report (briefs / Daily Performance / Reports module).
+  // See src/lib/beithady/guesty-metrics.ts for locked-in semantics.
+  const stayingCanonical = await getCurrentlyStaying(dateIso);
 
   type RevRow = {
     reservation_id?: string;
@@ -137,7 +135,22 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
   const direct = (directBookingsYesterday as Array<{ reservation_id: string; host_payout: number | string | null; commission: number | string | null; currency: string; listing_nickname: string | null; listing_id: string | null; building_code: string | null }> | null) || [];
   const payouts2 = (payouts2d as Array<{ reservation_id: string; host_payout: number | string | null; channel: string | null; currency: string; listing_nickname: string | null; listing_id: string | null; building_code: string | null; check_in_date: string }> | null) || [];
   const payoutsM = (payoutsMonth as Array<{ host_payout: number | string | null; channel: string | null; currency: string; building_code: string | null; listing_id: string | null; listing_nickname: string | null; check_in_date: string }> | null) || [];
-  const staying = (currentlyStaying as Array<{ reservation_id: string; host_payout: number | string | null; currency: string; building_code: string | null; listing_id: string | null; listing_nickname: string | null; guest_count: number | null; nights: number | null; check_in_date: string; check_out_date: string }> | null) || [];
+  // Map canonical result to the local shape (so the rest of this file works
+  // unchanged). Canonical module uses BUILDING_BUCKET ('BH-DXB','OTHER');
+  // local code uses raw building_code strings (preserves NULL).
+  const staying = stayingCanonical.reservations.map(r => ({
+    reservation_id: r.reservation_id,
+    host_payout: r.host_payout,
+    currency: r.currency || 'USD',
+    building_code: r.building === 'OTHER' ? null : r.building,
+    listing_id: r.listing_id,
+    listing_nickname: r.listing_nickname,
+    guest_count: r.guests,
+    nights: r.nights,
+    check_in_date: r.check_in_date,
+    check_out_date: r.check_out_date,
+  }));
+  const stayingManualBlocks = stayingCanonical.manual_block_unpaid;
 
   // Aggregate every collection per BriefBucket. UAE is captured in
   // BH-DXB but NOT counted in headlines / totals — only displayed on
@@ -272,6 +285,20 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
         }] : []),
       ],
       empty_message: 'No active stays today.',
+    },
+    // Manual blocks / owner stays — surfaced separately so finance has
+    // visibility on units off-market without booking revenue (Q2 ratification).
+    {
+      title: `Manual Block Unpaid (${stayingManualBlocks.length})`,
+      emoji: '🛠',
+      items: stayingManualBlocks.length > 0
+        ? stayingManualBlocks.slice(0, 8).map(r => ({
+            primary: `${r.listing_nickname || r.listing_id || '—'} · ${r.guest_name || 'Owner / block'}`,
+            secondary: `${r.building} · ${r.source || 'manual'} · ${r.check_in_date} → ${r.check_out_date}`,
+            tag: { label: 'Off-market', tone: 'amber' as const },
+          }))
+        : [],
+      empty_message: 'No manual blocks or owner stays today.',
     },
     {
       title: `Expected payouts — next 2 days (${payouts2Egypt})`,

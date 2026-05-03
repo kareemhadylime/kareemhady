@@ -240,8 +240,28 @@ export async function buildReport(config: ReportConfig): Promise<ReportData> {
   if (rErr) throw new Error(`reservations fetch failed: ${rErr.message}`);
   let reservations = (rawRes || []) as ReservationRow[];
 
+  // CANONICAL alignment (2026-05-03): Reports module now defaults to the
+  // same status filter as briefs + Daily Performance Report.
+  // status IN ('confirmed','checked_in','checked_out'). Setting
+  // includeCancelled=true on a report config will widen to also include
+  // cancelled (used by churn-analysis reports).
   if (!config.filters.includeCancelled) {
-    reservations = reservations.filter(r => (r.status || '').toLowerCase() !== 'canceled');
+    reservations = reservations.filter(r => {
+      const s = (r.status || '').toLowerCase();
+      return s === 'confirmed' || s === 'checked_in' || s === 'checked_out';
+    });
+  } else {
+    // Even when includeCancelled=true, drop inquiry/declined/expired —
+    // these are non-events for revenue analysis.
+    reservations = reservations.filter(r => {
+      const s = (r.status || '').toLowerCase();
+      return (
+        s === 'confirmed' ||
+        s === 'checked_in' ||
+        s === 'checked_out' ||
+        s === 'canceled'
+      );
+    });
   }
 
   if (config.filters.channels && config.filters.channels.length) {
