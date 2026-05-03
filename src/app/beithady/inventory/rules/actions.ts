@@ -14,6 +14,12 @@ export type RuleFormInput = {
   qty: number;
   loss_factor_pct: number;
   notes: string | null;
+  // M.16 — base-unit semantics. When set together with the item's
+  // pack_volume_*, estimator computes units-per-trigger via UoM conversion
+  // (e.g. "100 ml per check-in" ÷ "4 kg pack" = 0.025 packs). When null,
+  // qty is used raw (legacy count math).
+  consumes_volume_value: number | null;
+  consumes_volume_uom: string | null;
 };
 
 export type RuleActionResult = { ok: true; rule_id: string } | { ok: false; error: string };
@@ -44,6 +50,8 @@ export async function createRuleAction(input: RuleFormInput): Promise<RuleAction
       qty: input.qty,
       loss_factor_pct: input.loss_factor_pct,
       notes: input.notes,
+      consumes_volume_value: input.consumes_volume_value,
+      consumes_volume_uom: input.consumes_volume_uom,
       created_by_user: user.id,
     })
     .select('id')

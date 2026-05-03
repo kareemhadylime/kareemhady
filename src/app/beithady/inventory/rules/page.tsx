@@ -28,6 +28,8 @@ export default async function ConsumptionRulesPage() {
   const itemOpts = items.map(it => ({
     id: it.id,
     label: `${it.sku} — ${it.name_en} (${it.uom})`,
+    pack_volume_value: it.pack_volume_value,
+    pack_volume_uom: it.pack_volume_uom,
   }));
 
   const byScope = {

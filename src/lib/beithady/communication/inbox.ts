@@ -197,10 +197,20 @@ export async function listInbox(opts: {
       // is_unanswered=true (guest replied last) at the top, then by
       // recent activity within each group. Generated column added in
       // migration 0059; partial index backs the open + active scope.
+      //
+      // Audit fix H-C4: was sorting unanswered branch by
+      // `modified_at_external desc` first — but Guesty's sync re-bumps
+      // modified_at_external on ANY conversation update (rename,
+      // re-sync, reservation status flip), so freshly-bumped
+      // older-inbound conversations rose above truly-fresh
+      // newer-inbound ones inside the same `is_unanswered=true` group.
+      // Switched the tiebreaker to `last_inbound_at desc` which is the
+      // signal the operator actually cares about — recent guest
+      // activity surfaces first.
       q = q
         .order('is_unanswered', { ascending: false, nullsFirst: false })
-        .order('modified_at_external', { ascending: false, nullsFirst: false })
-        .order('last_inbound_at', { ascending: false, nullsFirst: false });
+        .order('last_inbound_at', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false });
   }
   q = q.range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -230,6 +240,11 @@ export type ThreadMessage = {
   ai_used_for_auto_send: boolean;
   sent_at: string | null;
   created_at: string;
+  // Audit fix H-C7 (mig 0075) — guest-side edit/delete propagation.
+  edited_at: string | null;
+  deleted_at: string | null;
+  // Audit fix M-14 (mig 0076) — reply-to threading.
+  reply_to_message_id: string | null;
 };
 
 export type ThreadHeader = InboxRow & {
@@ -314,7 +329,11 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
     sb
       .from('beithady_messages')
       .select(
-        'id, channel, external_id, direction, module_type, module_subject, body, is_automatic, from_full_name, from_type, template_name, attachments, ai_classification, ai_used_for_auto_send, sent_at, created_at'
+        // Audit fix H-C7 + M-14: also load edited_at, deleted_at,
+        // edit_history, reply_to_message_id so the thread renderer
+        // can show the "edited" tag, "[deleted]" placeholder, and
+        // future "↳ replying to" snippet.
+        'id, channel, external_id, direction, module_type, module_subject, body, is_automatic, from_full_name, from_type, template_name, attachments, ai_classification, ai_used_for_auto_send, sent_at, created_at, edited_at, deleted_at, reply_to_message_id'
       )
       .eq('conversation_id', conversationId)
       .order('sent_at', { ascending: true, nullsFirst: false })

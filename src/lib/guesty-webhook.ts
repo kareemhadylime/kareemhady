@@ -75,11 +75,18 @@ function deriveUniqueKey(eventName: string, payload: AnyJson): string | null {
     if (messageId) return `${eventName}:${messageId}`;
     if (reservationId && createdAt) return `${eventName}:${reservationId}:${createdAt}`;
   }
+  // Audit fix M-7: dropped the `Date.now()` fallback. Pre-fix every
+  // retry generated a fresh key, defeating the unique-index dedupe and
+  // re-firing beithady_communication_ingest on every redelivery. Now
+  // we either dedupe on a stable (event:id:createdAt) tuple or return
+  // null (caller logs as 'no_unique_key' but doesn't retry).
   if (eventName.startsWith('conversation.')) {
-    if (conversationId) return `${eventName}:${conversationId}:${createdAt || Date.now()}`;
+    if (conversationId && createdAt) return `${eventName}:${conversationId}:${createdAt}`;
+    if (conversationId) return `${eventName}:${conversationId}`;
   }
   if (eventName.startsWith('reservation.')) {
-    if (reservationId) return `${eventName}:${reservationId}:${createdAt || Date.now()}`;
+    if (reservationId && createdAt) return `${eventName}:${reservationId}:${createdAt}`;
+    if (reservationId) return `${eventName}:${reservationId}`;
   }
   return null;
 }
@@ -298,6 +305,11 @@ async function ingestMessage(payload: AnyJson, fromType: 'guest' | 'host'): Prom
   // host-reply times and last_outbound_at to track guest-message times,
   // which made the SLA pill flag conversations as "guest waiting" right
   // after we replied, and "replied" while the guest was actually waiting.
+  // Audit fix H-B5: out-of-order webhook race protection. Pre-fix two
+  // concurrent webhooks for the same conversation could clobber each
+  // other when the older arrived second — the OLDER createdAt
+  // overwrote the NEWER timestamp on the same column. Guard the
+  // update with a per-column WHERE so older bumps lose the race.
   const updates: Record<string, unknown> = {
     posts_synced_at: new Date().toISOString(),
   };
@@ -305,10 +317,19 @@ async function ingestMessage(payload: AnyJson, fromType: 'guest' | 'host'): Prom
     updates.last_message_nonuser_at = createdAt;
     updates.latest_guest_post_at = createdAt;
     updates.latest_guest_post_text = bodyText.slice(0, 500);
+    await sb
+      .from('guesty_conversations')
+      .update(updates)
+      .eq('id', conversationId)
+      .or(`last_message_nonuser_at.is.null,last_message_nonuser_at.lt.${createdAt}`);
   } else {
     updates.last_message_user_at = createdAt;
+    await sb
+      .from('guesty_conversations')
+      .update(updates)
+      .eq('id', conversationId)
+      .or(`last_message_user_at.is.null,last_message_user_at.lt.${createdAt}`);
   }
-  await sb.from('guesty_conversations').update(updates).eq('id', conversationId);
 }
 
 // ---------------------------------------------------------------------------

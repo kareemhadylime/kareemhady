@@ -69,6 +69,15 @@ export function LibraryPicker({
       .finally(() => setLoading(false));
   }, [step, listingId]);
 
+  // Audit fix H-A15 / H-E4: reset `selected` when the listing changes.
+  // Pre-fix, picking photos in listing A then forward-navigating to
+  // listing B preserved the listing-A IDs in the Set — which silently
+  // disappeared from the count because the new `assets` query returned
+  // a different ID set. Operator's selection vanished.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [listingId]);
+
   const selectedAssets = useMemo(
     () => assets.filter(a => selected.has(a.id)),
     [assets, selected],

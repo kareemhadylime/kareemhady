@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 
 // Phase C.5 follow-up — multi-attachment gallery: one shareable URL
@@ -22,10 +23,10 @@ export type GalleryRow = {
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
 
 function mintToken(): string {
-  // 12-char URL-safe slug from base36(crypto random + ts).
-  const ts = Date.now().toString(36);
-  const r = Math.random().toString(36).slice(2, 10);
-  return `${ts}${r}`.slice(0, 14);
+  // Audit fix M-2: was Math.random() (~70 bits non-CSPRNG entropy).
+  // Now crypto.randomBytes — 16 bytes = 128 bits of cryptographic
+  // randomness, encoded as base64url (no `+/=` chars) for URL safety.
+  return randomBytes(16).toString('base64url');
 }
 
 export async function createGallery(

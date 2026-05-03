@@ -60,9 +60,30 @@ export async function processInboundForAutoReply(
     .maybeSingle();
   if (existing) return { ok: true, skipped: 'already_processed' };
 
+  // Audit fix C-D1: per-conversation rate limit. Pre-fix, a guest who
+  // sent 30 short messages in a row triggered 30 Claude calls + 30
+  // outbound auto-sends in seconds — WhatsApp anti-spam ban risk on
+  // the Green-API number, plus runaway AI bill, plus a guest-bot
+  // ping-pong loop scenario. Cap at AI_AUTO_REPLY_MAX_PER_WINDOW
+  // auto-sends per AI_AUTO_REPLY_WINDOW_MS per conversation. Counts
+  // only `decision='auto_sent'` (suggested-only and killed don't
+  // burn the rate limit because no message was sent to the guest).
+  const AI_AUTO_REPLY_MAX_PER_WINDOW = 3;
+  const AI_AUTO_REPLY_WINDOW_MS = 10 * 60 * 1000;
+  const since = new Date(Date.now() - AI_AUTO_REPLY_WINDOW_MS).toISOString();
+  const { count: recentSends } = await sb
+    .from('beithady_ai_reply_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', m.conversation_id)
+    .eq('decision', 'auto_sent')
+    .gte('created_at', since);
+  if ((recentSends ?? 0) >= AI_AUTO_REPLY_MAX_PER_WINDOW) {
+    return { ok: true, skipped: 'rate_limited_per_conversation' };
+  }
+
   const { data: conv } = await sb
     .from('beithady_conversations')
-    .select('id, channel, external_id, ai_kill_switch, guest_full_name, guest_email, guest_phone, building_code, listing_nickname, source, reservation_id')
+    .select('id, channel, external_id, ai_kill_switch, guest_full_name, guest_email, guest_phone, building_code, listing_nickname, source, reservation_id, archived_at, resolved_at')
     .eq('id', m.conversation_id)
     .maybeSingle();
   if (!conv) return { ok: false, error: 'conversation_not_found' };
@@ -78,7 +99,20 @@ export async function processInboundForAutoReply(
     listing_nickname: string | null;
     source: string | null;
     reservation_id: string | null;
+    archived_at: string | null;
+    resolved_at: string | null;
   };
+
+  // Audit fix C-D2: never auto-reply on archived/resolved conversations.
+  // Pre-fix the orchestrator only checked the global + per-conv kill
+  // switches; an inbound landing on an archived/resolved thread would
+  // fire AI and write a new outbound on a "hidden" conversation.
+  // Note: the auto-restore trigger (C-B2/B3 in migration 0070) will have
+  // ALREADY cleared those columns when the inbound was inserted, so this
+  // gate now only catches the rare race where the trigger hasn't fired
+  // yet — defensive belt-and-suspenders.
+  if (c.archived_at) return { ok: true, skipped: 'archived_conversation' };
+  if (c.resolved_at) return { ok: true, skipped: 'resolved_conversation' };
 
   let guestVip = false;
   let guestTier: string | null = null;
@@ -99,18 +133,27 @@ export async function processInboundForAutoReply(
     }
   }
 
-  // 2. Pull recent thread (last 5 messages) for context
+  // 2. Pull recent thread (last 5 messages) for context.
+  // Audit fix M-13: also include module_type + module_subject so
+  // structured Airbnb cards (which often have an empty body but a
+  // descriptive subject like "Inquiry: 2 guests, Sep 12-15") still
+  // surface to the classifier instead of being filtered out by the
+  // body!=NULL guard.
   const { data: recent } = await sb
     .from('beithady_messages')
-    .select('direction, body, sent_at')
+    .select('direction, body, sent_at, module_type, module_subject')
     .eq('conversation_id', c.id)
     .lt('sent_at', m.sent_at)
     .order('sent_at', { ascending: false })
     .limit(5);
-  const recentThread = ((recent as Array<{ direction: 'inbound' | 'outbound'; body: string | null; sent_at: string }> | null) || [])
+  const recentThread = ((recent as Array<{ direction: 'inbound' | 'outbound'; body: string | null; sent_at: string; module_type: string | null; module_subject: string | null }> | null) || [])
+    .map(r => {
+      // Synthesise a body from subject when body is empty (Airbnb cards).
+      const body = r.body && r.body.trim() ? r.body : (r.module_subject ? `[${r.module_type || 'card'}] ${r.module_subject}` : '');
+      return { direction: r.direction, body, sent_at: r.sent_at };
+    })
     .filter(r => !!r.body)
-    .reverse()
-    .map(r => ({ direction: r.direction, body: r.body || '', sent_at: r.sent_at }));
+    .reverse();
 
   // 3. Pull reservation if linked
   let reservationCtx: { listing_nickname: string | null; building_code: string | null; check_in: string | null; check_out: string | null; nights: number | null; source: string | null } | null = null;

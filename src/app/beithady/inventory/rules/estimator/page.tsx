@@ -70,6 +70,10 @@ export default async function EstimatorLandingPage() {
                   <th className="text-right py-2 px-3 whitespace-nowrap">Guests</th>
                   <th className="text-right py-2 px-3 whitespace-nowrap">Items</th>
                   <th className="text-right py-2 px-3 whitespace-nowrap">Listings</th>
+                  <th className="text-right py-2 px-3 whitespace-nowrap" title="Whole packs to buy monthly across all line items. Source: manual override → 90-day Guesty avg → default 4 bookings/month.">
+                    Monthly need
+                    <span className="ml-1 text-slate-400 cursor-help">ⓘ</span>
+                  </th>
                   <th className="text-right py-2 px-3 whitespace-nowrap">Total / check-in</th>
                   <th className="text-right py-2 px-3 whitespace-nowrap">Per guest</th>
                   <th className="py-2 px-3"></th>
@@ -137,6 +141,13 @@ function ConfigRow({ s }: { s: UnitConfigSummary }) {
       </td>
       <td className="py-3 px-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
         {s.listing_count}
+      </td>
+      <td className="py-3 px-3 text-right tabular-nums">
+        <span className="font-semibold text-slate-700 dark:text-slate-200">{s.monthly_need_total_packs}</span>
+        <span className="text-slate-400 text-[10px] ml-1">packs</span>
+        {s.est_monthly_bookings_source === 'default_constant' && (
+          <div className="text-[9px] text-amber-600 dark:text-amber-400 mt-0.5">est. (no Guesty data)</div>
+        )}
       </td>
       <td className="py-3 px-3 text-right tabular-nums font-semibold" style={{ color: 'var(--bh-heading)' }}>
         {total > 0 ? `${total.toLocaleString('en-US', { maximumFractionDigits: 2 })} EGP` : '—'}

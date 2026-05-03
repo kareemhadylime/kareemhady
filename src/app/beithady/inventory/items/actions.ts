@@ -11,7 +11,6 @@ import { canonicalizeAmazonEgUrl } from '@/lib/beithady/inventory/estimator-shar
 import {
   regenerateItemInfo,
   setAiInfoStatus,
-  isWithinCooldown,
 } from '@/lib/beithady/inventory/ai-item-info';
 import {
   syncOneItemPrice,
@@ -32,13 +31,19 @@ export type ItemFormInput = {
   max_qty: number | null;
   reorder_qty: number | null;
   default_cost_egp: number;
-  currency: 'EGP' | 'USD';
+  // Audit fix C5: previously 'EGP' | 'USD' but no read site converted —
+  // a USD-flagged value silently lived in default_cost_egp and would be
+  // treated as EGP everywhere. Inventory items are EGP-only; the form's
+  // dropdown was removed and the type narrowed.
+  currency: 'EGP';
   batch_tracked: boolean;
   expiry_tracked: boolean;
   owner_billable: boolean;
   is_asset: boolean;
   amazon_eg_url: string | null;
   photo_url: string | null;
+  pack_volume_value: number | null;
+  pack_volume_uom: string | null;
 };
 
 function validate(input: ItemFormInput): string | null {
@@ -86,6 +91,8 @@ export async function createItemAction(input: ItemFormInput): Promise<ItemAction
       is_asset: input.is_asset,
       amazon_eg_url: input.amazon_eg_url,
       photo_url: input.photo_url,
+      pack_volume_value: input.pack_volume_value,
+      pack_volume_uom: input.pack_volume_uom,
       created_by_user: user.id,
       active: true,
     })
@@ -432,18 +439,48 @@ export async function setAmazonSourceAction(
     .maybeSingle();
   if (!before) return { ok: false, error: 'Item not found' };
 
+  // Audit fix C6: when the URL actually changes, ai_info also describes
+  // a stale product (the OLD listing's summary, ingredients, warnings,
+  // source_url). Without clearing it, the cooldown gate prevents regen
+  // and the AI card silently misrepresents the new product. We only
+  // wipe ai_info on a true URL change to avoid losing useful info when
+  // the operator re-saves the same URL.
+  const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
+
+  const updatePatch: Record<string, unknown> = {
+    amazon_eg_url: cleanUrl,
+    amazon_eg_last_status: cleanUrl ? 'unchecked' : null,
+    amazon_eg_price_egp: null,
+    amazon_eg_pack_size: null,
+    amazon_eg_image_url: null,
+    amazon_eg_url_reviewed_at: null,
+    amazon_eg_url_reviewed_by: null,
+    // M.16 — also clear the product-name + brand + pack_volume shadow
+    // columns so stale data from the PREVIOUS URL's sync doesn't
+    // persist between when the operator pastes a new URL and when the
+    // background sync writes fresh values. Otherwise the mismatch banner
+    // and Rename SKU AI suggestion read the old name/brand and produce
+    // wrong recommendations (e.g. suggesting CLN-FRIDA-4L when the new
+    // URL is actually a Clorel product).
+    amazon_eg_product_name_en: null,
+    amazon_eg_product_name_ar: null,
+    amazon_eg_brand: null,
+    amazon_eg_pack_volume_value: null,
+    amazon_eg_pack_volume_uom: null,
+    updated_at: new Date().toISOString(),
+  };
+  if (urlChanged) {
+    updatePatch.ai_info = null;
+    updatePatch.ai_info_source = null;
+    updatePatch.ai_info_generated_at = null;
+    updatePatch.ai_info_model = null;
+    updatePatch.ai_info_error = null;
+    updatePatch.ai_info_status = cleanUrl ? 'queued' : 'idle';
+  }
+
   const { error } = await sb
     .from('beithady_inventory_items')
-    .update({
-      amazon_eg_url: cleanUrl,
-      amazon_eg_last_status: cleanUrl ? 'unchecked' : null,
-      amazon_eg_price_egp: null,
-      amazon_eg_pack_size: null,
-      amazon_eg_image_url: null,
-      amazon_eg_url_reviewed_at: null,
-      amazon_eg_url_reviewed_by: null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePatch)
     .eq('id', itemId);
 
   if (error) {
@@ -472,24 +509,15 @@ export async function setAmazonSourceAction(
   // work runs after the response is flushed:
   //   1) Amazon EG price sourcer — fetches price + pack_size + product name
   //      + brand from the live Amazon page and overwrites the items row.
-  //   2) AI info regen — generates the structured info card (24h cooldown
-  //      respected; first-ever regen bypasses it).
+  //   2) AI info regen — ai_info was already wiped above (audit fix C6),
+  //      so the cooldown gate is moot and regen runs unconditionally.
   // Both calls hit Claude with web_fetch on the same URL but they extract
   // different fields, so we run them in parallel.
-  const urlChanged = (before.amazon_eg_url || null) !== cleanUrl;
   if (urlChanged && cleanUrl) {
-    const { data: aiState } = await sb
-      .from('beithady_inventory_items')
-      .select('ai_info, ai_info_generated_at')
-      .eq('id', itemId)
-      .maybeSingle();
-    const skipCooldown = !aiState?.ai_info;
     const userIdForAudit = user.id;
-
     const tasks: Promise<unknown>[] = [];
 
-    // Task 1: price sourcer (always run on URL change — operator just gave
-    // us a fresh ASIN, the existing price is stale by definition).
+    // Task 1: price sourcer
     tasks.push(
       syncOneItemPrice(itemId).then(() => {
         revalidatePath('/beithady/inventory/items');
@@ -497,16 +525,13 @@ export async function setAmazonSourceAction(
       }),
     );
 
-    // Task 2: AI info regen (cooldown-gated)
-    if (skipCooldown || !isWithinCooldown(aiState?.ai_info_generated_at)) {
-      await setAiInfoStatus(itemId, 'queued');
-      tasks.push(
-        regenerateItemInfo(itemId, userIdForAudit).then(() => {
-          revalidatePath('/beithady/inventory/items');
-          revalidatePath('/beithady/inventory/rules/estimator', 'layout');
-        }),
-      );
-    }
+    // Task 2: AI info regen (status was set to 'queued' above)
+    tasks.push(
+      regenerateItemInfo(itemId, userIdForAudit).then(() => {
+        revalidatePath('/beithady/inventory/items');
+        revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+      }),
+    );
 
     waitUntil(Promise.allSettled(tasks));
   }
@@ -621,17 +646,19 @@ export async function acceptAmazonSourceAction(
     return { ok: false, error: 'Set an Amazon EG URL before accepting it.' };
   }
 
-  const nextStatus =
-    before.amazon_eg_last_status === 'unchecked' || !before.amazon_eg_last_status
-      ? 'ok'
-      : before.amazon_eg_last_status;
-
+  // Audit fix C8: previously flipped amazon_eg_last_status from
+  // 'unchecked' → 'ok' here. That conflated "human reviewed the URL"
+  // (reviewed_at/by) with "Amazon probe returned 200 + price"
+  // (last_status). The source-cell pill turned green and the items
+  // list showed live-data styling on rows where amazon_eg_price_egp
+  // was still null — operator confidence misplaced. Now we only stamp
+  // the review fields; last_status only changes via an actual probe
+  // in persistProbeResult.
   const { error } = await sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_url_reviewed_at: new Date().toISOString(),
       amazon_eg_url_reviewed_by: user.id,
-      amazon_eg_last_status: nextStatus,
       updated_at: new Date().toISOString(),
     })
     .eq('id', itemId);
@@ -672,10 +699,10 @@ export async function acceptManySourcesAction(
   }
 
   const sb = supabaseAdmin();
-  // Filter to ids that actually have a URL — protects the audit log + status flip.
+  // Filter to ids that actually have a URL — protects the audit log + review stamp.
   const { data: eligible, error: lookupErr } = await sb
     .from('beithady_inventory_items')
-    .select('id, amazon_eg_last_status')
+    .select('id')
     .in('id', itemIds)
     .not('amazon_eg_url', 'is', null);
   if (lookupErr) {
@@ -684,7 +711,7 @@ export async function acceptManySourcesAction(
     }
     return { ok: false, error: lookupErr.message };
   }
-  const eligibleRows = (eligible as Array<{ id: string; amazon_eg_last_status: string | null }> | null) || [];
+  const eligibleRows = (eligible as Array<{ id: string }> | null) || [];
   const eligibleIds = eligibleRows.map(r => r.id);
   const skipped = itemIds.length - eligibleIds.length;
 
@@ -692,14 +719,17 @@ export async function acceptManySourcesAction(
     return { ok: true, accepted: 0, skipped };
   }
 
+  // Audit fix C8/H13: was also flipping amazon_eg_last_status from
+  // 'unchecked' → 'ok' for the unchecked subset, conflating "human
+  // confirmed the URL" with "Amazon probe succeeded". Removed — review
+  // and probe state are now independent. last_status only changes via
+  // a real probe in persistProbeResult.
   const nowIso = new Date().toISOString();
   const { error } = await sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_url_reviewed_at: nowIso,
       amazon_eg_url_reviewed_by: user.id,
-      // Bump unchecked → ok in one shot; preserve other states (price_changed, oos…)
-      // via a follow-up per-row update only where status was unchecked/null.
       updated_at: nowIso,
     })
     .in('id', eligibleIds);
@@ -708,17 +738,6 @@ export async function acceptManySourcesAction(
       return { ok: false, error: MISSING_REVIEW_COLUMN_HINT };
     }
     return { ok: false, error: error.message };
-  }
-
-  // Status flip for the unchecked/null subset only.
-  const promotable = eligibleRows
-    .filter(r => r.amazon_eg_last_status === 'unchecked' || r.amazon_eg_last_status == null)
-    .map(r => r.id);
-  if (promotable.length > 0) {
-    await sb
-      .from('beithady_inventory_items')
-      .update({ amazon_eg_last_status: 'ok' })
-      .in('id', promotable);
   }
 
   await recordAudit({
@@ -853,6 +872,11 @@ export async function setManualAmazonPriceAction(
   if (input.name_en && input.name_en.trim()) namePatch.name_en = input.name_en.trim().slice(0, 200);
   if (input.brand && input.brand.trim()) namePatch.brand = input.brand.trim().slice(0, 80);
 
+  // Audit fix H12: also clear product-name + brand + pack_volume + image
+  // + rating/review_count shadow columns from the prior failed/stale fetch.
+  // Without this, the mismatch banner reads stale amazon_eg_product_name_en
+  // and falsely surfaces "Amazon listing differs" against the name the
+  // operator just typed in.
   const { error } = await sb
     .from('beithady_inventory_items')
     .update({
@@ -862,6 +886,14 @@ export async function setManualAmazonPriceAction(
       amazon_eg_in_stock: true,
       amazon_eg_last_status: 'ok',
       amazon_eg_last_checked_at: new Date().toISOString(),
+      amazon_eg_product_name_en: null,
+      amazon_eg_product_name_ar: null,
+      amazon_eg_brand: null,
+      amazon_eg_pack_volume_value: null,
+      amazon_eg_pack_volume_uom: null,
+      amazon_eg_image_url: null,
+      amazon_eg_rating: null,
+      amazon_eg_review_count: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', itemId);
@@ -910,16 +942,28 @@ export async function applyAmazonDetailsAction(
   const { data: before } = await sb
     .from('beithady_inventory_items')
     .select(
-      'id, sku, name_en, name_ar, brand, amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand'
+      'id, sku, name_en, name_ar, brand, pack_volume_value, pack_volume_uom, default_cost_egp, description, ' +
+      'amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand, ' +
+      'amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom, ' +
+      'amazon_eg_price_egp, amazon_eg_pack_size, ai_info'
     )
     .eq('id', itemId)
     .maybeSingle();
   if (!before) return { ok: false, error: 'Item not found' };
-  const row = before as {
+  const row = before as unknown as {
     id: string; sku: string; name_en: string; name_ar: string; brand: string | null;
+    pack_volume_value: number | string | null;
+    pack_volume_uom: string | null;
+    default_cost_egp: number | string;
+    description: string | null;
     amazon_eg_product_name_en: string | null;
     amazon_eg_product_name_ar: string | null;
     amazon_eg_brand: string | null;
+    amazon_eg_pack_volume_value: number | string | null;
+    amazon_eg_pack_volume_uom: string | null;
+    amazon_eg_price_egp: number | string | null;
+    amazon_eg_pack_size: number | null;
+    ai_info: { summary_en?: string | null; summary_ar?: string | null } | null;
   };
 
   const patch: Record<string, unknown> = {};
@@ -931,6 +975,47 @@ export async function applyAmazonDetailsAction(
   }
   if (row.amazon_eg_brand && row.amazon_eg_brand.trim()) {
     patch.brand = row.amazon_eg_brand.trim().slice(0, 80);
+  }
+  // M.16 — also propagate the Amazon pack_volume to the canonical column
+  // so the estimator's volumetric math + the size mismatch detector both
+  // see the new pack size, not the old SKU's stale 1L assumption.
+  //
+  // Liquid heuristic: Amazon EG often labels liquid products by net-weight
+  // ("4 Kg" for a 4-litre bottle of cleaner) because that's the shipping
+  // weight. Operators track liquids in volume — when the product name
+  // contains liquid/cleaner/detergent/shampoo/etc AND Amazon labelled it
+  // in kg or g, convert to L or ml assuming density ≈ 1 (water-based,
+  // close enough for cost estimation; concentrated cleaners off by ≤20%).
+  if (row.amazon_eg_pack_volume_value != null && row.amazon_eg_pack_volume_uom) {
+    let v = Number(row.amazon_eg_pack_volume_value);
+    let u = row.amazon_eg_pack_volume_uom;
+    const nameForCheck = (row.amazon_eg_product_name_en || row.name_en || '').toLowerCase();
+    const isLiquid = /\b(liquid|detergent|shampoo|conditioner|softener|cleaner|spray|bleach|oil|sauce|lotion|gel|syrup|vinegar|polish|disinfectant|deodoriz|deodoris|sanitiz|sanitis)/i.test(nameForCheck);
+    if (isLiquid) {
+      if (u === 'kg') { u = 'L'; }
+      else if (u === 'g') { u = 'ml'; }
+    }
+    patch.pack_volume_value = v;
+    patch.pack_volume_uom = u;
+    void v; // satisfy linter — v intentionally not converted (1:1 mapping)
+  }
+  // M.16 — sync default_cost_egp to the live Amazon per-pack price so the
+  // operator's cost field reflects what they actually pay (was a seed
+  // placeholder until now). For multi-packs use price ÷ pack_size to get
+  // the per-unit cost; otherwise the raw price.
+  if (row.amazon_eg_price_egp != null) {
+    const price = Number(row.amazon_eg_price_egp);
+    const packCount = row.amazon_eg_pack_size && row.amazon_eg_pack_size > 0
+      ? row.amazon_eg_pack_size : 1;
+    if (Number.isFinite(price) && price > 0) {
+      patch.default_cost_egp = price / packCount;
+    }
+  }
+  // M.16 — fill description from the AI info card's summary if the operator
+  // hasn't set their own description yet. Doesn't overwrite — leaves manual
+  // descriptions intact.
+  if (!row.description && row.ai_info?.summary_en) {
+    patch.description = String(row.ai_info.summary_en).slice(0, 500);
   }
   if (Object.keys(patch).length === 0) {
     return {
@@ -952,7 +1037,10 @@ export async function applyAmazonDetailsAction(
     action: 'item.amazon_details.apply',
     target_type: 'item',
     target_id: itemId,
-    before: { name_en: row.name_en, name_ar: row.name_ar, brand: row.brand },
+    before: {
+      name_en: row.name_en, name_ar: row.name_ar, brand: row.brand,
+      pack_volume_value: row.pack_volume_value, pack_volume_uom: row.pack_volume_uom,
+    },
     after: patch,
   });
 
@@ -987,6 +1075,7 @@ export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggest
     .select(`
       sku, name_en, uom,
       amazon_eg_product_name_en, amazon_eg_brand, amazon_eg_pack_size,
+      amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom,
       category:beithady_inventory_categories!inner(code)
     `)
     .eq('id', itemId)
@@ -999,6 +1088,8 @@ export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggest
     amazon_eg_product_name_en: string | null;
     amazon_eg_brand: string | null;
     amazon_eg_pack_size: number | null;
+    amazon_eg_pack_volume_value: number | string | null;
+    amazon_eg_pack_volume_uom: string | null;
     category: { code: string };
   };
 
@@ -1018,6 +1109,13 @@ export async function suggestSkuRenameAction(itemId: string): Promise<SkuSuggest
     newBrand: item.amazon_eg_brand,
     uom: item.uom,
     packSize: item.amazon_eg_pack_size,
+    // M.16 — pass the Amazon-fetched pack volume so the AI uses the
+    // ACTUAL size (4 kg) instead of inheriting the OLD SKU's stale
+    // size suffix (1L). Without this, "CLN-APC-1L" got renamed to
+    // "CLN-CLOREL-1L" even though the new product is 4 kg.
+    amazonPackVolumeValue: item.amazon_eg_pack_volume_value != null
+      ? Number(item.amazon_eg_pack_volume_value) : null,
+    amazonPackVolumeUom: item.amazon_eg_pack_volume_uom,
   });
   if (!res.ok) return { ok: false, error: res.error };
   if (res.sku === item.sku) {
@@ -1082,4 +1180,156 @@ export async function applySkuRenameAction(
   revalidatePath('/beithady/inventory/rules/estimator', 'layout');
   revalidatePath('/beithady/inventory');
   return { ok: true, old_sku: beforeRow.sku, new_sku: cleanSku };
+}
+
+// ---------------------------------------------------------------------------
+// Fork SKU from Amazon listing (Q3=C — create NEW SKU, preserve old)
+// ---------------------------------------------------------------------------
+// When the operator pastes a URL whose Amazon product is genuinely a
+// different size/variant (e.g. SKU was 1L cleaner, Amazon listing is 4kg),
+// "Use Amazon details" would corrupt the old SKU's history. "Create new
+// SKU" forks: the old SKU keeps its name/rules/GRNs/issues; a new SKU is
+// inserted populated with the Amazon-fetched name, brand, URL, pack volume,
+// price, and image. Generated SKU code = old prefix + "-FORK<N>".
+
+export async function forkSkuFromAmazonAction(
+  itemId: string,
+): Promise<SourceActionResult> {
+  const { user } = await requireBeithadyPermission('inventory', 'full');
+  const sb = supabaseAdmin();
+
+  const { data: src } = await sb
+    .from('beithady_inventory_items')
+    .select(
+      'id, sku, name_en, name_ar, brand, category_id, uom, currency, batch_tracked, expiry_tracked, owner_billable, is_asset, ' +
+      'amazon_eg_url, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_image_url, ' +
+      'amazon_eg_product_name_en, amazon_eg_product_name_ar, amazon_eg_brand, ' +
+      'amazon_eg_pack_volume_value, amazon_eg_pack_volume_uom, default_cost_egp, min_qty'
+    )
+    .eq('id', itemId)
+    .maybeSingle();
+  if (!src) return { ok: false, error: 'Source item not found' };
+  const s = src as unknown as {
+    id: string; sku: string; name_en: string; name_ar: string;
+    brand: string | null; category_id: string; uom: string;
+    currency: 'EGP'; batch_tracked: boolean; expiry_tracked: boolean;
+    owner_billable: boolean; is_asset: boolean;
+    amazon_eg_url: string | null;
+    amazon_eg_price_egp: number | string | null;
+    amazon_eg_pack_size: number | null;
+    amazon_eg_image_url: string | null;
+    amazon_eg_product_name_en: string | null;
+    amazon_eg_product_name_ar: string | null;
+    amazon_eg_brand: string | null;
+    amazon_eg_pack_volume_value: number | string | null;
+    amazon_eg_pack_volume_uom: string | null;
+    default_cost_egp: number | string;
+    min_qty: number | string;
+  };
+
+  if (!s.amazon_eg_product_name_en) {
+    return { ok: false, error: 'No Amazon product details on the source — run a sync first.' };
+  }
+
+  // Generate a unique fork SKU code. Strip any existing -FORK suffix and try
+  // -FORK, -FORK2, -FORK3, etc. until vacant.
+  const baseSku = s.sku.replace(/-FORK\d*$/i, '');
+  let newSku = `${baseSku}-FORK`;
+  for (let n = 2; n < 50; n++) {
+    const { data: dup } = await sb
+      .from('beithady_inventory_items')
+      .select('id')
+      .eq('sku', newSku)
+      .maybeSingle();
+    if (!dup) break;
+    newSku = `${baseSku}-FORK${n}`;
+  }
+
+  const newName = s.amazon_eg_product_name_en.slice(0, 200);
+  const newNameAr = (s.amazon_eg_product_name_ar || s.name_ar).slice(0, 200);
+  const newBrand = s.amazon_eg_brand || s.brand;
+  const newCost = s.amazon_eg_price_egp != null
+    ? Number(s.amazon_eg_price_egp)
+    : Number(s.default_cost_egp);
+
+  const { data: inserted, error } = await sb
+    .from('beithady_inventory_items')
+    .insert({
+      sku: newSku,
+      name_en: newName,
+      name_ar: newNameAr,
+      category_id: s.category_id,
+      uom: s.uom,
+      brand: newBrand,
+      currency: s.currency,
+      batch_tracked: s.batch_tracked,
+      expiry_tracked: s.expiry_tracked,
+      owner_billable: s.owner_billable,
+      is_asset: s.is_asset,
+      default_cost_egp: newCost,
+      min_qty: Number(s.min_qty),
+      amazon_eg_url: s.amazon_eg_url,
+      amazon_eg_price_egp: s.amazon_eg_price_egp,
+      amazon_eg_pack_size: s.amazon_eg_pack_size,
+      amazon_eg_image_url: s.amazon_eg_image_url,
+      amazon_eg_product_name_en: s.amazon_eg_product_name_en,
+      amazon_eg_product_name_ar: s.amazon_eg_product_name_ar,
+      amazon_eg_brand: s.amazon_eg_brand,
+      amazon_eg_pack_volume_value: s.amazon_eg_pack_volume_value,
+      amazon_eg_pack_volume_uom: s.amazon_eg_pack_volume_uom,
+      pack_volume_value: s.amazon_eg_pack_volume_value,
+      pack_volume_uom: s.amazon_eg_pack_volume_uom,
+      amazon_eg_last_status: 'ok',
+      amazon_eg_in_stock: true,
+      created_by_user: user.id,
+      active: true,
+    })
+    .select('id')
+    .single();
+  if (error || !inserted) return { ok: false, error: error?.message || 'Insert failed' };
+
+  // Clear the source SKU's URL — the Amazon listing now belongs to the
+  // forked SKU; the original keeps its other curated details.
+  // Audit fix H11: also clear ai_info so the source SKU's AI card
+  // doesn't keep describing the product that just left the row (same
+  // root cause as C6 in setAmazonSourceAction).
+  await sb
+    .from('beithady_inventory_items')
+    .update({
+      amazon_eg_url: null,
+      amazon_eg_price_egp: null,
+      amazon_eg_pack_size: null,
+      amazon_eg_image_url: null,
+      amazon_eg_in_stock: null,
+      amazon_eg_last_status: null,
+      amazon_eg_url_reviewed_at: null,
+      amazon_eg_url_reviewed_by: null,
+      amazon_eg_product_name_en: null,
+      amazon_eg_product_name_ar: null,
+      amazon_eg_brand: null,
+      amazon_eg_pack_volume_value: null,
+      amazon_eg_pack_volume_uom: null,
+      ai_info: null,
+      ai_info_source: null,
+      ai_info_generated_at: null,
+      ai_info_model: null,
+      ai_info_error: null,
+      ai_info_status: 'idle',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', itemId);
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'inventory',
+    action: 'item.fork_from_amazon',
+    target_type: 'item',
+    target_id: itemId,
+    metadata: { source_sku: s.sku, new_sku: newSku, new_item_id: (inserted as { id: string }).id },
+  });
+
+  revalidatePath('/beithady/inventory/items');
+  revalidatePath('/beithady/inventory/rules/estimator', 'layout');
+  revalidatePath('/beithady/inventory');
+  return { ok: true };
 }

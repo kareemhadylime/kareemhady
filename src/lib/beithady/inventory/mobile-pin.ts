@@ -52,8 +52,9 @@ export async function clearMobileSession(): Promise<void> {
 }
 
 // Validate a (buildingWarehouseCode, pin) pair against beithady_settings.
-// Returns the warehouse row if valid, null otherwise. Rate-limit-friendly
-// (caller should track failed attempts).
+// Returns the warehouse row if valid, null otherwise. Rate-limit and
+// audit logging are handled by the action layer via checkPinRateLimit
+// and recordPinAttempt below.
 export async function validateBuildingPin(
   warehouseCode: string,
   pin: string,
@@ -79,6 +80,53 @@ export async function validateBuildingPin(
     .maybeSingle();
 
   return wh as WarehouseRow | null;
+}
+
+// Audit fix C4: per-IP rate limit. Five failed attempts within
+// PIN_LOCKOUT_WINDOW_MS triggers a lockout for the same window. Counted
+// from the most recent failure, so a determined attacker doesn't roll
+// off the window by spreading attempts.
+export const PIN_FAIL_THRESHOLD = 5;
+export const PIN_LOCKOUT_WINDOW_MS = 5 * 60 * 1000;
+
+export type PinRateLimitState =
+  | { locked: false }
+  | { locked: true; retryAfterSec: number };
+
+export async function checkPinRateLimit(ip: string | null): Promise<PinRateLimitState> {
+  if (!ip) return { locked: false }; // can't enforce without an IP
+  const sb = supabaseAdmin();
+  const since = new Date(Date.now() - PIN_LOCKOUT_WINDOW_MS).toISOString();
+  const { data, count } = await sb
+    .from('beithady_inventory_mobile_pin_attempts')
+    .select('attempted_at', { count: 'exact' })
+    .eq('ip', ip)
+    .eq('success', false)
+    .gte('attempted_at', since)
+    .order('attempted_at', { ascending: false })
+    .limit(1);
+  if ((count ?? 0) < PIN_FAIL_THRESHOLD) return { locked: false };
+  const lastAttemptIso = (data as Array<{ attempted_at: string }> | null)?.[0]?.attempted_at;
+  const lastMs = lastAttemptIso ? Date.parse(lastAttemptIso) : Date.now();
+  const retryAfterSec = Math.max(1, Math.ceil((lastMs + PIN_LOCKOUT_WINDOW_MS - Date.now()) / 1000));
+  return { locked: true, retryAfterSec };
+}
+
+export async function recordPinAttempt(input: {
+  warehouseCode: string;
+  ip: string | null;
+  userAgent: string | null;
+  cleanerName: string | null;
+  success: boolean;
+}): Promise<void> {
+  const sb = supabaseAdmin();
+  await sb.from('beithady_inventory_mobile_pin_attempts').insert({
+    warehouse_code: input.warehouseCode,
+    ip: input.ip,
+    user_agent: input.userAgent,
+    cleaner_name: input.cleanerName,
+    success: input.success,
+  });
 }
 
 // Returns the list of buildings with active PINs (one main warehouse per

@@ -4,6 +4,7 @@ import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { InboxRow } from '@/lib/beithady/communication/inbox';
 import type { SlaBucket } from '@/lib/beithady/communication/sla';
 import { SlaPill } from './sla-pill';
+import { SidebarScrollRestore } from './sidebar-scroll-restore';
 
 const SOURCE_BADGES: Record<string, string> = {
   airbnb2: 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200',
@@ -63,6 +64,7 @@ export function SidebarList({
     );
   }
   return (
+    <SidebarScrollRestore>
     <ul className="ix-card divide-y divide-slate-200 dark:divide-slate-700 overflow-hidden">
       {rows.map(r => {
         const href = `${basePath}?c=${r.id}${searchQuery ? `&${searchQuery}` : ''}`;
@@ -131,12 +133,13 @@ export function SidebarList({
                 </div>
               </div>
               <div className="shrink-0">
-                <SlaPill bucket={r.sla_bucket} ageSeconds={r.sla_age_seconds} size="xs" />
+                <SlaPill bucket={r.sla_bucket} ageSeconds={r.sla_age_seconds} lastInboundAt={r.last_inbound_at} size="xs" />
               </div>
             </Link>
           </li>
         );
       })}
     </ul>
+    </SidebarScrollRestore>
   );
 }

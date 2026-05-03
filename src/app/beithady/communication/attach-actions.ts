@@ -227,13 +227,32 @@ export type SignedUploadUrlResult =
   | { ok: true; path: string; token: string; publicUrl: string }
   | { ok: false; error: string };
 
+// Audit fix C-E2: extension allowlist as a server-side check before
+// minting the signed upload URL. The bucket's allowed_mime_types
+// already restricts the contentType the client claims at upload time
+// (image/* + video/* + application/pdf per migration 0065), but a
+// matching extension is a second line of defense against operators
+// uploading dangerous file types (.exe, .bat, .ps1) renamed to a
+// permitted extension. A magic-byte sniff would be stronger but
+// requires a separate post-upload server roundtrip — out of scope
+// here.
+const ALLOWED_MEDIA_EXTENSIONS = new Set([
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif',
+  'mp4', 'mov', 'm4v', 'webm', '3gp',
+  'mp3', 'm4a', 'ogg', 'opus', 'wav',
+  'pdf',
+]);
+
 export async function createMediaSignedUploadUrl(
   ext: string,
 ): Promise<SignedUploadUrlResult> {
   try {
     const user = await ensureFullPerm();
     void user;
-    const safeExt = (ext || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8) || 'bin';
+    const safeExt = (ext || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8).toLowerCase() || 'bin';
+    if (!ALLOWED_MEDIA_EXTENSIONS.has(safeExt)) {
+      return { ok: false, error: `extension_not_allowed: ${safeExt}` };
+    }
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const id = Math.random().toString(36).slice(2, 10);
     const path = `wa-casual/${ts}-${id}.${safeExt}`;
@@ -399,20 +418,32 @@ export async function sendWaCasualMultiAttachResult(formData: FormData): Promise
     if (!conversationId) return { ok: false, error: 'missing_conversation_id' };
     const caption = String(formData.get('body') || '').trim();
 
-    type Slot = { kind: 'file'; blob: Blob; name: string } | { kind: 'lib'; url: string; name: string; mime: string };
+    type Slot = {
+      kind: 'file' | 'lib';
+      url?: string;
+      blob?: Blob;
+      name: string;
+      mime: string;
+      // Audit fix C-E1: cleanup_path tracks client-uploaded blobs that
+      // can be safely removed from storage if the multi-send breaks
+      // partway. Library items don't carry one (we never delete those).
+      cleanupPath?: string;
+    };
     const slots: Slot[] = [];
     for (let i = 0; i < MAX_FILES_PER_SEND; i++) {
       const f = formData.get(`file_${i}`);
       const libUrl = formData.get(`library_url_${i}`);
+      const cleanupPath = String(formData.get(`cleanup_path_${i}`) || '').trim() || undefined;
       if (f instanceof Blob && f.size > 0) {
         const name = (f as File).name || `file-${Date.now()}-${i}`;
-        slots.push({ kind: 'file', blob: f, name });
+        slots.push({ kind: 'file', blob: f, name, mime: f.type || 'application/octet-stream' });
       } else if (typeof libUrl === 'string' && libUrl.trim()) {
         slots.push({
           kind: 'lib',
           url: libUrl.trim(),
           name: String(formData.get(`library_name_${i}`) || `library-${i}.bin`),
           mime: String(formData.get(`library_mime_${i}`) || 'application/octet-stream'),
+          cleanupPath,
         });
       }
     }
@@ -423,25 +454,23 @@ export async function sendWaCasualMultiAttachResult(formData: FormData): Promise
 
     let succeeded = 0;
     let lastError: string | null = null;
+    let breakIndex = -1;
     for (let i = 0; i < slots.length; i++) {
       const slot = slots[i];
       let url: string;
-      let name: string;
-      let mime: string;
+      const name = slot.name;
+      const mime = slot.mime;
       if (slot.kind === 'file') {
-        mime = slot.blob.type || 'application/octet-stream';
-        name = slot.name;
-        const ab = await slot.blob.arrayBuffer();
+        const ab = await slot.blob!.arrayBuffer();
         const uploaded = await uploadWaMedia(ab, mime, extFromMime(mime));
         if (!uploaded.ok) {
           lastError = `upload_failed: ${uploaded.error}`;
+          breakIndex = i;
           break;
         }
         url = uploaded.url;
       } else {
-        url = slot.url;
-        name = slot.name;
-        mime = slot.mime;
+        url = slot.url!;
       }
       const result = await sendWaCasualMessage({
         beithadyConversationId: conversationId,
@@ -454,9 +483,31 @@ export async function sendWaCasualMultiAttachResult(formData: FormData): Promise
       });
       if (!result.ok) {
         lastError = result.error;
+        breakIndex = i;
         break;
       }
       succeeded += 1;
+    }
+
+    // Audit fix C-E1: on partial-failure break, clean up the
+    // client-uploaded blobs for slots that were never sent. Slots
+    // before breakIndex DID send and are referenced by the message
+    // row's attachments[] — those stay. Library items are not removed
+    // (no cleanupPath set).
+    if (breakIndex >= 0) {
+      const orphanPaths = slots
+        .slice(breakIndex)
+        .map(s => s.cleanupPath)
+        .filter((p): p is string => !!p);
+      if (orphanPaths.length > 0) {
+        try {
+          const adminSb = supabaseAdmin();
+          await adminSb.storage.from('beithady-wa-media').remove(orphanPaths);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[attach-actions] orphan cleanup failed:', e);
+        }
+      }
     }
 
     await recordAudit({
@@ -542,16 +593,25 @@ export async function deleteListingAssetAction(formData: FormData): Promise<void
   const returnTo = String(formData.get('return_to') || '/beithady/settings');
   if (!id) throw new Error('missing_id');
 
+  // Audit fix C-E3: soft-delete instead of hard-delete + storage
+  // remove. Library URLs are inlined in past message bodies / attachment
+  // slots; physically deleting the storage object 404'd every
+  // historical message that referenced it. Now the row is marked
+  // deleted_at=now() and the storage object stays. The picker filters
+  // on deleted_at IS NULL so deleted assets don't appear in new sends,
+  // but old messages keep rendering correctly.
   const sb = supabaseAdmin();
   const { data: row } = await sb
     .from('beithady_listing_assets')
-    .select('storage_path, listing_id')
+    .select('storage_path, listing_id, deleted_at')
     .eq('id', id)
     .maybeSingle();
-  await sb.from('beithady_listing_assets').delete().eq('id', id);
-  if (row && (row as { storage_path: string }).storage_path) {
-    await sb.storage.from('beithady-gallery-public').remove([(row as { storage_path: string }).storage_path]);
-  }
+  if (!row) throw new Error('asset_not_found');
+  await sb
+    .from('beithady_listing_assets')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null);
 
   await recordAudit({
     actor_user_id: user.id,

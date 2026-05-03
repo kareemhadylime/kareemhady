@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { Send, Paperclip, AlertTriangle, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { sendWaCasualMessageAction, sendWaCasualVoiceAction } from '../actions';
 import { VoiceRecorder } from './voice-recorder';
@@ -26,7 +26,27 @@ export function WaCasualComposer({
   templateContext?: TemplateContext;
   buildingCode?: string | null;
 }) {
-  const [body, setBody] = useState('');
+  // Audit fix H-E10: composer draft persistence (parity with composer.tsx).
+  const draftKey = `bh-comm-draft:${conversationId}`;
+  const [body, setBody] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return window.localStorage.getItem(draftKey) || '';
+    } catch { return ''; }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (body) window.localStorage.setItem(draftKey, body);
+      else window.localStorage.removeItem(draftKey);
+    } catch { /* ignore */ }
+  }, [body, draftKey]);
+  useEffect(() => {
+    if (initialSent && typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(draftKey); } catch { /* ignore */ }
+      setBody('');
+    }
+  }, [initialSent, draftKey]);
   const [submitting, setSubmitting] = useState(false);
   const [voiceSending, setVoiceSending] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);

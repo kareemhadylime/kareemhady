@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
 import { nextIssueNo, type IssueType, type IssueCreatedVia } from '@/lib/beithady/inventory/issue';
+import { resolveUnitCostEgp } from '@/lib/beithady/inventory/unit-cost';
 
 export type IssueLineInput = {
   item_id: string;
@@ -137,11 +138,37 @@ export async function submitIssueAction(issueId: string): Promise<IssueActionRes
     return { ok: false, error: `Cannot submit a ${issue.status} issue` };
   }
 
-  // Sub-total isn't computed on issues until posting (FIFO picks the cost),
-  // so use 0 as a heuristic — type-based rules + always-rules still fire.
+  // Audit fix C3: previously passed p_sub_total_egp=0 always, so the
+  // seeded `('issue','sub_total_egp','>','1000','warehouse_manager')`
+  // approval rule never fired and a 50,000 EGP issue auto-approved on
+  // the cost dimension. Real cost is only known after FIFO at posting,
+  // but we estimate here using items.avg_cost_egp × qty (same trick
+  // postTransferAction uses). Estimate is conservative for routing —
+  // post-time sub_total updates the actual figure.
+  const { data: lines } = await sb
+    .from('beithady_inventory_issue_lines')
+    .select('qty, item_id')
+    .eq('issue_id', issueId);
+  let estimatedSubTotal = 0;
+  const lineRows = (lines as Array<{ qty: number; item_id: string }> | null) || [];
+  if (lineRows.length > 0) {
+    const itemIds = Array.from(new Set(lineRows.map(l => l.item_id)));
+    const { data: itemCosts } = await sb
+      .from('beithady_inventory_items')
+      .select('id, avg_cost_egp, last_cost_egp, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size')
+      .in('id', itemIds);
+    const costById = new Map<string, number>();
+    for (const r of (itemCosts as Array<Parameters<typeof resolveUnitCostEgp>[0] & { id: string }> | null) || []) {
+      costById.set(r.id, resolveUnitCostEgp(r).unitCostEgp);
+    }
+    for (const l of lineRows) {
+      estimatedSubTotal += Number(l.qty || 0) * (costById.get(l.item_id) || 0);
+    }
+  }
+
   const { data: approvers } = await sb.rpc('beithady_inv_required_approvers', {
     p_doc_type: 'issue',
-    p_sub_total_egp: 0,
+    p_sub_total_egp: estimatedSubTotal,
     p_type_value: issue.type,
   });
   const needsApproval = ((approvers as string[] | null) || []).length > 0;
@@ -149,7 +176,7 @@ export async function submitIssueAction(issueId: string): Promise<IssueActionRes
     issueId,
     needsApproval ? 'pending_approval' : 'approved',
     needsApproval ? 'issue.submit_for_approval' : 'issue.auto_approve',
-    { type: issue.type, required_approvers: approvers },
+    { type: issue.type, estimated_sub_total_egp: estimatedSubTotal, required_approvers: approvers },
   );
 }
 

@@ -118,6 +118,8 @@ type GuestyFetchOpts = {
   body?: unknown;
   /** Max 429 retries. Default 2. */
   retries?: number;
+  /** Extra request headers (e.g. Idempotency-Key for safe POST retries). */
+  headers?: Record<string, string | null | undefined>;
 };
 
 async function guestyFetch<T = unknown>(
@@ -138,6 +140,14 @@ async function guestyFetch<T = unknown>(
     Authorization: `Bearer ${token}`,
     Accept: 'application/json',
   };
+  // Audit fix C-D3: caller-supplied headers (e.g. Idempotency-Key for
+  // POST sends so Guesty can dedupe a retry after timeout instead of
+  // delivering the message twice).
+  if (opts.headers) {
+    for (const [k, v] of Object.entries(opts.headers)) {
+      if (v != null) headers[k] = v;
+    }
+  }
   const init: RequestInit = { method, headers };
   if (opts.body != null) {
     headers['Content-Type'] = 'application/json';
@@ -601,9 +611,28 @@ export async function sendGuestyConversationPost(
   }
 
   try {
+    // Audit fix C-D3: Idempotency-Key + retries:0 to prevent
+    // double-delivery on flaky network. Pre-fix `retries: 1` would
+    // re-POST after a 5xx/timeout — Guesty often DOES process the
+    // first request, so the retry delivered the same message a
+    // second time to the guest. Now:
+    //   - retries:0 → no automatic re-POST
+    //   - Idempotency-Key derived from a sha256 of stable inputs
+    //     (conversation + body + minute bucket); if Guesty honors
+    //     the header, a manual operator retry within the same
+    //     minute deduplicates server-side too.
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    const keyMaterial = `${input.conversationId}:${input.body}:${input.module || ''}:${minuteBucket}`;
+    const { createHash } = await import('node:crypto');
+    const idemKey = 'bh-' + createHash('sha256').update(keyMaterial).digest('hex').slice(0, 32);
     const raw = await guestyFetch<unknown>(
       `/communication/conversations/${input.conversationId}/posts`,
-      { method: 'POST', body: payload, retries: 1 }
+      {
+        method: 'POST',
+        body: payload,
+        retries: 0,
+        headers: { 'Idempotency-Key': idemKey },
+      }
     );
     let post: GuestyConversationPost | null = null;
     if (raw && typeof raw === 'object') {

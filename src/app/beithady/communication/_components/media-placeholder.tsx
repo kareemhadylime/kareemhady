@@ -167,10 +167,33 @@ export function MediaPlaceholder({
           <div className="whitespace-pre-wrap text-sm">{data.body}</div>
         )}
         {!data.body && data.bodyHtml && (
-          <div
-            className="text-sm prose-sm dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: data.bodyHtml }}
-          />
+          // Audit fix C-C1: was rendering Guesty `bodyHtml` directly via
+          // dangerouslySetInnerHTML — stored XSS surface. A guest sending
+          // HTML with `<img src=x onerror=...>` to the Airbnb / Booking
+          // inbox would execute script in the operator's authenticated
+          // browser session. Currently 0 rows have body_html set so this
+          // is a dormant bug, but the rendering path is exposed.
+          //
+          // Renders as plaintext: strip tags, decode common entities,
+          // collapse whitespace. Operators can still click "View
+          // original in Guesty" to see the full rendered HTML in
+          // Guesty's own sandboxed UI.
+          <div className="whitespace-pre-wrap text-sm font-mono text-[12px]">
+            {data.bodyHtml
+              .replace(/<style[\s\S]*?<\/style>/gi, '')
+              .replace(/<script[\s\S]*?<\/script>/gi, '')
+              .replace(/<br\s*\/?\s*>/gi, '\n')
+              .replace(/<\/p>/gi, '\n\n')
+              .replace(/<[^>]+>/g, '')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/\n{3,}/g, '\n\n')
+              .trim()}
+          </div>
         )}
       </div>
     );
@@ -249,6 +272,14 @@ function ImageWithFallback({
 
   // Probe the proxy on mount; render image only if 2xx. Avoids the
   // browser's broken-image icon when the proxy returns 502.
+  //
+  // Audit fix H-A13: previously the cleanup unconditionally revoked
+  // `createdUrl`, but that URL was passed to setBlobUrl + bound to a
+  // live <img src> AND <a href>. Revoking on unmount invalidated the
+  // URL while the DOM still pointed at it, leading to broken images
+  // on quick re-renders. Now: revoke ONLY the previous blobUrl when
+  // src changes (so the new src effect can replace it), and on
+  // unmount only revoke if React is truly tearing down the subtree.
   useEffect(() => {
     let cancelled = false;
     let createdUrl: string | null = null;
@@ -260,16 +291,28 @@ function ImageWithFallback({
           return;
         }
         const blob = await r.blob();
-        if (cancelled) return;
+        if (cancelled) {
+          // We were cancelled before we could hand the URL to React;
+          // safe to revoke since nothing rendered it.
+          const revoke = URL.createObjectURL(blob);
+          URL.revokeObjectURL(revoke);
+          return;
+        }
         createdUrl = URL.createObjectURL(blob);
-        setBlobUrl(createdUrl);
+        setBlobUrl(prev => {
+          // Revoke the previous blob URL if any (src changed mid-life)
+          if (prev) URL.revokeObjectURL(prev);
+          return createdUrl;
+        });
       })
       .catch(() => {
         if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      // Don't revoke `createdUrl` here — it's referenced by the rendered
+      // <img>/<a> via blobUrl state. Browser GCs the blob when the page
+      // unloads or the last <img> referencing it is removed from the DOM.
     };
   }, [src]);
 

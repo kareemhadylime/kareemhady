@@ -6,7 +6,12 @@ import type { ConsumptionRuleListRow } from '@/lib/beithady/inventory/rules-shar
 import { toggleRuleActiveAction, deleteRuleAction } from '../actions';
 import { RuleFormButton } from './rule-form-button';
 
-type ItemOpt = { id: string; label: string };
+type ItemOpt = {
+  id: string;
+  label: string;
+  pack_volume_value: number | null;
+  pack_volume_uom: string | null;
+};
 type BuildingOpt = { code: string; label: string };
 
 export function RuleRowActions({

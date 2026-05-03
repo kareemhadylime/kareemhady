@@ -1,6 +1,583 @@
-# Kareemhady — Session Handoff (2026-05-01)
+# Kareemhady — Session Handoff (2026-05-02)
 
-## 🟢 Latest turn — Video attachments end-to-end (migration 0065)
+## 🟡 Latest turn — General Building Area "exaggerated count" diagnosis (NOT a count bug — content triage)
+
+User screenshot post-fix: General Building Area shows 137 photos · 4 videos. User says the count is "exaggerated".
+
+**Investigation:** queried prod DB. Count is genuinely correct — 171 photos + 8 videos truly general (`listing_id IS NULL AND unit_template_id IS NULL`). Earlier `1982df2` fix is working: pre-fix would have been 456 photos (with template-scoped leakage); post-fix is 171 (template leakage gone). UI showing 137 is just a slight RSC stale render — DB has 171.
+
+**Real problem found via filename pattern audit:**
+
+| Filename pattern | Count | What it is |
+|---|---:|---|
+| `IMG_Bait1 (NN).jpg` | 142 | Team / staff / photoshoot photos |
+| `IMG_Pool1 (NN).jpg` | 45 | Pool — legit building-wide |
+| Other | 18 | Lobby / exterior — legit |
+| `WhatsApp Image/Video` | 14 | Mixed |
+
+So 142 of 219 General-Area files (~65%) are team/staff photos that were uploaded to General but don't match the card's labeled scope ("Lobby · pool · gym · exterior · building-wide"). The count is right; the *content* is mis-categorized.
+
+**Presented 3 cleanup options to user, awaiting pick:**
+- **A) Delete the 142 team photos** if not needed long-term.
+- **B) Bulk-move them to category `brand_asset`** so they appear under `/beithady/gallery/brand-library` instead of General. Schema already supports this enum value. Needs ~15 LOC for a new `bulkChangeCategoryAction` server action; no migration. (RECOMMENDED — they're semantically brand/marketing assets.)
+- **C) New "Team & Events" category** with its own folder card on the building landing. Schema migration + folder UI; bigger.
+
+**No code shipped this turn.** Waiting for user's pick (A/B/C or "leave it, I'll triage manually").
+
+**Other state from this session still relevant:**
+- AI label backlog still draining via cron (~5 jobs / 2 min).
+- 142 unprocessed photos in `beithady_gallery_label_jobs` queue (not blocking).
+- Vercel auto-deploy on push to main is the live deploy mechanism — no `vercel --prod` CLI step needed (memory updated earlier this session to reflect this).
+
+---
+
+## 🟢 Earlier turn — General Building Area double-count fix (commit `1982df2`, deployed)
+
+User screenshot: BH-26 General Building Area folder card showed 242 photos when it should have been ~75 building-wide ones. Template-scoped uploads were leaking in.
+
+**Root cause:** templated uploads correctly set `listing_id = NULL` and `unit_template_id = X` (shared across template members). The General Building Area scope was "WHERE listing_id IS NULL" — which matched BOTH true general-area photos AND every template-scoped asset. SQL audit on prod: BH-26 had 75 truly general, 220 templated leaking in, 562 listing-scoped. Total 857 active assets in BH-26.
+
+**Fix:** General Building Area scope is now `(listing_id IS NULL AND unit_template_id IS NULL)`.
+
+**Files changed:**
+- `src/lib/beithady/gallery/gallery-list.ts` — `getCommonAreaSummary`: added `.is('unit_template_id', null)` to all 4 count queries (total/photos/videos) + the cover-photo lookup. Used `replace_all: true` so all 4 occurrences in that function were patched in one Edit call.
+- `src/app/beithady/gallery/[buildingCode]/general/page.tsx` — post-filter changed from `a => a.listing_id === null` to `a => a.listing_id === null && a.unit_template_id === null` (the page calls `listAssets` with no listingId or templateId, returning all building assets, then filters down to the common-area subset client-side).
+
+**Build:** ✓ Compiled successfully in 20.1s.
+
+**Commit:** `1982df2` on main. Vercel auto-deploying.
+
+After the deploy, BH-26 General card should show ~75 photos. The 220 templated assets still appear correctly in their respective template folders (Type A/B/C/D).
+
+---
+
+## 🟢 Earlier turn — Unit Templates SHIPPED (commit `6f63408`, deployed)
+
+User picked **option B** from the architecture proposal. Unit templates now ship: identical units share one photo library without DB row duplication. Auto-deployed via push to main.
+
+### Migration 0067 — applied to prod + seeded BH-26
+- New table `beithady_unit_templates(id, building_code, name, description)`.
+- New `guesty_listings.unit_template_id uuid FK` (nullable).
+- New `beithady_gallery_assets.unit_template_id uuid FK` (nullable).
+- Indexes: `idx_bh_gallery_unit_template`, `idx_bh_gallery_template_sort`, `idx_guesty_listings_unit_template`.
+- **Seeded 4 templates for BH-26:** Type A (3BR Pool), Type B (2BR Pool), Type C (Smart Studio), Type D (3BR Apt Pool). 16 listings assigned across the four (101/201/301/401, 102/202/302/402, 103/203/303/403, 104/204/304/404). Verified via SQL query.
+- File: `supabase/migrations/0067_beithady_unit_templates.sql` committed.
+
+### Code changes
+- **`gallery-list.ts`:** `GalleryAsset` + `GalleryFilter` gain `unit_template_id`/`unitTemplateId`. `listAssets` filter logic: template scope wins when `unitTemplateId` is set, else falls back to listing scope. `UnitFolder` adds `unit_template_id` + `member_listing_ids`. `getUnitFoldersForBuilding` rewritten to collapse templated listings into one folder per template (canonical `listing_id` = first member, used for click-through). `getListingsForBuilding` returns `unit_template_id` on each row + tally includes both per-listing and per-template counts.
+- **`actions.ts`:**
+  - `registerGalleryUploadAction` looks up the target listing's `unit_template_id`. If set, asset is inserted with `unit_template_id` filled and `listing_id NULL` so it shows up in every member listing's gallery.
+  - `reorderAssetsAction` accepts optional `unitTemplateId`. Validates ids ⊂ template scope when templated; full-list renumber unchanged.
+  - `bulkMoveAssetsAction` looks up target listing's template; if templated, asset retargets to the template (cross-album move into shared library).
+  - `nukeAlbumAction` accepts optional `unitTemplateId` for wiping a template's shared library.
+- **Unit page (`[listingId]/page.tsx`):** resolves `listing.unit_template_id`, fetches template name + member nicknames, passes everything to the filter and to `<SelectableAssetGrid>` / `<BulkActionBar>` / `<NukeAlbumButton>`. Title becomes the template name when templated, subtitle reads "shown in 101 / 201 / 301 / 401". Move-to-unit dropdown collapses same-template siblings to avoid 4 identical entries.
+- **Components:** `AlbumKey.unitTemplateId` threaded through `gallery-provider.tsx` (sameAlbum check templated-aware), `selectable-asset-grid.tsx` (drag-end calls reorderAssetsAction with templateId), `bulk-action-bar.tsx` (visibility check templated-aware; reorderTo passes templateId), `nuke-album-button.tsx` (passes templateId to action).
+- **`unit-folder-card.tsx`:** added violet "shared · N units" badge on templated folders (uses `member_listing_ids.length`).
+
+### Key behaviors after this ships
+- Building landing for BH-26 now shows: 4 standalone units (001-005, 501) + 4 template cards (A/B/C/D) + General Building Area = 10 cards instead of 22.
+- Click any template card → standard listing page, but content is template-scoped. URL stays as `/beithady/gallery/BH-26/{firstMemberId}`.
+- Upload to any member of a templated group → photo lands in template's shared library, visible from all 4 member URLs.
+- Reorder / multi-select / bulk delete / wipe-album all work on the template's shared library when on a templated page.
+- Message-attachment picker auto-inherits this — it reads from the gallery, so template-shared photos appear when picking from any member listing.
+
+### Caveats / not done
+- **Existing pre-template photos stay listing-scoped.** Photos uploaded before this migration retain their `listing_id` and are visible only in that one unit. To migrate existing photos, would need a one-time SQL: `UPDATE beithady_gallery_assets a SET unit_template_id = l.unit_template_id, listing_id = NULL FROM guesty_listings l WHERE a.listing_id = l.id AND l.unit_template_id IS NOT NULL`. Not run yet — let user verify behavior on new uploads first before mass-migrating.
+- **No admin UI yet** to create/edit templates or reassign listings. The 4 BH-26 templates were seeded via the migration. If user wants to add templates for BH-73/BH-435/etc., or swap a listing's template, today they'd need a SQL update. An admin page at `/beithady/gallery/templates` is the natural follow-up.
+- **AI label backlog still clearing** from the earlier turn (~590 jobs queued, draining at 5 / 2min via cron).
+
+### Commits this turn
+- `6f63408` — feat(gallery): unit templates — shared photo library across identical units (9 files, +365 / -78)
+- Plus migration 0067 file added.
+
+---
+
+## 🟢 Earlier turn — AI label backlog fix + unit-template proposal (commit `21eb30d`, deployed)
+
+User screenshot showed "✨ AI labeling…" indicators stuck indefinitely on every newly-uploaded card. Asked to fix it AND proposed an architectural question about shared photos for identical units (101/201/301/401 groupings).
+
+### Part 1 — AI labeling stuck (fixed + deployed)
+
+**Symptom:** 627 photos uploaded, only 43 labeled. Cards stuck on "AI labeling…" forever.
+
+**Root cause:** `src/lib/beithady/gallery/ai-label.ts:fetchAsBase64()` downloaded the full original (5-15 MB after the direct-upload change) and rejected anything > 5 MB before sending to Anthropic. Anthropic also enforces a 5 MB base64 cap. So every newer photo failed silently after 3 retries (`status='failed'`, `last_error='image_too_large_or_unfetchable'`). Queue audit confirmed: 65 jobs failed with that exact error, plus one with the explicit Anthropic 400 ("base64: image exceeds 5 MB maximum").
+
+**Fix:** request a Supabase image transform (1024×1024 contain, q=85) when fetching the image for vision. Output is always under 5 MB regardless of original size, and 1024 px is plenty for room-type / feature tagging. No model change, no Anthropic API change, just a bandwidth fix on the upstream fetch.
+
+**Code change:** `fetchAsBase64()` now calls `signedUrlFor(bucket, path, 3600, { width: 1024, height: 1024, resize: 'contain', quality: 85 })`. Defensive 5 MB guard preserved as a fail-safe.
+
+**Backlog clearing:** ran a SQL UPDATE to flip 65 failed jobs back to `queued` and reset their attempts. Also INSERT'd queue rows for 525 orphaned unlabeled photos that had no job row at all. Final queue state: 590 queued, 1 failed (real error, not the size bug), 62 succeeded. At 5 jobs / 2 min via the existing `/api/cron/beithady-ai-label-queue` cron, full backlog clears in ~4 hours.
+
+**Files touched:**
+- `src/lib/beithady/gallery/ai-label.ts` — `fetchAsBase64()` rewrite (~13 lines).
+
+**Commit:** `21eb30d` on main.
+
+### Part 2 — Identical-units architecture proposal (NOT shipped, awaiting user pick)
+
+User has 4 groups of vertically-stacked identical units in BH-26:
+- Group A: 101/201/301/401
+- Group B: 102/202/302/402
+- Group C: 103/203/303/403
+- Group D: 104/204/304/404
+
+Wants photos from one to appear in all members of its group, no DB row duplication, accessible to team for message attachments. **Asked for a suggestion before code changes.**
+
+Proposed 4 options in chat:
+- **A — Guesty MTL:** mark as Guesty sub-units of one parent (zero code, but messes with reservation/billing/Booking.com listings).
+- **B — Unit Template (RECOMMENDED):** new `beithady_unit_templates` table + `unit_template_id` FK on `guesty_listings` and `beithady_gallery_assets`. Upload to a templated listing stores the asset against the template (one row, one storage object). Query is `WHERE listing_id = $X OR unit_template_id = $template`. Clean, no Guesty entanglement, ~50 LOC + small admin UI.
+- **C — Many-to-many junction:** one asset row + N junction rows per group. More rows than B, fragile if you forget to write all junction rows on upload.
+- **D — Tag-based:** zero schema, tag photos `type_a` / `type_b`. Fragile, depends on tagging discipline.
+
+Recommended B. **Waiting for user to pick** before implementing.
+
+If they pick B, the rough plan is:
+1. Migration `0067_beithady_unit_templates.sql`: new templates table, two new FK columns, indexes.
+2. New admin page `/beithady/gallery/templates` to create templates + assign listings to them.
+3. `signGalleryUploadAction` + `registerGalleryUploadAction` rewrite to set `unit_template_id` when target listing has one (and clear `listing_id`).
+4. `listAssets` filter logic: `WHERE listing_id = X OR (unit_template_id = X.unit_template_id AND X.unit_template_id IS NOT NULL)`.
+5. Building landing folder summary collapses templated listings into a single template-folder card.
+6. Seed migration assigning the 4 BH-26 groups to templates.
+
+### Deploy state
+- All commits on `main` via worktree push.
+- Vercel auto-deploy: `0398088 → 3db7e16 → 21eb30d` deployed sequentially.
+- AI label backlog will clear gradually over ~4 hours via cron; no manual intervention needed.
+- Hard-refresh tip: thumbnail perf works on new page loads; users may see old cache hits until they Ctrl+Shift+R.
+
+---
+
+## 🟢 Earlier turn — Gallery thumbnail performance (commit `3db7e16`, deployed)
+
+**Symptom:** "Every Time we load a page with a lot of photos, it keeps loading for ever, even when scrolling down very slow." User wanted thumbnails by default, full-size only on click.
+
+**Root cause:** the grid was serving the full-size original (5-15 MB each) for every tile. At 200 photos that's 1-3 GB of bandwidth. Even with `loading="lazy"`, full-size images would download as the user scrolled.
+
+**Fix:** leverage Supabase Storage's built-in `/render/image/` transform endpoint — pass `?width=N&height=N&resize=cover&quality=N` on signed/public URLs, server re-encodes on the fly. No new storage, no new column, no upload-side change.
+
+**Changes:**
+- `src/lib/beithady/gallery/storage.ts`: added optional `transform?: ImageTransform` parameter to `signedUrlFor()` and `publicUrlFor()`. Threads through to `createSignedUrl(path, ttl, { transform })` and `getPublicUrl(path, { transform })` from `@supabase/supabase-js`.
+- `src/lib/beithady/gallery/gallery-list.ts`: added two transform constants — `THUMBNAIL_TRANSFORM` (400×400 cover, q=70) for grid tiles, `COVER_TRANSFORM` (300×300 cover, q=65) for unit-folder cards on the building landing page. `viewableUrlForAsset()` accepts `options.transform`. `resolveAssetUrls()` (used by `<SelectableAssetGrid>`) now requests the thumbnail transform. `getUnitFoldersForBuilding` and `getCommonAreaSummary` cover URLs use `COVER_TRANSFORM`.
+- For ad-eligible assets, the cached `public_url` (full-size) is **bypassed** when a transform is requested — we re-mint via `getPublicUrl(path, { transform })` to avoid falling back to the full-size cache.
+- `src/app/beithady/gallery/_components/selectable-asset-grid.tsx`: grid `<img>` now has `loading="lazy"` + `decoding="async"` so the browser only fetches a tile when it scrolls into the viewport.
+- Asset detail modal still mints the full-size URL via `signedUrlFor(...)` (no transform) — clicking a tile shows the original.
+- Videos / PDFs / non-images bypass the transform entirely (no-op for them).
+
+**Bandwidth:** typical 200-photo unit grid drops from ~1-3 GB → ~5-10 MB. With lazy-load, only the ~30-50 viewport tiles actually download up-front; scrolling pulls in more progressively.
+
+**User action needed after deploy:** hard-refresh (Ctrl+Shift+R) to bypass any cached full-size images from prior visits.
+
+**Deploy chain (this session, all to main, in order):**
+- `c13016e..bff9f3f` — gallery UX overhaul (sort_order, persistent uploader, multi-select bulk, dnd-kit, nuke-album)
+- `0d2c87e` — bumped Next.js `serverActions.bodySizeLimit` 12mb→15mb (no-op; Vercel platform cap masked it)
+- `439c1d5` — direct-to-Supabase signed-URL upload (bypasses Vercel 4.5 MB body cap; effective ceiling now matches bucket cap, 50 MB media / 100 MB docs)
+- `3db7e16` — thumbnail transforms + native lazy-load (current HEAD on main)
+
+## 🟢 Earlier turn — Gallery upload fix: bypass Vercel 4.5 MB body cap (commit `439c1d5`, deployed)
+
+**Symptom:** User screenshot showed `Uploading 59 of 78 — 17 errors` at BH-26 General. Files in the 6-15 MB range (typical iPhone HEIC) all failing with red triangles. Even files at 6.6 MB failed.
+
+**Root cause:** Vercel's serverless functions have a hard ~4.5 MB request body limit that overrides Next.js's `serverActions.bodySizeLimit` setting. The Next.js config of `15mb` (bumped from `12mb` earlier this session in commit `467377c`/`0d2c87e`) was a no-op because the platform cap rejected the request first.
+
+**Fix:** switched the gallery uploader to direct-to-Supabase signed-URL uploads — same pattern already used by `src/app/api/boat-rental/admin/boat-image/sign/route.ts` and `src/app/beithady/communication/_components/attachment-menu.tsx`. Bytes now flow `browser → Supabase Storage` directly via `uploadToSignedUrl()`, skipping Vercel entirely.
+
+**Two new server actions in `src/app/beithady/gallery/actions.ts`:**
+- `signGalleryUploadAction({ fileName, mime, building, listingId, category })` — calls `requirePermission('full')`, computes path via `buildAssetPath()`, returns `{ ok, signedUrl, path, bucket, token }`. Tiny request/response — well under any limit.
+- `registerGalleryUploadAction({ path, bucket, fileName, mime, sizeBytes, building, listingId, category })` — does the existing `uploadAssetAction` post-upload work: computes `sort_order = min - 1`, inserts the DB row, queues AI label for photos, audit logs, revalidatePath. On error, best-effort deletes the orphan storage object.
+
+**`src/app/beithady/gallery/_components/gallery-provider.tsx` worker rewritten to:**
+1. `signGalleryUploadAction(metadata)` — get signed URL + path + token
+2. `supabaseBrowser().storage.from(bucket).uploadToSignedUrl(path, token, file, {contentType, upsert: false})` — direct PUT, no Vercel hop
+3. `registerGalleryUploadAction(metadata)` — DB row insert
+
+**`uploadAssetAction` (FormData) is preserved** for back-compat with the broker-payments receipt-upload flow.
+
+**Effective limit now:** matches bucket cap — **50 MB for photos/videos, 100 MB for documents**. UI copy in `uploader.tsx` restored to "50MB max" (was changed to 15MB in the prior commit `467377c`/`0d2c87e` which was based on the wrong root-cause assumption).
+
+**Deploy chain (this session, all to main):**
+- `04ccee7` (15-commit gallery overhaul rebased onto origin/main + handoff)
+- `bff9f3f` (handoff: deploy state)
+- `0d2c87e` (next.config 12mb→15mb — no-op, Vercel cap masked it)
+- `439c1d5` (direct-to-Supabase fix — current HEAD on main)
+
+Memory updated: `feedback_deployment_direct_to_prod.md` now reflects "Vercel's GitHub integration auto-deploys on push to main, no `vercel --prod` step needed."
+
+**Verification step for user:** once deploy goes green, hit "Retry" on the 17 failed rows in the upload tray — they'll re-queue and use the new direct-upload flow.
+
+## 🟢 Earlier this session — BH Gallery UX overhaul (SHIPPED, commits `c13016e..bff9f3f`)
+
+Migration 0066 (sort_order column, 50 rows backfilled), 6 new bulk server actions (reorder/delete/move/tag/ad-eligible/nuke), 7 new components (gallery-provider, upload-tray, selectable-asset-grid, bulk-action-bar, move-to-unit-modal, nuke-album-button + new gallery/layout.tsx), uploader rewritten to delegate to provider. dnd-kit drag + click-to-select-then-move + multi-select bulk + typed-`DELETE` "Wipe album". Spec at `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md`, plan at `docs/superpowers/plans/2026-05-02-bh-gallery-overhaul.md`.
+
+## 🟢 Earlier turn — Final audit cleanup (PR19-PR20: H-C7 UI + M-14 wiring)
+
+User asked to complete the remaining schema-only items. Wired H-C7 (edit/delete) into the thread-pane renderer and M-14 (reply_to_message_id) through the send paths. Final state: **20 PRs for comm + 6 for inventory = 26 PRs total**, **9 comm migrations (0067-0076) + 3 inventory migrations**, prod deploy `dpl_…jdyokafsp…` READY.
+
+| PR | IDs | What |
+|----|-----|------|
+| PR19 (`b11b9d1`) | H-C7 UI | thread-pane renders "[message deleted (by guest)]" with Ban icon when `deleted_at` set; "· edited" footer with hover-tooltip timestamp when `edited_at` set. ThreadMessage type + loadThread query extended to select the new columns. |
+| PR20 (`6d307b2`) | M-14 wiring | `replyToMessageId?` arg threaded through DispatchPayload → sendGuestyMessage / sendWaCasualMessage → INSERT row. Per-message Reply UI + provider-side `replyTo`/`quotedMessageId` payload threading deferred until UI lands. |
+
+**M-8** (ingest proc rewrite for high-water mark) — deferred as documented; at current ~6k-convo scale not urgent, rewrite carries breakage risk for tested code paths. Documented in COMMUNICATION_AUDIT_2026_05_02.md.
+
+**Three truly-deferred items remain (all justified):**
+- **H-B11** — cross-channel guest threads merge: needs product call (separate SLA per channel may be intentional)
+- **H-C5** — non-issue (force-dynamic everywhere)
+- **M-10** — gallery rate-limit: M-2's 128-bit tokens make brute-force infeasible; rate-limit belongs at edge layer if ever needed
+
+**Inventory + Communication audit grand total:** 26 PRs · 12 DB migrations · ~125 findings closed across both modules.
+
+---
+
+## 🟢 Latest turn — Awaiting typed `discard` to remove local branch + worktree
+
+**Phase:** All work shipped + deployed. User picked option 4 (discard local branch + worktree) but with a safety condition ("If no danger on main, choose 4"). I performed the safety analysis and per the `superpowers:finishing-a-development-branch` skill rules, I'm awaiting the typed `discard` confirmation.
+
+**Safety analysis confirmed risk-free:**
+- All 14 commits exist on `origin/main`
+- Local branch `claude/eager-johnson-cce95a` is identical to origin/main
+- Worktree path `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a` is just a working copy; main checkout at `C:\kareemhady` is untouched
+- Nothing on main, nothing in production, nothing in origin/main history will be removed
+
+**Awaiting:** user types `discard` to authorize the local branch deletion + worktree removal. If user confirms with anything other than that exact word, the skill says to NOT proceed with deletion.
+
+**On confirmation, will run:**
+```
+git -C C:\kareemhady checkout main             # switch parent repo to main
+git -C C:\kareemhady branch -D claude/eager-johnson-cce95a   # delete local branch
+git -C C:\kareemhady worktree remove C:\kareemhady\.claude\worktrees\eager-johnson-cce95a
+```
+(Note: worktree removal command is run from the parent repo, not from inside the worktree.)
+
+**Important:** Do NOT proceed with any destructive action without the explicit typed `discard` from the user. The user's pattern in this session is autonomous-friendly but the skill's red flag is "Never delete work without confirmation."
+
+---
+
+## 🟢 Earlier this session — Inventory procurement restructure: ALL DONE, awaiting branch-finish choice (3 vs 4)
+
+**Phase:** Coding complete + final code review complete + final-review nit fixes shipped. `superpowers:finishing-a-development-branch` skill invoked. **Awaiting user choice between option 3 (keep branch + worktree) and option 4 (discard).**
+
+**11 commits on origin/main (ad8bf17 → c5aae73):**
+1. `ad8bf17` migration 0077 — issue_lines hybrid grain + est_monthly_bookings
+2. `30ed1be` extend EstimatorLine + EstimatorOutput types
+3. `2151ad0` estimator computes monthly_need_packs + est_monthly_bookings resolution
+4. `2a73965` perf: parallelize estimator monthly-bookings resolution (I-1+I-2 fixes)
+5. `f4c997a` matrix landing — Monthly need column with source-attribution hint
+6. `7c562b7` matrix detail — Monthly procurement need tile + per-line column
+7. `3f681f8` auto-issue cron writes hybrid grain (consumed_qty + qty in packs)
+8. `cc148a7` rule form auto-defaults consumes_volume_uom from item
+9. `f42f529` item form 4-block procurement-first layout
+10. `1853fed` docs: handoff (sub-section)
+11. `c5aae73` final-review nits — Q3 'pcs' fallback + IssueLine grain types + UI text
+
+**Verification status (per finishing-a-development-branch Step 1):**
+- `npx tsc --noEmit -p .` clean for ALL 12 files touched by this restructure
+- Pre-existing TS errors in unrelated files (`analytics/reports/builder/_components/charts/index.tsx`, `lib/beithady-daily-report/render-pdf.tsx`, `lib/beithady/inventory/excel.ts`, `lib/beithady/reports/render-pdf.tsx`, `lib/beithady/sop/pdf.tsx`, `lib/kika-daily-report/render-pdf.tsx`) are background noise — not blockers
+- `git merge-base HEAD origin/main` = HEAD → branch is already fully merged via the direct-push pattern
+
+**Final code review outcome (subagent `ae9667ae0f686c009`):** Approved with follow-ups.
+- Critical: 0
+- Important: 2 (#1 Q3 fallback to 'pcs' — FIXED inline in c5aae73; #2 process risk on intermediate broken commit — already shipped, just a future-process note)
+- Minor: 7 — #6 IssueLine type extended (FIXED in c5aae73); #7 boilerplate text (FIXED in c5aae73); rest deferred
+
+**Deferred follow-ups — ALL NOW SHIPPED in `9e81e69`:**
+- F3: ✅ done in c5aae73 (IssueLine type extended)
+- F4: ✅ done in 9e81e69 — widened status filter to `['confirmed', 'checked_in', 'checked_out']`
+- F5: ✅ done in 9e81e69 — `revalidateTag('inventory-estimator-monthly-bookings', 'max')` after reservation-upsert batch in `run-guesty-sync.ts`. Note: Next 16 deprecated single-arg `revalidateTag(tag)`; second-arg `profile` is now required. Used `'max'` (stale-while-revalidate). Wrapped in try/catch because revalidateTag throws outside App Router context.
+- F6: ✅ done in 9e81e69 — `qty` field now uses 4-decimal precision (`Math.ceil(qtyPacks * 10000) / 10000`); `consumed_qty` stays 2-decimal since it's human-readable.
+
+**Next user input expected:**
+- "3" → keep branch + worktree as-is (good if planning to address F4/F5/F6 next)
+- "4" → discard local branch + worktree (safe — main has all commits, nothing lost; just removes local refs)
+- Or pick to ship F4/F5/F6 inline now (~10 LOC total) before answering 3-vs-4
+
+**Last sub-turn (this turn):** User asked "what are F4, F5, F6". I explained:
+- **F4** — `src/lib/beithady/inventory/estimator.ts:42` — widen status filter `.in('status', ['confirmed', 'checked_out'])` to also include `'checked_in'` so mid-stay guests count toward the 90-day Guesty avg. Spec deviation that under-counts active demand. ~2-line change. Deferred to confirm with product.
+- **F5** — `src/lib/beithady/inventory/estimator.ts:46-49` declares cache tag `'inventory-estimator-monthly-bookings'` but `src/lib/run-guesty-sync.ts` never calls `revalidateTag(...)` after reservation upsert. Result: Monthly Need lags reality by up to 60 min. ~3-line change in run-guesty-sync.ts.
+- **F6** — `src/lib/beithady/inventory/issue.ts:249` rounds `qty` to 2 decimals via `Math.ceil(qtyPacks * 100) / 100`. For 100 mL from a 4 L bottle (= 0.025 packs), this rounds UP to 0.03 — 20% over-deduction per trigger. Fix: 4 decimals for `qty`, keep 2 for `consumed_qty`. ~2-line change.
+
+I offered to ship all three inline (~10 LOC total) before answering the 3-vs-4 finish question. Awaiting user decision.
+
+**Important context for any resumer:**
+- Worktree path: `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a`. Branch: `claude/eager-johnson-cce95a`.
+- Origin/main HEAD: `c5aae73`. The local branch and origin/main are identical.
+- All deployed via Vercel auto-deploy. The user's `feedback_deployment_direct_to_prod.md` memory authorizes the direct-to-main push pattern.
+- Plan: `docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md`. Spec: `docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md`.
+
+---
+
+## 🟢 Earlier this session — Inventory procurement restructure: ALL 10 tasks shipped to main
+
+**Phase:** Coding phase complete (hybrid approach — Tasks 1-3 via subagent-driven, Tasks 4-9 inline after user picked option C). All 9 commits live on origin/main, Vercel deploying.
+
+**Final commit graph (commits on origin/main, oldest → newest):**
+```
+ad8bf17  feat(inventory): migration 0077 — issue_lines hybrid grain + est_monthly_bookings
+30ed1be  feat(inventory): extend estimator types with monthly_need_packs + est_monthly_bookings
+2151ad0  feat(inventory): estimator computes monthly_need_packs + est_monthly_bookings resolution
+2a73965  perf(inventory): parallelize estimator monthly-bookings resolution    ← I-1+I-2 fixes from Task 3 review
+f4c997a  feat(inventory): matrix landing — Monthly need column with source-attribution hint
+7c562b7  feat(inventory): matrix detail — Monthly procurement need tile + per-line column
+3f681f8  feat(inventory): auto-issue cron writes hybrid grain (consumed_qty + qty in packs)
+cc148a7  feat(inventory): rule form auto-defaults consumes_volume_uom from item
+f42f529  feat(inventory): item form 4-block procurement-first layout
+```
+
+**What ships in this restructure:**
+1. **Migration 0077** — adds `consumed_qty/uom` to `beithady_inventory_issue_lines` (Q5C audit grain) + `est_monthly_bookings` to `beithady_inventory_unit_configurations` (manual override for Procurement Need calc). Both nullable, no backfill. Verified in DB via Supabase MCP.
+2. **Estimator** — new `monthly_need_packs` per line + `monthly_need_total_packs / est_monthly_bookings_used / est_monthly_bookings_source` per output. Resolution: manual override → cached Guesty 90-day avg (1h TTL via `unstable_cache`) → constant 4. Parallelized after code review (I-1: `Promise.all(configs.map(...))`; I-2: folded `resolveMonthlyBookings` into the existing parallel block).
+3. **Matrix landing page** — new MONTHLY NEED column with source-attribution hint ("est. (no Guesty data)" when fallback fires).
+4. **Matrix detail page** — new "Monthly procurement need" tile in the header strip + new per-line "Monthly need" column. Existing detail-rich table preserved.
+5. **Auto-issue cron + computeAutoIssueLines** — Q5C hybrid: writes both `consumed_qty/uom` (audit grain, e.g., "100 mL") AND `qty` (packs deducted from stock). Volumetric path via `unitsConsumedPerTrigger` from `volumetric.ts` when both rule consumes_volume_* and item pack_volume_* are set; legacy raw-qty fallback otherwise.
+6. **Rule form** — Q3 auto-default `consumes_volume_uom` from selected item's `pack_volume_uom`. Helper text under item dropdown: "Pack contents: 4 L per pack — consumption UoM defaults to L below". Save-time UoM compatibility check via existing `areUomsCompatible` from `volumetric.ts`.
+7. **Item form** — restructured into 4 visual blocks (Identification / Procurement / Stock control / Classification). "Pack Volume (Value)" / "Pack Volume (UoM)" UI labels → "Pack contents" combined inline field with procurement-framed helper text ("For items sold by volume, weight, or as a multi-pack..."). Killed the confusing "— None (legacy count math) —" placeholder. DB columns + server actions unchanged.
+
+**Reviews status:**
+- Task 1: spec ✅ + quality ✅ (subagent-driven)
+- Task 2: spec ✅ (quality bundled with Task 3)
+- Task 3: spec ✅ + quality ⚠️ approved with 2 Important fixes — both shipped in `2a73965`
+- Tasks 4-9: shipped inline per user direction (option C); final consolidated code review next
+
+**Next: dispatch final code reviewer subagent** covering `ad8bf17..f42f529` (9 commits, ~14 files modified, ~400 LOC net). Then invoke `superpowers:finishing-a-development-branch`.
+
+**Type-check status:** `npx tsc --noEmit -p .` clean for all touched files (estimator, issue, rule-form, rule-row-actions, item-form, matrix landing, matrix detail, auto-issue cron). Pre-existing missing-package warnings from `@dnd-kit/*`, `recharts`, `@react-pdf/renderer`, `xlsx`, `@vercel/functions` are unchanged background noise.
+
+**Important context for any resumer:**
+- Worktree: `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a`, branch `claude/eager-johnson-cce95a`. Origin/main HEAD: `f42f529`.
+- Plan file: `docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md`. Spec file: `docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md`.
+- Per `feedback_deployment_direct_to_prod.md`: every commit auto-deploys via `git push origin claude/eager-johnson-cce95a:main`. User has explicit autonomy authorization for this session.
+- Manual smoke testing in dev server is the verification model (no test framework wired into package.json). After this final code review passes, recommend the user manually walk through the 5-step E2E from the plan's Task 10.
+
+---
+
+## 🟢 Earlier this session — Tasks 1-3 shipped via subagent-driven execution
+
+**Phase:** Initial subagent-driven execution. 3 of 10 tasks shipped before user shifted to inline execution to accelerate.
+
+**Tasks shipped (commits on origin/main):**
+| Task | Status | Commit | Reviews |
+|---|---|---|---|
+| 1 — Migration 0077 (consumed_qty/uom + est_monthly_bookings) | ✅ shipped | `ad8bf17` | spec ✅ + quality ✅ |
+| 2 — Estimator types (monthly_need_packs etc.) | ✅ shipped | `30ed1be` | spec ✅ (quality bundled with Task 3) |
+| 3 — Estimator computes Monthly Need (resolveMonthlyBookings + guestyAvgFor cached helper) | ✅ shipped | `2151ad0` | spec ✅ + quality ⚠️ approved with 2 Important fixes pending |
+
+**Open code-review issues on Task 3 (`src/lib/beithady/inventory/estimator.ts`) — Important, not Critical, both perf:**
+- **I-1:** `listUnitConfigSummaries` runs `computeEstimatorOutput` sequentially in a `for-of` loop — should `Promise.all(configs.map(...))`. Cold-cache cost: N × (few hundred ms) on first matrix landing render.
+- **I-2:** `resolveMonthlyBookings(config)` is awaited AFTER the existing `Promise.all([itemsRes, catsRes, rulesRes])` block (around line 200) but has no data dependency on items/cats/rules — should be folded into the existing parallel block. One extra serial hop on cold renders.
+
+Both are ~5-minute fixes in `estimator.ts`. Not user-visible bugs.
+
+**Remaining tasks (4-10) per the plan:**
+- Task 4: Matrix landing — MONTHLY NEED column
+- Task 5: Matrix detail — procurement-first rows + Monthly Need + summary tile
+- Task 6: Auto-issue cron computes hybrid grain (consumed_qty + qty in packs)
+- Task 7: Cron route inserts hybrid grain into issue lines
+- Task 8: Rule form auto-defaults consumes_volume_uom from item + UoM compat check
+- Task 9: Item form 4-block procurement-first layout + Pack Volume → Pack contents UI rename
+- Task 10: Final integration smoke + ship handoff
+- Final code review across entire implementation
+- Invoke superpowers:finishing-a-development-branch
+
+**Pace observation:** Subagent dispatches are slow — Task 3's implementer took ~13 min × 2 attempts (one timed out). Each task = 3 round-trips (implementer + spec reviewer + code reviewer), often with a fix loop. Remaining 7 tasks via pure subagent-driven = ~3-5 hours.
+
+**User just asked "is there progress here?"** — I gave a status update + 3 acceleration options:
+- (A) Stay subagent-per-task. Highest quality, slowest.
+- (B) Switch to inline execution for Tasks 4-10 with final consolidated code review.
+- (C) **Recommended:** Hybrid — fix I-1/I-2 inline now (small), then batch Tasks 4-10 inline with one consolidated final code review at the end. ~1.5 hours.
+
+**Awaiting user pick (A / B / C) before continuing.**
+
+**Important context for any resumer:**
+- Worktree: `C:\kareemhady\.claude\worktrees\eager-johnson-cce95a`, branch `claude/eager-johnson-cce95a`. Origin/main is at `2151ad0` (Task 3 head).
+- The user is in auto mode + has explicit autonomy authorization ("Automatically and more to ship and commit to main automatically without reverting to me"). Don't ask permission for routine forward deploys; do ask for genuine architectural pivots.
+- Plan file: `docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md` (commit `43d6dbe`). Spec file: `docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md` (commit `ebc814f`).
+- The `feedback_deployment_direct_to_prod.md` memory rule applies: push via `git push origin claude/eager-johnson-cce95a:main`. If non-fast-forward, rebase onto origin/main and resolve SESSION_HANDOFF.md by keeping origin's version.
+
+---
+
+## 🟢 Earlier this session — Implementation plan ready: Inventory procurement-first restructure
+
+**Phase:** Plan-phase complete. Workflow phase complete (implementation plan written + self-reviewed). User picked subagent-driven execution.
+
+**Plan deliverable:** [docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md](docs/superpowers/plans/2026-05-02-inventory-procurement-restructure.md) — 10 bite-sized tasks covering migration 0077 → estimator types → Monthly Need on landing → procurement-first detail rows → auto-issue hybrid grain → cron insert → rule UoM auto-default → item form 4-block layout → final smoke + handoff.
+
+**Tasks at a glance:**
+1. Migration 0077 — adds `consumed_qty/uom` to issue_lines + `est_monthly_bookings` to unit_configs
+2. Extend `EstimatorLine` and `EstimatorOutput` types with monthly_need_packs etc.
+3. `estimator.ts` — `est_monthly_bookings` resolver (manual override → Guesty 90d avg → default 4) + per-line monthly_need_packs + per-config rollup
+4. Matrix landing page — MONTHLY NEED column
+5. Matrix detail page — procurement-first rows + Monthly Need column + summary tile
+6. `issue.ts` `computeAutoIssueLines` — hybrid grain via `unitsConsumedPerTrigger` from existing `volumetric.ts`
+7. Cron route — insert consumed_qty/uom alongside qty
+8. Rule form — auto-default consumes_volume_uom from item; areUomsCompatible validation
+9. Item form — 4-block procurement-first layout (Identification / Procurement / Stock / Classification); Pack Volume → Pack contents UI rename
+10. Final integration smoke + handoff
+
+**Verification model (no test framework wired):** `npm run build` + manual smoke in dev server + Supabase MCP queries for migration + cron output.
+
+**Next:** User picks subagent-driven or inline execution. Coding starts when user picks.
+
+---
+
+## 🟡 Earlier this session — Brainstorm spec REVISED: Inventory = procurement / Housekeeping = consumption
+
+**Phase:** Plan-phase complete (v2); spec revised after main-state audit. Workflow phase (implementation plan) is next.
+
+**Revision reason:** The first version assumed main was greenfield (no volumetric work). That was wrong — main already ships migration `0066_volumetric_consumption.sql`, the `volumetric.ts` math library, item/rule form fields for `pack_volume_*` and `consumes_volume_*`, the mismatch banner, and the GRN restate workflow. The user's screenshots of the "Pack Volume" form fields are PROD STATE. The first spec described re-implementing all this from scratch — wrong direction. The revised spec narrows to the actual delta (UI restructure + Q5C hybrid + Q3 auto-default + Procurement Need column).
+
+**Branch worked from:** `claude/eager-johnson-cce95a` (worktree, was behind main; reset to `origin/main` and replayed spec on top before push).
+
+**User ask (verbatim):** "The Pricing And Details inside Inventory Modules-Items should reflect The Item as the Procurement team will use to Buy the Product as Packaged and as sold ...Dividing to sub component and partial use will be reflected in The Housekeeping Matrix , But in Inventory it should be as will purchased."
+
+**Locked-in design (5 Q&A + approach):**
+- Q1 → A: `pack_size` (count) on item as procurement metadata only; volumetric math moves to rules
+- Q2 → A: pack contents (e.g., 4 L) lives on item, labeled as procurement spec
+- Q3 → A: rule auto-picks UoM from item (defaults `'piece'` for pure-count, item's `pack_contents_uom` for volumetric); operator can override; UoM compatibility validated at save
+- Q4 → A + bonus: matrix display is procurement-first, plus a Monthly Procurement Need column
+- Q5 → C: hybrid — stock stays in packs, issue lines record both `consumed_qty/uom` (audit grain) AND `qty` (packs deducted)
+- Approach 1: greenfield single-PR rebuild; discard volumetric branches `claude/festive-lamport-b23de0` and `claude/sweet-lovelace-fa4cf6`; cherry-pick only the `volumetric.ts` math library
+
+**Spec deliverable:** [docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md](docs/superpowers/specs/2026-05-02-inventory-procurement-vs-housekeeping-design.md) — 9 sections covering data model, item form layout, matrix UI, stock posting math, Amazon sourcer extension, GRN restate workflow, migration plan, files-touched preview (~14 files + 1 migration), out-of-scope.
+
+**Spec self-review fixes applied inline before commit:**
+1. §5.1: `amazon_eg_pack_size` "Dropped column" → "Repurposed column" (kept as shadow column for the mismatch banner)
+2. §11.2: removed phantom migration 0067 (the drop) — the column stays
+3. §11.2 backward-compat: clarified the estimator math is identical for pure-count items, but volumetric items need a manual operator transition (fill `pack_contents` on the item + rewrite rules to volumetric grain). Added a 4-step migration runbook.
+
+**Status:** Spec approved by user ("Approvd"), shipped to main per auto-deploy rule. Next: invoke `superpowers:writing-plans` for the detailed implementation plan, then user reviews plan, then code phase.
+
+**Important context for any resumer:**
+- Main does NOT have the volumetric work (`pack_volume_value/uom` fields). The user's screenshots showing those fields are from `claude/festive-lamport-b23de0` (or `claude/sweet-lovelace-fa4cf6`), neither merged.
+- User authorized autonomous proceed: revisions self-applied without coming back; commit + push to main + auto-deploy without asking. The `feedback_deployment_direct_to_prod.md` memory rule applies in full, including for plan-phase docs commits.
+- Coding has NOT started. The spec is the contract; the writing-plans output will be the construction sequence.
+
+---
+
+## 🟢 Earlier turn — Comm audit deferred-list cleanup (PR16-18, 4 deferrals reduced)
+
+User asked "What about these" pointing at the deferred items from the prior comm-audit turn. Shipped PR16-PR18 covering most. Final state: **18 PRs total for comm**, **8 DB migrations (0067-0076)**, prod deploy `dpl_…h7ghepwsa…` READY.
+
+**This turn:**
+
+| PR | IDs | Summary |
+|----|-----|---------|
+| PR16 (`3b6a494`) | C-C3, H-C7 (H-B9 already covered) | Per-phone trust check (`isWaCasualSenderTrusted`) gates AI auto-reply + reorder draft so leaked Green-API slug can't trigger downstream side-effects on attacker phones; H-C7 schema (mig 0075: `edited_at`, `deleted_at`, `edit_history`) + Green-API editedMessage/deletedMessage handlers |
+| PR17 (`84cefd7`) | M-12, M-13 (M-11 skipped) | Explicit `templateInserted` flag for unresolved-var guard (no longer bypassable by deleting `{` braces); AI prompt thread context now synthesises body from module_subject for empty-body Airbnb cards |
+| PR18 (`11809fb`) | M-4, M-5, M-14 | New SidebarScrollRestore client wrapper saves+restores scrollTop per filter; SlaPill → client component with 60s live tick when `lastInboundAt` provided; mig 0076 adds `reply_to_message_id` column + partial index for future Reply-to UI |
+
+**Remaining truly-deferred (4 items, all justified):**
+- **H-B11** (cross-channel guest threads merge) — likely intentional design (separate SLA per channel). Needs product call.
+- **H-C5** (booking-status midnight cache) — confirmed non-issue: all comm pages already `force-dynamic`.
+- **M-8** (beithady_communication_ingest full-table scan on every webhook) — needs proc rewrite; current ~6k-convo scale doesn't bite.
+- **M-10** (gallery rate-limit) — M-2's crypto.randomBytes(16) makes brute-force infeasible; rate-limit belongs at edge/proxy if needed.
+- **M-11** (useFormStatus) — existing `submitting` state is functionally equivalent.
+
+**New schema columns added but NOT yet wired into UI** (groundwork):
+- `beithady_messages.edited_at` / `deleted_at` / `edit_history` (H-C7 — needs UI for "edited" tag + "[deleted]" placeholder)
+- `beithady_messages.reply_to_message_id` (M-14 — needs Reply-to UI then send-path threading)
+
+---
+
+## 🟢 Earlier — BH Gallery UX overhaul (SHIPPED 2026-05-02)
+
+User reported three gallery problems and approved the design + plan + ship.
+
+**Migration 0066** — added `sort_order int not null default 0` column to `beithady_gallery_assets`, backfilled 50 existing rows with `-extract(epoch from created_at)::int` so newest-first ordering preserved. Index `idx_bh_gallery_sort` on `(building_code, listing_id, sort_order) WHERE deleted_at IS NULL`. Applied via Supabase MCP `apply_migration`.
+
+**6 new server actions in `actions.ts`:**
+- `reorderAssetsAction({buildingCode, listingId, orderedIds})` — full-list renumber 1..N, validates ids ⊂ album, 200-id cap
+- `bulkDeleteAssetsAction({ids})` — soft-delete (sets `deleted_at`) + best-effort storage purge + ad-eligible demote, concurrency 3
+- `bulkMoveAssetsAction({ids, targetBuildingCode, targetListingId})` — UPDATEs building_code+listing_id, sets sort_order = (top - count..top - 1) so moved batch lands at destination top preserving relative order
+- `bulkTagAssetsAction({ids, addTags, removeTags})` — array union/diff with 30-tag cap and lowercase normalize
+- `bulkAdEligibleAction({ids, eligible})` — promote/demote concurrency 3 against public bucket via existing `beithady_gallery_set_ad_eligible` RPC
+- `nukeAlbumAction({buildingCode, listingId, confirmation})` — strict `confirmation === 'DELETE'` gate, chunks 200, delegates to bulkDelete
+- Plus `uploadAssetAction` modified: computes `sort_order = min(sort_order in album) - 1` so new uploads land at album top
+
+**Components (all under `src/app/beithady/gallery/_components/`):**
+- `gallery-provider.tsx` (new) — React context, owns `jobs[]` + `selection: Set<string>` + `selectionAlbum`, worker effect kicks queued uploads up to MAX_CONCURRENT=3
+- `upload-tray.tsx` (new) — floating bottom-right pill, expanded view groups jobs by `(building, listingId)`, per-row cancel/retry, auto-collapse 30s after last `done`
+- `selectable-asset-grid.tsx` (new) — replaces server-only `asset-grid.tsx` for unit + general pages; uses `@dnd-kit/core` + `/sortable` + `/utilities`; checkbox on hover or always-visible when any selected; shift+click checkbox = range select; drag handle (GripVertical icon) on hover; group-drag when 2+ selected (preserves relative order, drops at over.id position); optimistic order with revert-on-error
+- `bulk-action-bar.tsx` (new) — floating bottom-center, only renders when `selection.size > 0` AND `selectionAlbum` matches current page album; reorder buttons (↑↓⤴⤵), Move-to-unit, Tag (add/remove modes), Ad-eligible toggle, Delete-N (with confirm), Clear
+- `move-to-unit-modal.tsx` (new) — single-select picker for target unit/general, calls `bulkMoveAssetsAction` and clears selection on success
+- `nuke-album-button.tsx` (new) — top-right of unit + general pages, opens modal requiring literal `DELETE` text input (case-sensitive, strict equality on server)
+- `gallery/layout.tsx` (new) — wraps `<GalleryProvider>` + `<UploadTray>` so they survive intra-`/beithady/gallery/**` navigation
+- `uploader.tsx` (rewritten) — drops local state, calls `provider.enqueueUpload(files, {building, listingId, category})`. Shows lightweight inline `myActive` count derived from provider jobs
+
+**Pages updated:**
+- `[buildingCode]/[listingId]/page.tsx` — wires `<SelectableAssetGrid>` + `<BulkActionBar>` + `<NukeAlbumButton>`. PageSize bumped 60→200 for richer reorder. `moveTargets` = General + every other unit in same building.
+- `[buildingCode]/general/page.tsx` — same wiring with `listingId: null`. PageSize 60→200. `moveTargets` = every unit in same building (general is current album).
+
+**Library:**
+- `gallery-list.ts` — `listAssets` now `ORDER BY sort_order ASC, created_at DESC`. New `resolveAssetUrls(assets)` helper for parallel URL minting on RSC side.
+
+**`asset-grid.tsx` NOT deleted** — still used by `ad-creatives` and `brand-library` pages which were out of scope for this overhaul. Preserved as-is.
+
+**npm deps added:** `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` (~13 KB gzipped combined).
+
+**Files touched:** 11 created, 6 modified, 0 deleted. ~1900 LOC net add. All commits on branch `claude/busy-carson-e5604b`.
+
+**Commits (worktree branch):**
+- `c13016e` migration 0066
+- `3c4b568` dnd-kit packages
+- `7ce6371` listAssets ordering
+- `ccc4719` uploadAssetAction sort_order
+- `b4e34c3` 6 bulk server actions
+- `b9a0b52` GalleryProvider + UploadTray + layout
+- `3e37397` Uploader refactor to provider
+- `a735ba8` SelectableAssetGrid w/ dnd-kit
+- `642f6f2` MoveToUnitModal + BulkActionBar + NukeAlbumButton
+- `24dde3b` wire into unit + general pages
+
+**Build verified:** `npm run build` ✓ Compiled successfully in 19.7s, 12/12 static pages.
+
+**Smoke test plan (12 cases) deferred to live testing on prod** — see `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md` section 13.
+
+**Deploy state:**
+- ✅ Rebased onto `origin/main` cleanly with `-X theirs` (origin/main had 36 unrelated comm/inventory fix commits — no gallery overlap). Build verified clean post-rebase (38.9s).
+- ✅ Force-pushed `claude/busy-carson-e5604b` to origin.
+- ✅ **Pushed `claude/busy-carson-e5604b:main` to origin** — fast-forward `3a52028..04ccee7`, 14 commits added.
+- ✅ Vercel's GitHub integration auto-deploys on push to main — deploy triggered automatically (no `vercel --prod` CLI step needed).
+- Migration 0066 was already applied to prod via Supabase MCP earlier in the session, so the schema is ready when the new code reaches the runtime.
+
+## 🟢 Earlier turn — BH Gallery UX overhaul (BRAINSTORMING phase)
+
+User reported three gallery problems and wants to plan before coding:
+1. **Upload queue dies on navigation** — uploader is a client component with local state in `src/app/beithady/gallery/_components/uploader.tsx`. Navigating to another unit unmounts it and kills in-flight uploads.
+2. **Need reorder UX** — currently sorted by `created_at desc` only. No `sort_order` column exists in `0037_beithady_gallery.sql`.
+3. **Need multi-select + bulk delete + nuke-album** — only single `deleteAssetAction` exists today.
+
+**Brainstorming COMPLETE — all 6 questions answered:**
+- ✅ Q1 Reorder UX → **(C) drag-and-drop + click-to-select-then-move** (both)
+- ✅ Q2 Multi-select scope → **(D) Delete + Move-to-unit + Bulk tag + Bulk ad-eligible**
+- ✅ Q3 "Delete all in album" → **(B) Per-unit + General-Area, type `DELETE` to confirm**
+- ✅ Q4 Persistent uploader scope → **(B) Gallery-section tray** (provider in `gallery/layout.tsx`, dies when leaving `/beithady/gallery/**`)
+- ✅ Q5 Upload concurrency → **(B) Parallel with limit = 3**
+- ✅ Q6 Cover photo behavior → **(A) First-in-order = cover** (no separate "pin")
+
+**Spec written + committed (62b243f) on branch `claude/busy-carson-e5604b`:**
+- Path: `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md`
+- Self-review pass: no placeholders, internally consistent, single-plan scope, ambiguities resolved (DELETE is case-sensitive strict equality, group-drag uses dnd-kit `over.id`, selection persists across detail-modal viewing).
+- 17 sections: problem statement, goals, non-goals, decisions table, architecture (dnd-kit + batch actions), data model (migration 0066, sort_order int with -epoch backfill), 8 components (gallery-provider, upload-tray, uploader rewrite, selectable-asset-grid, bulk-action-bar, nuke-album-button, move-to-unit-modal, gallery/layout.tsx), 7 server actions (1 modified + 6 new: reorder, bulkDelete, bulkMove, bulkTag, bulkAdEligible, nukeAlbum), 5 data flows, error handling matrix, permissions, audit log, 12-item manual test plan, files-touched table, npm deps (~13KB total), rollout (in-place, no flag), future extensions.
+
+**🟡 STATUS: awaiting user review of spec before invoking `writing-plans` skill.**
+
+**Worktree note:** committed on `claude/busy-carson-e5604b`, NOT pushed to main / NOT vercel-deployed. Per `AGENTS.md` auto-deploy convention, deploys happen on code merges; spec-only docs wait for branch merge. If user wants push-to-main now, do `git checkout main && git merge claude/busy-carson-e5604b && git push origin main && vercel --prod`.
+
+**Next step on resume:** if user approves spec → invoke `superpowers:writing-plans` skill to draft implementation plan. If user wants spec changes → edit the spec file, re-self-review, ask again.
+
+**Then:** propose 2-3 architectural approaches → present design → write spec to `docs/superpowers/specs/2026-05-02-bh-gallery-overhaul-design.md` → self-review → user reviews spec → invoke `writing-plans` skill.
+
+**HARD GATE:** No code, no migration, no implementation skill until user approves the written spec.
+
+**Files surveyed this turn:**
+- `src/app/beithady/gallery/_components/uploader.tsx` — local React state, sequential single-file uploads, dies on unmount
+- `src/app/beithady/gallery/_components/asset-grid.tsx` — RSC, single-asset detail via `?asset=<id>`
+- `src/app/beithady/gallery/_components/asset-detail-modal.tsx` — has single delete/retag/ad-toggle/relabel
+- `src/app/beithady/gallery/actions.ts` — `uploadAssetAction`, `deleteAssetAction` (single id), no bulk variants
+- `src/lib/beithady/gallery/gallery-list.ts` — `listAssets` orders by `created_at desc`
+- `supabase/migrations/0037_beithady_gallery.sql` — no sort_order column; soft-delete via `deleted_at` exists
+- `src/app/beithady/gallery/[buildingCode]/[listingId]/page.tsx` — unit page wires Uploader + AssetGrid + tags
+
+## 🟢 Earlier turn — Video attachments end-to-end (migration 0065)
 
 User: "want to make sure we can attach videos to messages and sent to guests by all platforms as url like pictures".
 
