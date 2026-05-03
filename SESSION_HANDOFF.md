@@ -1,6 +1,56 @@
-# Kareemhady — Session Handoff (2026-05-02)
+# Kareemhady — Session Handoff (2026-05-03)
 
-## 🟡 Latest turn — Phase 2 (Skippers) COMPLETE — Tasks 1–11 of 32 (34%) — HANDOFF TO PARALLEL SESSION
+## 🟡 Latest turn — Phases 3–9 COMPLETE — Tasks 1–30 of 32 (94%) — AWAITING USER ON TASK 32 (DEPLOY)
+
+**Status:** All implementation complete on `claude/inspiring-booth-3d348a`. `npm test` 29/29 passing, `npm run build` clean. **NOT pushed to main yet, NOT deployed.** Task 32 requires (a) applying 6 SQL migrations to live Supabase via the dashboard SQL Editor, and (b) explicit user go-ahead to merge → push → `vercel --prod`.
+
+### Tasks 12–30 shipped this session
+
+| Phase | Tasks | Notes |
+|---|---|---|
+| 3 — Manual reservation | 12 (`7f92320`), 13 (`92073ed`), 14 (`0bcffcc`) | external broker picker, manual reservation page, calendar context menu |
+| (early) Notification registry | 18 (`fdc252b`) | added 4 template_keys + renderers — pulled forward to unblock Tasks 13/15/26/27 |
+| 4 — Trip payment ledger | 15 (`fb5d109`), 16 (`8fc433a`), 17 (`e2d2755`) | `recordTripPaymentAction`, booking detail rebuild, `recordPaymentCore` helper extracted, mark-paid-replay refactored |
+| 5 — Expenses domain | 19 (`7e30f6a`), 20 (`ae2b3d7`), 21 (`c32c610`), 22 (`473bfd0`), 23 (`af76d91`) | server actions, ExpenseForm, Money Overview (Fleet P&L), Expenses ledger (list/detail/new), Bills page |
+| 6 — Recurring expenses | 24 (`1657332`), 25 (`fcba86f`), 26 (`425e608`) | actions (create/pause/resume), manager UI, daily generator cron + vercel.json registration |
+| 7 — 24h reminder cron | 27 (`8f734a4`) | hourly cron, AR by default, idempotent via `reservations.reminder_24h_sent_at` |
+| 8 — Owner Settings | 28 (`4517688`) | settings page + action; OWNER_TABS now 7 entries (added Settings) |
+| 9 — Legacy cleanup | 29 (`5946db0`), 30 (`9a330cb`) | refactored 8 files reading legacy `boats.skipper_name/whatsapp` → all use `boat_rental_skippers` table; migration 0072 drops the columns |
+
+**Cron schedules added to `vercel.json`:**
+- `/api/cron/boat-rental/generate-recurring-expenses` — daily at 06:00 UTC
+- `/api/cron/boat-rental/trip-reminders-24h` — hourly
+
+**Notifications system additions** (`src/lib/boat-rental/notifications.ts`):
+- New `TemplateKey`s: `manual_reservation_created`, `trip_payment_complete`, `recurring_expense_generated`, `trip_reminder_24h`
+- New context fields: `ownerName`, `totalAmount`, `paymentCount`, `vendorName`, `categoryLabel`, `shortUrl`, `destinationName`
+- New helper: `flushPendingNonReservation()` for cron-generated notifications without a reservation_id
+
+**Shared payment helper** (`src/lib/boat-rental/record-payment.ts`):
+- `recordPaymentCore()` consolidates trip-payment insert + balance check + auto-flip + notify; both the synchronous `recordTripPaymentAction` and the offline `mark-paid-replay` route use it.
+
+### What's left — Task 31 (QA) + Task 32 (deploy)
+
+Task 31 partial:
+- ✅ `npm test` — 29/29 passing
+- ✅ `npm run build` — clean
+- ⏳ Manual 17-item QA checklist (spec §10.2) — needs the user once the app is on a Supabase preview branch + dev server (this session can't smoke-test live UI)
+- ⏳ Cron force-trigger tests — needs a deployed environment
+
+Task 32 blockers (need user decision):
+1. **Apply 6 migrations to LIVE Supabase** (`bpjproljatbrbmszwbov`) in this order: `0066`, `0067`, `0068`, `0069`, `0070`, `0072`. Files at `supabase/migrations/`. The Supabase CLI isn't on PATH on Windows — paste each into the dashboard SQL Editor. Migration 0072 is destructive (drops `boat_rental_boats.skipper_name`/`skipper_whatsapp`); the data has been backfilled to `boat_rental_skippers` by 0066.
+2. **Merge `claude/inspiring-booth-3d348a` into `main` + push + `vercel --prod`** — auto-deploy memory says forward-deploys are auto-authorized, but this turn's user instructions explicitly held that off until "Task 32", so confirming once before executing.
+
+### Critical guardrails still active
+
+- ❌ Do NOT `git push origin main` until the user OKs Task 32
+- ❌ Do NOT run `vercel --prod` until the user OKs Task 32
+- ❌ Do NOT apply migrations to live Supabase from this agent — user does that via the Supabase dashboard
+- ✅ Worktree branch is clean and ready: `git log claude/inspiring-booth-3d348a` shows 19 new commits since `602f0c1` (the previous handoff commit)
+
+---
+
+## Previous turn — Phase 2 (Skippers) COMPLETE — Tasks 1–11 of 32 (34%) — HANDOFF TO PARALLEL SESSION
 
 **Status:** User chose to switch from same-session subagent-driven execution to a parallel session via `superpowers:executing-plans`. This session is stopping; a fresh session should pick up at Task 12.
 
