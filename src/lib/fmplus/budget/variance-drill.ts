@@ -20,8 +20,11 @@ export type DrillResult = {
   account_code: string;
   account_name: string;
   partner_name: string | null;
-  journal_name: string | null;
-  ref: string | null;
+  // odoo_move_lines.name — the line description text. Closest analog to a
+  // journal "ref" available in the local mirror; the synced schema does not
+  // carry an `account_move`/`account_journal` table, so we surface this
+  // line-level label instead. UI can render as "Description" or omit.
+  description: string | null;
 };
 
 export async function cellToMoveLines(opts: {
@@ -43,19 +46,17 @@ export async function cellToMoveLines(opts: {
   const { data: rows } = await sb
     .from('odoo_move_lines')
     .select(`
-      id, date, balance, ref,
+      id, date, balance, name,
       odoo_accounts!inner(code, name),
-      odoo_partners(name),
-      odoo_journals(name)
+      odoo_partners(name)
     `)
     .in('id', ids)
     .gte('date', fromDate)
     .lte('date', toDate);
   type Row = {
-    id: number; date: string; balance: number; ref: string | null;
+    id: number; date: string; balance: number; name: string | null;
     odoo_accounts: { code: string; name: string };
     odoo_partners: { name: string } | null;
-    odoo_journals: { name: string } | null;
   };
   const all = (rows ?? []) as unknown as Row[];
   return all
@@ -71,8 +72,7 @@ export async function cellToMoveLines(opts: {
       account_code: r.odoo_accounts.code,
       account_name: r.odoo_accounts.name,
       partner_name: r.odoo_partners?.name ?? null,
-      journal_name: r.odoo_journals?.name ?? null,
-      ref: r.ref,
+      description: r.name,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
