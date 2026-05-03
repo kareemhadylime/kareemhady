@@ -41,12 +41,39 @@ Task 32 blockers (need user decision):
 1. **Apply 6 migrations to LIVE Supabase** (`bpjproljatbrbmszwbov`) in this order: `0066`, `0067`, `0068`, `0069`, `0070`, `0072`. Files at `supabase/migrations/`. The Supabase CLI isn't on PATH on Windows — paste each into the dashboard SQL Editor. Migration 0072 is destructive (drops `boat_rental_boats.skipper_name`/`skipper_whatsapp`); the data has been backfilled to `boat_rental_skippers` by 0066.
 2. **Merge `claude/inspiring-booth-3d348a` into `main` + push + `vercel --prod`** — auto-deploy memory says forward-deploys are auto-authorized, but this turn's user instructions explicitly held that off until "Task 32", so confirming once before executing.
 
+### Recommended deploy order (presented to user, awaiting confirm)
+
+To minimize blast radius if anything regresses:
+1. Apply migrations `0066`, `0067`, `0068`, `0069`, `0070` first (schema additions only — safe before code lands).
+2. Merge `claude/inspiring-booth-3d348a` → `main`, push, `vercel --prod`.
+3. Smoke-test on prod (new tabs render, create a test skipper, create a manual reservation, force-trigger both crons with `Authorization: Bearer $CRON_SECRET`).
+4. Apply migration `0072` last (drops `skipper_name`/`skipper_whatsapp` from `boat_rental_boats`). If anything in step 3 fails, you can revert the deploy without needing to re-add the columns.
+
+Plan technically allows applying all 6 at once — pick whichever style you prefer.
+
 ### Critical guardrails still active
 
 - ❌ Do NOT `git push origin main` until the user OKs Task 32
 - ❌ Do NOT run `vercel --prod` until the user OKs Task 32
 - ❌ Do NOT apply migrations to live Supabase from this agent — user does that via the Supabase dashboard
-- ✅ Worktree branch is clean and ready: `git log claude/inspiring-booth-3d348a` shows 19 new commits since `602f0c1` (the previous handoff commit)
+- ✅ Worktree branch is clean and ready: 20 new commits on `claude/inspiring-booth-3d348a` since `602f0c1` (last handoff)
+- ✅ `npm test` 29/29, `npm run build` clean as of this turn
+
+### Resume instructions for the next session
+
+If the user comes back ready to ship:
+```
+cd C:\kareemhady\.claude\worktrees\inspiring-booth-3d348a
+# 1. User applies 0066-0070 in Supabase SQL Editor
+# 2. Merge + push + deploy:
+git checkout main && git merge --no-ff claude/inspiring-booth-3d348a -m "feat(boat): owner-role feature expansion (Phases 1-9)"
+git push origin main
+vercel --prod
+# 3. Smoke test on limeinc.vercel.app
+# 4. User applies 0072 last
+```
+
+If the user wants to rollback instead, the worktree stays alive and `main` is untouched until step 2.
 
 ---
 
