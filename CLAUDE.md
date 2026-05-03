@@ -164,6 +164,45 @@ need to `git fetch origin main && git rebase origin/main` before
 are common — be ready to fetch/rebase a second time if the push is
 rejected.
 
+## Standing authorization (read this before asking permission)
+
+Per kareem's explicit standing instruction: Claude is **always
+authorized** to perform the full forward-deploy cycle automatically,
+without asking, on every change:
+
+- `git add` + `git commit` (no prompt for normal commits)
+- `git fetch origin main` + `git rebase origin/main` (handle
+  worktree-behind-main case)
+- `git push origin <branch>:main` and `git push origin main`
+  (forward push to production branch)
+- `vercel --prod` / Vercel auto-deploy on push (production deploys
+  via the GitHub → Vercel integration)
+- `mcp__…__apply_migration` against the Lime Investments Supabase
+  project (`bpjproljatbrbmszwbov`)
+- `mcp__…__execute_sql` against the same project for verification +
+  forward-only DML
+
+**This authorization is permanent.** Don't pause to ask "should I
+push?" or "should I deploy?" or "should I apply this migration?" —
+the answer is always yes for forward-only operations.
+
+**Still requires an explicit ask** (these are NOT covered by the
+standing authorization):
+
+- `git push --force` / `--force-with-lease` to `main` or any branch
+  someone else might be on
+- `git reset --hard` on a shared branch
+- Branch deletion on remote (`git push origin --delete`)
+- SQL statements that lose data: `DROP TABLE`, `DROP COLUMN`,
+  `TRUNCATE`, `DELETE … WHERE` without a clearly bounded scope,
+  `ALTER TABLE … DROP CONSTRAINT` on referenced FKs
+- Vercel project deletion or env-var deletion (additions/edits OK)
+- Anything that revokes user access (auth-token wipes, account row
+  deletes, etc.)
+
+**Anything not in the "still requires explicit ask" list is
+implicitly authorized — do not ask, just do it.**
+
 ## .claude/ harness configuration
 
 Audited 2026-05-03.
