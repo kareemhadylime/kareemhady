@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert, Loader2, Trash2, Save as SaveIcon } from 'lucide-react';
+import { ShieldAlert, Loader2, Trash2, Save as SaveIcon, Pencil, X } from 'lucide-react';
 import { useToast } from '@/app/_components/toast';
 import { hapticSuccess, hapticError } from '@/lib/haptics';
 import {
@@ -24,6 +24,11 @@ export function AdminReservationOverrides({ reservationId, initial }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState<'edit' | 'delete' | null>(null);
+  // The override panel is hidden by default — admin clicks "Edit" to open
+  // the form, or "Delete" to fire the destructive flow directly. Most
+  // booking-detail views are read-only; the form was clutter when shown
+  // unconditionally.
+  const [editing, setEditing] = useState(false);
 
   const [price, setPrice] = useState(String(initial.price_egp));
   const [date, setDate] = useState(initial.booking_date);
@@ -99,13 +104,61 @@ export function AdminReservationOverrides({ reservationId, initial }: Props) {
     }
   }
 
+  // Collapsed by default — admin only sees Edit / Delete buttons. The
+  // form expands when Edit is clicked. Delete fires the confirm flow
+  // directly from the collapsed state (no reason to open the form first).
+  if (!editing) {
+    return (
+      <section className="mt-6 ix-card p-4 border-amber-300 bg-amber-50/40 dark:border-amber-700 dark:bg-amber-950/30">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-amber-900 dark:text-amber-200 text-sm flex items-center gap-2">
+            <ShieldAlert size={14} /> Admin overrides
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={busy !== null}
+              className="ix-btn-primary inline-flex items-center gap-1 disabled:opacity-60 text-sm"
+            >
+              <Pencil size={14} /> Edit
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={busy !== null}
+              className="ix-btn-danger inline-flex items-center gap-1 disabled:opacity-60 text-sm"
+            >
+              {busy === 'delete' ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              Delete
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="mt-6 ix-card p-5 border-amber-300 bg-amber-50/40 dark:border-amber-700 dark:bg-amber-950/30">
-      <h2 className="font-semibold mb-2 text-amber-900 dark:text-amber-200 text-sm flex items-center gap-2">
-        <ShieldAlert size={14} /> Admin overrides
-      </h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold text-amber-900 dark:text-amber-200 text-sm flex items-center gap-2">
+          <ShieldAlert size={14} /> Admin overrides — Edit
+        </h2>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          disabled={busy !== null}
+          className="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
+        >
+          <X size={14} /> Close
+        </button>
+      </div>
       <p className="text-xs text-amber-900/80 dark:text-amber-200/80 mb-3">
-        Edit any field directly, or hard-delete the reservation. Every change is logged.
+        Edit any field directly. Every change is logged.
       </p>
 
       <form onSubmit={onSave} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -150,19 +203,14 @@ export function AdminReservationOverrides({ reservationId, initial }: Props) {
             className="ix-input mt-1"
           />
         </label>
-        <div className="sm:col-span-2 flex justify-between items-center gap-2 pt-2">
+        <div className="sm:col-span-2 flex justify-end items-center gap-2 pt-2">
           <button
             type="button"
-            onClick={onDelete}
+            onClick={() => setEditing(false)}
             disabled={busy !== null}
-            className="ix-btn-danger inline-flex items-center gap-1 disabled:opacity-60"
+            className="ix-btn-secondary text-sm"
           >
-            {busy === 'delete' ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Trash2 size={14} />
-            )}
-            Delete permanently
+            Cancel
           </button>
           <button
             type="submit"
