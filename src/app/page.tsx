@@ -68,7 +68,11 @@ export default async function Home() {
               return (
                 <Link
                   key={d}
-                  href={d === 'beithady' ? '/beithady' : `/emails/${d}`}
+                  href={
+                    d === 'beithady' ? '/beithady'
+                    : d === 'fmplus' ? '/fmplus'
+                    : `/emails/${d}`
+                  }
                   className="group ix-card p-5 relative overflow-hidden hover:shadow-lg transition"
                 >
                   <div
