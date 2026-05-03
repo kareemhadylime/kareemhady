@@ -34,6 +34,10 @@ After this, the user can:
 
 No migration required — schema already in place from prior gallery overhaul. The legacy `beithady_listing_assets` table is now untouched and can be dropped in a future cleanup migration once we're confident no callers remain.
 
+**Side-fix on the way out:** parallel session's commit `45d96ce` shipped `export const EXPENSE_VOID_WINDOW_MIN = 10` inside a `'use server'` file (`src/app/emails/boat-rental/owner/money/actions.ts`). Next.js refuses to load any server-action module that exports non-function values, which cascaded to "module has no exports at all" on every importer of `recordExpensePaymentAction` — Vercel build was failing for everyone, blocked my deploy. Fixed by dropping the `export` keyword (constant only used in same file). Future callers needing the value should re-expose it from a sibling non-action constants module.
+
+**Deploy state:** commits `c4aa055` (library fix) → `36c2943` (build fix) on `main`. `vercel --prod` returned `readyState: READY` for production. limeinc.vercel.app is live with the fix.
+
 ---
 
 ## 🟢 Earlier turn — Sidebar stay-range disambiguator (migration 0078)
