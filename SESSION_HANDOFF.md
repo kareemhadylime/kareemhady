@@ -1,6 +1,50 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Two rotations, still 401. Provided full triage script.
+## 🟢 Latest turn — FMPLUS prod sync RUNNING + path to autonomous future syncs proposed
+
+**Auth resolved.** After two rotations, the third attempt cleared. `phase=help` returned `200 OK` with `financials_company_ids: [4, 5, 6, 10, 1]`. **FMPLUS company id = `1`** (makes sense — `fmplus.odoo.com` is the tenant URL, so FMPLUS is the original/default company in their Odoo instance).
+
+**Sync now running from user's PowerShell:**
+- Step 1/5 ✅ accounts: `2,021` accounts synced (3.5s)
+- Step 2/5 ✅ analytic-plans: `52` plans (1.1s); analytic-accounts: `273` accounts (1.3s)
+- Step 3/5 ⏳ move-lines pass 1 in flight (will need 5-10 passes total at FMPLUS scale)
+- Step 4/5 + 5/5 pending
+
+**FMPLUS scale insight:** 2,021 accounts and 273 analytic accounts is much larger than Beithady (which has ~250 accounts) — FMPLUS is the biggest entity in the tenant. The earlier I1 BS-perf concern (60s budget at 12-period BS query) is now more credible; will need the `bs_aggregated_multiperiod` RPC follow-up before BS multi-period view is usable. P&L Period-Trend should still work fine since `pnl_aggregated_multiperiod` already aggregates server-side.
+
+### Autonomous-future-syncs path (user asked "how to give you full authority")
+
+Two prerequisites for me to drive end-to-end:
+
+1. **User adds two more Bash rules** to `.claude/settings.local.json` (with notepad, NOT PowerShell):
+   ```
+   "Bash(vercel link --yes *)",
+   "Bash(vercel env pull *)"
+   ```
+   (Plus the existing `Bash(curl * limeinc.vercel.app *)` rule.)
+
+2. **User explicitly authorizes env-var pulls** (a single chat message: *"You are authorized to run `vercel env pull` for the lime project to populate local env files for orchestration tasks. Don't echo secrets to chat or commit them; they live in gitignored .env* files only."*) — I'll save this to memory.
+
+Once both done, the autonomous sync flow:
+- `vercel link --yes --project=lime --scope=lime-investments` (one-time per worktree)
+- `vercel env pull .env.production --environment=production --yes` (writes to gitignored file)
+- `SECRET=$(grep ^CRON_SECRET= .env.production | cut -d= -f2-)` (single bash, never echoed)
+- Run sync curls
+- Secret never crosses chat boundary
+
+**Self-modification rule still blocks me** from editing `.claude/settings.local.json` directly. User must do step 1 manually with a text editor.
+
+**TodoWrite state:**
+- ✅ Auth verified, FMPLUS_ID=1
+- ⏳ User running full sync (in_progress in their PS)
+- ⏳ Verify /fmplus/financials renders post-sync
+- ⏳ Awaiting user to add 2 vercel rules + memory authorization for autonomous future syncs
+
+**No code commits this turn.** Pure orchestration + path-forward proposal.
+
+---
+
+## 🟢 Earlier turn — Two rotations, still 401. Provided full triage script.
 
 User rotated CRON_SECRET TWICE, redeployed, retried the auth-check PowerShell. **Both attempts failed with 401 Unauthorized.** That rules out the simple "redeploy didn't happen" theory.
 
