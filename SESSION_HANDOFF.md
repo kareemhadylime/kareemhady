@@ -1,10 +1,31 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Boat Owner Features SHIPPED — All 32 tasks complete
+## 🟢 Latest turn — Owner force-cancel SHIPPED (follow-up to boat owner features)
+
+**Status:** Closed the cancellation gap surfaced during QA. Owner can now cancel inside the 72h window AND on `paid_to_owner` (refund_pending=true so admin reconciles).
+
+**Deployed:** https://lime-bnwupw4k4-lime-investments.vercel.app aliased to https://limeinc.vercel.app (commit `ccc03f7` on `main`, READY).
+
+**What changed (commit `ccc03f7`):**
+- `src/app/emails/boat-rental/owner/actions.ts` — new `forceCancelReservationOwnerAction(formData)`. Allowed statuses: `held` / `confirmed` / `details_filled` / `paid_to_owner`. Requires reason ≥5 chars. Skips the 72h window check. Sets `refund_pending=true` on `paid_to_owner`. Notifies registered broker (if any) via `cancelled` template — fait accompli, no veto path.
+- `src/app/emails/boat-rental/owner/booking/[id]/page.tsx` — adds a "Danger zone — force cancel" card that renders only when regular `canCancel` is false AND status is in the cancellable set. Required reason input.
+- External brokers (no app account) are NOT auto-notified; owner is expected to phone them.
+
+**Why two cancel surfaces, not one merged form:**
+- Regular cancel (`cancelReservationOwnerAction`) stays untouched — it's the polite path with the 72h promise to the broker.
+- Force-cancel is the emergency path. Showing both at once would confuse the common case; the page picks whichever applies.
+
+**Open follow-ups (not blocking):**
+- No "request cancellation" mirror flow for owner-created manual reservations within 72h. Currently force-cancel covers it but skips broker veto. If symmetry matters, build a `requestCancellationOwnerAction` that the broker approves on their side.
+- External-broker notification is manual (no whatsapp template fires for them). If we want auto-notify, add a phone-only enqueue path (no app-user link) — current `enqueueNotification` requires either `userId` or `phone` on the recipient.
+
+---
+
+## 🟢 Earlier this session — Boat Owner Features SHIPPED — All 32 tasks complete
 
 **Status:** All 32 tasks of `docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md` are live in production.
 
-**Deployed:** https://lime-ljc2roa0m-lime-investments.vercel.app (`dpl_2HuSggygtVgzYcWU5Kwrn6GtGmtf`, target=production, READY).
+**Original deploy:** https://lime-ljc2roa0m-lime-investments.vercel.app (`dpl_2HuSggygtVgzYcWU5Kwrn6GtGmtf`, target=production, READY).
 
 **Migrations applied to live Supabase** (`bpjproljatbrbmszwbov`) in order:
 1. `0066_boat_skippers_roster` ✅ (multi-skipper roster + backfill from `boats.skipper_name/whatsapp`)
