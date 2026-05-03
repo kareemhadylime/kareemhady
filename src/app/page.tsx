@@ -71,6 +71,7 @@ export default async function Home() {
                   href={
                     d === 'beithady' ? '/beithady'
                     : d === 'fmplus' ? '/fmplus'
+                    : d === 'personal' ? '/personal'
                     : `/emails/${d}`
                   }
                   className="group ix-card p-5 relative overflow-hidden hover:shadow-lg transition"
