@@ -39,6 +39,7 @@
     { "path": "/api/cron/beithady-inventory-auto-issue", "schedule": "0 12 * * *" },
     { "path": "/api/cron/beithady-conversation-archive", "schedule": "0 1 * * *" },
     { "path": "/api/cron/beithady-amazon-eg-sourcer", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/beithady-scheduled-reports", "schedule": "0 * * * *" }
+    { "path": "/api/cron/beithady-scheduled-reports", "schedule": "0 * * * *" },
+    { "path": "/api/cron/personal-email-ingest", "schedule": "0,15,30,45 4-21 * * *" }
   ]
 }
