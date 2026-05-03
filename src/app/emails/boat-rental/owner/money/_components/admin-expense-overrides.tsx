@@ -64,6 +64,8 @@ export function AdminExpenseOverrides({ expenseId, initial }: Props) {
       if (result.ok) {
         toast('Expense updated.', { kind: 'success' });
         hapticSuccess();
+        // Close back to the list view.
+        router.push('/emails/boat-rental/owner/money/expenses');
         router.refresh();
       } else {
         toast(result.error, { kind: 'error' });

@@ -5,24 +5,28 @@ import { getActingAsOwnerName } from '@/lib/boat-rental/portal-routing';
 import { hasBoatRole } from '@/lib/boat-rental/auth';
 
 // Slate banner shown at the top of every owner-portal page when the
-// viewer ALSO holds admin or broker — makes it obvious which "hat"
-// they're wearing right now and gives them a one-click route back.
+// viewer ALSO holds broker — makes it obvious which "hat" they're wearing
+// and gives them a one-click route back.
 //
-// Suppressed for owner-only users (no other portals to act from) and
-// for viewers whose owner role doesn't link to a specific owner record.
+// Suppressed for:
+// - Owner-only users (no other portals to act from)
+// - Viewers whose owner role doesn't link to a specific owner record
+// - ADMINS: admin is the more authoritative role; treating it as the
+//   default identity means they don't see a "Viewing as Owner" prompt
+//   when using admin-overrides on owner pages (they'd find it confusing
+//   given they have full edit/delete powers there). They still get the
+//   admin chrome and override panels.
 
 export async function ActingAsBanner({ viewer }: { viewer: SessionUser }) {
   const ownerName = await getActingAsOwnerName(viewer);
   if (!ownerName) return null;
 
   const isAdmin = await hasBoatRole(viewer, 'admin');
+  if (isAdmin) return null;
+
   const isBroker = await hasBoatRole(viewer, 'broker');
-  const otherRoleLabel = isAdmin ? 'Admin' : isBroker ? 'Broker' : null;
-  const otherRoleHref = isAdmin
-    ? '/emails/boat-rental/admin'
-    : isBroker
-      ? '/emails/boat-rental/broker'
-      : null;
+  const otherRoleLabel = isBroker ? 'Broker' : null;
+  const otherRoleHref = isBroker ? '/emails/boat-rental/broker' : null;
   if (!otherRoleLabel || !otherRoleHref) return null;
 
   return (

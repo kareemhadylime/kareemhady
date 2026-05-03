@@ -45,6 +45,9 @@ export function AdminReservationOverrides({ reservationId, initial }: Props) {
       if (result.ok) {
         toast('Reservation updated.', { kind: 'success' });
         hapticSuccess();
+        // Close back to the list view — that's where admin came from when
+        // clicking Edit on a row.
+        router.push('/emails/boat-rental/admin/bookings');
         router.refresh();
       } else {
         toast(result.error, { kind: 'error' });
