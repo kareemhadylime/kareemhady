@@ -79,6 +79,18 @@ export default async function FinancialsPage({
     withDep,
   };
 
+  const exportPropsBase = {
+    granularity,
+    periods,
+    asof,
+    mode,
+    withDep,
+    includeDrafts,
+    plans: planIds?.join(',') || undefined,
+    plan: planId ? String(planId) : undefined,
+    accounts: accountIds?.join(',') || undefined,
+  };
+
   const buildHref = (overrides: Partial<Record<string, string | undefined>> = {}) => {
     const merged: Record<string, string> = {
       view, granularity, periods: String(periods), asof, mode,
@@ -159,10 +171,16 @@ export default async function FinancialsPage({
           <Dashboard data={await buildFmplusDashboard({ granularity, asof, scope })} />
         )}
         {view === 'pnl' && (
-          <PnlTable report={await buildFmplusPnl({ periods: periodSeries, scope })} />
+          <PnlTable
+            report={await buildFmplusPnl({ periods: periodSeries, scope })}
+            exportProps={{ ...exportPropsBase, view: 'pnl' }}
+          />
         )}
         {view === 'balance_sheet' && (
-          <BalanceSheetTable report={await buildFmplusBalanceSheet({ periods: periodSeries, scope })} />
+          <BalanceSheetTable
+            report={await buildFmplusBalanceSheet({ periods: periodSeries, scope })}
+            exportProps={{ ...exportPropsBase, view: 'balance_sheet' }}
+          />
         )}
       </main>
     </>

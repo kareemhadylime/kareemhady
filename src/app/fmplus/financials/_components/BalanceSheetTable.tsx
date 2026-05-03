@@ -1,12 +1,13 @@
 import { Landmark, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { BalanceSheetReport, BalanceSheetGroup, Period, PeriodValues } from '@/lib/fmplus/types';
+import { ExportButtons, type ExportProps } from './ExportButtons';
 
 const fmt = (n: number | undefined): string => {
   const v = Number(n) || 0;
   return Math.abs(v) < 0.5 ? '0' : Math.round(v).toLocaleString('en-US');
 };
 
-export function BalanceSheetTable({ report }: { report: BalanceSheetReport }) {
+export function BalanceSheetTable({ report, exportProps }: { report: BalanceSheetReport; exportProps?: ExportProps }) {
   const periods = report.periods;
   const cur = periods[0];
   const balanced = report.balanced[cur.key];
@@ -39,6 +40,11 @@ export function BalanceSheetTable({ report }: { report: BalanceSheetReport }) {
       </header>
 
       <section className="ix-card overflow-x-auto">
+        {exportProps && (
+          <div className="px-4 py-2 flex justify-end border-b border-slate-100">
+            <ExportButtons {...exportProps} />
+          </div>
+        )}
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr className="border-b border-slate-200">

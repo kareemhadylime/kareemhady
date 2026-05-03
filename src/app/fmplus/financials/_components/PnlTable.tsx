@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
 import type { PnlReport, Period, PeriodValues, PnlServiceLineCost } from '@/lib/fmplus/types';
+import { ExportButtons, type ExportProps } from './ExportButtons';
 
 const fmt = (n: number | undefined): string => {
   const v = Number(n) || 0;
@@ -17,7 +18,7 @@ const deltaPctStr = (curr: number, prior: number): string => {
   return `${(((curr - prior) / Math.abs(prior)) * 100).toFixed(1)}%`;
 };
 
-export function PnlTable({ report }: { report: PnlReport }) {
+export function PnlTable({ report, exportProps }: { report: PnlReport; exportProps?: ExportProps }) {
   const periods = report.periods;
   const hasMultiplePeriods = periods.length > 1;
 
@@ -25,6 +26,11 @@ export function PnlTable({ report }: { report: PnlReport }) {
     <div className="space-y-4">
       <NetProfitHero report={report} />
       <section className="ix-card overflow-x-auto">
+        {exportProps && (
+          <div className="px-4 py-2 flex justify-end border-b border-slate-100">
+            <ExportButtons {...exportProps} />
+          </div>
+        )}
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr className="border-b border-slate-200">
