@@ -21,6 +21,8 @@ No backend / data changes — the building-switch flow always worked at the data
 
 **Deploy state:** commit `25a6e53` (rebased from `fc9f96c` after concurrent landings) on `main`. Vercel deployment `iztpvm2yg` confirmed `● Ready` in production via `vercel ls`. The earlier "status: error" string from `vercel --prod`'s JSON response was a misread field — actual build + deploy succeeded.
 
+**Worktree-sandbox runtime quirk surfaced in deferred logs:** crons firing on the worktree's *own* Vercel project (`prj_XWOp5wA0REe1rZAvLVnRwqLwuN2G` = `intelligent-wilbur-3a1905`) error with `Error: supabaseUrl is required.` — that project has zero env vars set. Pages that don't touch Supabase load fine; cron routes that call `supabaseAdmin()` throw immediately. **This is harmless sandbox noise — does NOT affect real production**, which is `kareemhady`/`limeinc.vercel.app`, deployed via the GitHub→Vercel integration on push-to-main and has all env vars configured. Real-prod crons have always worked. Future cleanup options: (a) leave it, (b) disable the worktree project's crons in Vercel dashboard, (c) drop `vercel --prod` from CLAUDE.md's auto-deploy flow since GitHub→Vercel covers production.
+
 ---
 
 ## 🟢 Earlier turn — Library Picker thumbnails (signed URLs + image transform)
