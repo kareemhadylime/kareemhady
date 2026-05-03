@@ -10,6 +10,9 @@ User: "Select all should have the ability to deselect all".
 
 **Files touched:**
 - `src/app/beithady/communication/_components/library-picker.tsx`
+- `.gitignore` (added `.claude/scheduled_tasks.lock` — runtime artifact from `ScheduleWakeup` had snuck into the previous commit; removed from index + ignored going forward)
+
+**Deploy state:** commit `7428f21` (rebased onto `365a2c6`, amended to drop the lock-file artifact). Pushed to `main`. Vercel `vercel --prod` returned `readyState: READY` for production. limeinc.vercel.app live with the toggle fix.
 
 ---
 
