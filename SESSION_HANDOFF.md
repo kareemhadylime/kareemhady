@@ -1,6 +1,55 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Select-all toggle now actually toggles
+## 🟢 Latest turn — Search-bug fix + auto-translation for non-EN/AR messages (mig 0079)
+
+User: "No Message Translation - There should be a translation for anything except English & Arabic. Searching Hady Family as a Guest Name, No results."
+
+### 1. Search bug — "Hady Family" (and any non-numeric query) was returning ~873 noisy matches
+
+**Root cause:** in `inbox.ts` the search OR clause built `guest_phone.ilike.%${digits}%`, but for a query like "hady family" the digit-strip returned `''` → the literal pattern became `%%` which matches every conversation that has a phone (873 rows). Hady Family DID match the actual `guest_full_name` clause, but at rank 68 in the noise — past page 1 of 50 — so the user saw "no results".
+
+**Fix:**
+- Phone clause is now skipped unless the digit-strip yields **≥3 digits** (avoids `%5%` matching every phone with a 5).
+- Added `building_code` to the searched fields (so "BH-26", "BH-435" find their own buildings).
+- Verified live: searching "hady family" against the view returns exactly **1 row** — the right one.
+
+### 2. Auto-translation pipeline (migration 0079)
+
+When a guest writes in Turkish/Russian/French/etc, the agent reads English+Arabic and now sees an inline translation under the original message — auto-filled on first thread render via Claude Haiku.
+
+**Migration 0079** adds three columns to `beithady_messages`:
+- `translation_en text` — cached English translation (NULL = not yet translated, or English/Arabic so skipped)
+- `translation_lang text` — detected ISO 639-1 source code (`tr`, `ru`, `fr`, `es`, `en`, `ar`, …)
+- `translated_at timestamptz`
+
+Plus a partial index `idx_bh_messages_translation_pending` on inbound rows missing a translation, so the lazy backfill scan in `loadThread` is fast.
+
+**`src/lib/beithady/ai/translate.ts`** — new helper using Claude Haiku 4.5 ($0.001/message):
+- `looksTranslatable(body)` — heuristic: has Arabic chars → false; <5% non-ASCII → false (treat as English); else true.
+- `translateMessageBody(body)` — single Haiku call, system prompt asks for `{lang, skip, translation_en}` JSON.
+- `translateMessagesBatch(ids)` — fetches candidate rows, parallel-translates in chunks of 8, persists each result. Failures logged; partial-batch successes still cached.
+
+**`loadThread()`** now runs after the messages fetch:
+1. Filter inbound messages without `translation_en` AND `looksTranslatable(body)` === true
+2. `await translateMessagesBatch(ids)`
+3. Re-fetch the freshly-cached rows and merge into the in-memory message list
+4. Failures don't break thread render — agent sees original message and can still reply
+
+**Thread-pane Bubble** renders the translation under the original body, visually offset by a top border + italic styling, with a tiny `EN ← tr` label so the agent knows it's a translation. Render is conditional on `m.translation_en` being non-null.
+
+**Files touched:**
+- `supabase/migrations/0079_beithady_message_translation.sql` (new)
+- `src/lib/beithady/ai/translate.ts` (new)
+- `src/lib/beithady/communication/inbox.ts` (search-bug fix + ThreadMessage type + loadThread auto-translation)
+- `src/app/beithady/communication/_components/thread-pane.tsx` (inline translation render)
+
+**Verified:** build clean, search query returns 1 match (was 873). Migration applied to prod via Supabase MCP. Translation pipeline only fires when `ANTHROPIC_API_KEY` is set in env — silently no-ops otherwise.
+
+**Cost ceiling:** ~$0.001 per non-EN/AR message ever translated (cached forever after). Worst case: full inbox backfill (~2,250 candidate messages) ≈ $2.25 once.
+
+---
+
+## 🟢 Earlier turn — Select-all toggle now actually toggles
 
 User: "Select all should have the ability to deselect all".
 
