@@ -1,5 +1,6 @@
 import { Calendar, Layers, FileSpreadsheet } from 'lucide-react';
 import { PillLink } from './PeriodControls';
+import { AccountPicker } from './AccountPicker';
 import type { Granularity, ScopeMode } from '@/lib/fmplus/types';
 
 const GRANULARITIES: Array<{ id: Granularity; label: string }> = [
@@ -121,12 +122,23 @@ export function FilterBar(props: {
         </p>
       )}
 
-      {/* Mode-specific picker stub (real picker ships in Task 16) */}
-      {/* TODO: replace with <AccountPicker /> once Task 16 lands */}
-      {!isBs && props.mode !== 'trend' && (
-        <div className="ix-card p-3 bg-amber-50/30 text-xs text-slate-500">
-          Account picker UI lands in Task 16 ({props.mode} mode).
-        </div>
+      {/* Account / plan picker */}
+      {!isBs && props.mode === 'plans' && (
+        <AccountPicker
+          mode="plans"
+          selectedPlanIds={props.planIds}
+          buildHref={props.buildHref}
+        />
+      )}
+      {!isBs && props.mode === 'accounts' && (
+        <AccountPicker
+          mode="accounts"
+          selectedPlanId={props.planId}
+          selectedAccountIds={props.accountIds}
+          asof={props.asof}
+          granularity={props.granularity}
+          buildHref={props.buildHref}
+        />
       )}
 
       {/* Options */}
