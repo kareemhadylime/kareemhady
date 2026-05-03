@@ -1,6 +1,27 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Library Picker thumbnails (signed URLs + image transform)
+## 🟢 Latest turn — Library Picker switchable-building UX
+
+User: "Need to be able to choose Pictures from Specific Bldg locked to reservation - Need to be able to change to other".
+
+The picker already auto-defaulted to the conversation's building via the `buildingCode` prop (passed in from the composer based on the reservation's listing.building_code) — but the only way to switch buildings was the small chevron-back arrow, which wasn't discoverable. User asked for a clear "switch building" affordance while keeping the reservation auto-default.
+
+**Two affordances added:**
+
+1. **Clickable breadcrumb segments.** On the photos step, the header now shows `Listing Library · BH-26 · BH-26-001` where both `BH-26` and `BH-26-001` are link-styled (violet, hover-underline) buttons that navigate back to the building list and unit list respectively. On the listing step, `BH-26` is a button → goes back to building list. Title attributes give explicit hints.
+
+2. **Default-source hint banner.** When the picker opens defaulted from `buildingCode`, a slim banner under the header reads: *"Defaulted to **BH-26** from this guest's reservation."* with an explicit `Change building →` link. Hidden when the user is already on the building step (no need).
+
+Both affordances clear the current `selected` set when switching, since assets in different buildings have different IDs (avoids stale-selection bug).
+
+**Files touched:**
+- `src/app/beithady/communication/_components/library-picker.tsx` (clickable breadcrumb + default-source hint banner)
+
+No backend / data changes — the building-switch flow always worked at the data layer; this is purely a discoverability fix.
+
+---
+
+## 🟢 Earlier turn — Library Picker thumbnails (signed URLs + image transform)
 
 User: "no thumbnails?". Picker grid was rendering alt-text only — no actual images.
 

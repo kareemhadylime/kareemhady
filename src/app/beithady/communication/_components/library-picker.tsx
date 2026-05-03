@@ -120,8 +120,8 @@ export function LibraryPicker({
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
+        <div className="border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm flex-wrap">
             {step !== 'building' && (
               <button
                 type="button"
@@ -130,23 +130,71 @@ export function LibraryPicker({
                   else setStep('building');
                   setSelected(new Set());
                 }}
-                className="text-slate-500 hover:text-slate-700"
+                className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
+                title={step === 'photos' ? 'Back to units' : 'Back to buildings'}
               >
                 <ChevronLeft size={16} />
               </button>
             )}
             <span className="font-semibold">Listing Library</span>
             <span className="text-slate-400">·</span>
-            <span className="text-slate-500 text-xs">
-              {step === 'building' && 'Choose a building'}
-              {step === 'listing' && building}
-              {step === 'photos' && `${building} · ${listings.find(l => l.listing_id === listingId)?.nickname || ''}`}
-            </span>
+            {step === 'building' && (
+              <span className="text-slate-500 text-xs">Choose a building</span>
+            )}
+            {step === 'listing' && (
+              // Building name as a link → go back to building picker.
+              <button
+                type="button"
+                onClick={() => { setStep('building'); setSelected(new Set()); }}
+                className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                title="Switch to another building"
+              >
+                {building}
+              </button>
+            )}
+            {step === 'photos' && (
+              // Both segments clickable: building → step 1, unit → step 2.
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setStep('building'); setSelected(new Set()); }}
+                  className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                  title="Switch to another building"
+                >
+                  {building}
+                </button>
+                <span className="text-slate-400 text-xs">·</span>
+                <button
+                  type="button"
+                  onClick={() => { setStep('listing'); setSelected(new Set()); }}
+                  className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                  title="Switch to another unit"
+                >
+                  {listings.find(l => l.listing_id === listingId)?.nickname || ''}
+                </button>
+              </>
+            )}
           </div>
-          <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-600 shrink-0">
             <X size={16} />
           </button>
         </div>
+
+        {/* Hint — when the picker opened defaulted to the reservation's
+            building. Lets the agent know they can switch if they need
+            photos of another building (e.g. up-selling a different unit). */}
+        {step !== 'building' && buildingCode && (
+          <div className="px-3 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between gap-2">
+            <span>Defaulted to <strong>{buildingCode}</strong> from this guest&rsquo;s reservation.</span>
+            <button
+              type="button"
+              onClick={() => { setStep('building'); setSelected(new Set()); }}
+              className="text-violet-700 dark:text-violet-300 hover:underline font-medium shrink-0"
+            >
+              Change building →
+            </button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-3">
           {loading && (
