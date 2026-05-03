@@ -24,6 +24,29 @@
 //   9  Contracting Insurance (xx0901-xx0902)
 //   10 Penalties (xx1001-xx1002)         11 Indirect Costs (xx1101-xx1103)
 
+// Odoo's account.account.account_type enum. Listed exhaustively so
+// callers get a TypeScript error on typos. The (string & {}) escape
+// hatch keeps the type forward-compatible if Odoo adds new values.
+export type AccountType =
+  | 'asset_cash'
+  | 'asset_receivable'
+  | 'asset_current'
+  | 'asset_prepayments'
+  | 'asset_fixed'
+  | 'asset_non_current'
+  | 'liability_payable'
+  | 'liability_current'
+  | 'liability_non_current'
+  | 'equity'
+  | 'equity_unaffected'
+  | 'income'
+  | 'income_other'
+  | 'expense'
+  | 'expense_direct_cost'
+  | 'expense_depreciation'
+  | 'off_balance'
+  | (string & {});  // forward-compat escape hatch
+
 export type ServiceKey =
   | 'hk' | 'mep' | 'security' | 'landscape'
   | 'pest' | 'waste' | 'paid' | 'vo';
@@ -88,7 +111,7 @@ function detectCostCategory(code: string): { entry: { key: string; label: (svc: 
 export function classifyByPrefix(
   code: string,
   name: string,
-  accountType: string
+  accountType: AccountType
 ): Classification | null {
   // Balance-sheet account types are not P&L
   if (
