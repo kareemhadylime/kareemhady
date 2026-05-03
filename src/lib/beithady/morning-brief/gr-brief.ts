@@ -239,13 +239,18 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       empty_message: 'No arrivals today.',
     },
     {
-      title: `Currently staying (${stayEgypt})`,
+      title: `Currently staying (${stayEgypt})${stayingCanonical.already_arrived ? ` — ${stayingCanonical.already_arrived.length} in-house · ${stayingCanonical.arriving_today?.length || 0} arriving today` : ''}`,
       emoji: '🏨',
       items: [
         ...(stayEgypt > 0 ? [{
           primary: `${bucketBreakdownLine(stayCount)} · ${totalGuestsEgypt} guests`,
           secondary: 'Egypt-side in-house reservations.',
           tag: { label: 'In-house', tone: 'green' as const },
+        }] : []),
+        ...((stayingCanonical.arriving_today?.length || 0) > 0 ? [{
+          primary: `${stayingCanonical.arriving_today!.length} arriving today (counted in stay total)`,
+          secondary: 'These appear in both Arrivals and Currently staying — Guesty UI may count them only after physical check-in.',
+          tag: { label: 'Pending arrival', tone: 'amber' as const },
         }] : []),
         ...(stayCount['BH-DXB'] > 0 ? [{
           primary: `BH-DXB: ${stayCount['BH-DXB']} reservation${stayCount['BH-DXB'] === 1 ? '' : 's'} · ${dxbStayingGuests} guests (excluded from totals)`,

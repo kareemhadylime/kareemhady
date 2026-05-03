@@ -27,6 +27,17 @@ export const CANONICAL_BOOKED_STATUSES = [
   'checked_out',
 ] as const;
 
+// MTD revenue queries also include 'closed' — Guesty's archived-past-stay
+// status. A 'closed' reservation is a realized stay (revenue earned), so
+// finance counts it. 'closed' rows always have check_out_date in the past;
+// they never appear in "currently staying" queries.
+export const CANONICAL_REVENUE_STATUSES = [
+  'confirmed',
+  'checked_in',
+  'checked_out',
+  'closed',
+] as const;
+
 export type CanonicalStatus = (typeof CANONICAL_BOOKED_STATUSES)[number];
 
 export type BuildingBucket =
@@ -72,6 +83,12 @@ export type MetricResult = {
   by_building: Record<BuildingBucket, number>;
   by_channel: Record<ChannelBucket, number>;
   manual_block_unpaid: ResRow[];   // owner stays + manual blocks (Q2 ratification)
+  // For getCurrentlyStaying ONLY: split out who's already in-house vs
+  // who arrives today. Helps bridge the gap between "rooms occupied
+  // tonight" (37) and Guesty UI's "physically here right now" (33).
+  // For check-in/check-out queries, both arrays are empty.
+  already_arrived?: ResRow[];      // check_in_date < today AND check_out > today
+  arriving_today?: ResRow[];       // check_in_date = today AND check_out > today
 };
 
 export type RevenueResult = {
@@ -271,7 +288,19 @@ export async function getCurrentlyStaying(
   opts: ScopeOpts = {}
 ): Promise<MetricResult> {
   const all = await fetchReservations({ kind: 'overlap', date: dateIso }, opts);
-  return summarize(all);
+  const result = summarize(all);
+  // Split main reservations into "already arrived" vs "arriving today"
+  // so briefs can show the breakdown — bridges the gap between our
+  // calendar-overlap definition (37) and Guesty UI's "physically here"
+  // count (33). Owner/manual blocks are NOT split — they remain in the
+  // manual_block_unpaid bucket.
+  result.already_arrived = result.reservations.filter(
+    r => r.check_in_date < dateIso
+  );
+  result.arriving_today = result.reservations.filter(
+    r => r.check_in_date === dateIso
+  );
+  return result;
 }
 
 export async function getMtdRevenueByStay(
@@ -279,7 +308,12 @@ export async function getMtdRevenueByStay(
   opts: ScopeOpts = {}
 ): Promise<RevenueResult> {
   const monthStart = dateIso.slice(0, 7) + '-01';
-  const all = await fetchReservations({ kind: 'stay_in', from: monthStart, to: dateIso }, opts);
+  // MTD revenue includes 'closed' (archived past stays) — those are realized
+  // revenue. Caller can override via opts.statuses for special cases.
+  const all = await fetchReservations(
+    { kind: 'stay_in', from: monthStart, to: dateIso },
+    { ...opts, statuses: opts.statuses ?? CANONICAL_REVENUE_STATUSES }
+  );
   return summarizeRevenue(all, monthStart, dateIso);
 }
 
@@ -294,7 +328,7 @@ export async function getMtdRevenueByBooking(
   const toUtc = `${addDay(dateIso)}T00:00:00+02:00`;
   const all = await fetchReservations(
     { kind: 'created_in', from: fromUtc, to: toUtc },
-    { ...opts, statuses: opts.statuses ?? CANONICAL_BOOKED_STATUSES }
+    { ...opts, statuses: opts.statuses ?? CANONICAL_REVENUE_STATUSES }
   );
   return summarizeRevenue(all, monthStart, dateIso);
 }

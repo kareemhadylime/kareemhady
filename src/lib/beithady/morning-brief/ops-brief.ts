@@ -237,13 +237,18 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       empty_message: 'لا توجد عمليات تنظيف بين نزلاء بنفس اليوم. يمكن للطاقم التنظيم بشكل طبيعي.',
     },
     {
-      title: `النزلاء الحاليون داخل الوحدات (${stayEgypt})`,
+      title: `النزلاء الحاليون داخل الوحدات (${stayEgypt})${stayingCanonical.already_arrived ? ` — ${stayingCanonical.already_arrived.length} داخل الوحدات · ${stayingCanonical.arriving_today?.length || 0} يصل اليوم` : ''}`,
       emoji: '🏨',
       items: [
         ...(stayEgypt > 0 ? [{
           primary: `${bucketBreakdownAr(stayCount)} · إجمالي الضيوف ${totalGuestsEgypt}`,
           secondary: 'وحدات مصر المأهولة.',
           tag: { label: 'مأهولة', tone: 'green' as const },
+        }] : []),
+        ...((stayingCanonical.arriving_today?.length || 0) > 0 ? [{
+          primary: `${stayingCanonical.arriving_today!.length} حجز يصل اليوم (محسوب في إجمالي الإقامة)`,
+          secondary: 'يظهر في قائمة الوصولات أيضًا — Guesty قد يعرضهم بعد تسجيل الدخول الفعلي فقط.',
+          tag: { label: 'بانتظار الوصول', tone: 'amber' as const },
         }] : []),
         ...(stayCount['BH-DXB'] > 0 ? [{
           primary: `BH-DXB: ${stayCount['BH-DXB']} وحدة (مستثناة من الإجمالي)`,

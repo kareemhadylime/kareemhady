@@ -270,7 +270,7 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       ],
     },
     {
-      title: `Currently staying (${stayingEgypt})`,
+      title: `Currently staying (${stayingEgypt})${stayingCanonical.already_arrived ? ` — ${stayingCanonical.already_arrived.length} in-house · ${stayingCanonical.arriving_today?.length || 0} arriving today` : ''}`,
       emoji: '🏨',
       items: [
         {
@@ -278,6 +278,11 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
           secondary: EGYPT_BUCKETS.filter(b => stayingCount[b] > 0).map(b => `${BUCKET_LABEL[b].en}: ${stayingCount[b]}`).join(' · ') || 'No active stays',
           tag: { label: 'In-flight', tone: 'cyan' },
         },
+        ...((stayingCanonical.arriving_today?.length || 0) > 0 ? [{
+          primary: `${stayingCanonical.arriving_today!.length} arriving today (counted in stay total)`,
+          secondary: 'Guesty UI may show only physically-checked-in guests; this brief uses calendar-overlap.',
+          tag: { label: 'Pending arrival', tone: 'amber' as const },
+        }] : []),
         ...(stayingCount['BH-DXB'] > 0 ? [{
           primary: dxbLine(stayingTotals, stayingCount['BH-DXB']) || '',
           secondary: undefined,
