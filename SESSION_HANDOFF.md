@@ -1,6 +1,27 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — FM+ Project Budget Task 10: Path A rich AUC-style XLSX parser
+## 🟢 Latest turn — FM+ Project Budget Task 11: commitBudget atomic per-segment line replacement
+
+**Task:** Task 11 — `commitBudget(opts)` + `groupRowsBySegment` — atomic DB writer for parsed FlatRow[] into `project_budgets` / `project_budget_segments` / `budget_lines`.
+
+**What was done:**
+- TDD red→green: wrote failing test first (module-not-found), then implemented.
+- Created `src/lib/fmplus/budget/commit.test.ts` — 1 Vitest test for `groupRowsBySegment`.
+- Created `src/lib/fmplus/budget/commit.ts` — `groupRowsBySegment` (pure, tested), `CommitOpts` / `CommitResult` types, `commitBudget` async function.
+- `commitBudget` logic: upsert `project_budgets` (select→update or insert), then for each service_line group: upsert segment + delete-then-insert lines. `publishedBy` accepts `string | null` (no FK constraint on `created_by`).
+- Tests: 1/1 pass. `npm run build` clean.
+- Merge conflict on SESSION_HANDOFF.md resolved (accepted upstream, appended this entry).
+- Committed locally. Controller pushes.
+
+**Files created:**
+- `src/lib/fmplus/budget/commit.ts` (~110 lines)
+- `src/lib/fmplus/budget/commit.test.ts` (~21 lines)
+
+**Next task:** Phase 3 continues — Task 12+ as directed.
+
+---
+
+## 🟢 Earlier turn — FM+ Project Budget Task 10: Path A rich AUC-style XLSX parser
 
 **Task:** Task 10 — `parseRichAucStyleXlsx` + `isRichAucStyleWorkbook` — parse the AUC Budget workbook's multi-sheet structure with merged cells and cross-sheet formulas into FlatRow[].
 
