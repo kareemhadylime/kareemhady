@@ -19,6 +19,13 @@
 - No "request cancellation" mirror flow for owner-created manual reservations within 72h. Currently force-cancel covers it but skips broker veto. If symmetry matters, build a `requestCancellationOwnerAction` that the broker approves on their side.
 - External-broker notification is manual (no whatsapp template fires for them). If we want auto-notify, add a phone-only enqueue path (no app-user link) — current `enqueueNotification` requires either `userId` or `phone` on the recipient.
 
+**Verified path on prod:**
+1. `git log origin/main -1 --format="%h %s"` → `4e5e2b4 docs: SESSION_HANDOFF — owner force-cancel shipped`
+2. `vercel ls --prod | head` → `lime-bnwupw4k4-lime-investments.vercel.app · ● Ready · Production · 4m`
+3. Aliases on that deployment: `limeinc.vercel.app`, `lime-lime-investments.vercel.app`, `lime-kareem-2041-lime-investments.vercel.app`.
+
+**To resume:** load the boat-owner Malaya II booking on `2026-05-03` to QA the new "Danger zone — force cancel" card. Reason required, ≥5 chars; submitting flips status to `cancelled` and notifies the registered broker.
+
 ---
 
 ## 🟢 Earlier this session — Boat Owner Features SHIPPED — All 32 tasks complete
