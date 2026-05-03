@@ -4,7 +4,7 @@ import { AccountFilter } from './_components/account-filter';
 import { TierSection } from './_components/tier-section';
 import { CategoryCard } from './_components/category-card';
 import { RefreshButton } from './_components/refresh-button';
-import { CategorySlug } from '@/lib/personal-email/schema';
+import type { CategorySlug } from '@/lib/personal-email/types';
 import Link from 'next/link';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 

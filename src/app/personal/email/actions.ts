@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { syncLabelChange } from '@/lib/personal-email/label-sync';
-import { CategorySlug } from '@/lib/personal-email/schema';
+import type { CategorySlug } from '@/lib/personal-email/types';
 import { ingestPersonalEmails } from '@/lib/personal-email/ingest';
 import { markMessagesAsRead } from '@/lib/gmail';
 
