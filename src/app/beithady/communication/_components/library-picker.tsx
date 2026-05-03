@@ -96,14 +96,20 @@ export function LibraryPicker({
     setSelected(next);
   };
 
-  // "Select all" — pick everything currently visible up to maxToAdd.
-  // If everything's already selected, clears the selection (toggle UX).
+  // "Select all" toggle. The selection is considered "full" when we've
+  // hit either the cap (maxToAdd) or every visible asset, whichever is
+  // smaller — when the album has 42 photos and the cap is 30, picking
+  // 30 is "full" even though 12 unpicked items remain. Pre-fix the
+  // toggle used `every(asset.id in selected)` which only flipped to
+  // "deselect" when all 42 were selected (impossible with the 30-cap),
+  // so the button was effectively select-only.
+  const selectionIsFull =
+    selected.size > 0 && selected.size >= Math.min(assets.length, maxToAdd);
   const selectAll = () => {
-    const visibleIds = assets.map(a => a.id);
-    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
-    if (allSelected) {
+    if (selectionIsFull) {
       setSelected(new Set());
     } else {
+      const visibleIds = assets.map(a => a.id);
       setSelected(new Set(visibleIds.slice(0, maxToAdd)));
     }
   };
@@ -255,16 +261,17 @@ export function LibraryPicker({
             ) : (
               <>
                 {/* Select-all toolbar — one click picks the whole album
-                    up to maxToAdd, or clears the selection if everything's
-                    already picked. */}
+                    up to maxToAdd, or clears the selection if it's at
+                    the cap (or all assets are already picked, whichever
+                    is smaller). */}
                 <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
                   <button
                     type="button"
                     onClick={selectAll}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950 px-2 py-1 rounded transition"
                   >
-                    {assets.length > 0 && assets.every(a => selected.has(a.id)) ? (
-                      <><Square size={12} /> Clear selection</>
+                    {selectionIsFull ? (
+                      <><Square size={12} /> Deselect all ({selected.size})</>
                     ) : (
                       <><CheckSquare size={12} /> Select all{assets.length > maxToAdd ? ` (${maxToAdd} max)` : ` (${assets.length})`}</>
                     )}

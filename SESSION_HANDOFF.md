@@ -1,6 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Library Picker switchable-building UX
+## 🟢 Latest turn — Select-all toggle now actually toggles
+
+User: "Select all should have the ability to deselect all".
+
+**Bug:** the toggle used `assets.every(a => selected.has(a.id))` to detect "all selected" and flip the button to "Clear selection". With a 30-cap and a 42-photo album, picking "Select all (30 max)" only ever selected 30 of 42 — `every` returned false because 12 photos were unpicked, so the button stayed "Select all" forever and there was no way to deselect via the toolbar.
+
+**Fix:** introduced `selectionIsFull = selected.size >= Math.min(assets.length, maxToAdd)` — the selection is "full" when we've hit either the per-send cap (30) OR every asset, whichever is smaller. Both `selectAll()` and the button label now key off this flag. Button text reads `Deselect all (30)` when full, `Select all (30 max)` otherwise.
+
+**Files touched:**
+- `src/app/beithady/communication/_components/library-picker.tsx`
+
+---
+
+## 🟢 Earlier turn — Library Picker switchable-building UX
 
 User: "Need to be able to choose Pictures from Specific Bldg locked to reservation - Need to be able to change to other".
 
