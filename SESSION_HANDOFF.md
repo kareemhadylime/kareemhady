@@ -136,3 +136,56 @@ Replaced stub with real implementation. Exports: `moveEmail` (DB update + audit 
 
 ### T21 — `src/app/personal/email/needs-review/page.tsx`
 New route at `/personal/email/needs-review`. Server component; calls `loadInbox({ needsReviewOnly: true, limit: 500 })` with optional `?account=` filter. Shows count in heading, list of emails linking to detail page, `AccountFilter` pill nav. Commit: `1278303`.
+
+---
+
+## FM+ Project Budget — feature COMPLETE on main (2026-05-04, follow-up)
+
+All 26 tasks shipped end-to-end. Branch `claude/quizzical-hoover-5cfcca` push-to-main + auto-deploy via Vercel GitHub integration.
+
+**Live route map** under `/fmplus/financial/budget/`:
+- `/` — Overview (portfolio table, KPI tiles, anomaly banner, "action needed" list)
+- `/edit` — Editor (project picker → service-line picker → category-block form, draft+publish, audit on published edits)
+- `/import` — XLSX upload (auto-detects rich AUC template vs flat template, preview, commit)
+- `/variance?project=<id>` — single-project month×category grid with drill-to-journal side drawer
+- `/compare?service_line=hk` — multi-project category grid ranked by variance %
+- `/settings` — variance thresholds editor, template list, unmapped-account drift surface
+
+**Plus API routes:**
+- `GET /api/fmplus/budget/flat-template-download` — blank flat-template XLSX
+- `GET /api/fmplus/budget/variance-xlsx?project=…&year=…&scenario=…&through=…` — variance export
+- `GET /api/fmplus/budget/variance-pdf?project=…` — A4 landscape PDF export
+
+**Library at `src/lib/fmplus/budget/`** (~12 files):
+- `schema.ts` + `types.ts` — Zod schemas + UI types
+- `templates/{hk,mep,landscape,security,pest-ctrl,waste-mgmt,index}.ts` — HK fully baked, 5 stubs
+- `variance.ts` — `aggregateBudgetByMonth`, `aggregateActualsByMonth`, `matchAccountToCategory`, `colorVariance` (asymmetric), `computeCellRollup`, `buildBudgetVariance` orchestrator
+- `variance-drill.ts` — `cellToMoveLines` (Odoo journal-entry loader), `matchesCellFilter`
+- `parsers/{flat-template,flat-template-export,rich-auc-style}.ts` — XLSX in/out (AUC parser hits 0.00% drift on the fixture)
+- `commit.ts` — atomic budget write transaction
+- `audit.ts` — `computeBudgetDiff` + `writeAuditOnPublishedEdit`
+- `portfolio.ts` — `buildPortfolio` aggregator
+- `exports/{variance-xlsx,variance-pdf}.tsx` — formatted exports
+- `__fixtures__/auc-budget.xlsx` — test fixture (109 KB)
+
+**Database (migration `0080`)**: 7 tables — `budget_templates`, `project_budgets`, `project_budget_segments`, `budget_lines` (with generated `monthly_cost` column), `budget_revenue_lines`, `budget_audit`, `budget_settings`. HK template + 5 stubs seeded. Live on Supabase project `bpjproljatbrbmszwbov`.
+
+**Tests**: 33+ vitest cases passing (variance math, parsers, audit, commit helper). 1 gated integration test (`FMPLUS_BUDGET_INTEGRATION=1`) covers AUC end-to-end with 0.5% reconciliation tolerance.
+
+**Permissions**: layout-level FM+ domain check + admin-only gates on Edit/Import/Settings. All FM+ users can view Variance/Compare/Overview.
+
+**~26 commits** on main, plus 1 cross-worktree fix (`a63a490` — `CategorySlug` type-only-import fix that unblocked the build for everyone).
+
+**Deferred items** for a possible future polish PR (none blocking):
+- Migration 0080 polish: `if not exists`, named indexes, `app_users` FKs, `updated_at` touch triggers (project conventions)
+- Schema-name suffix consistency in `schema.ts` (8 unsuffixed Zod schemas should be `*Schema`)
+- Variance perf: parallel awaits + comment on supabase `as unknown as` cast
+- Asymmetric Season check via indexed access (`seasonMonths[season]`) for compile-time enum safety
+- Wider `unmappedTotal` shape (Map<accountCode, …>) for Settings drift drilldown
+- Emaar Uptown XLSX parser — that workbook has a different sheet structure than AUC; needs a separate parser variant when the user wants Emaar imports
+
+**Parallel session**: `nifty-dubinsky-1633d8` shipped the FMPLUS Financials sub-module (P&L, Balance Sheet, dashboard, charts, account picker) under `/fmplus/financial/` — sibling to my `/budget/` tab. Both integrate cleanly because the section layout was theirs to build and my Project Budget sub-tab drops in as a child route.
+
+**No `vercel --prod` runs from worktree** (per CLAUDE.md, worktree pushes auto-deploy via GitHub→Vercel; `vercel --prod` from a worktree just hits a sandbox project with no env vars).
+
+Visual companion server has long-since auto-exited (30-min idle timeout). Re-launch with `bash scripts/start-server.sh --project-dir <worktree>` if needed for future visual brainstorms.
