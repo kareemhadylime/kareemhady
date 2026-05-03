@@ -1,6 +1,32 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Task 16 done: AccountPicker + plans API endpoint
+## 🟢 Latest turn — Task 20 done: DashboardCharts real recharts renderer
+
+**Commit:** `8df23c6`
+
+**Files changed (1):**
+- `src/app/fmplus/financials/_components/DashboardCharts.tsx` — replaced Task 19 stub with five real recharts charts: Revenue Mix donut, Cost Mix donut, Gross Margin by Service horizontal bar (color-coded: green >=20%, amber 5-20%, red <5%), 12-period trend line (Revenue/GP/EBITDA/NP), Top-10 Active Projects bar. All charts guard empty data with fallback text. Tooltip formatters use `v: number | string` + typeof guard for recharts 2.x strict types.
+
+**TS:** clean (no errors). **Tests:** 65/65 pass.
+
+**Next:** Task 21 (or whatever comes next).
+
+---
+
+## 🟢 Previous turn — Task 17 done: PnlTable real renderer
+
+**Commit:** `3978858`
+
+**Files changed (1):**
+- `src/app/fmplus/financials/_components/PnlTable.tsx` — replaced JSON-dump stub with full multi-period P&L table: sticky-left Account column; N period columns (balance + % of revenue + Δ% delta when N≥2); Revenue section band (green) / Cost / G&A / INT-TAX-DEP (dark); service-line cost groups with per-service Gross Margin pill (green ≥20% / amber 5-20% / red <5%); Subtotal rows (Gross Profit, EBITDA, Net Profit) always visible; Net Profit hero card with sparkline; Unclassified panel at bottom.
+
+**TS:** clean (no errors). **Tests:** 65/65 pass.
+
+**Next:** Task 18 — BalanceSheetTable renderer.
+
+---
+
+## 🟢 Previous turn — Task 16 done: AccountPicker + plans API endpoint
 
 **Commit:** `449408c`
 
