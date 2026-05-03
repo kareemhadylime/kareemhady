@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import { signedUrlFor, publicUrlFor, type GalleryBucket } from '@/lib/beithady/gallery/storage';
 
 // Listing-asset library reads. Used by the LibraryPicker component on
 // the inbox composer + admin page.
@@ -26,7 +27,15 @@ export type ListingAsset = {
   listing_id: string | null;        // null when sourced from a template
   category: string;
   storage_path: string;
+  // Full-resolution signed URL (90-day TTL). This is what gets sent to
+  // the guest in the gallery items table — the guest opens it weeks
+  // after we replied so it must outlast a normal stay window.
   public_url: string;
+  // 400×400 cover-cropped signed URL via Supabase image transforms.
+  // Used by the picker grid + the public gallery viewer thumbnails.
+  // Same 90-day TTL so any client that caches it works for the same
+  // window as `public_url`.
+  thumbnail_url: string;
   caption: string | null;            // mapped from ai_caption / file_name
   mime_type: string | null;
   size_bytes: number | null;
@@ -150,8 +159,22 @@ export async function getListingsInBuildingWithAssets(buildingCode: string): Pro
   });
 }
 
+// 90 days — must outlast a normal stay so the URL we ship to a guest
+// keeps working through their booking + check-out + review window.
+// Supabase signed URL TTL is bounded at 1 year; 90d gives us a comfortable
+// window for the multi-attachment gallery flow.
+const SHARE_URL_TTL_SEC = 90 * 24 * 3600;
+
+// Thumbnail transform — Supabase /render/image/sign endpoint serves a
+// downscaled re-encoded variant. Saves >95% bandwidth for the picker
+// grid where 247 photos × ~500 KB would be 120 MB without this.
+const THUMB_TRANSFORM = { width: 400, height: 400, resize: 'cover' as const, quality: 70 };
+
 // Effective assets visible for one listing = its direct rows UNION the
-// rows attached to its unit_template (if any).
+// rows attached to its unit_template (if any). Mints two signed URLs
+// per asset (full-res + thumbnail) in parallel — Supabase Storage REST
+// handles ~500 concurrent signs in ~1-2s for the worst case (247 assets
+// in BH-26-104), and we're already inside an async API route.
 export async function getListingAssets(listingId: string): Promise<ListingAsset[]> {
   const sb = supabaseAdmin();
   // Lookup the listing's unit_template_id once.
@@ -165,7 +188,7 @@ export async function getListingAssets(listingId: string): Promise<ListingAsset[
   // Single query covering both via OR — much faster than two round-trips.
   let q = sb
     .from('beithady_gallery_assets')
-    .select('id, listing_id, category, storage_path, storage_bucket, public_url, file_name, mime_type, size_bytes, sort_order, created_at, ai_caption')
+    .select('id, listing_id, category, storage_path, storage_bucket, public_url, file_name, mime_type, size_bytes, sort_order, created_at, ai_caption, ad_eligible')
     .is('deleted_at', null)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
@@ -189,17 +212,52 @@ export async function getListingAssets(listingId: string): Promise<ListingAsset[
     sort_order: number;
     created_at: string;
     ai_caption: string | null;
+    ad_eligible: boolean | null;
   };
-  return ((data as Row[] | null) || []).map(r => ({
-    id: r.id,
-    listing_id: r.listing_id,
-    category: r.category,
-    storage_path: r.storage_path,
-    public_url: r.public_url || '',
-    caption: r.ai_caption || r.file_name,
-    mime_type: r.mime_type,
-    size_bytes: r.size_bytes,
-    sort_order: r.sort_order,
-    created_at: r.created_at,
+  const rows = (data as Row[] | null) || [];
+
+  // Mint signed URLs in parallel — full + thumbnail per asset. Ad-eligible
+  // assets that have a cached public_url skip the signed-URL mint for the
+  // full version (already public CDN); thumbnail still needs transform.
+  const enriched = await Promise.all(rows.map(async r => {
+    const isImage = (r.mime_type || '').startsWith('image/');
+    const bucket = r.storage_bucket as GalleryBucket;
+
+    // Full URL: prefer cached public_url for ad_eligible; else mint signed.
+    let fullUrl = '';
+    if (r.ad_eligible && r.public_url) {
+      fullUrl = r.public_url;
+    } else if (bucket === 'beithady-gallery-public') {
+      fullUrl = publicUrlFor(bucket, r.storage_path) || '';
+    } else {
+      fullUrl = (await signedUrlFor(bucket, r.storage_path, SHARE_URL_TTL_SEC)) || '';
+    }
+
+    // Thumb URL: only meaningful for images. Non-image (video, pdf) reuses
+    // the full URL — picker handles non-image rendering separately.
+    let thumbUrl = fullUrl;
+    if (isImage) {
+      if (bucket === 'beithady-gallery-public') {
+        thumbUrl = publicUrlFor(bucket, r.storage_path, THUMB_TRANSFORM) || fullUrl;
+      } else {
+        thumbUrl = (await signedUrlFor(bucket, r.storage_path, SHARE_URL_TTL_SEC, THUMB_TRANSFORM)) || fullUrl;
+      }
+    }
+
+    return {
+      id: r.id,
+      listing_id: r.listing_id,
+      category: r.category,
+      storage_path: r.storage_path,
+      public_url: fullUrl,
+      thumbnail_url: thumbUrl,
+      caption: r.ai_caption || r.file_name,
+      mime_type: r.mime_type,
+      size_bytes: r.size_bytes,
+      sort_order: r.sort_order,
+      created_at: r.created_at,
+    } satisfies ListingAsset;
   }));
+
+  return enriched;
 }

@@ -11,7 +11,13 @@ import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Loader2, Upload, Chec
 export type LibraryAttachment = { url: string; name: string; mime: string };
 
 type Listing = { listing_id: string; nickname: string | null; asset_count: number };
-type Asset = { id: string; public_url: string; caption: string | null; mime_type: string | null };
+type Asset = {
+  id: string;
+  public_url: string;        // full-res signed URL — used in send payload
+  thumbnail_url?: string;    // 400px transformed signed URL — used in picker grid
+  caption: string | null;
+  mime_type: string | null;
+};
 
 const STEPS = ['building', 'listing', 'photos'] as const;
 type Step = typeof STEPS[number];
@@ -235,7 +241,12 @@ export function LibraryPicker({
                     >
                       {isImg ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={a.public_url} alt={a.caption || 'asset'} className="w-full h-full object-cover" />
+                        <img
+                          src={a.thumbnail_url || a.public_url}
+                          alt={a.caption || 'asset'}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                       ) : (
                         <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs text-slate-500">
                           {a.mime_type || 'file'}

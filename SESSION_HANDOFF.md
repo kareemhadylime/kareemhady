@@ -1,6 +1,34 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Library Picker repointed at gallery + Select-all + 30-item cap
+## 🟢 Latest turn — Library Picker thumbnails (signed URLs + image transform)
+
+User: "no thumbnails?". Picker grid was rendering alt-text only — no actual images.
+
+**Cause:** `beithady_gallery_assets` is backed by a **private** bucket (`beithady-gallery`); the `public_url` column is NULL on every row (709 / 709 in BH-26-001). Reads must mint signed URLs via Supabase's `createSignedUrl`. The legacy listing-assets table I just replaced was on a public bucket, so this never came up.
+
+**Fix:** `getListingAssets()` now mints **two** signed URLs per asset in parallel (`Promise.all` over up to 500 rows):
+
+- `public_url` — full-resolution, **90-day TTL**. The URL the guest sees in their gallery viewer for the duration of their stay + review window. Supabase signed URLs cap at 1y; 90d gives comfortable headroom past a typical reservation lifecycle.
+- `thumbnail_url` — 400×400 cover-cropped via `?width=400&height=400&resize=cover&quality=70` on Supabase's `/render/image/sign` endpoint. Saves >95% bandwidth for the picker grid (a unit with 247 photos would be ~120 MB raw, ~7 MB transformed). Same 90-day TTL.
+
+Ad-eligible assets that have a cached `public_url` skip the signed-URL mint for the full version (already on the public CDN); thumbnail still re-minted to apply the transform.
+
+**API + types wired through:**
+- `ListingAsset` type adds `thumbnail_url: string`
+- `/api/beithady/communication/library/assets` includes both URLs in the response
+- `LibraryPicker`'s `Asset` type adds `thumbnail_url?: string`
+- Picker `<img>` renders `a.thumbnail_url || a.public_url` with `loading="lazy"` — only above-the-fold thumbs load on first paint, the rest stream in as the user scrolls
+
+After this, opening BH-26 → BH-26-001 should show 42 photo thumbnails rendered as actual images (was: alt-text placeholders).
+
+**Files touched:**
+- `src/lib/beithady/communication/listing-assets.ts` (Promise.all signed URL mint w/ image transform)
+- `src/app/api/beithady/communication/library/assets/route.ts` (pass thumbnail_url through)
+- `src/app/beithady/communication/_components/library-picker.tsx` (Asset type + use thumbnail_url with lazy load)
+
+---
+
+## 🟢 Earlier turn — Library Picker repointed at gallery + Select-all + 30-item cap
 
 User: "When attaching from Library Not Accepting. I should be to choose several photos or full album, create a url for either and insert in the message".
 
