@@ -43,7 +43,9 @@ async function assertOwnerOwnsBoat(boatId: string, user: SessionUser): Promise<s
   return row.owner_id;
 }
 
-export async function createExpenseAction(formData: FormData): Promise<void> {
+export async function createExpenseAction(
+  formData: FormData
+): Promise<{ ok: true; expenseId: string } | { ok: false; error: string }> {
   const me = await requireBoatRoleOrThrow('owner');
   const boatId = s(formData.get('boat_id'));
   const category = s(formData.get('category')) as (typeof VALID_CATEGORIES)[number];
@@ -59,22 +61,28 @@ export async function createExpenseAction(formData: FormData): Promise<void> {
   const payNow = formData.get('pay_now') === 'on';
   const payNowMethodRaw = s(formData.get('pay_now_method')) || 'cash';
 
-  if (!boatId || !category || !expenseDate) throw new Error('invalid_input');
-  if (!VALID_CATEGORIES.includes(category)) throw new Error('invalid_category');
-  if (!Number.isFinite(amount) || amount < 0) throw new Error('invalid_amount');
+  if (!boatId || !category || !expenseDate) {
+    return { ok: false, error: 'Boat, category and date are required.' };
+  }
+  if (!VALID_CATEGORIES.includes(category)) {
+    return { ok: false, error: 'Unknown category.' };
+  }
+  if (!Number.isFinite(amount) || amount < 0) {
+    return { ok: false, error: 'Amount must be a positive number.' };
+  }
 
   // Per-category required-field validation.
   if (category === 'fuel' && (fuelLiters === null || fuelPrice === null)) {
-    throw new Error('fuel_requires_liters_and_price');
+    return { ok: false, error: 'Fuel needs both liters and price/liter.' };
   }
   if (category === 'repair' && !description) {
-    throw new Error('repair_requires_description');
+    return { ok: false, error: 'Repair entries need a description.' };
   }
   if (category === 'part_time_skipper' && !skipperId) {
-    throw new Error('part_time_skipper_requires_skipper');
+    return { ok: false, error: 'Part-time skipper entries need a skipper.' };
   }
   if ((category === 'amenities' || category === 'part_time_skipper') && !reservationId) {
-    throw new Error(`${category}_requires_reservation`);
+    return { ok: false, error: `${category} entries need a trip.` };
   }
 
   const ownerId = await assertOwnerOwnsBoat(boatId, me);
@@ -136,6 +144,7 @@ export async function createExpenseAction(formData: FormData): Promise<void> {
   revalidatePath('/emails/boat-rental/owner/money/expenses');
   revalidatePath('/emails/boat-rental/owner/money/bills');
   if (reservationId) revalidatePath(`/emails/boat-rental/owner/booking/${reservationId}`);
+  return { ok: true, expenseId };
 }
 
 export async function recordExpensePaymentAction(
@@ -222,37 +231,99 @@ export async function recordExpensePaymentAction(
   return { ok: true };
 }
 
-export async function cancelExpenseAction(formData: FormData): Promise<void> {
+// Window (in minutes) during which a PAID expense can still be voided as a
+// fat-finger correction. Outside this window paid expenses are immutable —
+// the user has to record a reverse payment / contra-entry instead.
+export const EXPENSE_VOID_WINDOW_MIN = 10;
+
+/**
+ * Cancel/void an expense.
+ *
+ * - `open` (unpaid) expenses: cancellable any time. Status flips to `cancelled`,
+ *   payment rows untouched (there are none).
+ * - `paid` expenses: voidable ONLY within EXPENSE_VOID_WINDOW_MIN of `created_at`.
+ *   This is for "oops I just typed the wrong number" corrections. When voided,
+ *   any associated payment rows are deleted (so reports don't double-count an
+ *   entry that's effectively a typo). After the window closes, paid expenses
+ *   are locked — the right path is a manual reversing entry through admin.
+ * - `cancelled`: idempotent no-op.
+ *
+ * Returns a result so the calling client form can show toast feedback.
+ */
+export async function cancelExpenseAction(
+  formData: FormData
+): Promise<{ ok: true; voided_payment: boolean } | { ok: false; error: string }> {
   const me = await requireBoatRoleOrThrow('owner');
   const id = s(formData.get('id'));
   const reason = sOrNull(formData.get('reason'));
-  if (!id) throw new Error('invalid_input');
+  if (!id) return { ok: false, error: 'Missing expense id.' };
 
   const sb = supabaseAdmin();
   const { data: row } = await sb
     .from('boat_rental_expenses')
-    .select('boat_id, status')
+    .select('boat_id, status, created_at, amount_egp, category')
     .eq('id', id)
     .maybeSingle();
-  if (!row) throw new Error('not_found');
-  const exp = row as { boat_id: string; status: string };
-  if (exp.status === 'cancelled') return;
+  if (!row) return { ok: false, error: 'Expense not found.' };
+  const exp = row as {
+    boat_id: string;
+    status: string;
+    created_at: string;
+    amount_egp: string | number;
+    category: string;
+  };
+  if (exp.status === 'cancelled') {
+    return { ok: true, voided_payment: false };
+  }
   await assertOwnerOwnsBoat(exp.boat_id, me);
 
-  await sb
+  const ageMinutes = (Date.now() - new Date(exp.created_at).getTime()) / 60_000;
+  const withinVoidWindow = ageMinutes <= EXPENSE_VOID_WINDOW_MIN;
+
+  if (exp.status === 'paid' && !withinVoidWindow) {
+    return {
+      ok: false,
+      error: `This expense was paid ${Math.round(ageMinutes)} min ago — outside the ${EXPENSE_VOID_WINDOW_MIN}-min undo window. Record a reversing entry instead.`,
+    };
+  }
+
+  let voidedPayment = false;
+  if (exp.status === 'paid' && withinVoidWindow) {
+    // Delete the payment rows so reports don't double-count a typo'd entry.
+    const { error: delErr } = await sb
+      .from('boat_rental_expense_payments')
+      .delete()
+      .eq('expense_id', id);
+    if (delErr) {
+      return { ok: false, error: `Couldn’t roll back payments: ${delErr.message}` };
+    }
+    voidedPayment = true;
+  }
+
+  const { error: updErr } = await sb
     .from('boat_rental_expenses')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id);
+  if (updErr) {
+    return { ok: false, error: `Couldn’t cancel: ${updErr.message}` };
+  }
 
   await logAudit({
     actorUserId: me.id,
     actorRole: 'owner',
-    action: 'expense_cancel',
-    payload: { expense_id: id, reason },
+    action: voidedPayment ? 'expense_void_undo' : 'expense_cancel',
+    payload: {
+      expense_id: id,
+      reason,
+      prior_status: exp.status,
+      age_minutes: Math.round(ageMinutes),
+      voided_payment: voidedPayment,
+    },
   });
 
   revalidatePath('/emails/boat-rental/owner/money');
   revalidatePath('/emails/boat-rental/owner/money/expenses');
   revalidatePath(`/emails/boat-rental/owner/money/expenses/${id}`);
   revalidatePath('/emails/boat-rental/owner/money/bills');
+  return { ok: true, voided_payment: voidedPayment };
 }

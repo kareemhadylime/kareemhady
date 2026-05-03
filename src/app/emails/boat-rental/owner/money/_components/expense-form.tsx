@@ -1,6 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2, Save as SaveIcon } from 'lucide-react';
+import { useToast } from '@/app/_components/toast';
+import { hapticSuccess, hapticError } from '@/lib/haptics';
 import { createExpenseAction } from '../actions';
 
 type Boat = { id: string; name: string };
@@ -39,6 +43,9 @@ export function ExpenseForm({
   defaultBoatId?: string;
   todayCairo: string;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
   const [boatId, setBoatId] = useState(defaultBoatId ?? boats[0]?.id ?? '');
   const [category, setCategory] = useState<string>('fuel');
   const [payNow, setPayNow] = useState(true);
@@ -48,6 +55,37 @@ export function ExpenseForm({
   );
   const [fuelTips, setFuelTips] = useState('');
   const [amount, setAmount] = useState('');
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const fd = new FormData(e.currentTarget);
+      // Form's `amount_egp` for fuel is computed from liters×price+tips. We
+      // sync it via hidden input below, but FormData also picks it up.
+      const result = await createExpenseAction(fd);
+      if (result.ok) {
+        toast('Expense saved.', { kind: 'success' });
+        hapticSuccess();
+        // "Close" the popout = navigate back to the expenses list. router.refresh
+        // ensures the new row shows up immediately.
+        router.push('/emails/boat-rental/owner/money/expenses');
+        router.refresh();
+      } else {
+        toast(result.error, { kind: 'error' });
+        hapticError();
+        setSubmitting(false);
+      }
+    } catch (err) {
+      toast(`Couldn’t save: ${(err as Error).message}`, { kind: 'error' });
+      hapticError();
+      setSubmitting(false);
+    }
+    // Note: on success we navigate away, so we don't reset `submitting` —
+    // the next page is the destination. Resetting here would briefly
+    // re-enable the button before navigation completes.
+  }
 
   const boatSkippers = useMemo(
     () => skippers.filter((s) => s.boat_id === boatId),
@@ -73,7 +111,7 @@ export function ExpenseForm({
   const requireDescription = category === 'repair';
 
   return (
-    <form action={createExpenseAction} className="space-y-3">
+    <form onSubmit={onSubmit} className="space-y-3">
       <label className="block text-sm">
         <span className="text-slate-600 text-xs">Boat *</span>
         <select
@@ -263,8 +301,17 @@ export function ExpenseForm({
       </div>
 
       <div className="flex justify-end gap-2 pt-3">
-        <button type="submit" className="ix-btn-primary">
-          Save
+        <button
+          type="submit"
+          disabled={submitting}
+          className="ix-btn-primary inline-flex items-center gap-1 disabled:opacity-60"
+        >
+          {submitting ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <SaveIcon size={14} />
+          )}
+          {submitting ? 'Saving…' : 'Save'}
         </button>
       </div>
     </form>

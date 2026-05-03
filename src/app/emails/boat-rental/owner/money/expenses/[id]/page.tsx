@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, XCircle } from 'lucide-react';
+import { ChevronLeft, XCircle, Undo2 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
@@ -9,7 +9,7 @@ import { cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { TabNav, OWNER_TABS } from '../../../../_components/tabs';
 import { MoneySubNav } from '../../_components/sub-nav';
 import { ExpensePaymentForm } from '../../_components/expense-payment-form';
-import { cancelExpenseAction } from '../../actions';
+import { VoidExpenseForm } from '../../_components/void-expense-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -183,29 +183,39 @@ export default async function OwnerExpenseDetail({
         </div>
       </section>
 
-      {e.status === 'open' && (
-        <section className="mt-6 ix-card p-5 border-rose-200 bg-rose-50/20">
-          <h2 className="font-semibold mb-2 text-rose-800 text-sm flex items-center gap-2">
-            <XCircle size={14} /> Cancel this expense
+      {(e.status === 'open' || e.status === 'paid') && (
+        <section className="mt-6 ix-card p-5 border-rose-200 bg-rose-50/20 dark:border-rose-800 dark:bg-rose-950/20">
+          <h2 className="font-semibold mb-2 text-rose-800 dark:text-rose-300 text-sm flex items-center gap-2">
+            {e.status === 'paid' ? (
+              <>
+                <Undo2 size={14} /> Undo recent entry
+              </>
+            ) : (
+              <>
+                <XCircle size={14} /> Cancel this bill
+              </>
+            )}
           </h2>
-          <p className="text-xs text-rose-900/70 mb-3">
-            Cancelling marks the bill as voided. Existing payments stay on record but are no longer
-            counted as outflows.
+          <p className="text-xs text-rose-900/70 dark:text-rose-200/70 mb-3">
+            {e.status === 'paid' ? (
+              <>
+                For fat-finger corrections only. Within 10 minutes of entry you can void this
+                expense — its payment rows are deleted so the entry leaves no trace beyond the audit
+                log. After 10 minutes, paid expenses are locked and you have to record a reversing
+                entry.
+              </>
+            ) : (
+              <>
+                Cancelling marks the bill as voided. Existing payments stay on record but are no
+                longer counted as outflows.
+              </>
+            )}
           </p>
-          <form action={cancelExpenseAction} className="flex gap-2 items-center">
-            <input type="hidden" name="id" value={e.id} />
-            <input
-              name="reason"
-              placeholder="Reason (optional)"
-              className="ix-input text-sm flex-1 max-w-md"
-            />
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1 text-sm text-rose-700 hover:text-rose-900"
-            >
-              <XCircle size={14} /> Cancel expense
-            </button>
-          </form>
+          <VoidExpenseForm
+            expenseId={e.id}
+            status={e.status as 'open' | 'paid' | 'cancelled'}
+            createdAtIso={e.created_at}
+          />
         </section>
       )}
     </>
