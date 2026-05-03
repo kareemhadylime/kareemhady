@@ -142,6 +142,28 @@ git push origin main
 vercel --prod
 ```
 
+**Real production is `kareemhady`/`limeinc.vercel.app`** and it
+auto-deploys from the GitHub → Vercel integration on every push to
+`main`. So the `git push origin main` step alone already ships to
+prod; the `vercel --prod` is belt-and-suspenders.
+
+**Worktree quirk:** when run from inside a worktree, `vercel --prod`
+deploys to a **separate worktree-scoped Vercel project** (e.g.
+`festive-mclaren-08d4ef.vercel.app`), not the real production
+project. That sandbox project has no env vars, so its cron routes
+log `Error: supabaseUrl is required.` — this is harmless noise and
+does **not** affect real production. If you only see the sandbox
+URL come back from `vercel --prod`, that's expected from a worktree;
+real prod went out via GitHub.
+
+**From a worktree** (the common case for this repo, since work
+happens in `.claude/worktrees/*`), the push step is also non-trivial:
+the worktree branch is usually behind `origin/main`, so you typically
+need to `git fetch origin main && git rebase origin/main` before
+`git push origin HEAD:main`. Concurrent commits from other worktrees
+are common — be ready to fetch/rebase a second time if the push is
+rejected.
+
 ## .claude/ harness configuration
 
 Audited 2026-05-03.

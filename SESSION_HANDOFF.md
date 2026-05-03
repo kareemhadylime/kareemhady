@@ -5407,3 +5407,19 @@ Actions taken:
 - **Likely typo flagged in CLAUDE.md:** `Bash(git commit -m ' *)` starts with a single quote, so only single-quoted commit messages skip the prompt. Double-quoted commits (the form used everywhere in this project) still prompt. Suggested fix: drop the quote → `Bash(git commit -m *)`.
 
 **Status:** CLAUDE.md is now standalone source of truth; AGENTS.md removed. Per project deploy convention, this should be committed to main and pushed; deferring that to user since auto-deploy was not explicitly requested for this turn.
+
+---
+
+## Standing auto-deploy authorization granted (2026-05-03, follow-up)
+
+User granted blanket authorization: "YOU ARE ALWAYS Authorized to do all automatically with merge + Push + deploy on vercel & supabase". Saved as feedback memory at `~/.claude/projects/C--Users-karee-projects-kareemhady/memory/feedback_auto_deploy_authorization.md` (and added to MEMORY.md index). Future Claude sessions will skip per-step confirmation for the deploy loop.
+
+Executed the deploy for the CLAUDE.md consolidation:
+1. `git add -A` → staged the AGENTS.md delete + CLAUDE.md write + SESSION_HANDOFF append.
+2. `git commit -m "docs: consolidate AGENTS.md into standalone CLAUDE.md"` → commit `5235090` (after rebase).
+3. `git push origin HEAD:main` → rejected twice due to concurrent landings on origin/main (`7428f21` then `8ec6f88`); resolved with `git fetch + git rebase origin/main` each time. Final push succeeded: `8ec6f88..5235090 HEAD -> main`.
+4. `vercel --prod --yes --scope lime-investments` → returned `READY`, deployed to the **worktree sandbox** `festive-mclaren-08d4ef.vercel.app` (deployment id `dpl_DxxPjHxT1nLpNvjxFSav1ovW4aRu`). Real production (`limeinc.vercel.app`) is handled by the GitHub→Vercel auto-deploy that fires on push to main — already in flight.
+
+CLAUDE.md got one follow-up edit to document this worktree-vs-real-prod deploy distinction so future sessions don't get confused (and to call out the rebase-before-push pattern that's standard from worktrees). That edit is uncommitted at the time of this entry — will commit + push as part of the same auto-deploy loop the user just authorized.
+
+**Status:** standing authorization saved; first auto-deploy executed end-to-end; CLAUDE.md doc-clarification still to be pushed.
