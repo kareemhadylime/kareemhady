@@ -24,9 +24,10 @@
 //   9  Contracting Insurance (xx0901-xx0902)
 //   10 Penalties (xx1001-xx1002)         11 Indirect Costs (xx1101-xx1103)
 
-// Odoo's account.account.account_type enum. Listed exhaustively so
-// callers get a TypeScript error on typos. The (string & {}) escape
-// hatch keeps the type forward-compatible if Odoo adds new values.
+// Odoo's account.account.account_type enum, exhaustively listed so callers
+// get a TypeScript error on typos. The 17 values below are stable across
+// Odoo 16-18. If Odoo ever introduces a new value, the build will break
+// here and at the call sites — fix by adding it to the union.
 export type AccountType =
   | 'asset_cash'
   | 'asset_receivable'
@@ -44,8 +45,7 @@ export type AccountType =
   | 'expense'
   | 'expense_direct_cost'
   | 'expense_depreciation'
-  | 'off_balance'
-  | (string & {});  // forward-compat escape hatch
+  | 'off_balance';
 
 export type ServiceKey =
   | 'hk' | 'mep' | 'security' | 'landscape'

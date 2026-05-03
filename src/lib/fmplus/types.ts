@@ -31,8 +31,11 @@ export type Scope = {
   withDep: boolean;
 };
 
-// Per-period balances keyed by Period.key.
-export type PeriodValues = Record<string, number>;
+// Per-period balances keyed by Period.key. The `| undefined` acknowledges
+// that reads for unknown / unrequested keys return undefined at runtime —
+// even though the project-wide tsconfig doesn't have noUncheckedIndexedAccess.
+// All consumers downstream already handle this with `values[k] || 0`.
+export type PeriodValues = Record<string, number | undefined>;
 
 export type PnlLeaf = {
   code: string;
