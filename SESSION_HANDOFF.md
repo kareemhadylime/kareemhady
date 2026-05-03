@@ -1,5 +1,16 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
+## Task 5 — OAuth domain param + accounts.domain/display_name (2026-05-03)
+
+Extended Google OAuth start + callback routes to carry a `domain` parameter through the state:
+
+- `src/app/api/auth/google/start/route.ts` — now accepts `?domain=` query param; builds state as `${csrf}.${domainParam}`, stores only CSRF in the cookie. Legacy calls (no `?domain=`) produce `state="<csrf>."` → fully backwards-compatible.
+- `src/app/api/auth/google/callback/route.ts` — parses state by splitting on first `.`; CSRF check uses only the left part. Sets `domain='personal'` when domainPart is `'personal'`, otherwise `null`. Also sets `display_name` via inline `deriveDisplayName()` helper (GMAIL / LIME / FM+ / local-part uppercased).
+
+Commit: `87b9f1b feat(personal): pass domain through OAuth state, set on accounts row`
+
+
+
 ## 🟢 Latest turn — Search-bug fix + auto-translation for non-EN/AR messages (mig 0079)
 
 User: "No Message Translation - There should be a translation for anything except English & Arabic. Searching Hady Family as a Guest Name, No results."
@@ -46,6 +57,93 @@ Plus a partial index `idx_bh_messages_translation_pending` on inbound rows missi
 **Verified:** build clean, search query returns 1 match (was 873). Migration applied to prod via Supabase MCP. Translation pipeline only fires when `ANTHROPIC_API_KEY` is set in env — silently no-ops otherwise.
 
 **Cost ceiling:** ~$0.001 per non-EN/AR message ever translated (cached forever after). Worst case: full inbox backfill (~2,250 candidate messages) ≈ $2.25 once.
+
+---
+
+## 🟢 Latest turn — Personal Email Tasks 12 + 13: Prompt builder + AI classifier (TDD)
+
+### Task 12 — Prompt builder
+
+Created `src/lib/personal-email/prompt.ts` and colocated test using TDD discipline.
+
+**Files created:**
+- `src/lib/personal-email/prompt.test.ts` — 4 tests: all 9 category slugs present in system prompt, few-shot corrections embedded, JSON schema sentinel present, `buildUserMessage` formats all headers + body excerpt; written before implementation
+- `src/lib/personal-email/prompt.ts` — `buildSystemPrompt(recentByCategory)` (9-category definitions + few-shot + output schema), `buildUserMessage(args)` (headers + 1 KB-capped excerpt)
+
+**TDD steps verified:**
+1. Test written first — confirmed FAIL: `Cannot find module './prompt'`
+2. Implementation written — all 4 tests pass: `Test Files 1 passed (1) | Tests 4 passed (4)`
+3. Commit `849d425`: `feat(personal): system + user prompt builders + tests`
+
+### Task 13 — AI classifier (Haiku 4.5, mocked)
+
+Created `src/lib/personal-email/ai-classifier.ts` and colocated test using TDD discipline.
+
+**Files created:**
+- `src/lib/personal-email/ai-classifier.test.ts` — 3 tests: clean JSON parse + cost > 0, low confidence flagged as needs_review, JSON parse failure falls back to notifications/needs_review/parse-reason; written before implementation
+- `src/lib/personal-email/ai-classifier.ts` — `classifyWithAi(input, recentCorrectionsByCategory)` using `claude-haiku-4-5-20251001` with ephemeral prompt caching on system prompt; `computeCost()` covers input/cache-read/cache-creation/output token rates
+
+**TDD steps verified:**
+1. Test written first — confirmed FAIL: `Cannot find module './ai-classifier'`
+2. Implementation written — all 3 tests pass: `Test Files 1 passed (1) | Tests 3 passed (3)`
+3. Commit `b65645c`: `feat(personal): Haiku 4.5 classifier with prompt caching + tests`
+
+---
+
+## 🟢 Earlier turn — Personal Email Tasks 10 + 11: Rule matcher (TDD) + cost guard/corrections helpers
+
+### Task 10 — Rule matcher
+
+Created `src/lib/personal-email/rule-matcher.ts` and its colocated test using TDD discipline.
+
+**Files created:**
+- `src/lib/personal-email/rule-matcher.test.ts` — 8 tests: priority ordering, from_domain suffix match, subject_contains case-insensitivity, gmail_label exact match, header_present, disabled rule skipping, account_id scoping, null-match case; written before implementation
+- `src/lib/personal-email/rule-matcher.ts` — `matchRule(features, rules, accountId?)` pure function; `matches()` private helper covering all 6 MatchType cases
+
+**TDD steps verified:**
+1. Test written first — confirmed FAIL: `Cannot find module './rule-matcher'`
+2. Implementation written — all 8 tests pass: `Test Files 1 passed (1) | Tests 8 passed (8)`
+3. Commit `023eb27`: `feat(personal): rule matcher with priority order + tests`
+
+### Task 11 — Cost guard + corrections helpers
+
+**Files created:**
+- `src/lib/personal-email/cost-guard.ts` — `getDailyCostUsd()`, `isOverDailyCap(cap)`, `DEFAULT_DAILY_CAP_USD = 0.5`, `readDailyCapFromEnv()` (reads `PERSONAL_EMAIL_DAILY_CAP_USD` env var)
+- `src/lib/personal-email/corrections.ts` — `getRecentCorrectionsByCategory(perCategory=10)` DB wrapper; returns `Record<CategorySlug, CorrectionExample[]>` for AI few-shot prompting (spec §12)
+
+Commit `9a54197`: `feat(personal): daily cost guard + recent-corrections helpers`
+
+---
+
+## 🟢 Latest turn — Personal Email Task 9: Feature extractor + tests (TDD)
+
+Created `src/lib/personal-email/feature-extractor.ts` and its colocated test using TDD discipline.
+
+**Files created:**
+- `src/lib/personal-email/feature-extractor.test.ts` — 7 tests across `parseFromDomain` (4) and `extractFeatures` (3); written before implementation
+- `src/lib/personal-email/feature-extractor.ts` — `parseFromDomain`, `parseFromAddress`, `extractFeatures` pure functions; `FeatureInput` and `RawHeaderMap` types; `getHeader` case-insensitive lookup helper
+
+**TDD steps verified:**
+1. Test written first — confirmed FAIL: `Cannot find module './feature-extractor'`
+2. Implementation written — all 7 tests pass: `Test Files 1 passed (1) | Tests 7 passed (7)`
+3. Commit `ca73149`: `feat(personal): feature extractor + tests`
+
+---
+
+## 🟢 Earlier turn — Personal Email Tasks 2 + 3: Zod schemas, types, category constants
+
+Created `src/lib/personal-email/` directory (new domain module).
+
+**Task 2 — Zod schemas + types:**
+- `src/lib/personal-email/schema.ts` — Zod schemas for `CategorySlug`, `MatchType`, `ClassificationMethod`, `PersonalEmailCategoryRow`, `PersonalEmailRuleRow`, `PersonalEmailCorrectionRow`, `ClassificationRunRow`, `AiClassificationOutput`
+- `src/lib/personal-email/types.ts` — TypeScript types as `z.infer<>` re-exports + `EmailFeatures` plain type
+- Commit `ffbc9a8`: `feat(personal): zod schemas + types for personal-email`
+
+**Task 3 — Category constants:**
+- `src/lib/personal-email/categories.ts` — `CATEGORIES` array (9 slugs), `ALWAYS_AI_CATEGORIES` set, `TIER_LABELS` map, `getCategory()` and `getCategoriesByTier()` helpers
+- Commit `5001da1`: `feat(personal): category constants + tier helpers`
+
+No downstream modules touched; these are pure data definitions consumed by later tasks.
 
 ---
 
@@ -5742,3 +5840,21 @@ User: **Spec Approved** → invoked `superpowers:writing-plans` skill → wrote 
 **Plan NOT yet committed.** Awaiting: about to commit + offer execution choice (subagent-driven vs inline). Two unstaged files: `docs/superpowers/plans/2026-05-03-personal-email-implementation.md` (new), `SESSION_HANDOFF.md` (this update).
 
 **Still no code, no migrations, no deploys** beyond docs. Plan phase finished — Workflow phase ready to start on user's "go".
+
+---
+
+## Task 14 — Label-sync module + tests (2026-05-03)
+
+Implemented two-way Gmail label sync for the personal email module:
+
+**Files created:**
+- `src/lib/personal-email/label-sync-db.ts` — DB-only helper with `upsertLabelMapping`, `loadLabelMap`, `ALL_LIME_LABEL_NAMES`. Isolated so the main module can be unit-tested via `vi.mock`.
+- `src/lib/personal-email/label-sync.ts` — Main sync module: `ensureLabelsForAccount` (idempotent label create/reuse per account), `syncLabelChange` (batchModify to add new + remove old label in one API call), `removeAllLimeLabels` (paginated strip + delete for disconnect flow).
+- `src/lib/personal-email/label-sync.test.ts` — 4 unit tests (TDD-first). Used `vi.hoisted()` to lift mock fn variables above the `vi.mock()` factory calls (required by Vitest hoisting semantics). All 4 pass.
+
+**Self-review:**
+- Test file written first? Y
+- First run failure: `Cannot find module '/src/lib/personal-email/label-sync'` (expected)
+- Second run: `Tests 4 passed (4)`
+- 3 files committed in one commit? Y — commit `f16e22c feat(personal): two-way Gmail label sync (ensure/sync/remove) + tests`
+- Call shapes verified with `expect.objectContaining`? Y
