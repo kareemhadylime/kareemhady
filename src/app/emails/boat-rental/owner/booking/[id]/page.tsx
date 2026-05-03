@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, XCircle } from 'lucide-react';
+import { ChevronLeft, XCircle, AlertTriangle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
@@ -11,7 +11,10 @@ import { getDefaultSkipper } from '@/lib/boat-rental/skipper-resolver';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { ClickToContact } from '../../../_components/click-to-contact';
 import { RecordPaymentForm } from '../../_components/record-payment-form';
-import { cancelReservationOwnerAction } from '../../actions';
+import {
+  cancelReservationOwnerAction,
+  forceCancelReservationOwnerAction,
+} from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +69,10 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
   const receiptUrl = latestReceiptPath ? await signedImageUrl(latestReceiptPath) : null;
 
   const canCancel = ['held', 'confirmed'].includes(r.status) && isWithinCancellationWindow(r.booking_date);
+  // Force-cancel covers everything regular cancel can't: inside-72h reservations,
+  // details_filled, and paid_to_owner (sets refund_pending so admin reconciles).
+  const canForceCancel =
+    !canCancel && ['held', 'confirmed', 'details_filled', 'paid_to_owner'].includes(r.status);
   const canRecordPayment = ['confirmed', 'details_filled'].includes(r.status) && remaining > 0;
 
   return (
@@ -229,6 +236,49 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
             <input type="hidden" name="id" value={r.id} />
             <button type="submit" className="inline-flex items-center gap-1 text-sm text-rose-700 hover:text-rose-900">
               <XCircle size={14} /> Cancel this booking
+            </button>
+          </form>
+        </section>
+      )}
+
+      {canForceCancel && (
+        <section className="mt-6 ix-card p-5 border-rose-300 bg-rose-50/40 dark:border-rose-700 dark:bg-rose-950/30">
+          <h2 className="font-semibold mb-2 text-rose-900 dark:text-rose-200 text-sm flex items-center gap-2">
+            <AlertTriangle size={14} /> Danger zone — force cancel
+          </h2>
+          <p className="text-xs text-rose-900/80 dark:text-rose-200/80 mb-3">
+            Use this when the regular flow won&apos;t work — boat damage, weather, owner
+            conflict, client no-show, or the broker is unreachable. The cancellation goes
+            through immediately; the broker is notified but cannot veto.{' '}
+            {r.status === 'paid_to_owner' && (
+              <span className="block mt-1 font-semibold">
+                Payment was already collected — this will mark the reservation as
+                <em> refund pending</em> so admin can reconcile with the broker.
+              </span>
+            )}
+          </p>
+          <form
+            action={forceCancelReservationOwnerAction}
+            className="flex flex-col sm:flex-row sm:items-end gap-2"
+          >
+            <input type="hidden" name="id" value={r.id} />
+            <label className="text-sm flex-1">
+              <span className="text-rose-900/80 dark:text-rose-200/80 text-xs">
+                Reason (required, ≥5 chars)
+              </span>
+              <input
+                name="reason"
+                required
+                minLength={5}
+                placeholder="e.g. boat damaged in marina, can't fulfill"
+                className="ix-input mt-1 w-full"
+              />
+            </label>
+            <button
+              type="submit"
+              className="ix-btn-danger inline-flex items-center gap-1 self-start sm:self-end whitespace-nowrap"
+            >
+              <AlertTriangle size={14} /> Force cancel
             </button>
           </form>
         </section>
