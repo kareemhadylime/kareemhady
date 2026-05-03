@@ -13,6 +13,7 @@ import {
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
 import { isWithinCancellationWindow } from '@/lib/boat-rental/pricing';
 import { enqueueNotification, flushPendingForReservation } from '@/lib/boat-rental/notifications';
+import { recordPaymentCore } from '@/lib/boat-rental/record-payment';
 
 const VALID_BLOCK_REASONS = ['personal_use', 'maintenance', 'owner_trip', 'repair', 'other'] as const;
 
@@ -77,19 +78,16 @@ export async function markPaidManuallyAction(formData: FormData): Promise<void> 
   if (!['confirmed', 'details_filled'].includes(r.status)) throw new Error('bad_status');
 
   const sb = supabaseAdmin();
-  await sb.from('boat_rental_payments').upsert(
-    {
-      reservation_id: id,
-      amount_egp: amount,
-      receipt_path: null,
-      paid_at: new Date().toISOString(),
-      recorded_by: me.id,
-      recorded_by_role: 'owner',
-      method: method || 'manual_override',
-      note,
-    },
-    { onConflict: 'reservation_id' }
-  );
+  await sb.from('boat_rental_payments').insert({
+    reservation_id: id,
+    amount_egp: amount,
+    receipt_path: null,
+    paid_at: new Date().toISOString(),
+    recorded_by: me.id,
+    recorded_by_role: 'owner',
+    method: method || 'manual_override',
+    note,
+  });
   await sb
     .from('boat_rental_reservations')
     .update({ status: 'paid_to_owner', updated_at: new Date().toISOString() })
@@ -475,4 +473,74 @@ export async function rejectCancellationAction(formData: FormData): Promise<void
   await flushPendingForReservation(id);
 
   revalidatePath('/emails/boat-rental/owner');
+}
+
+export async function addExternalBrokerAction(formData: FormData): Promise<{ id: string; name: string }> {
+  const me = await requireBoatRoleOrThrow('owner');
+  const name = s(formData.get('name')).trim();
+  const phone = sOrNull(formData.get('phone'));
+  if (!name) throw new Error('invalid_input');
+
+  const ownerIds = await getOwnedOwnerIds(me);
+  if (ownerIds.length === 0) throw new Error('no_owner');
+  // Use the first owner — the picker is per-boat, and a user typically owns one owner record.
+  const ownerId = ownerIds[0];
+
+  const sb = supabaseAdmin();
+  // Upsert by name (case-insensitive) within owner.
+  const { data: existing } = await sb
+    .from('boat_rental_external_brokers')
+    .select('id, name')
+    .eq('owner_id', ownerId)
+    .ilike('name', name)
+    .maybeSingle();
+  if (existing) return existing as { id: string; name: string };
+
+  const { data, error } = await sb
+    .from('boat_rental_external_brokers')
+    .insert({ owner_id: ownerId, name, phone })
+    .select('id, name')
+    .single();
+  if (error) throw error;
+  return data as { id: string; name: string };
+}
+
+export async function recordTripPaymentAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireBoatRoleOrThrow('owner');
+  const reservationId = s(formData.get('reservation_id'));
+  const amount = Number(s(formData.get('amount_egp')));
+  const method = s(formData.get('method'));
+  const paidDate = s(formData.get('paid_date'));
+  const note = sOrNull(formData.get('note'));
+
+  if (!reservationId || !method || !paidDate) throw new Error('invalid_input');
+
+  // Owner-owns-boat check (the core helper trusts the caller for auth).
+  const ownerIds = await getOwnedOwnerIds(me);
+  const sb = supabaseAdmin();
+  const { data: boatRow } = await sb
+    .from('boat_rental_reservations')
+    .select('boat:boat_rental_boats ( owner_id )')
+    .eq('id', reservationId)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const boat = (boatRow as any)?.boat as { owner_id: string } | null;
+  if (!boat || !ownerIds.includes(boat.owner_id)) throw new Error('forbidden');
+
+  const result = await recordPaymentCore({
+    reservationId,
+    amountEgp: amount,
+    method,
+    paidDate,
+    note,
+    recordedBy: me.id,
+    recordedByRole: 'owner',
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/emails/boat-rental/owner/booking/${reservationId}`);
+  revalidatePath('/emails/boat-rental/owner');
+  return { ok: true };
 }

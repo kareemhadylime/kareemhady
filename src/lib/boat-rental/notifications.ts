@@ -19,7 +19,11 @@ export type TemplateKey =
   | 'cancellation_requested'    // broker asked owner to approve a within-72h cancel
   | 'cancellation_resolved'     // owner approved/rejected the request
   | 'owner_block_confirmed'     // owner blocked dates for personal use — confirms back to owner
-  | 'hold_warning';             // T-30min before a 2h hold expires
+  | 'hold_warning'              // T-30min before a 2h hold expires
+  | 'manual_reservation_created'  // owner created a reservation directly (no broker hold flow)
+  | 'trip_payment_complete'       // trip payment ledger fully settled (auto-flip → paid_to_owner)
+  | 'recurring_expense_generated' // recurring template auto-generated a new expense bill
+  | 'trip_reminder_24h';          // T-24h Arabic reminder to skipper before trip
 export type Recipient = { userId?: string | null; phone: string; role: 'admin' | 'broker' | 'owner' | 'skipper' };
 
 // Context used to render any template. Fields that don't apply to a
@@ -44,6 +48,17 @@ export type NotifContext = {
   // trip_details cash-collection branch
   skipperCollectsCash?: boolean;
   skipperInstructions?: string | null;
+  // manual_reservation_created
+  ownerName?: string;
+  // trip_payment_complete
+  totalAmount?: number;
+  paymentCount?: number;
+  // recurring_expense_generated
+  vendorName?: string | null;
+  categoryLabel?: string;
+  shortUrl?: string;
+  // trip_reminder_24h
+  destinationName?: string | null;
 };
 
 function fmtEgp(n?: number): string {
@@ -184,6 +199,56 @@ function renderHoldWarning(ctx: NotifContext): string {
   ].join('\n');
 }
 
+function renderManualReservationCreated(ctx: NotifContext): string {
+  const skipperName = ctx.skipperName ?? 'there';
+  const ownerName = ctx.ownerName ?? 'the owner';
+  return [
+    `Hi ${skipperName}, you're booked for a trip on ${ctx.bookingDate} on ${ctx.boatName}.`,
+    `Owner (${ownerName}) will share trip details closer to the date.`,
+    `Ref: #${ctx.shortRef}`,
+  ].join('\n');
+}
+
+function renderTripPaymentComplete(ctx: NotifContext): string {
+  const count = ctx.paymentCount ?? 1;
+  const suffix = count === 1 ? '' : 's';
+  const total = ctx.totalAmount ?? ctx.amountEgp ?? 0;
+  return [
+    `✅ Trip #${ctx.shortRef} fully paid.`,
+    `Boat: ${ctx.boatName}  ·  Date: ${ctx.bookingDate}`,
+    `Total received: ${fmtEgp(total)} (${count} payment${suffix})`,
+  ].join('\n');
+}
+
+function renderRecurringExpenseGenerated(ctx: NotifContext): string {
+  const label = ctx.vendorName ?? ctx.categoryLabel ?? 'Expense';
+  const lines = [
+    `🧾 New bill generated: ${label}`,
+    `Amount: ${fmtEgp(ctx.amountEgp)}`,
+    `Boat: ${ctx.boatName}`,
+  ];
+  if (ctx.shortUrl) lines.push(`Open in app to record payment: ${ctx.shortUrl}`);
+  return lines.join('\n');
+}
+
+function renderTripReminder24hAr(ctx: NotifContext): string {
+  const lines: string[] = [
+    '🚤 تذكير: رحلة غدًا',
+    '',
+    `القارب: ${ctx.boatName}`,
+    `التاريخ: ${ctx.bookingDate}`,
+  ];
+  if (ctx.tripReadyTime) lines.push(`وقت الانطلاق: ${ctx.tripReadyTime}`);
+  if (ctx.destinationName) lines.push(`الوجهة: ${ctx.destinationName}`);
+  if (ctx.clientName) {
+    const guestPart = ctx.guestCount ? ` (${ctx.guestCount} ضيف)` : '';
+    lines.push(`العميل: ${ctx.clientName}${guestPart}`);
+  }
+  if (ctx.skipperName) lines.push(`الكابتن: ${ctx.skipperName}`);
+  if (ctx.notes) lines.push(`ملاحظات: ${ctx.notes}`);
+  return lines.join('\n');
+}
+
 export function renderTemplate(
   key: TemplateKey,
   lang: 'en' | 'ar',
@@ -197,6 +262,10 @@ export function renderTemplate(
   if (key === 'cancellation_resolved') return renderCancellationResolved(ctx);
   if (key === 'owner_block_confirmed') return renderOwnerBlockConfirmed(ctx);
   if (key === 'hold_warning') return renderHoldWarning(ctx);
+  if (key === 'manual_reservation_created') return renderManualReservationCreated(ctx);
+  if (key === 'trip_payment_complete') return renderTripPaymentComplete(ctx);
+  if (key === 'recurring_expense_generated') return renderRecurringExpenseGenerated(ctx);
+  if (key === 'trip_reminder_24h') return renderTripReminder24hAr(ctx);
   return '';
 }
 
@@ -236,8 +305,28 @@ export async function flushPendingForReservation(reservationId: string): Promise
     .select('id, to_phone, rendered_body')
     .eq('reservation_id', reservationId)
     .eq('status', 'pending');
-  const rows = (data as Array<{ id: number; to_phone: string; rendered_body: string }> | null) || [];
+  return flushRows(sb, (data as Array<{ id: number; to_phone: string; rendered_body: string }> | null) || []);
+}
 
+// Flush all pending non-reservation notifications (e.g. recurring expense
+// generated, ad-hoc owner messages). Bounded by `limit` to keep cron runs
+// short — pending rows older than that get picked up on the next pass.
+export async function flushPendingNonReservation(limit = 50): Promise<{ sent: number; failed: number }> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('boat_rental_notifications')
+    .select('id, to_phone, rendered_body')
+    .is('reservation_id', null)
+    .eq('status', 'pending')
+    .order('id', { ascending: true })
+    .limit(limit);
+  return flushRows(sb, (data as Array<{ id: number; to_phone: string; rendered_body: string }> | null) || []);
+}
+
+async function flushRows(
+  sb: ReturnType<typeof supabaseAdmin>,
+  rows: Array<{ id: number; to_phone: string; rendered_body: string }>
+): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
   for (const row of rows) {

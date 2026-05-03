@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Ship, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Ship, AlertTriangle, CheckCircle2, XCircle, Plus } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
@@ -47,7 +47,7 @@ export default async function OwnerReservations() {
               boat:boat_rental_boats ( name ),
               broker:app_users!boat_rental_reservations_broker_id_fkey ( id, username ),
               booking:boat_rental_bookings ( client_name, guest_count, trip_ready_time, destination:boat_rental_destinations ( name ) ),
-              payment:boat_rental_payments ( amount_egp, paid_at )
+              payments:boat_rental_payments ( id, amount_egp, paid_at )
             `
             )
             .in('boat_id', boatIds)
@@ -64,7 +64,7 @@ export default async function OwnerReservations() {
     ['confirmed', 'details_filled'].includes(r.status) && r.booking_date >= today
   ).sort((a, b) => a.booking_date.localeCompare(b.booking_date));
   const awaitingPayment = reservations.filter(r =>
-    ['confirmed', 'details_filled'].includes(r.status) && r.booking_date < today && !r.payment
+    ['confirmed', 'details_filled'].includes(r.status) && r.booking_date < today && (!r.payments || r.payments.length === 0)
   );
   const past = reservations.filter(r =>
     ['paid_to_owner', 'cancelled', 'expired'].includes(r.status)
@@ -85,6 +85,15 @@ export default async function OwnerReservations() {
         </div>
       </header>
       <TabNav tabs={OWNER_TABS} currentPath="/emails/boat-rental/owner/reservations" />
+
+      <div className="flex justify-end mt-6 mb-2">
+        <Link
+          href="/emails/boat-rental/owner/reservations/new"
+          className="ix-btn-primary inline-flex items-center gap-1"
+        >
+          <Plus size={14} /> Create reservation
+        </Link>
+      </div>
 
       {pendingApprovals.length > 0 && (
         <section className="mt-8">

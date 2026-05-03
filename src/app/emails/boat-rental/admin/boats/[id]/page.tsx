@@ -39,13 +39,13 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
   const sb = supabaseAdmin();
   const { data: boatRow } = await sb
     .from('boat_rental_boats')
-    .select('id, name, size, hull, description, features_md, features, capacity_guests, owner_id, skipper_name, skipper_whatsapp, status')
+    .select('id, name, size, hull, description, features_md, features, capacity_guests, owner_id, status')
     .eq('id', id)
     .maybeSingle();
-  const boat = boatRow as BoatWithOwner | null;
-  if (!boat) notFound();
+  const boatBase = boatRow as Omit<BoatWithOwner, 'skipper_name' | 'skipper_whatsapp'> | null;
+  if (!boatBase) notFound();
 
-  const [ownersRes, imagesRes, pricingRes] = await Promise.all([
+  const [ownersRes, imagesRes, pricingRes, defaultSkipperRes] = await Promise.all([
     sb.from('boat_rental_owners').select('id, name').order('name'),
     sb
       .from('boat_rental_boat_images')
@@ -53,7 +53,20 @@ export default async function BoatDetail({ params }: { params: Promise<{ id: str
       .eq('boat_id', id)
       .order('sort_order'),
     sb.from('boat_rental_pricing').select('tier, amount_egp').eq('boat_id', id),
+    sb
+      .from('boat_rental_skippers')
+      .select('name, whatsapp')
+      .eq('boat_id', id)
+      .eq('is_default', true)
+      .eq('active', true)
+      .maybeSingle(),
   ]);
+  const defaultSkipper = (defaultSkipperRes as { data: { name: string; whatsapp: string } | null }).data;
+  const boat: BoatWithOwner = {
+    ...boatBase,
+    skipper_name: defaultSkipper?.name ?? '',
+    skipper_whatsapp: defaultSkipper?.whatsapp ?? '',
+  };
   const owners = ((ownersRes.data as unknown) as Array<{ id: string; name: string }> | null) || [];
   const images = ((imagesRes.data as unknown) as Array<{ id: string; storage_path: string; sort_order: number; is_primary: boolean; category: PhotoCategory | null }> | null) || [];
   const untaggedCount = images.filter(i => !i.category).length;

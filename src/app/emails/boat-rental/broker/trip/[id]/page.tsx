@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ChevronLeft, Send } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
+import { getDefaultSkipper } from '@/lib/boat-rental/skipper-resolver';
 import { fillTripDetailsAction } from '../../actions';
 import { TabNav, BROKER_TABS } from '../../../_components/tabs';
 
@@ -15,7 +16,7 @@ type Res = {
   booking_date: string;
   price_egp_snapshot: string | number;
   notes: string | null;
-  boat: { name: string; capacity_guests: number; skipper_name: string; owner: { name: string } | null } | null;
+  boat: { id: string; name: string; capacity_guests: number; owner: { name: string } | null } | null;
   booking:
     | {
         client_name: string;
@@ -39,7 +40,7 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
     .select(
       `
       id, status, broker_id, booking_date, price_egp_snapshot, notes,
-      boat:boat_rental_boats ( name, capacity_guests, skipper_name, owner:boat_rental_owners ( name ) ),
+      boat:boat_rental_boats ( id, name, capacity_guests, owner:boat_rental_owners ( name ) ),
       booking:boat_rental_bookings ( client_name, client_phone, guest_count, trip_ready_time, destination_id, extra_notes, skipper_collects_cash, skipper_instructions )
     `
     )
@@ -50,12 +51,12 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
   if (r.broker_id !== me!.id) redirect('/emails/boat-rental/broker');
   if (!['confirmed', 'details_filled'].includes(r.status)) redirect('/emails/boat-rental/broker');
 
-  const { data: destRaw } = await sb
-    .from('boat_rental_destinations')
-    .select('id, name')
-    .eq('active', true)
-    .order('name');
+  const [{ data: destRaw }, defaultSkipper] = await Promise.all([
+    sb.from('boat_rental_destinations').select('id, name').eq('active', true).order('name'),
+    r.boat?.id ? getDefaultSkipper(r.boat.id) : Promise.resolve(null),
+  ]);
   const destinations = ((destRaw as unknown) as Array<{ id: string; name: string }> | null) || [];
+  const skipperLabel = defaultSkipper?.name ?? '—';
 
   return (
     <>
@@ -72,7 +73,7 @@ export default async function BrokerTripDetails({ params }: { params: Promise<{ 
           <strong>{r.boat?.name || '(boat)'}</strong> · {r.booking_date} · Owner · {r.boat?.owner?.name || '—'}
         </div>
         <div className="text-xs text-slate-500 mt-0.5">
-          Boat capacity: {r.boat?.capacity_guests || '—'} guests · Skipper: {r.boat?.skipper_name || '—'}
+          Boat capacity: {r.boat?.capacity_guests || '—'} guests · Skipper: {skipperLabel}
         </div>
         {r.notes && (
           <div className="mt-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">

@@ -16,17 +16,17 @@ type Boat = {
   capacity_guests: number;
   status: string;
   owner: { name: string } | null;
-  skipper_name: string;
+  skipper_name?: string;
 };
 type ImgCount = { boat_id: string; count: number };
 
 export default async function BoatsAdmin() {
   const sb = supabaseAdmin();
 
-  const [boatsRes, ownersRes, imagesRes] = await Promise.all([
+  const [boatsRes, ownersRes, imagesRes, defaultSkippersRes] = await Promise.all([
     sb
       .from('boat_rental_boats')
-      .select('id, name, size, capacity_guests, status, skipper_name, owner:boat_rental_owners(name)')
+      .select('id, name, size, capacity_guests, status, owner:boat_rental_owners(name)')
       .order('created_at', { ascending: false }),
     sb
       .from('boat_rental_owners')
@@ -34,9 +34,19 @@ export default async function BoatsAdmin() {
       .eq('status', 'active')
       .order('name'),
     sb.from('boat_rental_boat_images').select('boat_id, storage_path'),
+    sb
+      .from('boat_rental_skippers')
+      .select('boat_id, name')
+      .eq('is_default', true)
+      .eq('active', true),
   ]);
 
-  const boats = ((boatsRes.data as unknown) as Boat[] | null) || [];
+  const rawBoats = ((boatsRes.data as unknown) as Array<Omit<Boat, 'skipper_name'>> | null) || [];
+  const skipperByBoat = new Map<string, string>();
+  for (const r of ((defaultSkippersRes.data as unknown) as Array<{ boat_id: string; name: string }> | null) || []) {
+    skipperByBoat.set(r.boat_id, r.name);
+  }
+  const boats: Boat[] = rawBoats.map((b) => ({ ...b, skipper_name: skipperByBoat.get(b.id) ?? '—' }));
   const owners = ((ownersRes.data as unknown) as Array<{ id: string; name: string }> | null) || [];
   const imgRows = ((imagesRes.data as unknown) as Array<{ boat_id: string; storage_path: string }> | null) || [];
 

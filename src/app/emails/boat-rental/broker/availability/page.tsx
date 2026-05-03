@@ -9,7 +9,7 @@ import { reserveDirectAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-type Boat = { id: string; name: string; capacity_guests: number; skipper_name: string };
+type Boat = { id: string; name: string; capacity_guests: number };
 
 type SearchParams = Promise<{ boat_id?: string; date?: string }>;
 
@@ -30,7 +30,7 @@ export default async function BrokerInquiry({ searchParams }: { searchParams: Se
   const sb = supabaseAdmin();
   const { data: boatsRaw } = await sb
     .from('boat_rental_boats')
-    .select('id, name, capacity_guests, skipper_name')
+    .select('id, name, capacity_guests')
     .eq('status', 'active')
     .order('name');
   const boats = ((boatsRaw as unknown) as Boat[] | null) || [];

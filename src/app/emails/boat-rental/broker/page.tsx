@@ -19,7 +19,7 @@ type Row = {
   cancellation_request_resolution: string | null;
   boat: { name: string; owner: { name: string } | null } | null;
   booking: { client_name: string; guest_count: number; trip_ready_time: string; destination: { name: string } | null } | null;
-  payment: { amount_egp: string | number; paid_at: string } | null;
+  payments: Array<{ id: string; amount_egp: string | number; paid_at: string }>;
 };
 
 function statusPill(status: string) {
@@ -46,7 +46,7 @@ export default async function BrokerLanding() {
       cancellation_requested_at, cancellation_request_resolved_at, cancellation_request_resolution,
       boat:boat_rental_boats ( name, owner:boat_rental_owners ( name ) ),
       booking:boat_rental_bookings ( client_name, guest_count, trip_ready_time, destination:boat_rental_destinations ( name ) ),
-      payment:boat_rental_payments ( amount_egp, paid_at )
+      payments:boat_rental_payments ( id, amount_egp, paid_at )
     `
     )
     .eq('broker_id', me!.id)
@@ -65,7 +65,7 @@ export default async function BrokerLanding() {
   ).sort((a, b) => a.booking_date.localeCompare(b.booking_date));
 
   const awaitingPayment = rows.filter(r =>
-    ['confirmed', 'details_filled'].includes(r.status) && r.booking_date < today && !r.payment
+    ['confirmed', 'details_filled'].includes(r.status) && r.booking_date < today && (!r.payments || r.payments.length === 0)
   );
 
   const past = rows.filter(r =>

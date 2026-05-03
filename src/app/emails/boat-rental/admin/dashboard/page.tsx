@@ -83,7 +83,7 @@ export default async function BoatRentalAdminDashboard({ searchParams }: { searc
       .select(
         `
         id, status, price_egp_snapshot,
-        boat:boat_rental_boats ( name, skipper_name ),
+        boat:boat_rental_boats ( name ),
         booking:boat_rental_bookings ( client_name, guest_count, trip_ready_time, destination:boat_rental_destinations ( name ) )
       `
       )
