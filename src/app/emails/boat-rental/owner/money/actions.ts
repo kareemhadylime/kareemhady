@@ -234,7 +234,11 @@ export async function recordExpensePaymentAction(
 // Window (in minutes) during which a PAID expense can still be voided as a
 // fat-finger correction. Outside this window paid expenses are immutable —
 // the user has to record a reverse payment / contra-entry instead.
-export const EXPENSE_VOID_WINDOW_MIN = 10;
+//
+// NOTE: cannot be `export const` — files marked `'use server'` may only
+// export async functions. Module-private; if external callers need the
+// value, expose it via a sibling non-action constants module.
+const EXPENSE_VOID_WINDOW_MIN = 10;
 
 /**
  * Cancel/void an expense.
