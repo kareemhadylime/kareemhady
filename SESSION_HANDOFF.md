@@ -1,8 +1,55 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟡 Latest turn — Phases 3–9 COMPLETE — Tasks 1–30 of 32 (94%) — AWAITING USER ON TASK 32 (DEPLOY)
+## 🟢 Latest turn — Boat Owner Features SHIPPED — All 32 tasks complete
 
-**Status:** All implementation complete on `claude/inspiring-booth-3d348a`. `npm test` 29/29 passing, `npm run build` clean. **NOT pushed to main yet, NOT deployed.** Task 32 requires (a) applying 6 SQL migrations to live Supabase via the dashboard SQL Editor, and (b) explicit user go-ahead to merge → push → `vercel --prod`.
+**Status:** All 32 tasks of `docs/superpowers/plans/2026-05-02-boat-owner-features-plan.md` are live in production.
+
+**Deployed:** https://lime-ljc2roa0m-lime-investments.vercel.app (`dpl_2HuSggygtVgzYcWU5Kwrn6GtGmtf`, target=production, READY).
+
+**Migrations applied to live Supabase** (`bpjproljatbrbmszwbov`) in order:
+1. `0066_boat_skippers_roster` ✅ (multi-skipper roster + backfill from `boats.skipper_name/whatsapp`)
+2. `0067_boat_external_brokers_and_reservation_source` ✅ (external broker address book + source enum + 24h reminder column)
+3. `0068_boat_payments_ledger` ✅ (drops UNIQUE on `boat_rental_payments(reservation_id)` to allow multiple payments per trip)
+4. `0069_boat_expenses_and_payments` ✅ (10-category expense ledger + multi-payment ledger per expense)
+5. `0070_boat_recurring_expense_templates` ✅ (templates + `boat_rental_owner_settings`)
+6. `0072_drop_legacy_skipper_columns` ✅ (drops `boat_rental_boats.skipper_name/skipper_whatsapp` after backfill)
+
+**Git:** `claude/inspiring-booth-3d348a` merged into `main` as commit `326a70f`, package-lock reconciled in `93c02fd`, pushed to `origin/main`. Two SESSION_HANDOFF.md / package-lock.json conflicts auto-resolved by taking the worktree's version + running `npm install`.
+
+**Crons now scheduled in Vercel:**
+- `/api/cron/boat-rental/generate-recurring-expenses` — daily 06:00 UTC (creates open bills from active recurring templates)
+- `/api/cron/boat-rental/trip-reminders-24h` — hourly (T-24h Arabic WhatsApp reminder to owner + default skipper)
+
+**New owner-portal pages live:**
+- `/emails/boat-rental/owner/skippers` — multi-skipper roster
+- `/emails/boat-rental/owner/reservations/new` — manual reservation (with calendar right-click → context menu)
+- `/emails/boat-rental/owner/booking/[id]` — rebuilt with multi-payment ledger + auto-flip to `paid_to_owner` when settled
+- `/emails/boat-rental/owner/money` — Fleet P&L overview
+- `/emails/boat-rental/owner/money/expenses` (+ `/[id]`, `/new`) — expenses ledger
+- `/emails/boat-rental/owner/money/bills` — open payables
+- `/emails/boat-rental/owner/money/recurring` — recurring template manager
+- `/emails/boat-rental/owner/settings` — owner defaults + notification language
+
+**Test coverage:** 29 vitest tests across `recurring.ts`, `payment-balance.ts`, `summarizePayments` — all passing.
+
+### Smoke-test next
+
+Hit prod, create a test skipper, create a manual reservation, force-trigger both crons:
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://lime-ljc2roa0m-lime-investments.vercel.app/api/cron/boat-rental/generate-recurring-expenses
+curl -H "Authorization: Bearer $CRON_SECRET" https://lime-ljc2roa0m-lime-investments.vercel.app/api/cron/boat-rental/trip-reminders-24h
+```
+
+### Followups noted (none blocking)
+
+- The "Skipper" line in the broker trip-details / payment-confirmation flow now reads from `boat_rental_skippers` default+active. If a boat's default skipper is changed mid-trip, in-flight reservations pick up the new name on next page load (intentional — matches owner expectation).
+- `package-lock.json` was regenerated during merge; if anything looks off in deployed `node_modules`, blow it away and `npm ci`.
+
+---
+
+## Previous turn — Phases 3–9 COMPLETE — Tasks 1–30 of 32 (94%) — AWAITING USER ON TASK 32 (DEPLOY)
+
+**Status (now superseded):** All implementation complete on `claude/inspiring-booth-3d348a`. Deploy executed in this turn — see top of file.
 
 ### Tasks 12–30 shipped this session
 
