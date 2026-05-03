@@ -1,8 +1,17 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { SERVICE_LINE_CATALOG, getTemplate } from '@/lib/fmplus/budget/templates';
 import { ThresholdEditor } from './_components/threshold-editor';
+import { getCurrentUser } from '@/lib/auth';
 
 export default async function SettingsPage() {
+  const user = await getCurrentUser();
+  if (!user || !user.is_admin) {
+    return (
+      <section className="p-6">
+        <p className="text-sm">This page is admin-only. Variance / Compare / Overview are open to all FM+ users.</p>
+      </section>
+    );
+  }
   const sb = supabaseAdmin();
   const { data: settings } = await sb.from('budget_settings').select('*').eq('id', 1).maybeSingle();
   const s = settings as { green_pct: number; amber_pct: number; default_scenario: string } | null;

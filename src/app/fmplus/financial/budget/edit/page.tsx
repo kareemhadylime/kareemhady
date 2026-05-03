@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/auth';
 import { ProjectPicker } from './_components/project-picker';
 import { ServiceLinePicker } from './_components/service-line-picker';
 import { EditorForm } from './_components/editor-form';
@@ -14,6 +15,14 @@ export default async function EditorPage({
   searchParams: Promise<{ project?: string; year?: string; scenario?: string; service_line?: string }>;
 }) {
   const sp = await searchParams;
+  const user = await getCurrentUser();
+  if (!user || !user.is_admin) {
+    return (
+      <section className="p-6">
+        <p className="text-sm">This page is admin-only. Variance / Compare / Overview are open to all FM+ users.</p>
+      </section>
+    );
+  }
   const projectId = Number(sp.project ?? 0);
   const year = Number(sp.year ?? new Date().getUTCFullYear());
   const scenarioParse = ScenarioSchema.safeParse(sp.scenario ?? 'initial');

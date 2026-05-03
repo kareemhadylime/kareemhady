@@ -1,7 +1,16 @@
 import { ImportUploader } from './_components/import-uploader';
 import { supabaseAdmin } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/auth';
 
 export default async function ImportPage() {
+  const user = await getCurrentUser();
+  if (!user || !user.is_admin) {
+    return (
+      <section className="p-6">
+        <p className="text-sm">This page is admin-only. Variance / Compare / Overview are open to all FM+ users.</p>
+      </section>
+    );
+  }
   const sb = supabaseAdmin();
   const { data: projects } = await sb
     .from('odoo_analytic_accounts')

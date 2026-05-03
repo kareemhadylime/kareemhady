@@ -2,11 +2,16 @@ import { TopNav } from '@/app/_components/brand';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { SubTabs } from './_components/sub-tabs';
+import { getCurrentUser, canAccessDomain } from '@/lib/auth';
+import { notFound } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export default function BudgetSectionLayout({ children }: { children: React.ReactNode }) {
+export default async function BudgetSectionLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) notFound();
+  if (!canAccessDomain(user, 'fmplus')) notFound();
   return (
     <>
       <TopNav>
