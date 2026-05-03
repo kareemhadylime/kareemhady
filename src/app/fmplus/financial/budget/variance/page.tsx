@@ -43,7 +43,11 @@ export default async function VariancePage({
           <h2 className="text-lg font-semibold">{report.project_name}</h2>
           <p className="text-xs text-slate-500">FY {report.fiscal_year} · Scenario: {report.scenario} · Status: {report.status} · Start month: {report.start_month}</p>
         </div>
-        <PeriodControl />
+        <div className="flex items-center gap-2">
+          <PeriodControl />
+          <a href={`/api/fmplus/budget/variance-xlsx?project=${projectId}&year=${year}&scenario=${scenario}&through=${through}`}
+             className="text-sm px-3 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">⬇ XLSX</a>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
