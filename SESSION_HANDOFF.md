@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — FMPLUS Financials FEATURE-READY (28 commits, ready for user-led Tasks 22+23)
+## 🟢 Latest turn — FMPLUS Financials DEPLOYED to limeinc.vercel.app + dashboard routing fix
+
+User upgraded auto-deploy authorization to cover merge + push + Vercel + Supabase (saved to memory `feedback_deployment_direct_to_prod.md`, updated 2026-05-04). Then I executed the deploy end-to-end.
+
+**Push history this turn:**
+- `9e7b04f` — merge of origin/main into my FMPLUS Financials branch (resolved one SESSION_HANDOFF.md conflict, renamed migration 0079→0081 to deconflict with origin's `0079_beithady_message_translation`; 98/98 tests pass post-merge).
+- `cc4d7c6` — `fix(dashboard): FMPLUS tile routes to /fmplus`, not `/emails/fmplus`. User screenshot showed the legacy "REPORTS & OUTPUTS · FMPLUS / Create rule" Phase-1 InboxOps page because [src/app/page.tsx:71](src/app/page.tsx) hardcoded `d === 'beithady' ? '/beithady' : '/emails/${d}'` — fmplus was missing the same special-case route around `/emails/`. Added it.
+- `b94546f` — merge of parallel session's `/financial/budget/` layout + sub-tabs + period-control + health-dot UI (from commit `157ae86` that landed during my deploy).
+
+**Deploy state:**
+- `limeinc.vercel.app` is currently `dpl_8X8N4GwonpWGWJXAPk9XNoz1YJh9` READY (commit `157ae86`, before the routing fix). New deploy with `cc4d7c6+b94546f` triggered, building. Scheduled wakeup at 00:25:00 to verify and curl-smoke `/fmplus`.
+- Supabase migrations 0079 (Beithady AI translation), 0080 (project budget tables), 0081 (FMPLUS financials RPCs `pnl_aggregated_multiperiod` + `fmplus_active_accounts`) all deployed live to `bpjproljatbrbmszwbov`.
+
+**Parallel session activity during this work:**
+The user has another session actively building the FMPLUS Project Budget feature (separate spec + plan + ~13 commits' worth of code). It shipped:
+- 7 budget tables via migration 0080
+- HK service-line template + 5 stubs (MEP/Landscape/Security/PestCtrl/WasteMgmt)
+- Variance orchestrator, budget aggregation, Odoo-actuals matching
+- Path A (rich AUC-style) + Path B (flat-template) XLSX parsers + writer
+- Atomic `commitBudget` + `variance-drill` + `cellToMoveLines`
+- `/fmplus/financial/budget` layout + sub-tabs + period-control + health-dot
+
+Both feature streams now live on `main` together. Tests: **99/99 pass** post-merge.
+
+**Known UX overlap to watch:**
+The parallel session's UI lives at `/fmplus/financial/budget` (singular "financial"); my UI lives at `/fmplus/financials` (plural). Both are valid distinct routes but the close naming may confuse users. Consider unifying under one path in a follow-up — out of scope for this session.
+
+**TodoWrite state:** "Wait for routing-fix deploy + smoke /fmplus prod" in_progress. Wakeup at 00:25:00 will check Vercel deploy state of the post-routing-fix build, curl `/fmplus`, and report.
+
+**Memory updated:** auto-deploy authorization extended to cover merge + push + Vercel + Supabase explicitly (was implicit before).
+
+---
+
+## 🟢 Earlier turn — FMPLUS Financials FEATURE-READY (28 commits)
 
 The full FMPLUS Financials sub-module is built. All implementation work (Tasks 1-21 + final-review fixes) is on `claude/nifty-dubinsky-1633d8`. Tasks 22 (live reconciliation) and 23 (push to main) are user-led because they require Odoo creds + main-branch authorization.
 
