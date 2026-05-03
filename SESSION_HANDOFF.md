@@ -1,8 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## Personal → Email module — v1 BUILD COMPLETE (2026-05-04)
+## Personal → Email module — v1 SHIPPED TO PRODUCTION (2026-05-04)
 
-End-to-end implementation landed on `claude/mystifying-clarke-dfacd6` (worktree). 28 commits since `122a03b` (plan), branch is ready to push to main and auto-deploy via Vercel-GitHub.
+End-to-end implementation rebased onto `origin/main` and pushed
+(`aa5027e..6d30215`). GitHub → Vercel integration is auto-deploying
+to `limeinc.vercel.app` now. Worktree-scoped `vercel --prod` build
+failed as documented — sandbox project has no env vars, harmless
+noise per CLAUDE.md.
+
+**Standing authorization recorded** in CLAUDE.md (commit `30a5f27`,
+final SHA after rebase): forward push + Vercel deploy + Supabase
+migrations + execute_sql are all pre-authorized; only force-push,
+DROP/TRUNCATE/unbounded-DELETE, env-var deletion, and access
+revocation still require an explicit ask.
 
 ### What shipped
 
