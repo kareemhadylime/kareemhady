@@ -1,12 +1,96 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — FMPLUS Financials Task 3 DONE (opening-balance stub)
+## 🟢 Latest turn — Task 16 done: AccountPicker + plans API endpoint
 
-**Task 3 — DONE, commit `64abce2`:**
-- Created `src/lib/fmplus/opening-balance.ts` with `OPENING_BALANCE_DATE = '2026-02-28'` and an empty `FMPLUS_OPENING_BALANCES_2026_02` array (typed `readonly FmplusOpeningEntry[]`).
-- The file deliberately **omits** `import 'server-only';` because that package isn't installed in this repo and vitest cannot resolve it. Added explanatory comment in the header documenting this decision.
-- Created `src/lib/fmplus/opening-balance.test.ts` with 4 tests: date format validation, array type check, entry shape contract (passes trivially on empty stub), and balanced-check tolerance (<10M EGP, will tighten to <1 after populated).
-- 4/4 vitest tests passing. `tsc --noEmit` shows zero FMPLUS errors.
+**Commit:** `449408c`
+
+**Files changed (3):**
+- `src/app/fmplus/financials/_components/AccountPicker.tsx` — NEW `'use client'` component; two modes: `plans` (flat checklist of FMPLUS analytic plans, multi-select updates `?plans=`), `accounts` (single-select plan dropdown + multi-select active-only accounts auto-pruned via `/api/fmplus/active-accounts`, updates `?accounts=`). `asofToDateRange` helper converts granularity+asof string to YYYY-MM-DD range. Deps extracted from discriminated union before `useEffect` to avoid TS narrowing issues.
+- `src/app/api/fmplus/plans/route.ts` — NEW GET endpoint; queries `odoo_analytic_plans`, filters by `company_ids` including FMPLUS company id, returns `{ ok, plans: [{ id, name }] }`.
+- `src/app/fmplus/financials/_components/FilterBar.tsx` — replaced Task 15 placeholder div with `<AccountPicker mode="plans" .../>` and `<AccountPicker mode="accounts" .../>` blocks; added import.
+
+**TS:** clean (zero errors project-wide). **Tests:** 65/65 pass.
+
+**Next:** Task 17 — PnlTable renderer.
+
+---
+
+## 🟢 Previous turn — Task 14 done: /fmplus/financials shell page + 4 stub components
+
+**Commit:** `e589e93`
+
+**Files created (5):**
+- `src/app/fmplus/financials/page.tsx` — server component; reads URL params into Scope; discovers FMPLUS company id; resolves period series; dispatches to tab renderers
+- `src/app/fmplus/financials/_components/FilterBar.tsx` — STUB (replaced Task 15)
+- `src/app/fmplus/financials/_components/PnlTable.tsx` — STUB JSON dump (replaced Task 17)
+- `src/app/fmplus/financials/_components/BalanceSheetTable.tsx` — STUB JSON dump (replaced Task 18)
+- `src/app/fmplus/financials/_components/Dashboard.tsx` — STUB JSON dump (replaced Task 19)
+
+**TS:** clean (no errors in fmplus/financials). **Tests:** 65/65 pass.
+
+---
+
+## 🟢 Previous turn — Task 11 done: buildFmplusDashboard composer (dashboard.ts)
+
+**Subagent-driven execution in flight.** 8 of 23 tasks complete. ~15 commits on this branch.
+
+**Tasks shipped (all reviewed + approved by spec + code-quality reviewers):**
+
+| # | Task | Commits | Tests |
+|---|------|---------|-------|
+| 1 | Prefix classifier | `ce8eea8` + `031e4c9` (review fixes: detectCostCategory refactor, shortLabel, conditional isDepreciation, name-leak test, unknown-digit test) | 19 |
+| 2 | Types module + AccountType union (folded I2 from Task 1 review) | `472119c` + `70bce3e` (dropped `(string & {})` escape hatch, widened `PeriodValues` to allow undefined) | n/a |
+| 3 | Opening-balance stub | `64abce2` + `707e6fa` (dropped `'derived'` from seed type, short-circuit balanced-check on empty + strict <1 EGP when populated) | 4 |
+| 4 | discoverFmplusCompanyId helper | `1ff5046` | live-only |
+| 5 | Migration 0079 SQL (pnl_aggregated_multiperiod + fmplus_active_accounts) | `1bc4c44` | n/a |
+| 6 | Apply migration via Supabase MCP | (deployed live to bpjproljatbrbmszwbov) | verified via execute_sql |
+| 7 | Sync extension via getFinancialsCompanyIds() | `0bbbe25` | 52/52 |
+| 8 | Period-series resolver | `a356ebb` | 7 |
+| 9 | buildFmplusPnl aggregator | `(prior session)` | 5 |
+| 10 | buildFmplusBalanceSheet aggregator | `29a014f` | 6 |
+| 11 | buildFmplusDashboard composer | `715e96d` | n/a (composition layer) |
+
+**Stub vs populated:** Task 3 deliberately ships an empty `FMPLUS_OPENING_BALANCES_2026_02 = []` because the user-provided Feb-2026 Excel "Balance Sheet" sheet has mixed sign conventions and same-codes-in-multiple-groups (~43.9M EGP gap). Header documents the SQL query to extract a clean leaf seed from live Odoo once data is synced. Task 10 will handle the empty-array fallback path.
+
+**Reviewer findings deferred to follow-ups (non-blocking):**
+- **Task 7 I1**: `/api/cron/odoo-financials/route.ts` hardcodes `move-lines-4/5/10` — NO daily phase ingests FMPLUS move-lines (Kika 6 was already missing). Must add `move-lines-fmplus` cron + vercel.json schedule before production.
+- **Task 7 I2**: `_cachedScope` returned by reference (mutable). Defensive `.slice()` on read.
+- **Task 4 minor**: cold-path Odoo query lacks comment about deliberate `context: { allowed_company_ids }` omission. `Number(cached.id)` could be `cached.id as number`.
+- **Task 8 minor**: `periods=NaN` silently returns `[]`. Fix at Zod boundary in caller (Task 9/13).
+
+**Test totals:** classifier 19 + opening-balance 4 + period-series 7 + financials 6 = 36 FMPLUS vitest cases (65 total including unrelated repo tests). All pass.
+
+**FMPLUS lib files committed:** classifier.ts, classifier.test.ts, types.ts, opening-balance.ts, opening-balance.test.ts, discover-company.ts, period-series.ts, period-series.test.ts, financials.ts, financials.test.ts.
+
+**Task 9 summary (commit a8c163b):**
+- `buildFmplusPnl({ periods, scope }) → PnlReport` implemented in `src/lib/fmplus/financials.ts`
+- Calls `pnl_aggregated_multiperiod` RPC; classifies rows via `classifyByPrefix`; pivots into sections + service-line subgroups + leaves
+- with-dep / no-dep toggle: when `withDep=false`, 5xx02xx depreciation rows move from COGS tools subgroup into `interest_tax_dep.depreciation`; Net Profit remains invariant
+- Per-service `grossMarginPct` computed each period
+- Subtotals: `gross_profit`, `ebitda`, `net_profit`
+- 5/5 golden tests pass; TypeScript clean; only the two new files in commit
+
+**Next: Task 9 (buildFmplusPnl).** ~280 lines wiring `pnl_aggregated_multiperiod` RPC → `PnlReport` shape with classifier routing, with-dep/no-dep toggle, gross-margin per service line, golden-snapshot tests against Feb-2026 Excel totals (Revenue 38.5M / GP 5.26M / EBITDA 808k / NP -716k). Will use sonnet model.
+
+After Task 9: Tasks 10 (BS lib), 11 (dashboard lib), 12 (active-accounts API), 13 (FMPLUS landing), 14 (financials shell), 15-16 (filter UI), 17-18 (table renderers), 19-20 (dashboard + charts), 21 (Excel export), 22 (E2E reconciliation), 23 (deploy via merge to main).
+
+**Workflow validation:** spec-reviewer + code-quality-reviewer per task, implementer re-spawned for fix loops. Two NEEDS_CONTEXT escalations correctly fired (Task 1 fix `charAt(2)` typo; Task 3 server-only import resolving issue) — both caught before bad commits landed. The "if my fix instructions look wrong, STOP" guard from the implementer prompt template is paying for itself.
+
+---
+
+## 🟢 Earlier turn — FMPLUS Financials Task 7 DONE (financial sync extended)
+
+**Task 7 — DONE, commit `0bbbe25`:**
+- Added `import { discoverFmplusCompanyId }` to `src/lib/run-odoo-financial-sync.ts`.
+- Replaced `FINANCIALS_COMPANY_IDS = [4,5,6,10]` with:
+  - `FINANCIALS_COMPANY_IDS_STATIC = [4,5,6,10] as const` (base scope)
+  - `getFinancialsCompanyIds(): Promise<number[]>` — async resolver that lazy-loads FMPLUS company ID and caches it module-lifetime
+  - `FINANCIALS_COMPANY_IDS` back-compat re-export pointing at the static array
+- All 5 sync functions (`syncOdooAccounts`, `syncOdooPartners`, `syncOdooAnalyticPlans`, `syncOdooAnalyticAccounts`, `syncOdooMoveLines`) now use `getFinancialsCompanyIds()` instead of the static constant.
+- `src/app/api/odoo/sync-financials/route.ts`: swapped `FINANCIALS_COMPANY_IDS` import for `getFinancialsCompanyIds`, updated `'all'` phase loop and `default` help response.
+- `tsc --noEmit`: no errors in target files.
+- Test suite: 52/52 passed.
+- Grep confirms zero direct `FINANCIALS_COMPANY_IDS` references remain in either file (only const definition + back-compat re-export in the lib file).
 
 **Files committed this branch (cumulative):**
 - `4379de5 docs(fmplus): design spec`
@@ -15,8 +99,10 @@
 - `031e4c9 refactor(fmplus): classifier review fixes`
 - `472119c feat(fmplus): central types + AccountType union`
 - `64abce2 feat(fmplus): opening-balance seed stub for 2026-02-28`
+- `6527e32 fix(boat): collapse admin override panels behind Edit/Delete buttons`
+- `0bbbe25 feat(fmplus): extend financial sync to include FMPLUS company`
 
-**Next step:** Task 4 (period utilities — `src/lib/fmplus/period.ts`).
+**Next step:** Task 8 or controller-directed manual sync run (requires .env.local credentials).
 
 ---
 
@@ -5775,3 +5861,16 @@ Executed the deploy for the CLAUDE.md consolidation:
 CLAUDE.md got one follow-up edit to document this worktree-vs-real-prod deploy distinction so future sessions don't get confused (and to call out the rebase-before-push pattern that's standard from worktrees). That edit is uncommitted at the time of this entry — will commit + push as part of the same auto-deploy loop the user just authorized.
 
 **Status:** standing authorization saved; first auto-deploy executed end-to-end; CLAUDE.md doc-clarification still to be pushed.
+
+## Task 13: FMPLUS Module Landing Page (2026-05-03 23:17 UTC)
+
+Implemented `/fmplus` landing page at `src/app/fmplus/page.tsx`:
+- TopNav breadcrumb integration from brand.tsx
+- Grid of module cards (Financials linked, Operations placeholder)
+- Amber accent color scheme matching FMPLUS brand theme
+- force-dynamic export set
+- All TypeScript checks pass
+- All 65 tests still pass
+- Commit: 28dfbe5 (feat(fmplus): module landing page at /fmplus)
+
+Status: DONE
