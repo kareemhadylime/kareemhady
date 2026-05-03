@@ -34,6 +34,10 @@ After this, the two threads in the screenshot now show their stay ranges right u
 
 **Verified live**: view now exposes all 4 columns, 1,332/1,354 open conversations have reservation dates populated; the 22 without are cold leads (no reservation_id) — sidebar correctly omits the date row for those.
 
+**Deploy state:** commit `9efa891` rebased onto `7c4da14` and pushed to `main`; GitHub→Vercel auto-deploys to `limeinc.vercel.app`. Worktree-local `vercel --prod` also fired (sandbox URL).
+
+**Note on rebase:** while this turn was in flight, three other concurrent worktrees landed `0066_*` migrations on main (gallery sort_order, boat skippers, volumetric consumption). My migration was renumbered from `0066` → `0078` (next free slot after `0077_inventory_procurement_restructure.sql`) so the file order matches main's history. The DB-side change was already applied via Supabase MCP under the migration name `beithady_conv_view_add_reservation_dates` regardless of file numbering.
+
 ---
 
 ## 🟢 Earlier turn — 33-vs-37 gap bridge SHIPPED (commit `6cb864a`)
