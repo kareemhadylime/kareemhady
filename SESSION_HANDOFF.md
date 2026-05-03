@@ -60,7 +60,25 @@ Plus a partial index `idx_bh_messages_translation_pending` on inbound rows missi
 
 ---
 
-## 🟢 Latest turn — Personal Email Tasks 12 + 13: Prompt builder + AI classifier (TDD)
+## 🟢 Latest turn — Personal Email Task 15: Pipeline orchestrator + tests (TDD)
+
+### Task 15 — Pipeline orchestrator
+
+Wired together rule matcher, AI classifier, label sync, and DB persister into a single `classifyOneEmail` function.
+
+**Files created:**
+- `src/lib/personal-email/pipeline.test.ts` — 5 tests (written first): rule-only path skips AI, always-AI fall-through (action_required), no-rule AI path, cost cap exhausted fallback to notifications+needs_review, twoWaySyncEnabled=false skips sync
+- `src/lib/personal-email/pipeline-db.ts` — DB-only helper: `loadActiveRules()`, `persistClassification()`, re-exports `getRecentCorrectionsByCategory` as `loadCorrectionsForFewShot`
+- `src/lib/personal-email/pipeline.ts` — `classifyOneEmail(input)` orchestrator with `finalize()` helper; handles SPAM short-circuit, always-AI categories, cost cap, and non-fatal sync errors
+
+**TDD steps verified:**
+1. Test written first — confirmed FAIL: `Cannot find module './pipeline'`
+2. Implementation written — all 5 tests pass: `Test Files 1 passed (1) | Tests 5 passed (5)`
+3. Commit `7790ca3`: `feat(personal): pipeline orchestrator (rule->AI->persist->sync) + tests`
+
+---
+
+## 🟢 Task 12 + 13 — Personal Email: Prompt builder + AI classifier (TDD)
 
 ### Task 12 — Prompt builder
 
