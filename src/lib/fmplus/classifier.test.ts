@@ -31,15 +31,35 @@ describe('classifyByPrefix', () => {
       expect(r?.service).toBe('security');
       expect(r?.subgroupKey).toBe('penalties');
     });
-    it('classifies all 8 service prefixes', () => {
-      const services: Array<[string, string]> = [
-        ['500101', 'hk'], ['510101', 'mep'], ['520101', 'security'],
-        ['530101', 'landscape'], ['540101', 'pest'], ['550101', 'waste'],
-        ['560101', 'paid'], ['570101', 'vo'],
+    it('classifies all 8 service prefixes by code (ignores name on expense paths)', () => {
+      // Use names that would match a DIFFERENT service's revenue keyword if name
+      // routing leaked into expense paths. The classifier must route purely on
+      // numeric prefix here.
+      const services: Array<[string, string, string]> = [
+        ['500101', 'hk',        'mep relevant supplies'],
+        ['510101', 'mep',       'house keeping cost'],
+        ['520101', 'security',  'landscape consumable'],
+        ['530101', 'landscape', 'pest tools'],
+        ['540101', 'pest',      'security gear'],
+        ['550101', 'waste',     'paid service supplies'],
+        ['560101', 'paid',      'variation cost'],
+        ['570101', 'vo',        'waste cost'],
       ];
-      for (const [code, expected] of services) {
-        expect(classifyByPrefix(code, 'x', 'expense_direct_cost')?.service).toBe(expected);
+      for (const [code, expected, name] of services) {
+        expect(classifyByPrefix(code, name, 'expense_direct_cost')?.service).toBe(expected);
       }
+    });
+    it('returns subgroupKey "other" with matching label for unknown category digit', () => {
+      // Digit 7 is a gap in COST_CATEGORY (valid: 0,1,2,3,4,5,6,9,10,11).
+      // Behavior: still routes to the service line (HK) but lands in subgroupKey
+      // "other" with a label that does NOT spuriously claim Headcount.
+      const r = classifyByPrefix('500701', 'mystery 5xx7xx row', 'expense_direct_cost');
+      expect(r?.section).toBe('cost_of_revenue');
+      expect(r?.service).toBe('hk');
+      expect(r?.subgroupKey).toBe('other');
+      // Critical: label must NOT say "Headcount Cost" for an unknown-digit row
+      expect(r?.subgroupLabel).not.toMatch(/Headcount/i);
+      expect(r?.subgroupLabel).toMatch(/Other/i);
     });
   });
 

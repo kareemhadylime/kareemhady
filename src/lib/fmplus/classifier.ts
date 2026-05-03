@@ -44,15 +44,15 @@ export type Classification = {
                                  //   no-dep toggle pulls these out of COGS into the bottom bucket
 };
 
-const SERVICE_PREFIX: Record<string, { key: ServiceKey; costLabel: string; revenueKeyword: RegExp }> = {
-  '50': { key: 'hk',        costLabel: 'Cost of Housekeeping',     revenueKeyword: /house\s*keeping|\bhk\b/i },
-  '51': { key: 'mep',       costLabel: 'Cost of MEP',              revenueKeyword: /\bmep\b/i },
-  '52': { key: 'security',  costLabel: 'Cost of Security',         revenueKeyword: /security/i },
-  '53': { key: 'landscape', costLabel: 'Cost of Landscape',        revenueKeyword: /landscape/i },
-  '54': { key: 'pest',      costLabel: 'Cost of Pest Control',     revenueKeyword: /pest/i },
-  '55': { key: 'waste',     costLabel: 'Cost of Waste Management', revenueKeyword: /waste/i },
-  '56': { key: 'paid',      costLabel: 'Cost of PAID Services',    revenueKeyword: /paid\s*service/i },
-  '57': { key: 'vo',        costLabel: 'Cost of Variation Order',  revenueKeyword: /variation|var(a|i)ation/i },
+const SERVICE_PREFIX: Record<string, { key: ServiceKey; costLabel: string; shortLabel: string; revenueKeyword: RegExp }> = {
+  '50': { key: 'hk',        costLabel: 'Cost of Housekeeping',     shortLabel: 'HK',              revenueKeyword: /house\s*keeping|\bhk\b/i },
+  '51': { key: 'mep',       costLabel: 'Cost of MEP',              shortLabel: 'MEP',             revenueKeyword: /\bmep\b/i },
+  '52': { key: 'security',  costLabel: 'Cost of Security',         shortLabel: 'Security',        revenueKeyword: /security/i },
+  '53': { key: 'landscape', costLabel: 'Cost of Landscape',        shortLabel: 'Landscape',       revenueKeyword: /landscape/i },
+  '54': { key: 'pest',      costLabel: 'Cost of Pest Control',     shortLabel: 'Pest Control',    revenueKeyword: /pest/i },
+  '55': { key: 'waste',     costLabel: 'Cost of Waste Management', shortLabel: 'Waste Management',revenueKeyword: /waste/i },
+  '56': { key: 'paid',      costLabel: 'Cost of PAID Services',    shortLabel: 'Paid Service',    revenueKeyword: /paid\s*service/i },
+  '57': { key: 'vo',        costLabel: 'Cost of Variation Order',  shortLabel: 'Variation Order', revenueKeyword: /variation|varation/i },
 };
 
 const COST_CATEGORY: Record<string, { key: string; label: (svc: string) => string }> = {
@@ -68,31 +68,21 @@ const COST_CATEGORY: Record<string, { key: string; label: (svc: string) => strin
   '11': { key: 'indirect',        label: s => `${s} - Indirect Costs` },
 };
 
-function detectCostCategory(code: string): { key: string; label: string } {
-  // Service-line costs: code is 6 digits like '500001'.
-  // Format is "{service:2}{category:2}{seq:2}".
-  // The category at positions [2:4] is interpreted as:
-  //   - '0X' where X is a digit 0-9: use X as the category key
-  //   - '10', '11': use these exactly as category keys
-  // Examples:
-  //   500001 → service=50, category='00' → key='0' (headcount)
-  //   500201 → service=50, category='02' → key='2' (tools)
-  //   510601 → service=51, category='06' → key='6' (subcontractors)
-  //   521001 → service=52, category='10' → key='10' (penalties)
-  //   570001 → service=57, category='00' → key='0' (headcount)
-  const categoryStr = code.slice(2, 4);
-
-  // For '10' and '11', use them directly
-  if (categoryStr === '10' || categoryStr === '11') {
-    const cat = COST_CATEGORY[categoryStr];
-    return { key: cat.key, label: '' };
+function detectCostCategory(code: string): { entry: { key: string; label: (svc: string) => string } | null; key: string } {
+  // Account codes are formatted {service:2}{category:2}{seq:rest}.
+  // The category field is two chars at code[2..4]. Two-char keys '10' and '11'
+  // (penalties, indirect) take precedence; otherwise the single-digit key
+  // lives at code[3] — i.e. the second char of the category field, NOT the
+  // first. The first char of the category field is always '0' for digits 0-9
+  // (it's the leading zero of the zero-padded category number).
+  const two = code.slice(2, 4);
+  if (two === '10' || two === '11') {
+    const entry = COST_CATEGORY[two];
+    return { entry, key: entry.key };
   }
-
-  // For '0X' format, use the second digit (X) as the key
-  const categoryKey = categoryStr[1];
-  const cat = COST_CATEGORY[categoryKey];
-  if (!cat) return { key: 'other', label: '' };
-  return { key: cat.key, label: '' };
+  const one = code.charAt(3);
+  const entry = COST_CATEGORY[one];
+  return entry ? { entry, key: entry.key } : { entry: null, key: 'other' };
 }
 
 export function classifyByPrefix(
@@ -110,7 +100,10 @@ export function classifyByPrefix(
     return null;
   }
 
-  // Income → Revenue, split by service-name keyword
+  // Income → Revenue, split by service-name keyword. First-match-wins:
+  // real Odoo revenue account names contain at most one service keyword.
+  // Iteration order is the SERVICE_PREFIX object insertion order
+  // (50, 51, 52, ..., 57) which gives HK precedence — matches Excel.
   if (accountType === 'income' || accountType === 'income_other') {
     if (accountType === 'income_other') {
       return {
@@ -157,21 +150,17 @@ export function classifyByPrefix(
   // Service-line costs
   if (SERVICE_PREFIX[p2]) {
     const svc = SERVICE_PREFIX[p2];
-    const cat = detectCostCategory(code);
-    const labelFn = COST_CATEGORY[cat.key === 'penalties' ? '10' : cat.key === 'indirect' ? '11' : Object.keys(COST_CATEGORY).find(k => COST_CATEGORY[k].key === cat.key) || '0'];
-    const svcShort = svc.key.toUpperCase().replace('VO', 'Variation Order').replace('PAID', 'Paid Service');
-    const result: Classification = {
+    const { entry, key } = detectCostCategory(code);
+    const subgroupLabel = entry ? entry.label(svc.shortLabel) : `${svc.shortLabel} - Other`;
+    return {
       section: 'cost_of_revenue',
       service: svc.key,
       serviceLabel: svc.costLabel,
-      subgroupKey: cat.key,
-      subgroupLabel: labelFn ? labelFn.label(svcShort) : `${svcShort} - ${cat.key}`,
+      subgroupKey: key,
+      subgroupLabel,
       flip: false,
+      ...(key === 'tools' ? { isDepreciation: true } : {}),
     };
-    if (cat.key === 'tools') {
-      result.isDepreciation = true;
-    }
-    return result;
   }
 
   // General expenses (600-606)
