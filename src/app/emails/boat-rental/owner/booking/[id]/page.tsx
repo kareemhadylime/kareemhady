@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, XCircle, AlertTriangle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
 import { isWithinCancellationWindow, cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { computeBalance } from '@/lib/boat-rental/payment-balance';
@@ -12,6 +12,8 @@ import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { ClickToContact } from '../../../_components/click-to-contact';
 import { RecordPaymentForm } from '../../_components/record-payment-form';
 import { ForceCancelForm } from '../../_components/force-cancel-form';
+import { AdminReservationOverrides } from '../../_components/admin-reservation-overrides';
+import { AdminPaymentRowActions } from '../../_components/admin-payment-row-actions';
 import { cancelReservationOwnerAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +35,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
   const { id } = await params;
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
   const { data } = await sb
     .from('boat_rental_reservations')
@@ -52,7 +55,8 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
     .maybeSingle();
   const r = data as Res | null;
   if (!r) notFound();
-  if (!ownerIds.includes(r.boat.owner_id)) notFound();
+  // Admins can view any booking via owner pages; owners only their own.
+  if (!isAdmin && !ownerIds.includes(r.boat.owner_id)) notFound();
 
   const defaultSkipper = await getDefaultSkipper(r.boat.id as string);
 
@@ -192,9 +196,20 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
                     </div>
                     {p.note && <div className="text-xs text-slate-500 mt-0.5">{p.note}</div>}
                   </div>
-                  <span className="tabular-nums font-medium">
-                    EGP {Number(p.amount_egp).toLocaleString()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="tabular-nums font-medium">
+                      EGP {Number(p.amount_egp).toLocaleString()}
+                    </span>
+                    {isAdmin && (
+                      <AdminPaymentRowActions
+                        paymentId={p.id}
+                        amountEgp={Number(p.amount_egp)}
+                        paidDate={p.paid_at.slice(0, 10)}
+                        method={p.method}
+                        note={p.note}
+                      />
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -257,6 +272,18 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
           </p>
           <ForceCancelForm reservationId={r.id} status={r.status} />
         </section>
+      )}
+
+      {isAdmin && (
+        <AdminReservationOverrides
+          reservationId={r.id}
+          initial={{
+            price_egp: price,
+            booking_date: r.booking_date,
+            source: r.source ?? 'registered_broker',
+            notes: r.notes ?? null,
+          }}
+        />
       )}
     </>
   );

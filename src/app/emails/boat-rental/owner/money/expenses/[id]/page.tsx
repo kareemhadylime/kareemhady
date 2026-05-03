@@ -3,13 +3,15 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, XCircle, Undo2 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { computeBalance } from '@/lib/boat-rental/payment-balance';
 import { cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { TabNav, OWNER_TABS } from '../../../../_components/tabs';
 import { MoneySubNav } from '../../_components/sub-nav';
 import { ExpensePaymentForm } from '../../_components/expense-payment-form';
 import { VoidExpenseForm } from '../../_components/void-expense-form';
+import { AdminExpenseOverrides } from '../../_components/admin-expense-overrides';
+import { AdminExpensePaymentActions } from '../../_components/admin-expense-payment-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +58,7 @@ export default async function OwnerExpenseDetail({
   const { id } = await params;
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
   const { data } = await sb
     .from('boat_rental_expenses')
@@ -74,7 +77,7 @@ export default async function OwnerExpenseDetail({
     .maybeSingle();
   const e = data as Expense | null;
   if (!e) notFound();
-  if (!ownerIds.includes(e.owner_id)) notFound();
+  if (!isAdmin && !ownerIds.includes(e.owner_id)) notFound();
 
   const payments = ((e.payments ?? []) as PaymentRow[]).slice().sort(
     (a, b) => a.paid_date.localeCompare(b.paid_date)
@@ -166,9 +169,19 @@ export default async function OwnerExpenseDetail({
                     </div>
                     {p.note && <div className="text-xs text-slate-500 mt-0.5">{p.note}</div>}
                   </div>
-                  <span className="tabular-nums font-medium">
-                    EGP {Number(p.amount_egp).toLocaleString()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="tabular-nums font-medium">
+                      EGP {Number(p.amount_egp).toLocaleString()}
+                    </span>
+                    {isAdmin && (
+                      <AdminExpensePaymentActions
+                        paymentId={p.id}
+                        amountEgp={Number(p.amount_egp)}
+                        paidDate={p.paid_date}
+                        method={p.method}
+                      />
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -217,6 +230,20 @@ export default async function OwnerExpenseDetail({
             createdAtIso={e.created_at}
           />
         </section>
+      )}
+
+      {isAdmin && (
+        <AdminExpenseOverrides
+          expenseId={e.id}
+          initial={{
+            category: e.category,
+            amount_egp: Number(e.amount_egp),
+            expense_date: e.expense_date,
+            description: e.description ?? null,
+            vendor_name: e.vendor_name ?? null,
+            status: e.status as 'open' | 'paid' | 'cancelled',
+          }}
+        />
       )}
     </>
   );
