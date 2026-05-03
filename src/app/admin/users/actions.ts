@@ -124,3 +124,53 @@ export async function setDomainRolesAction(formData: FormData) {
   }
   revalidatePath('/admin/users');
 }
+
+// ---- State-returning variants ----
+// React 19's `useActionState` requires actions of shape
+// `(prev, formData) => result`. The void-returning variants above work for
+// plain `<form action={...}>` but give the user no in-page feedback. The
+// edit panel uses these wrappers so it can render "Saved" inline + auto-
+// collapse after success without a roundtrip-and-redirect dance.
+export type SaveResult =
+  | { ok: true; saved: 'profile' | 'role' | 'domains' }
+  | { ok: false; saved: 'profile' | 'role' | 'domains'; error: string };
+
+function errMsg(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 200);
+}
+
+export async function updateUserProfileStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await updateUserProfileAction(formData);
+    return { ok: true, saved: 'profile' };
+  } catch (e) {
+    return { ok: false, saved: 'profile', error: errMsg(e) };
+  }
+}
+
+export async function updateUserRoleStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await updateUserAction(formData);
+    return { ok: true, saved: 'role' };
+  } catch (e) {
+    return { ok: false, saved: 'role', error: errMsg(e) };
+  }
+}
+
+export async function setDomainRolesStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await setDomainRolesAction(formData);
+    return { ok: true, saved: 'domains' };
+  } catch (e) {
+    return { ok: false, saved: 'domains', error: errMsg(e) };
+  }
+}
