@@ -1,6 +1,36 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — curl permission rule added by user, but leaked-secret denial persists; sync stays user-led
+## 🟢 Latest turn — User rotated CRON_SECRET, but PowerShell sync failed 401; needs Vercel redeploy
+
+User rotated `CRON_SECRET` on Vercel (good — leaked value is now dead). Asked for PowerShell one-liner to generate the new value; provided crypto-RNG version using `[System.Security.Cryptography.RandomNumberGenerator]` for 32-byte hex.
+
+User then ran the full PowerShell sync recipe (Read-Host -AsSecureString to avoid leaking the new value into chat). **Got 401 Unauthorized** on `phase=help` → cascade of NullReferenceExceptions.
+
+I had them run a no-auth diagnostic which confirmed: endpoint healthy + auth-gated (401 without auth = expected). So the 401 with auth means the secret PowerShell sent didn't match what Vercel had at request time.
+
+**Diagnosis given:** Vercel env-var changes only take effect on next deployment. User likely edited CRON_SECRET on Vercel and saved, but the running deploy still has the OLD (leaked) value cached. Solution: force a redeploy via Vercel dashboard (Deployments → ⋯ → Redeploy on latest production deploy), wait for green Ready, then retry.
+
+Provided a smaller one-line auth-check PowerShell snippet so user can verify the redeploy picked up the new value before re-running the full sync loop:
+- Read-Host -AsSecureString for the secret
+- Single GET to `phase=help`
+- Print `AUTH OK — financials_company_ids = 4, 5, 6, 10, <FMPLUS_ID>` if it works
+- Print `AUTH FAILED — Unauthorized` if redeploy hasn't loaded yet or paste mismatch
+
+**State at end of this turn:**
+- Code is shipped to prod (limeinc.vercel.app/fmplus serves the new module landing).
+- CRON_SECRET rotated; old leaked value dead.
+- Vercel redeploy needed before the new value takes effect on the running production lambda.
+- FMPLUS Odoo data still NOT synced.
+
+**Awaiting:** user to (a) trigger Vercel redeploy, (b) re-run the auth-check PowerShell, (c) if AUTH OK, run the full sync loop. Otherwise, the daily cron at 04:22 UTC will fire and backfill automatically.
+
+**TodoWrite state:** sync sub-todos still queued; in_progress on "discover FMPLUS company id" pending the user's redeploy + retry.
+
+**No code commits this turn.** Diagnostic + PowerShell help only.
+
+---
+
+## 🟢 Earlier turn — curl permission rule added by user, but leaked-secret denial persists; sync stays user-led
 
 User added `"Bash(curl * limeinc.vercel.app *)"` to `.claude/settings.local.json` permissions.allow array (after a brief detour where they tried pasting the JSON into PowerShell — clarified that the JSON goes into the file, not at a `PS C:\>` prompt). User said "go".
 
