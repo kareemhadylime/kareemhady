@@ -5472,3 +5472,133 @@ Executed the deploy for the CLAUDE.md consolidation:
 CLAUDE.md got one follow-up edit to document this worktree-vs-real-prod deploy distinction so future sessions don't get confused (and to call out the rebase-before-push pattern that's standard from worktrees). That edit is uncommitted at the time of this entry — will commit + push as part of the same auto-deploy loop the user just authorized.
 
 **Status:** standing authorization saved; first auto-deploy executed end-to-end; CLAUDE.md doc-clarification still to be pushed.
+
+---
+
+## FM+ Project Budget module — brainstorming kickoff (2026-05-03)
+
+User request: build a new **Project Budget** tab under FM+ Domain → Financial. First budget = **AUC** (Housekeeping). Two seasons (Low = May–Aug, High = Sep–Apr). Excel import, proper input UI, variance dashboard vs P&L, multi-project comparison across Odoo analytic accounts. User explicitly requested 3-phase gated workflow: **Plan → Workflow → Coding**, 95% confidence at each gate.
+
+Per `superpowers:brainstorming` skill — currently in Plan phase, exploration step done.
+
+**Exploration findings (no code written yet):**
+
+- Source files in `C:\kareemhady\.claude\FMPLUS\`:
+  - `AUC Budget.xlsx` — 8 sheets (Grand Total + Budget Items Summary + 6 detail sheets: Manning, Equipment, Tools, Consumables, Transportation, IT/Communication).
+  - `Emaar Uptown HK Budget.xlsx` — same template shape, different project.
+  - `Analytic Account (account.analytic.account).xlsx` — 60 FMPLUS analytic accounts across 4 plans (HK / MEP / Security / Mix).
+  - `financial_statements__fm (7).xlsx` — Feb 2026 P&L + balance sheet, account-code level (e.g. `500001 Basic Salary Hk`, `500101 Stock Consumables Hk`, etc.).
+
+- Budget structure (AUC):
+  - 1 project (AUC) × **4 sub-locations** (NC Inner Campus, Outer Campus, NC Off-Campus Housing, Maadi Buildings) — important: sub-locations exist only in budget, Odoo has only one "AUC" analytic account. Variance granularity question is open.
+  - 2 seasons (High 8 mo / Low 4 mo).
+  - 6 cost categories: Manning (15 roles), Uniform & PPE, Tools & Consumables (Machinery / Tools / Consumables), Transportation & Vehicles (Bus / Microbus / Sedan / Minivan / Pickup / Fuel), IT & Communication, Mobilization & Overhead.
+  - Outputs: monthly + annualized cost per season, gross margin %, total revenue (linked to a Breakdown sheet not provided), revenue with VAT (×1.14).
+  - Calculated total cost: ~**42.6M EGP / year** (high ~4.17M/mo × 8 + low ~2.30M/mo × 4).
+
+- Existing infra to leverage (no new ingestion needed):
+  - `odoo_analytic_accounts` table seeded with all 60 FMPLUS accounts.
+  - `odoo_move_line_analytics` link table → monthly actuals per analytic account.
+  - `odoo_accounts` chart-of-accounts already groups headcount / consumables / tools / transport / ICT into the same buckets the budget uses — so bucket-level variance is a natural mapping.
+  - `src/lib/financials-pnl.ts::buildPnlReport` reusable with company + analytic scoping.
+  - **No `/fmplus` route exists yet** — FMPLUS domain is registered in `brand-theme.ts` only; building Financial tab requires scaffolding the FM+ shell.
+
+- Beithady financials page (`src/app/beithady/financials/page.tsx`) is the closest UI reference — uses period presets, company tabs, analytic sub-tabs. Pattern is reusable for FM+ project tabs.
+
+**Visual companion** started at `http://localhost:59614` (project-dir: this worktree, persisted to `.superpowers/brainstorm/1037-1777829583/`). `.superpowers/` was already in `.gitignore`. First screen `01-budget-structure.html` shown — asking user to confirm the budget structure I extracted.
+
+**Open clarifying questions queued (will ask one at a time after structure is confirmed):**
+1. FM+ domain shell scope — scaffold `/fmplus` + Financial tab now, or only Budget feature assuming shell exists?
+2. AUC sub-locations — actuals only at AUC level. Roll up sub-locations for variance (recommended) or tag actuals via journal/partner?
+3. Excel ingest — parse existing rich template AS-IS (merged cells / formulas), or define a flat import template?
+4. Versioning — yearly only, or scenarios (initial / revised / re-forecast)?
+5. Revenue side in scope, or cost-only?
+6. Budget approval workflow (draft → approved → locked)?
+7. Variance convention confirmation (Actual − Budget; over-budget = negative).
+8. Project comparison granularity — bucket-level multi-project grid, or full drilldown?
+9. Permissions — admin-only edit, or any FM+ user?
+
+**Decided NOT done this turn (per user's plan-first directive):**
+- No code written, no migrations, no deploy. Only context exploration + first visual confirmation page.
+- Will hand off to `superpowers:writing-plans` skill only after design is approved by user.
+
+**Status:** awaiting user click on browser (A confirmed / B mostly / C missing) + any terminal corrections, then proceeds to clarifying-question loop.
+
+---
+
+## FM+ Project Budget — clarification 1 confirmed (2026-05-03, follow-up)
+
+User clicked **B** ("mostly right") on `01-budget-structure-v2.html` with one explicit correction: **compare with only one analytic account = AUC**. Earlier dark-mode contrast issue on the v1 page was fixed by switching from hardcoded light hex to frame CSS variables (`var(--bg-tertiary)`, `var(--text-primary)`, etc.).
+
+Resolved into design constraints:
+- Variance = **AUC budget total vs the single AUC Odoo analytic account** (one-to-one). No attempt to split actuals by sub-location.
+- **Sub-locations** (NC Inner / Outer / NC Off-Campus / Maadi) remain in the **budget input** as a planning dimension only. They roll up before the variance comparison.
+- **Cross-project comparison** = one Odoo analytic account per project (AUC, Emaar Uptown, MBZ, Marassi …). 60+ candidate projects already in `odoo_analytic_accounts`.
+
+Pushed `02-waiting.html` to clear the visual companion and asked **Question 1 of ~8 in terminal**: FM+ shell scope. Three options presented:
+- A — scaffold full FM+ domain (`/fmplus`) + Financial section + Project Budget tab (+1 day, recommended)
+- B — drop straight to a single Project Budget page, no parent shell
+- C — mount under `/admin/fmplus/budget`
+
+Awaiting user choice for A/B/C. After that I plan to ask in order: ingest format (rich Excel parse vs flat template), versioning/scenarios, revenue side scope, approval workflow, variance sign convention, comparison granularity, edit permissions.
+
+**Status:** still in Plan phase, no code written, no migrations, no deploy. Visual companion server still running at http://localhost:59614 (pid in `.superpowers/brainstorm/1037-1777829583/state/server-info`).
+
+---
+
+## FM+ Project Budget — design v1 + v2 pushed (2026-05-03, follow-up)
+
+User redirected: "Financial Tab is being built in another session — start with budget design now." → Skipped FM+ shell scaffolding (Q1 answered: B), proceeded directly to module design.
+
+**v1 design** (`03-module-design.html`) — 6 sub-tabs (Overview · Editor · Import · Variance · Compare · Settings), hybrid architecture (native editor + flat XLSX import + legacy rich-XLSX migration), 8 default decisions stated explicitly, 8 improvement suggestions added beyond ask (smart category mapping, drill-to-journal, YoY template, anomaly detector, phased starts, health score, export, smart sub-location collapse).
+
+**Major pivot from user**: "Project Plans will Vary — HK / MEP / Landscape / Security / Pest Control / Waste Management. First step is choosing project type, could be one or more. Will drop budget sheet style for others in the future."
+
+→ Re-spun as **v2 design** (`04-service-lines.html`):
+- **Service line** is first-class dimension (6 lines), picked before editor renders.
+- **Multi-service per project** supported — segments per service line, variance dashboard per segment + rollup.
+- Templates are per-service-line, code-seeded. HK ships fully baked from AUC sheet; other 5 stubbed.
+- Data model: `budget_templates` (versioned, schema_json + account_map_json) → `project_budgets` (project, year, scenario, status) → `project_budget_segments` (one per service line) → `budget_lines` (sub_location, category, line_code, season, qty, unit_cost, monthly_cost) → `budget_revenue_lines` (optional revenue side).
+- Variance leverages existing Odoo grouping: Cost of Housekeeping / Cost of MEP / Cost of Security / Cost of Landscape / Cost of Pest Control / Cost of Waste Mgmt — already aggregated in chart of accounts.
+- Compare tab is now service-line filterable (e.g., "rank all HK projects by variance").
+- **Phasing**: v1 = HK end-to-end + 5 stubs · v2+ = each new template lands as a single PR with seed row + tests, no app code changes.
+
+**Outstanding decisions (still my best-guess defaults, user can override anytime)**:
+- Versioning: per-year + scenarios (Initial / Revised / Re-forecast)
+- Approval: Draft → Published (audit trail on edits-after-publish)
+- Revenue: optional, cost-only by default
+- Variance sign: Actual − Budget (positive = over-budget = red)
+- Thresholds: ±5% green, ±5–15% amber, >15% red (configurable)
+- Permissions: admin-only edit, all FM+ users view
+- Currency: EGP only
+
+**Awaiting**: user click A (approve, proceed to data-model deep dive) / B (approve, skip multi-service for v1) / C (rethink — describe in terminal).
+
+Visual companion still running at http://localhost:59614 (session `1037-1777829583`).
+
+**No code written, no migrations, no commits, no deploys this turn.** Plan phase only, per user's explicit gated workflow ("After 95% Confidence in Plan Phase Move on to Workflow Phase").
+
+---
+
+## FM+ Project Budget — data model approved + dashboards pushed (2026-05-03, follow-up)
+
+User clicked **A** on `04-service-lines.html` (service-line first-class dim, multi-service supported, HK ships first, others stubbed).
+
+**Data model + ingest spec** (`05-data-model.html`) pushed and approved (clicked A):
+- Migration `0080_fmplus_project_budget.sql` — 7 tables: `budget_templates` (versioned, code-seeded), `project_budgets` (project, year, scenario, status, start_month for phased starts), `project_budget_segments` (one per service line, locks template_version on publish), `budget_lines` (sub_location, category, line_code, season, qty, unit_cost, generated `monthly_cost`), `budget_revenue_lines`, `budget_audit` (post-publish edit trail), `budget_settings` (configurable thresholds).
+- HK template seed JSON: 6 categories × ~30 lines · sub_locations_enabled=true · season_months 8/4 · per-category calc rule · regex `account_map_json` mapping each category to Odoo account-code pattern (e.g. manning → `^5000(0[1-9]|1[0-4])$`).
+- Excel ingest two paths: Path A parses rich AUC-style template (sheet detection by name, 0.5% diff sanity check), Path B is flat normalized one-row-per-line XLSX (Editor exports to it).
+- Variance pseudocode: aggregate budget by month → join `odoo_move_line_analytics` filtered by analytic_account_id → match Odoo account.code via account_map_json regex → compute variance/variance_pct → roll up segment/project + drilldown map to journal IDs.
+- 7 edge cases baked in: phased starts, no-actuals annotation, re-forecast separation, template version locking, stub service-line placeholders, unmapped-account drift detection, EGP-only enforcement.
+
+**Dashboard wireframes** (`06-dashboards.html`) pushed, awaiting approval:
+- Overview tab — portfolio table, 4 KPI tiles, anomaly-detector strip (3 worst variance projects), multi-service chips on rows.
+- Variance tab — single project deep dive: header + 5 KPI tiles using real AUC annual budget number (42,597,923 EGP), service-line sub-tabs, month × category grid with `budget / actual` per cell, traffic-light tint, low-season column shading, click-to-drill-to-journal explained.
+- Compare tab — multi-project ranking: service-line filter chips, sort selector, project × category grid with per-cell traffic-light, **deliberate decision: underspend > 15% colored amber not green (scope-delivery risk signal)**.
+- Settings tab MVP — inline-editable variance thresholds, template status list, category-account mapping editor with unmapped-account warning.
+
+**Awaiting**: user click on `06-dashboards.html` (A / B / C). On A: write spec doc to `docs/superpowers/specs/2026-05-03-fmplus-project-budget-design.md`, commit, then ask user to review the spec before transitioning to Workflow phase via `superpowers:writing-plans` skill.
+
+**Still no code, no migrations, no commits, no deploys.** Plan phase only — per the user's explicit gated workflow.
+
+Visual companion server still running at http://localhost:59614 (session `1037-1777829583`).
