@@ -3,15 +3,32 @@ import { exchangeCode, getAuthorizingEmail } from '@/lib/gmail';
 import { encrypt } from '@/lib/crypto';
 import { supabaseAdmin } from '@/lib/supabase';
 
+// Maps the authorizing email's domain to the user-visible label shown
+// in the dashboard. Personal mailboxes use these short tags; non-
+// personal accounts get a generic `<local-part>` upper-cased.
+function deriveDisplayName(email: string): string {
+  const lower = email.toLowerCase();
+  if (lower.endsWith('@gmail.com')) return 'GMAIL';
+  if (lower.includes('@lime-investments') || lower.includes('@lime.')) return 'LIME';
+  if (lower.includes('@fmplus')) return 'FM+';
+  return email.split('@')[0].toUpperCase();
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
-  const state = url.searchParams.get('state');
+  const state = url.searchParams.get('state') ?? '';
   const cookieState = req.cookies.get('oauth_state')?.value;
 
-  if (!code || !state || state !== cookieState) {
+  // State format: `${csrf}.${domain}` (domain may be empty).
+  const dotIdx = state.indexOf('.');
+  const csrfPart = dotIdx === -1 ? state : state.slice(0, dotIdx);
+  const domainPart = dotIdx === -1 ? '' : state.slice(dotIdx + 1);
+  if (!code || !csrfPart || csrfPart !== cookieState) {
     return NextResponse.json({ error: 'invalid_state' }, { status: 400 });
   }
+
+  const domain = domainPart === 'personal' ? 'personal' : null;
 
   const tokens = await exchangeCode(code);
   if (!tokens.refresh_token) {
@@ -39,6 +56,8 @@ export async function GET(req: NextRequest) {
       access_token_expires_at: tokens.expiry_date
         ? new Date(tokens.expiry_date).toISOString()
         : null,
+      domain,
+      display_name: deriveDisplayName(email),
       enabled: true,
     },
     { onConflict: 'email' }
