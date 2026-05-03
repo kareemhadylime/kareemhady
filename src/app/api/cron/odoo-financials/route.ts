@@ -8,6 +8,7 @@ import {
   rebuildAnalyticLinks,
   finalizeOwnerFlag,
 } from '@/lib/run-odoo-financial-sync';
+import { discoverFmplusCompanyId } from '@/lib/fmplus/discover-company';
 
 // Cron-dispatched financial sync. Each cron entry in vercel.json maps to a
 // specific `?phase=X` so one phase runs per invocation — keeps us under the
@@ -19,6 +20,7 @@ import {
 //   04:10  ?phase=move-lines-4                     → A1 move lines
 //   04:15  ?phase=move-lines-5                     → Beithady Egypt move lines
 //   04:20  ?phase=move-lines-10                    → Beithady Dubai move lines
+//   04:22  ?phase=move-lines-fmplus                → FMPLUS move lines
 //   04:25  ?phase=analytics                        → analytic plans + accounts + links
 //   04:30  ?phase=finalize                         → owner flag
 
@@ -57,6 +59,14 @@ export async function GET(req: NextRequest) {
           phase,
           result: await syncOdooMoveLines(10, { resume: true }),
         });
+      case 'move-lines-fmplus': {
+        const fmplusId = await discoverFmplusCompanyId();
+        return NextResponse.json({
+          ok: true,
+          phase,
+          result: await syncOdooMoveLines(fmplusId, { resume: true }),
+        });
+      }
       case 'analytics': {
         const plans = await syncOdooAnalyticPlans();
         const accounts = await syncOdooAnalyticAccounts();
@@ -80,7 +90,7 @@ export async function GET(req: NextRequest) {
           {
             ok: false,
             error: 'unknown phase',
-            hint: 'valid: metadata | move-lines-4 | move-lines-5 | move-lines-10 | analytics | finalize',
+            hint: 'valid: metadata | move-lines-4 | move-lines-5 | move-lines-10 | move-lines-fmplus | analytics | finalize',
           },
           { status: 400 }
         );

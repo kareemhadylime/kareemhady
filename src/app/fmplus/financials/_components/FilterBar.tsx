@@ -11,10 +11,13 @@ const GRANULARITIES: Array<{ id: Granularity; label: string }> = [
 
 const PERIOD_COUNTS = [1, 3, 6, 12];
 
+// Plans Compare and Accounts Compare are deferred to v2 — the underlying
+// RPC currently widens the filter without pivoting columns by plan/account,
+// which would mislead users. Re-enable once pnl_aggregated_multiperiod
+// supports a p_pivot_dimension parameter and the renderer keys columns
+// off the pivoted axis.
 const MODES: Array<{ id: ScopeMode; label: string }> = [
   { id: 'trend',    label: 'Period Trend' },
-  { id: 'plans',    label: 'Plans Compare' },
-  { id: 'accounts', label: 'Accounts Compare' },
 ];
 
 function asofPlaceholder(g: Granularity): string {
