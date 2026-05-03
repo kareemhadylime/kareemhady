@@ -1,8 +1,12 @@
 import type { DashboardReport } from '@/lib/fmplus/types';
+import { KpiStrip } from './KpiStrip';
+import { DashboardCharts } from './DashboardCharts';
+
 export function Dashboard({ data }: { data: DashboardReport }) {
   return (
-    <pre className="text-xs bg-slate-50 p-4 rounded-lg overflow-auto max-h-[600px]">
-      {JSON.stringify(data, null, 2)}
-    </pre>
+    <div className="space-y-6">
+      <KpiStrip kpis={data.kpis} />
+      <DashboardCharts data={data} />
+    </div>
   );
 }
