@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateBudgetByMonth, matchAccountToCategory, aggregateActualsByMonth } from './variance';
+import { aggregateBudgetByMonth, matchAccountToCategory, aggregateActualsByMonth, colorVariance, computeCellRollup } from './variance';
 
 describe('aggregateBudgetByMonth', () => {
   it('expands season totals into per-month using HK season_months', () => {
@@ -66,5 +66,58 @@ describe('aggregateActualsByMonth', () => {
     expect(jan.actual).toBe(150);
     expect(feb.actual).toBe(200);
     expect(unmappedTotal).toBe(30);
+  });
+});
+
+describe('colorVariance — asymmetric (only large overspend → red)', () => {
+  const thr = { green: 5, amber: 15 };
+  it('green for small deviation either way', () => {
+    expect(colorVariance(0,    thr)).toBe('green');
+    expect(colorVariance(4.9,  thr)).toBe('green');
+    expect(colorVariance(-4.9, thr)).toBe('green');
+  });
+  it('amber for moderate overspend', () => {
+    expect(colorVariance(10, thr)).toBe('amber');
+    expect(colorVariance(15, thr)).toBe('amber');
+  });
+  it('red for large overspend', () => {
+    expect(colorVariance(15.1, thr)).toBe('red');
+    expect(colorVariance(50,   thr)).toBe('red');
+  });
+  it('amber (NOT red) for large underspend — scope-delivery risk', () => {
+    expect(colorVariance(-20, thr)).toBe('amber');
+    expect(colorVariance(-99, thr)).toBe('amber');
+  });
+  it('null variance_pct returns "green"', () => {
+    expect(colorVariance(null, thr)).toBe('green');
+  });
+});
+
+describe('computeCellRollup', () => {
+  it('joins budget+actual and computes variance + color', () => {
+    const budget = [
+      { segment_id: 1, category: 'manning', month: 1, budget: 1000 },
+      { segment_id: 1, category: 'manning', month: 2, budget: 1000 },
+    ];
+    const actuals = [
+      { segment_id: 1, category: 'manning', month: 1, actual: 950 },
+      { segment_id: 1, category: 'manning', month: 2, actual: 1200 },
+    ];
+    const cells = computeCellRollup(budget, actuals, { green: 5, amber: 15 });
+    const jan = cells.find(c => c.month===1)!;
+    const feb = cells.find(c => c.month===2)!;
+    expect(jan.variance).toBe(-50);
+    expect(jan.color).toBe('green');
+    expect(feb.variance).toBe(200);
+    expect(feb.color).toBe('red');
+  });
+
+  it('returns null variance_pct when budget is 0', () => {
+    const cells = computeCellRollup(
+      [{ segment_id: 1, category: 'x', month: 1, budget: 0 }],
+      [{ segment_id: 1, category: 'x', month: 1, actual: 100 }],
+      { green: 5, amber: 15 },
+    );
+    expect(cells[0].variance_pct).toBeNull();
   });
 });
