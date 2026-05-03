@@ -1,6 +1,196 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Select-all toggle now actually toggles
+## 🟢 Latest turn — FMPLUS Financials Q3+Q4 answered, Section 1 of 6-section design presented
+
+User answered Q3 + Q4 with sharper shapes than I'd proposed:
+
+**Q3 (period comparison):** "Tabs On top which comparison types we need and for how many periods for Example Monthly - Last 3 Periods" → **granularity tabs (Monthly / Quarterly / Yearly), then a Last-N-Periods selector, render N columns side-by-side as a trend table.**
+
+**Q4 (multi-select):** "First You Select Period (Month For Example) - Then Plans to compare Side by Side, Or Else choose one Plan and choose sub accounts - Multi Choice (Only Accounts that Have active values in the period chosen appear to choose from)" → **two-step picker: pick period first; then Mode toggle — Plans Compare (multi-plan columns) OR One Plan + Sub-Accounts (pick a plan, then multi-select active-only accounts as columns). Empty/zero accounts auto-pruned from the picker for the chosen period.**
+
+**Two cleanups I baked in (need to validate during design review):**
+1. Period-Compare and Plan/Account-Compare are alternates not stackable — never produce a 2D periods×plans matrix (unreadable). Single dimension at a time, toggle between modes.
+2. Balance Sheet only supports period comparison; plan-compare hidden on BS tab (a single project doesn't have its own BS).
+
+**I started presenting the design, Section 1 of 6 (information architecture & routing):**
+- New top-level route `/fmplus` parallel to `/beithady`, `/kika`. v1 sub-modules: just Financials.
+- `/fmplus/financials` with URL-as-source-of-truth filters (same pattern as beithady financials):
+  - `?view=dashboard|pnl|balance_sheet`
+  - `?granularity=monthly|quarterly|yearly`
+  - `?periods=1|3|6|12`
+  - `?asof=YYYY-MM` (anchor — most recent column)
+  - `?mode=trend|plans|accounts`
+  - `?plans=hk_projects,mep_projects` (when mode=plans)
+  - `?plan=mep_projects` + `?accounts=ID,ID,ID` (when mode=accounts)
+  - `?with_dep=1` toggle
+  - `?include_drafts=1` (default 1, matches the Excel "With Draft Entries")
+- 3 tabs inside the sub-module: **Dashboard (default), Profit & Loss, Balance Sheet**. Filter bar persists across tabs.
+
+**Awaiting user "OK to proceed to Section 2".**
+
+**Remaining sections to present (one at a time, approval-gated):**
+- §2 Filter bar (granularity tabs / period count / asof picker / mode toggle / picker UI)
+- §3 P&L renderer (replicates Feb-2026 export row-for-row, prefix-based classifier, per-service-line gross-margin %, with-dep/no-dep toggle)
+- §4 Balance Sheet renderer (replicates BS export, opening-balance seed, current-year unallocated derivation)
+- §5 Data layer (extend FINANCIALS_COMPANY_IDS to include FMPLUS company-id-TBD-via-discovery; new lib `src/lib/fmplus/financials.ts` with prefix-classifier; new RPC `pnl_aggregated_fmplus` or extend the existing one with multi-period; opening-balance seed file `src/lib/fmplus-opening-balance-2026.ts`)
+- §6 Dashboard charts (revenue mix donut · cost mix donut · gross-margin-by-service horizontal bar · 12-month Revenue/EBITDA/NP trend line · top-10 active projects bar — all using `recharts` which is already in deps)
+
+After §6 approval → write spec to `docs/superpowers/specs/2026-05-03-fmplus-financials-design.md`, commit, request user review of spec file, then invoke `superpowers:writing-plans` for the workflow phase.
+
+**No code, migrations, or files written this turn beyond SESSION_HANDOFF.md.** Pure design conversation. TodoWrite advanced to "Present full design proposal in sections, get approval per section" (in_progress).
+
+---
+
+## 🟢 Earlier turn — FMPLUS Financials brainstorming, Q2 answered with template, Q3+Q4 asked
+
+User dropped the **actual Feb-2026 P&L + Balance Sheet export** at `C:\kareemhady\.claude\FMPLUS\financial_statements__fm (7).xlsx` and said: *"Study them well and replicate with Totals - Pull Down Models - You suggest best form - with percentages to revenue - Clear Dashboards and Informational Graphs."*
+
+That answers Q2 (option C — replicate the exact format) and gives me everything I need to design.
+
+**What I extracted from the export (will replicate row-for-row in v1):**
+
+**P&L hierarchy** (sheet "Profit and loss_ FMPLUS" — 449 rows + "(No Dep" variant — same Net Profit, depreciation pulled out):
+```
+REVENUE 38.5M
+  Operation Revenue 38.4M
+    HK 20.6M (53.7%) · MEP 11.7M (30.6%) · Security 3.1M (8.1%) ·
+    Landscape 436k (1.1%) · Pest 342k (0.9%) · Waste 12k ·
+    Paid Services 268k (0.7%) · Variation Order 1.87M (4.9%)
+  Other Revenues 36k (0.1%)
+
+COST OF REVENUE = Cost of Operations 33.2M    [each line shows Gross Margin %]
+  Cost of HK 16.9M     18.11% margin   500xxx
+  Cost of MEP 11.4M     3.18%          510xxx
+  Cost of Security 2.98M 4.65%         520xxx
+  Cost of Landscape 323k 25.81%        530xxx
+  Cost of Pest 246k    28.04%          540xxx
+  Cost of Waste 6k     46.99%          550xxx
+  Cost of Paid 129k    51.96%          560xxx
+  Cost of VO 1.25M     33.00%          570xxx
+  Each service line breaks into 10 cost categories:
+    Headcount (xx0001-xx0012) · Consumables (xx0101-xx0106)
+    · Tools/Equip Depreciation (xx0201-xx0208) · ICT (xx0301-xx0306)
+    · Staff Accommodation (xx0401-xx0408) · Transport & Fleet (xx0501-xx0540)
+    · Subcontractors (xx0601-xx0608) · Contracting Insurance (xx0901-xx0902)
+    · Penalties (xx1001-xx1002) · Indirect Costs (xx1101-xx1103)
+
+GROSS PROFIT 5.26M (13.68%)
+GENERAL EXPENSES 4.45M (11.58%)
+  Back Office Salaries 600xxx · Office Rent 601xxx · Transport 602xxx
+  · Marketing 603xxx · Legal & Financial 604xxx · Other 605–606xxx
+EBITDA 808k (2.10%)
+INT – TAXES – DEP – ADJ
+  Interest 1.11M (2.89%) · Depreciation 411k
+NET PROFIT –716k (–1.86%)
+```
+
+**KEY DESIGN INSIGHT — pure prefix-based classification.** FMPLUS's CoA is *deterministic* by code prefix (unlike Beithady which needs name-regex hacks for "Home Owner Cut"):
+- `5[0-7]xxxx` → Cost of Service Line N (50=HK, 51=MEP, 52=Security, 53=Landscape, 54=Pest, 55=Waste, 56=Paid, 57=VO)
+- 3rd digit picks the cost-category subgroup (0=Headcount, 1=Consumables, 2=Tools, 3=ICT, 4=StaffAccom, 5=Transport, 6=Subcontract, 9=Insurance, 10=Penalties, 11=Indirect)
+- `600/601/602/603/604/605/606` → G&A subgroups
+- `607` → Interest, `608/609` → Depreciation
+- Income accounts → Revenue (split by name pattern: HK / MEP / Security / Landscape / Pest / Waste / Paid / VO / Other)
+
+This is a much cleaner classifier than Beithady's. **No `Home Owner Cut` section, no intercompany elimination, no LOB/building dimension.**
+
+**Balance Sheet structure** (sheet "Balance Sheet" — 241 rows):
+```
+ASSETS 171.7M
+  Current Assets 102M (Bank/Cash, Receivables, Inventories, Prepayments)
+  Plus Fixed Assets 21.2M (PPE 111xxx, Equipment, Electrical Devices,
+                           Tools, Furniture, Computers, Leasehold,
+                           Uniform, Right Of Use - Car 112001-006,
+                           Right Of Use - Equipment 112007-008)
+  Plus Non-current 48.4M (Deferred Tax 113001, Intangible 115001-002,
+                          Restricted Cash 117001-007)
+LIABILITIES 153M
+  Current Liabilities 141M (Trade Payables 221001-016, Tax 226001-006,
+                            Other 227001-004)
+  Payables 39.9M (sub-detail)
+  Plus Non-current 12M (Borrowings: Concrete 211001 · Lime 211002 ·
+                        Bank 211003 · CIB 211004 · FAB 211005,
+                        Other 215001-003)
+EQUITY 18.7M
+  Unallocated Earnings -58.7M (Current Year derived from YTD P&L,
+                               Previous Years from equity_unaffected)
+  Retained Earnings 77.4M
+LIABILITIES + EQUITY = 171.7M ✓
+```
+
+**Filters tab** confirms: company = "FMPLUS Property & Facility Management" (single), entries = "With Draft Entries" (parent_state IN ('draft','posted')).
+
+**Implications I'm baking into the design:**
+1. P&L will use a **prefix-rules classifier** (deterministic, pure function), not Beithady's name-regex approach. Cleaner code.
+2. **Per-service-line Gross Margin % column** is a hard requirement — surfaces it on every Cost-of-X row (the Excel shows it; user explicitly said "with percentages to revenue").
+3. **"With Dep" / "No Dep" toggle** mirrors the user's two-tab Excel — single field on the URL, toggles whether 50xxx20x (depreciation rows inside COGS) are pushed up to the bottom INT-TAX-DEP bucket.
+4. **Balance Sheet needs an opening-balance seed** like Beithady (move_lines only sync ~365d) — the export gives me a complete Feb-2026 snapshot to seed from. Will add `fmplus-opening-balance-2026.ts` parallel to Beithady's.
+5. **Charts/dashboards** — user explicitly asked for "Clear Dashboards and Informational Graphs." Plan: revenue mix donut (8 service lines), cost mix donut, gross-margin-by-service horizontal bar, monthly trend line for Revenue/EBITDA/NP last 12mo, and a top-10 projects-by-balance bar (from analytic accounts).
+
+**Q2 (P&L format):** answered = **C** (mirror exact export).
+
+**Q3 (asked, awaiting answer):** Prev-period comparison shape. Five options: (A) immediate prior, (B) same-period last year, (C) both side-by-side, (D) custom range, (E) my recommendation = **A as default with a toggle to B + custom escape hatch, three columns Current · Prior · Δ%, applied to every P&L row and BS line.**
+
+**Q4 (asked, awaiting answer):** Multi-select shape. (A) flat 59-account checklist, (B) hierarchical plan → children with click-header-to-select-all (my pick), (C) two separate pickers, (D) other. Plus Per-Project Matrix view yes/no (when N analytic accounts selected, render N side-by-side columns instead of rolled total).
+
+**Decided without asking** (will document in spec, user can object):
+- v1 scope = **P&L + Balance Sheet only** (no Payables/Receivables/Cash Flow — those were Beithady's; user's bullet list was P&L + BS + Analytic + Date + Prev Period).
+- Nav placement = **new top-level `/fmplus` route** with Financials as the first sub-module.
+- Opening-balance seed = **yes, mandatory** (same approach as Beithady).
+- Charts on the dashboard = **revenue mix donut + cost mix donut + gross-margin bars + 12-month trend line + top projects bar.** User explicitly asked for graphs.
+
+**TodoWrite state:** still on "Ask clarifying questions one at a time" (Q3+Q4 in flight).
+
+**No files modified.** Next step: receive Q3+Q4 answers → write the full design proposal → user approves sections → write spec to `docs/superpowers/specs/2026-05-03-fmplus-financials-design.md` → commit → request review → invoke writing-plans for the workflow phase.
+
+---
+
+## 🟢 Earlier turn — FMPLUS Financials sub-module — brainstorming phase (in progress)
+
+User: "In FMPLUS Module, create a Sub Module for Financials Pulled out of ODOO — P&L, Balance Sheet, Analytic Accounts (Single & Multi Select), Date Filters, Previous Period Comparison. First plan… ask for unclear functions… 95% confidence → Workflow phase → 95% → Code."
+
+**Status:** Brainstorming, **no code or migrations written yet**. Following the `superpowers:brainstorming` skill (HARD GATE: no implementation until design approved). Asking clarifying questions one at a time; expect ~6–7 total before proposing design.
+
+**Context I gathered before asking anything:**
+- **No FMPLUS module exists yet.** Only the brand identity (amber/orange theme, Building2 icon) is wired in [src/lib/brand-theme.ts:101](src/lib/brand-theme.ts) and [src/lib/rules/presets.ts](src/lib/rules/presets.ts). No `/fmplus` route.
+- **Reference implementation:** [src/app/beithady/financials/page.tsx](src/app/beithady/financials/page.tsx) is the closest analogue. P&L (5 sections cascading to Net Profit), Balance Sheet (Assets/Liab/Equity), Payables (vendor/employee/owner), period preset+custom+month picker, **single-select** analytic filter (one building OR one LOB).
+- **Data layer reusable:** [src/lib/financials-pnl.ts](src/lib/financials-pnl.ts) (`buildPnlReport`, `buildBalanceSheet`, `buildPayablesReport`, `resolveFinancePeriod`) is mostly Beithady-agnostic — but `classifyAccount()` embeds Beithady-specific buckets (Home Owner Cut, intercompany elimination 5↔10, BH-XX building codes, Arbitrage/Management LOB). Generic Odoo data (account_type, plan_id, account.name) is the reusable substrate.
+- **Sync scope today:** [src/lib/run-odoo-financial-sync.ts:18](src/lib/run-odoo-financial-sync.ts) `FINANCIALS_COMPANY_IDS = [4, 5, 6, 10]` (A1, Beithady-EG, Kika, Beithady-Dubai). **FMPLUS company is NOT yet in the sync** — must be added.
+- **Aggregation function `pnl_aggregated`** is referenced in financials-pnl.ts but **lives in Supabase only — no migration file**. Was applied via dashboard. Will need inspection / extension for multi-period / multi-account features.
+- **Previous-period comparison:** not implemented anywhere in the repo. Net new.
+- **Multi-select analytic filter:** not implemented anywhere — current code only single-selects building OR lob.
+
+**Question 1 (asked + answered):** What's the FMPLUS company scope?
+> **Answer:** Single Odoo company "FMPLUS PROPERTY & FACILITY MANAGEMENT". User shared screenshot of the Odoo company switcher (visible companies in the tenant: VOLTAUTO, Lime Commercial Investment, A1HOSPITALITY, Beithady Egypt, Beithady FZCO Dubai, X Label for Tailoring Kika, Lime For Restaurants, "202993 - fm security creation new co...", **FMPLUS Property & Facility Management** *(checked)*, "The Bees Art Direction for Managing…"). Company-id discovery deferred to implementation; semantically: single company, no consolidation, no intercompany elimination logic.
+>
+> **Plus an analytic-account export** dropped at `C:\kareemhady\.claude\FMPLUS\Analytic Account (account.analytic.account).xlsx` — 59 rows, 4 plans:
+> - **Project / HK Projects** (21 accounts) — Marassi, Uptown, Z Tower, ZED EAST, RATP, AUC, Hyde Park, Telda, Zakat & Charity House, etc.
+> - **Project / MEP Projects** (22 accounts) — ADIB, AEON, Bank Al Mashreq, CIB, CREDIT AGRICOLE, Capital, Chuck E Cheese, D5, Etisalat, MALL OF ARABIA, Mall of Mansoura, Tanta Mall, ROYAL PARK, ZED CIUB, etc.
+> - **Project / Security Projects** (3 accounts) — Jefaira, KAYAN, UBL.
+> - **Project / Mix Projects** (13 accounts) — Back Office (-15M), Casa Compound, City Gate, Inventory, Main Warehouse, R3, Twin Towers, La Sirena, Volt Auto, etc.
+>
+> So FMPLUS = **per-project P&L across 4 service lines (HK / MEP / Security / Mix)**. Multi-select is essential because operators will want to roll up "all Marassi projects" or "all RATP sites" or compare a plan-level service line.
+
+**Question 2 (asked, awaiting answer):** P&L statement structure. Three options offered:
+- **A.** Standard project-services P&L (Revenue → Direct Project Costs → Gross Profit → G&A → EBITDA → Dep/Int/Tax → Net Profit) with cost categories: on-project salaries, materials, subcontractors, site transport, equipment hire. ← my recommendation.
+- **B.** Generic Odoo `account_type` rollup (no opinionated buckets).
+- **C.** Mirror an existing FMPLUS P&L template if user has one.
+
+**Plus a strong v1 suggestion attached to Q2:** add a **"Per-Project Matrix" view** alongside the rolled-up P&L — when N analytic accounts are selected, show them as side-by-side columns (rows = same P&L lines) instead of one rolled-up total. Highest-leverage feature for project-services exec view. Awaiting yes/no.
+
+**Remaining questions (staged after Q2 answered):**
+- Q3: Multi-select UX shape — plan-level only / account-level only / hierarchical (plan → expand → accounts) / both with chips.
+- Q4: Previous-period comparison shape — same-period last year vs immediately-preceding period vs both selectable; column layout (current+prior+Δ+Δ%).
+- Q5: Balance Sheet opening-balance seed — Beithady has a 2026-01-01 xlsx seed because move_lines only sync ~365 days; does FMPLUS need the same? (Likely yes — balances in the export are cumulative, in 100Ms of EGP.)
+- Q6: Payables / receivables / cash flow — in scope for v1 or P&L+BS only?
+- Q7: Nav placement — `/fmplus` top-level route + sub-routes, or sub-tab inside an existing area?
+
+**TodoWrite state:** 7 items, currently `in_progress` on "Ask clarifying questions one at a time".
+
+**No files modified, no migrations created, no commits.** Pure design conversation.
+
+---
+
+## 🟢 Earlier turn — Select-all toggle now actually toggles
 
 User: "Select all should have the ability to deselect all".
 
