@@ -71,7 +71,10 @@ export const OPENING_BALANCE_DATE = '2026-02-28';
 export type FmplusOpeningEntry = {
   code: string;
   name: string;
-  account_type: AccountType | 'derived';
+  // Seed entries always reflect real Odoo accounts. Synthetic 'derived' rows
+  // (e.g. computed Retained Earnings) belong in the render-time
+  // BalanceSheetLeaf type in ./types, not in this raw seed.
+  account_type: AccountType;
   opening_raw: number;
 };
 

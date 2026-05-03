@@ -24,19 +24,15 @@ describe('FMPLUS opening balance seed', () => {
     }
   });
 
-  it('balanced when populated: sum of opening_raw approaches zero', () => {
+  it('balanced when populated: sum of opening_raw < 1 EGP (strict once data lands)', () => {
     // Accounting identity in raw debit-credit terms:
     //   sum(assets) + sum(liabilities) + sum(equity) = 0
-    // (assets debit-normal positive, liabilities + equity credit-normal negative)
-    //
-    // For an empty stub this trivially passes. When populated, allow a small
-    // tolerance for:
-    //   - Excel-source rounding (~1 EGP)
-    //   - Snapshot-date current-year P&L portion if not seeded into equity
-    //
-    // Deliberately permissive (10M EGP) until the follow-up task tightens
-    // it after the populated seed lands.
+    // Empty stub trivially passes via short-circuit; once entries are
+    // populated, this enforces a hard <1 EGP tolerance so a partial seed
+    // (e.g. assets only, no liabilities) fails loudly instead of silently
+    // accepting a multi-million-EGP imbalance.
+    if (FMPLUS_OPENING_BALANCES_2026_02.length === 0) return;
     const total = FMPLUS_OPENING_BALANCES_2026_02.reduce((s, e) => s + e.opening_raw, 0);
-    expect(Math.abs(total)).toBeLessThan(10_000_000);
+    expect(Math.abs(total)).toBeLessThan(1);
   });
 });
