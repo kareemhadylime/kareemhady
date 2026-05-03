@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Filter, AlertTriangle, XCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Filter, AlertTriangle, XCircle, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BackToAdminMenu } from '../_components/back-to-menu';
 import { adminForceCancelAction, clearRefundFlagAction } from './actions';
@@ -161,29 +161,33 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
                   <div>Client · {r.booking.client_name} ({r.booking.guest_count})</div>
                 )}
               </div>
-              {(r.refund_pending || cancellable) && (
-                <div className="mt-3 flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800">
-                  {r.refund_pending && (
-                    <form action={clearRefundFlagAction}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <button type="submit" className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline">
-                        Clear refund
-                      </button>
-                    </form>
-                  )}
-                  {cancellable && (
-                    <form action={adminForceCancelAction}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <button
-                        type="submit"
-                        className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-800 inline-flex items-center gap-1"
-                      >
-                        <XCircle size={12} /> Force-cancel
-                      </button>
-                    </form>
-                  )}
-                </div>
-              )}
+              <div className="mt-3 flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800">
+                <Link
+                  href={`/emails/boat-rental/owner/booking/${r.id}`}
+                  className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 inline-flex items-center gap-1"
+                >
+                  <Pencil size={12} /> Edit
+                </Link>
+                {r.refund_pending && (
+                  <form action={clearRefundFlagAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <button type="submit" className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline">
+                      Clear refund
+                    </button>
+                  </form>
+                )}
+                {cancellable && (
+                  <form action={adminForceCancelAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <button
+                      type="submit"
+                      className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-800 inline-flex items-center gap-1"
+                    >
+                      <XCircle size={12} /> Force-cancel
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           );
         })}
@@ -244,7 +248,14 @@ export default async function AllBookingsAdmin({ searchParams }: { searchParams:
                       )}
                     </td>
                     <td className="px-4 py-2 text-right">
-                      <div className="inline-flex items-center gap-2">
+                      <div className="inline-flex items-center gap-3">
+                        <Link
+                          href={`/emails/boat-rental/owner/booking/${r.id}`}
+                          className="text-xs text-amber-600 hover:text-amber-800 inline-flex items-center gap-1"
+                          title="Open detail page (admin overrides: edit price/date/source/notes, edit/delete payments, hard delete)"
+                        >
+                          <Pencil size={12} /> Edit
+                        </Link>
                         {r.refund_pending && (
                           <form action={clearRefundFlagAction}>
                             <input type="hidden" name="id" value={r.id} />

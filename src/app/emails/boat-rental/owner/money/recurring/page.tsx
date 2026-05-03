@@ -1,7 +1,7 @@
 import { Wallet, Pause, Play } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { MoneySubNav } from '../_components/sub-nav';
 import {
@@ -50,15 +50,29 @@ type Template = {
 export default async function OwnerRecurringPage() {
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
 
-  const boatsRes = ownerIds.length
-    ? await sb.from('boat_rental_boats').select('id, name').in('owner_id', ownerIds).order('name')
-    : { data: [] as Array<{ id: string; name: string }> };
+  const boatsRes = isAdmin
+    ? await sb.from('boat_rental_boats').select('id, name').order('name')
+    : ownerIds.length
+      ? await sb.from('boat_rental_boats').select('id, name').in('owner_id', ownerIds).order('name')
+      : { data: [] as Array<{ id: string; name: string }> };
   const boats =
     ((boatsRes.data as unknown) as Array<{ id: string; name: string }> | null) ?? [];
 
-  const templatesRes = ownerIds.length
+  const templatesRes = isAdmin
+    ? await sb
+        .from('boat_rental_recurring_expense_templates')
+        .select(
+          `
+          id, boat_id, category, vendor_name, amount_egp, frequency,
+          day_of_period, month_of_year, description, active, next_run_date, last_run_date,
+          boat:boat_rental_boats ( name )
+        `
+        )
+        .order('active', { ascending: false })
+    : ownerIds.length
     ? await sb
         .from('boat_rental_recurring_expense_templates')
         .select(

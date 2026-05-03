@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Wallet, Plus, Receipt } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { MoneySubNav } from '../_components/sub-nav';
 
@@ -63,13 +63,17 @@ export default async function OwnerExpensesList({
   const sp = await searchParams;
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
   const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const boatsRes = ownerIds.length
-    ? await sb.from('boat_rental_boats').select('id, name').in('owner_id', ownerIds).order('name')
-    : { data: [] as Array<{ id: string; name: string }> };
+  // Admins see the whole fleet; owners see only boats they own.
+  const boatsRes = isAdmin
+    ? await sb.from('boat_rental_boats').select('id, name').order('name')
+    : ownerIds.length
+      ? await sb.from('boat_rental_boats').select('id, name').in('owner_id', ownerIds).order('name')
+      : { data: [] as Array<{ id: string; name: string }> };
   const boats =
     ((boatsRes.data as unknown) as Array<{ id: string; name: string }> | null) ?? [];
   const boatIds = boats.map((b) => b.id);

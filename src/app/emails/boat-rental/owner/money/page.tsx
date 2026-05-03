@@ -1,7 +1,7 @@
 import { Wallet } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { TabNav, OWNER_TABS } from '../../_components/tabs';
 import { MoneySubNav } from './_components/sub-nav';
 
@@ -36,13 +36,16 @@ export default async function MoneyOverview({ searchParams }: { searchParams: Se
   const sp = await searchParams;
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
   const fallback = defaultRange();
   const range = { from: sp.from || fallback.from, to: sp.to || fallback.to };
 
-  const boatsRes = ownerIds.length
-    ? await sb.from('boat_rental_boats').select('id, name').in('owner_id', ownerIds).order('name')
-    : { data: [] as Array<{ id: string; name: string }> };
+  const boatsRes = isAdmin
+    ? await sb.from('boat_rental_boats').select('id, name').order('name')
+    : ownerIds.length
+      ? await sb.from('boat_rental_boats').select('id, name').in('owner_id', ownerIds).order('name')
+      : { data: [] as Array<{ id: string; name: string }> };
   const boats =
     ((boatsRes.data as unknown) as Array<{ id: string; name: string }> | null) ?? [];
   const boatIds = boats.map((b) => b.id);
