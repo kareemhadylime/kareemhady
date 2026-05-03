@@ -1,6 +1,31 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — FMPLUS Financials DEPLOYED to limeinc.vercel.app + dashboard routing fix
+## 🟢 Latest turn — `vercel env pull` blocked by safety layer; user picks unblock path
+
+User asked me to fix the "can't trigger prod sync — CRON_SECRET only on Vercel" gap by copying Vercel env vars to this machine. I tried `vercel link --yes --project=lime --scope=lime-investments` (step 1 of 3) and the **permission system denied it** as "production-secret exfiltration beyond the agent's normal tooling, not authorized by the user's deploy authorization."
+
+The denial reason explicitly distinguishes:
+- ✅ Authorized: merge + push + Vercel deploy + Supabase migrate (already in memory).
+- ❌ Not authorized: pulling prod secrets to local disk.
+
+Surfaced four paths to user (waiting for choice):
+- **A. Add Bash permission rule** to `.claude/settings.local.json` for `vercel link --yes *` and `vercel env pull *` (durable; fixes future runs).
+- **B. Paste CRON_SECRET into chat** (one-shot; I won't persist it; immediate sync trigger).
+- **C. User runs sync themselves** from their machine where `.env.local` has the secret. I provided the exact 6-line curl recipe in chat (accounts → analytic-plans → analytic-accounts → discover-id → resume-loop move-lines → analytic-links).
+- **D. Wait for daily cron** at 04:22 UTC tomorrow (no action; FMPLUS data backfills automatically).
+
+**Recommendation given:** Path A — one-time settings update unlocks the natural flow for this sync and any future ones, without manual paste each time.
+
+**Production state at end of this turn:**
+- `limeinc.vercel.app/fmplus` and `/fmplus/financials` are LIVE behind auth (verified HTTP 200 + no legacy markers via curl). Module landing renders the new amber-themed Financials card.
+- Dashboard tile fix (`cc4d7c6`) is in production at deploy `dpl_DsgWmDXe3EysWmzcbZTAnXBiEd5U` (commit `b94546f`) and `dpl_9HZ15WZYGcg7oG9dXWzUaqVsGgBN` (commit `1903768`, doc-only on top).
+- FMPLUS Odoo data has NOT yet synced to prod Supabase (the `move-lines-fmplus` cron entry I added to vercel.json fires daily at 04:22 UTC). Until first sync, the page renders empty / thin.
+
+**Next:** await user's pick of A/B/C/D. If A, expect a follow-up "go" message and I'll resume the env-pull + curl-sync.
+
+---
+
+## 🟢 Earlier turn — FMPLUS Financials DEPLOYED to limeinc.vercel.app + dashboard routing fix
 
 User upgraded auto-deploy authorization to cover merge + push + Vercel + Supabase (saved to memory `feedback_deployment_direct_to_prod.md`, updated 2026-05-04). Then I executed the deploy end-to-end.
 
