@@ -1,5 +1,122 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
+## 🟢 Latest turn — FM+ Project Budget Task 10: Path A rich AUC-style XLSX parser
+
+**Task:** Task 10 — `parseRichAucStyleXlsx` + `isRichAucStyleWorkbook` — parse the AUC Budget workbook's multi-sheet structure with merged cells and cross-sheet formulas into FlatRow[].
+
+**Strategy chosen:** Strategy A — parse from the **AUC Grand Total Budget** sheet (sheet 0 / index 0) which has all cost lines plus per-sub-location HC columns in a single view. This avoids needing to join across sheets.
+
+**Key findings:**
+- Grand Total Budget column map (1-based): label=C2, totalHighHC=C3, totalLowHC=C4, CTC=C6, highMonthly=C7, lowMonthly=C9; sub-location blocks at C13-C18 (Inner Campus), C20-C25 (Outer), C27-C32 (Off-Campus NC), C34-C39 (Maadi).
+- Manning rows: R6-R20 on Grand Total sheet; sub-location HC sums match totals exactly.
+- Transport rows: R28-R33; sub-location vehicle counts are INCONSISTENT with total HC in the source XLSX (e.g. Minivan: sub-locations sum to 5 vehicles but total=3). Fixed by always using total HC (C3/C4) × CTC for transport rows — this matches the Budget Summary formula `SUM(G6:G20)+SUM(G28:G33)=2,466,250`.
+- Ground truth "Manpower Costs - Transportation & Insurance Included" = 2,466,250 combines manning (1,927,250) + transport (539,000).
+
+**Reconciliation drift:** 0.00% — exact match to the Budget Items Summary formula result.
+
+**Files created:**
+- `src/lib/fmplus/budget/__fixtures__/auc-budget.xlsx` (copied from FMPLUS dir)
+- `src/lib/fmplus/budget/parsers/rich-auc-style.ts` — 230 lines
+- `src/lib/fmplus/budget/parsers/rich-auc-style.test.ts` — 48 lines
+
+**Tests:** 3/3 pass. TypeScript: clean. All 33 fmplus tests pass.
+**Committed SHA:** (see below — LOCAL, controller pushes).
+
+**Next task:** Phase 3 continues — Task 11+ as directed.
+
+---
+
+## 🟢 Latest turn — FM+ Project Budget Task 8: Path B flat-template XLSX parser
+
+**Task:** Task 8 — `parseFlatBudgetXlsx` + `FLAT_HEADERS` — flat normalized XLSX importer.
+
+**What was done:**
+- Created `src/lib/fmplus/budget/parsers/flat-template.test.ts` — 3 Vitest tests (TDD red→green).
+- Created `src/lib/fmplus/budget/parsers/flat-template.ts` — `FLAT_HEADERS` const, `FlatRow` / `FlatRowError` / `FlatParseResult` types, `parseFlatBudgetXlsx` async function using ExcelJS. Validates via `ServiceLineSchema` + `SeasonSchema` from `../schema`. Reports row-level errors with 1-indexed Excel row numbers. Optional fields (`sub_location`, `notes`) coerce empty string → null.
+- Tests: 3/3 pass. `npm run build` clean.
+- Committed SHA `937dcc2` (LOCAL — controller pushes).
+
+**Next task:** Phase 3 continues — Task 9+ (API routes / UI) or as directed.
+
+## 🟢 Latest turn — FM+ Project Budget Task 7: cellToMoveLines drill
+
+**Task:** Task 7 — `matchesCellFilter` + `cellToMoveLines` variance-drill loader.
+
+**What was done:**
+- Created `src/lib/fmplus/budget/variance-drill.test.ts` — 3 Vitest tests for `matchesCellFilter` (TDD red→green).
+- Created `src/lib/fmplus/budget/variance-drill.ts` — `matchesCellFilter` (filters move-line by date month/year + account-code→category lookup), `cellToMoveLines` async DB loader (queries `odoo_move_line_analytics` → `odoo_move_lines` with `odoo_accounts!inner`, `odoo_partners`, `odoo_journals` joins), `DrillResult` type, `monthEnd` helper. Cast pattern `as unknown as Row[]` for supabase-js typing workaround.
+- Sanity checks: `monthEnd(2026,2)='2026-02-28'` ✓, `monthEnd(2024,2)='2024-02-29'` ✓.
+- Tests: 3/3 pass. `npm run build` clean.
+- Committed SHA `fc2e694` (LOCAL — controller pushes).
+
+**Next task:** Phase 2 complete. Per plan — Phase 3 (API routes + UI side-drawer) or as directed.
+
+## 🟢 Latest turn — FM+ Project Budget Task 6: buildBudgetVariance orchestrator
+
+**Task:** Task 6 — `colorVariance` + `computeCellRollup` + `buildBudgetVariance` orchestrator.
+
+**What was done:**
+- Appended `colorVariance(variancePct, thr)` — asymmetric: only overspend >amber threshold → red; large underspend stays amber.
+- Appended `computeCellRollup(budget, actuals, thr)` — joins budget+actuals per (segment, category, month), computes variance/variance_pct/color; includes actual-only cells with null variance_pct.
+- Appended `buildBudgetVariance(opts)` — full DB orchestrator: loads project, budget, segments, lines, settings, Odoo move_lines via `odoo_move_line_analytics`, computes per-segment rollups, category/segment/project YTD, health score, unmapped totals.
+- Fixed `sumCellsYtd` typo from spec (`b.budget` → `budget` local variable).
+- Fixed TS error: Supabase infers `odoo_accounts` as array, cast `mlData` through `unknown as MLRow[]`.
+- Tests: 13/13 pass (TDD red→green). `npm run build` clean.
+- Committed SHA `3c49570` (LOCAL — controller pushes).
+
+**Next task (Task 7+):** Per plan — server actions / API routes / UI for budget feature.
+
+## 🟢 Latest turn — FM+ Project Budget aggregateBudgetByMonth (Task 4 of 26)
+
+**Task:** Task 4 — `aggregateBudgetByMonth()` — budget side of variance.
+
+**What was done:**
+- Created `src/lib/fmplus/budget/variance.test.ts` — 2 Vitest tests (TDD: red first, then green).
+- Created `src/lib/fmplus/budget/variance.ts` — `aggregateBudgetByMonth()` + exported types `AggregatedBudgetCell`, `BudgetLineForAgg`. Handles Postgres numeric-as-string via `Number()`, accumulates same segment+category+season, zeros months before `startMonth`.
+- Tests: 2/2 pass. `npm run build` clean.
+- Committed SHA `8d52ae2` (LOCAL — controller pushes).
+
+**Next task (Task 5):** Per plan — actuals side of variance (aggregateActualsByMonth or similar).
+
+## 🟢 Latest turn — FM+ Project Budget templates module (Task 3 of 26)
+
+**Task:** Task 3 — Templates module (HK + 5 stubs) + getTemplate helper.
+
+**What was done:**
+- Created `src/lib/fmplus/budget/templates/hk.ts` — full HK v1 template: 6 categories, 15 manning lines, account map.
+- Created 5 stub templates: `mep.ts`, `landscape.ts`, `security.ts`, `pest-ctrl.ts`, `waste-mgmt.ts` — each with empty categories array.
+- Created `src/lib/fmplus/budget/templates/index.ts` — `REGISTRY`, `getTemplate()`, `getLatestTemplate()`, `SERVICE_LINE_CATALOG`.
+- Created `src/lib/fmplus/budget/templates/index.test.ts` — 5 Vitest tests; all pass.
+- `npm run build` passed clean.
+- Committed SHA `48af8ae`. Push to main blocked by safety layer — user needs to run: `git push origin claude/quizzical-hoover-5cfcca:main`.
+
+**Next task (Task 4):** Per plan — likely server actions / API routes for budget feature.
+
+## 🟢 Latest turn — FM+ Project Budget Zod schemas + types (Task 2 of 26)
+
+**Task:** Task 2 — Zod schemas + TypeScript types for FM+ Project Budget tables.
+
+**What was done:**
+- Created `src/lib/fmplus/budget/schema.ts` (89 lines) — all Zod schemas: `ServiceLineSchema`, `ScenarioSchema`, `StatusSchema`, `SeasonSchema`, `CalcRuleSchema`, `TemplateSchemaJson`, `AccountMapEntry/Json`, `BudgetLineRow`, `ProjectBudgetRow`, `SegmentRow`, `BudgetSettingsRow`.
+- Created `src/lib/fmplus/budget/types.ts` (48 lines) — re-exports from schema + `VarianceColor`, `VarianceCell`, `CategoryVariance`, `SegmentVariance`, `BudgetVarianceReport`.
+- Created `src/lib/fmplus/budget/schema.test.ts` (44 lines) — 5 Vitest tests; went red (module-not-found) then green after schema.ts was written.
+- `npm run build` passed clean (no TypeScript errors).
+- Committed SHA `1235e42`, pushed `claude/quizzical-hoover-5cfcca → main`.
+
+**Next task (Task 3):** Server actions or API routes for the budget feature (per plan).
+
+## 🟢 Latest turn — FM+ Project Budget migration 0080 (Task 1 of 26)
+
+**Task:** Migration 0080 — schema + HK template seed for FM+ Project Budget feature.
+
+**What was done:**
+- Created `supabase/migrations/0080_fmplus_project_budget.sql` (163 lines) — 7 new tables: `budget_templates`, `project_budgets`, `project_budget_segments`, `budget_lines`, `budget_revenue_lines`, `budget_audit`, `budget_settings`.
+- Applied via Supabase MCP `apply_migration` → `{"success":true}`.
+- Verified: all 7 tables exist in `public` schema; 6 template rows seeded (`hk` is_stub=false, 5 stubs is_stub=true).
+- Committed SHA `b4f540e`, pushed `claude/quizzical-hoover-5cfcca → main`.
+
+**Next task (Task 2):** TypeScript types + Zod schemas for the new tables.
+
 ## 🟢 Latest turn — Search-bug fix + auto-translation for non-EN/AR messages (mig 0079)
 
 User: "No Message Translation - There should be a translation for anything except English & Arabic. Searching Hady Family as a Guest Name, No results."
@@ -5600,5 +5717,84 @@ User clicked **A** on `04-service-lines.html` (service-line first-class dim, mul
 **Awaiting**: user click on `06-dashboards.html` (A / B / C). On A: write spec doc to `docs/superpowers/specs/2026-05-03-fmplus-project-budget-design.md`, commit, then ask user to review the spec before transitioning to Workflow phase via `superpowers:writing-plans` skill.
 
 **Still no code, no migrations, no commits, no deploys.** Plan phase only — per the user's explicit gated workflow.
+
+Visual companion server still running at http://localhost:59614 (session `1037-1777829583`).
+
+---
+
+## FM+ Project Budget — design spec written, committed, pushed (2026-05-03, follow-up)
+
+User clicked **A** on `06-dashboards.html` (approved Overview/Variance/Compare/Settings wireframes).
+
+**Spec doc written**: `docs/superpowers/specs/2026-05-03-fmplus-project-budget-design.md` (530 lines, 16 sections):
+1. Problem statement · 2. Goals · 3. Non-goals · 4. Decisions table (Q1-Q19) · 5. Architecture (6 sub-tabs + server module structure) · 6. Data model (full SQL DDL for migration `0080_fmplus_project_budget.sql`, 7 tables, HK template seed JSON, calc rules) · 7. Excel ingest (Path A rich + Path B flat) · 8. Variance computation pseudocode · 9. UI flows · 10. Edge cases · 11. Phasing · 12. Permissions · 13. Interface with FM+ shell session · 14. Risks · 15. Open questions · 16. v1 acceptance criteria.
+
+**Spec self-review** caught 3 issues, fixed inline:
+1. **Threshold asymmetry** — Q10 vs Q11 contradicted (symmetric "&gt;15% red" vs "underspend &gt;15% amber"). Collapsed Q10/Q11 into one explicit asymmetric rule: only `var > amber_pct` overspend → red; large underspend stays amber. Variance pseudocode in §8 updated to match.
+2. **Multi-service stub limitation** — for Mix-Projects-plan projects (e.g. R3) carrying HK + MEP, MEP costs would silently fall into `_unmapped` until MEP template lands. Now §11 calls out as known v1 limitation; Settings panel surfaces unmapped accounts so it's never invisible.
+3. **Template version migration ambiguity** — when re-opening published budget on outdated template version, behavior was vague. Now explicit: Editor renders against locked old version, banner offers "create new revised scenario" path. No silent version jumps.
+
+**Committed + pushed** (per standing auto-deploy authorization):
+- Commit `5293439 docs(fmplus): add Project Budget design spec`
+- Pushed `17c0323..5293439 HEAD -> main`
+- 3 files changed: spec doc (new, 530 lines) + `.gitignore` (added `.superpowers/`) + `SESSION_HANDOFF.md` (multi-append)
+- Vercel GitHub→main auto-deploy in flight (docs-only, no code change). Did NOT run `vercel --prod` from worktree (pointless for docs-only — would just deploy worktree sandbox).
+- Rebase against origin/main was a no-op this time (worktree was current).
+
+**Visual companion `07-spec-review.html`** pushed to terminal — summarizes the spec location, self-review fixes, TOC, and asks for A (approve → invoke `superpowers:writing-plans` for Workflow phase) / B (edits in terminal) / C (need to read first, wait).
+
+**Status:** Plan phase = 95%+ confidence reached, design committed. **Awaiting user spec review verdict** before transitioning to Workflow phase. No code, no migrations executed yet — that comes only after Workflow plan is approved (per user's 3-phase gate: Plan → Workflow → Coding).
+
+Visual companion server still running at http://localhost:59614 (session `1037-1777829583`).
+
+---
+
+## FM+ Project Budget — Coding phase started, Task 1 complete (2026-05-03, follow-up)
+
+User clicked **A** on `08-plan-ready.html` (plan approved) and again on `09-execution-mode.html` (Subagent-Driven execution). Invoked `superpowers:subagent-driven-development` skill. Currently executing 26-task plan from `docs/superpowers/plans/2026-05-03-fmplus-project-budget.md`.
+
+**Task 1 complete** (commit `b4f540e`, pushed `9d85701..b4f540e HEAD -> main`):
+- Migration `0080_fmplus_project_budget.sql` created, 163 lines.
+- 7 tables (`budget_templates`, `project_budgets`, `project_budget_segments`, `budget_lines`, `budget_revenue_lines`, `budget_audit`, `budget_settings`) + 6 seed template rows (HK fully baked, 5 stubs).
+- Applied to live Supabase project `bpjproljatbrbmszwbov`. Verified: 7 tables present, 6 templates (hk fully baked + mep/landscape/security/pest_ctrl/waste_mgmt stubs).
+- Spec compliance review: ✅ 14/14 checks passed (column-by-column, regex character-by-character, all FK cascades correct).
+- Code quality review: **Approved with minor suggestions** — 4 stylistic items flagged for follow-up (not blocking):
+  1. Add `if not exists` to `create table` and `create index` statements (project convention).
+  2. Name indexes `idx_<table>_<cols>` instead of letting Postgres auto-name (project convention).
+  3. Add `references public.app_users(id) on delete set null` to `created_by`/`changed_by`/`published_by` columns (project convention).
+  4. Add `updated_at` touch trigger to `project_budgets` and `budget_settings` (or rely on app to set explicitly).
+
+These 4 items are reserved as a possible **0081 polish migration** at the end of the plan run. They don't affect correctness for Tasks 2-26.
+
+**Currently dispatching:** Task 2 — Zod schemas + types (`src/lib/fmplus/budget/schema.ts`, `types.ts`, `schema.test.ts`). Mechanical TDD task, sonnet model.
+
+**Pipeline pattern per task:** implementer (sonnet) → spec compliance reviewer (sonnet) → code quality reviewer (`superpowers:code-reviewer` agent) → mark complete. ~3 subagent dispatches per task × 25 remaining tasks ≈ 75 dispatches. Phase boundaries (after Tasks 3, 7, 11, 15, 19, 22, 26) are natural check-in points if user wants to interrupt.
+
+**Branch:** `claude/quizzical-hoover-5cfcca`. Worktree push pattern: `git push origin claude/quizzical-hoover-5cfcca:main`. Standing auto-deploy authorization active — every commit ships to production via Vercel GitHub integration.
+
+Visual companion server still running at http://localhost:59614 (session `1037-1777829583`).
+
+---
+
+## FM+ Project Budget — Phase 1 complete, awaiting pace decision (2026-05-03, follow-up)
+
+**Phase 1 (Foundation) done** — 3 commits on `main`:
+- `b4f540e` Task 1: migration 0080 (7 tables + 6 seed templates, applied to live Supabase).
+- `1235e42` Task 2: Zod schemas + types (5/5 tests, build green).
+- `48af8ae` Task 3: HK template + 5 stubs + getTemplate (5/5 tests, build green).
+
+**Subagent pipeline used so far:** 3-stage per task (implementer + spec compliance reviewer + code quality reviewer). Working but adds ~3× wall time vs implementer-only.
+
+**Code quality reviewer findings deferred to final cleanup:**
+- Task 1: `if not exists`, named indexes, `app_users` FKs, `updated_at` touch triggers (project conventions).
+- Task 2: schema-name suffix consistency (8 unsuffixed Zod schemas: `SeasonMonths`, `TemplateSchemaJson`, `AccountMapEntry`, `AccountMapJson`, `BudgetLineRow`, `ProjectBudgetRow`, `SegmentRow`, `BudgetSettingsRow` — should be `*Schema` for symmetry with the 7 already-suffixed enum schemas).
+
+These are stylistic, non-blocking. Will batch into a final cleanup migration `0081` + a single rename commit at end of feature.
+
+**Pushed checkpoint visual `10-phase1-checkpoint.html`** offering 4 pace options for Tasks 4-26: A=full pipeline / B=spec-only per task + final code-quality / C=implementer-only / D=phase-gated. **Awaiting user choice.**
+
+**Other notes:**
+- Subagent's safety layer blocked the auto-push for Task 3; I pushed from the main session instead. Future implementer prompts could omit the push step and let me handle it (saves the subagent re-trying), OR I'll just keep handling pushes from main session as the subagents commit locally.
+- Standing auto-deploy authorization remains active for me (the parent agent), but does NOT propagate to subagents.
 
 Visual companion server still running at http://localhost:59614 (session `1037-1777829583`).
