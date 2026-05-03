@@ -1,6 +1,78 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Owner force-cancel SHIPPED (follow-up to boat owner features)
+## 🟢 Latest turn — Canonical guesty-metrics module SHIPPED + PUSHED to main (commit `3d3fd8f`)
+
+User ratified: **Q1=C** (calendar-overlap `check_in≤today<check_out`) and **Q2=Exclude** owner/manual but show separately as "Manual Block Unpaid". Said: "Ship all, ALWAYS do all automatically with merge + Push + deploy."
+
+**Single commit ships full unification** of how all Beit Hady reports read Guesty data, ending the 30/33/37 inconsistency the user flagged.
+
+**Root cause fixed:** every brief had its own inline filter set:
+- gr-brief used `(confirmed,reserved,awaiting_payment)`
+- finance-brief used `(confirmed)` only
+- build-buildings (Daily Report) used `(confirmed,checked_in,checked_out)`
+- Reports module excluded only `(canceled)`
+
+Same date produced different numbers per report. Now all use ONE canonical module.
+
+**New: `src/lib/beithady/guesty-metrics.ts` (~390 LOC)**
+
+Locked-in semantics:
+- Status: `('confirmed','checked_in','checked_out')`
+- Stay window: `check_in_date ≤ dateIso AND check_out_date > dateIso` (calendar-overlap = "rooms occupied tonight" — Q1=C ratification)
+- Owner stays + manual blocks: EXCLUDED from main totals, surfaced separately on "Manual Block Unpaid" line (Q2=Exclude+separate ratification)
+- Building bucketing: BH-26 / BH-73 / BH-435 / BH-OK / BH-DXB / OTHER (NULL→OTHER, never silently dropped)
+
+Public API:
+- `getCheckIns(dateIso, opts?)` / `getCheckOuts` / `getCurrentlyStaying`
+- `getMtdRevenueByStay` / `getMtdRevenueByBooking`
+- `bucketBuilding` / `bucketChannelCanonical` helpers
+- `CANONICAL_FOOTER_EN` / `CANONICAL_FOOTER_AR` transparency strings
+
+All return `{ total, reservations, by_building, by_channel, manual_block_unpaid }`.
+
+**Refactored callers:**
+- `gr-brief.ts`: ACTIVE_STATUSES = canonical triplet (was confirmed/reserved/awaiting_payment); `getCurrentlyStaying` fetches manual blocks; new "Manual Block Unpaid" section after "Currently staying"
+- `finance-brief.ts`: inline currently-staying query replaced with canonical func; staying mapped back to local shape so rest of file unchanged; "Manual Block Unpaid" section added with off-market amber tag
+- `ops-brief.ts`: ACTIVE_STATUSES aligned; new "حجز يدوي بدون دفع" section (Arabic)
+- `build-report.ts` (Reports module): default status filter now matches canonical (status IN canonical triplet) instead of "anything not canceled"; `includeCancelled=true` widens to also include canceled
+- `renderers.ts`: every brief now ends with a transparency footer disclosing filter semantics so the team can sanity-check at a glance
+
+**Verification:**
+- `npx tsc --noEmit` clean (post-rebase, after merging parallel session's bucket-based country.ts refactor)
+- `npm run build` clean (✓ Compiled successfully in 19.5s)
+
+**Conflict resolution during push:** parallel session had refactored `country.ts` from country-based (`countryForBuilding`, `COUNTRY_LABEL`) to bucket-based (`bucketForListing`, `BUCKET_LABEL`, `EGYPT_BUCKETS`, `BriefBucket`). Resolved by keeping the parallel session's bucket API AND adding canonical-metrics imports on top — both work together since canonical-metrics is purely a stay/check-in source-of-truth, while the bucket API handles per-building tagging.
+
+**Deploy state:**
+- Commit `3d3fd8f` pushed to `main` (rebased on top of `e2191f4` from parallel session)
+- GitHub→Vercel integration auto-deploys to production
+- Next morning brief (08:00 Cairo May 4) will be the first using canonical metrics — should show matching numbers vs Daily Performance Report and Guesty UI
+
+**Files this turn:** 1 new lib file + 5 edits.
+
+### Audit table (decoded discrepancies that this fix resolves)
+
+| Bug class | Was | Now |
+|-----------|-----|-----|
+| Status filter mismatch | 4 different filter sets | All use `CANONICAL_BOOKED_STATUSES` |
+| Owner/manual handling | Briefs silently excluded; Daily Report counted | All exclude from main totals + surface separately |
+| Stay window | gr-brief used `≤/>`, but produced "30" suggesting `</>` | Locked to `≤/>` everywhere |
+| NULL building bucketing | Briefs preserved NULL; Daily Report → OTHER | Always → OTHER |
+| Reports module status | Only excluded canceled | Same canonical triplet |
+
+### What the user should see tomorrow morning
+
+Brief at 08:00 Cairo May 4 will:
+- Use the same arrival count as Guesty UI (modulo Guesty's `checkedInOn` exclusion)
+- Use the same currently-staying count as Daily Performance Report
+- Show a new "Manual Block Unpaid" section listing units off-market today
+- End with a transparency footer: `_Source: guesty-metrics · status=confirmed/checked_in/checked_out · stay = check_in≤today<check_out · owner+manual blocks listed separately_`
+
+If the May 4 brief still shows mismatches, the remaining gap is likely the Guesty `checkedInOn` field which our mirror doesn't store — that would require a Guesty schema additional column to fully bridge.
+
+---
+
+## 🟢 Earlier this session — Owner force-cancel SHIPPED (follow-up to boat owner features)
 
 **Status:** Closed the cancellation gap surfaced during QA. Owner can now cancel inside the 72h window AND on `paid_to_owner` (refund_pending=true so admin reconciles).
 
