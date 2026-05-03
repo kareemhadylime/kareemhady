@@ -1,6 +1,45 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Canonical guesty-metrics module SHIPPED + PUSHED to main (commit `3d3fd8f`)
+## 🟢 Latest turn — 33-vs-37 gap bridge SHIPPED (commit `6cb864a`)
+
+User asked: "What to do here? — fixable by adding that column to our mirror in a follow-up". Investigated and shipped a better fix.
+
+**Investigation:**
+- Inspected raw Guesty payload for `checkedInAt`/`checkedInOn`/similar fields
+- All 7042 reservations checked: top-level keys are `_id, status, source, listingId, guestId, money, integration, guest, checkInDateLocalized, checkOutDateLocalized, createdAt, lastUpdatedAt, updatedAt, accountId, listing, accounting, inquiryId, guestsCount, nightsCount`
+- **NO check-in timestamp field exists** — Guesty's basic reservation API doesn't expose physical-arrival time for OTA bookings
+- Status histogram: confirmed 3246 / inquiry 3142 / canceled 617 / closed 32 / declined 4 / reserved 1 — **zero rows have status='checked_in'**, confirming Guesty isn't pushing that flip via API
+
+**Conclusion:** can't replicate Guesty UI's "33 physically here" filter without a different API integration (Guesty Hub, additional endpoints, or custom webhook).
+
+**Better fix shipped:** explicit breakdown in every brief. Now shows:
+
+> Currently staying (37) — 30 in-house · 7 arriving today
+> ⚠ 7 arriving today (counted in stay total)
+> _Guesty UI may show only physically-checked-in guests; this brief uses calendar-overlap_
+
+This makes the gap **transparent and useful** rather than chasing an opaque target. Ops/finance now see exactly:
+- Who's physically in-house (30)
+- Who's incoming (7) — pending-arrival amber tag
+- Total stays-on-the-books (37)
+
+**Bonus fix (discovered during investigation):** status `'closed'` = Guesty's archived past-stay status (32 rows, all check_out_date < today). Realized revenue. Added new `CANONICAL_REVENUE_STATUSES = (confirmed, checked_in, checked_out, closed)` which `getMtdRevenueByStay`/`getMtdRevenueByBooking` now use by default. Currently-staying queries unchanged — still 3 active statuses since `closed` is always past.
+
+**Files this turn (4 edits):**
+- `src/lib/beithady/guesty-metrics.ts` — `MetricResult.already_arrived` + `.arriving_today` fields, new `CANONICAL_REVENUE_STATUSES`, MTD funcs use it by default
+- `src/lib/beithady/morning-brief/{gr,finance,ops}-brief.ts` — section title shows breakdown; pending-arrival sub-item rendered when `arriving_today.length > 0` (with Arabic translation in ops)
+
+**Verification:** tsc clean, build clean (42s). Pushed `6cb864a` to main, GitHub→Vercel auto-deploy.
+
+**What you'll see tomorrow morning at 08:00 Cairo:**
+- "Currently staying (37) — 30 in-house · 7 arriving today" instead of just "(37)" or "(33)"
+- Pending-arrival amber sub-line if any check-ins are scheduled today
+- "Manual Block Unpaid" section (from prior commit) showing owner/manual blocks
+- Transparency footer reminding readers what filter is in use
+
+---
+
+## 🟢 Earlier this turn — Canonical guesty-metrics module SHIPPED + PUSHED to main (commit `3d3fd8f`)
 
 User ratified: **Q1=C** (calendar-overlap `check_in≤today<check_out`) and **Q2=Exclude** owner/manual but show separately as "Manual Block Unpaid". Said: "Ship all, ALWAYS do all automatically with merge + Push + deploy."
 
