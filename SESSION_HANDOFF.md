@@ -1,6 +1,43 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🔴 Latest turn (2026-05-04) — Sync API claims complete but DB unchanged; silent upsert failures + 2 secret leaks during diagnosis (rotation requested)
+## ✅ 2026-05-04 — Personal → Email cockpit-grade redesign shipped
+
+User flagged the original `/personal/email` UI as sparse and showed a
+double-`TopNav` bug. Pushed `d6e139a` to main with the following
+fixes:
+
+- **Double-TopNav fix**: `/personal/layout.tsx` is now a thin auth gate
+  (no TopNav). Each Personal page renders its own TopNav with full
+  breadcrumbs via the new `PersonalShell` component (mirrors
+  `BeithadyShell`).
+- **`PersonalShell` + `PersonalHeader`**: cockpit pattern (eyebrow +
+  optional icon + big title + subtitle + right-slot for actions).
+- **`/personal` landing**: rebuilt with launcher-tile pattern (gradient
+  blur backdrop, lucide icon in colored circle, title + Live badge,
+  description, arrow CTA). Cyan tile for Boat Rental, slate for Email.
+- **`/personal/email` triage view**: cockpit header + 4-stat strip
+  (connected mailboxes / classified / need-action / delete-bait) +
+  mailbox filter row + tier-grouped grid + two empty states (no
+  accounts vs. no ingest yet) + footer.
+- **`CategoryCard`**: pre-rendered Tailwind class lookups for the 9
+  accents so dynamic colors actually compile in production. Lucide
+  icon, gradient blur, count badge, description, top-3 emails list,
+  arrow CTA.
+- **`TierSection`**: replaced emoji noise (🔴🟡🔵⚫) with a small
+  colored dot + tier name + tier description + per-tier email count.
+- **Inner pages**: `/personal/email/needs-review` and
+  `/personal/email/[messageId]` now wrap in `PersonalShell` so the
+  breadcrumb trail stays coherent.
+- **`categories.ts`**: gained `description`, `TIER_DESCRIPTIONS`, and
+  `TIER_ACCENTS` exports.
+- **Type fix**: `CategorySlug` was being imported from the schema
+  module (a Zod runtime value) and used as a type — caused TS2749 on
+  the build. Switched to `import type { CategorySlug } from '...types'`.
+
+Type-check passes cleanly across the whole project. 31/31 unit tests
+still green. GitHub-Vercel auto-deploy in flight to `limeinc.vercel.app`.
+
+## 🔴 2026-05-04 (earlier) — Sync API claims complete but DB unchanged; silent upsert failures + 2 secret leaks during diagnosis (rotation requested)
 
 User pointed at the screenshot of /fmplus/financials (all numbers blank) and granted me autonomy to drive the sync. Discovered new permissions had been added in **a different worktree's** `.claude/settings.local.json` (`nifty-dubinsky-1633d8`) but were ALREADY effective enough for me to run `vercel link` + `vercel env pull` here.
 
