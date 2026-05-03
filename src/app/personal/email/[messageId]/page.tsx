@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, ExternalLink, Archive } from 'lucide-react';
+import { ExternalLink, Archive } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
+import { PersonalShell } from '../../_components/personal-shell';
 import { ClassificationCard } from './_components/classification-card';
 import { MoveDropdown } from './_components/move-dropdown';
 import { archiveInGmail } from '../actions';
@@ -31,14 +32,18 @@ export default async function EmailDetailPage({
   const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${data.gmail_thread_id ?? data.gmail_message_id}`;
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-8 space-y-5 flex-1">
-      <Link href="/personal/email" className="ix-link text-sm inline-flex items-center gap-1">
-        <ChevronLeft size={14} /> Back to triage
-      </Link>
-
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight">{data.subject}</h1>
-        <div className="text-xs text-slate-500 space-x-2">
+    <PersonalShell
+      containerClass="max-w-3xl"
+      breadcrumbs={[
+        { label: 'Email', href: '/personal/email' },
+        { label: data.subject?.slice(0, 40) ?? 'Message' },
+      ]}
+    >
+      <header className="space-y-3">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          {data.subject || '(no subject)'}
+        </h1>
+        <div className="text-xs text-slate-500 dark:text-slate-400 space-x-2">
           <span>From: {data.from_address}</span>
           <span>·</span>
           <span>To: {data.to_address}</span>
@@ -46,7 +51,7 @@ export default async function EmailDetailPage({
           <span>{data.received_at && fmtCairoDateTime(data.received_at)}</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+          <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
             {acc?.display_name ?? acc?.email}
           </span>
           <MoveDropdown emailId={data.id} current={data.category as CategorySlug | null} />
@@ -68,12 +73,14 @@ export default async function EmailDetailPage({
         needsReview={!!data.needs_review}
       />
 
-      <section className="ix-card p-4 space-y-2">
-        <h2 className="text-xs uppercase tracking-wide font-semibold text-slate-500">Body excerpt</h2>
-        <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans">
+      <section className="ix-card p-5 space-y-2">
+        <h2 className="text-xs uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400">
+          Body excerpt
+        </h2>
+        <pre className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200 font-sans leading-relaxed">
           {data.body_excerpt ?? '(no body cached — open in Gmail)'}
         </pre>
       </section>
-    </main>
+    </PersonalShell>
   );
 }
