@@ -60,7 +60,19 @@ export default async function AccountsPage() {
                   <Mail size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium font-mono text-sm truncate">{a.email}</div>
+                  <div className="font-medium font-mono text-sm truncate flex items-center gap-2">
+                    {a.email}
+                    {a.display_name && (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                        {a.display_name}
+                      </span>
+                    )}
+                    {a.domain && (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">
+                        {a.domain}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-slate-500">
                     Last synced:{' '}
                     {a.last_synced_at
