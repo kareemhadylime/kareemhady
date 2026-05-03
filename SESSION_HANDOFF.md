@@ -1,6 +1,34 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — User rotated CRON_SECRET, but PowerShell sync failed 401; needs Vercel redeploy
+## 🟢 Latest turn — Two rotations, still 401. Provided full triage script.
+
+User rotated CRON_SECRET TWICE, redeployed, retried the auth-check PowerShell. **Both attempts failed with 401 Unauthorized.** That rules out the simple "redeploy didn't happen" theory.
+
+**Provided a full triage diagnostic** (PowerShell) that:
+1. Reads secret via SecureString (Read-Host -AsSecureString to avoid leaking).
+2. Reports plain-text properties WITHOUT echoing the value: `Length`, `All hex chars`, `First 4 / Last 4 chars` (these can be safely shared since they're tiny prefixes of an already-rotated secret), `Has spaces`.
+3. Hits the `phase=help` endpoint with `Invoke-WebRequest -ErrorAction Stop` and reads the actual response body (not just status code) for any extra context the route handler might emit.
+
+**Three hypotheses I'm trying to distinguish:**
+
+H1. **Clipboard whitespace** — paste added a leading/trailing space, tab, or newline. The route does strict equality check (`auth !== 'Bearer ${process.env.CRON_SECRET}'`), so even one extra char fails. Diagnostic: `Has spaces: True` or `Length ≠ 64`.
+
+H2. **Wrong Vercel project** — user edited CRON_SECRET on a sandbox project (e.g., `intelligent-wilbur-3a1905` or `festive-mclaren-08d4ef`) instead of `lime`. The latter is real prod. Diagnostic: visit `https://vercel.com/lime-investments/lime/settings/environment-variables` and verify URL contains `/lime/`. Worktree-sandbox project env vars do NOT affect `limeinc.vercel.app`.
+
+H3. **Redeploy didn't actually pick up the new value** — possible if the env var was changed on `Preview`/`Development` scope instead of `Production`, OR if the redeploy was on an older commit, OR if Vercel cached the old runtime env. Diagnostic: top deploy timestamp on `vercel.com/lime-investments/lime/deployments` must be AFTER the last save of CRON_SECRET.
+
+**Awaiting user's diagnostic output** — Length, hex check, spaces flag, and which hypothesis is confirmed. Once known, I'll give the final fix.
+
+**State at end of this turn (unchanged):**
+- limeinc.vercel.app/fmplus + /fmplus/financials live.
+- CRON_SECRET rotated twice, neither working.
+- FMPLUS Odoo data still NOT synced.
+
+**No code commits this turn.** PowerShell triage script only.
+
+---
+
+## 🟢 Earlier turn — User rotated CRON_SECRET, but PowerShell sync failed 401; needs Vercel redeploy
 
 User rotated `CRON_SECRET` on Vercel (good — leaked value is now dead). Asked for PowerShell one-liner to generate the new value; provided crypto-RNG version using `[System.Security.Cryptography.RandomNumberGenerator]` for 32-byte hex.
 
