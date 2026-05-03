@@ -1,15 +1,159 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Task 20 done: DashboardCharts real recharts renderer
+## 🟢 Latest turn — FMPLUS Financials FEATURE-READY (28 commits, ready for user-led Tasks 22+23)
 
-**Commit:** `8df23c6`
+The full FMPLUS Financials sub-module is built. All implementation work (Tasks 1-21 + final-review fixes) is on `claude/nifty-dubinsky-1633d8`. Tasks 22 (live reconciliation) and 23 (push to main) are user-led because they require Odoo creds + main-branch authorization.
 
-**Files changed (1):**
-- `src/app/fmplus/financials/_components/DashboardCharts.tsx` — replaced Task 19 stub with five real recharts charts: Revenue Mix donut, Cost Mix donut, Gross Margin by Service horizontal bar (color-coded: green >=20%, amber 5-20%, red <5%), 12-period trend line (Revenue/GP/EBITDA/NP), Top-10 Active Projects bar. All charts guard empty data with fallback text. Tooltip formatters use `v: number | string` + typeof guard for recharts 2.x strict types.
+### Final state
+
+- **28 commits** between `4379de5` (design spec) and `35076e4` (final-review fixes).
+- **65/65 tests pass** (30 FMPLUS-scoped: 19 classifier + 4 opening-balance + 7 period-series + 6 financials + the rest from existing repo modules).
+- **`npm run build` compiles**; `/fmplus` and `/fmplus/financials` registered as dynamic server-rendered routes.
+- **Migration 0079 deployed live** to bpjproljatbrbmszwbov via Supabase MCP — both RPCs (`pnl_aggregated_multiperiod`, `fmplus_active_accounts`) confirmed via `select * from pg_proc`.
+- **No code pushed to remote** (worktree). Final deploy = `git push origin HEAD:main` after rebase, which the user does.
+
+### Code shipped
+
+```
+src/lib/fmplus/
+  classifier.ts            (192 lines) + classifier.test.ts            (19 tests)
+  types.ts                 (143 lines)
+  opening-balance.ts       (stub)      + opening-balance.test.ts       (4 tests)
+  discover-company.ts      (50 lines)
+  period-series.ts         (93 lines)  + period-series.test.ts         (7 tests)
+  financials.ts            (488 lines) + financials.test.ts            (6 tests)  [P&L + BS]
+  dashboard.ts             (182 lines)
+
+supabase/migrations/0079_fmplus_financials.sql  (107 lines, both RPCs)
+
+src/lib/run-odoo-financial-sync.ts                          (extended w/ getFinancialsCompanyIds)
+src/app/api/odoo/sync-financials/route.ts                   (uses async resolver in 'all' phase)
+src/app/api/cron/odoo-financials/route.ts                   (NEW move-lines-fmplus phase)
+vercel.json                                                  (NEW 04:22 UTC schedule)
+
+src/app/api/fmplus/active-accounts/route.ts                 (GET, picker prune)
+src/app/api/fmplus/plans/route.ts                           (GET, picker plans list)
+
+src/app/fmplus/
+  page.tsx                                                  (module landing)
+  financials/
+    page.tsx                                                (3-tab shell + URL state)
+    actions.ts                                              (Excel export server actions)
+    _components/
+      FilterBar.tsx                                         (sticky filter bar)
+      PeriodControls.tsx                                    ('use client' PillLink + spinner)
+      AccountPicker.tsx                                     ('use client', dormant in v1 — see C2/C3)
+      PnlTable.tsx                                          (multi-period + gross-margin pills)
+      BalanceSheetTable.tsx                                 (multi-period as-of)
+      Dashboard.tsx                                         (composes KpiStrip + DashboardCharts)
+      KpiStrip.tsx                                          (4 cards w/ inline SVG sparklines)
+      DashboardCharts.tsx                                   ('use client' recharts: 5 charts)
+      ExportButtons.tsx                                     ('use client' download trigger)
+
+docs/superpowers/specs/2026-05-03-fmplus-financials-design.md   (722 lines)
+docs/superpowers/plans/2026-05-03-fmplus-financials-plan.md     (4170 lines)
+```
+
+### Critical-path fixes applied per final review
+
+- **C1 — daily cron now syncs FMPLUS** (commit `35076e4`): added `move-lines-fmplus` phase + 04:22 UTC vercel.json entry. Without this the page would silently go stale within 24h of first sync.
+- **C2/C3 — Plans/Accounts modes hidden in v1** (same commit): the underlying RPC widens the WHERE clause without pivoting columns by plan/account, which would mislead users. Removed from `MODES` array in FilterBar with a comment deferring to v2 pending a `p_pivot_dimension` parameter on `pnl_aggregated_multiperiod`.
+
+### Deferred follow-ups (documented; not blocking ship)
+
+| ID | Description | Severity |
+|----|-------------|----------|
+| F2 | Populate `FMPLUS_OPENING_BALANCES_2026_02` from live Odoo (recovery SQL in `opening-balance.ts` header) | Important post-Task-22 — BS shows incomplete pre-2026-02-28 history until populated |
+| I1 | Replace per-period paginated BS query with `bs_aggregated_multiperiod` RPC analogous to P&L. May exceed 60s budget on multi-period at FMPLUS scale | Important — surface during Task 22 reconciliation |
+| C2/C3 v2 | Plans Compare + Accounts Compare with proper column pivoting (RPC + renderer rework) | Feature gap — re-enable modes when shipped |
+| F3 | `_cachedScope` defensive `.slice()` on read in `run-odoo-financial-sync.ts` | Minor |
+| F4 | Cold-path Odoo query comment about deliberate `context: { allowed_company_ids }` omission | Minor |
+| F5 | Zod boundary catch for `periods=NaN` in callers (resolver currently returns []) | Minor |
+| Kika 6 cron | `/api/cron/odoo-financials/route.ts` was missing a `move-lines-6` phase pre-FMPLUS too. Adding it now would clean up Kika sync staleness | Pre-existing, broader scope |
+
+### USER-LED next steps
+
+**Task 22 — E2E reconciliation gate** (requires Odoo creds, ~5-10 min wall time):
+
+```bash
+# 1) Run dev server with .env.local Odoo creds in another terminal:
+npm run dev
+
+# 2) Backfill FMPLUS data (in a separate terminal):
+curl "http://localhost:3000/api/odoo/sync-financials?phase=accounts" -H "Authorization: Bearer $CRON_SECRET"
+# Get FMPLUS_ID from `select id from odoo_companies where name ilike 'fmplus property%'`
+curl "http://localhost:3000/api/odoo/sync-financials?phase=move-lines&company=<FMPLUS_ID>" -H "Authorization: Bearer $CRON_SECRET"
+# Repeat with &resume=1 until response shows complete=true
+curl "http://localhost:3000/api/odoo/sync-financials?phase=analytic-plans" -H "Authorization: Bearer $CRON_SECRET"
+curl "http://localhost:3000/api/odoo/sync-financials?phase=analytic-accounts" -H "Authorization: Bearer $CRON_SECRET"
+curl "http://localhost:3000/api/odoo/sync-financials?phase=analytic-links" -H "Authorization: Bearer $CRON_SECRET"
+
+# 3) Visit and reconcile against the Excel:
+# http://localhost:3000/fmplus/financials?asof=2026-02
+#
+# Tolerances per Task 22 plan (Excel page 13-14):
+#   Revenue        38,466,202 EGP  ±1%
+#   Cost of Rev    33,205,740      ±1%
+#   Gross Profit    5,260,462      ±1%
+#   EBITDA            807,527      ±5%
+#   Net Profit       -716,553      ±10%
+#   HK margin           18.11%     ±0.5pp
+#   MEP margin           3.18%     ±0.5pp
+```
+
+If BS times out, prioritize the I1 RPC fix. If P&L numbers are off, inspect the unclassified panel — accounts with prefix outside the classifier table (e.g. unexpected 7xxxxx revenue) need to be added to `classifier.ts`.
+
+**Task 23 — Deploy** (per CLAUDE.md, push to main from worktree):
+
+```bash
+git fetch origin main
+git rebase origin/main
+# Resolve any conflicts. If a parallel migration grabbed 0079 first, rename to 0080 and retry.
+git push origin HEAD:main
+# GitHub→Vercel integration auto-deploys to limeinc.vercel.app within ~3 min.
+# Smoke: visit https://limeinc.vercel.app/fmplus/financials?asof=2026-02
+```
+
+If a 500 fires on the first prod page-load, most likely cause is `discoverFmplusCompanyId` cold-pathing to Odoo before the migration's `getFinancialsCompanyIds` cache exists — workaround: hit `/api/odoo/sync-financials?phase=accounts` once via Bearer auth to warm `odoo_companies`.
+
+### Subagent-driven workflow stats
+
+- ~28 commits across ~50 subagent dispatches (implementer + spec-review + code-quality-review + occasional fix-loops).
+- 2 NEEDS_CONTEXT escalations correctly fired (Task 1 fix `charAt(2)` typo; Task 3 server-only import resolution) — both caught before bad commits landed.
+- Implementer prompts include "if my fix instructions look wrong, STOP" — paid for itself twice.
+- Average task: ~3-5 subagent invocations, ~5-15 min wall time. Final review caught 3 Critical issues that the per-task reviews missed (cron phase gap, Plans Compare semantic gap, BS perf risk).
+
+---
+
+## 🟢 Earlier turn — FMPLUS final-review fixes (C1, C2, C3)
+
+**Commit:** `35076e4`
+
+**Files changed (3):**
+- `src/app/api/cron/odoo-financials/route.ts` — added `import { discoverFmplusCompanyId }` from discover-company; added `case 'move-lines-fmplus'` that calls `discoverFmplusCompanyId()` then `syncOdooMoveLines`; updated header comment to document 04:22 slot; updated `default` hint string to include `move-lines-fmplus`.
+- `vercel.json` — inserted `{ "path": "/api/cron/odoo-financials?phase=move-lines-fmplus", "schedule": "22 4 * * *" }` between move-lines-10 and analytics entries.
+- `src/app/fmplus/financials/_components/FilterBar.tsx` — removed `plans` and `accounts` entries from MODES array (deferred to v2 pending p_pivot_dimension RPC support); left comment explaining why.
+
+**TS:** clean. **Tests:** 65/65 pass.
+
+**Next:** ready to deploy / whatever comes next.
+
+---
+
+## 🟢 Previous turn — Task 21 done: Excel export for P&L and Balance Sheet
+
+**Commit:** `e72b94e`
+
+**Files changed (5):**
+- `src/app/fmplus/financials/actions.ts` — new server actions `exportPnlToExcel` + `exportBsToExcel`; parse FormData args, call existing lib builders, produce .xlsx via ExcelJS, return base64 + filename.
+- `src/app/fmplus/financials/_components/ExportButtons.tsx` — new `'use client'` component; on click builds FormData, calls the matching server action, triggers anchor download from base64 data URI.
+- `src/app/fmplus/financials/_components/PnlTable.tsx` — updated signature to accept optional `exportProps?: ExportProps`; renders toolbar div with `<ExportButtons>` before the table when prop is present.
+- `src/app/fmplus/financials/_components/BalanceSheetTable.tsx` — same pattern as PnlTable.
+- `src/app/fmplus/financials/page.tsx` — builds `exportPropsBase` from URL state after scope construction; passes `{ ...exportPropsBase, view: 'pnl' }` and `{ ...exportPropsBase, view: 'balance_sheet' }` to the respective renderers. Dashboard tab intentionally excluded.
 
 **TS:** clean (no errors). **Tests:** 65/65 pass.
 
-**Next:** Task 21 (or whatever comes next).
+**Next:** Task 22 (or whatever comes next).
 
 ---
 
