@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — 33-vs-37 gap bridge SHIPPED (commit `6cb864a`)
+## 🟢 Latest turn — Sidebar stay-range disambiguator (migration 0078)
+
+User: "why it created 2 message strings for the same reservation and same guest?"
+
+**Diagnosed first, then shipped UX fix.** The two threads in the screenshot were not duplicates — same guest (Mohammed Al Halabi) had two separate Airbnb reservations on the same listing (BH-26-001) with **distinct stay dates**:
+- Reservation A `69f1cfb5…` — May 6 → May 8 (2N), confirmed
+- Reservation B `69f32fcc…` — May 10 → May 12 (2N), confirmed
+
+Airbnb threads are per-reservation (not per-guest), and Guesty mirrors that 1:1. Our `unique(channel, external_id)` constraint correctly preserved both threads — but the sidebar UX only showed guest name + listing nickname, making them visually indistinguishable.
+
+**Migration 0078** extends the `bh_conversations_with_booking_status` view with reservation summary columns appended at the end (postgres preserves leading column order on `create or replace view`):
+- `reservation_status` (raw Guesty status)
+- `reservation_check_in_date` / `reservation_check_out_date` / `reservation_nights`
+
+The case-expression for `booking_status_variant` is unchanged. (Filename bumped to 0078 because three concurrent worktrees all landed `0066_*` migrations on main between this work starting and shipping; the actual view-update migration name is unchanged via Supabase MCP.)
+
+**`listInbox` switched to always read from the view.** Previously it switched between base table (no booking-status filter) and view (filter active). The LEFT JOIN to `guesty_reservations` is cheap (~1.5k open rows × ~7k reservations hash-joins in single-digit ms) and the always-view path eliminates the special-case branching plus gives every inbox tab the new stay-date columns for free.
+
+**`InboxRow` type** gains `reservation_check_in_date`, `reservation_check_out_date`, `reservation_nights`, `reservation_status`.
+
+**`SidebarList`** renders a new line under listing/building when stay dates are present:
+- `📅 May 6 → May 8 · 2N`
+- Uses existing `fmtDateRange` helper from `reservation-status.ts`
+- Hidden when reservation rows are absent (cold leads / pending sync)
+
+After this, the two threads in the screenshot now show their stay ranges right under the guest name — so an agent sees "May 6 → May 8 · 2N" vs "May 10 → May 12 · 2N" instantly and stops asking "why are these duplicated".
+
+**Files touched:**
+- `supabase/migrations/0078_beithady_conv_view_add_reservation_dates.sql` (new)
+- `src/lib/beithady/communication/inbox.ts` (InboxRow + always-view query)
+- `src/app/beithady/communication/_components/sidebar-list.tsx` (stay-range row + CalendarDays icon)
+
+**Verified live**: view now exposes all 4 columns, 1,332/1,354 open conversations have reservation dates populated; the 22 without are cold leads (no reservation_id) — sidebar correctly omits the date row for those.
+
+---
+
+## 🟢 Earlier turn — 33-vs-37 gap bridge SHIPPED (commit `6cb864a`)
 
 User asked: "What to do here? — fixable by adding that column to our mirror in a follow-up". Investigated and shipped a better fix.
 
@@ -515,7 +551,7 @@ User's "Coding Phase" begins after this choice is made.
 
 ---
 
-## 🟡 Previous turn — Video attachments end-to-end (migration 0065)
+## 🟢 Earlier turn — Video attachments end-to-end (migration 0065)
 
 User: "want to make sure we can attach videos to messages and sent to guests by all platforms as url like pictures".
 

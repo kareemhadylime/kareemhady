@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { Mail, MessageCircle, Smartphone, Activity } from 'lucide-react';
+import { Mail, MessageCircle, Smartphone, Activity, CalendarDays } from 'lucide-react';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { InboxRow } from '@/lib/beithady/communication/inbox';
 import type { SlaBucket } from '@/lib/beithady/communication/sla';
+import { fmtDateRange } from '@/lib/beithady/communication/reservation-status';
 import { SlaPill } from './sla-pill';
 import { SidebarScrollRestore } from './sidebar-scroll-restore';
 
@@ -128,6 +129,20 @@ export function SidebarList({
                   {r.building_code && <span>{r.building_code} · </span>}
                   {r.last_inbound_at ? fmtCairoDateTime(r.last_inbound_at) : '—'}
                 </div>
+                {/* Stay-range disambiguator. Same guest can have multiple
+                    Airbnb threads (one per reservation) — without dates
+                    they look identical in the sidebar. */}
+                {(r.reservation_check_in_date && r.reservation_check_out_date) && (
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                    <CalendarDays size={10} className="shrink-0 text-slate-400" />
+                    <span className="font-medium text-slate-600 dark:text-slate-300">
+                      {fmtDateRange(r.reservation_check_in_date, r.reservation_check_out_date)}
+                    </span>
+                    {r.reservation_nights ? (
+                      <span className="text-slate-400">· {r.reservation_nights}N</span>
+                    ) : null}
+                  </div>
+                )}
                 <div className="text-[11px] text-slate-500 truncate mt-0.5 sm:hidden">
                   {r.last_inbound_at ? fmtCairoDateTime(r.last_inbound_at) : '—'}
                 </div>

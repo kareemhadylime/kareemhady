@@ -87,6 +87,15 @@ export type InboxRow = {
   // Phase R archive bookkeeping — populated when archived
   archived_at: string | null;
   archived_reason: string | null;
+  // Phase C.5 follow-up — reservation summary for the sidebar.
+  // Populated via the bh_conversations_with_booking_status view (joined
+  // to guesty_reservations on conversation.reservation_id). Lets the
+  // sidebar disambiguate two threads from the same guest on the same
+  // listing — Airbnb threads are per-reservation, not per-guest.
+  reservation_check_in_date: string | null;   // YYYY-MM-DD wall date
+  reservation_check_out_date: string | null;
+  reservation_nights: number | null;
+  reservation_status: string | null;          // raw Guesty status
 };
 
 export type InboxResult = {
@@ -106,17 +115,15 @@ export async function listInbox(opts: {
   const pageSize = Math.max(10, Math.min(200, opts.pageSize ?? 50));
   const f = opts.filter ?? {};
 
-  // When bookingStatus filter is active, query through the view
-  // (migration 0064) which exposes a computed booking_status_variant
-  // column. Otherwise hit the base table directly to skip the join.
-  const sourceTable = f.bookingStatus
-    ? 'bh_conversations_with_booking_status'
-    : 'beithady_conversations';
-
+  // Always read from the view (migration 0066): the LEFT JOIN to
+  // guesty_reservations is cheap (~1.5k open rows × ~7k reservations
+  // hash-joins in single-digit ms) and gives us the booking_status
+  // filter + reservation stay dates the sidebar uses to disambiguate
+  // multi-stay-same-guest cases like Airbnb's per-reservation threads.
   let q = sb
-    .from(sourceTable)
+    .from('bh_conversations_with_booking_status')
     .select(
-      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, is_unanswered, archived_at, archived_reason',
+      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, is_unanswered, archived_at, archived_reason, reservation_check_in_date, reservation_check_out_date, reservation_nights, reservation_status',
       { count: 'exact' }
     );
 
