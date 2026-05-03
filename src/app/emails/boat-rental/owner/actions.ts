@@ -178,17 +178,28 @@ export async function cancelReservationOwnerAction(formData: FormData): Promise<
 // Refund handling: any status that has confirmed payment exposure
 // (confirmed/details_filled/paid_to_owner) sets refund_pending=true so admin can
 // settle with the broker manually.
-export async function forceCancelReservationOwnerAction(formData: FormData): Promise<void> {
+//
+// Returns a result object so the calling client form can show a toast and refresh
+// the page on success. Use {ok: false, error} instead of throwing for known cases —
+// throws only on programmer errors (auth missing, unexpected DB shape).
+export async function forceCancelReservationOwnerAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await requireBoatRoleOrThrow('owner');
   const id = s(formData.get('id'));
   const reason = sOrNull(formData.get('reason'));
-  if (!id) throw new Error('invalid_input');
-  if (!reason || reason.length < 5) throw new Error('reason_required');
+  if (!id) return { ok: false, error: 'Missing reservation id' };
+  if (!reason || reason.length < 5) {
+    return { ok: false, error: 'Reason is required (at least 5 characters)' };
+  }
 
   const r = await assertOwnerCanAct(id, me.id);
-  if (!r) throw new Error('forbidden');
+  if (!r) return { ok: false, error: 'You don’t own this reservation' };
   if (!['held', 'confirmed', 'details_filled', 'paid_to_owner'].includes(r.status)) {
-    throw new Error('bad_status');
+    return {
+      ok: false,
+      error: `Reservation is in ${r.status} status — nothing to cancel`,
+    };
   }
 
   const sb = supabaseAdmin();
@@ -242,6 +253,7 @@ export async function forceCancelReservationOwnerAction(formData: FormData): Pro
   revalidatePath('/emails/boat-rental/owner');
   revalidatePath('/emails/boat-rental/owner/calendar');
   revalidatePath('/emails/boat-rental/owner/reservations');
+  return { ok: true };
 }
 
 // ----- Owner blocks -----

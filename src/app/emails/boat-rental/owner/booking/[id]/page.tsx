@@ -11,10 +11,8 @@ import { getDefaultSkipper } from '@/lib/boat-rental/skipper-resolver';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { ClickToContact } from '../../../_components/click-to-contact';
 import { RecordPaymentForm } from '../../_components/record-payment-form';
-import {
-  cancelReservationOwnerAction,
-  forceCancelReservationOwnerAction,
-} from '../../actions';
+import { ForceCancelForm } from '../../_components/force-cancel-form';
+import { cancelReservationOwnerAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -257,30 +255,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
               </span>
             )}
           </p>
-          <form
-            action={forceCancelReservationOwnerAction}
-            className="flex flex-col sm:flex-row sm:items-end gap-2"
-          >
-            <input type="hidden" name="id" value={r.id} />
-            <label className="text-sm flex-1">
-              <span className="text-rose-900/80 dark:text-rose-200/80 text-xs">
-                Reason (required, ≥5 chars)
-              </span>
-              <input
-                name="reason"
-                required
-                minLength={5}
-                placeholder="e.g. boat damaged in marina, can't fulfill"
-                className="ix-input mt-1 w-full"
-              />
-            </label>
-            <button
-              type="submit"
-              className="ix-btn-danger inline-flex items-center gap-1 self-start sm:self-end whitespace-nowrap"
-            >
-              <AlertTriangle size={14} /> Force cancel
-            </button>
-          </form>
+          <ForceCancelForm reservationId={r.id} status={r.status} />
         </section>
       )}
     </>
