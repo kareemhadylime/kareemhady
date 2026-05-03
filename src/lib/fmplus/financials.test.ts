@@ -18,12 +18,24 @@ const FIXTURE_ROWS = [
 ];
 
 vi.mock('../supabase', () => ({
-  supabaseAdmin: () => ({
-    rpc: vi.fn().mockResolvedValue({ data: FIXTURE_ROWS, error: null }),
-  }),
+  supabaseAdmin: () => {
+    // Build a chainable .from(table).select(...).<method chain>.range(...) builder
+    // that always resolves to { data: [], error: null }.
+    const builder: any = new Proxy({}, {
+      get: (_t, prop) => {
+        if (prop === 'then') return undefined; // not a thenable
+        if (prop === 'range') return () => Promise.resolve({ data: [], error: null });
+        return () => builder;
+      },
+    });
+    return {
+      from: () => builder,
+      rpc: vi.fn().mockResolvedValue({ data: FIXTURE_ROWS, error: null }),
+    };
+  },
 }));
 
-import { buildFmplusPnl } from './financials';
+import { buildFmplusPnl, buildFmplusBalanceSheet } from './financials';
 
 describe('buildFmplusPnl', () => {
   const fmplusCompanyId = 99;
@@ -78,5 +90,19 @@ describe('buildFmplusPnl', () => {
     });
     const expected = (r.sections.revenue.totals['m:2026-02'] || 0) - (r.sections.cost_of_revenue.totals['m:2026-02'] || 0);
     expect(r.subtotals.gross_profit['m:2026-02']).toBeCloseTo(expected, 2);
+  });
+});
+
+describe('buildFmplusBalanceSheet', () => {
+  it('returns a balanced empty report when seed is empty and no move lines exist', async () => {
+    const r = await buildFmplusBalanceSheet({
+      periods: [{ key: 'm:2026-02', label: 'Feb 2026', fromDate: '2026-02-01', toDate: '2026-02-28' }],
+      scope: { mode: 'trend', companyIds: [99], includeDrafts: true, withDep: true },
+    });
+    expect(r.balanced['m:2026-02']).toBe(true);
+    expect(Math.abs(r.delta['m:2026-02']!)).toBeLessThan(1);
+    expect(r.assets.groups).toEqual([]);
+    expect(r.liabilities.groups).toEqual([]);
+    expect(r.equity.groups).toEqual([]);
   });
 });

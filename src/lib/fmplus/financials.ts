@@ -237,3 +237,252 @@ export async function buildFmplusPnl(args: {
     unclassified: unclassified.sort((a, b) => a.code.localeCompare(b.code)),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Balance Sheet
+// ---------------------------------------------------------------------------
+
+import {
+  FMPLUS_OPENING_BALANCES_2026_02,
+  OPENING_BALANCE_DATE,
+} from './opening-balance';
+import type {
+  BalanceSheetReport, BalanceSheetSection, BalanceSheetGroup, BalanceSheetLeaf,
+} from './types';
+
+const BS_GROUP_BY_TYPE: Record<string, { section: 'assets' | 'liabilities' | 'equity'; group: string; label: string }> = {
+  asset_cash:            { section: 'assets',      group: 'bank_cash',             label: 'Bank and Cash Accounts' },
+  asset_receivable:      { section: 'assets',      group: 'receivables',           label: 'Receivables' },
+  asset_current:         { section: 'assets',      group: 'current_assets',        label: 'Current Assets' },
+  asset_prepayments:     { section: 'assets',      group: 'prepayments',           label: 'Prepayments' },
+  asset_fixed:           { section: 'assets',      group: 'fixed_assets',          label: 'Plus Fixed Assets' },
+  asset_non_current:     { section: 'assets',      group: 'non_current_assets',    label: 'Plus Non-current Assets' },
+  liability_payable:     { section: 'liabilities', group: 'payables',              label: 'Payables' },
+  liability_current:     { section: 'liabilities', group: 'current_liabilities',   label: 'Current Liabilities' },
+  liability_non_current: { section: 'liabilities', group: 'non_current_liab',      label: 'Plus Non-current Liabilities' },
+  equity:                { section: 'equity',      group: 'capital_other',         label: 'Equity' },
+  equity_unaffected:     { section: 'equity',      group: 'retained_prev',         label: 'Previous Years Retained Earnings' },
+};
+
+const PNL_ACCOUNT_TYPES = new Set([
+  'income', 'income_other', 'expense', 'expense_direct_cost', 'expense_depreciation',
+]);
+
+export async function buildFmplusBalanceSheet(args: {
+  periods: Period[];
+  scope: Scope;
+}): Promise<BalanceSheetReport> {
+  const sb = supabaseAdmin();
+
+  const result: BalanceSheetReport = {
+    periods: args.periods,
+    scope: args.scope,
+    assets:      { key: 'assets',      label: 'ASSETS',      totals: {}, groups: [] },
+    liabilities: { key: 'liabilities', label: 'LIABILITIES', totals: {}, groups: [] },
+    equity:      { key: 'equity',      label: 'EQUITY',      totals: {}, groups: [] },
+    liabPlusEquity: {},
+    balanced: {},
+    delta: {},
+  };
+
+  // Accumulator: byKey[`code||name||account_type`] = { ...meta, values: PeriodValues }
+  type AccRow = { code: string; name: string; account_type: string; values: PeriodValues };
+  const acc = new Map<string, AccRow>();
+
+  // Seed snapshot: when asof >= OPENING_BALANCE_DATE, prime the acc with
+  // the static opening balances (currently an empty stub — no-op).
+  for (const p of args.periods) {
+    if (p.toDate >= OPENING_BALANCE_DATE) {
+      for (const op of FMPLUS_OPENING_BALANCES_2026_02) {
+        const k = `${op.code}||${op.name}||${op.account_type}`;
+        let row = acc.get(k);
+        if (!row) {
+          row = { code: op.code, name: op.name, account_type: op.account_type, values: {} };
+          acc.set(k, row);
+        }
+        addToValues(row.values, p.key, op.opening_raw);
+      }
+    }
+  }
+
+  // Fetch move-line balance deltas per period.
+  // When using the seed, only pull lines AFTER the seed date (incremental).
+  // Otherwise pull all lines up to asof (full historical; may be incomplete).
+  for (const p of args.periods) {
+    const useSeed = p.toDate >= OPENING_BALANCE_DATE;
+    const PAGE = 1000;
+    let offset = 0;
+    while (true) {
+      // Build base query up to (but not including) .range()
+      // so we can conditionally insert .gt() before the final paginate call.
+      let q = sb
+        .from('odoo_move_lines')
+        .select('id, balance, odoo_accounts!inner(code, name, account_type)')
+        .lte('date', p.toDate)
+        .in('company_id', args.scope.companyIds)
+        .eq('parent_state', 'posted')
+        .order('id', { ascending: true });
+      if (useSeed) {
+        q = (q as any).gt('date', OPENING_BALANCE_DATE);
+      }
+      const { data, error } = await (q as any).range(offset, offset + PAGE - 1);
+      if (error) throw new Error(`buildFmplusBalanceSheet: ${(error as { message: string }).message}`);
+      const rows = (data as Array<{
+        balance: number;
+        odoo_accounts: { code: string | null; name: string; account_type: string | null } | null;
+      }>) || [];
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        if (!row.odoo_accounts) continue;
+        const code = row.odoo_accounts.code || '';
+        const name = row.odoo_accounts.name || '';
+        const at   = row.odoo_accounts.account_type || '';
+        const k = `${code}||${name}||${at}`;
+        let r = acc.get(k);
+        if (!r) {
+          r = { code, name, account_type: at, values: {} };
+          acc.set(k, r);
+        }
+        addToValues(r.values, p.key, Number(row.balance) || 0);
+      }
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+    }
+  }
+
+  // Compute current-FY P&L net per period (Jan 1 of asof year → asof).
+  // Used to derive Current Year Unallocated Earnings in the equity section.
+  const currentYearNet: PeriodValues = {};
+  for (const p of args.periods) {
+    const fyStart = `${p.toDate.slice(0, 4)}-01-01`;
+    const PAGE2 = 1000;
+    let offset2 = 0;
+    let net = 0;
+    while (true) {
+      const { data, error } = await (sb
+        .from('odoo_move_lines')
+        .select('id, balance, odoo_accounts!inner(account_type)')
+        .gte('date', fyStart)
+        .lte('date', p.toDate)
+        .in('company_id', args.scope.companyIds)
+        .eq('parent_state', 'posted')
+        .order('id', { ascending: true }) as any).range(offset2, offset2 + PAGE2 - 1);
+      if (error) throw new Error(`buildFmplusBalanceSheet (FY P&L): ${(error as { message: string }).message}`);
+      const rows = (data as Array<{ balance: number; odoo_accounts: { account_type: string | null } | null }>) || [];
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        const at = row.odoo_accounts?.account_type || '';
+        if (PNL_ACCOUNT_TYPES.has(at)) net += Number(row.balance) || 0;
+      }
+      if (rows.length < PAGE2) break;
+      offset2 += PAGE2;
+    }
+    currentYearNet[p.key] = net;
+  }
+
+  // Group acc leaves into BS sections/groups.
+  const groupsBySection: Record<'assets' | 'liabilities' | 'equity', Map<string, BalanceSheetGroup>> = {
+    assets: new Map(), liabilities: new Map(), equity: new Map(),
+  };
+  const prevYearsRaw: PeriodValues = {};
+
+  for (const r of acc.values()) {
+    const cls = BS_GROUP_BY_TYPE[r.account_type];
+    if (!cls) continue;
+
+    if (cls.group === 'retained_prev') {
+      // Accumulate equity_unaffected balances into the synthetic prev-years row.
+      for (const [pk, v] of Object.entries(r.values)) {
+        if (typeof v !== 'number') continue;
+        addToValues(prevYearsRaw, pk, v);
+      }
+      continue;
+    }
+
+    const map = groupsBySection[cls.section];
+    let g = map.get(cls.group);
+    if (!g) {
+      g = { key: cls.group, label: cls.label, totals: {}, accounts: [] };
+      map.set(cls.group, g);
+    }
+    const leaf: BalanceSheetLeaf = {
+      code: r.code, name: r.name,
+      account_type: r.account_type as AccountType,
+      values: r.values,
+    };
+    g.accounts.push(leaf);
+    for (const [pk, v] of Object.entries(r.values)) {
+      if (typeof v !== 'number') continue;
+      addToValues(g.totals, pk, v);
+    }
+  }
+
+  // Build synthetic Retained Earnings group (Current Year + Previous Years).
+  const retainedGroup: BalanceSheetGroup = {
+    key: 'retained_earnings',
+    label: 'Retained Earnings',
+    totals: {},
+    synthetic: true,
+    accounts: [
+      { code: '', name: 'Current Year Unallocated Earnings',   account_type: 'derived', values: {} },
+      { code: '', name: 'Previous Years Unallocated Earnings', account_type: 'derived', values: {} },
+    ],
+  };
+  for (const p of args.periods) {
+    // Display convention: equity is credit-normal (raw negative = display positive).
+    const cy = -(currentYearNet[p.key] || 0);
+    const py = -(prevYearsRaw[p.key]   || 0);
+    retainedGroup.accounts[0].values[p.key] = cy;
+    retainedGroup.accounts[1].values[p.key] = py;
+    retainedGroup.totals[p.key] = cy + py;
+  }
+  if (Object.values(retainedGroup.totals).some(v => typeof v === 'number' && Math.abs(v) > 0.005)) {
+    groupsBySection.equity.set('retained_earnings', retainedGroup);
+  }
+
+  // Flip liabilities and non-synthetic equity groups:
+  // raw storage is credit-normal (negative), display is positive.
+  const flipGroup = (g: BalanceSheetGroup) => {
+    g.totals = Object.fromEntries(
+      Object.entries(g.totals).map(([k, v]) => [k, typeof v === 'number' ? -v : v])
+    );
+    g.accounts = g.accounts.map(a => ({
+      ...a,
+      values: Object.fromEntries(
+        Object.entries(a.values).map(([k, v]) => [k, typeof v === 'number' ? -v : v])
+      ),
+    }));
+  };
+  for (const g of groupsBySection.liabilities.values()) flipGroup(g);
+  for (const g of groupsBySection.equity.values()) {
+    if (!g.synthetic) flipGroup(g);
+  }
+
+  // Assemble section: filter out zero groups, total up.
+  const stuffSection = (sec: BalanceSheetSection, groups: BalanceSheetGroup[]) => {
+    sec.groups = groups.filter(g =>
+      Object.values(g.totals).some(v => typeof v === 'number' && Math.abs(v) > 0.005)
+    );
+    for (const g of sec.groups) {
+      for (const [pk, v] of Object.entries(g.totals)) {
+        if (typeof v !== 'number') continue;
+        addToValues(sec.totals, pk, v);
+      }
+    }
+  };
+  stuffSection(result.assets,      Array.from(groupsBySection.assets.values()));
+  stuffSection(result.liabilities, Array.from(groupsBySection.liabilities.values()));
+  stuffSection(result.equity,      Array.from(groupsBySection.equity.values()));
+
+  // Compute per-period balance check.
+  for (const p of args.periods) {
+    const totalAssets = result.assets.totals[p.key] || 0;
+    const totalLiab   = result.liabilities.totals[p.key] || 0;
+    const totalEquity = result.equity.totals[p.key] || 0;
+    result.liabPlusEquity[p.key] = totalLiab + totalEquity;
+    result.delta[p.key]    = totalAssets - (totalLiab + totalEquity);
+    result.balanced[p.key] = Math.abs(result.delta[p.key] || 0) < 1;
+  }
+
+  return result;
+}
