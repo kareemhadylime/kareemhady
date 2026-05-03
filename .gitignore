@@ -36,6 +36,10 @@ yarn-error.log*
 .env.*.local
 .env.development.local
 .env.production.local
+# vercel env pull writes these — they contain prod secrets
+.env.production
+.env.development
+.env.preview
 
 # vercel
 .vercel
