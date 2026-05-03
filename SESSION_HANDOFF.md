@@ -5363,3 +5363,47 @@ Created:
 - `src/lib/boat-rental/recurring.test.ts` — 7 vitest tests (3 monthly, 2 quarterly, 2 yearly), all passing
 
 Next task: Task 3 of 32.
+
+---
+
+## CLAUDE.md draft for review (2026-05-03)
+
+User asked for a fresh `CLAUDE.md` at project root with: project description, tech stack, npm scripts, observed conventions, and critical "do not" rules. Drafted but **not written** yet — awaiting user choice.
+
+Key findings during exploration:
+- Existing `CLAUDE.md` is a 12-byte one-liner: `@AGENTS.md`.
+- `AGENTS.md` is significantly stale: still describes "Phase 1 Gmail digest" with 4 tables, but repo has expanded to a multi-domain platform (Beithady, Boat Rental, Kika, FMPLUS, VoltAuto) with **97 Supabase migrations**, **~40 cron jobs** in `vercel.json`, and integrations across Gmail, Guesty, Odoo, PriceLabs, Shopify, Stripe, Anthropic, WhatsApp (Green-API).
+- AGENTS.md claims "no rule engine, no body fetch, no AI, no error alerting" — all of those exist now.
+
+Draft covered:
+- Tech stack: Next.js 16, React 19, TS strict, Tailwind v4 (`@tailwindcss/postcss`, no config file), Vitest, Vercel Pro + cron, PWA.
+- Repo layout walkthrough (`src/app/`, `src/lib/<domain>/`, `supabase/migrations/`, `docs/`).
+- Conventions: kebab-case files, `@/*` path alias, `_components/` non-routable folders, colocated `*.test.ts`, cron handler convention, 15 MB Server Action cap → prefer direct-to-Supabase signed URLs, two UTC cron entries gated server-side for Cairo 9 AM (DST-safe).
+- 10-item "do NOT" list: don't trust Next training data (read `node_modules/next/dist/docs/`), don't branch (push-to-main + `vercel --prod`), don't skip SESSION_HANDOFF (Stop hook), don't write plaintext OAuth tokens, don't bypass cron `Bearer $CRON_SECRET`, preserve `/emails/beithady/*` redirects, don't push >15 MB through Server Actions, Supabase CLI is unreliable on Windows (use SQL Editor), don't assume Phase-1-only scope, don't commit `.env.local`.
+
+Open questions raised back to user:
+1. Replace `@AGENTS.md` import entirely, or keep AGENTS.md import on top of new content?
+2. Also update AGENTS.md (it's stale), or leave it as historical context?
+3. Want a deeper sweep of `.claude/settings.json` hooks beyond the SESSION_HANDOFF Stop hook?
+
+**Status:** awaiting user decision; nothing written to disk this turn.
+
+---
+
+## CLAUDE.md consolidation + AGENTS.md retired (2026-05-03, follow-up)
+
+User chose: consolidate into a standalone `CLAUDE.md`, delete `AGENTS.md`. Done.
+
+Actions taken:
+- **Wrote** `CLAUDE.md` (9.6 KB) — full standalone briefing covering: project description (multi-domain — Beithady, Boat Rental, Kika, FMPLUS/VoltAuto, integrations), tech stack (Next 16 / React 19 / Tailwind v4 / Supabase / Vercel Pro / Vitest / PWA), npm scripts, repo layout, conventions, deploy workflow (push-to-main + `vercel --prod`), `.claude/` harness audit, and a 10-item "do NOT" list. Preserved `<!-- BEGIN/END:nextjs-agent-rules -->` markers in case the `superpowers` plugin auto-manages that block.
+- **Deleted** `AGENTS.md` (was stale: still described "Phase 1 Gmail digest" with "no rule engine, no AI, no error alerting" — all of which exist now).
+
+`.claude/settings.json` deep audit findings (now documented inside CLAUDE.md):
+- `enabledPlugins: { "superpowers@superpowers-dev": true }`.
+- **Stop hook** reads `SESSION_HANDOFF.md` mtime via `stat -c %Y` (GNU) with `stat -f %m` (BSD) fallback. Exit 0 if file missing. Otherwise blocks turn end with `{"decision":"block",...}` if mtime is >300 s old.
+
+`.claude/settings.local.json` (gitignored) findings:
+- 6 pre-approved permissions: Supabase MCP `execute_sql` + `apply_migration`; `Bash(git add *)`, `Bash(git push *)`, `Bash(vercel --prod --yes)`.
+- **Likely typo flagged in CLAUDE.md:** `Bash(git commit -m ' *)` starts with a single quote, so only single-quoted commit messages skip the prompt. Double-quoted commits (the form used everywhere in this project) still prompt. Suggested fix: drop the quote → `Bash(git commit -m *)`.
+
+**Status:** CLAUDE.md is now standalone source of truth; AGENTS.md removed. Per project deploy convention, this should be committed to main and pushed; deferring that to user since auto-deploy was not explicitly requested for this turn.
