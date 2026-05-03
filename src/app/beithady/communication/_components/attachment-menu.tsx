@@ -38,7 +38,13 @@ function extFromMimeBrowser(mime: string): string {
 // before send. Clicking Send fires the appropriate multi-attach server
 // action with up to 5 files in one form submission.
 
-const MAX_FILES = 5;
+// Per-send cap. Bumped from 5 → 30 in 2026-05 — N>1 attachments are
+// now bundled into a single shareable /g/<token> gallery URL inlined
+// in the message body, so a "full album" send produces ONE message
+// regardless of count. 30 keeps the gallery viewer comfortable to
+// scroll without overwhelming the carousel UI. Server-side
+// MAX_FILES_PER_SEND in attach-actions.ts is kept in lock-step.
+const MAX_FILES = 30;
 
 export type PendingItem =
   | { kind: 'file'; file: File; previewUrl: string | null }

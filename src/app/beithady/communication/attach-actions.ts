@@ -14,7 +14,10 @@ import { recordAudit } from '@/lib/beithady/audit';
 // then dispatches one WhatsApp/Guesty message per file with shared
 // caption on the FIRST file only (per workflow Q8).
 
-const MAX_FILES_PER_SEND = 5;
+// Kept in lock-step with MAX_FILES in attachment-menu.tsx (client).
+// Bumped from 5 → 30 in 2026-05 — multi-attach sends bundle into a
+// single /g/<token> gallery URL so the per-message cost is constant.
+const MAX_FILES_PER_SEND = 30;
 
 async function ensureFullPerm(): Promise<{ id: string; username: string }> {
   const user = await getCurrentUser();

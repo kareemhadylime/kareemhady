@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Loader2, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Loader2, Upload, CheckSquare, Square } from 'lucide-react';
 
 // Phase Q.3 — listing library picker. 2-step modal:
 //   1. Pick building (4 cards)
@@ -88,6 +88,18 @@ export function LibraryPicker({
     if (next.has(id)) next.delete(id);
     else if (next.size < maxToAdd) next.add(id);
     setSelected(next);
+  };
+
+  // "Select all" — pick everything currently visible up to maxToAdd.
+  // If everything's already selected, clears the selection (toggle UX).
+  const selectAll = () => {
+    const visibleIds = assets.map(a => a.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(visibleIds.slice(0, maxToAdd)));
+    }
   };
 
   const confirm = () => {
@@ -187,7 +199,27 @@ export function LibraryPicker({
             assets.length === 0 ? (
               <EmptyHint message="No photos uploaded for this unit yet." />
             ) : (
-              <div className="grid grid-cols-3 gap-2">
+              <>
+                {/* Select-all toolbar — one click picks the whole album
+                    up to maxToAdd, or clears the selection if everything's
+                    already picked. */}
+                <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950 px-2 py-1 rounded transition"
+                  >
+                    {assets.length > 0 && assets.every(a => selected.has(a.id)) ? (
+                      <><Square size={12} /> Clear selection</>
+                    ) : (
+                      <><CheckSquare size={12} /> Select all{assets.length > maxToAdd ? ` (${maxToAdd} max)` : ` (${assets.length})`}</>
+                    )}
+                  </button>
+                  <span className="text-[11px] text-slate-500">
+                    {assets.length} photo{assets.length === 1 ? '' : 's'} in this album
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
                 {assets.map(a => {
                   const isImg = (a.mime_type || '').startsWith('image/');
                   const sel = selected.has(a.id);
@@ -217,7 +249,8 @@ export function LibraryPicker({
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )
           )}
         </div>

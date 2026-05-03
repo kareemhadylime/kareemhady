@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Sidebar stay-range disambiguator (migration 0078)
+## 🟢 Latest turn — Library Picker repointed at gallery + Select-all + 30-item cap
+
+User: "When attaching from Library Not Accepting. I should be to choose several photos or full album, create a url for either and insert in the message".
+
+**Two bugs + one UX gap:**
+
+**1. "0 photos" on every unit** — `listing-assets.ts` queried legacy `beithady_listing_assets` (0 rows after the Gallery Overhaul migration). Real data lives in `beithady_gallery_assets` with template-inheritance via `unit_template_id`. BH-26 alone has **997 live assets** across 22 units (562 direct, 288 template-shared, 147 building-general).
+
+Repointed all three reads:
+- `getAssetBuildingsSummary()` — counts per `building_code` from gallery_assets
+- `getListingsInBuildingWithAssets()` — direct + template-shared count per listing (now BH-26-001 shows 42, BH-26-104 shows 247, etc.)
+- `getListingAssets()` — single OR query: `listing_id = X OR unit_template_id = listing.unit_template_id`
+
+Verified live: BH-26-001 returns 42 assets via the new query, matching the breakdown table.
+
+**2. 5-item cap blocked "full album"** — bumped `MAX_FILES` (client) and `MAX_FILES_PER_SEND` (server) from **5 → 30**. Justification: N>1 attachments are bundled into a single shareable `/g/<token>` gallery URL that's inlined in the message body, so a 30-photo send is still ONE message. The carousel scrolls comfortably at 30. Direct device uploads still bound by Vercel's request limits, but practical multi-photo flows go via library now.
+
+**3. Added "Select all" button** to the photos step. One click picks every visible asset up to `maxToAdd`. Toggles to "Clear selection" when everything's already picked. Sub-toolbar above the grid also shows total count for the album ("42 photos in this album").
+
+After this, the user can:
+- Open Library → BH-26 → BH-26-001
+- See 42 photo thumbnails (was: empty)
+- Click "Select all (30)" — picks the first 30
+- Hit Send → guest receives ONE link `📎 30 photos: https://limeinc.vercel.app/g/<token>`
+- That link opens the full carousel viewer
+
+**Files touched:**
+- `src/lib/beithady/communication/listing-assets.ts` (full rewrite — repointed at gallery_assets + template inheritance)
+- `src/app/beithady/communication/_components/library-picker.tsx` (Select-all button + sub-toolbar + import CheckSquare/Square icons)
+- `src/app/beithady/communication/_components/attachment-menu.tsx` (`MAX_FILES` 5 → 30)
+- `src/app/beithady/communication/attach-actions.ts` (`MAX_FILES_PER_SEND` 5 → 30)
+
+No migration required — schema already in place from prior gallery overhaul. The legacy `beithady_listing_assets` table is now untouched and can be dropped in a future cleanup migration once we're confident no callers remain.
+
+---
+
+## 🟢 Earlier turn — Sidebar stay-range disambiguator (migration 0078)
 
 User: "why it created 2 message strings for the same reservation and same guest?"
 
