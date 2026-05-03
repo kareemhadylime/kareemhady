@@ -19,6 +19,8 @@ Both affordances clear the current `selected` set when switching, since assets i
 
 No backend / data changes — the building-switch flow always worked at the data layer; this is purely a discoverability fix.
 
+**Deploy state:** commit `25a6e53` (rebased from `fc9f96c` after concurrent landings) on `main`. Vercel deployment `iztpvm2yg` confirmed `● Ready` in production via `vercel ls`. The earlier "status: error" string from `vercel --prod`'s JSON response was a misread field — actual build + deploy succeeded.
+
 ---
 
 ## 🟢 Earlier turn — Library Picker thumbnails (signed URLs + image transform)
