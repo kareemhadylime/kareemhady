@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { Item, Category } from '@/lib/beithady/fnb/types';
 import { BasicsForm } from './basics-form';
 import { PhotoForm } from './photo-form';
+import { ModifiersForm } from './modifiers-form';
 
 const INNER_TABS = [
   { key: 'basics',       label: 'Basics' },
@@ -47,9 +48,7 @@ export function ItemEditor({
         <BasicsForm item={item} categories={categories} onSaved={setItem} />
       )}
       {tab === 'photo' && <PhotoForm item={item} onSaved={setItem} />}
-      {tab === 'modifiers' && (
-        <div className="text-slate-500 text-sm">Modifier editor — wired in Task 17.</div>
-      )}
+      {tab === 'modifiers' && <ModifiersForm itemId={item.id!} />}
       {tab === 'availability' && (
         <div className="text-slate-500 text-sm">Availability + stock-out — wired in Task 18.</div>
       )}
