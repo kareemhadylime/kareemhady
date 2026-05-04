@@ -1,6 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase';
+import { recordAudit, type AuditEntry } from '@/lib/beithady/audit';
 import {
   CategorySchema, ItemSchema, ModifierSchema, BuildingOverrideSchema,
   type Category, type Item, type Modifier, type BuildingOverride,
@@ -13,30 +14,13 @@ type ItemInput = Omit<z.input<typeof ItemSchema>, 'id'>;
 type ModifierInput = Omit<z.input<typeof ModifierSchema>, 'id'>;
 type BuildingOverrideInput = Omit<z.input<typeof BuildingOverrideSchema>, 'id'>;
 
-interface AuditCtx {
-  actor_user_id: string | null;
-  actor_kind?: 'user' | 'system' | 'guest';
-}
+// Re-export the shared AuditEntry shape as AuditCtx for callers that only need
+// actor identity. The shared helper (src/lib/beithady/audit.ts) owns the
+// canonical definition; we just narrow to the fields repo functions require.
+export type AuditCtx = Pick<AuditEntry, 'actor_user_id'>;
 
-async function audit(
-  ctx: AuditCtx,
-  action: string,
-  target_type: string,
-  target_id: string | null,
-  before: unknown,
-  after: unknown,
-): Promise<void> {
-  const sb = supabaseAdmin();
-  await sb.from('beithady_audit_log').insert({
-    actor_user_id: ctx.actor_user_id,
-    module: 'fnb',
-    action,
-    target_type,
-    target_id,
-    before: before ?? null,
-    after: after ?? null,
-  });
-}
+// TODO: drop `as any` once `supabase gen types` is wired — the generated DB
+// types will let us remove these casts on insert/update/upsert calls below.
 
 // ---- Categories ----
 
@@ -48,6 +32,13 @@ export async function listCategories(): Promise<Category[]> {
     .order('sort_order', { ascending: true });
   if (error) throw error;
   return (data ?? []).map(r => CategorySchema.parse(r));
+}
+
+export async function getCategory(id: string): Promise<Category | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb.from('fnb_categories').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? CategorySchema.parse(data) : null;
 }
 
 export async function createCategory(
@@ -62,7 +53,7 @@ export async function createCategory(
     .single();
   if (error) throw error;
   const out = CategorySchema.parse(data);
-  await audit(ctx, 'category.create', 'category', out.id!, null, out);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'category.create', target_type: 'category', target_id: out.id!, before: null, after: out });
   return out;
 }
 
@@ -80,7 +71,7 @@ export async function updateCategory(
     .single();
   if (error) throw error;
   const out = CategorySchema.parse(data);
-  await audit(ctx, 'category.update', 'category', id, before.data, out);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'category.update', target_type: 'category', target_id: id, before: before.data, after: out });
   return out;
 }
 
@@ -90,7 +81,7 @@ export async function deleteCategory(id: string, ctx: AuditCtx): Promise<void> {
   if (before.error) throw before.error;
   const { error } = await sb.from('fnb_categories').delete().eq('id', id);
   if (error) throw error;
-  await audit(ctx, 'category.delete', 'category', id, before.data, null);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'category.delete', target_type: 'category', target_id: id, before: before.data, after: null });
 }
 
 // ---- Items ----
@@ -133,7 +124,7 @@ export async function createItem(
     .single();
   if (error) throw error;
   const out = ItemSchema.parse(data);
-  await audit(ctx, 'item.create', 'item', out.id!, null, out);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'item.create', target_type: 'item', target_id: out.id!, before: null, after: out });
   return out;
 }
 
@@ -151,7 +142,7 @@ export async function updateItem(
     .single();
   if (error) throw error;
   const out = ItemSchema.parse(data);
-  await audit(ctx, 'item.update', 'item', id, before.data, out);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'item.update', target_type: 'item', target_id: id, before: before.data, after: out });
   return out;
 }
 
@@ -164,7 +155,7 @@ export async function softDeleteItem(id: string, ctx: AuditCtx): Promise<void> {
     .update({ deleted_at: new Date().toISOString() } as any)
     .eq('id', id);
   if (error) throw error;
-  await audit(ctx, 'item.delete', 'item', id, before.data, null);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'item.delete', target_type: 'item', target_id: id, before: before.data, after: null });
 }
 
 // ---- Modifiers ----
@@ -192,7 +183,7 @@ export async function createModifier(
     .single();
   if (error) throw error;
   const out = ModifierSchema.parse(data);
-  await audit(ctx, 'modifier.create', 'modifier', out.id!, null, out);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'modifier.create', target_type: 'modifier', target_id: out.id!, before: null, after: out });
   return out;
 }
 
@@ -210,7 +201,7 @@ export async function updateModifier(
     .single();
   if (error) throw error;
   const out = ModifierSchema.parse(data);
-  await audit(ctx, 'modifier.update', 'modifier', id, before.data, out);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'modifier.update', target_type: 'modifier', target_id: id, before: before.data, after: out });
   return out;
 }
 
@@ -220,7 +211,7 @@ export async function deleteModifier(id: string, ctx: AuditCtx): Promise<void> {
   if (before.error) throw before.error;
   const { error } = await sb.from('fnb_item_modifiers').delete().eq('id', id);
   if (error) throw error;
-  await audit(ctx, 'modifier.delete', 'modifier', id, before.data, null);
+  await recordAudit({ module: 'fnb', actor_user_id: ctx.actor_user_id, action: 'modifier.delete', target_type: 'modifier', target_id: id, before: before.data, after: null });
 }
 
 // ---- Building overrides ----
@@ -242,6 +233,13 @@ export async function upsertBuildingOverride(
 ): Promise<BuildingOverride> {
   const sb = supabaseAdmin();
   const parsed = BuildingOverrideSchema.parse(input);
+  const existing = await sb
+    .from('fnb_building_overrides')
+    .select('*')
+    .eq('building_code', parsed.building_code)
+    .eq('item_id', parsed.item_id)
+    .maybeSingle();
+  const beforeRow = existing.data ?? null;
   const { data, error } = await sb
     .from('fnb_building_overrides')
     .upsert(parsed as any, { onConflict: 'building_code,item_id' })
@@ -249,6 +247,14 @@ export async function upsertBuildingOverride(
     .single();
   if (error) throw error;
   const out = BuildingOverrideSchema.parse(data);
-  await audit(ctx, 'override.upsert', 'building_override', out.id!, null, out);
+  await recordAudit({
+    module: 'fnb',
+    actor_user_id: ctx.actor_user_id,
+    action: beforeRow ? 'override.update' : 'override.create',
+    target_type: 'building_override',
+    target_id: out.id!,
+    before: beforeRow,
+    after: out,
+  });
   return out;
 }

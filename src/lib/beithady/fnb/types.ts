@@ -24,6 +24,8 @@ export const CategorySchema = z.object({
   hours_end: HHMM.default('23:59'),
   enabled: z.boolean().default(true),
   ai_translation_flags: z.record(z.string(), z.boolean()).default({}),
+  created_at: z.string().datetime({ offset: true }).optional(),
+  updated_at: z.string().datetime({ offset: true }).optional(),
 });
 export type Category = z.infer<typeof CategorySchema>;
 
@@ -49,6 +51,9 @@ export const ItemSchema = z.object({
   recipe_id: z.string().uuid().nullable().optional(),
   enabled: z.boolean().default(true),
   ai_translation_flags: z.record(z.string(), z.boolean()).default({}),
+  created_at: z.string().datetime({ offset: true }).optional(),
+  updated_at: z.string().datetime({ offset: true }).optional(),
+  deleted_at: z.string().datetime({ offset: true }).nullable().optional(),
 });
 export type Item = z.infer<typeof ItemSchema>;
 
@@ -63,6 +68,8 @@ export const ModifierSchema = z.object({
   price_delta_usd: z.number().nonnegative().multipleOf(0.01),
   enabled: z.boolean().default(true),
   ai_translation_flags: z.record(z.string(), z.boolean()).default({}),
+  created_at: z.string().datetime({ offset: true }).optional(),
+  updated_at: z.string().datetime({ offset: true }).optional(),
 });
 export type Modifier = z.infer<typeof ModifierSchema>;
 
@@ -73,6 +80,8 @@ export const BuildingOverrideSchema = z.object({
   is_out_of_stock: z.boolean().default(false),
   out_of_stock_until: z.string().datetime({ offset: true }).nullable().optional(),
   notes: z.string().nullable().optional(),
+  created_at: z.string().datetime({ offset: true }).optional(),
+  updated_at: z.string().datetime({ offset: true }).optional(),
 });
 export type BuildingOverride = z.infer<typeof BuildingOverrideSchema>;
 
@@ -84,6 +93,8 @@ export const BuildingSchema = z.object({
   receipt_vat_line: z.string().nullable().optional(),
   message_template_overrides: z.record(z.string(), z.string()).default({}),
   cancellation_grace_seconds: z.number().int().min(30).max(300).default(120),
+  created_at: z.string().datetime({ offset: true }).optional(),
+  updated_at: z.string().datetime({ offset: true }).optional(),
 });
 export type Building = z.infer<typeof BuildingSchema>;
 
@@ -100,6 +111,7 @@ export const OrderItemSnapshotSchema = z.object({
   })).default([]),
   line_total_usd: z.number().nonnegative(),
   notes: z.string().max(200).nullable().optional(),
+  created_at: z.string().datetime({ offset: true }).optional(),
 });
 export type OrderItemSnapshot = z.infer<typeof OrderItemSnapshotSchema>;
 
