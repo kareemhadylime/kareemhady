@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, BarChart3, ChevronRight } from 'lucide-react';
+import { Building2, BarChart3, ChevronRight, Wallet } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +22,7 @@ export default function FmplusLandingPage() {
           </p>
         </header>
 
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
             href="/fmplus/financials"
             className="ix-card p-5 hover:border-amber-300 hover:shadow-md transition group"
@@ -38,6 +38,26 @@ export default function FmplusLandingPage() {
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
                   P&amp;L · Balance Sheet · Dashboard. Pulled live from Odoo.
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/fmplus/financial/budget"
+            className="ix-card p-5 hover:border-amber-300 hover:shadow-md transition group"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-50">
+                <Wallet size={20} className="text-amber-700" />
+              </div>
+              <div className="flex-1">
+                <h2 className="font-semibold flex items-center gap-1">
+                  Project Budget
+                  <ChevronRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition" />
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Per-project budgets vs Odoo actuals. Variance · Compare · Import · Drill-to-journal.
                 </p>
               </div>
             </div>
