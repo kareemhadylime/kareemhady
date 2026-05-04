@@ -74,3 +74,67 @@ export async function addLineAction(input: unknown) {
 
   revalidatePath('/fmplus/financial/budget/edit');
 }
+
+const UpdateLineCtcInputSchema = z.object({
+  line_id: z.number().int().positive(),
+  ctc_net: z.number().nullable(),
+  ctc_relievers: z.number().nullable(),
+  ctc_ot: z.number().nullable(),
+  ctc_training: z.number().nullable(),
+  ctc_insurance: z.number().nullable(),
+  ctc_medical: z.number().nullable(),
+  threshold_green: z.number().nullable(),
+  threshold_amber: z.number().nullable(),
+});
+
+/**
+ * Update CTC component fields and per-line variance thresholds on a manning line.
+ * Recomputes `unit_cost = sum(ctc_*)` automatically when at least one component is non-null.
+ * Otherwise leaves `unit_cost` untouched (free-text rows keep their hand-entered value).
+ */
+export async function updateLineCtcAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = UpdateLineCtcInputSchema.parse(input);
+  const sb = budgetDb();
+
+  // Verify the year this line belongs to is editable
+  const { data: lineRow, error: lErr } = await sb
+    .from(TABLES.lines)
+    .select('id, year_id')
+    .eq('id', parsed.line_id)
+    .single();
+  if (lErr || !lineRow) throw new Error('Line not found');
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('status')
+    .eq('id', lineRow.year_id)
+    .single();
+  if (!year || year.status !== 'draft') {
+    throw new Error('Cannot edit lines on a published year. Create a revised scenario first.');
+  }
+
+  // Compute new unit_cost as sum of CTC components (only if at least one non-null)
+  const components = [
+    parsed.ctc_net, parsed.ctc_relievers, parsed.ctc_ot,
+    parsed.ctc_training, parsed.ctc_insurance, parsed.ctc_medical,
+  ];
+  const hasAny = components.some(c => c !== null);
+  const sum = hasAny ? components.reduce((a, b) => (a ?? 0) + (b ?? 0), 0 as number) : null;
+
+  const updateRow: Record<string, unknown> = {
+    ctc_net: parsed.ctc_net,
+    ctc_relievers: parsed.ctc_relievers,
+    ctc_ot: parsed.ctc_ot,
+    ctc_training: parsed.ctc_training,
+    ctc_insurance: parsed.ctc_insurance,
+    ctc_medical: parsed.ctc_medical,
+    threshold_green: parsed.threshold_green,
+    threshold_amber: parsed.threshold_amber,
+  };
+  if (sum !== null) updateRow.unit_cost = sum;
+
+  const { error } = await sb.from(TABLES.lines).update(updateRow).eq('id', parsed.line_id);
+  if (error) throw error;
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
