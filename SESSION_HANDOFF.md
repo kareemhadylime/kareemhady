@@ -509,6 +509,61 @@ classified counts will finally have non-zero values.
 
 ---
 
+## ✅ 2026-05-04 — Freshness UI + ingest budget + backfill feedback (commits `ed74cb8`, `d733060`)
+
+User screenshotted LIME's mailbox card showing "synced 7d ago / 0%
+/ ingest timed out" while it had successfully classified 1,222
+emails today (post-15-April backfill).
+
+**Diagnosis** (via SQL): `accounts.last_synced_at` only advances
+when an entire sweep finishes. LIME's post-backfill backlog can't
+finish inside 90 s, so the cursor stays April-27 forever while the
+function classifies hundreds of emails per tick. UI was reading
+the wrong column.
+
+**Fix shipped (`ed74cb8`):**
+
+- `MailboxStatusBar` now derives freshness from
+  `MAX(accounts.last_synced_at, MAX(email_logs.last_classified_at))`
+  per account. Status dot, freshness bar, and "synced X ago" label
+  all read from this effective value. When the sweep cursor is
+  >1 h behind real activity, a "· catching up" hint appears next
+  to the relative time.
+- Per-account ingest budget bumped 90 s → 240 s, paired with
+  `maxDuration = 300` on the cron route so big-backlog accounts
+  make real headway per tick instead of timing out instantly.
+- Error label rewrite: `account_ingest_*_timeout_*` now surfaces
+  as "still catching up — large backlog" instead of the alarming
+  "ingest timed out".
+
+**Then user clicked Backfill button and got no feedback** —
+form submitted via Server Action with no client signal during the
+~90 s of looping all 3 accounts + triggering ingest.
+
+**Fix shipped (`d733060`) — wired with React 19 useActionState:**
+
+- `archiveOldAndResetSync` now returns a structured `BackfillResult`
+  ({ ok, cutoff, totalArchived, totalBeforeCutoff, durationMs,
+   ingestStarted, perAccount: [{ email, archived, before_cutoff,
+   error, last_synced_at_set_to, ... }] }) instead of `void`.
+- New client component `_backfill-form.tsx` wraps the form with
+  `useActionState`. While `pending` the submit button shows
+  "Working — looping accounts…" with a spinner; a yellow hint
+  card explains the per-account steps and warns "don't close the
+  tab".
+- After completion: green/red result panel with overall counts,
+  per-account row showing display name + email + archived/total
+  or error, and ingest-trigger status.
+- Page-level `export const maxDuration = 300` so the action has
+  the full Vercel Pro budget instead of the 60 s default.
+
+State after both pushes: backfill UX has feedback, freshness UI
+truthful for big-backlog accounts, ingest has bigger budget per
+tick. LIME should reach full-green within a few cron cycles as
+the sweep cursor finally advances.
+
+---
+
 ## ✅ 2026-05-04 — Master-detail drill-down + multi-select + backfill button (commit `bf9d4dc`)
 
 After the FK fix landed, ingest started working: the 14:30 Cairo
