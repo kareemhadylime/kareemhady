@@ -1,5 +1,6 @@
 import { Calendar, Layers, FileSpreadsheet, ChevronRight } from 'lucide-react';
 import { PillLink } from './PeriodControls';
+import { AsOfForm } from './AsOfForm';
 import type { Granularity, ScopeMode } from '@/lib/fmplus/types';
 
 const GRANULARITIES: Array<{ id: Granularity; label: string }> = [
@@ -95,7 +96,7 @@ function FilterRow({ icon: Icon, label, children }: {
 }
 
 export function FilterBar(props: {
-  view: 'dashboard' | 'pnl' | 'balance_sheet';
+  view: 'dashboard' | 'pnl' | 'balance_sheet' | 'projects';
   granularity: Granularity;
   periods: number;
   asof: string;
@@ -103,6 +104,9 @@ export function FilterBar(props: {
   withDep: boolean;
   includeDrafts: boolean;
   buildHref: (overrides?: Partial<Record<string, string | undefined>>) => string;
+  /** Extra params (plan, account, accounts, multi) that the AsOfForm must
+   *  preserve when it submits a new asof value. */
+  preservedParams?: Record<string, string | undefined>;
 }) {
   const isBs = props.view === 'balance_sheet';
   const asofOptions =
@@ -133,29 +137,17 @@ export function FilterBar(props: {
           />
         ))}
         <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-3 font-medium uppercase tracking-wide">As of</span>
-        <form action="" method="get" className="inline-flex items-center gap-1.5">
-          <input type="hidden" name="view" value={props.view} />
-          <input type="hidden" name="granularity" value={props.granularity} />
-          <input type="hidden" name="periods" value={String(props.periods)} />
-          <input type="hidden" name="mode" value={props.mode} />
-          <input type="hidden" name="with_dep" value={props.withDep ? '1' : '0'} />
-          <input type="hidden" name="include_drafts" value={props.includeDrafts ? '1' : '0'} />
-          <select
-            name="asof"
-            defaultValue={props.asof}
-            className="ix-input text-sm px-2.5 py-1.5 cursor-pointer min-w-[140px]"
-          >
-            {asofOptions.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition shadow-sm"
-          >
-            Apply
-          </button>
-        </form>
+        <AsOfForm
+          view={props.view}
+          granularity={props.granularity}
+          periods={props.periods}
+          mode={props.mode}
+          withDep={props.withDep}
+          includeDrafts={props.includeDrafts}
+          asof={props.asof}
+          options={asofOptions}
+          hidden={props.preservedParams}
+        />
       </FilterRow>
 
       {!isBs && MODES.length > 1 && (

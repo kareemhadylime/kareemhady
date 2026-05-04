@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronRight, BarChart3, Briefcase, Landmark, LineChart } from 'lucide-react';
+import { ChevronRight, BarChart3, Briefcase, Landmark, LineChart, FolderTree } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { resolvePeriodSeries } from '@/lib/fmplus/period-series';
 import { buildFmplusPnl, buildFmplusBalanceSheet } from '@/lib/fmplus/financials';
@@ -10,19 +10,24 @@ import {
   listFmplusPlansWithActivity,
   listFmplusProjectsWithActivity,
 } from '@/lib/fmplus/analytic-picker';
+import { buildFmplusProjectRankings } from '@/lib/fmplus/project-rankings';
 import { FilterBar } from './_components/FilterBar';
 import { PnlTable } from './_components/PnlTable';
 import { BalanceSheetTable } from './_components/BalanceSheetTable';
 import { Dashboard } from './_components/Dashboard';
 import { PayablesGrid } from './_components/PayablesGrid';
 import { AnalyticPicker } from './_components/AnalyticPicker';
+import { ProjectsView } from './_components/ProjectsView';
+import { ComparePnlTable, type ComparePnlEntry } from './_components/ComparePnlTable';
 import type { Granularity, ScopeMode, Scope } from '@/lib/fmplus/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+type View = 'dashboard' | 'pnl' | 'balance_sheet' | 'projects';
+
 type Search = {
-  view?: 'dashboard' | 'pnl' | 'balance_sheet';
+  view?: View;
   granularity?: Granularity;
   periods?: string;
   asof?: string;
@@ -56,8 +61,8 @@ export default async function FinancialsPage({
   searchParams: Promise<Search>;
 }) {
   const sp = await searchParams;
-  const view: 'dashboard' | 'pnl' | 'balance_sheet' =
-    sp.view === 'pnl' || sp.view === 'balance_sheet' ? sp.view : 'dashboard';
+  const view: View =
+    sp.view === 'pnl' || sp.view === 'balance_sheet' || sp.view === 'projects' ? sp.view : 'dashboard';
   const granularity: Granularity =
     sp.granularity === 'quarterly' || sp.granularity === 'yearly' ? sp.granularity : 'monthly';
   const periods = parseInt0(sp.periods, 3);
@@ -180,6 +185,7 @@ export default async function FinancialsPage({
               { id: 'dashboard',     label: 'Dashboard',     Icon: BarChart3 },
               { id: 'pnl',           label: 'Profit & Loss', Icon: Briefcase },
               { id: 'balance_sheet', label: 'Balance Sheet', Icon: Landmark },
+              { id: 'projects',      label: 'Projects',      Icon: FolderTree },
             ] as const
           ).map(t => {
             const active = view === t.id;
@@ -223,6 +229,12 @@ export default async function FinancialsPage({
           withDep={withDep}
           includeDrafts={includeDrafts}
           buildHref={buildHref}
+          preservedParams={{
+            plan: selectedPlanSlug || undefined,
+            account: !multi && selectedProjectIds[0] ? String(selectedProjectIds[0]) : undefined,
+            accounts: multi && selectedProjectIds.length > 0 ? selectedProjectIds.join(',') : undefined,
+            multi: multi ? '1' : undefined,
+          }}
         />
 
         {view === 'dashboard' && (
@@ -236,12 +248,29 @@ export default async function FinancialsPage({
             />
           </>
         )}
+
         {view === 'pnl' && (
-          <PnlTable
-            report={await buildFmplusPnl({ periods: periodSeries, scope })}
-            exportProps={{ ...exportPropsBase, view: 'pnl' }}
-          />
+          multi && selectedProjectIds.length >= 2 ? (
+            // Side-by-side compare: build one P&L per project (single-period)
+            // and merge at render time. Cap at 5 enforced upstream by the
+            // picker. Force periods=1 here so each column = one project's
+            // P&L for the asof period.
+            <ComparePnlTable
+              entries={await buildCompareEntries({
+                projectIds: selectedProjectIds,
+                projectNameById: new Map(projects.map(p => [p.id, p.name])),
+                periods: [periodSeries[0]],
+                baseScope: scope,
+              })}
+            />
+          ) : (
+            <PnlTable
+              report={await buildFmplusPnl({ periods: periodSeries, scope })}
+              exportProps={{ ...exportPropsBase, view: 'pnl' }}
+            />
+          )
         )}
+
         {view === 'balance_sheet' && (
           <>
             <BalanceSheetTable
@@ -256,7 +285,43 @@ export default async function FinancialsPage({
             />
           </>
         )}
+
+        {view === 'projects' && (
+          <ProjectsView
+            rankings={await buildFmplusProjectRankings({
+              companyId: fmplusCompanyId,
+              fromDate: pickerFromDate,
+              toDate: pickerToDate,
+              planSlug: selectedPlanSlug ?? undefined,
+              includeDrafts,
+            })}
+            buildHref={buildHref}
+            selectedPlanSlug={selectedPlanSlug}
+          />
+        )}
       </main>
     </>
   );
+}
+
+// Build one P&L per selected project for side-by-side rendering.
+async function buildCompareEntries(args: {
+  projectIds: number[];
+  projectNameById: Map<number, string>;
+  periods: import('@/lib/fmplus/types').Period[];
+  baseScope: Scope;
+}): Promise<ComparePnlEntry[]> {
+  const out: ComparePnlEntry[] = [];
+  for (const id of args.projectIds) {
+    const report = await buildFmplusPnl({
+      periods: args.periods,
+      scope: { ...args.baseScope, accountIds: [id], planId: undefined },
+    });
+    out.push({
+      account_id: id,
+      account_name: args.projectNameById.get(id) || `Project ${id}`,
+      report,
+    });
+  }
+  return out;
 }
