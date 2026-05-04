@@ -98,10 +98,10 @@ export function BudgetLineRow({ line, canEdit }: Props) {
             <span className="ml-1 text-[9px] text-slate-500 dark:text-slate-400" title="Computed from CTC components">CTC</span>
           )}
         </td>
-        <td className="px-2 py-2 text-right tabular-nums text-xs font-semibold">
+        <td className="px-2 py-2 text-right tabular-nums text-xs font-semibold hidden sm:table-cell">
           {monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </td>
-        <td className="px-2 py-2 text-center text-[10px] text-slate-500 dark:text-slate-400">
+        <td className="px-2 py-2 text-center text-[10px] text-slate-500 dark:text-slate-400 hidden md:table-cell">
           {hasThresholdOverride ? (
             <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">override</span>
           ) : (

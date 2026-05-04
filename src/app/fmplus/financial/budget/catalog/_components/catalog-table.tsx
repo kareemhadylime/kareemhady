@@ -130,12 +130,12 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
             <thead className="text-[10px] uppercase text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-[57px]">
               <tr>
                 <th className="px-2 py-2 text-left w-6"></th>
-                <th className="px-2 py-2 text-left">Code</th>
+                <th className="px-2 py-2 text-left hidden md:table-cell">Code</th>
                 <th className="px-2 py-2 text-left">Name</th>
-                <th className="px-2 py-2 text-center w-20">Unit</th>
+                <th className="px-2 py-2 text-center w-20 hidden sm:table-cell">Unit</th>
                 <th className="px-2 py-2 text-right w-28">Default</th>
-                <th className="px-2 py-2 text-left w-32">Services</th>
-                <th className="px-2 py-2 text-left">Tags</th>
+                <th className="px-2 py-2 text-left w-32 hidden lg:table-cell">Services</th>
+                <th className="px-2 py-2 text-left hidden lg:table-cell">Tags</th>
                 {canEdit && <th className="px-2 py-2 w-16"></th>}
               </tr>
             </thead>
@@ -151,19 +151,23 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
                     } ${!it.is_active ? 'opacity-50' : ''}`}
                   >
                     <td className="px-2 py-2 text-slate-500 dark:text-slate-400">{it.is_active ? '●' : '○'}</td>
-                    <td className="px-2 py-2 font-mono text-[11px]">{it.code}</td>
+                    <td className="px-2 py-2 font-mono text-[11px] hidden md:table-cell">{it.code}</td>
                     <td className="px-2 py-2">
                       <div>{it.name_en}</div>
                       {it.name_ar && <div className="text-[10px] text-slate-500 dark:text-slate-400">{it.name_ar}</div>}
+                      {/* On mobile (where Code/Unit/Services columns are hidden), surface code + unit inline below the name */}
+                      <div className="md:hidden text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                        {it.code} · {it.unit}
+                      </div>
                     </td>
-                    <td className="px-2 py-2 text-center">
+                    <td className="px-2 py-2 text-center hidden sm:table-cell">
                       <span className="text-[10px] px-2 py-0.5 bg-slate-50 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">{it.unit}</span>
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums">{Number(it.default_price).toLocaleString()}</td>
-                    <td className="px-2 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <td className="px-2 py-2 text-[11px] text-slate-500 dark:text-slate-400 hidden lg:table-cell">
                       {it.service_lines.length === 7 ? 'all' : it.service_lines.join(', ')}
                     </td>
-                    <td className="px-2 py-2 text-[10px] text-slate-500 dark:text-slate-400">{it.tags.join(', ')}</td>
+                    <td className="px-2 py-2 text-[10px] text-slate-500 dark:text-slate-400 hidden lg:table-cell">{it.tags.join(', ')}</td>
                     {canEdit && (
                       <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                         {isSelected ? (

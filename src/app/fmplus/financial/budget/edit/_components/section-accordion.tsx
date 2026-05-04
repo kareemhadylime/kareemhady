@@ -83,11 +83,11 @@ export function SectionAccordion({ template, lines, canEdit, openSection, contra
                       <thead>
                         <tr className="text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
                           <th className="px-2 py-2 text-left">Line</th>
-                          <th className="px-2 py-2 text-right w-20">Qty / HC</th>
-                          <th className="px-2 py-2 text-right w-28">Unit / mo</th>
-                          <th className="px-2 py-2 text-right w-28">Monthly</th>
-                          <th className="px-2 py-2 text-center w-24">Threshold</th>
-                          <th className="px-2 py-2 w-8"></th>
+                          <th className="px-2 py-2 text-right w-16 sm:w-20">Qty / HC</th>
+                          <th className="px-2 py-2 text-right w-24 sm:w-28">Unit / mo</th>
+                          <th className="px-2 py-2 text-right w-24 sm:w-28 hidden sm:table-cell">Monthly</th>
+                          <th className="px-2 py-2 text-center w-20 sm:w-24 hidden md:table-cell">Threshold</th>
+                          <th className="px-2 py-2 w-12"></th>
                         </tr>
                       </thead>
                       <tbody>
