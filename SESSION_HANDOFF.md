@@ -1,5 +1,36 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ FINAL 2026-05-04 — FM+ Budget v2.0 COMPLETE — all surfaces functional, 3 audit gaps closed
+
+User asked "any missing work here for V2?" after the 40-task plan completion. Honest audit found 3 real UX gaps that were NOT documented as deferred — all now closed:
+
+1. **Inline edit of qty + unit_cost in Editor rows** (`updateLineQtyCostAction` + `<input>` cells in `budget-line-row.tsx`). Manning rows with CTC keep `unit_cost` read-only (computed from CTC components) but qty stays editable for headcount tweaks. Debounced save on blur. Refuses on published years.
+2. **Delete line action + trash icon per row** (`deleteLineAction`). Refuses on published years.
+3. **Add catalog item modal** (was disabled placeholder). New `add-item-modal.tsx` calls existing `saveItemAction` from Task 14.
+
+Commit: `1feb1e8` `feat(fmplus-budget): close 3 v2.0 gaps — inline qty/unit_cost edit + delete line + Add Item modal`. Pushed to main as `7f713ab`.
+
+**v2.0 health at end of session:**
+- 0 TypeScript errors in `src/lib/fmplus/budget/` and `src/app/fmplus/financial/budget/`
+- 159 vitest tests pass / 9 skipped (skipped = integration-gated)
+- All 8 tabs functional in production: Overview / Project Hub / Editor (full inline-edit + delete + CTC + Copy-year) / Catalog (add/edit/override/bulk-import) / Import (flat-template) / Variance (grid + drill + PDF/XLSX) / Compare (cross-project + YoY) / Settings (thresholds + inflation defaults + mob amort + bilingual + template list + unmapped accounts)
+- Bilingual EN/ع toggle working with localStorage + dir=rtl
+- Audit log writing on Copy-year + republish-after-edit
+
+**v2.1 follow-ups (documented in acceptance doc, NOT blocking production usage):**
+- T29-T32 rich XLSX parsers for AUC/TRIO/CityGate/Emaar layouts — flat-template re-export covers all import scenarios in v2.0
+- Edit contract metadata UI after creation (name/customer/dates)
+- Add service line to existing contract
+- Delete contract UI
+
+**Acceptance doc:** [docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2-acceptance.md](docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2-acceptance.md) — 10-area manual smoke-test checklist + known limitations + v2.1 roadmap.
+
+**Subagent-driven workflow stats:** 30+ implementer dispatches across the session, all using the same hard-guardrail prompt template (verbatim code blocks + "Task N only" + "do NOT push" + post-verification). Pattern produced clean output every time after the initial Task 1 over-reach was reverted via path A early in the session.
+
+**Final state on main:** branch `claude/eager-williamson-5787df` at `7f713ab`. v2.0 ready for production use. The plan is closed.
+
+---
+
 ## 🟢 CHECKPOINT 2026-05-04 (updated) — FM+ Budget v2.0 post-audit gap-fixes (commit 1feb1e8)
 
 ### FM+ Budget v2 — 3 gap-fixes (commit 1feb1e8)
