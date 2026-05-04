@@ -6,14 +6,15 @@ import { useState } from 'react';
 import {
   X, Info, User, Tag, DollarSign, MessageCircle, Ticket,
   ClipboardList, Sparkles, Megaphone, History, ExternalLink, Star,
-  CheckCircle2, Circle, AlertCircle,
+  CheckCircle2, Circle, AlertCircle, UtensilsCrossed,
 } from 'lucide-react';
 import type { ReservationDetail, PastStay, ReservationMessage } from '@/lib/beithady/operations/reservation-detail';
 import { PaymentActions } from './payment-actions';
 import { BoardingPassShare } from './boarding-pass-share';
+import { FnbChargesSection } from '@/app/beithady/fnb/_components/fnb-charges-section';
 
 type TabId = 'overview' | 'guest' | 'channel' | 'payment' | 'comms'
-  | 'checkin' | 'tasks' | 'upsells' | 'attribution' | 'audit';
+  | 'checkin' | 'tasks' | 'upsells' | 'attribution' | 'audit' | 'fnb';
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ size?: number }> }> = [
   { id: 'overview',    label: 'Overview',      icon: Info },
@@ -26,9 +27,10 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ size?:
   { id: 'upsells',     label: 'Upsells',       icon: Sparkles },
   { id: 'attribution', label: 'Attribution',   icon: Megaphone },
   { id: 'audit',       label: 'Audit log',     icon: History },
+  { id: 'fnb',         label: 'F&B charges',   icon: UtensilsCrossed },
 ];
 
-export function ReservationDrawer({ detail }: { detail: ReservationDetail }) {
+export function ReservationDrawer({ detail, canMarkSettled }: { detail: ReservationDetail; canMarkSettled: boolean }) {
   const router = useRouter();
   const sp = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -83,6 +85,12 @@ export function ReservationDrawer({ detail }: { detail: ReservationDetail }) {
             {activeTab === 'upsells' && <TabUpsells detail={detail} />}
             {activeTab === 'attribution' && <TabAttribution detail={detail} />}
             {activeTab === 'audit' && <TabAudit detail={detail} />}
+            {activeTab === 'fnb' && (
+              <FnbChargesSection
+                reservationId={detail.base.reservation_id}
+                canMarkSettled={canMarkSettled}
+              />
+            )}
           </div>
         </div>
       </aside>

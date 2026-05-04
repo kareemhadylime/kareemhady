@@ -77,7 +77,7 @@ export default async function OperationsCalendarPage({
     country?: string;
   }>;
 }) {
-  await requireBeithadyPermission('operations', 'read');
+  const { roles } = await requireBeithadyPermission('operations', 'read');
   const sp = await searchParams;
   const startDate = parseStartDate(sp.from);
   const daysCount = parseDays(sp.days);
@@ -122,7 +122,12 @@ export default async function OperationsCalendarPage({
         filters={filters}
       />
       <CalendarGrid data={data} density={(sp.density as 'price' | 'occupancy' | 'adr' | 'revenue' | undefined) || 'price'} />
-      {detail && <ReservationDrawer detail={detail} />}
+      {detail && (
+        <ReservationDrawer
+          detail={detail}
+          canMarkSettled={roles.some(r => ['admin', 'manager', 'fnb_manager', 'finance'].includes(r))}
+        />
+      )}
     </BeithadyShell>
   );
 }
