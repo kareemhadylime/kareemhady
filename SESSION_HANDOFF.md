@@ -268,6 +268,33 @@ The OAuth flow uses `prompt: 'consent'` which forces Google to
 issue fresh tokens. GMAIL is fine — it was reconnected earlier
 this session.
 
+---
+
+## ✅ 2026-05-04 — Disconnect action made resilient (commit `b6deaea`)
+
+User clicked Disconnect on a personal mailbox and got a 500.
+Root cause: `disconnectAccountAndRemoveLabels` called
+`removeAllLimeLabels` → `getGmailClientFromRefresh` which hung on
+the dead refresh token, taking the action's DB-untag step down with
+it. The user couldn't disconnect the very accounts that needed
+disconnecting because the disconnect required working tokens.
+
+**Fix (`src/app/personal/email/setup/accounts/actions.ts`):**
+
+- `withTimeout()` helper (30 s) wrapping the Gmail-side label-
+  removal call.
+- The label-removal failure is now caught + logged + ignored —
+  the DB untag (`domain=null, enabled=false`) ALWAYS proceeds.
+- Same hardening applied to `tagDomainPersonal` so a slow Gmail
+  API on first connect can't strand a half-tagged row either.
+- Worst-case side effect: a few stranded `Lime/*` labels in the
+  user's Gmail that they can manually delete. Better than a
+  permanently-stuck DB row.
+
+After this fix, re-clicking Disconnect on FM+/LIME completes
+cleanly. Then `Connect Gmail` again to re-consent and get a fresh
+refresh token.
+
 ## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
 
 **Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
