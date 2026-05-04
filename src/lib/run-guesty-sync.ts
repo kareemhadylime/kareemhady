@@ -162,6 +162,15 @@ function normalizeReviewRow(rv: GuestyReview): Record<string, unknown> {
 function extractBuildingCode(nickname: string | null | undefined): string | null {
   if (!nickname) return null;
   const n = nickname.toUpperCase();
+  // UAE / Dubai listings — nickname-prefix detect. Guesty's API returns
+  // these with no `building_code` and no `DXB` tag, so the previous
+  // implementation routed them to NULL → OTHER bucket. The 3 active
+  // catalog rows are LIME-MA-1402, REEHAN-204, YANSOON-105; future UAE
+  // listings will follow the same pattern (or include 'DXB'/'BURJ' /
+  // 'DUBAI' in the nickname).
+  if (/^(LIME-MA|REEHAN|YANSOON|BURJ-|DUBAI-)/.test(n) || /\bDXB\b/.test(n)) {
+    return 'DXB';
+  }
   const major = /\bBH-?(26|34|73|435)(?:[-\s]|$)/.exec(n);
   if (major) return `BH-${major[1]}`;
   if (/\bBH-?(OK|OKAT)/.test(n)) return 'BH-OK';
@@ -775,9 +784,9 @@ function extractGuestPosts(posts: GuestyConversationPost[]): {
 function extractBuildingFromTags(tags: string[] | undefined): string | null {
   if (!Array.isArray(tags)) return null;
   for (const t of tags) {
-    const m = String(t || '')
-      .toUpperCase()
-      .match(/^BH-?([A-Z0-9]+)$/);
+    const upper = String(t || '').toUpperCase();
+    if (upper === 'DXB' || upper === 'BH-DXB' || upper === 'UAE') return 'DXB';
+    const m = upper.match(/^BH-?([A-Z0-9]+)$/);
     if (m) return `BH-${m[1]}`;
   }
   return null;

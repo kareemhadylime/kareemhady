@@ -45,6 +45,17 @@ function bucketBuilding(rawBuilding: string | null | undefined): BuildingCode {
   return 'OTHER';
 }
 
+// Per user's standing rule (2026-04-30): UAE units (BH-DXB) are
+// EXCLUDED from every report aggregation — revenue, occupancy,
+// check-in/out counts, MTD, etc. They remain visible in messaging
+// and calendar surfaces, but never count toward Beit Hady totals.
+// This predicate centralizes the test so callers don't drift.
+export function isExcludedFromReport(rawBuilding: string | null | undefined): boolean {
+  if (!rawBuilding) return false;
+  const code = canonicalBuildingFromTag(rawBuilding).toUpperCase();
+  return code === 'DXB' || code === 'BH-DXB' || code === 'AE' || code === 'UAE';
+}
+
 /**
  * Determine "physical sub-unit" listings. In Guesty's Multi-Unit Strategy:
  *   listingType='MTL' → parent (NOT a physical unit, do not count)
@@ -156,6 +167,11 @@ export async function loadBuildingInventories(): Promise<AllInventories> {
       r.building_code ||
       getListingByGuestyId(r.id)?.building_tag ||
       null;
+    // BH-DXB exclusion (2026-05-04): UAE units must not count toward
+    // Beit Hady inventory totals. Skip entirely so they don't pollute
+    // physical_listing_ids_all (= the filter used to scope all
+    // downstream report queries to "real BH inventory").
+    if (isExcludedFromReport(bcRaw)) continue;
     const bucket = bucketBuilding(bcRaw);
     out[bucket].total_units += 1;
     out[bucket].physical_listing_ids.push(r.id);

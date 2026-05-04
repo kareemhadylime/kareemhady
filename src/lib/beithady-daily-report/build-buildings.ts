@@ -1,7 +1,7 @@
 import 'server-only';
 import { addDays, dayDiff, type MonthRange } from './cairo-dates';
 import { nightsInRange, type ReservationRow } from './reservations';
-import type { AllInventories } from './units';
+import { isExcludedFromReport, type AllInventories } from './units';
 import {
   BUILDING_CODES,
   type AllBucket,
@@ -129,7 +129,15 @@ export function buildBuildingsTable(
 
   const prior = priorMonthWindow(today);
 
+  // Per user's standing rule (2026-04-30 / 2026-05-04): UAE units (BH-DXB)
+  // are EXCLUDED from every report aggregation. Build a set of physical
+  // listing IDs to allow-list reservations against — anything not in
+  // this set (= UAE) is skipped entirely.
+  const allowedListingIds = new Set(inventories.physical_listing_ids_all);
+
   for (const r of active) {
+    // Drop UAE / non-physical reservations before they touch any acc.
+    if (r.listing_id && !allowedListingIds.has(r.listing_id)) continue;
     const acc = accs.get(r.building) || emptyAcc();
 
     // ---- Today ----
