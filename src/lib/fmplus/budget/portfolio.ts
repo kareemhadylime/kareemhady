@@ -1,81 +1,106 @@
-// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
-import { supabaseAdmin } from '@/lib/supabase';
-import { buildBudgetVariance } from './variance';
+import { budgetDb, TABLES } from './db';
 import type { ServiceLine } from './types';
-import type { Scenario } from './schema';
 
-export type PortfolioRow = {
+export interface PortfolioCard {
+  contract_id: number;
   project_id: number;
   project_name: string;
-  plan_label: string | null;
+  customer: string | null;
+  year_tracking: 'contract' | 'fiscal';
+  duration_months: number;
+  contract_value: number;
+  current_year_index: number;
+  total_years: number;
+  current_year_label: string;
   service_lines: ServiceLine[];
-  budget_ytd: number;
-  actual_ytd: number;
-  variance: number;
-  variance_pct: number | null;
-  status: 'draft' | 'published';
-  health_color: 'green' | 'amber' | 'red';
-};
+  has_back_office: boolean;
+  current_year_revenue: number;
+  current_year_status: 'draft' | 'published';
+  yoy_revenue_change: number | null;
+  mob_total: number;
+  mob_roi_pct: number | null;
+  health: 'green' | 'amber' | 'red';
+}
 
-export async function buildPortfolio(opts: {
-  fiscalYear: number;
-  scenario: Scenario;
-  ytdThrough?: number;
-  serviceLineFilter?: ServiceLine | null;
-}): Promise<{ rows: PortfolioRow[]; totals: { budget: number; actual: number; variance: number; variance_pct: number | null }; missing: Array<{ project_id: number; project_name: string }> }> {
-  const sb = supabaseAdmin();
-  const { data: budgets } = await sb
-    .from('project_budgets')
-    .select('id, project_id, status, fiscal_year, scenario')
-    .eq('fiscal_year', opts.fiscalYear)
-    .eq('scenario', opts.scenario);
-  const list = (budgets ?? []) as Array<{ id: number; project_id: number; status: 'draft'|'published' }>;
-  const rows: PortfolioRow[] = [];
-  let totalBudget = 0, totalActual = 0;
-  for (const b of list) {
-    const v = await buildBudgetVariance({
-      projectId: b.project_id, fiscalYear: opts.fiscalYear,
-      scenario: opts.scenario, ytdThrough: opts.ytdThrough,
-    });
-    if (!v) continue;
-    if (opts.serviceLineFilter && !v.segments.some(s => s.service_line === opts.serviceLineFilter)) continue;
-    const { data: aa } = await sb
-      .from('odoo_analytic_accounts').select('plan_id').eq('id', v.project_id).maybeSingle();
-    const planId = (aa as { plan_id: number | null } | null)?.plan_id;
-    let planLabel: string | null = null;
-    if (planId) {
-      const { data: pl } = await sb.from('odoo_analytic_plans').select('name').eq('id', planId).maybeSingle();
-      planLabel = (pl as { name: string } | null)?.name ?? null;
-    }
-    totalBudget += v.ytd.budget;
-    totalActual += v.ytd.actual;
-    rows.push({
-      project_id: v.project_id, project_name: v.project_name,
-      plan_label: planLabel,
-      service_lines: v.segments.map(s => s.service_line),
-      budget_ytd: v.ytd.budget, actual_ytd: v.ytd.actual,
-      variance: v.ytd.variance, variance_pct: v.ytd.variance_pct,
-      status: v.status, health_color: v.ytd.color,
+export interface PortfolioFilter {
+  service_line?: ServiceLine;
+  q?: string;
+}
+
+/**
+ * Aggregate every contract into a PortfolioCard for the Project Hub grid.
+ * Pulls contracts + their nested years + per-year revenue + mobilization
+ * in one round trip via PostgREST embeds, then derives KPIs in JS.
+ *
+ * Health is initially 'green'; downstream can override after running variance
+ * (variance.ts isn't loaded here to keep this module fast).
+ */
+export async function buildPortfolio(filter: PortfolioFilter = {}): Promise<PortfolioCard[]> {
+  const sb = budgetDb();
+  let q = sb.from(TABLES.contracts).select(`
+    id, project_id, name, customer, year_tracking, duration_months, contract_value,
+    project_services ( service_line ),
+    project_years ( id, year_index, fiscal_year, scenario, status, project_year_services ( service_line, monthly_revenue ) ),
+    mobilization_lines ( total_cost )
+  `);
+  if (filter.q) q = q.ilike('name', `%${filter.q}%`);
+  const { data, error } = await q.order('name');
+  if (error) throw error;
+
+  const cards: PortfolioCard[] = [];
+  for (const c of (data ?? []) as any[]) {
+    const services: ServiceLine[] = (c.project_services ?? []).map((s: any) => s.service_line);
+    if (filter.service_line && !services.includes(filter.service_line)) continue;
+
+    const initialYears = (c.project_years ?? [])
+      .filter((y: any) => y.scenario === 'initial')
+      .sort((a: any, b: any) => a.year_index - b.year_index);
+    const totalYears = initialYears.length
+      ? Math.max(...initialYears.map((y: any) => y.year_index))
+      : 0;
+    const currentYear = initialYears[initialYears.length - 1] ?? null;
+    const prevYear = initialYears[initialYears.length - 2] ?? null;
+
+    const sumYearRevenue = (yr: any | null) =>
+      yr ? (yr.project_year_services ?? []).reduce(
+        (a: number, s: any) => a + Number(s.monthly_revenue) * 12, 0
+      ) : 0;
+    const currentRevenue = sumYearRevenue(currentYear);
+    const prevRevenue = sumYearRevenue(prevYear);
+    const yoy = prevYear && prevRevenue > 0
+      ? (currentRevenue - prevRevenue) / prevRevenue
+      : null;
+
+    const mobTotal = (c.mobilization_lines ?? []).reduce(
+      (a: number, m: any) => a + Number(m.total_cost), 0
+    );
+    const cv = Number(c.contract_value);
+    const mobRoi = cv > 0 ? mobTotal / cv : null;
+
+    cards.push({
+      contract_id: c.id,
+      project_id: c.project_id,
+      project_name: c.name,
+      customer: c.customer,
+      year_tracking: c.year_tracking,
+      duration_months: c.duration_months,
+      contract_value: cv,
+      current_year_index: currentYear?.year_index ?? 0,
+      total_years: totalYears,
+      current_year_label: currentYear
+        ? (c.year_tracking === 'fiscal' && currentYear.fiscal_year
+            ? `FY ${currentYear.fiscal_year}`
+            : `Y${currentYear.year_index}${totalYears > 1 ? ` of ${totalYears}` : ''}`)
+        : '—',
+      service_lines: services,
+      has_back_office: services.includes('back_office'),
+      current_year_revenue: currentRevenue,
+      current_year_status: (currentYear?.status ?? 'draft') as 'draft' | 'published',
+      yoy_revenue_change: yoy,
+      mob_total: mobTotal,
+      mob_roi_pct: mobRoi,
+      health: 'green',
     });
   }
-  rows.sort((a, b) => Math.abs(b.variance_pct ?? 0) - Math.abs(a.variance_pct ?? 0));
-  const totals = {
-    budget: totalBudget, actual: totalActual,
-    variance: totalActual - totalBudget,
-    variance_pct: totalBudget === 0 ? null : ((totalActual - totalBudget) / totalBudget) * 100,
-  };
-
-  // "Action needed" — HK Projects plan accounts without a budget for this FY.
-  const { data: hkProjects } = await sb
-    .from('odoo_analytic_accounts')
-    .select('id, name, root_plan_id, odoo_analytic_plans!inner(name)')
-    .eq('active', true);
-  type AA = { id: number; name: string; odoo_analytic_plans: { name: string } };
-  const allHk = ((hkProjects ?? []) as unknown as AA[]).filter(a => /HK Projects/i.test(a.odoo_analytic_plans.name));
-  const budgetedIds = new Set(rows.map(r => r.project_id));
-  const missing = allHk
-    .filter(a => !budgetedIds.has(a.id))
-    .map(a => ({ project_id: a.id, project_name: a.name }));
-
-  return { rows, totals, missing };
+  return cards;
 }
