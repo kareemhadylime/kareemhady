@@ -11,6 +11,9 @@ export const CatalogUnitEnum  = z.enum(['each','monthly','annual','per_head','li
 export const MobAmortEnum     = z.enum(['straight_line','flat']);
 
 // ---------- Tables ----------
+// Insert/update shape only. Server-generated columns (created_by, created_at,
+// updated_at, computed duration_months) are NOT validated here. Fetch shapes
+// pass through unvalidated; add a *RowSchema variant later if needed.
 export const ProjectContractSchema = z.object({
   id: z.number().optional(),
   project_id: z.number(),
@@ -160,3 +163,46 @@ export const TemplateSchema = z.object({
   })),
 });
 export type Template = z.infer<typeof TemplateSchema>;
+
+// Template component types
+export type TemplateLine = z.infer<typeof TemplateLineSchema>;
+export type TemplateCategory = z.infer<typeof TemplateCategorySchema>;
+
+// ---------- v1 backward-compat aliases (remove after Tasks 13-39 replace v1 consumers) ----------
+/** @deprecated v1 name — use ServiceLineEnum */
+export const ServiceLineSchema = ServiceLineEnum;
+/** @deprecated v1 name — use ScenarioEnum */
+export const ScenarioSchema = ScenarioEnum;
+/** @deprecated v1 name — use StatusEnum */
+export const StatusSchema = StatusEnum;
+/** @deprecated v1 name — use SeasonEnum */
+export const SeasonSchema = SeasonEnum;
+
+// v1 type aliases that downstream files import from schema.ts
+/** @deprecated v1 name */
+export type Season = z.infer<typeof SeasonEnum>;
+/** @deprecated v1 name */
+export type Scenario = z.infer<typeof ScenarioEnum>;
+/** @deprecated v1 name */
+export type Status = z.infer<typeof StatusEnum>;
+/** @deprecated v1 name */
+export type ServiceLine = z.infer<typeof ServiceLineEnum>;
+
+// v1 stub types so v1 orphans compile. These are intentionally `any`-shaped
+// because the v1 consumers will be deleted/rewritten in Tasks 13-39.
+/** @deprecated v1 stub — remove with v1 consumer cleanup */
+export type AccountMapJsonT = unknown;
+/** @deprecated v1 stub */
+export type AccountMapJson = unknown;
+/** @deprecated v1 stub — replaced by `Template` */
+export type TemplateSchemaJsonT = unknown;
+/** @deprecated v1 stub — replaced by `TemplateSchema` */
+export const TemplateSchemaJson = TemplateSchema;
+/** @deprecated v1 stub */
+export type VarianceColor = 'green' | 'amber' | 'red';
+/** @deprecated v1 stub — variance v2 returns a different shape via Task 35 */
+export type BudgetVarianceReport = unknown;
+/** @deprecated v1 stub */
+export type SegmentVariance = unknown;
+/** @deprecated v1 stub */
+export type CategoryVariance = unknown;

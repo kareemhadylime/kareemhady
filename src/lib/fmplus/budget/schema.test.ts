@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ProjectContractSchema, ProjectYearSchema, ProjectServiceSchema,
   BudgetLineSchema, MobilizationLineSchema, FmplusCatalogItemSchema,
+  BudgetSettingsSchema,
   ServiceLineEnum, YearTrackingEnum, ScenarioEnum, StatusEnum, CatalogUnitEnum,
 } from './schema';
 
@@ -46,5 +47,15 @@ describe('schema', () => {
     expect(ServiceLineEnum.options).toContain('back_office');
     expect(YearTrackingEnum.options).toEqual(['contract', 'fiscal']);
     expect(CatalogUnitEnum.options).toContain('pct_revenue');
+  });
+
+  it('rejects BudgetSettings with id != 1', () => {
+    expect(() => BudgetSettingsSchema.parse({
+      id: 2, green_pct: 5, amber_pct: 15,
+      default_scenario: 'initial',
+      default_inflation_revenue: 7, default_inflation_manpower: 10,
+      default_inflation_other: 5, default_mob_amortization_months: 24,
+      bilingual_default: 'en',
+    })).toThrow();
   });
 });
