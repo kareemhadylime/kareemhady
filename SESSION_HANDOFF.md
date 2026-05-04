@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget Task 25: Revenue tab + Mobilization tab (`f81c918`)
+
+2 new components + 3 modified files (602 insertions, 58 deletions). Revenue tab
+renders per-service monthly_revenue/vat_pct inputs + collapsible manpower_ramp
+JSON editor, saves via `saveRevenueAction` (replace-all pattern on
+`project_year_services`). Mobilization tab renders contract-level capex/opex/
+training/recruitment lines with qty×unit_cost, straight_line vs flat amortization,
+bilingual labels; saves via `saveMobilizationAction`. Both tabs gate behind
+`is_admin` + published-year guard. ServiceTabs buttons un-disabled with
+`__revenue` / `__mobilization` sentinel routing. Page.tsx skips template/line
+queries in those modes. TS: 0 errors. Tests: 144/144 passed. NOT pushed.
+
+---
+
 ## ✅ 2026-05-04 — Personal Email: Banking + URGENT marker + build unbreaker (`ab0c81b`, `f59d9dd`)
 
 Banking category (13th, Tier 2 sortOrder 5, green Landmark) + 21
