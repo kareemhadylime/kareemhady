@@ -321,6 +321,55 @@ After this fix, re-clicking Disconnect on FM+/LIME completes
 cleanly. Then `Connect Gmail` again to re-consent and get a fresh
 refresh token.
 
+---
+
+## ✅ 2026-05-04 — ROOT CAUSE FOUND: email_logs.run_id FK violation (commits `265f188` + `92daad7`)
+
+User reconnected all 3 mailboxes successfully (`access_token_expires_at`
+all in the future, refresh tokens present). Clicked Refresh. Page
+still showed 0 classified, "Refreshing..." stuck.
+
+**Diagnostic dive into `personal_email_classification_runs`**:
+every recent run row showed
+- `emails_seen`: 360-762 ← Gmail fetch was working fine!
+- `emails_classified`: 0 ← but nothing landed
+- `err_count`: 360-762 ← matching count of errors
+
+Sampled the error blob and every single error was identical:
+```
+upsert_email_log_failed: insert or update on table "email_logs"
+violates foreign key constraint "email_logs_run_id_fkey"
+```
+
+**Root cause**: `email_logs.run_id` has been a FK to `public.runs`
+(the Phase-1 InboxOps ingest table) since `0001_init.sql`. My
+personal-email ingest creates rows in
+`public.personal_email_classification_runs` (a different table),
+then writes that UUID into the `run_id` column. FK fails → catch
+block records the error → no rows persist → 0 emails get
+classified, ever.
+
+This bug had been silently destroying every cron tick since the
+module launched. The freshness bars and timeout work I shipped
+earlier never had a chance to do anything because the upsert step
+that comes BEFORE classification was failing first.
+
+**Fix shipped:**
+1. **Migration 0082** (`0082_personal_email_run_link.sql`): adds
+   `email_logs.personal_run_id uuid` with the correct FK to
+   `personal_email_classification_runs(id) on delete set null` +
+   index `idx_email_logs_personal_run`. Applied to prod via
+   Supabase MCP.
+2. **`ingest.ts`**: upsert now writes `personal_run_id` instead
+   of `run_id`. Legacy `run_id` column stays nullable for
+   backwards-compat with the Phase-1 ingest path that other
+   domains (Beithady) still use.
+
+After deploy lands (~60 s), the next cron tick or manual Refresh
+should successfully classify those 762 emails Gmail has been
+patiently re-fetching every 15 min. The freshness bars +
+classified counts will finally have non-zero values.
+
 ## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
 
 **Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
