@@ -93,7 +93,7 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
   fnb: {
     href: '/beithady/fnb',
     title: 'F&B',
-    description: 'In-room dining & minibar · Menu builder · Orders · COGS tracking · Minibar restock alerts.',
+    description: 'In-room dining menu · Order queue · 4-language guest menu (EN/AR/RU/FR). Egypt buildings only.',
     icon: UtensilsCrossed,
     accent: 'rose',
     badge: { label: 'Phase F', tone: 'gold' },
