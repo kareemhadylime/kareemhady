@@ -1,20 +1,35 @@
-// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 'use server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/auth';
-import { revalidatePath } from 'next/cache';
 
-export async function updateThresholdsAction(args: { green_pct: number; amber_pct: number }): Promise<{ ok: boolean; error?: string }> {
-  const user = await getCurrentUser();
-  if (!user || !user.is_admin) return { ok: false, error: 'Admin only.' };
-  if (args.green_pct < 0 || args.amber_pct <= args.green_pct) {
-    return { ok: false, error: 'Amber threshold must be greater than green threshold.' };
-  }
-  const sb = supabaseAdmin();
-  const { error } = await sb.from('budget_settings')
-    .update({ green_pct: args.green_pct, amber_pct: args.amber_pct, updated_at: new Date().toISOString() })
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
+import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
+import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
+
+const SettingsInputSchema = z.object({
+  green_pct: z.number().min(0).max(100),
+  amber_pct: z.number().min(0).max(100),
+  default_scenario: z.enum(['initial', 'revised', 'reforecast']),
+  default_inflation_revenue: z.number().min(0).max(50),
+  default_inflation_manpower: z.number().min(0).max(50),
+  default_inflation_other: z.number().min(0).max(50),
+  default_mob_amortization_months: z.number().int().min(1).max(120),
+  bilingual_default: z.enum(['en', 'ar']),
+});
+
+/**
+ * Update the singleton budget_settings row (id=1). All fields required to
+ * avoid partial writes; the form submits the full set on every Save.
+ */
+export async function saveSettingsAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = SettingsInputSchema.parse(input);
+  const sb = budgetDb();
+
+  const { error } = await sb.from(TABLES.settings)
+    .update(parsed)
     .eq('id', 1);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath('/fmplus/financial/budget', 'layout');
-  return { ok: true };
+  if (error) throw error;
+
+  revalidatePath('/fmplus/financial/budget/settings');
+  revalidatePath('/fmplus/financial/budget');
 }
