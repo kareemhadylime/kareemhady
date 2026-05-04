@@ -1,5 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 CHECKPOINT 2026-05-04 (updated) — FM+ Budget v2 Overview + Import v2 done (commit 6616604) — all v1 orphan surfaces cleared
+
+### FM+ Budget v2 — Overview page + Import page (commit 6616604)
+- `src/app/fmplus/financial/budget/page.tsx` — Overview v2: portfolio rollup, service-line filter chips, 4 KPI tiles, anomaly banner, health-dot table, action-needed panel. Calls `buildPortfolio` + `buildBudgetVarianceV2` in parallel per card.
+- `src/app/fmplus/financial/budget/_components/anomaly-banner.tsx` — server component, new `Anomaly` interface (contract_id + project_name + var_pct), no v1 PortfolioRow dependency
+- `src/app/fmplus/financial/budget/import/page.tsx` — Import v2: admin gate via `requireBudgetView` + `user.is_admin`, renders `ImportUploader` or read-only notice
+- `src/app/fmplus/financial/budget/import/actions.ts` — `previewImportAction` (FormData → tmp file → detectParser → flat-template only, non-flat returns v2.1 deferred message) + `commitImportAction` (replace-all strategy per contract+year, refuses published years)
+- `src/app/fmplus/financial/budget/import/_components/import-uploader.tsx` — client component with 3-state UI (picker → preview with diff table → committed summary)
+- `npx tsc --noEmit | grep budget` = **0 errors**; full `tsc --noEmit` = **0 errors**
+- Commit-only (no push) per constraint; branch `claude/eager-williamson-5787df` at `6616604`
+
+---
+
 ## 🟢 CHECKPOINT 2026-05-04 (updated) — Beithady F&B Phase F.1 complete + FM+ Budget v2 at 28/40 tasks (70%)
 
 ### Beithady F&B Phase F.1 ✅ (Task 8 of F&B impl plan — commit 946af0b)
@@ -81,8 +94,8 @@
 - ✅ Layout: 8-tab strip + EN/ع bilingual toggle (localStorage-persisted, applies dir=rtl)
 
 **Still v1 orphans / runtime-broken** (rewritten in remaining tasks):
-- 🟡 `/fmplus/financial/budget` (Overview)
-- 🟡 `/fmplus/financial/budget/import`
+- ✅ `/fmplus/financial/budget` (Overview) — v2 live (commit 6616604)
+- ✅ `/fmplus/financial/budget/import` — v2 live (commit 6616604)
 - ✅ `/fmplus/financial/budget/variance` — v2 page live (contract picker → KPI strip → month×category grid → drill drawer)
 - ✅ `/fmplus/financial/budget/compare` — v2 live (cross-project category grid + YoY toggle, service-line chips, eligibility guard for YoY)
 - ✅ `/fmplus/financial/budget/settings` — v2 live (thresholds + 3 inflation knobs + mob amort + bilingual + template overview + unmapped-account warning)
