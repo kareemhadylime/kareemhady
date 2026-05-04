@@ -12,6 +12,7 @@ export const CATEGORY_SLUGS = [
   'subsidiary_kika',
   'facebook',
   'newsletters',
+  'technology',
   'notifications',
   'promotions',
   'spam',

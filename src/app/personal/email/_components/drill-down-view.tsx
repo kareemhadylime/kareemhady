@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -63,6 +63,17 @@ export function DrillDownView({
   const [pending, start] = useTransition();
   const [moveOpen, setMoveOpen] = useState(false);
 
+  // Refs for scroll-position preservation. The list `<ul>` keeps its
+  // own internal scroll (max-h-[70vh] overflow-y-auto). Without these
+  // hooks, every server-component re-render on `?msg=` change resets
+  // the scroll to 0 because the soft navigation re-streams a new
+  // element that React's reconciler treats as the same identity but
+  // browsers still snap scrollTop on certain paint cycles. We capture
+  // scrollTop the moment a row is clicked and restore it on the next
+  // commit, then nudge the selected row into view if it's off-screen.
+  const listRef = useRef<HTMLUListElement>(null);
+  const pendingScrollRef = useRef<number | null>(null);
+
   // Sort marked-and-still-active rows to the top, normal rows below.
   // "Active" = the marker pattern matches AND the user hasn't taken
   // an action yet (not read, not archived, not manually moved). Once
@@ -94,11 +105,45 @@ export function DrillDownView({
   const anyChecked = checked.size > 0;
 
   function navTo(id: string | null) {
+    // Snapshot the list's internal scroll BEFORE the navigation kicks
+    // off so the post-nav effect can restore it. Server-component
+    // re-renders on search-param change otherwise dump scrollTop back
+    // to 0 in some paint sequences, which manifests as "list jumps to
+    // top whenever I click an email". {scroll:false} only suppresses
+    // the window-level scroll-to-top — it doesn't help element scroll.
+    if (listRef.current) {
+      pendingScrollRef.current = listRef.current.scrollTop;
+    }
     const params = new URLSearchParams(sp.toString());
     if (id) params.set('msg', id);
     else params.delete('msg');
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
+
+  // Restore captured scrollTop synchronously BEFORE paint so the user
+  // never sees the list flash to 0. useLayoutEffect runs after DOM
+  // mutations but before the browser paints, which is exactly the
+  // window where a server-component re-render would otherwise
+  // present a scrolled-to-top view.
+  useLayoutEffect(() => {
+    const ul = listRef.current;
+    if (!ul) return;
+    if (pendingScrollRef.current != null) {
+      ul.scrollTop = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+    }
+  });
+
+  // After paint, ensure the selected row is at least in view (no-op if
+  // it already is — block:'nearest' only scrolls when needed).
+  useEffect(() => {
+    const ul = listRef.current;
+    if (!ul || !selected?.id) return;
+    const el = ul.querySelector<HTMLLIElement>(
+      `[data-row-id="${selected.id}"]`,
+    );
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [selected?.id]);
 
   function toggleOne(id: string) {
     setChecked(prev => {
@@ -179,7 +224,7 @@ export function DrillDownView({
           )}
         </div>
 
-        <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[70vh] overflow-y-auto">
+        <ul ref={listRef} className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[70vh] overflow-y-auto">
           {sortedRows.map(r => {
             const isSelected = selected?.id === r.id;
             const isChecked = checked.has(r.id);
@@ -201,9 +246,10 @@ export function DrillDownView({
             return (
               <li
                 key={r.id}
+                data-row-id={r.id}
                 className={`flex items-start gap-2 px-3 py-2 transition cursor-pointer ${
                   isSelected
-                    ? 'bg-slate-100 dark:bg-slate-800/70'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-inset ring-indigo-400 dark:ring-indigo-500'
                     : isChecked
                       ? 'bg-amber-50/40 dark:bg-amber-950/20'
                       : rowAccentClass

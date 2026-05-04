@@ -3,6 +3,7 @@ import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { SetupTabs } from '../_components/setup-tabs';
 import { readDailyCapFromEnv } from '@/lib/personal-email/cost-guard';
 import { RecomputeForm } from './_recompute-form';
+import { ReshuffleForm } from './_reshuffle-form';
 
 export const dynamic = 'force-dynamic';
 // The recompute action clears classifications + triggers a fresh ingest
@@ -43,11 +44,23 @@ export default async function AiSetupPage() {
       </section>
 
       <section className="ix-card p-4 space-y-3">
-        <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Recompute</div>
+        <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Reshuffle (rules-only, fast)</div>
+        <p className="text-xs text-slate-500">
+          Re-runs the rule matcher against every personal email&apos;s
+          cached features (no Gmail fetch, no AI call). Manual moves
+          and AI-decided <code>action_required</code> / <code>personal</code>{' '}
+          rows are preserved — only deterministic rule outcomes are
+          re-applied. Use this after editing routing rules.
+        </p>
+        <ReshuffleForm />
+      </section>
+
+      <section className="ix-card p-4 space-y-3">
+        <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Recompute (full re-ingest)</div>
         <p className="text-xs text-slate-500">
           Clears the classification on personal-domain emails received between the dates below
-          and runs a fresh ingest. Use after editing rules or category names to apply changes
-          retroactively.
+          and runs a fresh ingest (rule + AI). Use when a rule edit
+          isn&apos;t enough and you want the AI to re-decide tier-1 buckets.
         </p>
         <RecomputeForm defaultFromIso={fromDefault} defaultToIso={toDefault} />
       </section>

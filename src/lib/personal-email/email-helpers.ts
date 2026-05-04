@@ -40,8 +40,9 @@ export function isNewReservation(
 
 // Detect emails that need immediate intervention — verify-account
 // prompts, suspicious-activity alerts, frozen/blocked card notices,
-// declined transactions, account-expiring warnings, etc. Triggers a
-// red "URGENT" marker in the UI.
+// declined transactions, account-expiring warnings, payment failures,
+// missed/unpaid invoices, etc. Triggers a red "URGENT" marker in
+// the UI.
 //
 // Patterns:
 //   - "urgent" / "important: action required"
@@ -50,17 +51,23 @@ export function isNewReservation(
 //   - "blocked" / "frozen" / "locked" / "suspended"
 //   - "declined" / "failed" / "rejected"
 //   - "past due" / "overdue" / "expir(ed|ing)"
+//   - "payment (declined|failed|missed|required)" / "missed payment"
+//   - "invoice (unpaid|overdue|past due)"
 //   - "security alert" / "security warning"
 const URGENT_PATTERN =
-  /\b(urgent|action\s+required|verify\s+your|suspicious|fraud(?:ulent)?|unauthorized|blocked|frozen|locked|suspended|declined|past\s+due|overdue|expir(?:ed|ing)|security\s+(?:alert|warning|notice)|attention\s+required|important:?\s*(?:action|response|notice))\b/i;
+  /\b(urgent|action\s+required|verify\s+your|suspicious|fraud(?:ulent)?|unauthorized|blocked|frozen|locked|suspended|declined|past\s+due|overdue|expir(?:ed|ing)|payment\s+(?:declined|failed|missed|required|unpaid)|missed\s+payment|invoice\s+(?:unpaid|overdue|past\s+due)|security\s+(?:alert|warning|notice)|attention\s+required|important:?\s*(?:action|response|notice))\b/i;
 
 // Only fire the urgency marker for categories where it's actionable.
 // Promotion emails like "URGENT: Last chance — 50% off!" should not
-// light up red.
+// light up red. `bills_receipts` is included so an unpaid/overdue
+// invoice from a vendor (PriceLabs, etc.) gets the RED badge even
+// when its category routing landed in Bills.
 const URGENT_CATEGORIES: ReadonlySet<string> = new Set([
   'banking',
   'security',
   'action_required',
+  'bills_receipts',
+  'technology',
 ]);
 
 export function isImmediateIntervention(

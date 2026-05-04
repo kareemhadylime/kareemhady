@@ -74,6 +74,7 @@ describe('ensureLabelsForAccount', () => {
         { id: 'Label_KIKA', name: 'Lime/KIKA' },
         { id: 'Label_FB',   name: 'Lime/Facebook' },
         { id: 'Label_104',  name: 'Lime/Newsletters' },
+        { id: 'Label_TECH', name: 'Lime/Technology' },
         { id: 'Label_105',  name: 'Lime/Notifications' },
         { id: 'Label_106',  name: 'Lime/Promotions' },
         { id: 'Label_107',  name: 'Lime/Spam' },
