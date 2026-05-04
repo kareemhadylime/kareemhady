@@ -1,6 +1,6 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
-## 🟢 CHECKPOINT 2026-05-04 — FM+ Budget v2 at 21/40 tasks (52.5%) — Phases 1-4 done, Phase 5 in progress
+## 🟢 CHECKPOINT 2026-05-04 — FM+ Budget v2 at 22/40 tasks (55%) — Phases 1-4 done, Phase 5 in progress
 
 **Strategy:** subagent-driven execution with hard-guardrail prompts. Pattern verified across 21 tasks: each implementer dispatch uses verbatim code blocks + "Task N only" + "do NOT push" + post-verification. Reliable.
 
@@ -28,9 +28,10 @@
 - T18 `d1f8021` — `+ New Contract` wizard (single-page form, atomic createContract)
 - T19 `0029290` — Layout v2 (8-tab strip) + bilingual toggle (en/ع localStorage)
 
-**Phase 5 — Editor (in progress, 2 of 8 tasks done)**
+**Phase 5 — Editor (in progress, 3 of 8 tasks done)**
 - T20 `bb75165` — Editor page scaffold + year tabs + service tabs
 - T21 `8b10936` — Section accordion + budget-line row component (read-only display)
+- T22 `b23b583` — `+ Add line` catalog picker modal (catalog + free-text tabs, `addLineAction`, `/api/fmplus/budget/catalog-search`)
 
 ### Repo state at checkpoint
 
@@ -44,8 +45,7 @@
 
 ### What's left (19 tasks)
 
-**Phase 5 — Editor (6 remaining)**
-- T22 — `+ Add line` catalog picker modal (uses `searchCatalog`)
+**Phase 5 — Editor (5 remaining)**
 - T23 — CTC expand panel for manning lines (Net + Relievers + OT + Training + Insurance + Medical inputs)
 - T24 — Save Draft / Publish server actions + un-stub buttons
 - T25 — Revenue tab + Mobilization tab (per-year `project_year_services` + project-level `mobilization_lines` editors)
@@ -75,7 +75,7 @@
 
 1. Read this SESSION_HANDOFF + the plan at `docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2.md`
 2. Invoke `superpowers:subagent-driven-development`
-3. Continue from Task 22 (`+ Add line catalog picker modal`)
+3. Continue from Task 23 (CTC expand panel for manning lines)
 4. Use the same hard-guardrail prompt template that has worked across all 21 tasks: verbatim code blocks + "Task N only" + "do NOT push" + post-verification + "do NOT create migrations beyond what the plan specifies"
 5. Each subagent dispatch: implement → verify (git log + tsc + tests) → push → mark complete → next
 
