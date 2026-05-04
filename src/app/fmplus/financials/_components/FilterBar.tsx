@@ -1,4 +1,4 @@
-import { Calendar, Layers, FileSpreadsheet } from 'lucide-react';
+import { Calendar, Layers, FileSpreadsheet, ChevronRight } from 'lucide-react';
 import { PillLink } from './PeriodControls';
 import { AccountPicker } from './AccountPicker';
 import type { Granularity, ScopeMode } from '@/lib/fmplus/types';
@@ -20,25 +20,78 @@ const MODES: Array<{ id: ScopeMode; label: string }> = [
   { id: 'trend',    label: 'Period Trend' },
 ];
 
-function asofPlaceholder(g: Granularity): string {
-  if (g === 'monthly')   return 'YYYY-MM';
-  if (g === 'quarterly') return 'YYYY-Q1';
-  return 'YYYY';
+// Build the year-month options the user can pick from. Defaults to a
+// 36-month window ending at the current month — wide enough to backfill
+// to any reasonable historical period without an unbounded dropdown.
+function monthOptions(asof: string, count = 36): Array<{ value: string; label: string }> {
+  const out: Array<{ value: string; label: string }> = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    const value = `${y}-${String(m).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    out.push({ value, label });
+  }
+  // Surface the currently-selected asof at the top if it's outside the window
+  if (asof && /^\d{4}-\d{2}$/.test(asof) && !out.some(o => o.value === asof)) {
+    const [y, m] = asof.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 1, 1));
+    out.unshift({
+      value: asof,
+      label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+    });
+  }
+  return out;
 }
 
-function ToggleLink({ label, active, href }: { label: string; active: boolean; href: string }) {
+function quarterOptions(asof: string, count = 16): Array<{ value: string; label: string }> {
+  const out: Array<{ value: string; label: string }> = [];
+  const now = new Date();
+  let y = now.getUTCFullYear();
+  let q = Math.floor(now.getUTCMonth() / 3) + 1;
+  for (let i = 0; i < count; i++) {
+    const value = `${y}-Q${q}`;
+    const label = `Q${q} ${y}`;
+    out.push({ value, label });
+    q -= 1;
+    if (q < 1) { q = 4; y -= 1; }
+  }
+  if (asof && /^\d{4}-Q[1-4]$/.test(asof) && !out.some(o => o.value === asof)) {
+    out.unshift({ value: asof, label: asof.replace('-', ' ') });
+  }
+  return out;
+}
+
+function yearOptions(asof: string, count = 8): Array<{ value: string; label: string }> {
+  const out: Array<{ value: string; label: string }> = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const y = now.getUTCFullYear() - i;
+    out.push({ value: String(y), label: String(y) });
+  }
+  if (asof && /^\d{4}$/.test(asof) && !out.some(o => o.value === asof)) {
+    out.unshift({ value: asof, label: asof });
+  }
+  return out;
+}
+
+function FilterRow({ icon: Icon, label, children }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <a
-      href={href}
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
-        active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'
-      }`}
-    >
-      <span className={`w-3 h-3 rounded-sm border ${active ? 'bg-emerald-500 border-emerald-600' : 'bg-white border-slate-300'}`}>
-        {active && <span className="block text-white text-[9px] leading-3 text-center">✓</span>}
-      </span>
-      {label}
-    </a>
+    <div className="flex items-start gap-3">
+      <div className="flex items-center gap-1.5 min-w-[110px] pt-1.5">
+        <Icon size={13} className="text-slate-400 dark:text-slate-500" />
+        <span className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold">
+          {label}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 flex-1">{children}</div>
+    </div>
   );
 }
 
@@ -56,13 +109,14 @@ export function FilterBar(props: {
   buildHref: (overrides?: Partial<Record<string, string | undefined>>) => string;
 }) {
   const isBs = props.view === 'balance_sheet';
+  const asofOptions =
+    props.granularity === 'monthly'   ? monthOptions(props.asof) :
+    props.granularity === 'quarterly' ? quarterOptions(props.asof) :
+                                        yearOptions(props.asof);
+
   return (
-    <section className="ix-card p-4 space-y-3 sticky top-0 z-10 bg-white">
-      {/* Granularity */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wide text-slate-500 font-medium flex items-center gap-1.5 mr-2">
-          <Calendar size={13} /> Granularity
-        </span>
+    <section className="ix-card p-5 space-y-4 sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80">
+      <FilterRow icon={Calendar} label="Granularity">
         {GRANULARITIES.map(g => (
           <PillLink
             key={g.id}
@@ -71,11 +125,9 @@ export function FilterBar(props: {
             active={props.granularity === g.id}
           />
         ))}
-      </div>
+      </FilterRow>
 
-      {/* Periods + as-of */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wide text-slate-500 font-medium mr-2">Periods</span>
+      <FilterRow icon={ChevronRight} label="Periods">
         {PERIOD_COUNTS.map(n => (
           <PillLink
             key={n}
@@ -84,7 +136,7 @@ export function FilterBar(props: {
             active={props.periods === n}
           />
         ))}
-        <span className="text-xs text-slate-500 ml-3">As of</span>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-3 font-medium uppercase tracking-wide">As of</span>
         <form action="" method="get" className="inline-flex items-center gap-1.5">
           <input type="hidden" name="view" value={props.view} />
           <input type="hidden" name="granularity" value={props.granularity} />
@@ -92,23 +144,26 @@ export function FilterBar(props: {
           <input type="hidden" name="mode" value={props.mode} />
           <input type="hidden" name="with_dep" value={props.withDep ? '1' : '0'} />
           <input type="hidden" name="include_drafts" value={props.includeDrafts ? '1' : '0'} />
-          <input
-            type="text"
+          <select
             name="asof"
             defaultValue={props.asof}
-            className="ix-input w-[120px] text-sm"
-            placeholder={asofPlaceholder(props.granularity)}
-          />
-          <button type="submit" className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-xs">Go</button>
+            className="ix-input text-sm px-2.5 py-1.5 cursor-pointer min-w-[140px]"
+          >
+            {asofOptions.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition shadow-sm"
+          >
+            Apply
+          </button>
         </form>
-      </div>
+      </FilterRow>
 
-      {/* Mode toggle (hidden on BS) */}
-      {!isBs && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs uppercase tracking-wide text-slate-500 font-medium flex items-center gap-1.5 mr-2">
-            <Layers size={13} /> Mode
-          </span>
+      {!isBs && MODES.length > 1 && (
+        <FilterRow icon={Layers} label="Mode">
           {MODES.map(m => (
             <PillLink
               key={m.id}
@@ -117,15 +172,14 @@ export function FilterBar(props: {
               active={props.mode === m.id}
             />
           ))}
-        </div>
+        </FilterRow>
       )}
       {isBs && (
-        <p className="text-[11px] text-slate-500 italic">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic ml-[122px]">
           Balance Sheet is whole-company; project scoping doesn&apos;t apply.
         </p>
       )}
 
-      {/* Account / plan picker */}
       {!isBs && props.mode === 'plans' && (
         <AccountPicker
           mode="plans"
@@ -144,9 +198,7 @@ export function FilterBar(props: {
         />
       )}
 
-      {/* Options */}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 border-t border-slate-100 pt-3">
-        <FileSpreadsheet size={13} className="text-slate-400" />
+      <FilterRow icon={FileSpreadsheet} label="Options">
         <ToggleLink
           label="Include drafts"
           active={props.includeDrafts}
@@ -157,7 +209,31 @@ export function FilterBar(props: {
           active={props.withDep}
           href={props.buildHref({ with_dep: props.withDep ? '0' : '1' })}
         />
-      </div>
+      </FilterRow>
     </section>
+  );
+}
+
+function ToggleLink({ label, active, href }: { label: string; active: boolean; href: string }) {
+  return (
+    <a
+      href={href}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+        active
+          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 ring-1 ring-emerald-200 dark:ring-emerald-800'
+          : 'bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+      }`}
+    >
+      <span
+        className={`w-3.5 h-3.5 rounded border inline-flex items-center justify-center text-[9px] leading-none ${
+          active
+            ? 'bg-emerald-500 border-emerald-600 text-white'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600'
+        }`}
+      >
+        {active && '✓'}
+      </span>
+      {label}
+    </a>
   );
 }

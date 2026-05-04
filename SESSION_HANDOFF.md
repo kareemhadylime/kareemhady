@@ -84,6 +84,78 @@ Cleaned up locally: deleted `.env.production` and the (uncommitted) `scripts/deb
 
 **State at end of turn:** awaiting user's screenshot of JWT Keys page so I can point at the exact rotate button. Cleanup done: `.env.production` and `.env.production.check` both deleted. `.vercel/` link still active in this worktree. No code commits.
 
+**Continued same turn — Rotation completed + patch shipped:**
+- User clicked through. Hit Supabase modal: "Disable JWT-based legacy API keys first" — Supabase requires legacy keys to be disabled before HS256 secret can be revoked. Walked user through: API Keys → Legacy tab → "Disable JWT-based API keys" button (which earlier I'd warned NOT to click — but post-migration to sb_secret_/sb_publishable_, it's now safe).
+- User completed: legacy disabled, then back to JWT Keys → revoked the HS256 row. Screenshot confirmed: "Revoked keys" section shows `0D5C16D5-…` Legacy HS256 / "a few seconds ago", "Previously used keys" empty.
+- User confirmed Odoo key was generated TWICE (so a brand-new value is in Vercel) — leaked `2b44…2d` is dead.
+- **Final smoke test (post-revocation):** all 5 checks pass — homepage 307, login 200, Supabase REST with new service_role 200, Supabase REST with new anon 200, lambda end-to-end via `?phase=metadata` returned `{ok:true, accounts_synced:2021, partners_synced:1184}`. Security loop closed.
+
+**Patch shipped — fixes the root cause of the silent FMPLUS sync failure:**
+- File: [src/lib/run-odoo-financial-sync.ts](src/lib/run-odoo-financial-sync.ts) — function `syncOdooMoveLines`
+- Commit: `3f9f749` `fix(odoo-sync): surface upsert errors in syncOdooMoveLines + null missing FKs`
+- Changes:
+  1. Pre-loads known account_ids and partner_ids into Sets before the fetch loop.
+  2. NULLs `account_id`/`partner_id` on rows that reference missing parents (FK columns are `ON DELETE SET NULL`, semantically safe).
+  3. Destructures `{ error, data }` from each upsert. On batch error, falls back to per-row upsert so one bad row doesn't kill 499 good ones.
+  4. Returns enhanced stats: `move_lines_written` (actual DB count, distinct from fetched), `fk_account_nulled`, `fk_partner_nulled`, `errors[]` capped at 5. `move_lines_synced` retained for backward compat.
+- TypeScript type-checked locally with `npx tsc --noEmit` — clean.
+- Rebase against origin/main (was 46 commits behind) — auto-resolved minus a SESSION_HANDOFF.md conflict (manually merged keeping both my session log + upstream's "Personal → Email module v1 SHIPPED" entry).
+- Pushed to main via `git push origin HEAD:main` → GitHub→Vercel auto-deploy triggered.
+
+**Deploy in flight at end of turn:** new deployment `lime-660omwh26-lime-investments.vercel.app` showed status `Building` ~15s after push; background bash poll (`by4e04m0e`) watching for `Ready`. Average build time ~2 min.
+
+**Standing items still open** (lower priority, can wait):
+- 🟡 RLS gap on `odoo_companies` (anon JWT could read it). Audit after FMPLUS sync verified.
+- 🟡 Optionally broaden `syncOdooPartners` to drop the rank>0 filter (root-cause fix vs the symptom-fix shipped today). The FK-NULLing patch makes this no longer urgent, but doing it would mean fewer partner-name fields go NULL on customer-invoice move-lines.
+
+**Continued same turn — Patch verified in production. Fix is COMPLETE.**
+
+Background poll script had a bug parsing `vercel ls` columns (kept emitting empty status for all 60 polls), but the deploy actually went `Ready` ~2 min after push. Verified deploy was live by hitting the cron endpoint and seeing the new response fields:
+
+```json
+{
+  "ok": true,
+  "phase": "move-lines-fmplus",
+  "result": {
+    "ok": true,
+    "company_id": 1,
+    "move_lines_synced": 73420,
+    "move_lines_written": 73420,    // ← NEW: was implicit 0 before
+    "fk_account_nulled": 0,
+    "fk_partner_nulled": 19250,     // ← SMOKING GUN: 26% of rows had partners not in odoo_partners
+    "errors": [],
+    "last_id": 1660925,
+    "complete": true,
+    "duration_ms": 122164
+  }
+}
+```
+
+**Confirmation of root cause:** `fk_partner_nulled: 19250` proves the original suspicion — `syncOdooPartners`'s `[supplier_rank > 0 OR customer_rank > 0]` filter excluded ~19k partners that customer-invoice move-lines reference. Every batch of 500 with even one such row was silently aborted by the original code. New code NULLs those `partner_id` values pre-upsert (FK is `ON DELETE SET NULL` so semantically fine).
+
+**Verified in Supabase post-sync:**
+- Total FMPLUS move-lines: **21,000 → 94,420** (+73,420 exactly matches API response)
+- max_id: 1,280,141 → 1,660,925
+- Feb 2026 by account_type, ALL previously-empty types now populated:
+  - `income`: 9 accts, 176 lines, sum_balance = **-38,385,691.86** (negative because credit-normal; classifier flips → +38.4M Revenue, matches the ~38.5M target from earlier session predictions)
+  - `asset_cash`: 70 accts, 1,425 lines, +5.8M
+  - `asset_receivable`: 1 acct, 312 lines, -7.3M
+  - `liability_payable`: 1 acct, 670 lines, -8.85M
+  - `expense_direct_cost`: 171 accts, 2,838 lines, +31.7M (vs only 7 lines before)
+  - `expense_depreciation`: 1,849 lines, +1.44M
+  - All liability/equity/income_other types also have data
+
+**The original "All Numbers are missing??" bug from the start of this session is RESOLVED at the data layer.** When user refreshes /fmplus/financials?asof=2026-02 the page should now show real Revenue, COGS, Gross Profit, EBITDA, Net Profit + populated BAL·% column.
+
+**Final state:**
+- Code commit `3f9f749` deployed to limeinc.vercel.app (production lambda).
+- All three rotated keys still functional in prod (verified earlier this turn).
+- Legacy HS256 JWT secret revoked → leaked tokens dead.
+- FMPLUS sync produces real, written, queryable data.
+- `.vercel/` link still in this worktree for future syncs.
+
+**Awaiting only:** user visual confirmation that /fmplus/financials renders correctly with the new data.
+
 **Continued same turn — JWT Keys page screenshots + rotation actually executed:**
 - User opened JWT Keys → JWT Signing Keys tab. Showed: Current key = ECC P-256 `2370777C-…`, Previous key = Legacy HS256 `0D5C16D5-…` rotated 14 days ago, "Create Standby Key" button. Clarified that JWT Signing Keys is the NEW system (for Supabase Auth user tokens) and the legacy `anon`/`service_role` JWTs are signed by the **Legacy JWT Secret** on the other tab. Pointed user there.
 - User opened Legacy JWT Secret tab. Critical Supabase warning: "Legacy JWT secret can only be changed by rotating to a standby key and then revoking it. It is used to **only verify** JWTs… This includes anon and service_role JWT based API keys. Consider switching to publishable and secret API keys to disable them." → direct rotation of legacy secret is no longer offered; the only path is to migrate the codebase to `sb_publishable_*` / `sb_secret_*` keys, then revoke the legacy HS256.
