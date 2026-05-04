@@ -4,9 +4,14 @@ import { SetupTabs } from '../_components/setup-tabs';
 import {
   tagDomainPersonal,
   disconnectAccountAndRemoveLabels,
-  archiveOldAndResetSync,
 } from './actions';
-import { Plus, Mail, Archive } from 'lucide-react';
+import { BackfillForm } from './_backfill-form';
+import { Plus, Mail } from 'lucide-react';
+
+// Bump the route's lambda budget so the long-running backfill action
+// (mark-read + archive across thousands of pre-cutoff Gmail messages)
+// has up to 5 min to finish before Vercel kills the function.
+export const maxDuration = 300;
 
 export const dynamic = 'force-dynamic';
 
@@ -75,44 +80,10 @@ export default async function AccountsSetupPage() {
         </section>
       )}
 
-      {/* One-shot backfill: archive everything before a cutoff date and
-          reset last_synced_at so the next ingest pulls from there. */}
-      {!!personalAccts?.length && (
-        <section className="ix-card p-4 space-y-3 border-amber-200 dark:border-amber-900">
-          <div className="flex items-center gap-2">
-            <Archive size={16} className="text-amber-700 dark:text-amber-300" />
-            <h2 className="text-sm uppercase tracking-wide font-semibold text-amber-800 dark:text-amber-200">
-              Backfill — archive old + ingest from cutoff
-            </h2>
-          </div>
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            For every personal mailbox: mark-read + remove the INBOX label
-            (= archive in Gmail) on every message dated <strong>before</strong>
-            the cutoff, then reset <code>last_synced_at</code> to that cutoff
-            so the next ingest fetches everything from the cutoff forward.
-            Useful for resetting an inbox before a clean catch-up. Press
-            once and wait — the action loops through every account and
-            triggers an ingest at the end.
-          </p>
-          <form action={archiveOldAndResetSync} className="flex items-end gap-2 flex-wrap">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Cutoff (YYYY-MM-DD)
-              </span>
-              <input
-                type="date"
-                name="cutoff"
-                defaultValue="2026-04-15"
-                required
-                className="ix-input"
-              />
-            </label>
-            <button type="submit" className="ix-btn-primary">
-              <Archive size={14} /> Archive + reset
-            </button>
-          </form>
-        </section>
-      )}
+      {/* One-shot backfill — archive pre-cutoff messages + reset sync.
+          Client component so it can show pending state + per-account
+          result panel via React 19's useActionState. */}
+      {!!personalAccts?.length && <BackfillForm />}
     </main>
   );
 }

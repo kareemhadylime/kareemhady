@@ -76,6 +76,28 @@ export async function disconnectAccountAndRemoveLabels(accountId: string): Promi
   revalidatePath('/personal/email/setup/accounts');
 }
 
+// Backfill result returned to the UI via useActionState so the form
+// can render per-account progress + a final summary instead of just
+// blocking silently.
+export type BackfillResult = {
+  ok: boolean;
+  cutoff: string;
+  totalArchived: number;
+  totalBeforeCutoff: number;
+  durationMs: number;
+  ingestStarted: boolean;
+  ingestError: string | null;
+  perAccount: {
+    email: string;
+    display_name: string | null;
+    before_cutoff: number;
+    archived: number;
+    last_synced_at_set_to: string | null;
+    error: string | null;
+  }[];
+  topLevelError?: string;
+};
+
 // Backfill operation: for each personal mailbox, find every INBOX
 // message received BEFORE `cutoff` (YYYY-MM-DD), mark them read +
 // remove the INBOX label (= archive), then reset that account's
@@ -86,14 +108,41 @@ export async function disconnectAccountAndRemoveLabels(accountId: string): Promi
 // we log + continue. The DB-side last_synced_at update is critical and
 // runs even if Gmail-side cleanup fails.
 //
-// Returns nothing useful via UI today; results land in console + DB.
-// Caller (UI form) just gets a redirect after the action settles.
-export async function archiveOldAndResetSync(formData: FormData): Promise<void> {
-  await requireAdmin();
+// Signature matches React 19 useActionState — receives previous result
+// (ignored) + FormData and returns the new structured result.
+export async function archiveOldAndResetSync(
+  _prev: BackfillResult | null,
+  formData: FormData,
+): Promise<BackfillResult> {
+  const startMs = Date.now();
   const cutoff = String(formData.get('cutoff') ?? '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) {
-    throw new Error(`bad_cutoff: "${cutoff}" must be YYYY-MM-DD`);
+
+  // Skeleton result that we'll fill in regardless of failure.
+  const result: BackfillResult = {
+    ok: false,
+    cutoff,
+    totalArchived: 0,
+    totalBeforeCutoff: 0,
+    durationMs: 0,
+    ingestStarted: false,
+    ingestError: null,
+    perAccount: [],
+  };
+
+  try {
+    await requireAdmin();
+  } catch (e: any) {
+    result.topLevelError = `auth: ${String(e?.message ?? e).slice(0, 100)}`;
+    result.durationMs = Date.now() - startMs;
+    return result;
   }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) {
+    result.topLevelError = `bad_cutoff: "${cutoff}" must be YYYY-MM-DD`;
+    result.durationMs = Date.now() - startMs;
+    return result;
+  }
+
   const cutoffGmail = cutoff.replace(/-/g, '/');
   const cutoffIso = `${cutoff}T00:00:00Z`;
 
@@ -103,10 +152,21 @@ export async function archiveOldAndResetSync(formData: FormData): Promise<void> 
     .select('id, email, display_name, oauth_refresh_token_encrypted')
     .eq('domain', 'personal')
     .eq('enabled', true);
-  if (accErr) throw new Error(`accounts_query_failed: ${accErr.message}`);
+  if (accErr) {
+    result.topLevelError = `accounts_query_failed: ${accErr.message}`;
+    result.durationMs = Date.now() - startMs;
+    return result;
+  }
 
   for (const acc of (accounts ?? [])) {
-    const summary: Record<string, unknown> = { email: acc.email };
+    const summary = {
+      email: acc.email,
+      display_name: acc.display_name as string | null,
+      before_cutoff: 0,
+      archived: 0,
+      last_synced_at_set_to: null as string | null,
+      error: null as string | null,
+    };
     try {
       const gmail = await withTimeout(
         getGmailClientFromRefresh(acc.oauth_refresh_token_encrypted),
@@ -147,6 +207,8 @@ export async function archiveOldAndResetSync(formData: FormData): Promise<void> 
       }
       summary.before_cutoff = ids.length;
       summary.archived = archived;
+      result.totalBeforeCutoff += ids.length;
+      result.totalArchived += archived;
     } catch (e: any) {
       summary.error = String(e?.message ?? e).slice(0, 200);
     }
@@ -160,8 +222,9 @@ export async function archiveOldAndResetSync(formData: FormData): Promise<void> 
         .eq('id', acc.id);
       summary.last_synced_at_set_to = cutoffIso;
     } catch (e: any) {
-      summary.last_synced_update_error = String(e?.message ?? e).slice(0, 200);
+      summary.error = (summary.error ?? '') + ` last_synced_update: ${String(e?.message ?? e).slice(0, 100)}`;
     }
+    result.perAccount.push(summary);
     console.log('[archiveOld]', summary);
   }
 
@@ -170,10 +233,17 @@ export async function archiveOldAndResetSync(formData: FormData): Promise<void> 
   // cron will pick up.
   try {
     await ingestPersonalEmails({ trigger: 'manual' });
+    result.ingestStarted = true;
   } catch (e: any) {
-    console.error('[archiveOld] post-archive ingest failed:', e?.message ?? e);
+    result.ingestError = String(e?.message ?? e).slice(0, 200);
+    console.error('[archiveOld] post-archive ingest failed:', result.ingestError);
   }
+
+  result.ok = !result.topLevelError;
+  result.durationMs = Date.now() - startMs;
 
   revalidatePath('/personal/email');
   revalidatePath('/personal/email/setup/accounts');
+
+  return result;
 }
