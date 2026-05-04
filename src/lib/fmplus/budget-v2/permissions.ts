@@ -7,10 +7,9 @@
  *
  * Pattern: Check locally before making any mutation. On read, RLS filters
  * results transparently at the DB level.
+ *
+ * Typed Supabase clients passed in from caller (browser or server context).
  */
-
-import { createServerClient } from '@supabase/ssr';
-import { type ProjectContract, type ProjectYear } from './types';
 
 /**
  * Permission result wrapper: success flag + optional error message
@@ -37,6 +36,9 @@ export type BudgetPermissions = {
 
 /**
  * Check if user can view a contract. Inline check + DB fallback.
+ * @param supabase - Typed Supabase client (browser or server)
+ * @param contractId - Contract to check
+ * @param userId - User ID from auth session
  */
 export async function budgetCanViewContract(
   supabase: any,
