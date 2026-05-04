@@ -47,9 +47,10 @@
 - T26 `5f23652` inflation-calc.ts (pure math)
 - T27 `76f0638` Copy Y1→Y2 dialog + duplicate.ts (3 inflation knobs + per-line tweaks + audit)
 
-### Phase 6 🟡 Parsers — only dispatcher done (T28)
+### Phase 6 🟡 Parsers — dispatcher + flat-template v2 done (T28, T33)
 - T28 `b43df3b` parser auto-detect dispatcher (5 paths)
-- T29-T33 ⏳ rich XLSX parsers — DEFERRED; need per-file column-mapping inspection
+- T33 `6fdadec` flat-template v2 parser + writer + round-trip test (4/4 pass, 0 TS errors)
+- T29-T32 ⏳ rich XLSX parsers — DEFERRED
 
 ### Phase 7 🟢 Variance — mobilization math + core engine + page UI done (T34-36)
 - T34 `df940dd` mobilization.ts amortization (straight_line + flat) with end_date truncation
@@ -104,7 +105,7 @@
 - T30 — trio-style.ts (multi-service single-year)
 - T31 — city-gate-multi-year.ts (Y1/Y2 sheets per service + Mobilization sheet + FM Fees Summary)
 - T32 — emaar-zone-style.ts (zone collapse + richer CTC breakdown)
-- T33 — flat-template.ts v2 (most useful — round-trip with Editor's flat XLSX export)
+- T33 ✅ `6fdadec` flat-template.ts v2 (parser + writer + round-trip test — 4 pass)
 
 **Recommended order for next session**:
 1. Knock out T35-T37 first (variance + variance page + settings) — these unblock production usability
