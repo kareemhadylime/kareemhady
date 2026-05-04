@@ -43,3 +43,31 @@ export function getTemplate(serviceLine: ServiceLine, version: number): Template
     categories: [...base.categories, governmentalCategory],
   };
 }
+
+// Shim for callers that don't care about versioning. Currently we only
+// have v1 templates, so the "latest" is always v1. Wrapper exists so
+// commit.ts and other consumers don't have to hard-code the version.
+export function getLatestTemplate(serviceLine: ServiceLine): Template {
+  return getTemplate(serviceLine, 1);
+}
+
+// Catalog row shape expected by the v1 settings page (which renders a
+// table of service-line templates with code / label / status).
+export type ServiceLineCatalogEntry = {
+  code: ServiceLine;
+  label: string;
+  template_status: 'active' | 'stub';
+};
+
+// Minimal catalog so /fmplus/financial/budget/settings still builds.
+// Status reflects which templates carry real category data vs which
+// are stubs from migration 0080. Update when more templates go live.
+export const SERVICE_LINE_CATALOG: ServiceLineCatalogEntry[] = [
+  { code: 'hk',          label: 'Housekeeping',     template_status: 'active' },
+  { code: 'mep',         label: 'MEP',              template_status: 'stub'   },
+  { code: 'landscape',   label: 'Landscape',        template_status: 'stub'   },
+  { code: 'security',    label: 'Security',         template_status: 'stub'   },
+  { code: 'pest_ctrl',   label: 'Pest Control',     template_status: 'stub'   },
+  { code: 'waste_mgmt',  label: 'Waste Management', template_status: 'stub'   },
+  { code: 'back_office', label: 'Back Office',      template_status: 'stub'   },
+];
