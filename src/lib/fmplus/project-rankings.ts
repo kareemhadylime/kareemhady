@@ -65,10 +65,13 @@ export async function buildFmplusProjectRankings(args: {
     ? plans.find(p => planSlug(p.name) === args.planSlug)?.id ?? null
     : null;
 
-  // Pull all analytic accounts up front (need names for output)
+  // FMPLUS-scoped analytic accounts only. Without the `company_ids @>` filter
+  // the rankings would mix in cross-tenant projects (Voltauto autos, Beithady
+  // buildings) that share the same Odoo `analytic_accounts` table.
   const { data: aaData } = await sb
     .from('odoo_analytic_accounts')
-    .select('id, name, plan_id');
+    .select('id, name, plan_id')
+    .contains('company_ids', [args.companyId]);
   const aaById = new Map<number, { id: number; name: string; plan_id: number | null }>();
   for (const a of (aaData || []) as Array<{ id: number; name: string; plan_id: number | null }>) {
     aaById.set(a.id, a);

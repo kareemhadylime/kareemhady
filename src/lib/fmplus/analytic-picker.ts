@@ -39,8 +39,16 @@ export function planSlug(name: string): string {
 
 /**
  * Fetch FMPLUS plans + project counts (total + active in period).
- * Plans returned in canonical service-line order: HK, MEP, Mix, Security,
- * then any others alphabetical.
+ *
+ * IMPORTANT: the Odoo tenant (fmplus.odoo.com) hosts multiple businesses on
+ * shared `analytic_plans` and `analytic_accounts` tables — Voltauto auto
+ * plans (BMW, BYD, Mercedes…), Beithady building plans (BH-26, BH-OK…),
+ * etc. all live alongside the four real FMPLUS service-line plans
+ * (HK / MEP / Mix / Security). To restrict the picker to FMPLUS, we filter
+ * analytic_accounts by `company_ids @> {fmplusCompanyId}` and only return
+ * plans that have ≥1 FMPLUS-scoped account.
+ *
+ * Plans returned in canonical service-line order: HK, MEP, Mix, Security.
  */
 export async function listFmplusPlansWithActivity(args: {
   companyId: number;
@@ -49,17 +57,21 @@ export async function listFmplusPlansWithActivity(args: {
 }): Promise<FmplusPlan[]> {
   const sb = supabaseAdmin();
 
-  // Plans
+  // Plans (all — the tenant has dozens, we'll filter by FMPLUS-scoped
+  // analytic accounts below)
   const { data: plansData, error: plansErr } = await sb
     .from('odoo_analytic_plans')
     .select('id, name');
   if (plansErr) throw new Error(`listFmplusPlansWithActivity (plans): ${plansErr.message}`);
   const plans = (plansData || []) as Array<{ id: number; name: string }>;
+  const planById = new Map(plans.map(p => [p.id, p]));
 
-  // Projects (all, scoped to FMPLUS active company set)
+  // FMPLUS-scoped analytic accounts only — `company_ids` is an array column;
+  // .contains([N]) compiles to the PG `@>` operator.
   const { data: aaData, error: aaErr } = await sb
     .from('odoo_analytic_accounts')
-    .select('id, plan_id, active');
+    .select('id, plan_id, active')
+    .contains('company_ids', [args.companyId]);
   if (aaErr) throw new Error(`listFmplusPlansWithActivity (aa): ${aaErr.message}`);
   const aa = (aaData || []) as Array<{ id: number; plan_id: number | null; active: boolean | null }>;
 
@@ -83,17 +95,22 @@ export async function listFmplusPlansWithActivity(args: {
     }
   }
 
+  // Only return plans that have ≥1 FMPLUS-scoped analytic account.
+  // This drops every Voltauto / Beithady / cross-tenant plan from the picker.
   const PLAN_ORDER = ['hk', 'mep', 'mix', 'security'];
-  const out: FmplusPlan[] = plans.map(p => ({
-    id: p.id,
-    name: p.name,
-    slug: planSlug(p.name),
-    project_count: totalByPlan.get(p.id) || 0,
-    active_count: activeByPlan.get(p.id) || 0,
-  }));
-  // Filter out plans with NO active projects in period (zero-state hide)
-  // — but always keep the canonical 4 even if currently empty so the UI
-  // never appears to "lose" service lines. Easiest: keep all known plans.
+  const out: FmplusPlan[] = [];
+  for (const [planId, total] of totalByPlan.entries()) {
+    if (total === 0) continue;
+    const p = planById.get(planId);
+    if (!p) continue;
+    out.push({
+      id: planId,
+      name: p.name,
+      slug: planSlug(p.name),
+      project_count: total,
+      active_count: activeByPlan.get(planId) || 0,
+    });
+  }
   out.sort((a, b) => {
     const ai = PLAN_ORDER.indexOf(a.slug);
     const bi = PLAN_ORDER.indexOf(b.slug);
@@ -126,10 +143,14 @@ export async function listFmplusProjectsWithActivity(args: {
   const plan = plans.find(p => planSlug(p.name) === args.planSlug);
   if (!plan) return [];
 
+  // FMPLUS-scoped only — same `company_ids @>` filter as listFmplusPlans
+  // so cross-tenant projects in shared plans (e.g. a "Mix Projects" account
+  // belonging to another company) don't leak into the picker.
   const { data, error } = await sb
     .from('odoo_analytic_accounts')
     .select('id, name, plan_id, active')
     .eq('plan_id', plan.id)
+    .contains('company_ids', [args.companyId])
     .order('name');
   if (error) throw new Error(`listFmplusProjectsWithActivity: ${error.message}`);
   const all = (data || []) as Array<{ id: number; name: string; plan_id: number; active: boolean | null }>;
