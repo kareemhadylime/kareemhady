@@ -1439,3 +1439,37 @@ Visual companion server has long-since auto-exited (30-min idle timeout). Re-lau
 **TS check**: 0 errors. **Tests**: 144/144 pass. **No constraint violations.**
 
 **Ready for Task 25** (Revenue/Mob tab server actions).
+
+## Task 26 - inflation-calc.ts (2026-05-04 20:32 UTC)
+
+**Status:** DONE
+
+**Implementation:**
+- Created `src/lib/fmplus/budget/inflation-calc.ts` (79 lines)
+- Created `src/lib/fmplus/budget/inflation-calc.test.ts` (106 lines)
+- Commit: `5f23652` 
+
+**Tests:** 9/9 passing (vitest)
+- Manning lines use `manpower` knob (10% in test)
+- Tools/consumables use `other` knob (5% in test)
+- Per-line override wins over uniform knobs
+- Override of 0% respected (no inflation)
+- Taminat (gov_taminat) tracks revenue knob (7% in test)
+- Non-taminat governmental lines use `other` knob
+- projectYear: sums inflated lines, projects revenue
+
+**Math module exports:**
+- `classifyLine(l)` → 'manpower' | 'revenue_pct' | 'other'
+- `applyInflation(line, knobs, perLineOverridePct)` → LineLike (updated unit_cost)
+- `projectYear(lines, knobs, perLineOverridePct, currentRevenue)` → { lines, totalCost, projectedRevenue }
+- `InflationKnobs` interface: { revenue: %, manpower: %, other: % }
+- `LineKind` type: resolution order is per-line override > classify > knob
+
+**Constraint violations:** none
+- No push to main (only commit)
+- No npm install
+- No migrations
+- No UI, no DB calls
+- Pure math module ✓
+
+**Next:** Task 27 will wire this into the Copy-year dialog UI component.
