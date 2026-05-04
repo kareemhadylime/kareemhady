@@ -105,3 +105,35 @@ export function isInvoiceToBePaid(
   if (INVOICE_PAID_NEGATION_PATTERN.test(subject)) return false;
   return INVOICE_TO_PAY_PATTERN.test(subject);
 }
+
+// Sort tier for the drill-down view. Lower number = higher precedence.
+// Marked rows (urgent / to-pay / new-reservation / needs-review) bubble
+// to the top of the list — but only WHILE THEY'RE STILL ACTIONABLE
+// (Gmail UNREAD label still present, INBOX label still present, user
+// hasn't manually moved them). Once the user reads / archives / moves
+// a marked row, it drops to the natural date-sorted tier.
+export type MarkerInputs = {
+  subject: string | null;
+  category: string | null;
+  category_method?: string | null;
+  needs_review?: boolean | null;
+  label_ids?: string[] | null;
+};
+
+export function markerTier(row: MarkerInputs): number {
+  const labels = row.label_ids ?? [];
+  // "Acted on" = already read OR already archived OR moved by hand.
+  // We treat an absent UNREAD label as "user has read it" and an
+  // absent INBOX label as "user has archived it".
+  const stillUnread = labels.includes('UNREAD');
+  const stillInInbox = labels.includes('INBOX');
+  const movedManually = row.category_method === 'manual';
+  const actionable = stillUnread && stillInInbox && !movedManually;
+
+  if (!actionable) return 10; // already handled — natural order
+  if (isImmediateIntervention(row.subject, row.category)) return 0;
+  if (isInvoiceToBePaid(row.subject, row.category)) return 1;
+  if (isNewReservation(row.subject, row.category)) return 2;
+  if (row.needs_review) return 3;
+  return 10;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -21,7 +21,7 @@ import {
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
-import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid } from '@/lib/personal-email/email-helpers';
+import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, markerTier } from '@/lib/personal-email/email-helpers';
 
 // Master-detail drill-down: list on the left, preview on the right.
 // Selected email lives in URL as `?msg=<id>` so deep links work and
@@ -63,7 +63,26 @@ export function DrillDownView({
   const [pending, start] = useTransition();
   const [moveOpen, setMoveOpen] = useState(false);
 
-  const allChecked = rows.length > 0 && rows.every(r => checked.has(r.id));
+  // Sort marked-and-still-active rows to the top, normal rows below.
+  // "Active" = the marker pattern matches AND the user hasn't taken
+  // an action yet (not read, not archived, not manually moved). Once
+  // the user reads/archives/moves, the row drops to natural date
+  // order on next refresh.
+  const sortedRows = useMemo(() => {
+    const scored = rows.map(r => ({
+      r,
+      tier: markerTier(r),
+      ts: r.received_at ? Date.parse(r.received_at) : 0,
+    }));
+    scored.sort((a, b) => {
+      // Lower tier number = higher precedence (urgent=0 wins over to-pay=1).
+      if (a.tier !== b.tier) return a.tier - b.tier;
+      return b.ts - a.ts;
+    });
+    return scored.map(s => s.r);
+  }, [rows]);
+
+  const allChecked = sortedRows.length > 0 && sortedRows.every(r => checked.has(r.id));
   const anyChecked = checked.size > 0;
 
   function navTo(id: string | null) {
@@ -153,7 +172,7 @@ export function DrillDownView({
         </div>
 
         <ul className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[70vh] overflow-y-auto">
-          {rows.map(r => {
+          {sortedRows.map(r => {
             const isSelected = selected?.id === r.id;
             const isChecked = checked.has(r.id);
             const newReservation = isNewReservation(r.subject, r.category);
@@ -236,7 +255,7 @@ export function DrillDownView({
               </li>
             );
           })}
-          {!rows.length && (
+          {!sortedRows.length && (
             <li className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
               No emails in this category yet.
             </li>

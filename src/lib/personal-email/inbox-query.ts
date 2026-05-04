@@ -11,7 +11,13 @@ export type InboxRow = {
   from_address: string | null;
   received_at: string | null;
   category: CategorySlug | null;
+  category_method: string | null;
   needs_review: boolean;
+  // Gmail label state — used by the UI to determine if the user has
+  // already acted on a marked email (read removes UNREAD; archive
+  // removes INBOX). Marked-and-unactioned rows pin to the top of the
+  // drill-down list.
+  label_ids: string[];
 };
 
 export type InboxFilters = {
@@ -25,7 +31,7 @@ export async function loadInbox(filters: InboxFilters = {}): Promise<InboxRow[]>
   const sb = supabaseAdmin();
   let q = sb
     .from('email_logs')
-    .select('id, account_id, subject, from_address, received_at, category, needs_review, accounts!inner(email, display_name, domain)')
+    .select('id, account_id, subject, from_address, received_at, category, category_method, needs_review, label_ids, accounts!inner(email, display_name, domain)')
     .eq('accounts.domain', 'personal')
     .order('received_at', { ascending: false })
     .limit(filters.limit ?? 200);
@@ -45,7 +51,9 @@ export async function loadInbox(filters: InboxFilters = {}): Promise<InboxRow[]>
     from_address: r.from_address,
     received_at: r.received_at,
     category: r.category as CategorySlug | null,
+    category_method: r.category_method ?? null,
     needs_review: !!r.needs_review,
+    label_ids: Array.isArray(r.label_ids) ? r.label_ids as string[] : [],
   }));
 }
 

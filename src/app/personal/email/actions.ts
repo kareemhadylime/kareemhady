@@ -87,6 +87,11 @@ export async function archiveInGmail(emailLogIds: string[]): Promise<void> {
       requestBody: { ids, removeLabelIds: ['INBOX'] },
     });
   }
+  // Mirror the Gmail-side change in our local mirror so the UI's
+  // "marked rows pin to top until acted on" sort drops these rows
+  // from the active tier immediately, without waiting for the next
+  // cron tick to refresh label_ids from Gmail.
+  await stripLabelLocally(emailLogIds, 'INBOX');
   revalidatePath('/personal/email');
 }
 
@@ -108,7 +113,30 @@ export async function markAsRead(emailLogIds: string[]): Promise<void> {
   for (const [tok, ids] of byAccount) {
     await markMessagesAsRead(tok, ids);
   }
+  // Local mirror — same rationale as archiveInGmail.
+  await stripLabelLocally(emailLogIds, 'UNREAD');
   revalidatePath('/personal/email');
+}
+
+// Remove a Gmail label from the local email_logs.label_ids array for
+// the given email_logs ids. Postgres array_remove handles the strip.
+// Used to keep the UI's marker-pin sort responsive without waiting on
+// the next ingest cycle.
+async function stripLabelLocally(emailLogIds: string[], label: string) {
+  if (!emailLogIds.length) return;
+  const sb = supabaseAdmin();
+  // Pull current arrays, strip in JS, write back. (Supabase JS doesn't
+  // expose array_remove directly; raw SQL via rpc is overkill for this.)
+  const { data } = await sb
+    .from('email_logs')
+    .select('id, label_ids')
+    .in('id', emailLogIds);
+  for (const r of (data ?? []) as any[]) {
+    const arr = Array.isArray(r.label_ids) ? r.label_ids as string[] : [];
+    const next = arr.filter(l => l !== label);
+    if (next.length === arr.length) continue; // nothing to strip
+    await sb.from('email_logs').update({ label_ids: next }).eq('id', r.id);
+  }
 }
 
 export async function manualRefresh(): Promise<void> {
