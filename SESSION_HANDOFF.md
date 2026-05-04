@@ -29,6 +29,76 @@ Converted `item-card.tsx` from a server-only read-only component to a client com
 
 ---
 
+## 🟢 2026-05-04 — Personal Email v2.0: Technology category + sender routing refresh + scroll fix (commits `c331704` + this session's follow-up)
+
+User asked to "refine /personal/email" with a long list of sender → bucket
+mappings, fix the scroll-to-top bug on email click, add a currently-reading
+shade, and reshuffle existing emails to apply the new rules.
+
+**Code shipped (commit `c331704`):**
+- New **Technology** category (Tier 3, cyan, Cpu icon, sortOrder 15) — added
+  to `personal_email_categories` + Zod enum `CATEGORY_SLUGS` + `categories.ts`
+  CATEGORIES array + ICONS/ACCENTS maps in `category-card.tsx`.
+- `email-helpers.ts` — `URGENT_PATTERN` now matches payment-declined/failed/
+  missed/required/unpaid + invoice-unpaid/overdue/past-due. `URGENT_CATEGORIES`
+  extended to include `bills_receipts` + `technology` so unpaid invoices and
+  expiring domains fire the RED badge in those buckets too.
+- `drill-down-view.tsx` — scroll preservation fix: `listRef` + `pendingScrollRef`
+  capture `<ul>.scrollTop` on click, restore via `useLayoutEffect` before paint,
+  then `scrollIntoView({block:'nearest'})` to nudge the selected row into view
+  if off-screen. Currently-reading shade strengthened to `bg-indigo-50` +
+  `ring-2 ring-inset ring-indigo-400` for clear visual anchor.
+- New **`reshuffleAll`** server action + **"Reshuffle all boxes (rules-only)"**
+  button on `/personal/email/setup/ai`. Re-runs the rule matcher against every
+  personal email_log's cached features (no Gmail call, no AI). Preserves
+  manual moves and rows already in `action_required`/`personal` (those tiers
+  prefer AI judgment).
+
+**Migrations applied to prod Supabase (`bpjproljatbrbmszwbov`):**
+- `0092_personal_email_more_routing.sql` — Technology category + ~30 routing
+  rules: AliExpress/SABIS → spam; PriceLabs → action_required (RED);
+  payment-declined/failed/missed/required + invoice-unpaid/overdue/past-due
+  subjects → action_required; RBC + Arabeya Online → banking; Temu → promotions
+  (transactional "your temu order" → personal); GoDaddy/Anthropic/OpenAI/
+  Cloudflare/iSmartLife/Tuya/Supabase.io + retargeted GitHub/Vercel/AWS/Slack/
+  Linear/Supabase/email.openai.com → technology; GoDaddy renewals + domain
+  expiry subjects → action_required (RED); Vercel deploy/build failed →
+  notifications (mute CI noise); CCC.net → subsidiary_fmplus; ecm.ae → personal.
+- `0093_personal_email_routing_gaps.sql` — gaps surfaced by post-reshuffle
+  audit: added `banquemisr.ae` (UAE notify, distinct from `gulf-banquemisr.ae`),
+  `mashreqneobiz.com`, `arabeyaonline.net`; fixed Temu typo `temumail.com` →
+  `temuemail.com`.
+
+**Reshuffle (3 SQL passes against existing emails):**
+- Pass 1 — rule-only, ALWAYS_AI excluded: scanned 3,461, moved 283 rows.
+- Pass 2 — force-applied user-explicit `action_required` + `personal` rules
+  (PriceLabs, GoDaddy renewals, Temu transactional, ecm.ae, payment urgency):
+  moved 32 more rows.
+- Pass 3 — gap-fix re-eval after migration 0093: moved 20 more rows.
+- Total: **335 emails recategorised**, all audited in `personal_email_corrections`.
+
+**Final per-category counts** (personal accounts only): subsidiary_beithady
+1464, subsidiary_fmplus 663, spam 413, notifications 223, banking 144,
+**technology 129** (new), subsidiary_kika 75, facebook 57, promotions 37,
+bills_receipts 26, action_required 24, newsletters 11, personal 8, security 7,
+travel 1.
+
+**Spot-check of requested senders confirmed correctly seated:**
+- PriceLabs (`hi@`, `support@pricelabs.co`) → action_required ✓
+- AliExpress (deals/selections subdomains) → spam ✓
+- SABIS (`donotreply-sdp@sabis.net`) → spam ✓
+- All bank domains (gulf-banquemisr, banquemisr.ae, banquemisr.com, mashreq,
+  mashreqneobiz, RBC alerts, ib.rbc.com, alerts.usbank.rbc.com, RAK Bank
+  connect, arabeyaonline .com + .net) → banking ✓
+- Tech vendors (godaddy, vercel, supabase, openai, github, ismartlife) → technology ✓
+- Temu (`commerce.temuemail.com`) → promotions ✓
+- ecm.ae → personal ✓
+- CCC.net → subsidiary_fmplus ✓
+
+**Health:** `tsc --noEmit` = 0 errors. Vitest: 159 pass / 9 skipped (label-sync
+test updated to mock `Lime/Technology` label). `npm run build` clean.
+
+---
 
 ## 🟢 2026-05-04 — Beithady F&B Phase F.2 SHIPPED (commit `4144177`, parallel session)
 
