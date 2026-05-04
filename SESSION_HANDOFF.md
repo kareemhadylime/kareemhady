@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget v2: Task 18 complete — + New Contract wizard
+
+**Task 18 done (commit `d1f8021`, NOT pushed per constraints):**
+- `src/lib/fmplus/budget/contracts/create.ts` — `createContract()` atomically inserts contract → project_services → project_years (Y1, draft/initial) → project_year_services (one per service line, monthly_revenue=0); best-effort rollback (delete contract, FK cascade) on partial failure
+- `src/app/fmplus/financial/budget/projects/actions.ts` — `createContractAction` server action; gates on `requireBudgetAdmin`, parses FormData, delegates to `createContract`, then `revalidatePath` + `redirect` to editor
+- `src/app/fmplus/financial/budget/projects/new/page.tsx` — single-page 4-section wizard form (Odoo analytic account picker filtered by company_id=1, contract metadata, year tracking + zones, service line checkboxes); server-renders, POSTs to `createContractAction`
+- `src/app/fmplus/financial/budget/projects/page.tsx` — removed `opacity-50 cursor-not-allowed pointer-events-none` + title from "+ New Contract" link; added `hover:bg-accent/90`
+- tsc: 0 errors (entire project)
+
+**Next step:** Task 19 (layout tab strip rewrite) or Task 20 (Editor v2).
+
+---
+
+
 ## ✅ 2026-05-04 — FM+ Budget v2: Task 15 complete — catalog bulk import (XLSX) with diff summary modal
 
 **Task 15 done (commit `d5e99e7`, NOT pushed per constraints):**
