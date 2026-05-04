@@ -53,9 +53,7 @@ export default async function ProjectsPage(props: ProjectsPageProps) {
         {user.is_admin && (
           <Link
             href="/fmplus/financial/budget/projects/new"
-            className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1
-              opacity-50 cursor-not-allowed pointer-events-none"
-            title="New contract wizard ships in Task 18"
+            className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 hover:bg-accent/90"
           >
             + New Contract
           </Link>

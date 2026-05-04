@@ -1,0 +1,51 @@
+'use server';
+
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
+import { createContract } from '@/lib/fmplus/budget/contracts/create';
+import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
+import type { ServiceLine } from '@/lib/fmplus/budget/types';
+
+export async function createContractAction(formData: FormData) {
+  await requireBudgetAdmin();
+
+  const project_id = Number(formData.get('project_id'));
+  const name = String(formData.get('name') ?? '').trim();
+  const customer = String(formData.get('customer') ?? '').trim() || null;
+  const start_date = String(formData.get('start_date') ?? '');
+  const end_date = String(formData.get('end_date') ?? '');
+  const contract_value = Number(formData.get('contract_value') ?? 0);
+  const vat_pct = Number(formData.get('vat_pct') ?? 14);
+  const year_tracking = String(formData.get('year_tracking') ?? 'contract') as 'contract' | 'fiscal';
+  const service_lines = formData.getAll('service_line').map(String) as ServiceLine[];
+  const zones = String(formData.get('zones') ?? '').split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!Number.isFinite(project_id) || project_id <= 0) {
+    throw new Error('Pick a valid Odoo analytic account');
+  }
+  if (!name || !start_date || !end_date) {
+    throw new Error('Name, start date, and end date are required');
+  }
+  if (service_lines.length === 0) {
+    throw new Error('Select at least one service line');
+  }
+
+  const { contract_id, year_index } = await createContract({
+    contract: {
+      project_id,
+      name,
+      customer,
+      start_date,
+      end_date,
+      contract_value,
+      vat_pct,
+      year_tracking,
+      reimbursables: [],
+      zones: zones.length ? zones : [],
+    },
+    service_lines,
+  });
+
+  revalidatePath('/fmplus/financial/budget/projects');
+  redirect(`/fmplus/financial/budget/edit?contract=${contract_id}&year=${year_index}`);
+}
