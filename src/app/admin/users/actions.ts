@@ -203,7 +203,7 @@ function buildCredentialsMessage(opts: {
   appUrl: string;
 }): string {
   return [
-    '🌿 Welcome to Lime Investments Dashboard',
+    '🌿 Welcome to Lime Investments Cockpit',
     '',
     "You've been invited to access the Lime Investments operations cockpit.",
     '',
