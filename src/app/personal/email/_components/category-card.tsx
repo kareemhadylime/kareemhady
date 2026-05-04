@@ -10,6 +10,7 @@ import {
   Bell,
   Tag,
   XCircle,
+  ShoppingBag,
   Mail,
   type LucideIcon,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   Bell,
   Tag,
   XCircle,
+  ShoppingBag,
 };
 
 // Pre-rendered Tailwind class lookups so dynamic accents work in

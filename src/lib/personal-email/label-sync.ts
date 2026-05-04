@@ -45,7 +45,16 @@ export async function syncLabelChange(
   newCat: CategorySlug,
 ): Promise<void> {
   if (oldCat === newCat) return;
-  const map = await loadLabelMap(account.id);
+  let map = await loadLabelMap(account.id);
+  // Self-heal: a newly-added category (e.g. via a migration after the
+  // account was first connected) won't have its Gmail label provisioned
+  // yet. ensureLabelsForAccount is idempotent — it lists existing labels
+  // and creates only missing ones — so calling it here is cheap and
+  // gets us back to a working state on the next try.
+  if (!map[newCat]) {
+    await ensureLabelsForAccount(account);
+    map = await loadLabelMap(account.id);
+  }
   const addId = map[newCat];
   if (!addId) throw new Error(`no_label_for_category: ${newCat}`);
   const removeIds = oldCat && map[oldCat] ? [map[oldCat]!] : [];

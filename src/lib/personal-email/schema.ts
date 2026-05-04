@@ -6,6 +6,7 @@ export const CATEGORY_SLUGS = [
   'travel',
   'bills_receipts',
   'personal',
+  'subsidiary_kika',
   'newsletters',
   'notifications',
   'promotions',
