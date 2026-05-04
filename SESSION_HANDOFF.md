@@ -1,5 +1,17 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget v2: Task 15 complete — catalog bulk import (XLSX) with diff summary modal
+
+**Task 15 done (commit `d5e99e7`, NOT pushed per constraints):**
+- `src/app/fmplus/financial/budget/catalog/actions.ts` — added `BulkImportSummary` interface + `bulkImportAction` server action; new imports: `fs/promises`, `os`, `path`, `parsePricelist`, `budgetDb`/`TABLES`
+- `src/app/fmplus/financial/budget/catalog/_components/bulk-import-modal.tsx` — new client modal; file input, "Preview & Commit" button, diff summary display (added/updated/archived counts), error state, "Import another" reset
+- `src/app/fmplus/financial/budget/catalog/_components/catalog-table.tsx` — added `useState` import + `bulkOpen` state; replaced disabled bulk-import button with active one (`onClick={() => setBulkOpen(true)}`); appended `<BulkImportModal>` before closing `</div>`
+- tsc: 0 catalog errors; tests: 139/145 pass (1 pre-existing `personal-email/label-sync.test.ts` failure unrelated)
+
+**Next step:** Task 16 or Task 19 (layout tab strip rewrite).
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget v2: Task 14 complete — catalog page UI (table + override side panel)
 
 **Task 14 done (commit `0a4bc55`, NOT pushed per constraints):**
