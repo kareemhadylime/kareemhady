@@ -25,6 +25,18 @@ After that step the `Connect Gmail` button on
 cleanly. The 3 already-connected mailboxes continue to work
 regardless.
 
+**Update (later in same turn):** user attempted Connect Gmail and got
+the expected `redirect_uri_mismatch` from Google (env var fix worked
+on our side — Google's allow-list still missing the new URI).
+Walked them through the Cloud Console fix. They screenshot-confirmed
+their authorized URIs now contain both:
+- `http://localhost:3000/api/auth/google/callback` (dev)
+- `https://limeinc.vercel.app/api/auth/google/callback` (prod)
+
+Pending: user clicks Save in Google Cloud Console + waits 5 min for
+Google's propagation window. Then `Connect Gmail` should round-trip
+cleanly. No further action needed on our side.
+
 ## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
 
 **Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
