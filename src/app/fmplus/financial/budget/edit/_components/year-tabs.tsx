@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 import { Plus, Copy } from 'lucide-react';
+import { addYearAction } from '../actions';
 
 interface YearInfo {
   year_index: number;
@@ -16,10 +17,11 @@ interface Props {
   activeYearIndex: number;
 }
 
-export function YearTabs({ years, activeYearIndex }: Props) {
+export function YearTabs({ contractId, years, activeYearIndex }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [pendingAdd, startAdd] = useTransition();
 
   const switchYear = (yi: number) => {
     const np = new URLSearchParams(params);
@@ -45,10 +47,23 @@ export function YearTabs({ years, activeYearIndex }: Props) {
           </span>
         </button>
       ))}
-      <button type="button" disabled
-        className="px-2 py-1 text-xs border border-dashed border-border rounded text-text-secondary opacity-60 cursor-not-allowed"
-        title="Add year ships with Task 24">
-        <Plus size={11} className="inline" /> Add year
+      <button type="button"
+        onClick={() => {
+          if (!confirm('Add a new draft year to this contract?')) return;
+          startAdd(async () => {
+            try {
+              const result = await addYearAction({ contract_id: contractId });
+              const np = new URLSearchParams(params);
+              np.set('year', String(result.year_index));
+              router.replace(`?${np.toString()}`, { scroll: false });
+            } catch (e) {
+              alert(e instanceof Error ? e.message : String(e));
+            }
+          });
+        }}
+        disabled={pendingAdd}
+        className="px-2 py-1 text-xs border border-dashed border-border rounded text-text-secondary hover:text-text-primary hover:border-text-secondary disabled:opacity-50">
+        <Plus size={11} className="inline" /> {pendingAdd ? 'Adding…' : 'Add year'}
       </button>
       <span className="flex-1" />
       <button type="button" disabled

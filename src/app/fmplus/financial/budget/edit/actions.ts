@@ -6,6 +6,7 @@ import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
 import { resolveCatalogPrice } from '@/lib/fmplus/budget/catalog/overrides';
 import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
 import { ServiceLineEnum, CategoryEnum, SeasonEnum } from '@/lib/fmplus/budget/schema';
+import { writeAuditOnPublishedEdit } from '@/lib/fmplus/budget/audit';
 
 const AddLineInputSchema = z.object({
   contract_id: z.number().int().positive(),
@@ -137,4 +138,196 @@ export async function updateLineCtcAction(input: unknown) {
   if (error) throw error;
 
   revalidatePath('/fmplus/financial/budget/edit');
+}
+
+/**
+ * Bulk-replace all budget_lines for (year_id, service_line). Used by Editor
+ * when saving the draft after inline edits. The Editor passes the full set
+ * of lines for the active service tab.
+ */
+const SaveDraftInputSchema = z.object({
+  year_id: z.number().int().positive(),
+  service_line: ServiceLineEnum,
+  lines: z.array(z.object({
+    line_code: z.string(),
+    catalog_item_id: z.number().nullable(),
+    label_en: z.string(),
+    label_ar: z.string().nullable(),
+    category: CategoryEnum,
+    season: SeasonEnum,
+    qty: z.number().nonnegative(),
+    unit_cost: z.number().nonnegative(),
+    ctc_net: z.number().nullable(),
+    ctc_relievers: z.number().nullable(),
+    ctc_ot: z.number().nullable(),
+    ctc_training: z.number().nullable(),
+    ctc_insurance: z.number().nullable(),
+    ctc_medical: z.number().nullable(),
+    threshold_green: z.number().nullable(),
+    threshold_amber: z.number().nullable(),
+  })),
+});
+
+export async function saveDraftAction(input: unknown) {
+  const user = await requireBudgetAdmin();
+  const parsed = SaveDraftInputSchema.parse(input);
+  const sb = budgetDb();
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('status, contract_id')
+    .eq('id', parsed.year_id)
+    .single();
+  if (!year) throw new Error('Year not found');
+
+  // Replace lines atomically (delete + insert, no transaction since Supabase JS lacks them)
+  const { error: delErr } = await sb.from(TABLES.lines)
+    .delete()
+    .eq('year_id', parsed.year_id)
+    .eq('service_line', parsed.service_line);
+  if (delErr) throw delErr;
+
+  if (parsed.lines.length > 0) {
+    const insertRows = parsed.lines.map(l => ({
+      year_id: parsed.year_id,
+      service_line: parsed.service_line,
+      ...l,
+    }));
+    const { error: insErr } = await sb.from(TABLES.lines).insert(insertRows);
+    if (insErr) throw insErr;
+  }
+
+  // If editing a published year, log to audit
+  if (year.status === 'published') {
+    await writeAuditOnPublishedEdit(parsed.year_id, {
+      trigger: 'save_draft_after_publish',
+      service_line: parsed.service_line,
+      line_count: parsed.lines.length,
+      by: user.id,
+    });
+  }
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
+
+/**
+ * Set a year's status to 'published'. Records published_at + published_by.
+ * If the year was already published, treats this as a republish and writes audit.
+ */
+export async function publishYearAction(yearId: number) {
+  const user = await requireBudgetAdmin();
+  const sb = budgetDb();
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('status')
+    .eq('id', yearId)
+    .single();
+  if (!year) throw new Error('Year not found');
+
+  const { error } = await sb.from(TABLES.years)
+    .update({
+      status: 'published',
+      published_at: new Date().toISOString(),
+      published_by: user.id,
+    })
+    .eq('id', yearId);
+  if (error) throw error;
+
+  if (year.status === 'published') {
+    await writeAuditOnPublishedEdit(yearId, { trigger: 'republish', by: user.id });
+  }
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
+
+/**
+ * Delete a year. Cascades to project_year_services + budget_lines via FK.
+ * Refuses to delete the last year of a contract — guard against orphaning the contract.
+ */
+export async function deleteYearAction(yearId: number) {
+  await requireBudgetAdmin();
+  const sb = budgetDb();
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('contract_id, year_index, scenario')
+    .eq('id', yearId)
+    .single();
+  if (!year) throw new Error('Year not found');
+
+  const { count } = await sb.from(TABLES.years)
+    .select('*', { count: 'exact', head: true })
+    .eq('contract_id', year.contract_id)
+    .eq('scenario', year.scenario);
+  if ((count ?? 0) <= 1) {
+    throw new Error('Cannot delete the only year of a contract. Delete the contract from Project Hub instead.');
+  }
+
+  const { error } = await sb.from(TABLES.years).delete().eq('id', yearId);
+  if (error) throw error;
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
+
+/**
+ * Create a new (blank) year on a contract. Auto-increments year_index.
+ * For copy-with-inflation, see Task 27's copyYearAction.
+ */
+const AddYearInputSchema = z.object({
+  contract_id: z.number().int().positive(),
+});
+
+export async function addYearAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = AddYearInputSchema.parse(input);
+  const sb = budgetDb();
+
+  // Find existing years to derive next index
+  const { data: years } = await sb.from(TABLES.years)
+    .select('year_index, fiscal_year')
+    .eq('contract_id', parsed.contract_id)
+    .eq('scenario', 'initial')
+    .order('year_index', { ascending: false });
+
+  const nextIndex = (years?.[0]?.year_index ?? 0) + 1;
+  if (nextIndex > 10) {
+    throw new Error('Refusing to create year_index > 10. Sanity check.');
+  }
+
+  const { data: contract } = await sb.from(TABLES.contracts)
+    .select('year_tracking, vat_pct, start_date')
+    .eq('id', parsed.contract_id)
+    .single();
+  if (!contract) throw new Error('Contract not found');
+
+  const fiscalYear = contract.year_tracking === 'fiscal'
+    ? (years?.[0]?.fiscal_year ? years[0].fiscal_year + 1 : new Date().getFullYear() + 1)
+    : null;
+
+  const { data: newYear, error: yErr } = await sb.from(TABLES.years).insert({
+    contract_id: parsed.contract_id,
+    year_index: nextIndex,
+    fiscal_year: fiscalYear,
+    start_month: 1,
+    scenario: 'initial',
+    status: 'draft',
+  }).select().single();
+  if (yErr) throw yErr;
+
+  // Seed empty year_services rows for every service the contract has
+  const { data: contractServices } = await sb.from(TABLES.services)
+    .select('service_line, template_version')
+    .eq('contract_id', parsed.contract_id);
+
+  if (contractServices && contractServices.length > 0) {
+    await sb.from(TABLES.year_services).insert(
+      contractServices.map(s => ({
+        year_id: newYear.id,
+        service_line: s.service_line,
+        monthly_revenue: 0,
+        vat_pct: contract.vat_pct ?? 14,
+      }))
+    );
+  }
+
+  revalidatePath('/fmplus/financial/budget/edit');
+  return { year_id: newYear.id, year_index: newYear.year_index };
 }

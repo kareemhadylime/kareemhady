@@ -7,6 +7,7 @@ import type { ServiceLine } from '@/lib/fmplus/budget/types';
 import { YearTabs } from './_components/year-tabs';
 import { ServiceTabs } from './_components/service-tabs';
 import { SectionAccordion } from './_components/section-accordion';
+import { SavePublishButtons } from './_components/save-publish-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -139,19 +140,12 @@ export default async function EditPage(props: EditPageProps) {
             {currentYear.fiscal_year ? `FY ${currentYear.fiscal_year}` : `Y${currentYear.year_index}`}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Save / Publish stubs — Task 24 wires them */}
-          <button type="button" disabled
-            className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-secondary opacity-60 cursor-not-allowed"
-            title="Save Draft action ships in Task 24">
-            Save Draft
-          </button>
-          <button type="button" disabled
-            className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold opacity-60 cursor-not-allowed"
-            title="Publish action ships in Task 24">
-            Publish Y{currentYear.year_index}
-          </button>
-        </div>
+        <SavePublishButtons
+          yearId={currentYear.id}
+          yearIndex={currentYear.year_index}
+          status={currentYear.status as 'draft' | 'published'}
+          canEdit={Boolean(user.is_admin)}
+        />
       </header>
 
       {/* Year tabs */}

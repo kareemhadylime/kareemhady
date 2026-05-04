@@ -1,6 +1,24 @@
-// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
-import { supabaseAdmin } from '@/lib/supabase';
+import { budgetDb, TABLES } from './db';
 
+/**
+ * Append a row to budget_audit when a published year is re-edited or
+ * republished. The diff_json is the caller's choice — typically
+ * `{ trigger: 'republish_after_edit', by, fields: [...] }`.
+ */
+export async function writeAuditOnPublishedEdit(yearId: number, diffJson: Record<string, unknown>): Promise<void> {
+  const sb = budgetDb();
+  const { error } = await sb.from(TABLES.audit).insert({
+    year_id: yearId,
+    diff_json: diffJson,
+    changed_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// v1 helpers — kept for audit.test.ts; will be removed with v1 cleanup
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LineKey = { sub_location: string | null; category: string; line_code: string; season: 'high'|'low' };
 type Line = LineKey & { qty: number; unit_cost: number };
 
@@ -25,19 +43,4 @@ export function computeBudgetDiff(before: Line[], after: Line[]): {
     if (!afterMap.has(k)) removed.push(b);
   }
   return { added, removed, changed };
-}
-
-export async function writeAuditOnPublishedEdit(opts: {
-  budgetId: number;
-  changedBy: string | null;
-  before: Line[];
-  after: Line[];
-}): Promise<void> {
-  const diff = computeBudgetDiff(opts.before, opts.after);
-  if (diff.added.length === 0 && diff.removed.length === 0 && diff.changed.length === 0) return;
-  await supabaseAdmin().from('budget_audit').insert({
-    budget_id: opts.budgetId,
-    changed_by: opts.changedBy,
-    diff_json: diff,
-  });
 }
