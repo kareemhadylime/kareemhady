@@ -7,6 +7,7 @@ import { resolveCatalogPrice } from '@/lib/fmplus/budget/catalog/overrides';
 import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
 import { ServiceLineEnum, CategoryEnum, SeasonEnum } from '@/lib/fmplus/budget/schema';
 import { writeAuditOnPublishedEdit } from '@/lib/fmplus/budget/audit';
+import { copyYear } from '@/lib/fmplus/budget/contracts/duplicate';
 
 const AddLineInputSchema = z.object({
   contract_id: z.number().int().positive(),
@@ -403,4 +404,24 @@ export async function saveMobilizationAction(input: unknown) {
   }
 
   revalidatePath('/fmplus/financial/budget/edit');
+}
+
+const CopyYearInputSchema = z.object({
+  source_year_id: z.number().int().positive(),
+  target_year_index: z.number().int().min(2).max(20),
+  knobs: z.object({
+    revenue: z.number(),
+    manpower: z.number(),
+    other: z.number(),
+  }),
+  per_line_override_pct: z.record(z.string(), z.number()).default({}),
+  reasons: z.record(z.string(), z.string()).default({}),
+});
+
+export async function copyYearAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = CopyYearInputSchema.parse(input);
+  const result = await copyYear(parsed);
+  revalidatePath('/fmplus/financial/budget/edit');
+  return result;
 }

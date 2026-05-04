@@ -1,11 +1,14 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Plus, Copy } from 'lucide-react';
 import { addYearAction } from '../actions';
+import { CopyYearDialog } from './copy-year-dialog';
+import type { InflationKnobs } from '@/lib/fmplus/budget/inflation-calc';
 
 interface YearInfo {
+  id: number;
   year_index: number;
   fiscal_year: number | null;
   status: 'draft' | 'published';
@@ -13,15 +16,18 @@ interface YearInfo {
 
 interface Props {
   contractId: number;
+  contractName: string;
   years: YearInfo[];
   activeYearIndex: number;
+  defaultKnobs: InflationKnobs;
 }
 
-export function YearTabs({ contractId, years, activeYearIndex }: Props) {
+export function YearTabs({ contractId, contractName, years, activeYearIndex, defaultKnobs }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [pendingAdd, startAdd] = useTransition();
+  const [copyOpen, setCopyOpen] = useState(false);
 
   const switchYear = (yi: number) => {
     const np = new URLSearchParams(params);
@@ -30,6 +36,9 @@ export function YearTabs({ contractId, years, activeYearIndex }: Props) {
       router.replace(`?${np.toString()}`, { scroll: false });
     });
   };
+
+  const sourceYear = years.find(y => y.year_index === activeYearIndex);
+  const targetYearIndex = years.length > 0 ? Math.max(...years.map(y => y.year_index)) + 1 : 2;
 
   return (
     <div className="bg-bg-secondary border border-border rounded-lg px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
@@ -66,12 +75,25 @@ export function YearTabs({ contractId, years, activeYearIndex }: Props) {
         <Plus size={11} className="inline" /> {pendingAdd ? 'Adding…' : 'Add year'}
       </button>
       <span className="flex-1" />
-      <button type="button" disabled
-        className="px-2 py-1 text-xs bg-bg-tertiary border border-border rounded text-text-secondary opacity-60 cursor-not-allowed"
-        title="Copy Y1 → Y2 dialog ships in Task 27">
-        <Copy size={11} className="inline" /> Copy year
+      <button type="button"
+        onClick={() => setCopyOpen(true)}
+        disabled={years.length === 0}
+        className="px-2 py-1 text-xs bg-bg-tertiary border border-border rounded text-text-secondary hover:text-text-primary inline-flex items-center gap-1 disabled:opacity-50">
+        <Copy size={11} /> Copy year
       </button>
       {isPending && <span className="text-[10px] text-text-secondary">…</span>}
+
+      {sourceYear && (
+        <CopyYearDialog
+          open={copyOpen}
+          onClose={() => setCopyOpen(false)}
+          sourceYearId={sourceYear.id}
+          sourceYearIndex={activeYearIndex}
+          targetYearIndex={targetYearIndex}
+          contractName={contractName}
+          defaultKnobs={defaultKnobs}
+        />
+      )}
     </div>
   );
 }

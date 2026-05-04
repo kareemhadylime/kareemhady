@@ -32,6 +32,18 @@ export default async function EditPage(props: EditPageProps) {
   const sb = budgetDb();
 
   const contractId = Number(sp.contract);
+
+  // Load inflation defaults from budget_settings row 1
+  const { data: settings } = await sb.from(TABLES.settings)
+    .select('default_inflation_revenue, default_inflation_manpower, default_inflation_other')
+    .eq('id', 1)
+    .single();
+  const defaultKnobs = {
+    revenue: Number((settings as any)?.default_inflation_revenue ?? 7),
+    manpower: Number((settings as any)?.default_inflation_manpower ?? 10),
+    other: Number((settings as any)?.default_inflation_other ?? 5),
+  };
+
   if (!Number.isFinite(contractId) || contractId <= 0) {
     return (
       <div className="border border-border rounded-lg p-8 text-center">
@@ -203,8 +215,15 @@ export default async function EditPage(props: EditPageProps) {
       {/* Year tabs */}
       <YearTabs
         contractId={contractId}
-        years={allYears.map(y => ({ year_index: y.year_index, fiscal_year: y.fiscal_year, status: y.status }))}
+        contractName={(contract as any).name}
+        years={allYears.map(y => ({
+          id: y.id,
+          year_index: y.year_index,
+          fiscal_year: y.fiscal_year,
+          status: y.status,
+        }))}
         activeYearIndex={currentYear.year_index}
+        defaultKnobs={defaultKnobs}
       />
 
       {/* Service tabs */}
