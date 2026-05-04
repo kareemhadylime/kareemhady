@@ -85,6 +85,17 @@ export const BuildingOverrideSchema = z.object({
 });
 export type BuildingOverride = z.infer<typeof BuildingOverrideSchema>;
 
+export const RecipeLineSchema = z.object({
+  id: z.string().uuid().optional(),
+  item_id: z.string().uuid(),
+  inventory_item_id: z.string().uuid(),
+  quantity: z.number().positive().multipleOf(0.001),
+  notes: z.string().nullable().optional(),
+  created_at: z.string().datetime({ offset: true }).optional(),
+  updated_at: z.string().datetime({ offset: true }).optional(),
+});
+export type RecipeLine = z.infer<typeof RecipeLineSchema>;
+
 export const BuildingSchema = z.object({
   building_code: z.string().regex(/^BH-[A-Z0-9]+$/),
   enabled: z.boolean().default(false),

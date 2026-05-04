@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit, type AuditEntry } from '@/lib/beithady/audit';
 import {
   CategorySchema, ItemSchema, ModifierSchema, BuildingOverrideSchema,
+  RecipeLineSchema, type RecipeLine,
   type Category, type Item, type Modifier, type BuildingOverride,
 } from './types';
 
@@ -257,4 +258,162 @@ export async function upsertBuildingOverride(
     after: out,
   });
   return out;
+}
+
+// ---- Recipe lines ----
+
+export async function listRecipeLines(itemId: string): Promise<RecipeLine[]> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from('fnb_item_recipe_lines')
+    .select('*')
+    .eq('item_id', itemId);
+  if (error) throw error;
+  return (data ?? []).map(r => RecipeLineSchema.parse(r));
+}
+
+export async function upsertRecipeLine(
+  input: Omit<z.input<typeof RecipeLineSchema>, 'id'>, ctx: AuditCtx,
+): Promise<RecipeLine> {
+  const sb = supabaseAdmin();
+  const parsed = RecipeLineSchema.parse(input);
+  // TODO: drop `as never` once supabase gen types are wired
+  const { data, error } = await sb
+    .from('fnb_item_recipe_lines')
+    .upsert(parsed as never, { onConflict: 'item_id,inventory_item_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  const out = RecipeLineSchema.parse(data);
+  await recordAudit({
+    module: 'fnb',
+    actor_user_id: ctx.actor_user_id,
+    action: 'recipe.upsert',
+    target_type: 'recipe_line',
+    target_id: out.id!,
+    after: out,
+  });
+  return out;
+}
+
+export async function deleteRecipeLine(id: string, ctx: AuditCtx): Promise<void> {
+  const sb = supabaseAdmin();
+  const before = await sb.from('fnb_item_recipe_lines').select('*').eq('id', id).single();
+  if (before.error) throw before.error;
+  const { error } = await sb.from('fnb_item_recipe_lines').delete().eq('id', id);
+  if (error) throw error;
+  await recordAudit({
+    module: 'fnb',
+    actor_user_id: ctx.actor_user_id,
+    action: 'recipe.delete',
+    target_type: 'recipe_line',
+    target_id: id,
+    before: before.data,
+  });
+}
+
+/**
+ * Computes cost_usd from the recipe lines × inventory unit costs.
+ * Uses default_cost_usd; if null, fallback to converting avg_cost_egp (or
+ * default_cost_egp) via the latest fx_rates row (base=USD, quote=EGP).
+ * Returns null cost if any line ingredient lacks a usable cost — caller
+ * decides how to surface. NEVER throws on missing FX data.
+ *
+ * Note: fx_rates schema is (rate_date, base, quote, rate, source, fetched_at).
+ * We query WHERE base='USD' AND quote='EGP' ORDER BY rate_date DESC LIMIT 1.
+ */
+export async function computeRecipeCost(itemId: string): Promise<{
+  cost_usd: number | null;
+  lines: Array<{
+    inventory_item_id: string;
+    sku: string;
+    name_en: string;
+    quantity: number;
+    unit_cost_usd: number | null;
+    line_cost_usd: number | null;
+  }>;
+}> {
+  const sb = supabaseAdmin();
+  const { data: lines, error: linesErr } = await sb
+    .from('fnb_item_recipe_lines')
+    .select(`
+      id, inventory_item_id, quantity,
+      beithady_inventory_items (
+        id, sku, name_en, default_cost_usd, default_cost_egp, avg_cost_egp
+      )
+    `)
+    .eq('item_id', itemId);
+  if (linesErr) throw linesErr;
+
+  // Best-effort FX fallback for items without default_cost_usd
+  // fx_rates has columns: base, quote, rate (egp per usd when base=USD, quote=EGP)
+  let fxEgpPerUsd: number | null = null;
+  const needsFx = (lines ?? []).some(l => {
+    const inv = (l as any).beithady_inventory_items;
+    return inv && inv.default_cost_usd == null;
+  });
+  if (needsFx) {
+    try {
+      const { data: fx } = await sb
+        .from('fx_rates')
+        .select('rate')
+        .eq('base', 'USD')
+        .eq('quote', 'EGP')
+        .order('rate_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      fxEgpPerUsd = (fx as { rate?: number } | null)?.rate ?? null;
+    } catch {
+      // Gracefully ignore FX fetch failures — cost will be null for affected items
+    }
+  }
+
+  const out: Awaited<ReturnType<typeof computeRecipeCost>>['lines'] = [];
+  let any_missing = false;
+  let total = 0;
+  type LineRow = {
+    inventory_item_id: string; quantity: number;
+    beithady_inventory_items: {
+      id: string; sku: string; name_en: string;
+      default_cost_usd: number | null;
+      default_cost_egp: number | null;
+      avg_cost_egp: number | null;
+    } | null;
+  };
+  for (const l of (lines ?? []) as unknown as LineRow[]) {
+    const inv = l.beithady_inventory_items;
+    if (!inv) {
+      out.push({
+        inventory_item_id: l.inventory_item_id, sku: '?', name_en: '?',
+        quantity: l.quantity,
+        unit_cost_usd: null, line_cost_usd: null,
+      });
+      any_missing = true;
+      continue;
+    }
+    let unit_cost_usd: number | null = inv.default_cost_usd ?? null;
+    if (unit_cost_usd == null && fxEgpPerUsd && fxEgpPerUsd > 0) {
+      const egp = inv.avg_cost_egp ?? inv.default_cost_egp;
+      if (egp != null) {
+        unit_cost_usd = egp / fxEgpPerUsd;
+      }
+    }
+    const line_cost_usd = unit_cost_usd != null
+      ? Math.round(unit_cost_usd * l.quantity * 100) / 100
+      : null;
+    if (line_cost_usd == null) any_missing = true;
+    else total += line_cost_usd;
+    out.push({
+      inventory_item_id: inv.id,
+      sku: inv.sku,
+      name_en: inv.name_en,
+      quantity: l.quantity,
+      unit_cost_usd,
+      line_cost_usd,
+    });
+  }
+  return {
+    cost_usd: any_missing ? null : Math.round(total * 100) / 100,
+    lines: out,
+  };
 }
