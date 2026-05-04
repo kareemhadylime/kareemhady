@@ -46,8 +46,100 @@ consistency. Captures:
 **Migration semantics**: drops v1 tables (only AUC v1 budget exists in
 prod; user accepted re-entry via v2 Editor + Import). Forward-only.
 
-**Next step** — awaiting user's review of the spec doc. Once
-approved, invoke `superpowers:writing-plans` to break v2.0 into
+**User responded "Approved" + "Visual Mockup"** — spec is approved AND
+the user wants visual mockups before plan-writing (overlay of Path B
+on top of approved Path A).
+
+**Visual companion launched** at http://localhost:64087 (background
+PID via task `bhd9taiuc`; session dir at
+`.superpowers/brainstorm/629-1777887489/`). `.superpowers/` is already
+gitignored. Server auto-exits after 30 min of inactivity.
+
+**Mockup 1/4 — Project Hub** pushed to companion as
+`01-project-hub.html`. Shows the new contract-card grid with 4 sample
+contracts that cover every v2 archetype: AUC (single-year/single-
+service), City Gate (2-year/6-service/mobilization), TRIO (fiscal-year/
+4-service+BO), Emaar Uptown (richer-CTC HK). Card anatomy: title +
+customer + year-tracking + health dot, service-line chips, 3 KPIs
+(year/contract/GM%), footer (sparkline + Mob ROI badge). Plus filter
+strip with EN/ع toggle, "+ New Contract" CTA, and "Action needed"
+banner. Awaiting user's ✓/↻ on this mockup.
+
+**Mockup 2/4 — Editor** pushed to companion as `02-editor.html` after
+user confirmed mockup 1. Shows City Gate · Y1 · HK editing surface
+with year tab strip (Y1 active / Y2 draft / + Add year / 📋 Copy Y1 →
+Y2), service tab strip (HK active + MEP/Landscape/Security/Pest/Waste
++ divider + Revenue/Mobilization), KPI summary, Manning section
+expanded with one row showing the CTC breakdown panel (6 components:
+Net/Relievers/OT/Training/Insurance/Medical) + per-line threshold
+override, other categories collapsed, Governmental section flagged
+"NEW in v2", and a catalog picker modal rendered inline (dashed-
+border preview) with search + filter chips + 3 sample manning items.
+Awaiting user's ✓/↻.
+
+**Mockup 3/4 — Catalog UI** pushed as `03-catalog.html` after user
+confirmed mockup 2. Two-column layout: left = searchable table
+(code/bilingual name/unit/default price/services/tags) with sample
+rows spanning manning, PPE, tools, consumables, transport, and the
+special `gov_taminat` "% of revenue" item; right = per-project
+overrides side panel with selected-item summary, contract picker,
+override price + delta + notes textarea, plus a comparison list of
+the same item's price across all contracts (AUC -11.2%, Emaar +10.6%,
+default). Toolbar has Bulk import (XLSX) + + Add item CTAs. Footer
+shows category counts + last bulk-import metadata. User clicked ✓.
+
+**Mockup 4/4 — Inflation Copy dialog** pushed as `04-inflation-copy.html`.
+The biggest UX bet in v2. Modal triggered from Editor's "📋 Copy Y1
+→ Y2" button. Header shows live source/target projection (Y1 52.8M
+rev / 12.5% GM → Y2 56.5M / 12.6%). Three uniform inflation knobs
+(numeric input + slider + per-knob Y1→Y2 projection): Revenue 7%,
+Manpower CTC 10%, Non-manpower 5% — defaults sourced from
+`budget_settings`. "Tweak per line" expand panel shows 5 sample lines
+including 3 overrides (HK M/F 8H +12.5% "EGP min-wage hike",
+Microbus +15% "fuel-linked clause 7.3") and a special % of revenue
+item (Contractor Insurance) auto-tracking revenue with a green "auto"
+tag — can't be manually overridden. Footer: audit-trail reminder +
+Cancel + dynamic-label commit button "Commit Y2 (37 lines + 3 tweaks)".
+Awaiting user's ✓.
+
+**Mockup 4 confirmed.** Visual companion unloaded (waiting screen
+pushed as `05-waiting.html`). Invoked `superpowers:writing-plans`
+and produced
+[docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2.md](docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2.md)
+— **2,871 lines, 40 tasks across 8 phases**:
+
+- Phase 1 (Tasks 1-3) — migration 0081 + Zod schemas + permissions
+- Phase 2 (Tasks 4-12) — 7 service-line templates + Governmental
+  post-merge + Catalog seed parser + 0082 seed migration
+- Phase 3 (Tasks 13-15) — Catalog tab + bulk import XLSX
+- Phase 4 (Tasks 16-19) — Project Hub + portfolio aggregator +
+  new-contract wizard + 8-tab layout
+- Phase 5 (Tasks 20-27) — Editor (year/service tabs, accordion,
+  add-line picker, CTC expand, Revenue + Mobilization tabs,
+  inflation-calc, Copy Y1→Y2 dialog)
+- Phase 6 (Tasks 28-33) — 5 Excel parsers + auto-detect dispatcher
+  + v2 flat template
+- Phase 7 (Tasks 34-37) — mobilization amortization + variance v2 +
+  Variance page + Settings v2
+- Phase 8 (Tasks 38-40) — Compare YoY + exports + acceptance
+  walk-through
+
+Plan committed `1d8563a` on `claude/eager-williamson-5787df`. Push to
+main pending (rebase needs SESSION_HANDOFF stage first — handled by
+this turn's stop hook update).
+
+**Next step**: ask user to pick **execution mode**:
+- (1) **Subagent-Driven** (recommended): fresh subagent per task,
+  two-stage review, fast iteration
+- (2) **Inline Execution**: batch in this session with checkpoints
+
+Then start Phase 1.
+
+(legacy line preserved below for diff context)
+**Awaiting** — invoke `superpowers:writing-plans` to break v2.0 into
+
+**Next step** after all 4 mockups validated — invoke
+`superpowers:writing-plans` to break v2.0 into
 commit-sized increments (estimated 30–40 commits across 8 phases).
 Then user reviews the plan. Then subagent-driven coding (auto mode).
 
