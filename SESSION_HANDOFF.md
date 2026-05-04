@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget v2: Task 12 complete — catalog seed parser + migration 0082 applied
+
+**Task 12 done (local commit `aa520e1`, NOT pushed per constraints):**
+- `src/lib/fmplus/budget/catalog/seed-from-pricelist.ts` — parser + `classifyItem` + `buildSeedSql`
+- `src/lib/fmplus/budget/catalog/seed-from-pricelist.test.ts` — 8/8 tests pass (4 parsePricelist + 4 classifyItem)
+- `src/lib/fmplus/budget/__fixtures__/emaar-pricelist-seed.xlsx` — clean fixture from Emaar Uptown HK Budget
+- `supabase/migrations/0082_fmplus_catalog_seed.sql` — 76 HK items, idempotent upsert
+- Migration applied via MCP, verified: 76 rows, consumables=37, tools=36, ppe=3
+- Branch is behind origin/main by 1 commit (the `0d12ed1` Task 11 commit from earlier in this worktree)
+
+**Next step:** Task 13 (Catalog API: GET/PUT endpoints for fmplus_catalog), then Tasks 14-15 (Catalog UI).
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget v2: Phase 1 + Phase 2 (partial) complete — Tasks 1-10 on main
 
 Subagent-driven execution rolling. **10 of 40 tasks done** end-to-end with hard-guardrail prompts after the initial Task 1 over-reach revert.
