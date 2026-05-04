@@ -1,5 +1,14 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 CHECKPOINT 2026-05-04 (updated) — FM+ Budget v2.0 post-audit gap-fixes (commit 1feb1e8)
+
+### FM+ Budget v2 — 3 gap-fixes (commit 1feb1e8)
+- `edit/actions.ts` — appended `updateLineQtyCostAction` (inline qty+unit_cost persist, draft-only guard) + `deleteLineAction` (trash icon, draft-only guard)
+- `edit/_components/budget-line-row.tsx` — converted qty + unit_cost cells to debounced `<input>` when `canEdit`; unit_cost locked to read-only + CTC badge on manning rows that have CTC set; Trash2 icon per row calls `deleteLineAction`; error display row on action failure
+- `catalog/_components/add-item-modal.tsx` — new client modal: code, name EN/AR, unit, default_price, category, service_lines checkboxes, tags; calls `saveItemAction` on save; resets on close
+- `catalog/_components/catalog-table.tsx` — wired disabled "+ Add item" button to `setAddOpen(true)`; mounts `<AddItemModal>` alongside `<BulkImportModal>`
+- TS check: 0 errors. Vitest: 159 passed / 168 total (27 files, 1 skipped).
+
 ## 🟢 CHECKPOINT 2026-05-04 (updated) — FM+ Budget v2 Overview + Import v2 done (commit 6616604) — all v1 orphan surfaces cleared
 
 ### FM+ Budget v2 — Overview page + Import page (commit 6616604)
