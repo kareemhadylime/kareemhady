@@ -127,6 +127,7 @@ async function ingestOneAccount(args: {
   account: any; run_id: string; rules: any[]; corrections: any;
   dailyCap: number; counters: any; errors: any[]; initialLookbackHours: number;
 }) {
+  const sb = supabaseAdmin();
   // Wrap the token-refresh handshake in its own short timeout so a
   // dead/expired refresh token fails in seconds rather than hanging
   // until the outer 90s account-ingest timeout fires.
@@ -135,6 +136,22 @@ async function ingestOneAccount(args: {
     TOKEN_REFRESH_TIMEOUT_MS,
     `token_refresh_${args.account.email}`,
   );
+
+  // Pre-fetch the set of gmail_message_ids already classified for this
+  // account so we can skip the (expensive) full-fetch + AI-classify path
+  // for them. Critical for backfill scenarios where last_synced_at is
+  // pulled back weeks: without dedup, every cron tick re-classifies the
+  // same backlog and we never catch up. With dedup, repeat ingests are
+  // ~free for already-classified mail.
+  const { data: classifiedRows } = await sb
+    .from('email_logs')
+    .select('gmail_message_id')
+    .eq('account_id', args.account.id)
+    .not('category', 'is', null);
+  const alreadyClassified = new Set(
+    (classifiedRows ?? []).map((r: any) => r.gmail_message_id as string),
+  );
+
   const sinceMs = args.account.last_synced_at
     ? new Date(args.account.last_synced_at).getTime()
     : Date.now() - args.initialLookbackHours * 3600 * 1000;
@@ -148,10 +165,17 @@ async function ingestOneAccount(args: {
     for (const m of list.data.messages ?? []) {
       if (!m.id) continue;
       args.counters.emails_seen += 1;
+      if (alreadyClassified.has(m.id)) {
+        // Already classified in a previous run — skip the full fetch
+        // + AI call. Counts as "seen" so duration logs are accurate.
+        continue;
+      }
       try {
         await processOneMessage({
           ...args, gmail, gmailMessageId: m.id, gmailThreadId: m.threadId ?? null,
         });
+        // Track in the dedup set so any same-page duplicates also skip.
+        alreadyClassified.add(m.id);
       } catch (e: any) {
         args.errors.push({ msg_id: m.id, msg: String(e?.message ?? e) });
       }

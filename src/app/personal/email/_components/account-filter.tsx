@@ -27,10 +27,16 @@ export async function AccountFilter({
     </Link>
   );
 
+  // Detect whether basePath already carries query params (e.g. it's
+  // `/personal/email?category=notifications`). If so, append further
+  // params with `&`, not a second `?` (which Next.js parses as part
+  // of the prior value and breaks both filters).
+  const sep = basePath.includes('?') ? '&' : '?';
+
   return (
     <div className="flex flex-wrap gap-1.5">
       {(accounts ?? []).map((a: any) =>
-        pill(a.display_name ?? a.email, `${basePath}?account=${a.id}`, selected === a.id),
+        pill(a.display_name ?? a.email, `${basePath}${sep}account=${a.id}`, selected === a.id),
       )}
       {pill('All', basePath, !selected)}
     </div>

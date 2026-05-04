@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { Mail, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
 import { CATEGORIES, getCategoriesByTier } from '@/lib/personal-email/categories';
 import { loadInbox, loadCategoryCounts } from '@/lib/personal-email/inbox-query';
-import { fmtCairoDateTime } from '@/lib/fmt-date';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PersonalShell, PersonalHeader } from '../_components/personal-shell';
@@ -11,19 +10,29 @@ import { MailboxStatusBar } from './_components/mailbox-status-bar';
 import { TierSection } from './_components/tier-section';
 import { CategoryCard } from './_components/category-card';
 import { RefreshButton } from './_components/refresh-button';
+import { DrillDownView, type SelectedEmail } from './_components/drill-down-view';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PersonalEmailPage({
   searchParams,
-}: { searchParams: Promise<{ account?: string; category?: string }> }) {
+}: {
+  searchParams: Promise<{ account?: string; category?: string; msg?: string }>;
+}) {
   const sp = await searchParams;
   const accountId = sp.account;
   const categoryFilter = sp.category as CategorySlug | undefined;
+  const selectedMsgId = sp.msg;
 
-  // If a category filter is set, show flat list instead of tier-grouped overview.
+  // If a category filter is set, show master-detail drill-down.
   if (categoryFilter) {
-    return <CategoryFlatView accountId={accountId} category={categoryFilter} />;
+    return (
+      <CategoryFlatView
+        accountId={accountId}
+        category={categoryFilter}
+        selectedMsgId={selectedMsgId}
+      />
+    );
   }
 
   const [counts, recent, needsReviewCount, accountCount] = await Promise.all([
@@ -188,9 +197,16 @@ async function loadConnectedAccountCount(): Promise<number> {
 }
 
 async function CategoryFlatView({
-  accountId, category,
-}: { accountId?: string; category: CategorySlug }) {
-  const rows = await loadInbox({ accountId, category, limit: 500 });
+  accountId, category, selectedMsgId,
+}: {
+  accountId?: string;
+  category: CategorySlug;
+  selectedMsgId?: string;
+}) {
+  const [rows, selected] = await Promise.all([
+    loadInbox({ accountId, category, limit: 500 }),
+    selectedMsgId ? loadSelectedEmail(selectedMsgId) : Promise.resolve(null),
+  ]);
   const cat = CATEGORIES.find(c => c.slug === category);
   return (
     <PersonalShell breadcrumbs={[
@@ -201,48 +217,48 @@ async function CategoryFlatView({
         eyebrow={`Personal · Email · ${cat?.displayName ?? category}`}
         title={cat?.displayName ?? category}
         subtitle={cat?.description}
-        right={<AccountFilter selected={accountId} basePath={`/personal/email?category=${category}`} />}
+        right={
+          <>
+            <Link href="/personal/email" className="ix-link text-xs">← All categories</Link>
+            <AccountFilter selected={accountId} basePath={`/personal/email?category=${category}`} />
+          </>
+        }
       />
 
-      <div className="ix-card overflow-hidden">
-        <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-            {rows.length} email{rows.length === 1 ? '' : 's'}
-          </span>
-          <Link href="/personal/email" className="ix-link text-xs">← All categories</Link>
-        </div>
-        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-          {rows.map(r => (
-            <li key={r.id}>
-              <Link href={`/personal/email/${r.id}`} className="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm truncate">
-                      <span className="font-semibold text-slate-900 dark:text-slate-50">
-                        {r.from_address?.split('<')[0].trim() || '—'}
-                      </span>
-                      <span className="text-slate-500 dark:text-slate-400"> · {r.subject || '(no subject)'}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      {r.account_display_name} {r.received_at && `· ${fmtCairoDateTime(r.received_at)}`}
-                    </div>
-                  </div>
-                  {r.needs_review && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
-                      review
-                    </span>
-                  )}
-                </div>
-              </Link>
-            </li>
-          ))}
-          {!rows.length && (
-            <li className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
-              No emails in this category yet.
-            </li>
-          )}
-        </ul>
-      </div>
+      <DrillDownView rows={rows} selected={selected} category={category} />
     </PersonalShell>
   );
+}
+
+async function loadSelectedEmail(emailLogId: string): Promise<SelectedEmail | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from('email_logs')
+    .select(`
+      id, gmail_message_id, gmail_thread_id, subject, from_address, to_address,
+      received_at, body_excerpt, category, category_confidence, category_method,
+      category_reason, needs_review,
+      accounts(email, display_name)
+    `)
+    .eq('id', emailLogId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const acc = (data as any).accounts;
+  return {
+    id: data.id,
+    subject: data.subject,
+    from_address: data.from_address,
+    to_address: data.to_address,
+    received_at: data.received_at,
+    body_excerpt: data.body_excerpt,
+    category: data.category as CategorySlug | null,
+    category_confidence: data.category_confidence as number | null,
+    category_method: data.category_method,
+    category_reason: data.category_reason,
+    needs_review: !!data.needs_review,
+    gmail_message_id: data.gmail_message_id,
+    gmail_thread_id: data.gmail_thread_id,
+    account_display_name: acc?.display_name ?? null,
+    account_email: acc?.email ?? null,
+  };
 }
