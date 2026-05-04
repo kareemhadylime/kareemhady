@@ -39,10 +39,11 @@
 - T28 `b43df3b` parser auto-detect dispatcher (5 paths)
 - T29-T33 ⏳ rich XLSX parsers — DEFERRED; need per-file column-mapping inspection
 
-### Phase 7 🟡 Variance — mobilization math + core engine done (T34-35)
+### Phase 7 🟢 Variance — mobilization math + core engine + page UI done (T34-36)
 - T34 `df940dd` mobilization.ts amortization (straight_line + flat) with end_date truncation
 - T35 `65acdf4` variance.ts v2 + variance-drill.ts v2 + 2 test files (unit gate: 2 pass, integration: 2 skipped)
-- T36-T37 ⏳ Variance page, Settings page v2
+- T36 `90e1b93` Variance page (server component, contract picker, KPI strip, year/service filters) + VarianceGrid (month×category traffic-light table, client component) + DrillDrawer (fetch-on-open journal-entry slide-over) + actions.ts placeholder + /api/fmplus/budget/variance-drill GET route. `tsc --noEmit` = 0 errors.
+- T37 ⏳ Settings page v2
 
 ### Phase 8 ⏳ Compare/Exports/Acceptance (T38-T40)
 
@@ -67,7 +68,7 @@
 **Still v1 orphans / runtime-broken** (rewritten in remaining tasks):
 - 🟡 `/fmplus/financial/budget` (Overview)
 - 🟡 `/fmplus/financial/budget/import`
-- 🟡 `/fmplus/financial/budget/variance`
+- ✅ `/fmplus/financial/budget/variance` — v2 page live (contract picker → KPI strip → month×category grid → drill drawer)
 - 🟡 `/fmplus/financial/budget/compare`
 - 🟡 `/fmplus/financial/budget/settings`
 - 🟡 PDF/XLSX export API routes (`/api/fmplus/budget/variance-pdf` etc.)
@@ -76,7 +77,7 @@
 
 **Easier, less time-consuming (~6 tasks, ~3 hours)**:
 - T35 ✅ `65acdf4` variance.ts v2 (buildBudgetVarianceV2 + cellToMoveLines stub + 2 test files)
-- T36 — Variance page + drill drawer (rewrite v1 with v2 schema)
+- T36 ✅ `90e1b93` Variance page + drill drawer (v2 schema, 4 files overwritten + drill API route created)
 - T37 — Settings page v2 (extend v1 with bilingual default + 3 inflation defaults + mob amort default)
 - T38 — Compare YoY mode (extend v1 with new toggle)
 - T39 — Variance PDF + XLSX exports (port v1, swap input shape)
