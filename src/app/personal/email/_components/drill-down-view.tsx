@@ -21,6 +21,7 @@ import {
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
+import { isNewReservation } from '@/lib/personal-email/email-helpers';
 
 // Master-detail drill-down: list on the left, preview on the right.
 // Selected email lives in URL as `?msg=<id>` so deep links work and
@@ -155,6 +156,7 @@ export function DrillDownView({
           {rows.map(r => {
             const isSelected = selected?.id === r.id;
             const isChecked = checked.has(r.id);
+            const newReservation = isNewReservation(r.subject, r.category);
             return (
               <li
                 key={r.id}
@@ -163,7 +165,9 @@ export function DrillDownView({
                     ? 'bg-slate-100 dark:bg-slate-800/70'
                     : isChecked
                       ? 'bg-amber-50/40 dark:bg-amber-950/20'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
+                      : newReservation
+                        ? 'bg-emerald-50/30 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
                 }`}
                 onClick={() => navTo(r.id)}
               >
@@ -174,13 +178,25 @@ export function DrillDownView({
                   onClick={e => e.stopPropagation()}
                   className="mt-1 h-4 w-4 cursor-pointer shrink-0"
                 />
+                {/* Left edge accent: solid emerald bar for new
+                    reservations so they pop in long lists. */}
+                {newReservation && (
+                  <span className="self-stretch w-0.5 -mx-1 bg-emerald-500 rounded-full shrink-0" aria-hidden />
+                )}
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm truncate">
-                    <span className="font-semibold text-slate-900 dark:text-slate-50">
-                      {r.from_address?.split('<')[0].trim() || '—'}
-                    </span>
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {' · '}{r.subject || '(no subject)'}
+                  <div className="text-sm truncate flex items-center gap-1.5">
+                    {newReservation && (
+                      <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white">
+                        NEW
+                      </span>
+                    )}
+                    <span className="truncate">
+                      <span className="font-semibold text-slate-900 dark:text-slate-50">
+                        {r.from_address?.split('<')[0].trim() || '—'}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {' · '}{r.subject || '(no subject)'}
+                      </span>
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -289,11 +305,19 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
   const cat = email.category ? CATEGORIES.find(c => c.slug === email.category) : null;
   const accent = cat?.accentColor ?? 'slate';
   const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${email.gmail_thread_id ?? email.gmail_message_id}`;
+  const newReservation = isNewReservation(email.subject, email.category);
 
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
+          {newReservation && (
+            <div className="mb-1.5">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white">
+                NEW RESERVATION
+              </span>
+            </div>
+          )}
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 leading-tight">
             {email.subject || '(no subject)'}
           </h3>

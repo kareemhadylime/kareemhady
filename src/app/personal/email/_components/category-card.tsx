@@ -11,11 +11,13 @@ import {
   Tag,
   XCircle,
   ShoppingBag,
+  Home,
   Mail,
   type LucideIcon,
 } from 'lucide-react';
 import type { CategoryDef } from '@/lib/personal-email/categories';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
+import { isNewReservation } from '@/lib/personal-email/email-helpers';
 
 // Icon registry mapping seeded `iconName` strings to actual lucide
 // icons. Keep in sync with categories.ts seed.
@@ -30,6 +32,7 @@ const ICONS: Record<string, LucideIcon> = {
   Tag,
   XCircle,
   ShoppingBag,
+  Home,
 };
 
 // Pre-rendered Tailwind class lookups so dynamic accents work in
@@ -69,6 +72,12 @@ const ACCENTS: Record<string, {
     hoverBorder: 'group-hover:border-pink-400', arrow: 'group-hover:text-pink-600',
     countBg: 'bg-pink-50 dark:bg-pink-950', countText: 'text-pink-700 dark:text-pink-300',
     gradFrom: 'from-pink-400', gradTo: 'to-pink-600',
+  },
+  teal: {
+    iconBg: 'bg-teal-50 dark:bg-teal-950', iconText: 'text-teal-700 dark:text-teal-300',
+    hoverBorder: 'group-hover:border-teal-400', arrow: 'group-hover:text-teal-600',
+    countBg: 'bg-teal-50 dark:bg-teal-950', countText: 'text-teal-700 dark:text-teal-300',
+    gradFrom: 'from-teal-400', gradTo: 'to-teal-600',
   },
   indigo: {
     iconBg: 'bg-indigo-50 dark:bg-indigo-950', iconText: 'text-indigo-700 dark:text-indigo-300',
@@ -136,14 +145,24 @@ export function CategoryCard({
 
       {top3.length > 0 && (
         <ul className="mt-3 space-y-1 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-2">
-          {top3.slice(0, 3).map(r => (
-            <li key={r.id} className="truncate">
-              <span className="text-slate-700 dark:text-slate-200 font-medium">
-                {r.from_address?.split('<')[0].trim() || '—'}
-              </span>
-              <span className="text-slate-400 dark:text-slate-500"> · {r.subject || '(no subject)'}</span>
-            </li>
-          ))}
+          {top3.slice(0, 3).map(r => {
+            const newReservation = isNewReservation(r.subject, r.category);
+            return (
+              <li key={r.id} className="truncate flex items-center gap-1.5">
+                {newReservation && (
+                  <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white" title="New reservation">
+                    NEW
+                  </span>
+                )}
+                <span className="truncate">
+                  <span className="text-slate-700 dark:text-slate-200 font-medium">
+                    {r.from_address?.split('<')[0].trim() || '—'}
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500"> · {r.subject || '(no subject)'}</span>
+                </span>
+              </li>
+            );
+          })}
           {count > 3 && (
             <li className="text-[10px] text-slate-400 dark:text-slate-500">+ {count - 3} more</li>
           )}
