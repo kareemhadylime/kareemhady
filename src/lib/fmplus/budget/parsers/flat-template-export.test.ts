@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; superseded by flat-template.test.ts (Task 33)
 import { describe, it, expect } from 'vitest';
 import { writeFlatBudgetXlsx } from './flat-template-export';
 import { parseFlatBudgetXlsx } from './flat-template';

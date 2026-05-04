@@ -1,19 +1,68 @@
-// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import ExcelJS from 'exceljs';
-import { FLAT_HEADERS, type FlatRow } from './flat-template';
+import type { FlatRow } from './flat-template';
 
-export async function writeFlatBudgetXlsx(rows: FlatRow[]): Promise<Buffer> {
+const COLUMNS: Array<keyof FlatRow> = [
+  'contract_name', 'customer', 'year_index', 'service_line', 'category',
+  'line_code', 'label_en', 'label_ar', 'season', 'qty', 'unit_cost',
+  'ctc_net', 'ctc_relievers', 'ctc_ot', 'ctc_training', 'ctc_insurance', 'ctc_medical',
+  'threshold_green', 'threshold_amber', 'notes',
+];
+
+const HEADER_TITLES: Record<string, string> = {
+  contract_name: 'Contract',
+  customer: 'Customer',
+  year_index: 'Year',
+  service_line: 'Service',
+  category: 'Category',
+  line_code: 'Code',
+  label_en: 'Label (EN)',
+  label_ar: 'Label (AR)',
+  season: 'Season',
+  qty: 'Qty / HC',
+  unit_cost: 'Unit Cost',
+  ctc_net: 'CTC Net',
+  ctc_relievers: 'CTC Relievers',
+  ctc_ot: 'CTC OT',
+  ctc_training: 'CTC Training',
+  ctc_insurance: 'CTC Insurance',
+  ctc_medical: 'CTC Medical',
+  threshold_green: 'Threshold Green %',
+  threshold_amber: 'Threshold Amber %',
+  notes: 'Notes',
+};
+
+/**
+ * Write a flat-template XLSX. Header row uses lowercase column keys (matching
+ * the parser) but with friendlier titles via cell formatting.
+ *
+ * Returns a Buffer ready to be sent as a download.
+ */
+export async function exportFlatTemplate(rows: FlatRow[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('budget');
-  ws.addRow(FLAT_HEADERS as unknown as string[]);
-  ws.getRow(1).font = { bold: true };
-  for (const r of rows) {
-    ws.addRow([
-      r.project, r.service_line, r.sub_location ?? '',
-      r.category, r.line_code, r.season,
-      r.qty, r.unit_cost, r.notes ?? '',
-    ]);
+  wb.creator = 'FM+ Budget v2';
+  wb.created = new Date();
+  const sheet = wb.addWorksheet('Budget Lines');
+
+  sheet.columns = COLUMNS.map(key => ({
+    header: key, // parser uses these lowercase header keys
+    key: String(key),
+    width: Math.max(12, String(HEADER_TITLES[key] ?? key).length + 4),
+  }));
+  sheet.getRow(1).font = { bold: true };
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+  for (const row of rows) {
+    sheet.addRow(row as unknown as Record<string, unknown>);
   }
-  ws.columns.forEach(col => { col.width = 18; });
-  return Buffer.from(await wb.xlsx.writeBuffer());
+
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
+}
+
+/**
+ * Generate an empty flat template (header row only) for first-time downloads.
+ * This is what the "Download blank template" link in the Import UI returns.
+ */
+export async function exportEmptyFlatTemplate(): Promise<Buffer> {
+  return exportFlatTemplate([]);
 }
