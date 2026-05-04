@@ -1408,3 +1408,20 @@ Visual companion server has long-since auto-exited (30-min idle timeout). Re-lau
 **No constraint violations**.
 
 **Ready for Task 17** (Project Hub UI layer will consume `buildPortfolio()` and render contract cards).
+
+---
+
+## ✅ 2026-05-04 — FM+ Budget v2: Task 24 — Server actions (Save Draft / Publish / Add Year / Delete Year) + audit log helper
+
+**Files changed (5):**
+- `src/lib/fmplus/budget/audit.ts` — rewrote v1 orphan to v2 `writeAuditOnPublishedEdit(yearId, diffJson)` using `TABLES.audit`; preserved `computeBudgetDiff` v1 helper for existing test
+- `src/app/fmplus/financial/budget/edit/actions.ts` — appended 4 new server actions: `saveDraftAction`, `publishYearAction`, `deleteYearAction`, `addYearAction`; added `writeAuditOnPublishedEdit` import
+- `src/app/fmplus/financial/budget/edit/page.tsx` — replaced stub Save Draft / Publish buttons with `<SavePublishButtons>` client component
+- `src/app/fmplus/financial/budget/edit/_components/save-publish-buttons.tsx` — new client component; `publishYearAction` wired; Save Draft triggers `router.refresh()`
+- `src/app/fmplus/financial/budget/edit/_components/year-tabs.tsx` — wired Add Year button to `addYearAction`; Copy Year stays disabled (Task 27)
+
+**Commit**: `d670439` feat(fmplus-budget): editor server actions (save draft / publish / add year / delete year) + audit log helper
+
+**TS check**: 0 errors. **Tests**: 144/144 pass. **No constraint violations.**
+
+**Ready for Task 25** (Revenue/Mob tab server actions).
