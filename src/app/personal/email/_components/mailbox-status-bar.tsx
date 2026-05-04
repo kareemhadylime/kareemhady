@@ -1,24 +1,34 @@
 import Link from 'next/link';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 
-// Rich mailbox bar: displays each connected personal mailbox as a
-// clickable pill with display name + email + last-sync time + a green
-// dot for "synced in the last 30 min", amber for "stale (≤24h)", red
-// for ">24h or never". Doubles as the account filter (clicking a pill
-// scopes the rest of the page to that account).
+// Rich mailbox bar: each mailbox renders as a clickable card showing
+//   • display name (bold)
+//   • full email (mono small)
+//   • freshness bar — % of a 24-hour staleness budget remaining
+//   • count of emails classified in this mailbox + delta in last 24h
+//   • status dot: healthy / stale / cold
+//   • per-account error hint if the most recent ingest run flagged it
 //
-// Replaces the bare AccountFilter pills on /personal/email — the user
-// previously couldn't tell which physical mailbox each pill represented.
+// Doubles as the account filter — clicking a card scopes the page.
 
-const STALE_GREEN_MS = 30 * 60 * 1000;       // < 30 min = healthy
-const STALE_AMBER_MS = 24 * 3600 * 1000;     // < 24 h  = stale-warning
+const STALE_GREEN_MS = 30 * 60 * 1000;       // < 30 min  = healthy
+const FRESHNESS_WINDOW_MS = 24 * 3600 * 1000; // 24-h freshness budget
 
 type Mailbox = {
   id: string;
   email: string;
   display_name: string | null;
   last_synced_at: string | null;
+};
+
+type MailboxStats = {
+  mailbox: Mailbox;
+  classifiedTotal: number;
+  classifiedLast24h: number;
+  hadErrorOnLastRun: boolean;
+  lastRunErrorMsg: string | null;
 };
 
 export async function MailboxStatusBar({
@@ -29,14 +39,29 @@ export async function MailboxStatusBar({
   basePath?: string;
 }) {
   const sb = supabaseAdmin();
-  const { data } = await sb
-    .from('accounts')
-    .select('id, email, display_name, last_synced_at')
-    .eq('domain', 'personal')
-    .eq('enabled', true)
-    .order('display_name', { nullsFirst: false });
 
-  const mailboxes = (data ?? []) as Mailbox[];
+  const [{ data: accountsData }, { data: classifiedRows }, { data: lastRun }] =
+    await Promise.all([
+      sb
+        .from('accounts')
+        .select('id, email, display_name, last_synced_at')
+        .eq('domain', 'personal')
+        .eq('enabled', true)
+        .order('display_name', { nullsFirst: false }),
+      sb
+        .from('email_logs')
+        .select('account_id, last_classified_at, accounts!inner(domain)')
+        .eq('accounts.domain', 'personal')
+        .not('category', 'is', null),
+      sb
+        .from('personal_email_classification_runs')
+        .select('errors')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+  const mailboxes = (accountsData ?? []) as Mailbox[];
 
   if (!mailboxes.length) {
     return (
@@ -49,11 +74,50 @@ export async function MailboxStatusBar({
     );
   }
 
+  // Count classified rows per account, plus those classified in the
+  // last 24 h (a rough "throughput" proxy).
+  const totalByAccount = new Map<string, number>();
+  const last24hByAccount = new Map<string, number>();
+  const cutoff24h = Date.now() - FRESHNESS_WINDOW_MS;
+  for (const r of (classifiedRows ?? []) as any[]) {
+    const id = r.account_id as string;
+    totalByAccount.set(id, (totalByAccount.get(id) ?? 0) + 1);
+    const ts = r.last_classified_at ? new Date(r.last_classified_at).getTime() : 0;
+    if (ts >= cutoff24h) {
+      last24hByAccount.set(id, (last24hByAccount.get(id) ?? 0) + 1);
+    }
+  }
+
+  // Map of email → error message, sourced from the most recent run row.
+  const errorsByEmail = new Map<string, string>();
+  if (lastRun?.errors && Array.isArray(lastRun.errors)) {
+    for (const e of lastRun.errors as any[]) {
+      if (e?.account && typeof e.msg === 'string') {
+        errorsByEmail.set(e.account, e.msg);
+      }
+    }
+  }
+
+  const stats: MailboxStats[] = mailboxes.map(m => ({
+    mailbox: m,
+    classifiedTotal: totalByAccount.get(m.id) ?? 0,
+    classifiedLast24h: last24hByAccount.get(m.id) ?? 0,
+    hadErrorOnLastRun: errorsByEmail.has(m.email),
+    lastRunErrorMsg: errorsByEmail.get(m.email) ?? null,
+  }));
+
+  const healthyCount = stats.filter(s => computeStatus(s.mailbox.last_synced_at) === 'healthy').length;
+
   return (
-    <section className="ix-card p-3 space-y-2">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400">
-          Connected mailboxes
+    <section className="ix-card p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400">
+            Connected mailboxes
+          </div>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">
+            · {healthyCount}/{stats.length} healthy
+          </span>
         </div>
         <Link
           href={`${basePath}`}
@@ -67,20 +131,26 @@ export async function MailboxStatusBar({
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-        {mailboxes.map(m => (
-          <MailboxPill key={m.id} m={m} active={selected === m.id} basePath={basePath} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {stats.map(s => (
+          <MailboxCard
+            key={s.mailbox.id}
+            stats={s}
+            active={selected === s.mailbox.id}
+            basePath={basePath}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function MailboxPill({
-  m, active, basePath,
+function MailboxCard({
+  stats, active, basePath,
 }: {
-  m: Mailbox; active: boolean; basePath: string;
+  stats: MailboxStats; active: boolean; basePath: string;
 }) {
+  const m = stats.mailbox;
   const href = `${basePath}?account=${m.id}`;
   const status = computeStatus(m.last_synced_at);
   const dotClass =
@@ -91,28 +161,79 @@ function MailboxPill({
     ? `Last sync: ${fmtCairoDateTime(m.last_synced_at)}`
     : 'Never synced';
 
+  const pct = computeFreshnessPct(m.last_synced_at);
+  const barColor =
+    pct >= 60 ? 'bg-emerald-500' :
+    pct >= 20 ? 'bg-amber-500'   :
+                'bg-rose-500';
+
   return (
     <Link
       href={href}
       title={`${m.email} — ${tooltip}`}
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition ${
+      className={`block px-4 py-3 rounded-lg border transition ${
         active
           ? 'bg-slate-900 text-white border-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:border-slate-100'
           : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
       }`}
     >
-      <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} title={`Status: ${status}`} />
-      <div className="min-w-0 flex-1">
-        <div className={`text-sm font-semibold truncate ${active ? '' : 'text-slate-900 dark:text-slate-50'}`}>
-          {m.display_name ?? m.email.split('@')[0].toUpperCase()}
+      <div className="flex items-center gap-2.5">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} title={`Status: ${status}`} />
+        <div className="min-w-0 flex-1">
+          <div className={`text-sm font-semibold truncate ${active ? '' : 'text-slate-900 dark:text-slate-50'}`}>
+            {m.display_name ?? m.email.split('@')[0].toUpperCase()}
+          </div>
+          <div className={`text-[10px] truncate font-mono ${active ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}`}>
+            {m.email}
+          </div>
         </div>
-        <div className={`text-[10px] truncate font-mono ${active ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}`}>
-          {m.email}
+        {stats.hadErrorOnLastRun ? (
+          <AlertCircle size={14} className={active ? 'opacity-90' : 'text-rose-500'} />
+        ) : status === 'healthy' ? (
+          <CheckCircle2 size={14} className={active ? 'opacity-90' : 'text-emerald-500'} />
+        ) : null}
+      </div>
+
+      {/* Freshness bar — fills inversely with sync age, capped at 24h budget */}
+      <div className="mt-2.5">
+        <div className="flex items-center justify-between text-[10px] mb-1">
+          <span className={active ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}>
+            {formatRelative(m.last_synced_at)}
+          </span>
+          <span className={`tabular-nums font-mono ${active ? 'opacity-90' : 'text-slate-600 dark:text-slate-300'}`}>
+            {pct}%
+          </span>
         </div>
-        <div className={`text-[10px] mt-0.5 ${active ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}`}>
-          {formatRelative(m.last_synced_at)}
+        <div className={`h-1.5 rounded-full overflow-hidden ${active ? 'bg-white/30' : 'bg-slate-200 dark:bg-slate-700'}`}>
+          <div
+            className={`h-full ${barColor} transition-all`}
+            style={{ width: `${pct}%` }}
+          />
         </div>
       </div>
+
+      {/* Counts row */}
+      <div className={`mt-2 flex items-center justify-between text-[10px] ${active ? 'opacity-80' : 'text-slate-500 dark:text-slate-400'}`}>
+        <span>
+          <span className={`font-mono tabular-nums ${active ? '' : 'text-slate-700 dark:text-slate-200'}`}>
+            {stats.classifiedTotal.toLocaleString()}
+          </span>
+          {' classified'}
+        </span>
+        {stats.classifiedLast24h > 0 && (
+          <span>
+            +{stats.classifiedLast24h} last 24h
+          </span>
+        )}
+      </div>
+
+      {/* Error hint — visible only when this mailbox failed in the most recent run */}
+      {stats.hadErrorOnLastRun && stats.lastRunErrorMsg && (
+        <div className={`mt-2 text-[10px] truncate ${active ? 'opacity-90' : 'text-rose-600 dark:text-rose-400'}`}
+             title={stats.lastRunErrorMsg}>
+          ⚠ {summarizeError(stats.lastRunErrorMsg)}
+        </div>
+      )}
     </Link>
   );
 }
@@ -121,8 +242,18 @@ function computeStatus(iso: string | null): 'healthy' | 'stale' | 'cold' {
   if (!iso) return 'cold';
   const ageMs = Date.now() - new Date(iso).getTime();
   if (ageMs < STALE_GREEN_MS) return 'healthy';
-  if (ageMs < STALE_AMBER_MS) return 'stale';
+  if (ageMs < FRESHNESS_WINDOW_MS) return 'stale';
   return 'cold';
+}
+
+// Maps sync age onto a 0-100% freshness score against a 24-h budget.
+// 0 ms ago → 100. 24+ h ago → 0. Linear in between.
+function computeFreshnessPct(iso: string | null): number {
+  if (!iso) return 0;
+  const ageMs = Date.now() - new Date(iso).getTime();
+  if (ageMs <= 0) return 100;
+  if (ageMs >= FRESHNESS_WINDOW_MS) return 0;
+  return Math.round(100 * (1 - ageMs / FRESHNESS_WINDOW_MS));
 }
 
 function formatRelative(iso: string | null): string {
@@ -135,4 +266,14 @@ function formatRelative(iso: string | null): string {
   if (h < 24) return `synced ${h}h ago`;
   const d = Math.floor(h / 24);
   return `synced ${d}d ago`;
+}
+
+// Strip nested error wrappers down to a short pill-friendly hint.
+function summarizeError(msg: string): string {
+  const lower = msg.toLowerCase();
+  if (lower.includes('token_refresh') && lower.includes('timeout')) return 'token refresh timed out';
+  if (lower.includes('invalid_grant')) return 'refresh token invalid — reconnect';
+  if (lower.includes('unauthorized') || lower.includes('401')) return 'auth expired — reconnect';
+  if (lower.includes('account_ingest') && lower.includes('timeout')) return 'ingest timed out';
+  return msg.slice(0, 64);
 }

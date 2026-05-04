@@ -17,6 +17,21 @@ export type IngestOpts = {
 
 const DEFAULT_INITIAL_LOOKBACK_HOURS = 24;
 
+// Hard timeouts for the network-bound calls. Without these, a stale
+// refresh token can hang the function indefinitely until Vercel kills
+// it without flushing any progress to the run row. With them, a hung
+// account fails fast and the loop moves on to the next mailbox.
+const TOKEN_REFRESH_TIMEOUT_MS = 8_000;
+const ACCOUNT_INGEST_TIMEOUT_MS = 90_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label}_timeout_${ms}ms`)), ms);
+    p.then(v => { clearTimeout(t); resolve(v); },
+           e => { clearTimeout(t); reject(e); });
+  });
+}
+
 // Runs the full ingest for every account WHERE domain='personal' AND
 // enabled=true. Returns the run id so the caller (cron route or
 // manual-refresh server action) can surface progress.
@@ -39,6 +54,25 @@ export async function ingestPersonalEmails(opts: IngestOpts): Promise<{ runId: s
   const errors: any[] = [];
   const accountsHit: string[] = [];
 
+  // Helper that flushes the current state of `counters` + `accountsHit`
+  // + `errors` to the run row. Called after each account so that a mid-
+  // loop function timeout still leaves a useful audit trail.
+  const flushProgress = async (finished = false) => {
+    await sb
+      .from('personal_email_classification_runs')
+      .update({
+        accounts: accountsHit,
+        emails_seen: counters.emails_seen,
+        emails_classified: counters.emails_classified,
+        rules_matched: counters.rules_matched,
+        ai_calls: counters.ai_calls,
+        ai_cost_usd: counters.ai_cost_usd,
+        errors,
+        ...(finished ? { finished_at: new Date().toISOString() } : {}),
+      })
+      .eq('id', run.id);
+  };
+
   try {
     const { data: accounts } = await sb
       .from('accounts')
@@ -52,44 +86,39 @@ export async function ingestPersonalEmails(opts: IngestOpts): Promise<{ runId: s
 
     for (const acc of (accounts ?? []) as any[]) {
       accountsHit.push(acc.email);
+      // Persist progress BEFORE attempting the account, so even a
+      // function-kill on the very next line leaves a breadcrumb of
+      // which mailbox was being attempted.
+      await flushProgress();
       try {
-        await ingestOneAccount({
-          account: acc, run_id: run.id, rules, corrections,
-          dailyCap, counters, errors,
-          initialLookbackHours: opts.initialLookbackHours ?? DEFAULT_INITIAL_LOOKBACK_HOURS,
-        });
+        await withTimeout(
+          ingestOneAccount({
+            account: acc, run_id: run.id, rules, corrections,
+            dailyCap, counters, errors,
+            initialLookbackHours: opts.initialLookbackHours ?? DEFAULT_INITIAL_LOOKBACK_HOURS,
+          }),
+          ACCOUNT_INGEST_TIMEOUT_MS,
+          `account_ingest_${acc.email}`,
+        );
         await sb
           .from('accounts')
           .update({ last_synced_at: new Date().toISOString() })
           .eq('id', acc.id);
       } catch (e: any) {
-        errors.push({ account: acc.email, msg: String(e?.message ?? e) });
+        errors.push({
+          account: acc.email,
+          msg: String(e?.message ?? e),
+          at: new Date().toISOString(),
+        });
+        await flushProgress();
       }
     }
 
-    await sb
-      .from('personal_email_classification_runs')
-      .update({
-        finished_at: new Date().toISOString(),
-        accounts: accountsHit,
-        emails_seen: counters.emails_seen,
-        emails_classified: counters.emails_classified,
-        rules_matched: counters.rules_matched,
-        ai_calls: counters.ai_calls,
-        ai_cost_usd: counters.ai_cost_usd,
-        errors,
-      })
-      .eq('id', run.id);
+    await flushProgress(true);
     return { runId: run.id };
   } catch (e: any) {
-    await sb
-      .from('personal_email_classification_runs')
-      .update({
-        finished_at: new Date().toISOString(),
-        accounts: accountsHit,
-        errors: [...errors, { fatal: String(e?.message ?? e) }],
-      })
-      .eq('id', run.id);
+    errors.push({ fatal: String(e?.message ?? e), at: new Date().toISOString() });
+    await flushProgress(true);
     throw e;
   }
 }
@@ -98,7 +127,14 @@ async function ingestOneAccount(args: {
   account: any; run_id: string; rules: any[]; corrections: any;
   dailyCap: number; counters: any; errors: any[]; initialLookbackHours: number;
 }) {
-  const gmail = await getGmailClientFromRefresh(args.account.oauth_refresh_token_encrypted);
+  // Wrap the token-refresh handshake in its own short timeout so a
+  // dead/expired refresh token fails in seconds rather than hanging
+  // until the outer 90s account-ingest timeout fires.
+  const gmail = await withTimeout(
+    getGmailClientFromRefresh(args.account.oauth_refresh_token_encrypted),
+    TOKEN_REFRESH_TIMEOUT_MS,
+    `token_refresh_${args.account.email}`,
+  );
   const sinceMs = args.account.last_synced_at
     ? new Date(args.account.last_synced_at).getTime()
     : Date.now() - args.initialLookbackHours * 3600 * 1000;
