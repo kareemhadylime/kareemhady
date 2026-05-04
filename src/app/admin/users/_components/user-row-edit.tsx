@@ -13,12 +13,14 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  MessageCircle,
 } from 'lucide-react';
 import {
   updateUserProfileStateAction,
   updateUserRoleStateAction,
   setDomainRolesStateAction,
   deleteUserAction,
+  sendCredentialsViaWhatsAppStateAction,
   type SaveResult,
 } from '../actions';
 
@@ -29,11 +31,16 @@ type DomainOption = { value: string; label: string };
 // doesn't linger after the work is done.
 const AUTO_CLOSE_MS = 1500;
 
-const SAVED_LABEL: Record<'profile' | 'role' | 'domains', string> = {
+const SAVED_LABEL: Record<'profile' | 'role' | 'domains' | 'wa-creds', string> = {
   profile: 'Profile saved',
   role: 'Role saved',
   domains: 'Domains saved',
+  'wa-creds': 'Credentials sent via WhatsApp',
 };
+
+// How long the success/error pill on the WhatsApp button stays visible
+// before fading out. Long enough to read, short enough to retry quickly.
+const WA_FEEDBACK_MS = 4000;
 
 export function UserRowEdit({
   userId,
@@ -74,6 +81,25 @@ export function UserRowEdit({
     SaveResult | null,
     FormData
   >(setDomainRolesStateAction, null);
+  const [waCredsState, waCredsFormAction, waCredsPending] = useActionState<
+    SaveResult | null,
+    FormData
+  >(sendCredentialsViaWhatsAppStateAction, null);
+
+  // Local "show feedback pill" timer for the WhatsApp button. The pill
+  // sits beside the button in the collapsed (non-editing) row, so it has
+  // to clear itself rather than rely on the panel collapsing.
+  const [waPillVisible, setWaPillVisible] = useState(false);
+  useEffect(() => {
+    if (waCredsPending) {
+      setWaPillVisible(false);
+      return;
+    }
+    if (!waCredsState) return;
+    setWaPillVisible(true);
+    const t = setTimeout(() => setWaPillVisible(false), WA_FEEDBACK_MS);
+    return () => clearTimeout(t);
+  }, [waCredsState, waCredsPending]);
 
   // Auto-close on any successful save. Errors keep the panel open so the
   // user can correct and retry.
@@ -99,6 +125,14 @@ export function UserRowEdit({
         >
           <Pencil size={12} /> Edit
         </button>
+        <SendWhatsAppCredentialsButton
+          userId={userId}
+          mobileNumber={mobileNumber}
+          formAction={waCredsFormAction}
+          pending={waCredsPending}
+          state={waCredsState}
+          pillVisible={waPillVisible}
+        />
       </div>
     );
   }
@@ -275,6 +309,83 @@ function ResultPill({
     >
       <XCircle size={12} /> {state.error || 'Save failed'}
     </span>
+  );
+}
+
+function SendWhatsAppCredentialsButton({
+  userId,
+  mobileNumber,
+  formAction,
+  pending,
+  state,
+  pillVisible,
+}: {
+  userId: string;
+  mobileNumber: string | null;
+  formAction: (formData: FormData) => void;
+  pending: boolean;
+  state: SaveResult | null;
+  pillVisible: boolean;
+}) {
+  const disabled = pending || !mobileNumber;
+  const tooltip = !mobileNumber
+    ? 'No mobile number on file — add one in the Edit panel first'
+    : 'Generate a new password and send credentials via WhatsApp';
+
+  // Confirm before submitting. This action resets the user's password —
+  // an existing user who was already using the dashboard would be locked
+  // out of their old password, so we want a clear "are you sure?".
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (
+      !confirm(
+        'This will generate a NEW temporary password for this user, send it to their WhatsApp, and replace their existing password. Continue?',
+      )
+    ) {
+      e.preventDefault();
+    }
+  }
+
+  return (
+    <div className="inline-flex items-center gap-2">
+      <form action={formAction} onSubmit={handleSubmit}>
+        <input type="hidden" name="id" value={userId} />
+        <button
+          type="submit"
+          disabled={disabled}
+          title={tooltip}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-xs font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+        >
+          {pending ? (
+            <>
+              <Loader2 size={12} className="animate-spin" /> Sending…
+            </>
+          ) : (
+            <>
+              <MessageCircle size={12} /> Send credentials
+            </>
+          )}
+        </button>
+      </form>
+      {pillVisible && state && state.saved === 'wa-creds' && (
+        state.ok ? (
+          <span
+            role="status"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-xs font-medium border border-emerald-200 dark:border-emerald-800"
+          >
+            <CheckCircle2 size={12} /> Sent
+          </span>
+        ) : (
+          <span
+            role="alert"
+            title={state.error}
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-xs font-medium border border-rose-200 dark:border-rose-800 max-w-[260px]"
+          >
+            <XCircle size={12} className="shrink-0" />
+            <span className="truncate">{state.error || 'Send failed'}</span>
+          </span>
+        )
+      )}
+    </div>
   );
 }
 
