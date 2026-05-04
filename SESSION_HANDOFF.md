@@ -1,5 +1,20 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget module redesign to match Financials gold standard (commit `b30bb64`)
+
+User flagged Project Budget chrome as ugly vs `/fmplus/financials`. Rebuilt to match exactly:
+
+- **`src/app/fmplus/_components/fmplus-logo.tsx`** (new) — FM+ wordmark SVG: navy "FM" + gold "#D4A93A" "+", size sm/md/lg/xl, dark-mode safe via Tailwind fill classes.
+- **`src/app/fmplus/_components/fmplus-hero.tsx`** (new) — Reusable hero matching Financials pattern: `ix-card` + amber gradient blur (absolute, top-right) + amber-50 icon box + eyebrow/title/subtitle + optional FmplusLogo.
+- **`src/app/fmplus/financial/budget/_components/budget-tab-strip.tsx`** (new) — `'use client'` tab strip, 8 tabs with lucide icons, underline-amber pattern (`border-b-2 -mb-px`, `border-amber-500` on active, `text-amber-700/300`), active state computed from `usePathname()`.
+- **`layout.tsx`** rewritten: `<TopNav>` with FMPLUS > Project Budget breadcrumb, `max-w-7xl mx-auto px-6 py-8 space-y-6`, `<FmplusHero>` + `<BudgetTabStrip>` + `<BilingualToggle>` (right-aligned).
+- Redundant per-page `<header><h2>X</h2></header>` blocks removed from Overview, Projects, Import, Compare (both modes), Settings — layout hero owns the context now.
+- `<ArrowLeft>` import removed from compare/page.tsx (was only used in removed headers).
+
+TS check: 0 fmplus errors. Tests: 206 passed / 12 skipped (all green). Hard constraints honored: no push, no npm install, no migrations, exact Financials pattern, existing CSS classes only, existing TopNav + lucide-react.
+
+---
+
 ## ✅ 2026-05-05 — FM+ Budget v2: 4 LIVE CONTRACTS COMMITTED to Supabase (commit `350a1b8`)
 
 User asked to parse + commit the 4 FMPLUS budget XLSX files into actual contracts. All 4 now live in `bpjproljatbrbmszwbov`:
