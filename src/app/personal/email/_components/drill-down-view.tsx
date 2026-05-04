@@ -21,7 +21,7 @@ import {
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
-import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, markerTier } from '@/lib/personal-email/email-helpers';
+import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, isLowPriority, markerTier } from '@/lib/personal-email/email-helpers';
 
 // Master-detail drill-down: list on the left, preview on the right.
 // Selected email lives in URL as `?msg=<id>` so deep links work and
@@ -71,7 +71,15 @@ export function DrillDownView({
   const sortedRows = useMemo(() => {
     const scored = rows.map(r => ({
       r,
-      tier: markerTier(r),
+      tier: markerTier({
+        subject: r.subject,
+        category: r.category,
+        category_method: r.category_method,
+        needs_review: r.needs_review,
+        label_ids: r.label_ids,
+        to_address: r.to_address,
+        account_email: r.account_email,
+      }),
       ts: r.received_at ? Date.parse(r.received_at) : 0,
     }));
     scored.sort((a, b) => {
@@ -178,15 +186,18 @@ export function DrillDownView({
             const newReservation = isNewReservation(r.subject, r.category);
             const urgent = isImmediateIntervention(r.subject, r.category);
             const toPay = isInvoiceToBePaid(r.subject, r.category);
-            // Precedence: urgent > toPay > newReservation (each color
-            // signals more time-criticality than the next).
+            const lowPriority = isLowPriority(r.to_address, r.account_email);
+            // Precedence: urgent > toPay > newReservation > low-priority.
+            // Low-priority also dims the text color.
             const rowAccentClass = urgent
               ? 'bg-rose-50/40 dark:bg-rose-950/15 hover:bg-rose-50/70 dark:hover:bg-rose-950/35'
               : toPay
                 ? 'bg-yellow-50/40 dark:bg-yellow-950/15 hover:bg-yellow-50/70 dark:hover:bg-yellow-950/35'
                 : newReservation
                   ? 'bg-emerald-50/30 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30'
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-900/40';
+                  : lowPriority
+                    ? 'opacity-70 hover:bg-slate-50 dark:hover:bg-slate-900/40'
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-900/40';
             return (
               <li
                 key={r.id}
@@ -231,6 +242,14 @@ export function DrillDownView({
                     {newReservation && !urgent && !toPay && (
                       <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white">
                         NEW
+                      </span>
+                    )}
+                    {lowPriority && !urgent && !toPay && !newReservation && (
+                      <span
+                        className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        title="You're not in the To header — CC, BCC, or list blast"
+                      >
+                        FYI
                       </span>
                     )}
                     <span className="truncate">
@@ -351,6 +370,7 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
   const newReservation = isNewReservation(email.subject, email.category);
   const urgent = isImmediateIntervention(email.subject, email.category);
   const toPay = isInvoiceToBePaid(email.subject, email.category);
+  const lowPriority = isLowPriority(email.to_address, email.account_email);
 
   return (
     <div className="space-y-3">
@@ -374,6 +394,16 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
             <div className="mb-1.5">
               <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white">
                 NEW RESERVATION
+              </span>
+            </div>
+          )}
+          {lowPriority && !urgent && !toPay && !newReservation && (
+            <div className="mb-1.5">
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                title="You're not in the To header — CC/BCC/list blast"
+              >
+                FYI · NOT ADDRESSED TO YOU
               </span>
             </div>
           )}

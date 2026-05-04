@@ -106,34 +106,59 @@ export function isInvoiceToBePaid(
   return INVOICE_TO_PAY_PATTERN.test(subject);
 }
 
+// Detect emails where the mailbox owner is NOT in the To header —
+// meaning the user is on CC, BCC, or part of a list blast. Renders
+// as a gray FYI marker and demotes the row in the drill-down sort.
+export function isLowPriority(
+  toAddress: string | null | undefined,
+  accountEmail: string | null | undefined,
+): boolean {
+  if (!accountEmail) return false;
+  const normalizedAccount = accountEmail.toLowerCase();
+  if (!toAddress) return true; // no To header at all = blast/list
+  return !toAddress.toLowerCase().includes(normalizedAccount);
+}
+
 // Sort tier for the drill-down view. Lower number = higher precedence.
 // Marked rows (urgent / to-pay / new-reservation / needs-review) bubble
 // to the top of the list — but only WHILE THEY'RE STILL ACTIONABLE
 // (Gmail UNREAD label still present, INBOX label still present, user
 // hasn't manually moved them). Once the user reads / archives / moves
 // a marked row, it drops to the natural date-sorted tier.
+//
+// Low-priority rows (CC-only / blast / not addressed to me) sit BELOW
+// normal rows so the inbox foreground is the mail actually directed
+// at the user.
 export type MarkerInputs = {
   subject: string | null;
   category: string | null;
   category_method?: string | null;
   needs_review?: boolean | null;
   label_ids?: string[] | null;
+  to_address?: string | null;
+  account_email?: string | null;
 };
 
 export function markerTier(row: MarkerInputs): number {
   const labels = row.label_ids ?? [];
-  // "Acted on" = already read OR already archived OR moved by hand.
-  // We treat an absent UNREAD label as "user has read it" and an
-  // absent INBOX label as "user has archived it".
   const stillUnread = labels.includes('UNREAD');
   const stillInInbox = labels.includes('INBOX');
   const movedManually = row.category_method === 'manual';
   const actionable = stillUnread && stillInInbox && !movedManually;
 
-  if (!actionable) return 10; // already handled — natural order
-  if (isImmediateIntervention(row.subject, row.category)) return 0;
-  if (isInvoiceToBePaid(row.subject, row.category)) return 1;
-  if (isNewReservation(row.subject, row.category)) return 2;
-  if (row.needs_review) return 3;
+  // Marked + still actionable → top of list, in marker precedence.
+  if (actionable) {
+    if (isImmediateIntervention(row.subject, row.category)) return 0;
+    if (isInvoiceToBePaid(row.subject, row.category)) return 1;
+    if (isNewReservation(row.subject, row.category)) return 2;
+    if (row.needs_review) return 3;
+  }
+
+  // Low-priority (CC-only, broadcast, not addressed to me) drops to
+  // tier 12 so it sits below normal mail.
+  if (isLowPriority(row.to_address ?? null, row.account_email ?? null)) {
+    return 12;
+  }
+
   return 10;
 }

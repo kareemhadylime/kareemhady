@@ -9,6 +9,7 @@ export type InboxRow = {
   account_display_name: string | null;
   subject: string | null;
   from_address: string | null;
+  to_address: string | null;
   received_at: string | null;
   category: CategorySlug | null;
   category_method: string | null;
@@ -31,7 +32,7 @@ export async function loadInbox(filters: InboxFilters = {}): Promise<InboxRow[]>
   const sb = supabaseAdmin();
   let q = sb
     .from('email_logs')
-    .select('id, account_id, subject, from_address, received_at, category, category_method, needs_review, label_ids, accounts!inner(email, display_name, domain)')
+    .select('id, account_id, subject, from_address, to_address, received_at, category, category_method, needs_review, label_ids, accounts!inner(email, display_name, domain)')
     .eq('accounts.domain', 'personal')
     .order('received_at', { ascending: false })
     .limit(filters.limit ?? 200);
@@ -49,6 +50,7 @@ export async function loadInbox(filters: InboxFilters = {}): Promise<InboxRow[]>
     account_display_name: r.accounts?.display_name ?? null,
     subject: r.subject,
     from_address: r.from_address,
+    to_address: r.to_address ?? null,
     received_at: r.received_at,
     category: r.category as CategorySlug | null,
     category_method: r.category_method ?? null,

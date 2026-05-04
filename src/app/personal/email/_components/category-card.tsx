@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import type { CategoryDef } from '@/lib/personal-email/categories';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
-import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid } from '@/lib/personal-email/email-helpers';
+import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, isLowPriority } from '@/lib/personal-email/email-helpers';
 
 // Icon registry mapping seeded `iconName` strings to actual lucide
 // icons. Keep in sync with categories.ts seed.
@@ -173,8 +173,9 @@ export function CategoryCard({
             const newReservation = isNewReservation(r.subject, r.category);
             const urgent = isImmediateIntervention(r.subject, r.category);
             const toPay = isInvoiceToBePaid(r.subject, r.category);
+            const lowPriority = isLowPriority(r.to_address, r.account_email);
             return (
-              <li key={r.id} className="truncate flex items-center gap-1.5">
+              <li key={r.id} className={`truncate flex items-center gap-1.5 ${lowPriority && !urgent && !toPay && !newReservation ? 'opacity-60' : ''}`}>
                 {urgent && (
                   <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-rose-600 text-white" title="Needs immediate action">
                     URGENT
@@ -188,6 +189,11 @@ export function CategoryCard({
                 {newReservation && !urgent && !toPay && (
                   <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white" title="New reservation">
                     NEW
+                  </span>
+                )}
+                {lowPriority && !urgent && !toPay && !newReservation && (
+                  <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Not in To header — CC/BCC/list">
+                    FYI
                   </span>
                 )}
                 <span className="truncate">
