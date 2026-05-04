@@ -7,10 +7,17 @@ import { CartBar } from './_components/cart-bar';
 
 export const dynamic = 'force-dynamic';
 
-interface Ctx { params: Promise<{ token: string }> }
+interface Ctx {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ lang?: string }>;
+}
 
-export default async function DinePage({ params }: Ctx) {
+const VALID_LANGS = ['en', 'ar', 'ru', 'fr'] as const;
+type Lang = (typeof VALID_LANGS)[number];
+
+export default async function DinePage({ params, searchParams }: Ctx) {
   const { token } = await params;
+  const sp = await searchParams;
   const c = await validateDineToken(token);
 
   if (!c.ok) {
@@ -30,6 +37,17 @@ export default async function DinePage({ params }: Ctx) {
     );
   }
 
+  const langParam = sp?.lang;
+  const lang: Lang = (VALID_LANGS as readonly string[]).includes(langParam ?? '')
+    ? (langParam as Lang)
+    : c.guest_language;
+
+  function pick(row: Record<string, unknown>, field: string): string | null {
+    return (row[`${field}_${lang}`] as string | null)
+      ?? (row[`${field}_en`] as string | null)
+      ?? null;
+  }
+
   const sb = supabaseAdmin();
   const [cats, items, mods, overrides] = await Promise.all([
     sb.from('fnb_categories').select('*')
@@ -42,24 +60,50 @@ export default async function DinePage({ params }: Ctx) {
       .eq('building_code', c.building_code).eq('is_out_of_stock', true),
   ]);
 
-  const outOfStock = new Set((overrides.data ?? []).map(o => o.item_id));
+  const outOfStock = new Set(
+    ((overrides.data ?? []) as Array<{ item_id: string }>).map(o => o.item_id),
+  );
 
   return (
     <BrandShell
       guestName={c.guest_name}
       buildingCode={c.building_code}
       unitCode={c.unit_code}
-      lang={c.guest_language}
+      lang={lang}
     >
-      {(cats.data ?? []).map(cat => {
-        const catItems = (items.data ?? []).filter(i => i.category_id === cat.id);
+      {((cats.data ?? []) as Array<Record<string, unknown>>).map(catRow => {
+        const cat = {
+          ...catRow,
+          name: pick(catRow, 'name') ?? '',
+        } as {
+          id: string;
+          name: string;
+          hours_start: string;
+          hours_end: string;
+          [k: string]: unknown;
+        };
+
+        const catItems = ((items.data ?? []) as Array<Record<string, unknown>>)
+          .filter(i => i.category_id === cat.id)
+          .map(i => ({
+            ...i,
+            name: pick(i, 'name') ?? '',
+            description: pick(i, 'description') ?? null,
+          }));
+
+        const catMods = ((mods.data ?? []) as Array<Record<string, unknown>>)
+          .filter(m => catItems.some(i => (i as Record<string, unknown>).id === m.item_id))
+          .map(m => ({
+            ...m,
+            name: pick(m, 'name') ?? '',
+          }));
+
         return (
           <CategorySection
             key={cat.id}
-            category={cat}
-            items={catItems}
-            modifiers={(mods.data ?? []).filter(m =>
-              catItems.some(i => i.id === m.item_id))}
+            category={cat as never}
+            items={catItems as never}
+            modifiers={catMods as never}
             outOfStock={outOfStock}
           />
         );

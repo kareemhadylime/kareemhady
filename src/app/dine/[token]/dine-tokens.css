@@ -176,3 +176,27 @@
   opacity: 0.08;
   user-select: none;
 }
+
+/* ---- RTL layout for Arabic ---- */
+.dine-surface[lang="ar"] {
+  direction: rtl;
+  font-family: var(--bh-ff-arabic);
+}
+
+.dine-surface[lang="ar"] .display {
+  font-family: var(--bh-ff-arabic);
+  letter-spacing: 0;
+}
+
+.dine-surface[lang="ar"] .dine-section-title {
+  font-family: var(--bh-ff-arabic);
+  letter-spacing: 0;
+}
+
+.dine-surface[lang="ar"] .dine-item-name {
+  font-family: var(--bh-ff-arabic);
+}
+
+.dine-surface[lang="ar"] .dine-item-desc {
+  font-family: var(--bh-ff-arabic);
+}

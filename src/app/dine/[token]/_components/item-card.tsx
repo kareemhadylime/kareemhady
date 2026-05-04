@@ -14,10 +14,10 @@ export function ItemCard({
         onClick={() => !outOfStock && setOpen(true)}
         style={{ cursor: outOfStock ? 'default' : 'pointer' }}
       >
-        <h3 className="dine-item-name">{item.name_en}</h3>
+        <h3 className="dine-item-name">{(item as unknown as { name?: string }).name ?? item.name_en}</h3>
         <span className="dine-item-price">${item.price_usd.toFixed(0)}</span>
-        {item.description_en && (
-          <p className="dine-item-desc">{item.description_en}</p>
+        {((item as unknown as { description?: string | null }).description ?? item.description_en) && (
+          <p className="dine-item-desc">{(item as unknown as { description?: string | null }).description ?? item.description_en}</p>
         )}
         {modifiers.map(m => (
           <p
@@ -25,7 +25,7 @@ export function ItemCard({
             className="dine-item-desc"
             style={{ paddingLeft: '1rem', fontStyle: 'italic' }}
           >
-            + {m.name_en} ${m.price_delta_usd.toFixed(0)}
+            + {(m as unknown as { name?: string }).name ?? m.name_en} ${m.price_delta_usd.toFixed(0)}
           </p>
         ))}
       </article>

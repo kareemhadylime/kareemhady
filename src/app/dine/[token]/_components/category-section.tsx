@@ -15,7 +15,7 @@ export function CategorySection({
 }) {
   return (
     <section className="relative px-2">
-      <h2 className="dine-section-title">{category.name_en}</h2>
+      <h2 className="dine-section-title">{(category as unknown as { name?: string }).name ?? category.name_en}</h2>
       <div>
         {items.map(item => (
           <ItemCard

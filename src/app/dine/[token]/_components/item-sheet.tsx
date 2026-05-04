@@ -22,15 +22,20 @@ export function ItemSheet({
         .reduce((s, m) => s + m.price_delta_usd, 0));
 
   function add() {
+    const itemName = (item as unknown as { name?: string }).name ?? item.name_en;
     cart.add({
       item_id: item.id!,
-      item_name: item.name_en,
+      item_name: itemName,
       unit_price_usd: item.price_usd,
       quantity: qty,
       modifier_ids: [...picked],
       modifiers: modifiers
         .filter(m => picked.has(m.id!))
-        .map(m => ({ id: m.id!, name: m.name_en, price_delta_usd: m.price_delta_usd })),
+        .map(m => ({
+          id: m.id!,
+          name: (m as unknown as { name?: string }).name ?? m.name_en,
+          price_delta_usd: m.price_delta_usd,
+        })),
       notes,
     });
     onClose();
@@ -47,12 +52,12 @@ export function ItemSheet({
         style={{ maxHeight: '90vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
       >
-        <h3 className="display text-2xl mb-2">{item.name_en}</h3>
+        <h3 className="display text-2xl mb-2">{(item as unknown as { name?: string }).name ?? item.name_en}</h3>
         <span className="dine-item-price text-lg block mb-3">
           ${item.price_usd.toFixed(0)}
         </span>
-        {item.description_en && (
-          <p className="dine-item-desc mb-4">{item.description_en}</p>
+        {((item as unknown as { description?: string | null }).description ?? item.description_en) && (
+          <p className="dine-item-desc mb-4">{(item as unknown as { description?: string | null }).description ?? item.description_en}</p>
         )}
         {modifiers.length > 0 && (
           <fieldset className="mb-4">
@@ -73,7 +78,7 @@ export function ItemSheet({
                   }}
                 />
                 <span className="text-sm">
-                  {m.name_en} +${m.price_delta_usd.toFixed(0)}
+                  {(m as unknown as { name?: string }).name ?? m.name_en} +${m.price_delta_usd.toFixed(0)}
                 </span>
               </label>
             ))}

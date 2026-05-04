@@ -1,6 +1,7 @@
 import 'server-only';
 import Image from 'next/image';
-import { ReactNode } from 'react';
+import { ReactNode, Suspense } from 'react';
+import { LanguageSwitcher } from './language-switcher';
 
 export function BrandShell({
   children,
@@ -40,6 +41,9 @@ export function BrandShell({
           <h1 className="display mt-4 text-3xl tracking-wider relative z-10">
             IN-ROOM DINING
           </h1>
+          <Suspense fallback={null}>
+            <LanguageSwitcher current={lang} />
+          </Suspense>
           {guestName && (
             <p
               className="mt-2 text-sm relative z-10"
