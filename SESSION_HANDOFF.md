@@ -183,6 +183,63 @@ this turn's stop hook update).
 
 ---
 
+## ✅ 2026-05-04 — FM+ Budget v2: revert applied (path A), Task 2 re-dispatched and clean
+
+User picked **A** (revert + redo). Executed cleanly:
+
+1. `git revert` of 3 over-reach commits (`732712d`, `21d500c`, `f85a4ad`)
+   produced 3 revert commits, all pushed to main as `393b590`. Files
+   `schema.ts` (over-reach version), `permissions.ts` (over-reach), and
+   migration `0082_fmplus_budget_v2_rls.sql` are all deleted from the
+   tree on main.
+2. `rm -rf src/lib/fmplus/budget-v2/` — orphan dir removed (had stray
+   uncommitted `types.ts` from over-reach).
+3. Supabase RLS cleanup via `execute_sql`: disabled RLS on all 10 v2
+   tables, dropped 16 policies, dropped 4 helper functions
+   (`budget_can_view_contract`, `budget_can_edit_contract`,
+   `budget_can_edit_year`, `budget_user_contracts`). Verification query
+   confirmed 0 RLS, 0 policies, 0 fns, 10 v2 tables intact.
+4. Migration `0081_fmplus_project_budget_v2.sql` retained (Task 1 work
+   was correct). Migration slot `0082` is now free for Task 12 (catalog
+   seed) as the plan intended.
+
+**Task 2 re-dispatched with hard guardrails** in the implementer prompt:
+- Implement Task 2 ONLY (no Task 3 spillover)
+- Use directory `src/lib/fmplus/budget/` (NOT `budget-v2/`)
+- IDs are `z.number()` (NEVER `z.bigint()` — Supabase returns numbers)
+- ISO dates are `z.string()` (NEVER `z.coerce.date()`)
+- Enum exports named `*Enum` (NEVER `*Schema`)
+- Do NOT create migrations
+- Do NOT push to main (controller batches pushes)
+- Do NOT call npm install
+
+**Implementer reported DONE** — `1cddfb3` `feat(fmplus-budget): zod
+schemas + TS types for v2 (10 tables + template + variance)`. Files
+created: `schema.ts` (216 lines), `types.ts` (54 lines), `schema.test.ts`
+(78 lines). Tests: 5/5 pass.
+
+**Verified by controller (per "do not trust subagent reports" rule):**
+- No `z.bigint()` anywhere
+- No `z.coerce.date()` anywhere
+- All 8 enums correctly named `*Enum` (ServiceLineEnum, YearTrackingEnum,
+  ScenarioEnum, StatusEnum, SeasonEnum, CategoryEnum, CatalogUnitEnum,
+  MobAmortEnum)
+- IDs `z.number()` ✓, dates `z.string()` with `// ISO date` comment ✓
+- Single commit, no push, no migration files
+- 5/5 tests pass under vitest
+
+**State at end of turn:**
+- TodoWrite: Task 1 = completed, Task 2 = in_progress, Tasks 3-40 pending
+- Branch `claude/eager-williamson-5787df` is at `1cddfb3`, NOT yet pushed
+  (controller batching pushes for the 40-task workflow)
+- Worktree clean
+
+**Next step (next turn):** dispatch spec reviewer for Task 2 (verify code
+matches plan independently), then code quality reviewer, then mark Task 2
+complete and dispatch Task 3 (`permissions.ts` + `db.ts` — small task,
+will use the same hard-guardrail prompt template)
+
+(legacy line preserved below for diff context)
 ## 🔴 2026-05-04 — FM+ Budget v2 Task 1 implementer over-reached; awaiting user pick (A/B/C)
 
 **What I asked the Task 1 implementer subagent to do:**
