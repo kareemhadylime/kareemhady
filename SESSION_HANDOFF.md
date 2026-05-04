@@ -1,28 +1,33 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
-## ✅ 2026-05-04 — FMPLUS Financials: Phase 2 SHIPPED (commit `6e35b7d`) — Projects tab + side-by-side P&L + Apply spinner
+## ✅ 2026-05-04 — FMPLUS Financials: Phase 2 SHIPPED (commit `6e35b7d`, parallel session) — Projects tab + side-by-side P&L + Apply spinner
 
 Three deliverables on top of Phase 1:
 
-1. **New `Projects` tab** (4th, after Dashboard / P&L / Balance Sheet) — `view=projects`. Renders 4 ranking cards:
-   - Top Revenue (top 10 by revenue, emerald/DollarSign)
-   - Best by Gross Profit (top 10 by absolute GP, indigo/TrendingUp)
-   - Best by Margin % (top 10 by GP/Revenue ratio, amber/Percent, revenue ≥ 1k threshold to filter noise)
-   - Worst by Margin % (bottom 10 by margin %, rose/AlertTriangle)
-   - Each row clickable → filters P&L for that single analytic account. Activity-filtered.
-   - Respects service-line filter from picker (only projects under that plan when one is picked).
+1. **New `Projects` tab** (4th, after Dashboard / P&L / Balance Sheet) — `view=projects`. Renders 4 ranking cards: Top Revenue (top 10 by revenue, emerald/DollarSign), Best by Gross Profit (top 10 by absolute GP, indigo/TrendingUp), Best by Margin % (top 10 by GP/Revenue ratio, amber/Percent, revenue ≥ 1k threshold), Worst by Margin % (bottom 10, rose/AlertTriangle). Each row clickable → filters P&L for that single analytic account. Activity-filtered. Respects service-line filter from picker.
 
-2. **Side-by-side P&L** — when `multi=1` AND ≥2 projects picked, P&L renders columns of projects + a TOTAL column. `ComparePnlTable.tsx` handles the multi-column layout; page.tsx builds one P&L per project via `buildFmplusPnl({accountIds: [id]})`. Cap at 5 (picker enforced); periods forced to 1 in compare mode.
+2. **Side-by-side P&L** — when `multi=1` AND ≥2 projects picked, P&L renders columns of projects + a TOTAL column. `ComparePnlTable.tsx` handles the multi-column layout; page.tsx builds one P&L per project via `buildFmplusPnl({accountIds: [id]})`. Cap at 5; periods forced to 1 in compare mode.
 
-3. **Loading spinner on Apply button** — new client component `AsOfForm.tsx` lifts the form submit into `router.push` + `useTransition` so the Apply button shows a `Loader2` spin + "Loading…" label during navigation. FilterBar accepts `preservedParams` so plan/account/accounts/multi survive the period change.
+3. **Loading spinner on Apply button** — new client component `AsOfForm.tsx` lifts the form submit into `router.push` + `useTransition`. FilterBar accepts `preservedParams` so plan/account/accounts/multi survive the period change.
+
+**New files (parallel session):** `src/lib/fmplus/project-rankings.ts`, `src/app/fmplus/financials/_components/ProjectsView.tsx`, `ComparePnlTable.tsx`, `AsOfForm.tsx`. tsc clean, `npm run build` clean.
+
+---
+
+## ✅ 2026-05-04 — FM+ Budget v2.1: contract management (edit + add service + delete) — commit `d3a0a90`
+
+Implemented the 3 v2.1 contract-management functions per spec:
 
 **New files:**
-- `src/lib/fmplus/project-rankings.ts` — `buildFmplusProjectRankings`. Joins odoo_move_line_analytics → odoo_move_lines → odoo_accounts, classifies via `classifyByPrefix` to match P&L revenue/COGS attribution exactly. Apportions by analytic-link `percentage`.
-- `src/app/fmplus/financials/_components/ProjectsView.tsx` — 4-card grid with rankable tables.
-- `src/app/fmplus/financials/_components/ComparePnlTable.tsx` — side-by-side P&L compare.
-- `src/app/fmplus/financials/_components/AsOfForm.tsx` — client form with router.push + useTransition.
+- `src/lib/fmplus/budget/contracts/edit.ts` — `updateContractMetadata`, `addServiceLine`, `deleteContract` (FK cascades handle dependents on delete)
+- `src/app/fmplus/financial/budget/projects/[contractId]/page.tsx` — RSC detail/edit page: read-only header strip (Odoo project, years count, services, duration), renders `<EditContractForm>`
+- `src/app/fmplus/financial/budget/projects/[contractId]/_components/edit-contract-form.tsx` — client form: metadata edit + save, service-line add (with auto year_service rows), danger-zone delete with name-confirm gate
 
-tsc clean, `npm run build` clean. URL params from Phase 1 unchanged; adds `view=projects`.
+**Modified files:**
+- `src/app/fmplus/financial/budget/projects/actions.ts` — appended `updateContractAction`, `addServiceLineAction`, `deleteContractAction`
+- `src/app/fmplus/financial/budget/projects/_components/contract-card.tsx` — outer `<Link>` → `<div>`; replaced card-wide click with explicit "Open Editor" + "⚙ Edit" footer row (two separate links)
+
+**Verification:** `tsc --noEmit` → 0 errors. Tests: 159 passed / 9 skipped.
 
 ---
 
