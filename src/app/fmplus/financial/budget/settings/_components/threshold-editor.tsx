@@ -53,10 +53,10 @@ export function ThresholdEditor({ initial, canEdit }: Props) {
   };
 
   return (
-    <section className="bg-bg-tertiary border border-border rounded-lg p-4 space-y-4">
+    <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Variance thresholds (asymmetric)</h3>
-        <p className="text-[11px] text-text-secondary mb-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Variance thresholds (asymmetric)</h3>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
           <code>|var%|</code> ≤ green → <span className="text-green-400">green</span> ·
           var% &gt; amber → <span className="text-red-400">red</span> (overspend) ·
           everything else → <span className="text-amber-400">amber</span> (incl. underspend &gt; green).
@@ -66,11 +66,11 @@ export function ThresholdEditor({ initial, canEdit }: Props) {
           <Field label="Amber ≤ (%)" value={s.amber_pct} onChange={v => update('amber_pct', v)} disabled={!canEdit || isPending} />
           <div>
             <label className="block">
-              <span className="text-[10px] text-text-secondary uppercase">Default scenario</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">Default scenario</span>
               <select value={s.default_scenario}
                 onChange={e => update('default_scenario', e.currentTarget.value as 'initial' | 'revised' | 'reforecast')}
                 disabled={!canEdit || isPending}
-                className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1 disabled:opacity-50">
+                className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1 disabled:opacity-50">
                 <option value="initial">Initial</option>
                 <option value="revised">Revised</option>
                 <option value="reforecast">Reforecast</option>
@@ -81,8 +81,8 @@ export function ThresholdEditor({ initial, canEdit }: Props) {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Default inflation knobs</h3>
-        <p className="text-[11px] text-text-secondary mb-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Default inflation knobs</h3>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
           Pre-fill values for the Copy Y1 → Y2 dialog. Per-contract overrides happen in the dialog.
         </p>
         <div className="grid grid-cols-3 gap-3">
@@ -93,16 +93,16 @@ export function ThresholdEditor({ initial, canEdit }: Props) {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-text-primary mb-1">Mobilization defaults</h3>
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Mobilization defaults</h3>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Amortization months" value={s.default_mob_amortization_months} onChange={v => update('default_mob_amortization_months', Math.round(v))} disabled={!canEdit || isPending} integer />
           <div>
             <label className="block">
-              <span className="text-[10px] text-text-secondary uppercase">Bilingual default</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">Bilingual default</span>
               <select value={s.bilingual_default}
                 onChange={e => update('bilingual_default', e.currentTarget.value as 'en' | 'ar')}
                 disabled={!canEdit || isPending}
-                className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1 disabled:opacity-50">
+                className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1 disabled:opacity-50">
                 <option value="en">English (LTR)</option>
                 <option value="ar">العربية (RTL)</option>
               </select>
@@ -114,9 +114,9 @@ export function ThresholdEditor({ initial, canEdit }: Props) {
       {error && <p className="text-xs text-red-400">{error}</p>}
       {ok && <p className="text-xs text-green-400">Saved.</p>}
 
-      <div className="flex justify-end pt-2 border-t border-border">
+      <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-700">
         <button type="button" onClick={onSave} disabled={!canEdit || isPending}
-          className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
+          className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
           <Save size={12} /> {isPending ? 'Saving…' : 'Save Settings'}
         </button>
       </div>
@@ -133,12 +133,12 @@ function Field({ label, value, onChange, disabled, integer }: {
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] text-text-secondary uppercase">{label}</span>
+      <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">{label}</span>
       <input type="number" min="0" max={integer ? 120 : 100} step={integer ? 1 : 0.1}
         value={value}
         onChange={e => onChange(Number(e.currentTarget.value) || 0)}
         disabled={disabled}
-        className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1 text-right tabular-nums disabled:opacity-50" />
+        className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1 text-right tabular-nums disabled:opacity-50" />
     </label>
   );
 }

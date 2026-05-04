@@ -34,12 +34,12 @@ export function BilingualToggle() {
 
   return (
     <button type="button" onClick={toggle}
-      className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary flex items-center gap-1.5"
+      className="text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1.5"
       title={lang === 'en' ? 'Switch to Arabic' : 'التبديل إلى الإنجليزية'}>
       <Languages size={13} />
       <span>{lang === 'en' ? 'EN' : 'ع'}</span>
-      <span className="text-text-secondary">/</span>
-      <span className="text-text-secondary">{lang === 'en' ? 'ع' : 'EN'}</span>
+      <span className="text-slate-500 dark:text-slate-400">/</span>
+      <span className="text-slate-500 dark:text-slate-400">{lang === 'en' ? 'ع' : 'EN'}</span>
     </button>
   );
 }

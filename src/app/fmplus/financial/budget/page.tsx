@@ -82,8 +82,8 @@ export default async function OverviewPage(props: OverviewPageProps) {
   return (
     <div className="space-y-5">
       <header>
-        <h2 className="text-base font-semibold text-text-primary">Overview</h2>
-        <p className="text-xs text-text-secondary mt-0.5">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Overview</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           Portfolio rollup across all FMPLUS contracts{serviceLine ? ` · filtered to ${serviceLine.toUpperCase()}` : ''}
         </p>
       </header>
@@ -92,14 +92,14 @@ export default async function OverviewPage(props: OverviewPageProps) {
       <div className="flex gap-1.5 flex-wrap text-xs">
         <Link href="?"
           className={`px-3 py-1 rounded-full font-semibold ${
-            !serviceLine ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary border border-border hover:text-text-primary'
+            !serviceLine ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
           }`}>
           All
         </Link>
         {SERVICE_VALUES.map(sl => (
           <Link key={sl} href={`?service=${sl}`}
             className={`px-3 py-1 rounded-full font-semibold ${
-              sl === serviceLine ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary border border-border hover:text-text-primary'
+              sl === serviceLine ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
             }`}>
             {sl.toUpperCase()}
           </Link>
@@ -123,15 +123,15 @@ export default async function OverviewPage(props: OverviewPageProps) {
 
       {/* Project table */}
       {enriched.length === 0 ? (
-        <div className="border border-border rounded-lg p-6 text-xs text-text-secondary italic text-center">
-          No contracts. <Link href="/fmplus/financial/budget/projects/new" className="text-accent">Create a contract</Link>.
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-xs text-slate-500 dark:text-slate-400 italic text-center">
+          No contracts. <Link href="/fmplus/financial/budget/projects/new" className="text-indigo-600 dark:text-indigo-400">Create a contract</Link>.
         </div>
       ) : (
-        <div className="bg-bg-tertiary border border-border rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-bg-secondary border-b border-border text-[10px] text-text-secondary uppercase">
+                <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 uppercase">
                   <th className="px-3 py-2 text-left">Project</th>
                   <th className="px-2 py-2 text-left">Year</th>
                   <th className="px-2 py-2 text-right">Budget YTD</th>
@@ -144,13 +144,13 @@ export default async function OverviewPage(props: OverviewPageProps) {
               </thead>
               <tbody>
                 {enriched.map(c => (
-                  <tr key={c.contract_id} className="border-b border-border hover:bg-bg-tertiary/40">
+                  <tr key={c.contract_id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/40">
                     <td className="px-3 py-1.5">
                       <Link href={`/fmplus/financial/budget/variance?contract=${c.contract_id}&year=${c.current_year_index || 1}`}
-                        className="text-accent hover:underline font-medium">
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
                         {c.project_name}
                       </Link>
-                      {c.customer && <div className="text-[10px] text-text-secondary">{c.customer}</div>}
+                      {c.customer && <div className="text-[10px] text-slate-500 dark:text-slate-400">{c.customer}</div>}
                     </td>
                     <td className="px-2 py-1.5">{c.current_year_label}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{c.ytd_budget > 0 ? (c.ytd_budget / 1_000_000).toFixed(2) + ' M' : '—'}</td>
@@ -185,12 +185,12 @@ export default async function OverviewPage(props: OverviewPageProps) {
       {/* Action needed */}
       {actionNeeded.length > 0 && (
         <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-4">
-          <strong className="text-sm text-text-primary">Action needed ({actionNeeded.length})</strong>
-          <ul className="mt-2 space-y-1 text-xs text-text-secondary">
+          <strong className="text-sm text-slate-900 dark:text-slate-100">Action needed ({actionNeeded.length})</strong>
+          <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
             {actionNeeded.slice(0, 5).map(a => (
               <li key={a.contract_id}>
                 <Link href={`/fmplus/financial/budget/edit?contract=${a.contract_id}`}
-                  className="text-accent hover:underline font-medium">
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
                   {a.name}
                 </Link>
                 {' '}— {a.reason}
@@ -205,9 +205,9 @@ export default async function OverviewPage(props: OverviewPageProps) {
 
 function Tile({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="bg-bg-tertiary border border-border rounded p-3">
-      <div className="text-[10px] text-text-secondary uppercase">{label}</div>
-      <div className={`text-base font-semibold tabular-nums mt-0.5 ${color ?? 'text-text-primary'}`}>{value}</div>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-3">
+      <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">{label}</div>
+      <div className={`text-base font-semibold tabular-nums mt-0.5 ${color ?? 'text-slate-900 dark:text-slate-100'}`}>{value}</div>
     </div>
   );
 }

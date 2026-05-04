@@ -51,19 +51,19 @@ export function BulkImportModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-bg-primary border border-border rounded-lg max-w-md w-full overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between p-4 border-b border-border bg-bg-tertiary">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg max-w-md w-full overflow-hidden shadow-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2">
-            <FileSpreadsheet size={18} className="text-accent" />
-            <strong className="text-sm text-text-primary">Bulk import catalog (XLSX)</strong>
+            <FileSpreadsheet size={18} className="text-indigo-600 dark:text-indigo-400" />
+            <strong className="text-sm text-slate-900 dark:text-slate-100">Bulk import catalog (XLSX)</strong>
           </div>
-          <button onClick={handleClose} className="text-text-secondary hover:text-text-primary">
+          <button onClick={handleClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             <X size={16} />
           </button>
         </div>
 
         <div className="p-4 space-y-3 text-sm">
-          <p className="text-xs text-text-secondary">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Upload an XLSX file with an &quot;Items Pricelist&quot; sheet (or as the first sheet). Existing items
             with matching <code className="text-[10px]">code</code> will be updated. New items will be added.
             Items not in the upload are NOT auto-archived.
@@ -80,16 +80,16 @@ export function BulkImportModal({ open, onClose }: Props) {
                     const f = e.currentTarget.files?.[0];
                     setFile(f ?? null);
                   }}
-                  className="block w-full text-xs text-text-secondary
-                    file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-border
-                    file:bg-bg-secondary file:text-text-primary file:text-xs
-                    file:cursor-pointer hover:file:bg-bg-tertiary"
+                  className="block w-full text-xs text-slate-500 dark:text-slate-400
+                    file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-slate-200 dark:border-slate-700
+                    file:bg-slate-50 dark:bg-slate-800 file:text-slate-900 dark:text-slate-100 file:text-xs
+                    file:cursor-pointer hover:file:bg-white dark:bg-slate-900"
                   disabled={isPending}
                 />
               </label>
               {file && (
-                <div className="text-xs text-text-secondary">
-                  Selected: <strong className="text-text-primary">{file.name}</strong>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Selected: <strong className="text-slate-900 dark:text-slate-100">{file.name}</strong>
                   {' '}({(file.size / 1024).toFixed(1)} KB)
                 </div>
               )}
@@ -102,11 +102,11 @@ export function BulkImportModal({ open, onClose }: Props) {
                 <CheckCircle2 size={16} />
                 <strong>Import complete</strong>
               </div>
-              <div className="bg-bg-tertiary rounded p-3 text-xs space-y-1">
+              <div className="bg-white dark:bg-slate-900 rounded p-3 text-xs space-y-1">
                 <div className="flex justify-between"><span>Total parsed:</span><strong className="tabular-nums">{summary.total}</strong></div>
                 <div className="flex justify-between text-green-400"><span>Added:</span><strong className="tabular-nums">{summary.added}</strong></div>
                 <div className="flex justify-between text-amber-400"><span>Updated:</span><strong className="tabular-nums">{summary.updated}</strong></div>
-                <div className="flex justify-between text-text-secondary"><span>Archived:</span><strong className="tabular-nums">{summary.archived}</strong></div>
+                <div className="flex justify-between text-slate-500 dark:text-slate-400"><span>Archived:</span><strong className="tabular-nums">{summary.archived}</strong></div>
               </div>
               {summary.errors.length > 0 && (
                 <div className="text-[11px] text-red-400">
@@ -121,17 +121,17 @@ export function BulkImportModal({ open, onClose }: Props) {
               <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
               <div>
                 <strong>Import failed</strong>
-                <div className="mt-1 text-text-secondary">{error}</div>
+                <div className="mt-1 text-slate-500 dark:text-slate-400">{error}</div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-4 border-t border-border bg-bg-tertiary flex justify-end gap-2">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex justify-end gap-2">
           <button
             type="button"
             onClick={handleClose}
-            className="text-xs px-3 py-1.5 text-text-secondary border border-border rounded hover:bg-bg-secondary"
+            className="text-xs px-3 py-1.5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
             disabled={isPending}>
             {summary ? 'Close' : 'Cancel'}
           </button>
@@ -140,7 +140,7 @@ export function BulkImportModal({ open, onClose }: Props) {
               type="button"
               onClick={handleSubmit}
               disabled={!file || isPending}
-              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+              className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
               <Upload size={12} />
               {isPending ? 'Importing…' : 'Preview & Commit'}
             </button>
@@ -149,7 +149,7 @@ export function BulkImportModal({ open, onClose }: Props) {
             <button
               type="button"
               onClick={reset}
-              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold">
+              className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold">
               Import another
             </button>
           )}

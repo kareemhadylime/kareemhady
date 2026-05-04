@@ -56,7 +56,7 @@ export default async function CatalogPage(props: CatalogPageProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-0 min-h-[60vh] border border-border rounded-lg overflow-hidden">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-0 min-h-[60vh] border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
       <CatalogTable
         items={items}
         selectedId={selectedItem?.id ?? null}

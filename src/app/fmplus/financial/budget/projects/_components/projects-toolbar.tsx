@@ -18,22 +18,22 @@ export function ProjectsToolbar({ currentSearch }: { currentSearch: { q: string;
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 bg-bg-tertiary border border-border rounded-lg px-3 py-2">
+    <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
       <label className="relative">
-        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" />
+        <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
         <input
           type="search"
           placeholder="Search project / customer..."
           defaultValue={currentSearch.q}
           onBlur={(e) => update('q', e.currentTarget.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') update('q', e.currentTarget.value); }}
-          className="pl-7 pr-3 py-1.5 text-sm bg-bg-secondary border border-border rounded w-56"
+          className="pl-7 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded w-56"
         />
       </label>
       <select
         value={currentSearch.service}
         onChange={(e) => update('service', e.currentTarget.value)}
-        className="text-sm bg-bg-secondary border border-border rounded px-2 py-1.5"
+        className="text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
       >
         <option value="">All services</option>
         <option value="hk">HK</option>
@@ -44,7 +44,7 @@ export function ProjectsToolbar({ currentSearch }: { currentSearch: { q: string;
         <option value="waste_mgmt">Waste</option>
         <option value="back_office">Back Office</option>
       </select>
-      {isPending && <span className="text-[10px] text-text-secondary">…</span>}
+      {isPending && <span className="text-[10px] text-slate-500 dark:text-slate-400">…</span>}
     </div>
   );
 }

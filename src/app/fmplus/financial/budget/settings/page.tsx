@@ -68,8 +68,8 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <header>
-        <h2 className="text-base font-semibold text-text-primary">Settings</h2>
-        <p className="text-xs text-text-secondary mt-0.5">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Settings</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           Variance thresholds, default inflation knobs, mobilization amortization, bilingual default, and template overview.
           {!user.is_admin && <span className="ml-1 text-amber-400">View-only — admin role required to edit.</span>}
         </p>
@@ -90,14 +90,14 @@ export default async function SettingsPage() {
       />
 
       {/* Templates overview */}
-      <section className="bg-bg-tertiary border border-border rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">Service-line templates</h3>
-        <p className="text-xs text-text-secondary mb-3">
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Service-line templates</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
           7 templates registered. Edit individual lines via PR; they&apos;re code-defined for v2.0.
         </p>
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-[10px] text-text-secondary uppercase border-b border-border text-left">
+            <tr className="text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700 text-left">
               <th className="px-2 py-1.5">Service</th>
               <th className="px-2 py-1.5 text-right">Version</th>
               <th className="px-2 py-1.5 text-right">Categories</th>
@@ -107,8 +107,8 @@ export default async function SettingsPage() {
           </thead>
           <tbody>
             {templates.map(t => (
-              <tr key={t.service_line} className="border-b border-border">
-                <td className="px-2 py-1.5 font-medium text-text-primary">{t.label_en}</td>
+              <tr key={t.service_line} className="border-b border-slate-200 dark:border-slate-700">
+                <td className="px-2 py-1.5 font-medium text-slate-900 dark:text-slate-100">{t.label_en}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">v{t.version}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{t.categories}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{t.lines}</td>
@@ -122,16 +122,16 @@ export default async function SettingsPage() {
       {/* Unmapped accounts warning */}
       {unmapped.length > 0 && (
         <section className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-text-primary mb-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
             ⚠ Unmapped accounts ({unmapped.length}) — sample of recent activity
           </h3>
-          <p className="text-xs text-text-secondary mb-3">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
             Odoo account codes with recent move-line activity that don&apos;t match any template&apos;s <code>account_map_json</code> regex.
             These actuals fall into <code>_unmapped</code> on Variance reports. Update the matching template to capture them.
           </p>
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-[10px] text-text-secondary uppercase border-b border-border text-left">
+              <tr className="text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700 text-left">
                 <th className="px-2 py-1.5">Code</th>
                 <th className="px-2 py-1.5">Name</th>
                 <th className="px-2 py-1.5 text-right">Recent activity (EGP)</th>
@@ -139,9 +139,9 @@ export default async function SettingsPage() {
             </thead>
             <tbody>
               {unmapped.map(u => (
-                <tr key={u.code} className="border-b border-border">
+                <tr key={u.code} className="border-b border-slate-200 dark:border-slate-700">
                   <td className="px-2 py-1.5 font-mono text-[11px]">{u.code}</td>
-                  <td className="px-2 py-1.5 text-text-secondary">{u.name}</td>
+                  <td className="px-2 py-1.5 text-slate-500 dark:text-slate-400">{u.name}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{u.sample_amount.toLocaleString()}</td>
                 </tr>
               ))}

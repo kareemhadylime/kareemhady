@@ -44,8 +44,8 @@ export default async function ProjectsPage(props: ProjectsPageProps) {
     <div className="space-y-6">
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-base font-semibold text-text-primary">Project Hub</h2>
-          <p className="text-xs text-text-secondary">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Project Hub</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {cards.length} contract{cards.length === 1 ? '' : 's'} ·
             v2 multi-year, multi-service
           </p>
@@ -53,7 +53,7 @@ export default async function ProjectsPage(props: ProjectsPageProps) {
         {user.is_admin && (
           <Link
             href="/fmplus/financial/budget/projects/new"
-            className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 hover:bg-accent/90"
+            className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 hover:bg-indigo-700"
           >
             + New Contract
           </Link>
@@ -65,9 +65,9 @@ export default async function ProjectsPage(props: ProjectsPageProps) {
       />
 
       {cards.length === 0 ? (
-        <div className="border border-border rounded-lg p-12 text-center">
-          <h3 className="text-sm font-semibold text-text-primary mb-1">No contracts yet</h3>
-          <p className="text-xs text-text-secondary">
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-12 text-center">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">No contracts yet</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {sp.q || service_line
               ? 'No matches for current filters. Try clearing them.'
               : 'Use the + New Contract button (admin) to seed the first project.'}
@@ -81,13 +81,13 @@ export default async function ProjectsPage(props: ProjectsPageProps) {
 
       {actionNeeded.length > 0 && (
         <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-4">
-          <strong className="text-sm text-text-primary">&#9888; Action needed ({actionNeeded.length})</strong>
-          <ul className="mt-2 space-y-1 text-xs text-text-secondary">
+          <strong className="text-sm text-slate-900 dark:text-slate-100">&#9888; Action needed ({actionNeeded.length})</strong>
+          <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
             {actionNeeded.slice(0, 5).map(a => (
               <li key={a.contract_id}>
                 <Link
                   href={`/fmplus/financial/budget/edit?contract=${a.contract_id}`}
-                  className="text-accent hover:underline font-medium"
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
                 >
                   {a.project_name}
                 </Link>

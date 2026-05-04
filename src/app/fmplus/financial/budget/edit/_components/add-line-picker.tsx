@@ -136,26 +136,26 @@ export function AddLinePicker({ open, onClose, contractId, yearId, serviceLine, 
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-bg-primary border border-border rounded-lg max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg max-w-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border bg-bg-tertiary">
-          <strong className="text-sm text-text-primary">Add line — {category} · {serviceLine.toUpperCase()}</strong>
-          <button onClick={handleClose} className="text-text-secondary hover:text-text-primary">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <strong className="text-sm text-slate-900 dark:text-slate-100">Add line — {category} · {serviceLine.toUpperCase()}</strong>
+          <button onClick={handleClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             <X size={16} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-border bg-bg-secondary px-3 flex gap-0">
+        <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 flex gap-0">
           <button onClick={() => setTab('catalog')}
             className={`px-3 py-2 text-xs font-semibold border-b-2 ${
-              tab === 'catalog' ? 'border-accent text-text-primary' : 'border-transparent text-text-secondary'
+              tab === 'catalog' ? 'border-indigo-500 text-slate-900 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}>
             Catalog picker
           </button>
           <button onClick={() => setTab('freetext')}
             className={`px-3 py-2 text-xs font-semibold border-b-2 flex items-center gap-1 ${
-              tab === 'freetext' ? 'border-accent text-text-primary' : 'border-transparent text-text-secondary'
+              tab === 'freetext' ? 'border-indigo-500 text-slate-900 dark:text-slate-100' : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}>
             <FileText size={11} /> Free-text line
           </button>
@@ -166,33 +166,33 @@ export function AddLinePicker({ open, onClose, contractId, yearId, serviceLine, 
           {tab === 'catalog' ? (
             <div className="space-y-3">
               <label className="relative block">
-                <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
                 <input type="search" placeholder="Search code, name, مشرف, broom..."
                   value={q} onChange={e => setQ(e.currentTarget.value)}
-                  className="pl-7 pr-3 py-1.5 text-sm bg-bg-secondary border border-border rounded w-full" />
+                  className="pl-7 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded w-full" />
               </label>
               <div className="flex gap-1.5 text-[10px] flex-wrap">
-                <span className="px-2 py-1 bg-blue-500/15 text-accent border border-accent/40 rounded-full">
+                <span className="px-2 py-1 bg-blue-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/40 rounded-full">
                   Service: {filterService || 'any'}
                 </span>
-                <span className="px-2 py-1 bg-bg-secondary text-text-secondary border border-border rounded-full">
+                <span className="px-2 py-1 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-full">
                   Category: {filterCategory || 'any'}
                 </span>
                 <button type="button"
                   onClick={() => { setFilterService(''); setFilterCategory(''); }}
-                  className="px-2 py-1 text-text-secondary hover:text-text-primary underline">
+                  className="px-2 py-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline">
                   clear filters
                 </button>
               </div>
-              {loading && <p className="text-xs text-text-secondary">Searching…</p>}
+              {loading && <p className="text-xs text-slate-500 dark:text-slate-400">Searching…</p>}
               {error && <p className="text-xs text-red-400">{error}</p>}
               {!loading && items.length === 0 && (
-                <p className="text-xs text-text-secondary italic">No matches. Try clearing filters or use the Free-text tab.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic">No matches. Try clearing filters or use the Free-text tab.</p>
               )}
               {items.length > 0 && (
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-[10px] text-text-secondary uppercase border-b border-border text-left">
+                    <tr className="text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700 text-left">
                       <th className="px-2 py-1.5">Code</th>
                       <th className="px-2 py-1.5">Name</th>
                       <th className="px-2 py-1.5 text-center w-16">Unit</th>
@@ -202,19 +202,19 @@ export function AddLinePicker({ open, onClose, contractId, yearId, serviceLine, 
                   </thead>
                   <tbody>
                     {items.map(it => (
-                      <tr key={it.id} className="border-b border-border hover:bg-bg-tertiary/40">
+                      <tr key={it.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/40">
                         <td className="px-2 py-1.5 font-mono text-[10px]">{it.code}</td>
                         <td className="px-2 py-1.5">
                           <div>{it.name_en}</div>
-                          {it.name_ar && <div className="text-[10px] text-text-secondary">{it.name_ar}</div>}
+                          {it.name_ar && <div className="text-[10px] text-slate-500 dark:text-slate-400">{it.name_ar}</div>}
                         </td>
                         <td className="px-2 py-1.5 text-center">
-                          <span className="text-[10px] px-1.5 py-0.5 bg-bg-secondary rounded text-text-secondary">{it.unit}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-slate-50 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">{it.unit}</span>
                         </td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{Number(it.default_price).toLocaleString()}</td>
                         <td className="px-2 py-1.5 text-center">
                           <button type="button" onClick={() => addCatalogItem(it)} disabled={isPending}
-                            className="text-[10px] px-2 py-1 bg-accent text-white rounded font-semibold disabled:opacity-50">
+                            className="text-[10px] px-2 py-1 bg-indigo-600 text-white rounded font-semibold disabled:opacity-50">
                             + Add
                           </button>
                         </td>
@@ -228,37 +228,37 @@ export function AddLinePicker({ open, onClose, contractId, yearId, serviceLine, 
             <div className="space-y-3 max-w-md">
               {error && <p className="text-xs text-red-400">{error}</p>}
               <label className="block">
-                <span className="text-xs text-text-secondary">Line code <span className="text-red-400">*</span></span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Line code <span className="text-red-400">*</span></span>
                 <input value={ftCode} onChange={e => setFtCode(e.currentTarget.value)}
                   placeholder="e.g. custom_role_1"
-                  className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1 font-mono" />
+                  className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1 font-mono" />
               </label>
               <label className="block">
-                <span className="text-xs text-text-secondary">Label (English) <span className="text-red-400">*</span></span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Label (English) <span className="text-red-400">*</span></span>
                 <input value={ftLabelEn} onChange={e => setFtLabelEn(e.currentTarget.value)}
-                  className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1" />
+                  className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1" />
               </label>
               <label className="block">
-                <span className="text-xs text-text-secondary">Label (Arabic, optional)</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">Label (Arabic, optional)</span>
                 <input value={ftLabelAr} onChange={e => setFtLabelAr(e.currentTarget.value)}
-                  className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1" dir="rtl" />
+                  className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1" dir="rtl" />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs text-text-secondary">Qty / HC</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Qty / HC</span>
                   <input type="number" min="0" step="0.01"
                     value={ftQty} onChange={e => setFtQty(e.currentTarget.value)}
-                    className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1 text-right tabular-nums" />
+                    className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1 text-right tabular-nums" />
                 </label>
                 <label className="block">
-                  <span className="text-xs text-text-secondary">Unit cost (EGP / mo)</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Unit cost (EGP / mo)</span>
                   <input type="number" min="0" step="0.01"
                     value={ftUnitCost} onChange={e => setFtUnitCost(e.currentTarget.value)}
-                    className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mt-1 text-right tabular-nums" />
+                    className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-1 text-right tabular-nums" />
                 </label>
               </div>
               <button type="button" onClick={addFreeText} disabled={isPending || !ftCode || !ftLabelEn}
-                className="w-full text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold disabled:opacity-50 flex items-center justify-center gap-1">
+                className="w-full text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold disabled:opacity-50 flex items-center justify-center gap-1">
                 <Plus size={12} /> Add free-text line
               </button>
             </div>
@@ -266,10 +266,10 @@ export function AddLinePicker({ open, onClose, contractId, yearId, serviceLine, 
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-border bg-bg-tertiary text-[11px] text-text-secondary flex justify-between items-center">
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] text-slate-500 dark:text-slate-400 flex justify-between items-center">
           <span>Adds to year_id={yearId} · {serviceLine}/{category}</span>
           <button type="button" onClick={handleClose}
-            className="text-xs px-3 py-1 text-text-secondary border border-border rounded hover:bg-bg-secondary">
+            className="text-xs px-3 py-1 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700">
             Cancel
           </button>
         </div>

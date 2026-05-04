@@ -120,36 +120,36 @@ export function CopyYearDialog({
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-bg-primary border border-border rounded-lg max-w-3xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg max-w-3xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border bg-bg-tertiary">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <div>
-            <strong className="text-sm text-text-primary">
+            <strong className="text-sm text-slate-900 dark:text-slate-100">
               Copy Y{sourceYearIndex} → Y{targetYearIndex} with inflation
             </strong>
-            <div className="text-[11px] text-text-secondary mt-0.5">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
               {contractName} · {lines.length} lines + revenue carry-over
             </div>
           </div>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary">
+          <button onClick={onClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             <X size={16} />
           </button>
         </div>
 
         {/* Source/target summary */}
-        <div className="p-3 bg-bg-secondary border-b border-border grid grid-cols-[1fr_auto_1fr] gap-3 items-center text-xs">
+        <div className="p-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 grid grid-cols-[1fr_auto_1fr] gap-3 items-center text-xs">
           <div>
-            <div className="text-[10px] text-text-secondary uppercase mb-0.5">Source Y{sourceYearIndex}</div>
-            <div className="font-semibold text-text-primary tabular-nums">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-0.5">Source Y{sourceYearIndex}</div>
+            <div className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
               {(annualRevenue / 1_000_000).toFixed(2)} M rev · {(sourceCost / 1_000_000).toFixed(2)} M cost · {sourceGm.toFixed(1)}% GM
             </div>
           </div>
-          <div className="text-2xl text-accent">→</div>
+          <div className="text-2xl text-indigo-600 dark:text-indigo-400">→</div>
           <div>
-            <div className="text-[10px] text-text-secondary uppercase mb-0.5">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-0.5">
               Target Y{targetYearIndex} <span className="text-amber-400">(projected)</span>
             </div>
-            <div className="font-semibold text-text-primary tabular-nums">
+            <div className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
               <span className="text-green-400">{(targetRevenue / 1_000_000).toFixed(2)} M rev</span>
               {' · '}{(targetCost / 1_000_000).toFixed(2)} M cost
               {' · '}<span className={targetGm > sourceGm ? 'text-green-400' : 'text-amber-400'}>{targetGm.toFixed(1)}% GM</span>
@@ -161,18 +161,18 @@ export function CopyYearDialog({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Inflation knobs */}
           <div>
-            <div className="text-[10px] text-text-secondary uppercase font-semibold mb-2">
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-semibold mb-2">
               Uniform inflation (defaults from Settings)
             </div>
             <div className="grid grid-cols-3 gap-3">
               {([
                 ['revenue', 'Revenue', '💰', 'text-green-400'],
-                ['manpower', 'Manpower CTC', '👥', 'text-accent'],
+                ['manpower', 'Manpower CTC', '👥', 'text-indigo-600 dark:text-indigo-400'],
                 ['other', 'Non-manpower', '📦', 'text-amber-400'],
               ] as const).map(([key, label, icon, colorClass]) => (
-                <div key={key} className="bg-bg-tertiary border border-border rounded p-3">
+                <div key={key} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded p-3">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs text-text-primary font-semibold">{icon} {label}</span>
+                    <span className="text-xs text-slate-900 dark:text-slate-100 font-semibold">{icon} {label}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <input
@@ -182,9 +182,9 @@ export function CopyYearDialog({
                       step="0.5"
                       value={knobs[key]}
                       onChange={e => setKnobs(prev => ({ ...prev, [key]: Number(e.currentTarget.value) || 0 }))}
-                      className={`flex-1 text-right text-lg font-bold bg-bg-secondary border border-border rounded px-2 py-1 tabular-nums ${colorClass}`}
+                      className={`flex-1 text-right text-lg font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 tabular-nums ${colorClass}`}
                     />
-                    <span className="text-base text-text-secondary font-semibold">%</span>
+                    <span className="text-base text-slate-500 dark:text-slate-400 font-semibold">%</span>
                   </div>
                   <input
                     type="range"
@@ -198,34 +198,34 @@ export function CopyYearDialog({
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-text-secondary italic mt-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-2">
               Per-contract override only — Settings defaults stay untouched.
             </p>
           </div>
 
           {/* Tweak per line */}
-          <div className="bg-blue-500/5 border border-border rounded p-3">
+          <div className="bg-blue-500/5 border border-slate-200 dark:border-slate-700 rounded p-3">
             <button
               type="button"
               onClick={() => setTweakOpen(o => !o)}
               className="flex items-center justify-between w-full"
             >
-              <span className="text-xs font-semibold text-text-primary inline-flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-1">
                 {tweakOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 Tweak per line
                 {overrideCount > 0 && (
-                  <span className="text-[10px] text-accent font-semibold">· {overrideCount} overridden</span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">· {overrideCount} overridden</span>
                 )}
               </span>
               {tweakOpen && (
                 <span className="relative" onClick={e => e.stopPropagation()}>
-                  <Search size={11} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
+                  <Search size={11} className="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 pointer-events-none" />
                   <input
                     type="search"
                     placeholder="Find line..."
                     value={filter}
                     onChange={e => setFilter(e.currentTarget.value)}
-                    className="pl-6 pr-2 py-0.5 text-xs bg-bg-secondary border border-border rounded w-40"
+                    className="pl-6 pr-2 py-0.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded w-40"
                   />
                 </span>
               )}
@@ -233,13 +233,13 @@ export function CopyYearDialog({
 
             {tweakOpen && (
               <div className="mt-3 max-h-[280px] overflow-y-auto">
-                {loading && <p className="text-[11px] text-text-secondary">Loading lines…</p>}
+                {loading && <p className="text-[11px] text-slate-500 dark:text-slate-400">Loading lines…</p>}
                 {!loading && filteredLines.length === 0 && (
-                  <p className="text-[11px] text-text-secondary">No lines found.</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">No lines found.</p>
                 )}
                 {!loading && filteredLines.length > 0 && (
                   <table className="w-full text-[11px]">
-                    <thead className="text-[9px] text-text-secondary uppercase border-b border-border text-left sticky top-0 bg-bg-tertiary">
+                    <thead className="text-[9px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700 text-left sticky top-0 bg-white dark:bg-slate-900">
                       <tr>
                         <th className="px-1 py-1.5">Line</th>
                         <th className="px-1 py-1.5 text-right w-20">Y{sourceYearIndex} mo</th>
@@ -248,7 +248,7 @@ export function CopyYearDialog({
                         <th className="px-1 py-1.5 w-32">Reason</th>
                       </tr>
                     </thead>
-                    <tbody className="text-text-primary">
+                    <tbody className="text-slate-900 dark:text-slate-100">
                       {filteredLines.map((l) => {
                         const inflated = applyInflation(
                           { line_code: l.line_code, service_line: l.service_line, category: l.category, qty: l.qty, unit_cost: l.unit_cost },
@@ -259,12 +259,12 @@ export function CopyYearDialog({
                         const monthlyTarget = inflated.qty * inflated.unit_cost;
                         const isOverridden = perLinePct[l.line_code] !== undefined;
                         return (
-                          <tr key={l.line_code} className={`border-b border-border ${isOverridden ? 'bg-amber-500/5' : ''}`}>
+                          <tr key={l.line_code} className={`border-b border-slate-200 dark:border-slate-700 ${isOverridden ? 'bg-amber-500/5' : ''}`}>
                             <td className="px-1 py-1.5">
-                              <span className="text-[9px] text-text-secondary">{l.service_line.toUpperCase()}/{l.category}</span>
+                              <span className="text-[9px] text-slate-500 dark:text-slate-400">{l.service_line.toUpperCase()}/{l.category}</span>
                               <div className="font-medium">{l.label_en}</div>
                             </td>
-                            <td className="px-1 py-1.5 text-right tabular-nums text-text-secondary">
+                            <td className="px-1 py-1.5 text-right tabular-nums text-slate-500 dark:text-slate-400">
                               {monthlySource.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                             </td>
                             <td className="px-1 py-1.5 text-center">
@@ -282,10 +282,10 @@ export function CopyYearDialog({
                                     return next;
                                   });
                                 }}
-                                className={`w-14 px-1 py-0.5 text-right text-[11px] bg-bg-secondary border border-border rounded tabular-nums ${isOverridden ? 'text-amber-400 font-semibold' : ''}`}
+                                className={`w-14 px-1 py-0.5 text-right text-[11px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded tabular-nums ${isOverridden ? 'text-amber-400 font-semibold' : ''}`}
                               />
                               {!isOverridden && (
-                                <span className="text-[9px] text-text-secondary ml-1">uniform</span>
+                                <span className="text-[9px] text-slate-500 dark:text-slate-400 ml-1">uniform</span>
                               )}
                             </td>
                             <td className={`px-1 py-1.5 text-right tabular-nums ${isOverridden ? 'text-amber-400 font-semibold' : ''}`}>
@@ -298,7 +298,7 @@ export function CopyYearDialog({
                                 value={reasons[l.line_code] ?? ''}
                                 onChange={e => setReasons(prev => ({ ...prev, [l.line_code]: e.currentTarget.value }))}
                                 disabled={!isOverridden}
-                                className="w-full text-[10px] px-1 py-0.5 bg-bg-secondary border border-border rounded disabled:opacity-30"
+                                className="w-full text-[10px] px-1 py-0.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-30"
                               />
                             </td>
                           </tr>
@@ -313,10 +313,10 @@ export function CopyYearDialog({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-border bg-bg-tertiary flex items-center justify-between gap-2 flex-wrap">
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center justify-between gap-2 flex-wrap">
           {error && <span className="text-xs text-red-400 flex-1">{error}</span>}
           {!error && (
-            <span className="text-[10px] text-text-secondary flex-1">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 flex-1">
               Knobs + {overrideCount} per-line override{overrideCount === 1 ? '' : 's'} will be written to budget_audit on commit.
             </span>
           )}
@@ -324,14 +324,14 @@ export function CopyYearDialog({
             <button
               onClick={onClose}
               disabled={isPending}
-              className="text-xs px-3 py-1.5 text-text-secondary border border-border rounded hover:bg-bg-secondary disabled:opacity-50"
+              className="text-xs px-3 py-1.5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={onCommit}
               disabled={isPending || lines.length === 0}
-              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50"
+              className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50"
             >
               <Save size={12} />
               {isPending

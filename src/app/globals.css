@@ -158,6 +158,21 @@ body {
   }
 }
 
+/* Arabic font fallback when bilingual toggle activates RTL.
+   Geist and Inter lack Arabic glyphs — the system default is harsh. */
+:root {
+  --font-arabic: var(--font-noto-arabic);
+}
+[dir="rtl"], [dir="rtl"] * {
+  font-family: var(--font-arabic), var(--font-sans), Inter, system-ui, sans-serif;
+}
+/* Inline Arabic spans inside otherwise-LTR content (Catalog Arabic name
+   under the English one, CTC labels with Arabic gloss) — apply via :lang(ar)
+   when the text is wrapped in an element with lang="ar". */
+:lang(ar) {
+  font-family: var(--font-arabic), var(--font-sans), Inter, system-ui, sans-serif;
+}
+
 /* Boat Catalogue print sheet — single A4 portrait page. The page
    wrapper (`<main>` in print/[id]/page.tsx) already carries the 12mm
    inset padding, so @page margin is 0. Forces light theme on print so

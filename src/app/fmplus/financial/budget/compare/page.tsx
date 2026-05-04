@@ -101,11 +101,11 @@ async function ProjectsView({ contracts, serviceLine }: { contracts: any[]; serv
     <div className="space-y-4">
       <header>
         <Link href="/fmplus/financial/budget/projects"
-          className="text-[11px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1 mb-1">
+          className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 mb-1">
           <ArrowLeft size={11} /> Project Hub
         </Link>
-        <h2 className="text-base font-semibold text-text-primary">Compare</h2>
-        <p className="text-xs text-text-secondary mt-0.5">Cross-project variance by category</p>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Compare</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Cross-project variance by category</p>
       </header>
 
       <YoyModeToggle mode="projects" />
@@ -116,8 +116,8 @@ async function ProjectsView({ contracts, serviceLine }: { contracts: any[]; serv
           <Link key={sl} href={`?mode=projects&service=${sl}`}
             className={`px-3 py-1 rounded-full font-semibold ${
               sl === serviceLine
-                ? 'bg-accent text-white'
-                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700'
             }`}>
             {sl.toUpperCase()}
           </Link>
@@ -125,7 +125,7 @@ async function ProjectsView({ contracts, serviceLine }: { contracts: any[]; serv
       </div>
 
       {rows.length === 0 ? (
-        <div className="border border-border rounded-lg p-6 text-xs text-text-secondary italic text-center">
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-xs text-slate-500 dark:text-slate-400 italic text-center">
           No contracts have a {serviceLine.toUpperCase()} segment. Try a different service line, or add the service to a contract.
         </div>
       ) : (
@@ -149,9 +149,9 @@ async function YoyView({ contracts, contractIdParam, serviceLine }: { contracts:
   if (!targetContract) {
     return (
       <div className="space-y-4">
-        <h2 className="text-base font-semibold text-text-primary">Compare — Year vs Year</h2>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Compare — Year vs Year</h2>
         <YoyModeToggle mode="yoy" />
-        <div className="border border-border rounded-lg p-6 text-xs text-text-secondary italic text-center">
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-xs text-slate-500 dark:text-slate-400 italic text-center">
           No multi-year contracts available. YoY mode needs ≥2 years on the same contract. Use the Editor&apos;s &quot;Copy year&quot; dialog to create Y2.
         </div>
       </div>
@@ -208,27 +208,27 @@ async function YoyView({ contracts, contractIdParam, serviceLine }: { contracts:
     <div className="space-y-4">
       <header>
         <Link href="/fmplus/financial/budget/projects"
-          className="text-[11px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1 mb-1">
+          className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 mb-1">
           <ArrowLeft size={11} /> Project Hub
         </Link>
-        <h2 className="text-base font-semibold text-text-primary">Compare — Year vs Year</h2>
-        <p className="text-xs text-text-secondary mt-0.5">{targetContract.name} · {serviceLine.toUpperCase()}</p>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Compare — Year vs Year</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{targetContract.name} · {serviceLine.toUpperCase()}</p>
       </header>
 
       <YoyModeToggle mode="yoy" />
 
       <div className="flex gap-2 flex-wrap text-xs">
-        <span className="text-text-secondary">Contract:</span>
+        <span className="text-slate-500 dark:text-slate-400">Contract:</span>
         {eligibleContracts.map((c: any) => (
           <Link key={c.id} href={`?mode=yoy&contract=${c.id}&service=${serviceLine}`}
-            className={c.id === targetContract.id ? 'text-accent font-semibold' : 'hover:text-text-primary'}>
+            className={c.id === targetContract.id ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'hover:text-slate-900 dark:hover:text-slate-100'}>
             {c.name}
           </Link>
         ))}
-        <span className="ml-3 text-text-secondary">Service:</span>
+        <span className="ml-3 text-slate-500 dark:text-slate-400">Service:</span>
         {SERVICE_VALUES.map(sl => (
           <Link key={sl} href={`?mode=yoy&contract=${targetContract.id}&service=${sl}`}
-            className={sl === serviceLine ? 'text-accent font-semibold' : 'hover:text-text-primary'}>
+            className={sl === serviceLine ? 'text-indigo-600 dark:text-indigo-400 font-semibold' : 'hover:text-slate-900 dark:hover:text-slate-100'}>
             {sl.toUpperCase()}
           </Link>
         ))}

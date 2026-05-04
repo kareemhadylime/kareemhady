@@ -31,7 +31,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
 
   if (!item) {
     return (
-      <aside className="bg-bg-tertiary border-l border-border p-4 text-sm text-text-secondary">
+      <aside className="bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 p-4 text-sm text-slate-500 dark:text-slate-400">
         <div className="text-xs uppercase font-semibold mb-2">Per-project overrides</div>
         <p>Select a row from the catalog to manage its per-project price overrides.</p>
       </aside>
@@ -69,21 +69,21 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
       : null;
 
   return (
-    <aside className="bg-bg-tertiary border-l border-border p-4 space-y-4 overflow-y-auto">
+    <aside className="bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-700 p-4 space-y-4 overflow-y-auto">
       <div className="flex justify-between items-center">
-        <strong className="text-sm text-text-primary">Per-project overrides</strong>
-        <span className="text-[10px] text-text-secondary uppercase">selected item</span>
+        <strong className="text-sm text-slate-900 dark:text-slate-100">Per-project overrides</strong>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">selected item</span>
       </div>
 
       {/* Selected item summary */}
-      <div className="bg-bg-secondary border border-accent rounded p-3 text-xs">
-        <div className="font-semibold text-text-primary">{item.code}</div>
-        <div className="text-text-secondary text-[11px]">
+      <div className="bg-slate-50 dark:bg-slate-800 border border-indigo-500 rounded p-3 text-xs">
+        <div className="font-semibold text-slate-900 dark:text-slate-100">{item.code}</div>
+        <div className="text-slate-500 dark:text-slate-400 text-[11px]">
           {item.name_en}
           {item.name_ar ? ` · ${item.name_ar}` : ''}
         </div>
         <div className="mt-1.5 flex justify-between">
-          <span className="text-text-secondary">Default price:</span>
+          <span className="text-slate-500 dark:text-slate-400">Default price:</span>
           <strong className="tabular-nums">
             {defaultPrice.toLocaleString()} EGP / {item.unit}
           </strong>
@@ -93,13 +93,13 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
       {/* Override entry form (admin-only) */}
       {canEdit ? (
         <div>
-          <div className="text-[10px] text-text-secondary uppercase mb-1">Override for contract</div>
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-1">Override for contract</div>
           <select
             value={contractId}
             onChange={(e) =>
               setContractId(e.currentTarget.value ? Number(e.currentTarget.value) : '')
             }
-            className="w-full text-sm bg-bg-secondary border border-border rounded px-2 py-1.5 mb-2"
+            className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mb-2"
           >
             <option value="">— Pick contract —</option>
             {contracts.map((c) => (
@@ -109,9 +109,9 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
             ))}
           </select>
           {contractId !== '' && (
-            <div className="bg-bg-secondary border border-border rounded p-2 space-y-2">
+            <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-2 space-y-2">
               <div>
-                <div className="text-[10px] text-text-secondary mb-0.5">Override unit price (EGP)</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">Override unit price (EGP)</div>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -119,7 +119,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
                   step="0.01"
                   value={unitCost}
                   onChange={(e) => setUnitCost(e.currentTarget.value)}
-                  className="w-full text-sm bg-bg-tertiary border border-border rounded px-2 py-1 text-right tabular-nums"
+                  className="w-full text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-right tabular-nums"
                 />
                 {deltaPct !== null && (
                   <div
@@ -136,14 +136,14 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
                   placeholder="Notes (e.g. site allowance, transport bundled)"
                   value={notes}
                   onChange={(e) => setNotes(e.currentTarget.value)}
-                  className="w-full text-[11px] bg-bg-tertiary border border-border rounded px-2 py-1 resize-y h-12"
+                  className="w-full text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 resize-y h-12"
                 />
               </div>
               <button
                 type="button"
                 onClick={onSave}
                 disabled={isPending || !unitCost}
-                className="w-full text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center justify-center gap-1 disabled:opacity-50"
+                className="w-full text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center justify-center gap-1 disabled:opacity-50"
               >
                 <Save size={12} /> Save override
               </button>
@@ -151,7 +151,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
           )}
         </div>
       ) : (
-        <div className="text-xs text-text-secondary">
+        <div className="text-xs text-slate-500 dark:text-slate-400">
           View-only access. Admin role required to edit overrides.
         </div>
       )}
@@ -159,7 +159,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
       {/* Existing overrides list */}
       {otherOverrides.length > 0 && (
         <div>
-          <div className="text-[10px] text-text-secondary uppercase mb-1.5">
+          <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-1.5">
             Other overrides for this item
           </div>
           <div className="space-y-1 text-xs">
@@ -172,7 +172,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
               return (
                 <div
                   key={o.id}
-                  className="flex justify-between items-center py-1 border-b border-border"
+                  className="flex justify-between items-center py-1 border-b border-slate-200 dark:border-slate-700"
                 >
                   <span className="truncate">
                     {o.project_contracts?.name ?? `Contract #${o.contract_id}`}
@@ -192,7 +192,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
                     {canEdit && (
                       <button
                         onClick={() => onRemove(o.contract_id)}
-                        className="ml-1 text-text-secondary hover:text-red-500"
+                        className="ml-1 text-slate-500 dark:text-slate-400 hover:text-red-500"
                         title="Remove override"
                       >
                         <Trash2 size={10} />
@@ -206,7 +206,7 @@ export function OverrideSidePanel({ item, otherOverrides, contracts, canEdit }: 
         </div>
       )}
       {otherOverrides.length === 0 && (
-        <div className="text-[11px] text-text-secondary italic">
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
           No overrides yet for this item.
         </div>
       )}

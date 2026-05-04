@@ -8,9 +8,9 @@ import { DrillDrawer } from './drill-drawer';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const COLOR_CLASSES: Record<VarianceColor, string> = {
-  green: 'bg-green-500/10 text-green-400',
-  amber: 'bg-amber-500/15 text-amber-400',
-  red:   'bg-red-500/15 text-red-400',
+  green: 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400',
+  amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400',
+  red:   'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400',
 };
 
 interface Props {
@@ -27,10 +27,10 @@ export function VarianceGrid({ segment, contractId, yearIndex, scenario, bilingu
   const fmt = (n: number) => n === 0 ? '—' : Math.round(n).toLocaleString();
 
   return (
-    <div className="bg-bg-tertiary border border-border rounded-lg overflow-hidden">
-      <header className="px-4 py-2.5 border-b border-border bg-bg-secondary flex justify-between items-center flex-wrap gap-2">
-        <strong className="text-sm text-text-primary uppercase">{segment.service_line}</strong>
-        <span className="text-[11px] text-text-secondary tabular-nums">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+      <header className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex justify-between items-center flex-wrap gap-2">
+        <strong className="text-sm text-slate-900 dark:text-slate-100 uppercase">{segment.service_line}</strong>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
           Budget: <strong>{(segment.segment_budget / 1_000_000).toFixed(2)} M</strong>
           {' · '}
           Actual: <strong>{(segment.segment_actual / 1_000_000).toFixed(2)} M</strong>
@@ -48,8 +48,8 @@ export function VarianceGrid({ segment, contractId, yearIndex, scenario, bilingu
       <div className="overflow-x-auto">
         <table className="w-full text-[11px]">
           <thead>
-            <tr className="bg-bg-secondary border-b border-border text-[10px] text-text-secondary uppercase">
-              <th className="px-2 py-1.5 text-left sticky left-0 bg-bg-secondary z-10 min-w-[140px]">Category</th>
+            <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-[10px] text-slate-500 dark:text-slate-400 uppercase">
+              <th className="px-2 py-1.5 text-left sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 min-w-[140px]">Category</th>
               {MONTHS.map((m) => (
                 <th key={m} className="px-1.5 py-1.5 text-right tabular-nums min-w-[60px]">{m}</th>
               ))}
@@ -59,8 +59,8 @@ export function VarianceGrid({ segment, contractId, yearIndex, scenario, bilingu
           </thead>
           <tbody>
             {segment.categories.map(cat => (
-              <tr key={cat.category} className="border-b border-border hover:bg-bg-tertiary/30">
-                <td className="px-2 py-1.5 sticky left-0 bg-bg-tertiary font-medium text-text-primary z-10">
+              <tr key={cat.category} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/30">
+                <td className="px-2 py-1.5 sticky left-0 bg-white dark:bg-slate-900 font-medium text-slate-900 dark:text-slate-100 z-10">
                   {bilingual === 'ar' && cat.label_ar ? cat.label_ar : cat.label_en}
                 </td>
                 {cat.cells.map(cell => (

@@ -56,25 +56,25 @@ export function ImportUploader() {
     <div className="space-y-4 max-w-3xl">
       {/* File picker */}
       {!preview && !committed && (
-        <div className="bg-bg-tertiary border border-border rounded-lg p-5 space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <FileSpreadsheet size={18} className="text-accent" />
-            <strong className="text-sm text-text-primary">Upload XLSX</strong>
+            <FileSpreadsheet size={18} className="text-indigo-600 dark:text-indigo-400" />
+            <strong className="text-sm text-slate-900 dark:text-slate-100">Upload XLSX</strong>
           </div>
-          <p className="text-xs text-text-secondary">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Auto-detects layout and parses. v2.0 commits flat-template uploads.
             Rich AUC / TRIO / CityGate / Emaar parsers ship in v2.1 — for those, re-export to flat first.
           </p>
           <input type="file" accept=".xlsx,.xls"
             onChange={e => setFile(e.currentTarget.files?.[0] ?? null)}
             disabled={isPending}
-            className="block w-full text-xs text-text-secondary
-              file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-border
-              file:bg-bg-secondary file:text-text-primary file:text-xs
-              file:cursor-pointer hover:file:bg-bg-tertiary" />
+            className="block w-full text-xs text-slate-500 dark:text-slate-400
+              file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-slate-200 dark:border-slate-700
+              file:bg-slate-50 dark:bg-slate-800 file:text-slate-900 dark:text-slate-100 file:text-xs
+              file:cursor-pointer hover:file:bg-white dark:bg-slate-900" />
           {file && (
-            <div className="text-xs text-text-secondary">
-              Selected: <strong className="text-text-primary">{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Selected: <strong className="text-slate-900 dark:text-slate-100">{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
             </div>
           )}
           {error && (
@@ -84,11 +84,11 @@ export function ImportUploader() {
           )}
           <div className="flex gap-2">
             <a href="/api/fmplus/budget/flat-template-download"
-              className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary">
+              className="text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700">
               Download blank template
             </a>
             <button type="button" onClick={onPreview} disabled={!file || isPending}
-              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 ml-auto">
+              className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 ml-auto">
               <Upload size={12} /> {isPending ? 'Parsing…' : 'Preview & Validate'}
             </button>
           </div>
@@ -97,19 +97,19 @@ export function ImportUploader() {
 
       {/* Preview */}
       {preview && !committed && (
-        <div className="bg-bg-tertiary border border-border rounded-lg p-5 space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <strong className="text-sm text-text-primary">
-              Preview &middot; parser: <span className="text-accent">{preview.parser}</span>
+            <strong className="text-sm text-slate-900 dark:text-slate-100">
+              Preview &middot; parser: <span className="text-indigo-600 dark:text-indigo-400">{preview.parser}</span>
             </strong>
-            <button onClick={reset} className="text-text-secondary hover:text-text-primary"><X size={14} /></button>
+            <button onClick={reset} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"><X size={14} /></button>
           </div>
-          <p className="text-[11px] text-text-secondary">{preview.reason} &middot; sheets: {preview.sheetNames.join(', ')}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{preview.reason} &middot; sheets: {preview.sheetNames.join(', ')}</p>
 
           {preview.errors.length > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded p-3 text-xs">
               <strong className="text-amber-400">{preview.errors.length} error{preview.errors.length === 1 ? '' : 's'}</strong>
-              <ul className="mt-1 space-y-0.5 text-text-secondary">
+              <ul className="mt-1 space-y-0.5 text-slate-500 dark:text-slate-400">
                 {preview.errors.slice(0, 5).map((e, i) => (
                   <li key={i}>Row {e.row}: {e.message}</li>
                 ))}
@@ -120,10 +120,10 @@ export function ImportUploader() {
 
           {preview.byContract.length > 0 && (
             <div>
-              <div className="text-[10px] text-text-secondary uppercase mb-1">Will affect ({preview.byContract.length} group{preview.byContract.length === 1 ? '' : 's'})</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-1">Will affect ({preview.byContract.length} group{preview.byContract.length === 1 ? '' : 's'})</div>
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-[10px] text-text-secondary uppercase border-b border-border text-left">
+                  <tr className="text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700 text-left">
                     <th className="px-2 py-1">Contract</th>
                     <th className="px-2 py-1">Year</th>
                     <th className="px-2 py-1 text-right">Lines</th>
@@ -133,7 +133,7 @@ export function ImportUploader() {
                 </thead>
                 <tbody>
                   {preview.byContract.map(g => (
-                    <tr key={`${g.contract_name}|${g.year_index}`} className="border-b border-border">
+                    <tr key={`${g.contract_name}|${g.year_index}`} className="border-b border-slate-200 dark:border-slate-700">
                       <td className="px-2 py-1.5 font-medium">{g.contract_name}</td>
                       <td className="px-2 py-1.5">Y{g.year_index}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{g.line_count}</td>
@@ -146,11 +146,11 @@ export function ImportUploader() {
             </div>
           )}
 
-          <div className="flex gap-2 pt-2 border-t border-border">
+          <div className="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
             <button onClick={reset} disabled={isPending}
-              className="text-xs px-3 py-1.5 text-text-secondary border border-border rounded">Cancel</button>
+              className="text-xs px-3 py-1.5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded">Cancel</button>
             <button onClick={onCommit} disabled={isPending || preview.rows.length === 0}
-              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 ml-auto">
+              className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 ml-auto">
               <CheckCircle2 size={12} /> {isPending ? 'Committing…' : `Commit ${preview.rows.length} lines`}
             </button>
           </div>
@@ -159,12 +159,12 @@ export function ImportUploader() {
 
       {/* Committed */}
       {committed && (
-        <div className="bg-bg-tertiary border border-border rounded-lg p-5 space-y-3">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-5 space-y-3">
           <div className="flex items-center gap-2 text-green-400">
             <CheckCircle2 size={18} />
             <strong className="text-sm">Import complete</strong>
           </div>
-          <div className="bg-bg-secondary rounded p-3 text-xs space-y-1">
+          <div className="bg-slate-50 dark:bg-slate-800 rounded p-3 text-xs space-y-1">
             <div className="flex justify-between"><span>Committed:</span> <strong className="tabular-nums text-green-400">{committed.committed}</strong></div>
             <div className="flex justify-between"><span>Skipped:</span> <strong className="tabular-nums text-amber-400">{committed.skipped}</strong></div>
           </div>
@@ -174,7 +174,7 @@ export function ImportUploader() {
             </div>
           )}
           <button onClick={reset}
-            className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold">Import another file</button>
+            className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold">Import another file</button>
         </div>
       )}
     </div>

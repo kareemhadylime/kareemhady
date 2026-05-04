@@ -46,22 +46,22 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
   return (
     <div className="flex flex-col relative">
       {/* Toolbar */}
-      <div className="sticky top-0 z-10 bg-bg-tertiary border-b border-border p-3 flex flex-wrap items-center gap-2">
+      <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 p-3 flex flex-wrap items-center gap-2">
         <label className="relative">
-          <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-secondary" />
+          <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
           <input
             type="search"
             placeholder="Search code, name, ..."
             defaultValue={currentSearch.q}
             onBlur={(e) => updateParam('q', e.currentTarget.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') updateParam('q', e.currentTarget.value); }}
-            className="pl-7 pr-3 py-1.5 text-sm bg-bg-secondary border border-border rounded w-56"
+            className="pl-7 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded w-56"
           />
         </label>
         <select
           value={currentSearch.service}
           onChange={(e) => updateParam('service', e.currentTarget.value)}
-          className="text-sm bg-bg-secondary border border-border rounded px-2 py-1.5"
+          className="text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
         >
           <option value="">All services</option>
           <option value="hk">HK</option>
@@ -75,7 +75,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
         <select
           value={currentSearch.category}
           onChange={(e) => updateParam('category', e.currentTarget.value)}
-          className="text-sm bg-bg-secondary border border-border rounded px-2 py-1.5"
+          className="text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
         >
           <option value="">All categories</option>
           <option value="manning">Manning</option>
@@ -90,26 +90,26 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
         <select
           value={currentSearch.active}
           onChange={(e) => updateParam('active', e.currentTarget.value)}
-          className="text-sm bg-bg-secondary border border-border rounded px-2 py-1.5"
+          className="text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
         >
           <option value="">Active only</option>
           <option value="all">Include archived</option>
         </select>
         <span className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-text-secondary">{items.length} items</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">{items.length} items</span>
           {canEdit && (
             <>
               <button
                 type="button"
                 onClick={() => setBulkOpen(true)}
-                className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary flex items-center gap-1"
+                className="text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-1"
               >
                 <Upload size={13} /> Bulk import
               </button>
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 hover:bg-accent/90"
+                className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 hover:bg-indigo-700"
               >
                 <Plus size={13} /> Add item
               </button>
@@ -120,13 +120,13 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
 
       {/* Table */}
       {items.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center min-h-[40vh] text-sm text-text-secondary">
+        <div className="flex-1 flex items-center justify-center min-h-[40vh] text-sm text-slate-500 dark:text-slate-400">
           No catalog items match current filters.
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm">
-            <thead className="text-[10px] uppercase text-text-secondary border-b border-border bg-bg-tertiary sticky top-[57px]">
+            <thead className="text-[10px] uppercase text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky top-[57px]">
               <tr>
                 <th className="px-2 py-2 text-left w-6"></th>
                 <th className="px-2 py-2 text-left">Code</th>
@@ -138,39 +138,39 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
                 {canEdit && <th className="px-2 py-2 w-16"></th>}
               </tr>
             </thead>
-            <tbody className="text-text-primary">
+            <tbody className="text-slate-900 dark:text-slate-100">
               {items.map((it) => {
                 const isSelected = selectedId === it.id;
                 return (
                   <tr
                     key={it.id}
                     onClick={() => it.id != null && selectRow(it.id)}
-                    className={`border-b border-border cursor-pointer ${
-                      isSelected ? 'bg-blue-500/10 ring-1 ring-accent' : 'hover:bg-bg-tertiary/40'
+                    className={`border-b border-slate-200 dark:border-slate-700 cursor-pointer ${
+                      isSelected ? 'bg-blue-500/10 ring-1 ring-accent' : 'hover:bg-slate-100 dark:hover:bg-slate-700/40'
                     } ${!it.is_active ? 'opacity-50' : ''}`}
                   >
-                    <td className="px-2 py-2 text-text-secondary">{it.is_active ? '●' : '○'}</td>
+                    <td className="px-2 py-2 text-slate-500 dark:text-slate-400">{it.is_active ? '●' : '○'}</td>
                     <td className="px-2 py-2 font-mono text-[11px]">{it.code}</td>
                     <td className="px-2 py-2">
                       <div>{it.name_en}</div>
-                      {it.name_ar && <div className="text-[10px] text-text-secondary">{it.name_ar}</div>}
+                      {it.name_ar && <div className="text-[10px] text-slate-500 dark:text-slate-400">{it.name_ar}</div>}
                     </td>
                     <td className="px-2 py-2 text-center">
-                      <span className="text-[10px] px-2 py-0.5 bg-bg-secondary rounded text-text-secondary">{it.unit}</span>
+                      <span className="text-[10px] px-2 py-0.5 bg-slate-50 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">{it.unit}</span>
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums">{Number(it.default_price).toLocaleString()}</td>
-                    <td className="px-2 py-2 text-[11px] text-text-secondary">
+                    <td className="px-2 py-2 text-[11px] text-slate-500 dark:text-slate-400">
                       {it.service_lines.length === 7 ? 'all' : it.service_lines.join(', ')}
                     </td>
-                    <td className="px-2 py-2 text-[10px] text-text-secondary">{it.tags.join(', ')}</td>
+                    <td className="px-2 py-2 text-[10px] text-slate-500 dark:text-slate-400">{it.tags.join(', ')}</td>
                     {canEdit && (
                       <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                         {isSelected ? (
-                          <span className="text-[10px] text-accent font-semibold">SELECTED</span>
+                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">SELECTED</span>
                         ) : (
                           <button
                             onClick={() => it.id != null && onArchive(it.id)}
-                            className="text-text-secondary hover:text-red-500 text-xs"
+                            className="text-slate-500 dark:text-slate-400 hover:text-red-500 text-xs"
                             title="Archive"
                           >
                             <Archive size={12} />
@@ -187,7 +187,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
       )}
 
       {isPending && (
-        <div className="absolute top-1 right-1 text-[10px] text-text-secondary">…</div>
+        <div className="absolute top-1 right-1 text-[10px] text-slate-500 dark:text-slate-400">…</div>
       )}
       <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
       <AddItemModal open={addOpen} onClose={() => setAddOpen(false)} />

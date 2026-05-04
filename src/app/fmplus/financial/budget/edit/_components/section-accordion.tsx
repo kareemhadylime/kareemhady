@@ -45,16 +45,16 @@ export function SectionAccordion({ template, lines, canEdit, openSection, contra
 
         return (
           <div key={cat.code}
-            className={`bg-bg-tertiary border rounded-lg ${isGovernmental ? 'border-amber-500/30' : 'border-border'}`}>
+            className={`bg-white dark:bg-slate-900 border rounded-lg ${isGovernmental ? 'border-amber-500/30' : 'border-slate-200 dark:border-slate-700'}`}>
             <button type="button" onClick={() => toggle(cat.code)}
               className="w-full px-4 py-3 flex justify-between items-center cursor-pointer text-left">
               <div>
-                <span className="text-sm font-semibold text-text-primary">
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {isOpen ? <ChevronDown size={14} className="inline" /> : <ChevronRight size={14} className="inline" />}
                   {' '}{cat.label_en}
-                  {cat.label_ar && <span className="text-text-secondary text-[11px] font-normal ml-2">{cat.label_ar}</span>}
+                  {cat.label_ar && <span className="text-slate-500 dark:text-slate-400 text-[11px] font-normal ml-2">{cat.label_ar}</span>}
                 </span>
-                <span className="text-[11px] text-text-secondary ml-3">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-3">
                   {catLines.length} line{catLines.length === 1 ? '' : 's'}
                   {annual > 0 && ` · ${(annual / 1_000_000).toFixed(2)} M EGP/year`}
                 </span>
@@ -65,7 +65,7 @@ export function SectionAccordion({ template, lines, canEdit, openSection, contra
               {canEdit && (
                 <button type="button"
                   onClick={(e) => { e.stopPropagation(); setOpenModalFor(cat.code); }}
-                  className="text-[10px] px-2 py-1 bg-blue-500/15 text-accent border border-accent/40 rounded inline-flex items-center gap-1 hover:bg-blue-500/25">
+                  className="text-[10px] px-2 py-1 bg-blue-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/40 rounded inline-flex items-center gap-1 hover:bg-blue-500/25">
                   <Plus size={10} /> Add line
                 </button>
               )}
@@ -74,14 +74,14 @@ export function SectionAccordion({ template, lines, canEdit, openSection, contra
             {isOpen && (
               <div className="px-4 pb-3">
                 {catLines.length === 0 ? (
-                  <div className="py-4 text-center text-[11px] text-text-secondary italic border-t border-border">
+                  <div className="py-4 text-center text-[11px] text-slate-500 dark:text-slate-400 italic border-t border-slate-200 dark:border-slate-700">
                     No lines yet. Use &quot;+ Add line&quot; to populate from the catalog or as free-text.
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs border-t border-border">
+                    <table className="w-full text-xs border-t border-slate-200 dark:border-slate-700">
                       <thead>
-                        <tr className="text-[10px] text-text-secondary uppercase border-b border-border">
+                        <tr className="text-[10px] text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
                           <th className="px-2 py-2 text-left">Line</th>
                           <th className="px-2 py-2 text-right w-20">Qty / HC</th>
                           <th className="px-2 py-2 text-right w-28">Unit / mo</th>

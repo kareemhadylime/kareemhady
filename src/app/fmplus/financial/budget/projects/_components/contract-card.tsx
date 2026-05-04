@@ -29,13 +29,13 @@ export function ContractCard({ card }: { card: PortfolioCard }) {
   return (
     <Link
       href={editUrl}
-      className="block bg-bg-tertiary border border-border rounded-lg p-4 hover:border-accent transition-colors"
+      className="block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:border-indigo-500 transition-colors"
     >
       {/* Header */}
       <div className="flex justify-between items-start mb-2 gap-2">
         <div className="min-w-0 flex-1">
-          <div className="font-semibold text-sm text-text-primary truncate">{card.project_name}</div>
-          <div className="text-[11px] text-text-secondary mt-0.5">
+          <div className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate">{card.project_name}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             {card.customer ? `${card.customer} · ` : ''}
             Year tracking: {card.year_tracking}
             {card.total_years > 1 ? ` · ${card.total_years}-year deal` : ''}
@@ -55,8 +55,8 @@ export function ContractCard({ card }: { card: PortfolioCard }) {
               key={sl}
               className={`text-[10px] px-2 py-0.5 rounded-full border ${
                 sl === 'back_office'
-                  ? 'bg-bg-secondary text-text-secondary border-border'
-                  : 'bg-green-500/15 text-green-400 border-green-500/30'
+                  ? 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  : 'bg-emerald-100 dark:bg-green-500/15 text-emerald-700 dark:text-green-400 border-emerald-200 dark:border-green-500/30'
               }`}
             >
               {SERVICE_LABELS[sl]}
@@ -68,26 +68,26 @@ export function ContractCard({ card }: { card: PortfolioCard }) {
       {/* 3-KPI grid */}
       <div className="grid grid-cols-3 gap-2 mt-3">
         <div>
-          <div className="text-[9px] text-text-secondary uppercase">Year</div>
-          <div className="font-semibold text-text-primary text-sm">{card.current_year_label}</div>
+          <div className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Year</div>
+          <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm">{card.current_year_label}</div>
         </div>
         <div>
-          <div className="text-[9px] text-text-secondary uppercase">Contract</div>
-          <div className="font-semibold text-text-primary text-sm tabular-nums">
+          <div className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Contract</div>
+          <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm tabular-nums">
             {card.contract_value > 0 ? formatM(card.contract_value) : '—'}
           </div>
         </div>
         <div>
-          <div className="text-[9px] text-text-secondary uppercase">Y Revenue</div>
-          <div className="font-semibold text-text-primary text-sm tabular-nums">
+          <div className="text-[9px] text-slate-500 dark:text-slate-400 uppercase">Y Revenue</div>
+          <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm tabular-nums">
             {card.current_year_revenue > 0 ? formatM(card.current_year_revenue) : '—'}
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="mt-3 pt-3 border-t border-border flex justify-between items-center text-[11px] flex-wrap gap-1">
-        <span className="text-text-secondary">
+      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-[11px] flex-wrap gap-1">
+        <span className="text-slate-500 dark:text-slate-400">
           &#9601;&#9602;&#9603;&#9604;&#9605;&#9606;&#9607;&#9608;
           {card.yoy_revenue_change != null && (
             <span className={card.yoy_revenue_change >= 0 ? ' text-green-400' : ' text-amber-400'}>
@@ -100,7 +100,7 @@ export function ContractCard({ card }: { card: PortfolioCard }) {
             Mob ROI: {(card.mob_roi_pct * 100).toFixed(1)}%
           </span>
         ) : (
-          <span className="text-[10px] px-2 py-0.5 rounded-full border border-border bg-bg-secondary text-text-secondary">
+          <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
             Mob ROI: n/a
           </span>
         )}

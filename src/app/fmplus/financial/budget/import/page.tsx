@@ -9,8 +9,8 @@ export default async function ImportPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-base font-semibold text-text-primary">Import</h2>
-        <p className="text-xs text-text-secondary mt-0.5">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Import</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           Upload an XLSX to populate budget_lines. v2.0 supports the flat template format.
           {!user.is_admin && <span className="ml-1 text-amber-400">View-only — admin role required to import.</span>}
         </p>
@@ -19,7 +19,7 @@ export default async function ImportPage() {
       {user.is_admin ? (
         <ImportUploader />
       ) : (
-        <div className="border border-border rounded-lg p-6 text-xs text-text-secondary italic text-center">
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-xs text-slate-500 dark:text-slate-400 italic text-center">
           Imports require admin role.
         </div>
       )}

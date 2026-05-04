@@ -66,11 +66,11 @@ export function BudgetLineRow({ line, canEdit }: Props) {
 
   return (
     <>
-      <tr className="border-b border-border hover:bg-bg-tertiary/40">
+      <tr className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/40">
         <td className="px-2 py-2 text-xs">
-          <div className="font-medium text-text-primary">{line.label_en}</div>
+          <div className="font-medium text-slate-900 dark:text-slate-100">{line.label_en}</div>
           {line.label_ar && (
-            <div className="text-[10px] text-text-secondary">{line.label_ar}</div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">{line.label_ar}</div>
           )}
         </td>
         <td className="px-2 py-2 text-right">
@@ -79,7 +79,7 @@ export function BudgetLineRow({ line, canEdit }: Props) {
               onChange={e => setQty(Number(e.currentTarget.value) || 0)}
               onBlur={persistIfChanged}
               disabled={isPending}
-              className="w-16 px-1 py-0.5 text-right text-xs bg-bg-secondary border border-border rounded tabular-nums disabled:opacity-50" />
+              className="w-16 px-1 py-0.5 text-right text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded tabular-nums disabled:opacity-50" />
           ) : (
             <span className="tabular-nums text-xs">{Number(line.qty).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
           )}
@@ -90,18 +90,18 @@ export function BudgetLineRow({ line, canEdit }: Props) {
               onChange={e => setUnitCost(Number(e.currentTarget.value) || 0)}
               onBlur={persistIfChanged}
               disabled={isPending}
-              className="w-24 px-1 py-0.5 text-right text-xs bg-bg-secondary border border-border rounded tabular-nums disabled:opacity-50" />
+              className="w-24 px-1 py-0.5 text-right text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded tabular-nums disabled:opacity-50" />
           ) : (
             <span className="tabular-nums text-xs">{Number(line.unit_cost).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
           )}
           {unitCostReadOnly && (
-            <span className="ml-1 text-[9px] text-text-secondary" title="Computed from CTC components">CTC</span>
+            <span className="ml-1 text-[9px] text-slate-500 dark:text-slate-400" title="Computed from CTC components">CTC</span>
           )}
         </td>
         <td className="px-2 py-2 text-right tabular-nums text-xs font-semibold">
           {monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </td>
-        <td className="px-2 py-2 text-center text-[10px] text-text-secondary">
+        <td className="px-2 py-2 text-center text-[10px] text-slate-500 dark:text-slate-400">
           {hasThresholdOverride ? (
             <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">override</span>
           ) : (
@@ -112,15 +112,15 @@ export function BudgetLineRow({ line, canEdit }: Props) {
           <div className="flex items-center justify-end gap-1">
             {isManning && (
               <button type="button" onClick={() => setExpanded(v => !v)}
-                className="text-text-secondary hover:text-accent"
+                className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:text-indigo-400"
                 title={expanded ? 'Collapse CTC breakdown' : 'Expand CTC breakdown'}>
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                {hasCtc && !expanded && <span className="ml-0.5 text-[8px] text-accent">CTC</span>}
+                {hasCtc && !expanded && <span className="ml-0.5 text-[8px] text-indigo-600 dark:text-indigo-400">CTC</span>}
               </button>
             )}
             {canEdit && (
               <button type="button" onClick={onDelete} disabled={isPending}
-                className="text-text-secondary hover:text-red-500 disabled:opacity-50"
+                className="text-slate-500 dark:text-slate-400 hover:text-red-500 disabled:opacity-50"
                 title="Delete line">
                 <Trash2 size={11} />
               </button>

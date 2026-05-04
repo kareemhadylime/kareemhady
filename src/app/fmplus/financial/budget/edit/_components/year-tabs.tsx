@@ -41,14 +41,14 @@ export function YearTabs({ contractId, contractName, years, activeYearIndex, def
   const targetYearIndex = years.length > 0 ? Math.max(...years.map(y => y.year_index)) + 1 : 2;
 
   return (
-    <div className="bg-bg-secondary border border-border rounded-lg px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] text-text-secondary uppercase font-semibold">Year</span>
+    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-semibold">Year</span>
       {years.map(y => (
         <button key={y.year_index} type="button" onClick={() => switchYear(y.year_index)}
           className={`px-3 py-1 text-xs font-semibold rounded ${
             y.year_index === activeYearIndex
-              ? 'bg-accent text-white'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary hover:bg-bg-secondary'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700'
           }`}>
           Y{y.year_index}
           <span className={`ml-1 text-[9px] ${y.status === 'published' ? 'text-green-300' : 'text-amber-300'}`}>
@@ -71,17 +71,17 @@ export function YearTabs({ contractId, contractName, years, activeYearIndex, def
           });
         }}
         disabled={pendingAdd}
-        className="px-2 py-1 text-xs border border-dashed border-border rounded text-text-secondary hover:text-text-primary hover:border-text-secondary disabled:opacity-50">
+        className="px-2 py-1 text-xs border border-dashed border-slate-200 dark:border-slate-700 rounded text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-text-secondary disabled:opacity-50">
         <Plus size={11} className="inline" /> {pendingAdd ? 'Adding…' : 'Add year'}
       </button>
       <span className="flex-1" />
       <button type="button"
         onClick={() => setCopyOpen(true)}
         disabled={years.length === 0}
-        className="px-2 py-1 text-xs bg-bg-tertiary border border-border rounded text-text-secondary hover:text-text-primary inline-flex items-center gap-1 disabled:opacity-50">
+        className="px-2 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 disabled:opacity-50">
         <Copy size={11} /> Copy year
       </button>
-      {isPending && <span className="text-[10px] text-text-secondary">…</span>}
+      {isPending && <span className="text-[10px] text-slate-500 dark:text-slate-400">…</span>}
 
       {sourceYear && (
         <CopyYearDialog

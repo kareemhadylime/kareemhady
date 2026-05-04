@@ -44,7 +44,7 @@ export function SavePublishButtons({ yearId, yearIndex, status, canEdit }: Props
       {error && <span className="text-[11px] text-red-400 mr-2">{error}</span>}
       <button type="button" onClick={onSaveDraft}
         disabled={!canEdit || isPending}
-        className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1">
+        className="text-xs px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1">
         <Save size={12} /> Save Draft
       </button>
       {status === 'published' ? (
@@ -54,7 +54,7 @@ export function SavePublishButtons({ yearId, yearIndex, status, canEdit }: Props
       ) : (
         <button type="button" onClick={onPublish}
           disabled={!canEdit || isPending}
-          className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
+          className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
           {isPending ? 'Publishing…' : `Publish Y${yearIndex}`}
         </button>
       )}

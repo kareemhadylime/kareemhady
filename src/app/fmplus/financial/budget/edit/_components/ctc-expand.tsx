@@ -83,32 +83,32 @@ export function CtcExpand({ line, canEdit }: Props) {
   const hasAny = Object.values(ctc).some(v => v !== null);
 
   return (
-    <tr className="bg-blue-500/5 border-b border-border">
+    <tr className="bg-blue-500/5 border-b border-slate-200 dark:border-slate-700">
       <td colSpan={6} className="px-4 py-3">
-        <div className="text-[10px] text-text-secondary uppercase mb-2 font-semibold">
-          CTC breakdown {hasAny ? <span className="text-accent">(sums to {sum.toLocaleString()} EGP / mo)</span> : <span className="text-text-secondary">(not set — using flat unit cost)</span>}
+        <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase mb-2 font-semibold">
+          CTC breakdown {hasAny ? <span className="text-indigo-600 dark:text-indigo-400">(sums to {sum.toLocaleString()} EGP / mo)</span> : <span className="text-slate-500 dark:text-slate-400">(not set — using flat unit cost)</span>}
         </div>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
           {CTC_FIELDS.map(f => (
             <div key={f.key as string}>
-              <div className="text-[10px] text-text-secondary uppercase">{f.label}</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">{f.label}</div>
               <input type="number" inputMode="decimal" min="0" step="0.01"
                 value={(ctc[f.key as keyof typeof ctc] ?? '') as number | ''}
                 onChange={e => onCtcChange(f.key as string, e.currentTarget.value)}
                 disabled={!canEdit || isPending}
-                className="w-full px-1.5 py-1 text-right text-xs bg-bg-secondary border border-border rounded tabular-nums disabled:opacity-50" />
-              <div className="text-[9px] text-text-secondary text-right mt-0.5">{f.ar}</div>
+                className="w-full px-1.5 py-1 text-right text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded tabular-nums disabled:opacity-50" />
+              <div className="text-[9px] text-slate-500 dark:text-slate-400 text-right mt-0.5">{f.ar}</div>
             </div>
           ))}
         </div>
-        <div className="text-[11px] text-text-secondary flex items-center gap-2 flex-wrap">
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
           <span>💡 Per-line variance threshold (override):</span>
           <span>
             green ≤ <input type="number" min="0" max="100" step="0.1"
               value={thresholds.green ?? ''}
               onChange={e => onThresholdChange('green', e.currentTarget.value)}
               disabled={!canEdit || isPending}
-              className="w-12 px-1 py-0.5 text-right text-xs bg-bg-secondary border border-border rounded tabular-nums disabled:opacity-50" /> %
+              className="w-12 px-1 py-0.5 text-right text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded tabular-nums disabled:opacity-50" /> %
           </span>
           <span>·</span>
           <span>
@@ -116,14 +116,14 @@ export function CtcExpand({ line, canEdit }: Props) {
               value={thresholds.amber ?? ''}
               onChange={e => onThresholdChange('amber', e.currentTarget.value)}
               disabled={!canEdit || isPending}
-              className="w-12 px-1 py-0.5 text-right text-xs bg-bg-secondary border border-border rounded tabular-nums disabled:opacity-50" /> %
+              className="w-12 px-1 py-0.5 text-right text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded tabular-nums disabled:opacity-50" /> %
           </span>
-          <span className="text-text-secondary text-[10px]">
+          <span className="text-slate-500 dark:text-slate-400 text-[10px]">
             (leave blank to use global thresholds)
           </span>
           {canEdit && (
             <button type="button" onClick={onSave} disabled={isPending}
-              className="ml-auto text-[10px] px-2 py-1 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
+              className="ml-auto text-[10px] px-2 py-1 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
               <Save size={10} /> Save CTC
             </button>
           )}

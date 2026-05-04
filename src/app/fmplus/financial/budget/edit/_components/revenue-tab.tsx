@@ -86,10 +86,10 @@ export function RevenueTab({ yearId, yearIndex, initialRows, canEdit }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="bg-bg-tertiary border border-border rounded-lg p-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
         <div className="flex justify-between items-center mb-3">
-          <strong className="text-sm text-text-primary">Revenue · Y{yearIndex}</strong>
-          <span className="text-xs text-text-secondary">
+          <strong className="text-sm text-slate-900 dark:text-slate-100">Revenue · Y{yearIndex}</strong>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             Total monthly: <strong className="tabular-nums">{totalMonthly.toLocaleString()}</strong> EGP
             {' · '}
             Annual: <strong className="tabular-nums">{(totalAnnual / 1_000_000).toFixed(2)} M</strong>
@@ -97,7 +97,7 @@ export function RevenueTab({ yearId, yearIndex, initialRows, canEdit }: Props) {
         </div>
 
         {rows.length === 0 ? (
-          <p className="text-xs text-text-secondary italic py-4 text-center">
+          <p className="text-xs text-slate-500 dark:text-slate-400 italic py-4 text-center">
             No services on this year. Add services from the Project Hub or contract metadata.
           </p>
         ) : (
@@ -105,25 +105,25 @@ export function RevenueTab({ yearId, yearIndex, initialRows, canEdit }: Props) {
             {rows.map((r, idx) => {
               const isExpanded = expanded.has(r.service_line);
               return (
-                <div key={r.service_line} className="bg-bg-secondary border border-border rounded p-3">
+                <div key={r.service_line} className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3">
                   <div className="flex items-start gap-3 flex-wrap">
                     <div className="flex-1 min-w-[100px]">
-                      <div className="text-[10px] text-text-secondary uppercase">Service</div>
-                      <div className="text-sm font-semibold text-text-primary">{SERVICE_LABELS[r.service_line]}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">Service</div>
+                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{SERVICE_LABELS[r.service_line]}</div>
                     </div>
                     <label className="block">
-                      <span className="text-[10px] text-text-secondary uppercase block">Monthly Revenue (EGP)</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase block">Monthly Revenue (EGP)</span>
                       <input type="number" min="0" step="0.01" value={r.monthly_revenue}
                         onChange={e => updateRow(idx, { monthly_revenue: Number(e.currentTarget.value) || 0 })}
                         disabled={!canEdit || isPending}
-                        className="w-32 px-2 py-1 text-sm bg-bg-primary border border-border rounded text-right tabular-nums disabled:opacity-50" />
+                        className="w-32 px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-right tabular-nums disabled:opacity-50" />
                     </label>
                     <label className="block">
-                      <span className="text-[10px] text-text-secondary uppercase block">VAT %</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase block">VAT %</span>
                       <input type="number" min="0" max="100" step="0.1" value={r.vat_pct}
                         onChange={e => updateRow(idx, { vat_pct: Number(e.currentTarget.value) || 0 })}
                         disabled={!canEdit || isPending}
-                        className="w-16 px-2 py-1 text-sm bg-bg-primary border border-border rounded text-right tabular-nums disabled:opacity-50" />
+                        className="w-16 px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-right tabular-nums disabled:opacity-50" />
                     </label>
                     <button type="button"
                       onClick={() => setExpanded(prev => {
@@ -131,17 +131,17 @@ export function RevenueTab({ yearId, yearIndex, initialRows, canEdit }: Props) {
                         if (next.has(r.service_line)) next.delete(r.service_line); else next.add(r.service_line);
                         return next;
                       })}
-                      className="ml-auto text-[11px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1">
+                      className="ml-auto text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1">
                       {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                       Manpower ramp
                       {Object.keys(r.manpower_ramp).length > 0 && (
-                        <span className="text-[9px] text-accent">({Object.keys(r.manpower_ramp).length})</span>
+                        <span className="text-[9px] text-indigo-600 dark:text-indigo-400">({Object.keys(r.manpower_ramp).length})</span>
                       )}
                     </button>
                   </div>
                   {isExpanded && (
                     <div className="mt-2 pl-1">
-                      <div className="text-[10px] text-text-secondary mb-1">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">
                         JSON object mapping role line_codes to override headcounts. Empty = use template defaults.
                         Example: <code>{`{ "hk_mf_8h": 240, "sup_8h": 8 }`}</code>
                       </div>
@@ -151,7 +151,7 @@ export function RevenueTab({ yearId, yearIndex, initialRows, canEdit }: Props) {
                         disabled={!canEdit || isPending}
                         placeholder='{}'
                         rows={3}
-                        className="w-full text-[11px] font-mono bg-bg-primary border border-border rounded px-2 py-1 disabled:opacity-50" />
+                        className="w-full text-[11px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 disabled:opacity-50" />
                     </div>
                   )}
                 </div>
@@ -164,7 +164,7 @@ export function RevenueTab({ yearId, yearIndex, initialRows, canEdit }: Props) {
 
         <div className="mt-3 flex justify-end">
           <button type="button" onClick={onSave} disabled={!canEdit || isPending}
-            className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
+            className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
             <Save size={12} /> {isPending ? 'Saving…' : 'Save Revenue'}
           </button>
         </div>

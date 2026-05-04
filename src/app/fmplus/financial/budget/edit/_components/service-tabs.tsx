@@ -30,25 +30,25 @@ export function ServiceTabs({ services, activeService }: Props) {
   };
 
   return (
-    <div className="bg-bg-secondary border border-border rounded-lg px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] text-text-secondary uppercase font-semibold">Service</span>
+    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-semibold">Service</span>
       {services.map(sl => (
         <button key={sl} type="button" onClick={() => switchService(sl)}
           className={`px-3 py-1 text-[11px] font-semibold rounded-full ${
             sl === activeService
-              ? 'bg-accent text-white'
-              : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700'
           }`}>
           {SERVICE_LABEL[sl]}
         </button>
       ))}
-      <span className="mx-1 text-border">|</span>
+      <span className="mx-1 text-slate-300 dark:text-slate-600">|</span>
       <button type="button"
         onClick={() => switchService('__revenue')}
         className={`px-3 py-1 text-[11px] font-semibold rounded-full ${
           activeService === '__revenue'
-            ? 'bg-accent text-white'
-            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700'
         }`}>
         💰 Revenue
       </button>
@@ -56,12 +56,12 @@ export function ServiceTabs({ services, activeService }: Props) {
         onClick={() => switchService('__mobilization')}
         className={`px-3 py-1 text-[11px] font-semibold rounded-full ${
           activeService === '__mobilization'
-            ? 'bg-accent text-white'
-            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border'
+            ? 'bg-indigo-600 text-white'
+            : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700'
         }`}>
         🏗️ Mobilization
       </button>
-      {isPending && <span className="text-[10px] text-text-secondary">…</span>}
+      {isPending && <span className="text-[10px] text-slate-500 dark:text-slate-400">…</span>}
     </div>
   );
 }

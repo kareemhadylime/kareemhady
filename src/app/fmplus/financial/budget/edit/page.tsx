@@ -46,13 +46,13 @@ export default async function EditPage(props: EditPageProps) {
 
   if (!Number.isFinite(contractId) || contractId <= 0) {
     return (
-      <div className="border border-border rounded-lg p-8 text-center">
-        <h3 className="text-sm font-semibold text-text-primary mb-2">No contract selected</h3>
-        <p className="text-xs text-text-secondary mb-4">
+      <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">No contract selected</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
           Pick a contract from the Project Hub to start editing.
         </p>
         <Link href="/fmplus/financial/budget/projects"
-          className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold inline-flex items-center gap-1">
+          className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold inline-flex items-center gap-1">
           <ArrowLeft size={12} /> Project Hub
         </Link>
       </div>
@@ -70,9 +70,9 @@ export default async function EditPage(props: EditPageProps) {
 
   if (!contract) {
     return (
-      <div className="border border-border rounded-lg p-8 text-center">
-        <h3 className="text-sm font-semibold text-text-primary mb-2">Contract not found</h3>
-        <Link href="/fmplus/financial/budget/projects" className="text-xs text-accent">← Back to Project Hub</Link>
+      <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">Contract not found</h3>
+        <Link href="/fmplus/financial/budget/projects" className="text-xs text-indigo-600 dark:text-indigo-400">← Back to Project Hub</Link>
       </div>
     );
   }
@@ -87,9 +87,9 @@ export default async function EditPage(props: EditPageProps) {
 
   if (!currentYear) {
     return (
-      <div className="border border-border rounded-lg p-8 text-center">
-        <h3 className="text-sm font-semibold text-text-primary mb-2">No years yet</h3>
-        <p className="text-xs text-text-secondary">
+      <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-8 text-center">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">No years yet</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Contract <strong>{(contract as any).name}</strong> has no draft years. The new-contract wizard creates Y1 automatically — try recreating.
         </p>
       </div>
@@ -187,16 +187,16 @@ export default async function EditPage(props: EditPageProps) {
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div className="min-w-0">
           <Link href="/fmplus/financial/budget/projects"
-            className="text-[11px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1 mb-1">
+            className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 mb-1">
             <ArrowLeft size={11} /> Project Hub
           </Link>
-          <h2 className="text-sm font-semibold text-text-primary">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             {(contract as any).name}
-            <span className="ml-2 text-[11px] text-text-secondary font-normal">
+            <span className="ml-2 text-[11px] text-slate-500 dark:text-slate-400 font-normal">
               · {(contract as any).customer ?? '—'} · {(((contract as any).contract_value ?? 0) / 1_000_000).toFixed(1)} M EGP
             </span>
           </h2>
-          <div className="text-[11px] text-text-secondary mt-0.5">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Status: <span className={currentYear.status === 'published' ? 'text-green-400 font-semibold' : 'text-amber-400 font-semibold'}>{currentYear.status}</span>
             {' · '}
             Scenario: <strong>{currentYear.scenario}</strong>
@@ -236,12 +236,12 @@ export default async function EditPage(props: EditPageProps) {
 
       {/* KPI strip — only for normal service mode */}
       {!isRevenue && !isMobilization && (
-        <div className="bg-bg-tertiary border border-border rounded-lg px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
-          <div><span className="text-text-secondary">Y{currentYear.year_index} {targetService.toUpperCase()} Revenue:</span> <strong className="tabular-nums">{annualRevenue > 0 ? (annualRevenue / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
-          <div><span className="text-text-secondary">Cost:</span> <strong className="tabular-nums">{totalCost > 0 ? (totalCost / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
-          <div><span className="text-text-secondary">GM:</span> <strong className={gmPct != null && gmPct > 15 ? 'text-green-400' : gmPct != null && gmPct >= 0 ? 'text-amber-400' : 'text-text-primary'}>{gmPct != null ? gmPct.toFixed(1) + '%' : '—'}</strong></div>
-          <div><span className="text-text-secondary">Headcount:</span> <strong className="tabular-nums">{headcount.toFixed(0)}</strong></div>
-          <div><span className="text-text-secondary">Lines:</span> <strong className="tabular-nums">{(lineRows ?? []).length}</strong></div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          <div><span className="text-slate-500 dark:text-slate-400">Y{currentYear.year_index} {targetService.toUpperCase()} Revenue:</span> <strong className="tabular-nums">{annualRevenue > 0 ? (annualRevenue / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
+          <div><span className="text-slate-500 dark:text-slate-400">Cost:</span> <strong className="tabular-nums">{totalCost > 0 ? (totalCost / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
+          <div><span className="text-slate-500 dark:text-slate-400">GM:</span> <strong className={gmPct != null && gmPct > 15 ? 'text-green-400' : gmPct != null && gmPct >= 0 ? 'text-amber-400' : 'text-slate-900 dark:text-slate-100'}>{gmPct != null ? gmPct.toFixed(1) + '%' : '—'}</strong></div>
+          <div><span className="text-slate-500 dark:text-slate-400">Headcount:</span> <strong className="tabular-nums">{headcount.toFixed(0)}</strong></div>
+          <div><span className="text-slate-500 dark:text-slate-400">Lines:</span> <strong className="tabular-nums">{(lineRows ?? []).length}</strong></div>
         </div>
       )}
 
