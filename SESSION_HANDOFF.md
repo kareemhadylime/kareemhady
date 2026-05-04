@@ -1,5 +1,32 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-05 — FM+ Budget v2: 4 LIVE CONTRACTS COMMITTED to Supabase (commit `350a1b8`)
+
+User asked to parse + commit the 4 FMPLUS budget XLSX files into actual contracts. All 4 now live in `bpjproljatbrbmszwbov`:
+
+| contract_id | name | project_id | services | years | lines | zones |
+|---|---|---|---|---|---|---|
+| 1 | AUC | 2 | hk | 1 | 106 | 4 |
+| 3 | City Gate | 45 | landscape, mep, pest_ctrl, security | 2 | 53 | 0 |
+| 4 | Uptown EMAAR | 22 | hk | 1 | 10 | 24 |
+| 5 | TRIO COMPOUND | 33 | back_office, hk, landscape, mep, pest_ctrl | 1 | 43 | 0 |
+
+**Total: 4 contracts, 11 services, 5 years, 212 budget lines.**
+
+**Implementation:** new `scripts/bulk-import-budgets.ts` runs all 4 parsers against `C:/kareemhady/.claude/FMPLUS/*.xlsx` and emits JSON. `scripts/bulk-import-emit-sql.ts` converts to PL/pgSQL DO-blocks and was applied via Supabase MCP `execute_sql`.
+
+**Defaults used** (user can edit via the v2.1 contract-edit page at `/fmplus/financial/budget/projects/<id>`):
+- `start_date = 2026-05-05`, `end_date = +1 year` (or +2 for City Gate)
+- `contract_value = 0` (placeholder — user fills)
+- `monthly_revenue = 0` per `project_year_services` row
+- `vat_pct = 14`
+- `year_tracking = 'contract'`, `scenario = 'initial'`, `status = 'draft'`
+
+**Parser bug found + filtered at insert** (tracked for v2.2): City Gate parser picks up "FMPlus GP" rollup rows as if they were manning lines. Their qty × unit_cost overflows `numeric(16,4)`. Filtered out at SQL-emission time — 8 rows excluded across both years, leaving 53 real manning lines. Need to add label-blacklist filter to `parseCityGateMultiYear` in v2.2.
+
+---
+
+
 ## ✅ 2026-05-04 — FM+ Budget v2.1 — T32 Emaar parser SHIPPED (commit `0b3d72b`) — ALL 4 RICH PARSERS COMPLETE
 
 Last v2.1 deferred item closed. `src/lib/fmplus/budget/parsers/emaar-zone-style.ts` parses manning rows from `Manpower CTC` sheet with full 6-component CTC breakdown. Extracts 13 zone names from `Per Zone` and warns user. 8 tests pass. Wired into Import flow — only `'unknown'` parser ID remains unsupported.
