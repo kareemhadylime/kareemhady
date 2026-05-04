@@ -6,11 +6,16 @@ import { buildFmplusPnl, buildFmplusBalanceSheet } from '@/lib/fmplus/financials
 import { buildFmplusDashboard } from '@/lib/fmplus/dashboard';
 import { buildFmplusPayables } from '@/lib/fmplus/payables';
 import { discoverFmplusCompanyId } from '@/lib/fmplus/discover-company';
+import {
+  listFmplusPlansWithActivity,
+  listFmplusProjectsWithActivity,
+} from '@/lib/fmplus/analytic-picker';
 import { FilterBar } from './_components/FilterBar';
 import { PnlTable } from './_components/PnlTable';
 import { BalanceSheetTable } from './_components/BalanceSheetTable';
 import { Dashboard } from './_components/Dashboard';
 import { PayablesGrid } from './_components/PayablesGrid';
+import { AnalyticPicker } from './_components/AnalyticPicker';
 import type { Granularity, ScopeMode, Scope } from '@/lib/fmplus/types';
 
 export const dynamic = 'force-dynamic';
@@ -23,8 +28,10 @@ type Search = {
   asof?: string;
   mode?: ScopeMode;
   plans?: string;
-  plan?: string;
-  accounts?: string;
+  plan?: string;        // service line slug ('hk' | 'mep' | 'mix' | 'security')
+  account?: string;     // single selected project (analytic_account.id)
+  accounts?: string;    // multi-select project ids (csv)
+  multi?: string;       // '1' = multi-select on, '0' = single-select
   with_dep?: string;
   include_drafts?: string;
 };
@@ -63,20 +70,46 @@ export default async function FinancialsPage({
   const fmplusCompanyId = await discoverFmplusCompanyId();
   const periodSeries = resolvePeriodSeries(granularity, periods, asof);
 
-  const planIds = sp.plans
-    ? sp.plans.split(',').map(Number).filter(Number.isFinite)
-    : undefined;
-  const planId = sp.plan ? Number(sp.plan) : undefined;
-  const accountIds = sp.accounts
-    ? sp.accounts.split(',').map(Number).filter(Number.isFinite)
+  // Selected service-line slug (Tier 1) and project id(s) (Tier 2).
+  const selectedPlanSlug = sp.plan && sp.plan.length > 0 ? sp.plan : null;
+  const multi = sp.multi === '1';
+  const selectedProjectIds: number[] = multi
+    ? (sp.accounts ? sp.accounts.split(',').map(Number).filter(Number.isFinite) : [])
+    : (sp.account ? [Number(sp.account)].filter(Number.isFinite) : []);
+
+  // Picker data — fetch plans (always) + projects (only if a plan is picked).
+  // Activity window = the FULL period series (earliest fromDate → latest toDate)
+  // so a project active in any of the visible periods stays in the list.
+  const pickerFromDate = periodSeries[periodSeries.length - 1].fromDate;
+  const pickerToDate   = periodSeries[0].toDate;
+  const plans = await listFmplusPlansWithActivity({
+    companyId: fmplusCompanyId,
+    fromDate: pickerFromDate,
+    toDate: pickerToDate,
+  });
+  const projects = selectedPlanSlug
+    ? await listFmplusProjectsWithActivity({
+        companyId: fmplusCompanyId,
+        fromDate: pickerFromDate,
+        toDate: pickerToDate,
+        planSlug: selectedPlanSlug,
+      })
+    : [];
+
+  // Resolve slug → numeric plan_id for the RPC scope.
+  const selectedPlanId = selectedPlanSlug
+    ? plans.find(p => p.slug === selectedPlanSlug)?.id
     : undefined;
 
   const scope: Scope = {
     mode,
     companyIds: [fmplusCompanyId],
-    planIds: mode === 'plans' ? planIds : undefined,
-    planId: mode === 'accounts' ? planId : undefined,
-    accountIds: mode === 'accounts' ? accountIds : undefined,
+    // Plan filter: when a service line is picked AND no individual projects
+    // are selected, scope to the plan. When projects are selected, the
+    // account_ids filter is more specific so plan_id becomes redundant.
+    planId: selectedPlanId && selectedProjectIds.length === 0 ? selectedPlanId : undefined,
+    accountIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
+    planIds: undefined,  // legacy 'plans' mode unused in current UI
     includeDrafts,
     withDep,
   };
@@ -88,17 +121,18 @@ export default async function FinancialsPage({
     mode,
     withDep,
     includeDrafts,
-    plans: planIds?.join(',') || undefined,
-    plan: planId ? String(planId) : undefined,
-    accounts: accountIds?.join(',') || undefined,
+    plan: selectedPlanSlug || undefined,
+    account: !multi && selectedProjectIds[0] ? String(selectedProjectIds[0]) : undefined,
+    accounts: multi && selectedProjectIds.length > 0 ? selectedProjectIds.join(',') : undefined,
   };
 
   const buildHref = (overrides: Partial<Record<string, string | undefined>> = {}) => {
     const merged: Record<string, string> = {
       view, granularity, periods: String(periods), asof, mode,
-      ...(planIds ? { plans: planIds.join(',') } : {}),
-      ...(planId ? { plan: String(planId) } : {}),
-      ...(accountIds ? { accounts: accountIds.join(',') } : {}),
+      ...(selectedPlanSlug ? { plan: selectedPlanSlug } : {}),
+      ...(!multi && selectedProjectIds.length === 1 ? { account: String(selectedProjectIds[0]) } : {}),
+      ...(multi && selectedProjectIds.length > 0 ? { accounts: selectedProjectIds.join(',') } : {}),
+      ...(multi ? { multi: '1' } : {}),
       with_dep: withDep ? '1' : '0',
       include_drafts: includeDrafts ? '1' : '0',
     };
@@ -166,15 +200,26 @@ export default async function FinancialsPage({
           })}
         </nav>
 
+        {/* Analytic Account picker (above filters). Skipped on Balance Sheet
+            since BS is whole-company and analytic_account_id doesn't apply
+            to asset/liability/equity move-lines. */}
+        {view !== 'balance_sheet' && (
+          <AnalyticPicker
+            plans={plans}
+            projects={projects}
+            selectedPlanSlug={selectedPlanSlug}
+            selectedProjectIds={selectedProjectIds}
+            multi={multi}
+            buildHref={buildHref}
+          />
+        )}
+
         <FilterBar
           view={view}
           granularity={granularity}
           periods={periods}
           asof={asof}
           mode={mode}
-          planIds={planIds}
-          planId={planId}
-          accountIds={accountIds}
           withDep={withDep}
           includeDrafts={includeDrafts}
           buildHref={buildHref}

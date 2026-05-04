@@ -1,5 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 2026-05-04 — FMPLUS Financials: Phase 1 (cascading analytic-account picker) — local build passes, push pending
+
+After user clarified the cascade ("Service Line first, then Projects under it") and replied "Defaults" to all earlier picker design questions, shipped Phase 1:
+
+**New files:**
+- `src/lib/fmplus/analytic-picker.ts` — `listFmplusPlansWithActivity` and `listFmplusProjectsWithActivity` helpers. Active = ≥1 move-line in `odoo_move_line_analytics` joined to `odoo_move_lines` for the period. Plans returned in canonical order (HK/MEP/Mix/Security) with `active_count` per plan.
+- `src/app/fmplus/financials/_components/AnalyticPicker.tsx` — Beithady-style cascade card. Tier 1 = service-line pills with "(N)" active counts. Tier 2 = project pills (only appears after a plan is picked), with multi-select toggle (capped at 5 for side-by-side compare). Selected projects render as removable chips above the project pills in multi mode.
+
+**page.tsx changes:**
+- New URL params: `plan` (slug 'hk'/'mep'/'mix'/'security' replacing the legacy numeric `plan` ID), `account` (single project id), `accounts` (csv multi), `multi` ('1' to enable). Legacy `plans` removed.
+- Picker data fetched in parallel with main data using the period's full window (earliest fromDate → latest toDate) so projects don't flicker in/out as you change `periods=` count.
+- Slug → numeric plan_id resolved server-side.
+- `Scope.planId` set when a service line is picked AND no individual projects selected; `Scope.accountIds` set when ≥1 project selected. Doesn't gate on `mode` anymore (mode stays 'trend' since old plans/accounts modes weren't user-facing).
+- Renders above FilterBar on Dashboard + P&L (skipped on BS — analytic_account_id doesn't apply to balance-sheet move-lines).
+
+**FilterBar cleanup:** dropped the `planIds`/`planId`/`accountIds` props plus the disabled `AccountPicker` import (the legacy plans/accounts mode UI). FilterBar is now pure period+granularity+options.
+
+**Phase 2 still pending**: new `Projects` view (4 ranking cards — Top Revenue, Best by GP, Best by Margin%, Worst by Margin%, all top/bottom-10) + side-by-side P&L rendering when 2-5 projects are multi-selected. `tsc --noEmit` clean. `npm run build` clean. Awaiting commit + push.
+
+---
+
 ## ✅ FINAL 2026-05-04 — FM+ Budget v2.0 COMPLETE — all surfaces functional, 3 audit gaps closed
 
 User asked "any missing work here for V2?" after the 40-task plan completion. Honest audit found 3 real UX gaps that were NOT documented as deferred — all now closed:
@@ -212,6 +233,25 @@ bilingual labels; saves via `saveMobilizationAction`. Both tabs gate behind
 queries in those modes. TS: 0 errors. Tests: 144/144 passed. NOT pushed.
 
 ---
+## 🟢 2026-05-04 — FMPLUS Financials: Analytic-account picker + new Projects tab — user picked defaults, build pending
+
+User replied "Defaults" → taking my full recommended set:
+- **Q1=C**: best/worst by both Absolute GP and Margin % (two ranking tables side-by-side)
+- **Q2=B**: multi-select renders side-by-side P&L columns capped at 5 selected accounts
+- **Tab name**: `Projects`
+- **Picker UI**: Beithady-style section card above FilterBar on Dashboard + P&L + Projects (NOT BS — not analytic-scoped). "All" + plan-grouped pills (HK/MEP/Mix/Security) + multi-select for individual analytic accounts. Activity-filtered: only show analytic accounts with any move-line activity in the selected period.
+- **Projects tab content**: 3 sections × top/bottom 10 — Top Revenue, Best Performing (GP and Margin% tables), Worst Performing (lowest margin among accounts with revenue > 0). Rows clickable → filter P&L for that account.
+- **Loading feedback**: `useLinkStatus` already on pills, add `Loader2` to Apply buttons during pending state, `<Suspense>` skeletons for async data sections.
+
+**Investigated FMPLUS analytic structure** via Supabase MCP. 4 plans: HK Projects (21), MEP Projects (22), Mix Projects (13), Security Projects (3) = 59 project-level analytic accounts (Marassi Residential, Uptown EMAAR, Z Tower Mall, RATP Stations, Telda, AUC, Ghabour Auto, etc.). Real client/site projects, NOT static buildings like Beithady.
+
+**Existing infrastructure**: `pnl_aggregated_multiperiod` RPC already accepts `p_plan_ids`/`p_account_ids`; `Scope` type has `planIds`/`planId`/`accountIds`; `AccountPicker.tsx` exists but is disabled because mode toggle hardcodes `[{id:'trend'}]` only. Re-enabling and styling = mostly UI work.
+
+**Build pending** — implementation is the next turn's work.
+
+## ✅ 2026-05-04 — Build fix shipped (commit `654c799`): two v1-orphan budget files
+
+Build failed after the 7-bucket payables push. Root cause NOT my code — a parallel work session (FM+ Budget v2 at 22/40) renamed two exports in `src/lib/fmplus/budget/templates/index.ts`: `SERVICE_LINE_CATALOG` → `ALL_SERVICE_LINES`; `getLatestTemplate` → `getTemplate(svc, version)`. Two files still imported old names. Both have `// @ts-nocheck` but that only silences TS — Turbopack resolves imports at bundle time. Minimal swap to unblock: `getLatestTemplate(svc)` → `getTemplate(svc, 1)`; `SERVICE_LINE_CATALOG` → `ALL_SERVICE_LINES` (with display-label derived inline from the string code). Local `npm run build` passes. Auto-deploy in flight.
 
 ## ✅ 2026-05-04 — Personal Email: Banking + URGENT marker + build unbreaker (`ab0c81b`, `f59d9dd`)
 

@@ -1,6 +1,5 @@
 import { Calendar, Layers, FileSpreadsheet, ChevronRight } from 'lucide-react';
 import { PillLink } from './PeriodControls';
-import { AccountPicker } from './AccountPicker';
 import type { Granularity, ScopeMode } from '@/lib/fmplus/types';
 
 const GRANULARITIES: Array<{ id: Granularity; label: string }> = [
@@ -101,9 +100,6 @@ export function FilterBar(props: {
   periods: number;
   asof: string;
   mode: ScopeMode;
-  planIds?: number[];
-  planId?: number;
-  accountIds?: number[];
   withDep: boolean;
   includeDrafts: boolean;
   buildHref: (overrides?: Partial<Record<string, string | undefined>>) => string;
@@ -178,24 +174,6 @@ export function FilterBar(props: {
         <p className="text-[11px] text-slate-500 dark:text-slate-400 italic ml-[122px]">
           Balance Sheet is whole-company; project scoping doesn&apos;t apply.
         </p>
-      )}
-
-      {!isBs && props.mode === 'plans' && (
-        <AccountPicker
-          mode="plans"
-          selectedPlanIds={props.planIds}
-          buildHref={props.buildHref}
-        />
-      )}
-      {!isBs && props.mode === 'accounts' && (
-        <AccountPicker
-          mode="accounts"
-          selectedPlanId={props.planId}
-          selectedAccountIds={props.accountIds}
-          asof={props.asof}
-          granularity={props.granularity}
-          buildHref={props.buildHref}
-        />
       )}
 
       <FilterRow icon={FileSpreadsheet} label="Options">
