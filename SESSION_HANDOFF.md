@@ -1,5 +1,35 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — Beithady F&B T25: QR code endpoint + boarding-pass QR section — commit `728a60d`
+
+Installed `qrcode@1.5.4` + `@types/qrcode@1.5.6`. Created `src/app/api/dine/[token]/qr.svg/route.ts` — GET returns an SVG QR code (BH navy `#0F3F58` on transparent bg) gated on `validateDineToken`. Target URL = `https://<origin>/dine/<token>`. Added a printable QR section to `src/app/r/beithady/stay/[token]/page.tsx` after the "Order Food" CTA, gated on `fnb.ok`. Includes `print:` Tailwind variants for clean ops-print output. `tsc --noEmit` = 0 errors. DO NOT push (per task spec).
+
+---
+
+## ✅ 2026-05-04 — Beithady F&B T24: Order Food CTA on boarding-pass page — commit `bbadc34`
+
+Added `validateDineToken` call and conditional "🍽️ Order Food" anchor to `src/app/r/beithady/stay/[token]/page.tsx`. CTA is hidden (not disabled) when `fnb.ok === false` — pre-arrival / post-checkout / F&B-disabled buildings don't see the button. Placed after quick-actions grid, above the gallery section. `tsc --noEmit` = 0 errors. DO NOT push (per task spec).
+
+---
+
+## ✅ 2026-05-04 — Beithady F&B T23: ItemCard tap + cart store + CartBar — commit `c7c7247`
+
+Converted `item-card.tsx` from a server-only read-only component to a client component with tap-to-open bottom sheet. Created 3 new files; modified 2.
+
+**New files:**
+- `src/app/dine/[token]/_components/cart-store.ts` — vanilla localStorage-backed store using `useSyncExternalStore`. Key `bh-fnb-cart-v1`. Exports `useCart()` hook + `cart` action object (add/remove/setQty/clear/total).
+- `src/app/dine/[token]/_components/item-sheet.tsx` — bottom sheet overlay. Modifier checkboxes, qty stepper (1–10), notes textarea (200 char max), line total preview, "Add to order" CTA.
+- `src/app/dine/[token]/_components/cart-bar.tsx` — sticky floating bar: `<Link>` to `/dine/[token]/order` (T28 forward-link). Hidden when cart is empty.
+
+**Modified files:**
+- `src/app/dine/[token]/_components/item-card.tsx` — removed `server-only`, added `'use client'`, wired `onClick → setOpen(true)`, renders `<ItemSheet>` when open.
+- `src/app/dine/[token]/page.tsx` — added `CartBar` import + render inside `<BrandShell>` after the fineprint paragraph.
+
+**Verification:** `tsc --noEmit` = 0 errors. DO NOT push (per task spec).
+
+---
+
+
 ## 🟢 2026-05-04 — Beithady F&B Phase F.2 SHIPPED (commit `4144177`, parallel session)
 
 13 cherry-picked feat/fix commits, all live on main. Vercel building. Local `npm run build` passed before push. Phase F.2 = menu admin (Tasks 9–19): types/repo + categories/items/photo CRUD APIs + admin page + item editor with Basics/Photo/Modifiers/Availability tabs + bulk price update. Production tip `4144177`. F&B tile + `/beithady/fnb/menu` + item editor live.
