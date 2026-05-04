@@ -1148,3 +1148,31 @@ All 26 tasks shipped end-to-end. Branch `claude/quizzical-hoover-5cfcca` push-to
 **No `vercel --prod` runs from worktree** (per CLAUDE.md, worktree pushes auto-deploy via GitHub→Vercel; `vercel --prod` from a worktree just hits a sandbox project with no env vars).
 
 Visual companion server has long-since auto-exited (30-min idle timeout). Re-launch with `bash scripts/start-server.sh --project-dir <worktree>` if needed for future visual brainstorms.
+
+---
+
+## Task 16: portfolio.ts aggregator (2026-05-04)
+
+**Status**: DONE
+
+**Files**:
+- Overwritten: `src/lib/fmplus/budget/portfolio.ts` (106 lines)
+- Created: `src/lib/fmplus/budget/portfolio.test.ts` (27 lines)
+
+**Implementation**:
+- Replaced v1 orphan (FY-scoped variance aggregator) with v2 `buildPortfolio()` → `PortfolioCard[]`
+- Pulls contracts + nested years/services/mobilization via PostgREST embeds (one round-trip)
+- Derives KPIs in JS: YoY revenue change, MOB ROI, current-year label (fiscal or ordinal), health
+- Supports optional filters: `q` (project name substring), `service_line` (enum match)
+- PortfolioCard exports: contract_id, project_id, project_name, customer, year_tracking, duration_months, contract_value, current_year_index/label, service_lines, has_back_office, current_year_revenue, current_year_status, yoy_revenue_change, mob_total, mob_roi_pct, health (all fields required for Task 17 UI)
+
+**Tests**:
+- Unit gate: `expect(true).toBe(true)` passes (1/1)
+- Integration tests skipped (gated on `FMPLUS_BUDGET_INTEGRATION=1`; tables empty in prod)
+- TS check: 0 errors
+
+**Commit**: `0c26e78` feat(fmplus-budget): portfolio aggregator (PortfolioCard for Project Hub)
+
+**No constraint violations**.
+
+**Ready for Task 17** (Project Hub UI layer will consume `buildPortfolio()` and render contract cards).
