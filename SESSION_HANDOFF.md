@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget v2.1 — T32 Emaar parser SHIPPED (commit `0b3d72b`) — ALL 4 RICH PARSERS COMPLETE
+
+Last v2.1 deferred item closed. `src/lib/fmplus/budget/parsers/emaar-zone-style.ts` parses manning rows from `Manpower CTC` sheet with full 6-component CTC breakdown. Extracts 13 zone names from `Per Zone` and warns user. 8 tests pass. Wired into Import flow — only `'unknown'` parser ID remains unsupported.
+
+**v2.1 status: COMPLETE.** All 4 rich XLSX parsers shipped:
+- T29 AUC (commit `9a582dc`) — 106 rows from 6 sheets
+- T30 TRIO (commit `2806c84`) — 5 service Budget sheets, manning-only
+- T31 City Gate (commit `bb8b2d3`) — 61 rows across 8 service×year sheets, multi-year
+- T32 Emaar (commit `0b3d72b`) — 10 rows with full 6-component CTC breakdown
+
+Plus all v2.1 polish: contract management, catalog inline edit, mobile responsiveness, broken Tailwind tokens fixed, Arabic font.
+
+---
+
 ## ✅ 2026-05-04 — Admin/Users: Send credentials by WhatsApp button — commit `a64df53`
 
 Added a "Send credentials" button beside the Edit button on every row in
