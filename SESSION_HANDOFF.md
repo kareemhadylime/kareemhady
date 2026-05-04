@@ -57,7 +57,8 @@
 - T36 `90e1b93` Variance page (server component, contract picker, KPI strip, year/service filters) + VarianceGrid (month×category traffic-light table, client component) + DrillDrawer (fetch-on-open journal-entry slide-over) + actions.ts placeholder + /api/fmplus/budget/variance-drill GET route. `tsc --noEmit` = 0 errors.
 - T37 `7fc1102` Settings page v2 (thresholds + 3 inflation defaults + mob amort + bilingual + template list + unmapped accounts detector)
 
-### Phase 8 ⏳ Compare/Exports/Acceptance (T38-T40)
+### Phase 8 🟡 Compare/Exports/Acceptance (T38-T40)
+- T38 `3ceb4b2` Compare tab v2 (cross-project grid + YoY toggle): page.tsx + compare-grid.tsx overwritten, yoy-mode-toggle.tsx created. `tsc --noEmit | grep compare/ = 0 errors`.
 
 ## Repo state at checkpoint
 
@@ -81,7 +82,7 @@
 - 🟡 `/fmplus/financial/budget` (Overview)
 - 🟡 `/fmplus/financial/budget/import`
 - ✅ `/fmplus/financial/budget/variance` — v2 page live (contract picker → KPI strip → month×category grid → drill drawer)
-- 🟡 `/fmplus/financial/budget/compare`
+- ✅ `/fmplus/financial/budget/compare` — v2 live (cross-project category grid + YoY toggle, service-line chips, eligibility guard for YoY)
 - ✅ `/fmplus/financial/budget/settings` — v2 live (thresholds + 3 inflation knobs + mob amort + bilingual + template overview + unmapped-account warning)
 - 🟡 PDF/XLSX export API routes (`/api/fmplus/budget/variance-pdf` etc.)
 
@@ -91,7 +92,7 @@
 - T35 ✅ `65acdf4` variance.ts v2 (buildBudgetVarianceV2 + cellToMoveLines stub + 2 test files)
 - T36 ✅ `90e1b93` Variance page + drill drawer (v2 schema, 4 files overwritten + drill API route created)
 - T37 ✅ `7fc1102` Settings page v2 (extend v1 with bilingual default + 3 inflation defaults + mob amort default)
-- T38 — Compare YoY mode (extend v1 with new toggle)
+- T38 ✅ `3ceb4b2` Compare tab v2 — cross-project + YoY mode
 - T39 — Variance PDF + XLSX exports (port v1, swap input shape)
 - T40 — End-to-end acceptance walk-through (manual checklist + final docs)
 
