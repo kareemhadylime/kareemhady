@@ -47,10 +47,11 @@ Lines without a `partner_id` roll into a synthetic "Unassigned" pseudo-partner (
 - T18 `d1f8021` — `+ New Contract` wizard (single-page form, atomic createContract)
 - T19 `0029290` — Layout v2 (8-tab strip) + bilingual toggle (en/ع localStorage)
 
-**Phase 5 — Editor (in progress, 3 of 8 tasks done)**
+**Phase 5 — Editor (in progress, 4 of 8 tasks done)**
 - T20 `bb75165` — Editor page scaffold + year tabs + service tabs
 - T21 `8b10936` — Section accordion + budget-line row component (read-only display)
 - T22 `b23b583` — `+ Add line` catalog picker modal (catalog + free-text tabs, `addLineAction`, `/api/fmplus/budget/catalog-search`)
+- T23 `aeb832e` — CTC expand panel for manning rows: `ctc-expand.tsx` (6-component grid + per-line threshold override inputs), `budget-line-row.tsx` converted to client component with expand toggle, `updateLineCtcAction` appended to `actions.ts`
 
 ### Repo state at checkpoint
 
@@ -64,8 +65,8 @@ Lines without a `partner_id` roll into a synthetic "Unassigned" pseudo-partner (
 
 ### What's left (19 tasks)
 
-**Phase 5 — Editor (5 remaining)**
-- T23 — CTC expand panel for manning lines (Net + Relievers + OT + Training + Insurance + Medical inputs)
+**Phase 5 — Editor (4 remaining)**
+- T23 ✓ done (commit aeb832e)
 - T24 — Save Draft / Publish server actions + un-stub buttons
 - T25 — Revenue tab + Mobilization tab (per-year `project_year_services` + project-level `mobilization_lines` editors)
 - T26 — `inflation-calc.ts` (pure math + tests for Copy-year dialog)
