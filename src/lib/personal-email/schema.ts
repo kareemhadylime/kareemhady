@@ -8,6 +8,7 @@ export const CATEGORY_SLUGS = [
   'bills_receipts',
   'personal',
   'subsidiary_beithady',
+  'subsidiary_fmplus',
   'subsidiary_kika',
   'facebook',
   'newsletters',

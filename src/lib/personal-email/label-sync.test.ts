@@ -63,19 +63,20 @@ describe('ensureLabelsForAccount', () => {
     // idempotency test reflects a fully-provisioned account.
     labelsList.mockResolvedValue({
       data: { labels: [
-        { id: 'Label_99',  name: 'Lime/ActionRequired' },
-        { id: 'Label_100', name: 'Lime/Security' },
-        { id: 'Label_101', name: 'Lime/Travel' },
+        { id: 'Label_99',   name: 'Lime/ActionRequired' },
+        { id: 'Label_100',  name: 'Lime/Security' },
+        { id: 'Label_101',  name: 'Lime/Travel' },
         { id: 'Label_BANK', name: 'Lime/Banking' },
-        { id: 'Label_102', name: 'Lime/Bills' },
-        { id: 'Label_103', name: 'Lime/Personal' },
-        { id: 'Label_BH',  name: 'Lime/Beithady' },
+        { id: 'Label_102',  name: 'Lime/Bills' },
+        { id: 'Label_103',  name: 'Lime/Personal' },
+        { id: 'Label_BH',   name: 'Lime/Beithady' },
+        { id: 'Label_FMP',  name: 'Lime/FMPlus' },
         { id: 'Label_KIKA', name: 'Lime/KIKA' },
-        { id: 'Label_FB',  name: 'Lime/Facebook' },
-        { id: 'Label_104', name: 'Lime/Newsletters' },
-        { id: 'Label_105', name: 'Lime/Notifications' },
-        { id: 'Label_106', name: 'Lime/Promotions' },
-        { id: 'Label_107', name: 'Lime/Spam' },
+        { id: 'Label_FB',   name: 'Lime/Facebook' },
+        { id: 'Label_104',  name: 'Lime/Newsletters' },
+        { id: 'Label_105',  name: 'Lime/Notifications' },
+        { id: 'Label_106',  name: 'Lime/Promotions' },
+        { id: 'Label_107',  name: 'Lime/Spam' },
       ] },
     });
     await ensureLabelsForAccount(fakeAccount as any);

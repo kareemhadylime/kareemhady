@@ -14,6 +14,7 @@ import {
   Home,
   MessageSquare,
   Landmark,
+  Wrench,
   Mail,
   type LucideIcon,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ const ICONS: Record<string, LucideIcon> = {
   Home,
   MessageSquare,
   Landmark,
+  Wrench,
 };
 
 // Pre-rendered Tailwind class lookups so dynamic accents work in
@@ -94,6 +96,12 @@ const ACCENTS: Record<string, {
     hoverBorder: 'group-hover:border-green-400', arrow: 'group-hover:text-green-600',
     countBg: 'bg-green-50 dark:bg-green-950', countText: 'text-green-700 dark:text-green-300',
     gradFrom: 'from-green-400', gradTo: 'to-green-600',
+  },
+  orange: {
+    iconBg: 'bg-orange-50 dark:bg-orange-950', iconText: 'text-orange-700 dark:text-orange-300',
+    hoverBorder: 'group-hover:border-orange-400', arrow: 'group-hover:text-orange-600',
+    countBg: 'bg-orange-50 dark:bg-orange-950', countText: 'text-orange-700 dark:text-orange-300',
+    gradFrom: 'from-orange-400', gradTo: 'to-orange-600',
   },
   indigo: {
     iconBg: 'bg-indigo-50 dark:bg-indigo-950', iconText: 'text-indigo-700 dark:text-indigo-300',

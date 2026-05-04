@@ -9,6 +9,7 @@ const DEFINITIONS = `Categories:
 - bills_receipts: Invoices, payment confirmations from VENDORS (Stripe, AWS, Vercel, utilities, services), refunds. Non-bank financial paper trail.
 - personal: One-to-one correspondence from a real human (friend, family, contact). NOT a list, NOT automated, NOT a work request.
 - subsidiary_beithady: Beithady hospitality emails — Airbnb, Booking, Expedia, Vrbo, Guesty, BH-* property mail, A1 Hospitality.
+- subsidiary_fmplus: FM+ work mail — FMPlus tickets, maintenance daily reports, customer helpdesk threads, mail to/from @fmplusme.com. Even when sent from a customer's domain (e.g. someone @cibeg.com sending an FM+ Tickets thread), if the SUBJECT is FM+ work, it goes here, not banking.
 - subsidiary_kika: KIKA / X-Label / Shopify subsidiary mail (orders, billing, factory).
 - facebook: Facebook, Instagram, Meta business updates and ad notifications.
 - newsletters: Opted-in editorial content (Substack, Stratechery, Beehiiv, curated analysis).
@@ -17,7 +18,7 @@ const DEFINITIONS = `Categories:
 - spam: Outright junk, phishing-shaped, or pre-flagged by Gmail's SPAM label, or broadcast email not addressed to me.`;
 
 const OUTPUT_SCHEMA = `Output JSON only, no prose:
-{"category": "<one of 13 slugs>", "confidence": <0.0-1.0>, "reason": "<≤12 words>"}
+{"category": "<one of 14 slugs>", "confidence": <0.0-1.0>, "reason": "<≤12 words>"}
 
 If confidence < 0.7, the system flags this email for human review.`;
 
@@ -26,7 +27,7 @@ export function buildSystemPrompt(
 ): string {
   const fewShot = formatFewShot(recentByCategory);
   return [
-    'You classify emails into one of 13 categories.',
+    'You classify emails into one of 14 categories.',
     '',
     DEFINITIONS,
     '',
