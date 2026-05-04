@@ -106,6 +106,24 @@ export default async function BoardingPassPage({ params }: { params: Promise<{ t
           </a>
         )}
 
+        {/* F&B — Printable QR code for ops to stick on the apartment fridge */}
+        {fnb.ok && (
+          <section className="mt-6 mx-6 print:mx-0 print:mt-12">
+            <h3 className="text-sm uppercase tracking-wide font-semibold text-center mb-2" style={{ color: 'var(--bh-navy, #1E2D4A)' }}>
+              In-Room Dining QR
+            </h3>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/dine/${token}/qr.svg`}
+              alt="Scan to order food"
+              className="w-48 h-48 mx-auto"
+            />
+            <p className="text-xs text-center mt-2 text-slate-500">
+              Print and place in the apartment for guests to scan.
+            </p>
+          </section>
+        )}
+
         {/* Gallery */}
         {galleryUrls.length > 0 && (
           <section className="rounded-2xl bg-white shadow-sm p-5 space-y-3">
