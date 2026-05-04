@@ -59,6 +59,7 @@
 
 ### Phase 8 🟡 Compare/Exports/Acceptance (T38-T40)
 - T38 `3ceb4b2` Compare tab v2 (cross-project grid + YoY toggle): page.tsx + compare-grid.tsx overwritten, yoy-mode-toggle.tsx created. `tsc --noEmit | grep compare/ = 0 errors`.
+- T39 `33efa0a` Variance exports v2: `variance-xlsx.ts` (ExcelJS, Summary sheet + per-segment sheets, traffic-light fill), `variance-pdf.tsx` (react-pdf, landscape A4, KPI strip, segment grids), both route handlers overwritten with v2 types. Export buttons (XLSX + PDF) added to variance page above the KPI strip. `tsc --noEmit | grep exports/|variance = 0 errors`.
 
 ## Repo state at checkpoint
 
@@ -84,7 +85,9 @@
 - ✅ `/fmplus/financial/budget/variance` — v2 page live (contract picker → KPI strip → month×category grid → drill drawer)
 - ✅ `/fmplus/financial/budget/compare` — v2 live (cross-project category grid + YoY toggle, service-line chips, eligibility guard for YoY)
 - ✅ `/fmplus/financial/budget/settings` — v2 live (thresholds + 3 inflation knobs + mob amort + bilingual + template overview + unmapped-account warning)
-- 🟡 PDF/XLSX export API routes (`/api/fmplus/budget/variance-pdf` etc.)
+- ✅ `/api/fmplus/budget/variance-pdf` — v2 route live (renderToBuffer → PDF download)
+- ✅ `/api/fmplus/budget/variance-xlsx` — v2 route live (ExcelJS → XLSX download)
+- ✅ Variance page — XLSX + PDF buttons above KPI strip
 
 ## Remaining work breakdown (12 tasks)
 
@@ -93,7 +96,7 @@
 - T36 ✅ `90e1b93` Variance page + drill drawer (v2 schema, 4 files overwritten + drill API route created)
 - T37 ✅ `7fc1102` Settings page v2 (extend v1 with bilingual default + 3 inflation defaults + mob amort default)
 - T38 ✅ `3ceb4b2` Compare tab v2 — cross-project + YoY mode
-- T39 — Variance PDF + XLSX exports (port v1, swap input shape)
+- T39 ✅ `33efa0a` — Variance PDF + XLSX exports (v2 types, traffic-light XLSX fills, react-pdf KPI strip + segment grids, export buttons on variance page)
 - T40 — End-to-end acceptance walk-through (manual checklist + final docs)
 
 **Higher effort (5 parser tasks, ~5 hours each due to XLSX layout inspection)**:
