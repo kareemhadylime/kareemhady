@@ -1,5 +1,113 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 CHECKPOINT 2026-05-04 — FM+ Budget v2 at 28/40 tasks (70%) — Phases 1-5 done, Phase 6 dispatcher only
+
+**Completed in this session** (29 tasks shipped to main, all hard-guardrail prompts produced clean outputs):
+
+### Phase 1 ✅ Foundation (T1-3)
+- T1 `5875a83` migration 0081 (drops v1's 7 tables, creates v2's 10)
+- T2 `1cddfb3..d522fae` Zod schemas + types + v1 transition `// @ts-nocheck`
+- T3 `dfa04f1` permissions + db helpers
+
+### Phase 2 ✅ Templates + Catalog (T4-12)
+- T4-T10 `c0a25f8..60e27d1` 7 service-line templates (HK/MEP/Landscape/Security/Pest/Waste/Back Office)
+- T11 `0d12ed1` Governmental category + `getTemplate()` post-merge
+- T12 `aa520e1` Catalog seed parser + migration 0082 (76 items in fmplus_catalog)
+
+### Phase 3 ✅ Catalog (T13-15)
+- T13 `a6756d2` server modules (search/upsert/overrides)
+- T14 `0a4bc55` Catalog page UI (table + override side panel)
+- T15 `d5e99e7` Bulk import (XLSX) modal
+
+### Phase 4 ✅ Project Hub (T16-19)
+- T16 `0c26e78` portfolio aggregator
+- T17 `cf51a6e` Project Hub page (contract-card grid)
+- T18 `d1f8021` + New Contract wizard (atomic createContract)
+- T19 `0029290` Layout v2 (8-tab strip) + bilingual toggle
+
+### Phase 5 ✅ Editor (T20-27) — biggest phase, fully done
+- T20 `bb75165` Editor scaffold + year/service tab strips
+- T21 `8b10936` Section accordion + budget-line row component
+- T22 `b23b583` + Add line catalog picker modal (catalog + free-text tabs)
+- T23 `aeb832e` CTC expand panel (Net + Relievers + OT + Training + Insurance + Medical)
+- T24 `d670439` Save Draft / Publish / Add Year / Delete Year actions + audit helper
+- T25 `f81c918` Revenue tab + Mobilization tab
+- T26 `5f23652` inflation-calc.ts (pure math)
+- T27 `76f0638` Copy Y1→Y2 dialog + duplicate.ts (3 inflation knobs + per-line tweaks + audit)
+
+### Phase 6 🟡 Parsers — only dispatcher done (T28)
+- T28 `b43df3b` parser auto-detect dispatcher (5 paths)
+- T29-T33 ⏳ rich XLSX parsers — DEFERRED; need per-file column-mapping inspection
+
+### Phase 7 🟡 Variance — only mobilization math done (T34)
+- T34 `df940dd` mobilization.ts amortization (straight_line + flat) with end_date truncation
+- T35-T37 ⏳ variance.ts v2, Variance page, Settings page v2
+
+### Phase 8 ⏳ Compare/Exports/Acceptance (T38-T40)
+
+## Repo state at checkpoint
+
+- Branch `claude/eager-williamson-5787df` is at `df940dd`, all pushed to `origin/main`
+- `npx tsc --noEmit` = **0 errors** in `src/lib/fmplus/budget/` and `src/app/fmplus/financial/budget/`
+- All vitest suites that were passing continue to pass (146+ tests)
+- ~50 v1 orphan files have `// @ts-nocheck` headers (will be replaced as Tasks 29-40 ship)
+- Supabase: 10 v2 tables present + populated where applicable (`fmplus_catalog` has 76 rows; awaits user data via Editor + new-contract wizard)
+- 0 RLS policies, 0 budget_* helper functions (Task 1 over-reach state was cleaned)
+
+## Functional state in production
+
+**Working end-to-end** (visit https://limeinc.vercel.app/fmplus/financial/budget):
+- ✅ `/fmplus/financial/budget/projects` — Project Hub grid + filter toolbar (empty until first contract created)
+- ✅ `/fmplus/financial/budget/projects/new` — + New Contract wizard (5 sections, atomic create)
+- ✅ `/fmplus/financial/budget/edit?contract=<id>&year=<n>` — Editor with year/service tabs, section accordion, + Add line picker, CTC expand, Save Draft / Publish / Add Year / Copy Year dialog, Revenue tab, Mobilization tab
+- ✅ `/fmplus/financial/budget/catalog` — Catalog table + override side panel + bulk import
+- ✅ Layout: 8-tab strip + EN/ع bilingual toggle (localStorage-persisted, applies dir=rtl)
+
+**Still v1 orphans / runtime-broken** (rewritten in remaining tasks):
+- 🟡 `/fmplus/financial/budget` (Overview)
+- 🟡 `/fmplus/financial/budget/import`
+- 🟡 `/fmplus/financial/budget/variance`
+- 🟡 `/fmplus/financial/budget/compare`
+- 🟡 `/fmplus/financial/budget/settings`
+- 🟡 PDF/XLSX export API routes (`/api/fmplus/budget/variance-pdf` etc.)
+
+## Remaining work breakdown (12 tasks)
+
+**Easier, less time-consuming (~6 tasks, ~3 hours)**:
+- T35 — variance.ts v2 (carries over v1 logic + adds mob amortization + per-line threshold override + bilingual)
+- T36 — Variance page + drill drawer (rewrite v1 with v2 schema)
+- T37 — Settings page v2 (extend v1 with bilingual default + 3 inflation defaults + mob amort default)
+- T38 — Compare YoY mode (extend v1 with new toggle)
+- T39 — Variance PDF + XLSX exports (port v1, swap input shape)
+- T40 — End-to-end acceptance walk-through (manual checklist + final docs)
+
+**Higher effort (5 parser tasks, ~5 hours each due to XLSX layout inspection)**:
+- T29 — rich-auc-style.ts (port v1's parser → v2 ParsedBudget shape)
+- T30 — trio-style.ts (multi-service single-year)
+- T31 — city-gate-multi-year.ts (Y1/Y2 sheets per service + Mobilization sheet + FM Fees Summary)
+- T32 — emaar-zone-style.ts (zone collapse + richer CTC breakdown)
+- T33 — flat-template.ts v2 (most useful — round-trip with Editor's flat XLSX export)
+
+**Recommended order for next session**:
+1. Knock out T35-T37 first (variance + variance page + settings) — these unblock production usability
+2. T38-T39 (compare + exports)
+3. T40 acceptance
+4. THEN T29-T33 (parsers) — these are import nice-to-haves; user can hand-enter via Editor in the meantime
+
+## How to resume in a fresh session
+
+1. Read this checkpoint + the plan at `docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2.md`
+2. Invoke `superpowers:subagent-driven-development`
+3. Continue from Task 35 (variance.ts v2) — biggest unlock
+4. Use the same hard-guardrail prompt template that's worked across all 28 prior tasks: verbatim code blocks + "Task N only" + "do NOT push" + post-verification + "do NOT create migrations beyond what the plan specifies"
+5. Per task: dispatch → verify (git log + tsc + tests) → push → mark complete → next
+
+## Subagent over-reach lesson (logged earlier, still relevant)
+
+First Task 1 implementer over-reached and built Tasks 2+3 with wrong directory + `z.bigint()` IDs + RLS migration. Reverted via path A (3 reverts + Supabase RLS cleanup via `execute_sql`). Subsequent prompts use **hard guardrails** and have produced clean output for **27 consecutive tasks**.
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget Task 27: Copy Y→Yn+1 dialog + duplicate.ts (`76f0638`)
 
 Final Phase 5 task. 3 files created + 3 modified (597 insertions, 7 deletions). NOT pushed.
