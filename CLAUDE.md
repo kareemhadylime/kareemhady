@@ -181,10 +181,15 @@ without asking, on every change:
   project (`bpjproljatbrbmszwbov`)
 - `mcp__…__execute_sql` against the same project for verification +
   forward-only DML
+- **Vercel env-var edits via `rm` + `add`** when the intent is to
+  change a value (e.g. update a redirect URI, swap a credential).
+  The `rm` step is part of an edit cycle, not standalone deletion —
+  no ask needed.
 
 **This authorization is permanent.** Don't pause to ask "should I
-push?" or "should I deploy?" or "should I apply this migration?" —
-the answer is always yes for forward-only operations.
+push?" or "should I deploy?" or "should I apply this migration?" or
+"should I update this env var?" — the answer is always yes for
+forward-only operations.
 
 **Still requires an explicit ask** (these are NOT covered by the
 standing authorization):
@@ -196,7 +201,9 @@ standing authorization):
 - SQL statements that lose data: `DROP TABLE`, `DROP COLUMN`,
   `TRUNCATE`, `DELETE … WHERE` without a clearly bounded scope,
   `ALTER TABLE … DROP CONSTRAINT` on referenced FKs
-- Vercel project deletion or env-var deletion (additions/edits OK)
+- Vercel project deletion
+- **Standalone destructive env-var deletion** (i.e. removing a var
+  with no replacement). Edits via `rm` + `add` are fine — see above.
 - Anything that revokes user access (auth-token wipes, account row
   deletes, etc.)
 
