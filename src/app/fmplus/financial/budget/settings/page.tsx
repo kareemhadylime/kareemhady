@@ -1,6 +1,6 @@
 // @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 import { supabaseAdmin } from '@/lib/supabase';
-import { SERVICE_LINE_CATALOG, getTemplate } from '@/lib/fmplus/budget/templates';
+import { ALL_SERVICE_LINES, getTemplate } from '@/lib/fmplus/budget/templates';
 import { ThresholdEditor } from './_components/threshold-editor';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -42,10 +42,10 @@ export default async function SettingsPage() {
         <table className="text-sm w-full">
           <thead><tr className="bg-slate-50 dark:bg-slate-800 text-left"><th className="p-2">Service line</th><th className="p-2">Status</th><th className="p-2">Template version</th></tr></thead>
           <tbody>
-            {SERVICE_LINE_CATALOG.map(c => (
-              <tr key={c.code} className="border-b border-slate-100 dark:border-slate-800">
-                <td className="p-2"><strong>{c.label}</strong> <span className="text-slate-500">({c.code})</span></td>
-                <td className="p-2 capitalize">{c.template_status}</td>
+            {ALL_SERVICE_LINES.map(code => (
+              <tr key={code} className="border-b border-slate-100 dark:border-slate-800">
+                <td className="p-2"><strong className="capitalize">{code.replace('_', ' ')}</strong> <span className="text-slate-500">({code})</span></td>
+                <td className="p-2">active</td>
                 <td className="p-2 text-slate-500">v1</td>
               </tr>
             ))}

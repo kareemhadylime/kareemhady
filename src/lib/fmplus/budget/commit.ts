@@ -2,7 +2,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import type { FlatRow } from './parsers/flat-template';
 import type { Scenario, ServiceLine } from './schema';
-import { getLatestTemplate } from './templates';
+import { getTemplate } from './templates';
 
 export function groupRowsBySegment(rows: FlatRow[]): Map<ServiceLine, FlatRow[]> {
   const out = new Map<ServiceLine, FlatRow[]>();
@@ -82,7 +82,7 @@ export async function commitBudget(opts: CommitOpts): Promise<CommitResult> {
   const grouped = groupRowsBySegment(rows);
   const summary: CommitResult['segmentsUpserted'] = [];
   for (const [serviceLine, segRows] of grouped.entries()) {
-    const tpl = getLatestTemplate(serviceLine);
+    const tpl = getTemplate(serviceLine, 1);
     const { data: segExisting } = await sb
       .from('project_budget_segments')
       .select('id')
