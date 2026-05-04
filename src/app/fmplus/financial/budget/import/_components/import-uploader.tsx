@@ -1,110 +1,182 @@
-// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 'use client';
+
 import { useState, useTransition } from 'react';
-import { previewImportAction, commitImportAction } from '../actions';
-import type { FlatRow } from '@/lib/fmplus/budget/parsers/flat-template';
-import type { Scenario } from '@/lib/fmplus/budget/schema';
-import { PreviewGrid } from './preview-grid';
+import { useRouter } from 'next/navigation';
+import { FileSpreadsheet, Upload, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { previewImportAction, commitImportAction, type PreviewResult } from '../actions';
 
-export function ImportUploader({ projects }: { projects: Array<{ id: number; name: string }> }) {
-  const [projectId, setProjectId] = useState<number | null>(null);
-  const [year, setYear] = useState(new Date().getUTCFullYear());
-  const [scenario, setScenario] = useState<Scenario>('initial');
-  const [startMonth, setStartMonth] = useState(1);
-  const [pending, startTransition] = useTransition();
-  const [preview, setPreview] = useState<{ format: 'rich'|'flat'; rows: FlatRow[]; warnings: string[]; totals: { byCategory: Record<string, { high: number; low: number }>; high: number; low: number } } | null>(null);
+export function ImportUploader() {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<PreviewResult | null>(null);
+  const [committed, setCommitted] = useState<{ committed: number; skipped: number; errors: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [committed, setCommitted] = useState<number | null>(null);
 
-  const onFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      startTransition(async () => {
-        setError(null); setPreview(null);
-        const res = await previewImportAction({ fileBase64: base64, projectId, fiscalYear: year, scenario });
-        if (res.ok) setPreview({ format: res.format, rows: res.rows, warnings: res.warnings, totals: res.totals });
-        else setError(res.error);
-      });
-    };
-    reader.readAsDataURL(file);
+  const reset = () => {
+    setFile(null);
+    setPreview(null);
+    setCommitted(null);
+    setError(null);
   };
 
-  const commit = (publish: boolean) => {
-    if (!preview || !projectId) return;
+  const onPreview = () => {
+    if (!file) return;
+    setError(null);
+    setPreview(null);
+    setCommitted(null);
+    const fd = new FormData();
+    fd.append('file', file);
     startTransition(async () => {
-      const res = await commitImportAction({
-        rows: preview.rows, projectId, fiscalYear: year,
-        scenario, startMonth, publish,
-      });
-      if (res.ok) setCommitted(res.budgetId ?? 0);
-      else setError(res.error ?? 'Commit failed');
+      try {
+        const r = await previewImportAction(fd);
+        setPreview(r);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
+  };
+
+  const onCommit = () => {
+    if (!preview || preview.rows.length === 0) return;
+    if (!confirm(`Commit ${preview.rows.length} lines? This REPLACES all existing lines for the matching contract+year combinations.`)) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const r = await commitImportAction(preview.rows);
+        setCommitted(r);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     });
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <label className="text-sm">Project:&nbsp;
-          <select value={projectId ?? ''} onChange={e => setProjectId(e.target.value ? Number(e.target.value) : null)}
-                  className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1">
-            <option value="">— pick project —</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-        <label className="text-sm">Year:&nbsp;
-          <select value={year} onChange={e => setYear(Number(e.target.value))}
-                  className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1">
-            {[2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </label>
-        <label className="text-sm">Scenario:&nbsp;
-          <select value={scenario} onChange={e => setScenario(e.target.value as Scenario)}
-                  className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1">
-            <option value="initial">Initial</option>
-            <option value="revised">Revised</option>
-            <option value="reforecast">Re-forecast</option>
-          </select>
-        </label>
-        <label className="text-sm">Start month:&nbsp;
-          <select value={startMonth} onChange={e => setStartMonth(Number(e.target.value))}
-                  className="rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1">
-            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{new Date(2000, m-1, 1).toLocaleString('en', { month: 'short' })}</option>)}
-          </select>
-        </label>
-      </div>
-
-      <input type="file" accept=".xlsx"
-             onChange={e => { const f = e.currentTarget.files?.[0]; if (f) onFile(f); }}
-             className="block text-sm" />
-      {pending && <p className="text-sm text-slate-500">Working…</p>}
-      {error && <div className="rounded border-l-4 border-rose-500 bg-rose-50 dark:bg-rose-900/20 p-3 text-sm">{error}</div>}
-      {committed != null && <div className="rounded border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 p-3 text-sm">Saved budget id {committed}.</div>}
-
-      {preview && (
-        <>
-          <p className="text-xs text-slate-500">
-            Detected format: <strong>{preview.format === 'rich' ? 'rich AUC-style' : 'flat normalized'}</strong> · {preview.rows.length} lines.
-            High season monthly total: <strong>{fmt(preview.totals.high)}</strong> · Low: <strong>{fmt(preview.totals.low)}</strong>.
+    <div className="space-y-4 max-w-3xl">
+      {/* File picker */}
+      {!preview && !committed && (
+        <div className="bg-bg-tertiary border border-border rounded-lg p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet size={18} className="text-accent" />
+            <strong className="text-sm text-text-primary">Upload XLSX</strong>
+          </div>
+          <p className="text-xs text-text-secondary">
+            Auto-detects layout and parses. v2.0 commits flat-template uploads.
+            Rich AUC / TRIO / CityGate / Emaar parsers ship in v2.1 — for those, re-export to flat first.
           </p>
-          {preview.warnings.length > 0 && (
-            <div className="rounded border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs">
-              <strong>{preview.warnings.length} warning{preview.warnings.length === 1 ? '' : 's'}:</strong>
-              <ul className="list-disc pl-5 mt-1 max-h-32 overflow-y-auto">
-                {preview.warnings.map((w, i) => <li key={i}>{w}</li>)}
+          <input type="file" accept=".xlsx,.xls"
+            onChange={e => setFile(e.currentTarget.files?.[0] ?? null)}
+            disabled={isPending}
+            className="block w-full text-xs text-text-secondary
+              file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-border
+              file:bg-bg-secondary file:text-text-primary file:text-xs
+              file:cursor-pointer hover:file:bg-bg-tertiary" />
+          {file && (
+            <div className="text-xs text-text-secondary">
+              Selected: <strong className="text-text-primary">{file.name}</strong> ({(file.size / 1024).toFixed(1)} KB)
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded p-3 text-xs text-red-400 flex items-start gap-2">
+              <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /> <div>{error}</div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <a href="/api/fmplus/budget/flat-template-download"
+              className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary">
+              Download blank template
+            </a>
+            <button type="button" onClick={onPreview} disabled={!file || isPending}
+              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 ml-auto">
+              <Upload size={12} /> {isPending ? 'Parsing…' : 'Preview & Validate'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Preview */}
+      {preview && !committed && (
+        <div className="bg-bg-tertiary border border-border rounded-lg p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <strong className="text-sm text-text-primary">
+              Preview &middot; parser: <span className="text-accent">{preview.parser}</span>
+            </strong>
+            <button onClick={reset} className="text-text-secondary hover:text-text-primary"><X size={14} /></button>
+          </div>
+          <p className="text-[11px] text-text-secondary">{preview.reason} &middot; sheets: {preview.sheetNames.join(', ')}</p>
+
+          {preview.errors.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded p-3 text-xs">
+              <strong className="text-amber-400">{preview.errors.length} error{preview.errors.length === 1 ? '' : 's'}</strong>
+              <ul className="mt-1 space-y-0.5 text-text-secondary">
+                {preview.errors.slice(0, 5).map((e, i) => (
+                  <li key={i}>Row {e.row}: {e.message}</li>
+                ))}
+                {preview.errors.length > 5 && <li>+ {preview.errors.length - 5} more&hellip;</li>}
               </ul>
             </div>
           )}
-          <PreviewGrid rows={preview.rows} />
-          <div className="flex gap-2">
-            <button onClick={() => commit(false)} disabled={pending || !projectId}
-                    className="px-3 py-2 rounded border border-slate-300 dark:border-slate-700 text-sm">Save as Draft</button>
-            <button onClick={() => commit(true)} disabled={pending || !projectId}
-                    className="px-3 py-2 rounded bg-amber-600 text-white text-sm">Publish</button>
+
+          {preview.byContract.length > 0 && (
+            <div>
+              <div className="text-[10px] text-text-secondary uppercase mb-1">Will affect ({preview.byContract.length} group{preview.byContract.length === 1 ? '' : 's'})</div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[10px] text-text-secondary uppercase border-b border-border text-left">
+                    <th className="px-2 py-1">Contract</th>
+                    <th className="px-2 py-1">Year</th>
+                    <th className="px-2 py-1 text-right">Lines</th>
+                    <th className="px-2 py-1 text-center">Contract</th>
+                    <th className="px-2 py-1 text-center">Year</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.byContract.map(g => (
+                    <tr key={`${g.contract_name}|${g.year_index}`} className="border-b border-border">
+                      <td className="px-2 py-1.5 font-medium">{g.contract_name}</td>
+                      <td className="px-2 py-1.5">Y{g.year_index}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{g.line_count}</td>
+                      <td className="px-2 py-1.5 text-center">{g.contract_exists ? '✅' : <span className="text-red-400">❌ not found</span>}</td>
+                      <td className="px-2 py-1.5 text-center">{g.year_exists ? '✅' : <span className="text-amber-400">create year first</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-2 border-t border-border">
+            <button onClick={reset} disabled={isPending}
+              className="text-xs px-3 py-1.5 text-text-secondary border border-border rounded">Cancel</button>
+            <button onClick={onCommit} disabled={isPending || preview.rows.length === 0}
+              className="text-xs px-4 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50 ml-auto">
+              <CheckCircle2 size={12} /> {isPending ? 'Committing…' : `Commit ${preview.rows.length} lines`}
+            </button>
           </div>
-        </>
+        </div>
+      )}
+
+      {/* Committed */}
+      {committed && (
+        <div className="bg-bg-tertiary border border-border rounded-lg p-5 space-y-3">
+          <div className="flex items-center gap-2 text-green-400">
+            <CheckCircle2 size={18} />
+            <strong className="text-sm">Import complete</strong>
+          </div>
+          <div className="bg-bg-secondary rounded p-3 text-xs space-y-1">
+            <div className="flex justify-between"><span>Committed:</span> <strong className="tabular-nums text-green-400">{committed.committed}</strong></div>
+            <div className="flex justify-between"><span>Skipped:</span> <strong className="tabular-nums text-amber-400">{committed.skipped}</strong></div>
+          </div>
+          {committed.errors.length > 0 && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded p-3 text-xs text-red-400">
+              {committed.errors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
+            </div>
+          )}
+          <button onClick={reset}
+            className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold">Import another file</button>
+        </div>
       )}
     </div>
   );
 }
-function fmt(n: number): string { return new Intl.NumberFormat('en-EG', { maximumFractionDigits: 0 }).format(n); }

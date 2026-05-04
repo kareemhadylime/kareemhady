@@ -1,26 +1,27 @@
-// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
-import type { PortfolioRow } from '@/lib/fmplus/budget/portfolio';
+import Link from 'next/link';
 
-export function AnomalyBanner({ rows }: { rows: PortfolioRow[] }) {
-  const flagged = rows
-    .filter(r => r.variance_pct != null && Math.abs(r.variance_pct) > 15)
-    .slice(0, 3);
-  if (flagged.length === 0) return null;
+interface Anomaly {
+  contract_id: number;
+  project_name: string;
+  var_pct: number | null;
+}
+
+export function AnomalyBanner({ anomalies }: { anomalies: Anomaly[] }) {
+  if (anomalies.length === 0) return null;
   return (
-    <div className="rounded border-l-4 border-rose-500 bg-rose-50 dark:bg-rose-900/20 p-3 text-sm">
-      <strong className="text-rose-700 dark:text-rose-300">&#9888; Anomaly detector</strong>
-      {' — '}
-      {flagged.length} project{flagged.length === 1 ? '' : 's'} deviating &gt;15% from budget:&nbsp;
-      {flagged.map((r, i) => (
-        <span key={r.project_id}>
-          <strong>{r.project_name}</strong>
-          {' '}
-          <span className={r.variance > 0 ? 'text-rose-700' : 'text-emerald-700'}>
-            ({r.variance_pct! > 0 ? '+' : ''}{r.variance_pct!.toFixed(0)}%)
-          </span>
-          {i < flagged.length - 1 ? ', ' : ''}
-        </span>
-      ))}
+    <div className="border border-red-500/30 bg-red-500/5 rounded-lg p-4">
+      <strong className="text-sm text-text-primary">Anomalies — top {anomalies.length} worst variance</strong>
+      <ul className="mt-2 space-y-1 text-xs">
+        {anomalies.map(a => (
+          <li key={a.contract_id}>
+            <Link href={`/fmplus/financial/budget/variance?contract=${a.contract_id}`}
+              className="text-accent hover:underline font-medium">
+              {a.project_name}
+            </Link>
+            {' '}— {a.var_pct != null ? `${(a.var_pct * 100).toFixed(1)}% over budget` : 'no data'}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
