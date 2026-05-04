@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { canTransition } from '@/lib/beithady/fnb/order-status';
 import { notifyGuestStatus } from '@/lib/beithady/fnb/wa-notifier';
 import { StatusUpdatePayloadSchema } from '@/lib/beithady/fnb/types';
+import { sendDeliveredReceipt } from '@/lib/beithady/fnb/receipt-send';
 
 interface Ctx { params: Promise<{ id: string }> }
 
@@ -95,7 +96,11 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     notifyGuestStatus(id, parsed.to_status).catch(err =>
       console.error('[fnb] notifyGuestStatus failed', err));
   }
-  // Phase F.7 (T49) will fire receipt PDF auto-send at delivered.
+  // T49 — auto-send receipt PDF when order is delivered
+  if (parsed.to_status === 'delivered') {
+    sendDeliveredReceipt(id).catch(err =>
+      console.error('[fnb] sendDeliveredReceipt failed', err));
+  }
 
   return NextResponse.json({ order: updated });
 }
