@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Wifi, MessageCircle, MapPin, Clock, Phone, BedDouble, ArrowRight } from 'lucide-react';
 import { loadBoardingByToken } from '@/lib/beithady/engagement/boarding-pass';
 import { supabaseAdmin } from '@/lib/supabase';
+import { validateDineToken } from '@/lib/beithady/fnb/token-validate';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -26,6 +27,8 @@ export default async function BoardingPassPage({ params }: { params: Promise<{ t
   }
 
   const waLink = `https://wa.me/${bundle.host_phone_e164.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi Beit Hady — about my stay at ${bundle.listing_nickname || 'the apartment'} (${bundle.reservation_id})`)}`;
+
+  const fnb = await validateDineToken(token);
 
   return (
     <div style={{ backgroundColor: '#F5F1E8', minHeight: '100vh' }}>
@@ -91,6 +94,17 @@ export default async function BoardingPassPage({ params }: { params: Promise<{ t
             <span className="text-[11px] text-slate-500">{bundle.host_phone_e164}</span>
           </a>
         </section>
+
+        {/* F&B — Order Food CTA (only shown when building has F&B enabled and guest is checked in) */}
+        {fnb.ok && (
+          <a
+            href={`/dine/${token}`}
+            className="block mt-4 mx-6 text-center rounded-full py-4 font-semibold"
+            style={{ background: '#0F3F58', color: '#FAF8F4' }}
+          >
+            🍽️ Order Food
+          </a>
+        )}
 
         {/* Gallery */}
         {galleryUrls.length > 0 && (
