@@ -3,6 +3,7 @@ import { validateDineToken } from '@/lib/beithady/fnb/token-validate';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BrandShell } from './_components/brand-shell';
 import { CategorySection } from './_components/category-section';
+import { CartBar } from './_components/cart-bar';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,7 @@ export default async function DinePage({ params }: Ctx) {
       <p className="dine-fineprint">
         All prices are inclusive of 14% VAT &amp; 12% Service Charge
       </p>
+      <CartBar token={token} />
     </BrandShell>
   );
 }
