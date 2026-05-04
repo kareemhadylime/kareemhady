@@ -74,6 +74,53 @@ User should re-click Refresh now that the redesigned page surfaces
 sync status more clearly — if it stalls again, we'd need to add
 incremental progress writes + lambda log inspection.
 
+---
+
+## ✅ 2026-05-04 — Ingest hardening + per-account freshness bars (commit `a6bf014`)
+
+User saw GMAIL synced 8 min ago but FM+/LIME still showing the
+April timestamps after re-clicking Refresh. Root cause confirmed:
+GMAIL's iteration succeeded, then the function hung on FM+/LIME's
+`getGmailClientFromRefresh()` call (Google's OAuth token refresh
+endpoint never replied — token was probably invalidated after
+sitting idle since April 26-27). Vercel killed the function before
+any progress flushed, which is why every cron run since 06:15 UTC
+had been writing a fresh row with `finished_at=NULL`/`accounts=[]`.
+
+**Code fixes (`src/lib/personal-email/ingest.ts`):**
+
+- `withTimeout()` helper wrapping `getGmailClientFromRefresh()` at
+  8 s and the entire per-account ingest at 90 s. A dead refresh
+  token now throws `token_refresh_<email>_timeout_8000ms` in 8 s
+  instead of stalling for 5 min.
+- Incremental `flushProgress()` writes to the run row BEFORE each
+  account attempt (so the row records "attempting FM+" even if
+  the next line dies) AND after each finish/error.
+- Error rows now include `at` ISO timestamp + `account` email.
+
+**UI surface (`mailbox-status-bar.tsx`):**
+
+- Each mailbox card now has a 24-h freshness bar (green ≥60%,
+  amber 20-60%, red <20%) with the percentage shown numerically.
+- "N classified · +M last 24h" counts per mailbox.
+- Green checkmark for healthy, red alert pin + one-line hint for
+  any mailbox flagged in the most recent run (e.g.
+  "refresh token invalid — reconnect", "token refresh timed
+  out", "auth expired — reconnect").
+
+**DB cleanup:** backfilled the 6 stuck `personal_email_classification_runs`
+rows whose `finished_at` was NULL with a synthetic
+`{fatal: 'function_timed_out_before_progress_flush', at: 'backfilled'}`
+error and `finished_at = started_at + 5 min`, so the
+`/personal/email/setup/ai` recent-runs table no longer shows them
+as in-flight forever.
+
+**Still needed from user:** reconnect FM+ and LIME via Setup →
+Accounts. Their refresh tokens have rotted from disuse since April.
+The OAuth flow uses `prompt: 'consent'` which forces Google to
+issue fresh tokens. GMAIL is fine — it was reconnected earlier
+this session.
+
 ## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
 
 **Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
