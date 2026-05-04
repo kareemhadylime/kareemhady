@@ -1,5 +1,24 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget Task 27: Copy Y→Yn+1 dialog + duplicate.ts (`76f0638`)
+
+Final Phase 5 task. 3 files created + 3 modified (597 insertions, 7 deletions). NOT pushed.
+
+**Created:**
+- `src/lib/fmplus/budget/contracts/duplicate.ts` — `copyYear()` server function: loads source year, guards duplicate target, inserts new `project_years` row (draft), copies `project_year_services` with revenue inflation applied, copies all `budget_lines` with `applyInflation()` (per-line overrides respected), writes copy audit log to `budget_audit`, rolls back target year on any insert error.
+- `src/app/fmplus/financial/budget/edit/_components/copy-year-dialog.tsx` — Client modal: 3 inflation knob cards (Revenue/Manpower/Non-manpower) with numeric input + range slider, live source/target summary bar (rev/cost/GM projection), expandable "Tweak per line" panel with searchable table, per-line % override + reason input. Fetches lines via `/api/fmplus/budget/year-lines`. On commit calls `copyYearAction` then navigates to new year.
+- `src/app/api/fmplus/budget/year-lines/route.ts` — GET endpoint returning `lines[]` + `annualRevenue` for a year_id; used by the dialog for live preview without page-level server load.
+
+**Modified:**
+- `actions.ts` — Added `copyYear` import at top; appended `CopyYearInputSchema` + `copyYearAction` at bottom.
+- `year-tabs.tsx` — Added `id` to `YearInfo`, new `contractName`/`defaultKnobs` props, `useState(copyOpen)`, active Copy year button, `<CopyYearDialog>` mounted at end of component.
+- `page.tsx` — Loads `budget_settings` row 1 for default knob values; passes `id`, `contractName`, `defaultKnobs` to `<YearTabs>`.
+
+TS: 0 errors.
+
+---
+
+
 ## ✅ 2026-05-04 — FM+ Budget Task 25: Revenue tab + Mobilization tab (`f81c918`)
 
 2 new components + 3 modified files (602 insertions, 58 deletions). Revenue tab
