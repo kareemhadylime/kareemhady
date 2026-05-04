@@ -1,4 +1,30 @@
-# Kareemhady — Session Handoff (2026-05-03)
+# Kareemhady — Session Handoff (2026-05-04)
+
+## 🟢 2026-05-04 — SHIPPED to main: BH-DXB excluded from daily-report aggregations + sync-side DXB persistence
+
+User flagged that the morning Daily Performance Report still shows discrepancies vs the Guesty homepage. Investigation revealed:
+
+**The user's screenshot comparison was apples-to-oranges:**
+- Our app's report: "for Sun, May 3, 2026" → 7 check-ins / 4 check-outs / 1 turnover / 37 occupied of 79
+- Guesty homepage: today **May 4, 2026** → 1 / 3 / 1 / 34
+
+Two different days. Verified via Supabase MCP that for the same date with the same status filter, all three views (daily-report's `confirmed/checked_in/checked_out`, morning-brief's `confirmed/reserved/awaiting_payment`, Guesty UI's `confirmed`) give **identical** numbers — 7/4/37 for May 3, 1/3/35 for May 4.
+
+**Real bug found and fixed:** the daily-report's inventory denominator (79) included the 2 active UAE listings (REEHAN-204, YANSOON-105), and the BH-DXB exclusion never reached the daily-report builders even though it's been in the morning-brief since 2026-04-30. Plus the previous-turn DXB `building_code` backfill on `guesty_listings` was being **overwritten by the daily 04:40 Guesty sync** because the sync's `extractBuildingCode()` didn't recognize UAE nicknames (LIME-MA, REEHAN, YANSOON).
+
+**Three fixes shipped in commit `de32f5b`:**
+
+1. **Sync persistence (`run-guesty-sync.ts:161`):** `extractBuildingCode()` now returns `'DXB'` for nicknames matching `^(LIME-MA|REEHAN|YANSOON|BURJ-|DUBAI-)` or containing `\bDXB\b`. `extractBuildingFromTags()` also matches `DXB`/`BH-DXB`/`UAE`. Re-applied the 3-row `building_code='DXB'` backfill via Supabase MCP — now sticks.
+
+2. **Daily-report inventory loader (`beithady-daily-report/units.ts`):** new `isExcludedFromReport(buildingCode)` predicate (true for `DXB`/`BH-DXB`/`AE`/`UAE`). `loadBuildingInventories()` skips these listings entirely so they don't pollute `physical_listing_ids_all` (the master allow-list used downstream). Effect: 79 → 77 active inventory denominator.
+
+3. **Reservation ingest filter (`beithady-daily-report/reservations.ts`):** drops UAE rows at `loadCorpus` so all downstream builders (channel mix, payouts, cleaning, payment, no-show, weekly digest, paired channel) inherit the exclusion without per-builder edits. Belt-and-suspenders defense in `build-buildings.ts` walker too.
+
+**Numerical impact:** May 3 occupancy moves from 37 / 79 (46.8%) → 35 / 77 (45.5%); May 4 from 35 → 33 (Egypt only). Guesty UI's "34 currently staying" is now within 1-row sync-lag of our 33.
+
+**Deployment:** `git push origin claude/zen-euler-d3bd5e:main` succeeded (`cbbaa95..de32f5b`). `vercel --prod` READY at `https://zen-euler-d3bd5e-9ax0nrdsb-lime-investments.vercel.app` (alias `zen-euler-d3bd5e.vercel.app`). Branch zero-divergence with `origin/main`. Tomorrow's 9 AM Cairo daily-report cron will use the new exclusion — first email user receives shows the corrected denominator. Today's snapshot (rendered before deploy) won't retroactively update.
+
+---
 
 ## ✅ 2026-05-04 — FM+ Project Budget v2 spec doc written (Path A)
 
