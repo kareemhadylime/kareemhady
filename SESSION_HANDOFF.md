@@ -1,5 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — Personal Email: Banking + URGENT marker + build unbreaker (`ab0c81b`, `f59d9dd`)
+
+Banking category (13th, Tier 2 sortOrder 5, green Landmark) + 21
+seeded bank domains at priority 22 (RAKBank/Mashreq/Emirates NBD/
+ADCB/CBD/FAB/HSBC/CIB/NBE/AAIB/Banque du Caire/QNB Alahli/Arab Bank/
+Citi/Chase/Bank of America/Wise/Revolut) + 5 subject-pattern
+fallbacks. Pre-existing RAKBank rule moved bills_receipts→banking.
+22 emails backfilled.
+
+URGENT marker (`isImmediateIntervention`): subject regex matches
+urgent/action-required/verify/suspicious/fraud/unauthorized/blocked/
+frozen/locked/suspended/declined/past-due/overdue/expir(ed|ing)/
+security-alert/attention-required. Gated to {banking, security,
+action_required} so promotional "URGENT sale" copy stays out.
+Renders rose-tinted row + solid rose bar + white-on-rose-600 pill in
+list, "⚠ NEEDS ACTION" pill in preview, URGENT pill in card top-3.
+
+AI prompt refreshed to current 13 categories with per-cat 1-line
+defs. Was stuck at the original 9 since v1.
+
+Production build queue had been failing ~30 min: two missing exports
+in `lib/fmplus/budget/templates/index.ts` that tsc didn't catch
+(settings page is @ts-nocheck) but Turbopack did:
+- `SERVICE_LINE_CATALOG` (settings page expectation): added as
+  {code,label,template_status}[] with hk active, 6 stubs.
+- `getLatestTemplate` (commit.ts dependency): one-line wrapper
+  around `getTemplate(sl, 1)`.
+Surgical fix in commit `f59d9dd` that doesn't disturb the in-flight
+v2 work in the other worktree. Unblocks every queued deploy.
+
+34/34 tests passing.
+
+---
+
 ## ✅ 2026-05-04 — FMPLUS Financials: 7-bucket CoA segregation shipped (Q1-A, Q2-B, Q3-B, Q4-B, Q5-B, Q6-B)
 
 User answered the 6 judgment calls. Rewrote `src/lib/fmplus/payables.ts` with a hardcoded code-prefix → bucket map (47 codes mapped) replacing the previous account-name regex approach. UI rebuilt with 7 cards in 2 sections (Payables / Receivables):
