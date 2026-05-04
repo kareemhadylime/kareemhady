@@ -167,16 +167,23 @@ export function buildBuildingsTable(
       }
     }
 
-    // ---- MTD revenue + nights ----
+    // ---- Month revenue (check-in attribution, Guesty parity) ----
+    //
+    // FIXED 2026-05-04 per user: previously this allocated revenue
+    // proportionally to nights-in-month (an accrual view). That gave
+    // $22,934 for May while Guesty's "This Month" tile showed $16,340
+    // because Guesty credits the FULL reservation revenue to the month
+    // its check-in date falls in. Switched to that methodology so the
+    // daily-report's revenue line matches the Guesty UI exactly.
+    //
+    // A reservation whose check-in is in this calendar month → full
+    // host_payout counts here. Otherwise → 0 contribution to this
+    // month's revenue. Reservations spanning month boundaries: their
+    // revenue lands in the check-in month only.
     const usd = r.host_payout_usd || 0;
     const totalNights = r.nights || 0;
     const nightsThisMonth = nightsInRange(r, monthStart, monthEnd);
-    if (nightsThisMonth > 0 && totalNights > 0) {
-      // Revenue allocated proportionally to the month-overlap nights.
-      const allocated = (usd * nightsThisMonth) / totalNights;
-      acc.revenue_usd += allocated;
-      accAll.revenue_usd += allocated;
-    } else if (nightsThisMonth > 0 && totalNights === 0) {
+    if (r.check_in_date && r.check_in_date >= monthStart && r.check_in_date <= monthEnd) {
       acc.revenue_usd += usd;
       accAll.revenue_usd += usd;
     }
