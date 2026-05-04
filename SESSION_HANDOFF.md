@@ -1,5 +1,24 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FMPLUS Financials: 7-bucket CoA segregation shipped (Q1-A, Q2-B, Q3-B, Q4-B, Q5-B, Q6-B)
+
+User answered the 6 judgment calls. Rewrote `src/lib/fmplus/payables.ts` with a hardcoded code-prefix → bucket map (47 codes mapped) replacing the previous account-name regex approach. UI rebuilt with 7 cards in 2 sections (Payables / Receivables):
+
+**Payables section (4 cards)**
+- **Vendors** (amber, Wrench): 9 codes — 221001 AP + 221007/008/011-016 accruals + 221012/013 purchase. Live: 161 partners, -20.6M EGP.
+- **Employee Payables** (indigo, Users): 3 codes — 221004 Salaries + 227002/003 settlements/allowances. Live: 0 (all reconciled within month).
+- **Government Payables** (rose, Landmark): 10 codes — 221005/006/009 + 226001-006 + 213001 Deferred Tax. Live: 132 partners, -2.53M EGP.
+- **Bank & Financing** (slate, Building2): 18 codes — 211001-009 + 212001/215001-003/216001/221002/221003/222001/223001. Live: 41 partners, +8.09M EGP.
+
+**Receivables section (3 cards)**
+- **Customer Receivables** (emerald, HandCoins): 3 codes — 122001/002 + 221010 Credit Note (Q5: B → customer-side). Live: 21 customers, +15.4M EGP.
+- **Customer Deposits & LGs** (cyan, Banknote): 3 codes — 117001/002/006. Live: 0 (all applied/cleared).
+- **Government Receivables** (violet, Receipt): 1 code — 113001 With Holding Tax-Client. Live: 37 partners, +2.15M EGP.
+
+Lines without a `partner_id` roll into a synthetic "Unassigned" pseudo-partner (italicized in UI, partner_id=null) so totals stay honest — typical for general accruals booked against AP without picking a specific vendor. Type-check passes. Pending push + deploy.
+
+---
+
 ## 🟢 CHECKPOINT 2026-05-04 — FM+ Budget v2 at 22/40 tasks (55%) — Phases 1-4 done, Phase 5 in progress
 
 **Strategy:** subagent-driven execution with hard-guardrail prompts. Pattern verified across 21 tasks: each implementer dispatch uses verbatim code blocks + "Task N only" + "do NOT push" + post-verification. Reliable.
@@ -132,6 +151,61 @@ First Task 1 implementer over-reached and built Tasks 2+3 with wrong directory +
 - tsc: 0 catalog errors; tests: 139/145 pass (1 pre-existing `personal-email/label-sync.test.ts` failure unrelated)
 
 **Next step:** Task 16 or Task 19 (layout tab strip rewrite).
+
+---
+## 🟡 2026-05-04 — FMPLUS Financials: CoA segregation analysis complete, awaiting user pick on 6 judgment calls
+
+User dropped `C:\kareemhady\.claude\FMPLUS\Account (account.account).xlsx` (1,104 accounts) and asked for deep analysis to segregate AP/AR accounts into the Vendors / Government / Customer Receivables cards I shipped earlier this turn (commit `72c59f5`).
+
+**Read CoA via openpyxl, enumerated all 56 liability + 13 asset accounts that touch payables/receivables.** Proposed mapping presented to user:
+
+- **Vendors Payables (10)**: 221001 Accounts payable + 221007/008/011-016 accruals + 221012/013 purchase transit/uniform.
+- **Government Payables (9)**: 221005 Accrued Social Insurance, 221006 Customs, 221009 Admin Penalties, 226001-006 (VAT, Tax Authority, Payroll Tax, WHT-Vendor).
+- **Customer Receivables (2)**: 122001 Accounts Receivable + 122002 contra.
+
+**Awaiting answers on 6 judgment calls before rewriting `src/lib/fmplus/payables.ts`** — currently the live code uses an account-name regex which over-matches (catches `221008 Accrued Accommodation` because of "salary"-adjacent regex hits) and under-matches (misses `226004 Tax Authority` if it lacks tax-keyword variants). The clean fix is a hardcoded code-prefix → bucket map, but the user has 6 ambiguous edges:
+
+- Q1: Employee Payables (221004/227002/227003) — own card vs roll into Vendors vs skip
+- Q2: Bank & Financing (211xxx/212xxx/222xxx/223xxx/215xxx/216001) — skip vs new card vs Vendors
+- Q3: Customer Deposits & LGs (117001/117002/117006) — skip vs new card vs Receivables
+- Q4: 113001 With Holding Tax-Client — Receivables vs Gov Receivables vs skip
+- Q5: 221010 Credit Note — vendor or customer side? (genuinely ambiguous)
+- Q6: 213001 Deferred Tax Liabilities — skip vs Government
+
+Recommendations given (A,A,A,A,? for Q5,A) but user must answer Q5 and confirm before code changes ship.
+
+## ✅ 2026-05-04 (earlier same turn) — FMPLUS Financials redesign + bug fixes shipped (4 commits)
+
+Sequential commits to main, all auto-deployed via GitHub→Vercel:
+1. `eebf9d2` — **UI redesign** to match Beithady cockpit pattern. Hero header w/ gradient blur + LineChart icon container; KpiStrip cards w/ gradient blur, lucide icons (DollarSign/TrendingUp/Activity/Target), area-fill sparkline, pill delta badge; DashboardCharts w/ iconified section headers + dark-mode-readable Recharts tooltips/grid; FilterBar swapped free-text date input for a `<select>` with 36 monthly / 16 quarterly / 8 yearly options + amber Apply button; PeriodControls inactive state got dark-mode bg.
+2. `2b1c91f` — **Two real bugs**: (a) P&L "Unclassified accounts (137)" was leaking ALL FMPLUS asset_fixed/liability/etc. accounts because the build code treated `classifyByPrefix === null` as "surface in P&L unclassified". Now filtered to P&L-relevant account_types only (income/income_other/expense/expense_direct_cost/expense_depreciation). (b) Balance Sheet rendered all zeros for asof≥2026-02-28 because `opening-balance.ts` ships an empty stub seed AND the BS code filtered move-lines with `date > seed-date` when "seed active" → empty seed + post-seed filter = nothing. Now detects empty seed and falls through to no-seed code path (sums full sync window). Caveat: undercounted relative to true cumulative (no pre-sync history) but at least non-zero and matches user's expected scale.
+3. `72c59f5` — **Vendors / Government / Customer Receivables cards** (`src/lib/fmplus/payables.ts` + `src/app/fmplus/financials/_components/PayablesGrid.tsx`). Mirrors Beithady PayablesCard visual exactly — gradient-blur backdrop, lucide icon (Wrench/Landmark/HandCoins) in tinted container, partner-count pill, big tabular-nums total, scrollable top-40 partner list. Initial categorization is account-name regex against tax/insurance/customs/etc keywords — pending Q1-Q6 answers above to lock the mapping cleanly.
+
+## ✅ 2026-05-04 (earlier same turn) — Three secrets rotated end-to-end + legacy JWT revoked
+
+Full security loop closed after three concurrent leaks during diagnosis:
+- ODOO_API_KEY: rotated (twice; last value matched between Odoo UI + Vercel)
+- SUPABASE_SERVICE_ROLE_KEY: migrated from legacy JWT (eyJ...) to new `sb_secret_b...` (41 chars)
+- NEXT_PUBLIC_SUPABASE_ANON_KEY: migrated from legacy JWT to new `sb_publishable_D...` (46 chars)
+- Legacy HS256 signing key (`0D5C16D5-…`) revoked in Supabase JWT Keys → Previously used keys → ⋯ → Revoke. Tab is now in "Revoked keys" with "a few seconds ago" timestamp. Leaked tokens are dead.
+
+Migration path: Supabase removed direct rotation of the legacy JWT secret; the only path is migrate code to `sb_publishable_*`/`sb_secret_*` (drop-in env-var swap, no code change because Supabase JS client passes opaque strings), then click "Disable JWT-based legacy API keys" on the Legacy anon, service_role tab, then revoke the previous key on the JWT Signing Keys tab.
+
+Smoke tests after revocation: homepage 307, login 200, service_role REST 200, anon REST 200, lambda end-to-end (`phase=metadata`) returned `{accounts_synced:2021, partners_synced:1184}` HTTP 200. Prod is fully functional.
+
+Side observation flagged: the anon (publishable) key successfully reads `odoo_companies` via REST, meaning RLS is either disabled on `odoo_companies` or anon has a permissive read policy. That's a separate audit task — anyone with the public bundle can read internal company/financial metadata.
+
+## ✅ 2026-05-04 (earlier same turn) — FMPLUS sync silent FK failures fixed; 73,420 lines actually landed
+
+Original presenting bug from start of session: `/fmplus/financials?asof=2026-02` showed Revenue=0, partial COGS, all em-dashes in BAL·% column. Diagnosis: FMPLUS `odoo_move_lines` table held exactly 21,000 rows (= 42×500 PAGE size, hard signal of time-budget bailout from prior session's sync). User screenshot showed the data state.
+
+Initial sync re-run via `phase=move-lines-fmplus` returned `{move_lines_synced: 73420, complete: true}` but DB row count DID NOT advance — still 21,000 with `max_id` unchanged at 1,280,141. Lambda was fetching 73k lines from Odoo, attempting upserts, but `await sb.upsert(...)` had no `.select()` and no `error` check — PostgreSQL FK violations on `partner_id` (rank-0 partners not in `odoo_partners` because `syncOdooPartners` filters `[supplier_rank>0 OR customer_rank>0]`) silently aborted whole 500-row batches.
+
+**Fix shipped (commit `3f9f749`):** pre-load known account_ids and partner_ids into Sets before the fetch loop; NULL stale FKs on each row before upsert (both columns are nullable with ON DELETE SET NULL); destructure `{ error, data }` from each upsert; on batch error, fall back to per-row to isolate offenders. Return enhanced stats: `move_lines_written` (actual db count), `fk_account_nulled`, `fk_partner_nulled`, `errors[]` capped at 5.
+
+After deploy: re-ran sync, got `{move_lines_synced: 73420, move_lines_written: 73420, fk_partner_nulled: 19250, errors: [], complete: true}`. **All 73k lines landed.** 19,250 partner_ids (26%) were NULLed because they referenced rank-0 partners. FMPLUS line count went 21,000 → 94,420.
+
+Feb 2026 P&L data verified: income 9 accounts/176 lines/-38,385,691 EGP raw (= +38.4M after credit-flip — matches user's prior-session expected ~38.5M revenue target exactly). Asset_cash, asset_receivable, expense_direct_cost, liability_payable all populated for the first time.
 
 ---
 
