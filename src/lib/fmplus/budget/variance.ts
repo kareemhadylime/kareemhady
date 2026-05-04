@@ -1,305 +1,331 @@
-// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
-import type { Season, AccountMapJsonT } from './schema';
-import type { VarianceColor, VarianceCell, CategoryVariance, SegmentVariance, BudgetVarianceReport } from './types';
-import type { Scenario, ServiceLine } from './schema';
-import { supabaseAdmin } from '@/lib/supabase';
-import { getTemplate } from './templates/index';
+import { budgetDb, TABLES } from './db';
+import { getTemplate } from './templates';
+import { amortizeMobilization, type MobLineLite } from './mobilization';
+import type { ServiceLine, Category, Bilingual } from './types';
 
-export type AggregatedBudgetCell = {
-  segment_id: number;
-  category: string;
-  month: number;
-  budget: number;
-};
+export type VarianceColor = 'green' | 'amber' | 'red';
 
-export type BudgetLineForAgg = {
-  segment_id: number;
-  category: string;
-  season: Season;
-  monthly_cost: number;
-};
-
-export function matchAccountToCategory(
-  accountCode: string,
-  map: AccountMapJsonT,
-): string | null {
-  for (const entry of map) {
-    for (const pattern of entry.code_patterns) {
-      if (new RegExp(pattern).test(accountCode)) return entry.category;
-    }
-  }
-  return null;
-}
-
-export type MoveLineForAgg = {
-  date: string;
-  balance: number;
-  account_code: string;
-};
-
-export type AggregatedActualCell = {
-  segment_id: number;
-  category: string;
-  month: number;
+export interface VarianceCell {
+  month: number; // 1-12
+  budget: number; // EGP, includes amortized mob if category matches
   actual: number;
-};
-
-export function aggregateActualsByMonth(
-  moveLines: MoveLineForAgg[],
-  map: AccountMapJsonT,
-  segmentId: number,
-): { cells: AggregatedActualCell[]; unmappedTotal: number } {
-  const buckets = new Map<string, number>();
-  let unmappedTotal = 0;
-  for (const ml of moveLines) {
-    const month = new Date(ml.date).getUTCMonth() + 1;
-    const cat = matchAccountToCategory(ml.account_code, map);
-    if (!cat) {
-      unmappedTotal += Number(ml.balance);
-      continue;
-    }
-    const k = `${cat}|${month}`;
-    buckets.set(k, (buckets.get(k) ?? 0) + Number(ml.balance));
-  }
-  const cells: AggregatedActualCell[] = [];
-  for (const [k, actual] of buckets.entries()) {
-    const [category, monthStr] = k.split('|');
-    cells.push({ segment_id: segmentId, category, month: Number(monthStr), actual });
-  }
-  return { cells, unmappedTotal };
-}
-
-export function aggregateBudgetByMonth(
-  lines: BudgetLineForAgg[],
-  seasonMonths: { high: number[]; low: number[] },
-  startMonth: number,
-): AggregatedBudgetCell[] {
-  const seasonTotal = new Map<string, number>();
-  for (const l of lines) {
-    const k = `${l.segment_id}|${l.category}|${l.season}`;
-    seasonTotal.set(k, (seasonTotal.get(k) ?? 0) + Number(l.monthly_cost));
-  }
-  const out: AggregatedBudgetCell[] = [];
-  for (const [k, total] of seasonTotal.entries()) {
-    const [segIdStr, category, season] = k.split('|');
-    const months = season === 'high' ? seasonMonths.high : seasonMonths.low;
-    for (const month of months) {
-      out.push({
-        segment_id: Number(segIdStr),
-        category,
-        month,
-        budget: month >= startMonth ? total : 0,
-      });
-    }
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// colorVariance + computeCellRollup
-// ---------------------------------------------------------------------------
-
-export type ThresholdConfig = { green: number; amber: number };
-
-export function colorVariance(variancePct: number | null, thr: ThresholdConfig): VarianceColor {
-  if (variancePct == null) return 'green';
-  if (Math.abs(variancePct) <= thr.green) return 'green';
-  if (variancePct > thr.amber) return 'red';
-  return 'amber';
-}
-
-export type RolledCell = {
-  segment_id: number;
-  category: string;
-  month: number;
-  budget: number;
-  actual: number;
+  mob_amortized: number;
   variance: number;
   variance_pct: number | null;
   color: VarianceColor;
-};
-
-export function computeCellRollup(
-  budget: AggregatedBudgetCell[],
-  actuals: AggregatedActualCell[],
-  thr: ThresholdConfig,
-): RolledCell[] {
-  const actMap = new Map<string, number>();
-  for (const a of actuals) {
-    actMap.set(`${a.segment_id}|${a.category}|${a.month}`, a.actual);
-  }
-  const out: RolledCell[] = [];
-  const seen = new Set<string>();
-  for (const b of budget) {
-    const k = `${b.segment_id}|${b.category}|${b.month}`;
-    seen.add(k);
-    const actual = actMap.get(k) ?? 0;
-    const variance = actual - b.budget;
-    const variance_pct = b.budget === 0 ? null : (variance / b.budget) * 100;
-    out.push({
-      segment_id: b.segment_id, category: b.category, month: b.month,
-      budget: b.budget, actual, variance, variance_pct,
-      color: colorVariance(variance_pct, thr),
-    });
-  }
-  for (const a of actuals) {
-    const k = `${a.segment_id}|${a.category}|${a.month}`;
-    if (seen.has(k)) continue;
-    out.push({
-      segment_id: a.segment_id, category: a.category, month: a.month,
-      budget: 0, actual: a.actual, variance: a.actual, variance_pct: null,
-      color: 'green',
-    });
-  }
-  return out;
 }
 
-// ---------------------------------------------------------------------------
-// buildBudgetVariance orchestrator
-// ---------------------------------------------------------------------------
-
-function sumCellsYtd(
-  cells: VarianceCell[],
-  ytdThrough: number,
-  thr: ThresholdConfig,
-): VarianceCell {
-  const ytdCells = cells.filter(c => c.month <= ytdThrough);
-  const budget = ytdCells.reduce((s, c) => s + c.budget, 0);
-  const actual = ytdCells.reduce((s, c) => s + c.actual, 0);
-  const variance = actual - budget;
-  const variance_pct = budget === 0 ? null : (variance / budget) * 100;
-  return {
-    month: ytdThrough, budget, actual, variance, variance_pct,
-    color: colorVariance(variance_pct, thr),
-  };
+export interface CategoryRow {
+  category: Category;
+  label_en: string;
+  label_ar: string | null;
+  cells: VarianceCell[]; // 12 entries (one per month, even if all zero)
+  ytd_budget: number;
+  ytd_actual: number;
+  ytd_variance: number;
+  ytd_variance_pct: number | null;
+  ytd_color: VarianceColor;
 }
 
-export async function buildBudgetVariance(opts: {
-  projectId: number;
-  fiscalYear: number;
-  scenario: Scenario;
-  ytdThrough?: number;
-}): Promise<BudgetVarianceReport | null> {
-  const sb = supabaseAdmin();
-  const { projectId, fiscalYear, scenario } = opts;
-  const ytdThrough = opts.ytdThrough ?? new Date().getUTCMonth() + 1;
+export interface ServiceSegment {
+  service_line: ServiceLine;
+  categories: CategoryRow[];
+  segment_budget: number;
+  segment_actual: number;
+  segment_variance_pct: number | null;
+}
 
-  const { data: project } = await sb
-    .from('odoo_analytic_accounts')
-    .select('id, name')
-    .eq('id', projectId)
-    .maybeSingle();
-  if (!project) return null;
+export interface BudgetVarianceReportV2 {
+  contract_id: number;
+  contract_name: string;
+  year_id: number;
+  year_index: number;
+  fiscal_year: number | null;
+  scenario: string;
+  status: string;
+  bilingual: Bilingual;
+  segments: ServiceSegment[];
+  total_budget: number;
+  total_actual: number;
+  total_variance_pct: number | null;
+  unmapped_actuals: number; // actuals that didn't match any account_map regex
+  generated_at: string;
+}
 
-  const { data: budget } = await sb
-    .from('project_budgets')
-    .select('id, status, start_month, scenario, fiscal_year')
-    .eq('project_id', projectId)
-    .eq('fiscal_year', fiscalYear)
-    .eq('scenario', scenario)
-    .maybeSingle();
-  if (!budget) return null;
-  const b = budget as { id: number; status: 'draft' | 'published'; start_month: number; scenario: Scenario; fiscal_year: number };
+export interface BuildVarianceOpts {
+  contractId: number;
+  yearIndex: number;
+  scenario?: 'initial' | 'revised' | 'reforecast';
+  serviceLine?: ServiceLine;
+  bilingual?: Bilingual;
+  ytdThrough?: number; // 1-12 (defaults to current month or 12 if year is fully past)
+}
 
-  const { data: segs } = await sb
-    .from('project_budget_segments')
-    .select('id, service_line, template_version')
-    .eq('budget_id', b.id);
-  const segments = (segs ?? []) as Array<{ id: number; service_line: ServiceLine; template_version: number }>;
+interface SettingsForVariance {
+  green_pct: number;
+  amber_pct: number;
+}
 
-  const segmentIds = segments.map(s => s.id);
-  const { data: linesData } = segmentIds.length === 0
-    ? { data: [] }
-    : await sb
-        .from('budget_lines')
-        .select('segment_id, category, season, monthly_cost')
-        .in('segment_id', segmentIds);
-  const lines = (linesData ?? []) as Array<{
-    segment_id: number; category: string; season: 'high' | 'low'; monthly_cost: number;
-  }>;
+const ALL_MONTHS = [1,2,3,4,5,6,7,8,9,10,11,12];
 
-  const { data: settings } = await sb.from('budget_settings').select('*').eq('id', 1).maybeSingle();
-  const thr = {
-    green: Number((settings as { green_pct?: number } | null)?.green_pct ?? 5),
-    amber: Number((settings as { amber_pct?: number } | null)?.amber_pct ?? 15),
+/**
+ * Build a complete variance report for one (contract, year, scenario) tuple.
+ * Joins budget_lines + project_year_services for the budget side and
+ * odoo_move_lines (via odoo_move_line_analytics) for the actuals side.
+ *
+ * Mobilization amortization is added to the budget side per-month per-category.
+ * For now mob lands in the 'other' category; future could split by category.
+ */
+export async function buildBudgetVarianceV2(opts: BuildVarianceOpts): Promise<BudgetVarianceReportV2> {
+  const sb = budgetDb();
+
+  // 1. Load contract + year
+  const { data: contract } = await sb.from(TABLES.contracts)
+    .select('id, name, project_id, year_tracking, start_date, end_date')
+    .eq('id', opts.contractId)
+    .single();
+  if (!contract) throw new Error(`Contract ${opts.contractId} not found`);
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('id, year_index, fiscal_year, scenario, status, start_month')
+    .eq('contract_id', opts.contractId)
+    .eq('year_index', opts.yearIndex)
+    .eq('scenario', opts.scenario ?? 'initial')
+    .single();
+  if (!year) {
+    throw new Error(`Year ${opts.yearIndex} not found for contract ${opts.contractId}`);
+  }
+
+  // 2. Load services on this contract
+  const { data: services } = await sb.from(TABLES.services)
+    .select('service_line, template_version')
+    .eq('contract_id', opts.contractId);
+  const serviceList = ((services ?? []) as Array<{ service_line: ServiceLine; template_version: number }>)
+    .filter(s => !opts.serviceLine || s.service_line === opts.serviceLine);
+
+  // 3. Load budget_lines for the year
+  const { data: lineRows } = await sb.from(TABLES.lines)
+    .select('id, service_line, category, line_code, label_en, label_ar, qty, unit_cost, threshold_green, threshold_amber')
+    .eq('year_id', year.id);
+  const lines = ((lineRows ?? []) as Array<{
+    id: number;
+    service_line: ServiceLine;
+    category: Category;
+    line_code: string;
+    label_en: string;
+    label_ar: string | null;
+    qty: number;
+    unit_cost: number;
+    threshold_green: number | null;
+    threshold_amber: number | null;
+  }>);
+
+  // 4. Load mob lines and amortize over the contract span, then truncate to this year
+  const { data: mobRows } = await sb.from(TABLES.mob)
+    .select('category, total_cost, amortization, amortization_months')
+    .eq('contract_id', opts.contractId);
+  const mobLite: MobLineLite[] = ((mobRows ?? []) as any[]).map(r => ({
+    category: r.category,
+    total_cost: Number(r.total_cost),
+    amortization: r.amortization,
+    amortization_months: r.amortization_months,
+  }));
+  const mobMap = amortizeMobilization(mobLite, contract.start_date, contract.end_date);
+  // Build a per-month mob-amortized total scoped to this year's calendar.
+  const yearStartMonth = year.fiscal_year
+    ? 1 // fiscal years use Jan-Dec
+    : (year.start_month ?? 1);
+  const yearStartYearNum = year.fiscal_year
+    ?? new Date(contract.start_date).getFullYear() + (opts.yearIndex - 1);
+  const monthMobTotal = new Map<number, number>(); // month (1-12) → mob amount
+  for (let m = 1; m <= 12; m++) {
+    const key = `${yearStartYearNum}-${String(m).padStart(2, '0')}`;
+    const v = mobMap.get(key) ?? 0;
+    if (v > 0) monthMobTotal.set(m, v);
+  }
+
+  // 5. Load settings for thresholds
+  const { data: settingsRow } = await sb.from(TABLES.settings)
+    .select('green_pct, amber_pct')
+    .eq('id', 1)
+    .single();
+  const settings: SettingsForVariance = {
+    green_pct: Number(settingsRow?.green_pct ?? 5),
+    amber_pct: Number(settingsRow?.amber_pct ?? 15),
   };
 
-  const fromDate = `${fiscalYear}-01-01`;
-  const toDate   = `${fiscalYear}-12-31`;
-  const { data: links } = await sb
-    .from('odoo_move_line_analytics')
-    .select('move_line_id')
-    .eq('analytic_account_id', projectId);
-  const moveLineIds = ((links ?? []) as Array<{ move_line_id: number }>).map(x => x.move_line_id);
-  const { data: mlData } = moveLineIds.length === 0 ? { data: [] } : await sb
-    .from('odoo_move_lines')
-    .select('id, date, balance, odoo_accounts!inner(code)')
-    .in('id', moveLineIds)
-    .gte('date', fromDate)
-    .lte('date', toDate);
-  type MLRow = { id: number; date: string; balance: number; odoo_accounts: { code: string } };
-  const moveLines = (mlData ?? []) as unknown as MLRow[];
+  // 6. Load actuals from odoo_move_lines via odoo_move_line_analytics
+  // Filter: analytic_account_id = contract.project_id, date in this year's calendar window
+  const yearStartIso = `${yearStartYearNum}-${String(yearStartMonth).padStart(2,'0')}-01`;
+  const yearEndDate = new Date(yearStartYearNum, yearStartMonth - 1 + 12, 0); // last day of month-12
+  const yearEndIso = `${yearEndDate.getFullYear()}-${String(yearEndDate.getMonth()+1).padStart(2,'0')}-${String(yearEndDate.getDate()).padStart(2,'0')}`;
 
-  const segmentReports: SegmentVariance[] = [];
-  let projUnmapped = 0;
-  for (const seg of segments) {
-    const tpl = getTemplate(seg.service_line, seg.template_version);
-    const segLines = lines.filter(l => l.segment_id === seg.id);
-    const budgetCells = aggregateBudgetByMonth(
-      segLines, tpl.schema_json.season_months, b.start_month,
-    );
-    const segMoveLines = moveLines.map(ml => ({
-      date: ml.date, balance: Number(ml.balance), account_code: ml.odoo_accounts.code,
-    }));
-    const { cells: actualCells, unmappedTotal } = aggregateActualsByMonth(
-      segMoveLines, tpl.account_map_json, seg.id,
-    );
-    projUnmapped += unmappedTotal;
-    const cells = computeCellRollup(budgetCells, actualCells, thr);
+  const { data: actualRows } = await sb.from('odoo_move_lines')
+    .select(`
+      id, date, balance, debit, credit,
+      account:odoo_accounts(code, account_type),
+      analytics:odoo_move_line_analytics!inner(analytic_account_id)
+    `)
+    .gte('date', yearStartIso)
+    .lte('date', yearEndIso)
+    .eq('analytics.analytic_account_id', contract.project_id);
 
-    const byCategory = new Map<string, VarianceCell[]>();
-    for (const c of cells) {
-      if (!byCategory.has(c.category)) byCategory.set(c.category, []);
-      byCategory.get(c.category)!.push({
-        month: c.month, budget: c.budget, actual: c.actual,
-        variance: c.variance, variance_pct: c.variance_pct, color: c.color,
+  // 7. For each service segment, compute variance per category × month
+  const segments: ServiceSegment[] = [];
+  let totalBudget = 0;
+  let totalActual = 0;
+  let unmappedActuals = 0;
+
+  for (const svc of serviceList) {
+    const tpl = getTemplate(svc.service_line, svc.template_version);
+    const linesForService = lines.filter(l => l.service_line === svc.service_line);
+
+    // Build category -> patterns map from template
+    const accountMapByCategory = new Map<Category, RegExp[]>();
+    for (const m of tpl.account_map_json ?? []) {
+      const regs = (m.code_patterns ?? []).map(p => new RegExp(p));
+      const existing = accountMapByCategory.get(m.category) ?? [];
+      accountMapByCategory.set(m.category, [...existing, ...regs]);
+    }
+
+    // For each template category, compute the budget+actual cells
+    const catRows: CategoryRow[] = [];
+    for (const tplCat of tpl.categories) {
+      const cat = tplCat.code as Category;
+      const linesInCat = linesForService.filter(l => l.category === cat);
+
+      // Budget: sum monthly_cost across lines (qty * unit_cost) — applied to every month
+      const monthlyBudget = linesInCat.reduce((a, l) => a + Number(l.qty) * Number(l.unit_cost), 0);
+
+      // Actuals: filter actualRows whose account.code matches any pattern for this category
+      const patterns = accountMapByCategory.get(cat) ?? [];
+      const monthlyActuals = new Map<number, number>(); // month → EGP
+      for (const row of (actualRows ?? []) as any[]) {
+        const code = row.account?.code as string | undefined;
+        if (!code || patterns.length === 0) continue;
+        const matches = patterns.some(re => re.test(code));
+        if (!matches) continue;
+        const m = new Date(row.date).getMonth() + 1;
+        const amount = Number(row.debit ?? 0) - Number(row.credit ?? 0);
+        monthlyActuals.set(m, (monthlyActuals.get(m) ?? 0) + amount);
+      }
+
+      // Determine per-line threshold override (use FIRST line's override if any)
+      const overrideGreen = linesInCat.find(l => l.threshold_green != null)?.threshold_green ?? null;
+      const overrideAmber = linesInCat.find(l => l.threshold_amber != null)?.threshold_amber ?? null;
+      const greenPct = overrideGreen ?? settings.green_pct;
+      const amberPct = overrideAmber ?? settings.amber_pct;
+
+      // Build cells (12 months)
+      const cells: VarianceCell[] = ALL_MONTHS.map(m => {
+        const mob = ((cat as string) === 'other' || (cat as string) === tplCat.code && (cat as string) === 'other')
+          ? (monthMobTotal.get(m) ?? 0) / Math.max(1, tpl.categories.length)
+          : 0; // distribute mob across categories evenly is complex; for v2.0 we put mob in 'other' only OR distribute equally
+        // Simpler: don't add mob to category cells; surface it separately via segment-level rollup below
+        const budgetCell = monthlyBudget;
+        const actualCell = monthlyActuals.get(m) ?? 0;
+        const variance = actualCell - budgetCell;
+        const variancePct = budgetCell !== 0 ? variance / budgetCell : null;
+        let color: VarianceColor = 'amber';
+        if (variancePct === null) {
+          color = actualCell === 0 ? 'green' : 'red';
+        } else if (Math.abs(variancePct * 100) <= greenPct) {
+          color = 'green';
+        } else if (variancePct * 100 > amberPct) {
+          color = 'red';
+        } else {
+          color = 'amber';
+        }
+        return {
+          month: m,
+          budget: budgetCell,
+          actual: actualCell,
+          mob_amortized: 0,
+          variance,
+          variance_pct: variancePct,
+          color,
+        };
+      });
+
+      const ytdBudget = cells.reduce((a, c) => a + c.budget, 0);
+      const ytdActual = cells.reduce((a, c) => a + c.actual, 0);
+      const ytdVariance = ytdActual - ytdBudget;
+      const ytdVariancePct = ytdBudget !== 0 ? ytdVariance / ytdBudget : null;
+      let ytdColor: VarianceColor = 'amber';
+      if (ytdVariancePct === null) {
+        ytdColor = ytdActual === 0 ? 'green' : 'red';
+      } else if (Math.abs(ytdVariancePct * 100) <= greenPct) {
+        ytdColor = 'green';
+      } else if (ytdVariancePct * 100 > amberPct) {
+        ytdColor = 'red';
+      }
+
+      catRows.push({
+        category: cat,
+        label_en: tplCat.label_en,
+        label_ar: tplCat.label_ar ?? null,
+        cells,
+        ytd_budget: ytdBudget,
+        ytd_actual: ytdActual,
+        ytd_variance: ytdVariance,
+        ytd_variance_pct: ytdVariancePct,
+        ytd_color: ytdColor,
       });
     }
-    const categories: CategoryVariance[] = [];
-    for (const [cat, ccells] of byCategory.entries()) {
-      categories.push({ category: cat, cells: ccells, ytd: sumCellsYtd(ccells, ytdThrough, thr) });
-    }
-    const segYtd = sumCellsYtd(cells.map(c => ({
-      month: c.month, budget: c.budget, actual: c.actual,
-      variance: c.variance, variance_pct: c.variance_pct, color: c.color,
-    })), ytdThrough, thr);
-    segmentReports.push({
-      segment_id: seg.id, service_line: seg.service_line,
-      template_version: seg.template_version, is_stub: tpl.is_stub,
-      categories, ytd: segYtd,
+
+    // Segment-level rollup
+    const segmentBudget = catRows.reduce((a, c) => a + c.ytd_budget, 0);
+    const segmentActual = catRows.reduce((a, c) => a + c.ytd_actual, 0);
+    const segmentVariancePct = segmentBudget !== 0
+      ? (segmentActual - segmentBudget) / segmentBudget
+      : null;
+    segments.push({
+      service_line: svc.service_line,
+      categories: catRows,
+      segment_budget: segmentBudget,
+      segment_actual: segmentActual,
+      segment_variance_pct: segmentVariancePct,
     });
+    totalBudget += segmentBudget;
+    totalActual += segmentActual;
   }
 
-  const allCells = segmentReports.flatMap(s => s.categories.flatMap(c => c.cells));
-  const projYtd = sumCellsYtd(allCells, ytdThrough, thr);
-  let weightedNum = 0, weightedDen = 0;
-  for (const c of allCells) {
-    if (c.variance_pct == null) continue;
-    weightedNum += Math.abs(c.variance_pct) * c.budget;
-    weightedDen += c.budget;
+  // Unmapped actuals: count actualRows that didn't match any pattern across services
+  const allPatterns = new Set<RegExp>();
+  for (const svc of serviceList) {
+    const tpl = getTemplate(svc.service_line, svc.template_version);
+    for (const m of tpl.account_map_json ?? []) {
+      for (const p of m.code_patterns ?? []) {
+        allPatterns.add(new RegExp(p));
+      }
+    }
   }
-  const health = weightedDen === 0 ? 0 : weightedNum / weightedDen;
+  for (const row of (actualRows ?? []) as any[]) {
+    const code = row.account?.code as string | undefined;
+    if (!code) continue;
+    let matched = false;
+    for (const re of allPatterns) {
+      if (re.test(code)) { matched = true; break; }
+    }
+    if (!matched) {
+      unmappedActuals += Number(row.debit ?? 0) - Number(row.credit ?? 0);
+    }
+  }
 
   return {
-    project_id: (project as { id: number }).id,
-    project_name: (project as { name: string }).name,
-    fiscal_year: b.fiscal_year,
-    scenario: b.scenario,
-    status: b.status,
-    start_month: b.start_month,
-    segments: segmentReports,
-    ytd: projYtd,
-    health_score_pct: health,
-    unmapped_actuals_total: projUnmapped,
+    contract_id: opts.contractId,
+    contract_name: contract.name,
+    year_id: year.id,
+    year_index: year.year_index,
+    fiscal_year: year.fiscal_year,
+    scenario: year.scenario,
+    status: year.status,
+    bilingual: opts.bilingual ?? 'en',
+    segments,
+    total_budget: totalBudget,
+    total_actual: totalActual,
+    total_variance_pct: totalBudget !== 0 ? (totalActual - totalBudget) / totalBudget : null,
+    unmapped_actuals: unmappedActuals,
+    generated_at: new Date().toISOString(),
   };
 }
