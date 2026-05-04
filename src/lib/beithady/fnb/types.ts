@@ -10,7 +10,7 @@ export type OrderStatus = z.infer<typeof OrderStatusEnum>;
 
 export const ChangedViaEnum = z.enum(['dashboard', 'cron', 'guest', 'webhook']);
 
-const HHMM = z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'must be HH:MM');
+const HHMM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'must be HH:MM');
 
 export const CategorySchema = z.object({
   id: z.string().uuid().optional(),
@@ -71,7 +71,7 @@ export const BuildingOverrideSchema = z.object({
   building_code: z.string().regex(/^BH-[A-Z0-9]+$/),
   item_id: z.string().uuid(),
   is_out_of_stock: z.boolean().default(false),
-  out_of_stock_until: z.string().datetime().nullable().optional(),
+  out_of_stock_until: z.string().datetime({ offset: true }).nullable().optional(),
   notes: z.string().nullable().optional(),
 });
 export type BuildingOverride = z.infer<typeof BuildingOverrideSchema>;
@@ -106,7 +106,7 @@ export type OrderItemSnapshot = z.infer<typeof OrderItemSnapshotSchema>;
 export const SubmitOrderPayloadSchema = z.object({
   idempotency_key: z.string().uuid(),
   guest_language: LangCodeEnum.default('en'),
-  requested_delivery_at: z.string().datetime().nullable().optional(),
+  requested_delivery_at: z.string().datetime({ offset: true }).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
   lines: z.array(z.object({
     item_id: z.string().uuid(),
@@ -121,6 +121,7 @@ export const StatusUpdatePayloadSchema = z.object({
   to_status: OrderStatusEnum,
   notes: z.string().max(500).nullable().optional(),
 });
+export type StatusUpdatePayload = z.infer<typeof StatusUpdatePayloadSchema>;
 
 export const BulkPriceUpdatePayloadSchema = z.object({
   category_id: z.string().uuid().nullable().optional(),
@@ -128,3 +129,6 @@ export const BulkPriceUpdatePayloadSchema = z.object({
   delta_pct: z.number().min(-50).max(100),
   round_to_cents: z.literal(true).default(true),
 });
+export type BulkPriceUpdatePayload = z.infer<typeof BulkPriceUpdatePayloadSchema>;
+
+export type ChangedVia = z.infer<typeof ChangedViaEnum>;
