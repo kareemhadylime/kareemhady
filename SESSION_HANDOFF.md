@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
-## 🟢 2026-05-04 — SHIPPED to main: BH-DXB excluded from daily-report aggregations + sync-side DXB persistence
+## 🟢 2026-05-04 — SHIPPED to main: daily-report month-revenue switched to check-in attribution (Guesty UI parity)
+
+User: "Guesty This Month Egypt Revenue is $16,340. Where did you get $22k?" Diagnosed via SQL on May 2026 Egypt-only reservations:
+
+| methodology | total |
+|---|---|
+| Full payout for any reservation TOUCHING May | $34,820 |
+| **Proportional-to-nights (our prior method)** | **$22,934** ← what the morning email showed |
+| **Check-in date IN May (Guesty UI)** | **$16,240** ← Guesty's "This Month" tile |
+
+Both methods are valid:
+- **Guesty (stay-arrival)**: full reservation revenue credited to the month its check-in falls in.
+- **Our prior (proportional accrual)**: revenue split across calendar months by nights stayed in each.
+
+User's standing rule = Guesty parity. Commit `3174de0` flips `build-buildings.ts:170` to the check-in-attribution method. New behavior: a reservation contributes its **full** `host_payout` to the calendar month its `check_in_date` falls in, and 0 to every other month.
+
+Side effects noted in commit message:
+- ADR (= revenue / nights_mtd) numerator now ignores pre-month-start nights but denominator still counts them — slight drift expected, monitoring.
+- `pickup_vs_prior_month_pct` (counts of bookings created in window) unaffected.
+- `nights_mtd`, `forward_nights_booked`, `backward_nights_started_in_month` all preserved as-is (occupancy math unchanged).
+
+**Deployment:** `git push origin claude/zen-euler-d3bd5e:main` succeeded (`d9f9919..3174de0`). `vercel --prod` READY at `https://zen-euler-d3bd5e-2j4hazsk3-lime-investments.vercel.app` (alias `zen-euler-d3bd5e.vercel.app`). Branch zero-divergence with origin/main. Tomorrow's 9 AM Cairo daily-report email is the first one with the new methodology.
+
+**Rebase note:** main was 7 commits ahead from parallel sessions (FMPLUS budget v2 schema + RLS + permissions, personal email_logs FK fix, handoff bumps). Stashed WIP, `git pull --rebase`, popped — clean.
+
+---
+
+## 🟢 2026-05-04 (earlier today) — SHIPPED to main: BH-DXB excluded from daily-report aggregations + sync-side DXB persistence
 
 User flagged that the morning Daily Performance Report still shows discrepancies vs the Guesty homepage. Investigation revealed:
 
