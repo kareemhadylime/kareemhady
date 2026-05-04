@@ -1,5 +1,17 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 CHECKPOINT 2026-05-04 (updated) — Beithady F&B Phase F.1 complete + FM+ Budget v2 at 28/40 tasks (70%)
+
+### Beithady F&B Phase F.1 ✅ (Task 8 of F&B impl plan — commit 946af0b)
+- Fixed F&B tile description in `src/app/beithady/page.tsx` (removed minibar/COGS v2 text, replaced with v1 spec text)
+- Created `src/app/beithady/fnb/layout.tsx` — auth gate (`requireBeithadyPermission('fnb','read')`), BeithadyShell + BeithadyHeader + FnbTabs
+- Created `src/app/beithady/fnb/_components/fnb-tabs.tsx` — 5-tab nav (Orders/Menu/Analytics/Settings/Audit), client component
+- Created `src/app/beithady/fnb/page.tsx` — Orders stub ("coming soon"), no 404 in production
+- `npx tsc --noEmit` = 0 errors
+- Pushed to main at `946af0b` — route `/beithady/fnb` now renders in production (no 404)
+
+---
+
 ## 🟢 CHECKPOINT 2026-05-04 — FM+ Budget v2 at 28/40 tasks (70%) — Phases 1-5 done, Phase 6 dispatcher only
 
 **Completed in this session** (29 tasks shipped to main, all hard-guardrail prompts produced clean outputs):
