@@ -21,7 +21,7 @@ import {
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
-import { isNewReservation, isImmediateIntervention } from '@/lib/personal-email/email-helpers';
+import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid } from '@/lib/personal-email/email-helpers';
 
 // Master-detail drill-down: list on the left, preview on the right.
 // Selected email lives in URL as `?msg=<id>` so deep links work and
@@ -158,12 +158,16 @@ export function DrillDownView({
             const isChecked = checked.has(r.id);
             const newReservation = isNewReservation(r.subject, r.category);
             const urgent = isImmediateIntervention(r.subject, r.category);
-            // Urgent wins over new-reservation when both fire (rare).
+            const toPay = isInvoiceToBePaid(r.subject, r.category);
+            // Precedence: urgent > toPay > newReservation (each color
+            // signals more time-criticality than the next).
             const rowAccentClass = urgent
               ? 'bg-rose-50/40 dark:bg-rose-950/15 hover:bg-rose-50/70 dark:hover:bg-rose-950/35'
-              : newReservation
-                ? 'bg-emerald-50/30 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30'
-                : 'hover:bg-slate-50 dark:hover:bg-slate-900/40';
+              : toPay
+                ? 'bg-yellow-50/40 dark:bg-yellow-950/15 hover:bg-yellow-50/70 dark:hover:bg-yellow-950/35'
+                : newReservation
+                  ? 'bg-emerald-50/30 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30'
+                  : 'hover:bg-slate-50 dark:hover:bg-slate-900/40';
             return (
               <li
                 key={r.id}
@@ -183,11 +187,13 @@ export function DrillDownView({
                   onClick={e => e.stopPropagation()}
                   className="mt-1 h-4 w-4 cursor-pointer shrink-0"
                 />
-                {/* Left edge accent: solid color bar for urgent (rose)
-                    or new-reservation (emerald) so they pop in long
-                    lists. Urgent wins over new when both fire. */}
+                {/* Left edge accent: solid color bar by precedence —
+                    urgent (rose), invoice-to-pay (yellow), new
+                    reservation (emerald). One bar at a time. */}
                 {urgent ? (
                   <span className="self-stretch w-0.5 -mx-1 bg-rose-500 rounded-full shrink-0" aria-hidden />
+                ) : toPay ? (
+                  <span className="self-stretch w-0.5 -mx-1 bg-yellow-500 rounded-full shrink-0" aria-hidden />
                 ) : newReservation ? (
                   <span className="self-stretch w-0.5 -mx-1 bg-emerald-500 rounded-full shrink-0" aria-hidden />
                 ) : null}
@@ -198,7 +204,12 @@ export function DrillDownView({
                         URGENT
                       </span>
                     )}
-                    {newReservation && !urgent && (
+                    {toPay && !urgent && (
+                      <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-yellow-500 text-black">
+                        TO PAY
+                      </span>
+                    )}
+                    {newReservation && !urgent && !toPay && (
                       <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white">
                         NEW
                       </span>
@@ -320,6 +331,7 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
   const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${email.gmail_thread_id ?? email.gmail_message_id}`;
   const newReservation = isNewReservation(email.subject, email.category);
   const urgent = isImmediateIntervention(email.subject, email.category);
+  const toPay = isInvoiceToBePaid(email.subject, email.category);
 
   return (
     <div className="space-y-3">
@@ -332,7 +344,14 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
               </span>
             </div>
           )}
-          {newReservation && !urgent && (
+          {toPay && !urgent && (
+            <div className="mb-1.5">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-yellow-500 text-black">
+                💰 INVOICE TO PAY
+              </span>
+            </div>
+          )}
+          {newReservation && !urgent && !toPay && (
             <div className="mb-1.5">
               <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white">
                 NEW RESERVATION

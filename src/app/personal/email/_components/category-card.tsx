@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import type { CategoryDef } from '@/lib/personal-email/categories';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
-import { isNewReservation, isImmediateIntervention } from '@/lib/personal-email/email-helpers';
+import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid } from '@/lib/personal-email/email-helpers';
 
 // Icon registry mapping seeded `iconName` strings to actual lucide
 // icons. Keep in sync with categories.ts seed.
@@ -172,6 +172,7 @@ export function CategoryCard({
           {top3.slice(0, 3).map(r => {
             const newReservation = isNewReservation(r.subject, r.category);
             const urgent = isImmediateIntervention(r.subject, r.category);
+            const toPay = isInvoiceToBePaid(r.subject, r.category);
             return (
               <li key={r.id} className="truncate flex items-center gap-1.5">
                 {urgent && (
@@ -179,7 +180,12 @@ export function CategoryCard({
                     URGENT
                   </span>
                 )}
-                {newReservation && !urgent && (
+                {toPay && !urgent && (
+                  <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-yellow-500 text-black" title="Invoice to be paid">
+                    TO PAY
+                  </span>
+                )}
+                {newReservation && !urgent && !toPay && (
                   <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white" title="New reservation">
                     NEW
                   </span>

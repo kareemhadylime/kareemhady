@@ -71,3 +71,37 @@ export function isImmediateIntervention(
   if (category && !URGENT_CATEGORIES.has(category)) return false;
   return URGENT_PATTERN.test(subject);
 }
+
+// Detect a "to pay" invoice email — the kind that's an actual payable
+// item that should be tracked, not a routine receipt of something
+// already paid. Triggers a yellow "TO PAY" marker in the UI so the
+// user can find unpaid Beithady invoices at a glance.
+//
+// Match: subject contains "invoice" or "proforma" or "payment due" /
+// "due" / "outstanding" / "to be paid" / "payable" / "settle" /
+// "payment request". Excludes "paid" / "received" / "confirmation"
+// (those are receipts, not invoices to pay).
+const INVOICE_TO_PAY_PATTERN =
+  /\b(invoice|proforma|payment\s+(?:due|request)|outstanding|to\s+be\s+paid|payable|please\s+(?:pay|settle))\b/i;
+
+const INVOICE_PAID_NEGATION_PATTERN =
+  /\b(payment\s+(?:received|confirmation|confirmed)|invoice\s+paid|paid\s+invoice|receipt\s+for|already\s+paid)\b/i;
+
+// Categories where an invoice subject is plausibly a payable. Tightly
+// scoped so a "Re: Vendor invoice attached" in personal correspondence
+// or a "Newsletter: Top 10 invoice tools" don't light up.
+const INVOICE_CATEGORIES: ReadonlySet<string> = new Set([
+  'subsidiary_beithady',
+  'bills_receipts',
+  'banking',
+]);
+
+export function isInvoiceToBePaid(
+  subject: string | null | undefined,
+  category?: string | null,
+): boolean {
+  if (!subject) return false;
+  if (category && !INVOICE_CATEGORIES.has(category)) return false;
+  if (INVOICE_PAID_NEGATION_PATTERN.test(subject)) return false;
+  return INVOICE_TO_PAY_PATTERN.test(subject);
+}
