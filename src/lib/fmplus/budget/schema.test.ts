@@ -1,56 +1,50 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ServiceLineSchema,
-  ScenarioSchema,
-  StatusSchema,
-  SeasonSchema,
-  TemplateSchemaJson,
-  AccountMapEntry,
-  BudgetLineRow,
+  ProjectContractSchema, ProjectYearSchema, ProjectServiceSchema,
+  BudgetLineSchema, MobilizationLineSchema, FmplusCatalogItemSchema,
+  ServiceLineEnum, YearTrackingEnum, ScenarioEnum, StatusEnum, CatalogUnitEnum,
 } from './schema';
 
-describe('budget schemas', () => {
-  it('accepts the 6 service lines', () => {
-    for (const sl of ['hk','mep','landscape','security','pest_ctrl','waste_mgmt'] as const) {
-      expect(ServiceLineSchema.parse(sl)).toBe(sl);
-    }
-    expect(() => ServiceLineSchema.parse('hr')).toThrow();
+describe('schema', () => {
+  it('parses valid contract', () => {
+    const c = ProjectContractSchema.parse({
+      id: 1, project_id: 100, name: 'AUC',
+      customer: 'AUC', start_date: '2026-01-01', end_date: '2026-12-31',
+      contract_value: 42_600_000, vat_pct: 14,
+      year_tracking: 'contract', reimbursables: [], zones: [],
+    });
+    expect(c.name).toBe('AUC');
   });
 
-  it('parses HK template schema_json shape', () => {
-    const raw = {
-      sub_locations_enabled: true,
-      default_sub_locations: ['NC Inner Campus'],
-      season_months: { high: [9,10,11,12,1,2,3,4], low: [5,6,7,8] },
-      vat_pct: 14,
-      categories: [
-        { code: 'manning', label: 'Manning', calc: 'qty_x_unitcost',
-          lines: [{ code: 'hk_manager', label: 'HK Manager' }] },
-      ],
-    };
-    expect(TemplateSchemaJson.parse(raw)).toEqual(raw);
-  });
-
-  it('rejects an unknown calc rule', () => {
-    expect(() => TemplateSchemaJson.parse({
-      sub_locations_enabled: false, default_sub_locations: [],
-      season_months: { high: [], low: [] }, vat_pct: 14,
-      categories: [{ code: 'x', label: 'X', calc: 'magic', lines: [] }],
+  it('rejects bad service_line', () => {
+    expect(() => ProjectServiceSchema.parse({
+      contract_id: 1, service_line: 'bogus', template_version: 1,
     })).toThrow();
   });
 
-  it('parses an account-map entry with regex patterns', () => {
-    expect(AccountMapEntry.parse({
-      category: 'manning', code_patterns: ['^5000(0[1-9]|1[0-4])$'],
-    })).toEqual({ category: 'manning', code_patterns: ['^5000(0[1-9]|1[0-4])$'] });
+  it('parses budget line with CTC breakdown', () => {
+    const l = BudgetLineSchema.parse({
+      year_id: 1, service_line: 'hk', category: 'manning',
+      line_code: 'hk_mf_8h', label_en: 'HK M/F 8H',
+      season: 'high', qty: 120, unit_cost: 12840,
+      ctc_net: 7500, ctc_relievers: 1250, ctc_ot: 1800,
+      ctc_training: 240, ctc_insurance: 1250, ctc_medical: 800,
+    });
+    expect(l.ctc_net).toBe(7500);
   });
 
-  it('parses a budget_lines row', () => {
-    expect(BudgetLineRow.parse({
-      id: 1, segment_id: 1, sub_location: 'NC Inner Campus',
-      category: 'manning', line_code: 'hk_manager', season: 'high',
-      qty: 0.75, unit_cost: 32500, monthly_cost: 24375, notes: null,
-      created_at: '2026-05-03T00:00:00Z',
-    })).toMatchObject({ qty: 0.75, monthly_cost: 24375 });
+  it('parses pct_revenue catalog unit', () => {
+    const c = FmplusCatalogItemSchema.parse({
+      code: 'gov_taminat', name_en: 'Contractor Insurance',
+      unit: 'pct_revenue', default_price: 1.4,
+      service_lines: ['hk'], category: 'governmental', tags: [],
+    });
+    expect(c.unit).toBe('pct_revenue');
+  });
+
+  it('enforces enums', () => {
+    expect(ServiceLineEnum.options).toContain('back_office');
+    expect(YearTrackingEnum.options).toEqual(['contract', 'fiscal']);
+    expect(CatalogUnitEnum.options).toContain('pct_revenue');
   });
 });
