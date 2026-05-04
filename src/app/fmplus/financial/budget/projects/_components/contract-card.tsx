@@ -27,8 +27,7 @@ function formatM(n: number): string {
 export function ContractCard({ card }: { card: PortfolioCard }) {
   const editUrl = `/fmplus/financial/budget/edit?contract=${card.contract_id}&year=${card.current_year_index || 1}`;
   return (
-    <Link
-      href={editUrl}
+    <div
       className="block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:border-indigo-500 transition-colors"
     >
       {/* Header */}
@@ -105,6 +104,19 @@ export function ContractCard({ card }: { card: PortfolioCard }) {
           </span>
         )}
       </div>
-    </Link>
+
+      {/* Action row */}
+      <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-700 flex gap-2 items-center">
+        <Link href={editUrl}
+          className="text-[11px] flex-1 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-center font-semibold">
+          Open Editor
+        </Link>
+        <Link href={`/fmplus/financial/budget/projects/${card.contract_id}`}
+          className="text-[11px] px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-semibold inline-flex items-center gap-1"
+          title="Edit contract metadata, manage services, delete">
+          &#9881; Edit
+        </Link>
+      </div>
+    </div>
   );
 }
