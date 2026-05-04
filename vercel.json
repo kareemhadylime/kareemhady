@@ -40,6 +40,13 @@
     { "path": "/api/cron/beithady-conversation-archive", "schedule": "0 1 * * *" },
     { "path": "/api/cron/beithady-amazon-eg-sourcer", "schedule": "0 4 * * *" },
     { "path": "/api/cron/beithady-scheduled-reports", "schedule": "0 * * * *" },
-    { "path": "/api/cron/personal-email-ingest", "schedule": "0,15,30,45 4-21 * * *" }
+    { "path": "/api/cron/personal-email-ingest", "schedule": "0,15,30,45 4-21 * * *" },
+    { "path": "/api/cron/fnb-stale-orders",      "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/fnb-clear-stockouts",   "schedule": "0 22 * * *" },
+    { "path": "/api/cron/fnb-clear-stockouts",   "schedule": "0 21 * * *" },
+    { "path": "/api/cron/fnb-close-delivered",   "schedule": "0 1 * * *" },
+    { "path": "/api/cron/fnb-close-delivered",   "schedule": "0 0 * * *" },
+    { "path": "/api/cron/fnb-checkout-reminder", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/fnb-checkout-reminder", "schedule": "0 7 * * *" }
   ]
 }
