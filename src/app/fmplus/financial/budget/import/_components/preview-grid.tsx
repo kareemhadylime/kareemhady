@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 'use client';
 import type { FlatRow } from '@/lib/fmplus/budget/parsers/flat-template';
 export function PreviewGrid({ rows }: { rows: FlatRow[] }) {

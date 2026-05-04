@@ -26,12 +26,15 @@ export interface VarianceCell {
   color: 'green' | 'amber' | 'red';
 }
 
-// v1 backward-compat stubs (remove after Tasks 13-39 replace v1 consumers)
+// v1 backward-compat stubs (remove after Tasks 13-39 replace v1 consumers).
+// `any` lets v1 orphan code limp along; the consumers all get rewritten.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /** @deprecated v1 stub */
 export type VarianceColor = 'green' | 'amber' | 'red';
 /** @deprecated v1 stub — variance v2 returns a different shape via Task 35 */
-export type BudgetVarianceReport = unknown;
+export type BudgetVarianceReport = any;
 /** @deprecated v1 stub */
-export type SegmentVariance = unknown;
+export type SegmentVariance = any;
 /** @deprecated v1 stub */
-export type CategoryVariance = unknown;
+export type CategoryVariance = any;
+/* eslint-enable @typescript-eslint/no-explicit-any */

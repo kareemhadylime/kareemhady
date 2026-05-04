@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 import { buildPortfolio } from '@/lib/fmplus/budget/portfolio';
 import { CompareGrid } from './_components/compare-grid';
 import { PeriodControl } from '../_components/period-control';

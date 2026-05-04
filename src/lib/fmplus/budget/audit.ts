@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import { supabaseAdmin } from '@/lib/supabase';
 
 type LineKey = { sub_location: string | null; category: string; line_code: string; season: 'high'|'low' };

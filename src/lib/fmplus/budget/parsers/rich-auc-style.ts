@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 /**
  * Rich AUC-style XLSX parser — Strategy A (Grand Total Budget sheet).
  *

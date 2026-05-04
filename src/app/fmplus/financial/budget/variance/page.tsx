@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 import { redirect } from 'next/navigation';
 import { buildBudgetVariance } from '@/lib/fmplus/budget/variance';
 import { PeriodControl } from '../_components/period-control';

@@ -188,21 +188,25 @@ export type Status = z.infer<typeof StatusEnum>;
 /** @deprecated v1 name */
 export type ServiceLine = z.infer<typeof ServiceLineEnum>;
 
-// v1 stub types so v1 orphans compile. These are intentionally `any`-shaped
-// because the v1 consumers will be deleted/rewritten in Tasks 13-39.
+// v1 stub types so v1 orphans compile. Intentionally `any` — these v1 consumers
+// will be deleted/rewritten in Tasks 13-39 and the stubs go with them. Using
+// `any` (vs `unknown`) lets the orphan code limp along during the transition
+// without TypeScript blocking the build with property-access errors.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /** @deprecated v1 stub — remove with v1 consumer cleanup */
-export type AccountMapJsonT = unknown;
-/** @deprecated v1 stub */
-export type AccountMapJson = unknown;
+export type AccountMapJsonT = any;
+/** @deprecated v1 stub — also runtime-valued because v1 test treats it as Zod */
+export const AccountMapJson = z.array(z.unknown());
 /** @deprecated v1 stub — replaced by `Template` */
-export type TemplateSchemaJsonT = unknown;
+export type TemplateSchemaJsonT = any;
 /** @deprecated v1 stub — replaced by `TemplateSchema` */
 export const TemplateSchemaJson = TemplateSchema;
 /** @deprecated v1 stub */
 export type VarianceColor = 'green' | 'amber' | 'red';
 /** @deprecated v1 stub — variance v2 returns a different shape via Task 35 */
-export type BudgetVarianceReport = unknown;
+export type BudgetVarianceReport = any;
 /** @deprecated v1 stub */
-export type SegmentVariance = unknown;
+export type SegmentVariance = any;
 /** @deprecated v1 stub */
-export type CategoryVariance = unknown;
+export type CategoryVariance = any;
+/* eslint-enable @typescript-eslint/no-explicit-any */

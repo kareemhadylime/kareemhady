@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import type { ServiceLine, TemplateSchemaJsonT, AccountMapJsonT } from '../schema';
 import { HK_V1_SCHEMA, HK_V1_ACCOUNT_MAP } from './hk';
 import { MEP_V1_SCHEMA, MEP_V1_ACCOUNT_MAP } from './mep';

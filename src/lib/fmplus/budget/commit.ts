@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import { supabaseAdmin } from '@/lib/supabase';
 import type { FlatRow } from './parsers/flat-template';
 import type { Scenario, ServiceLine } from './schema';

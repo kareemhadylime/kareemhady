@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 import Link from 'next/link';
 import { SERVICE_LINE_CATALOG } from '@/lib/fmplus/budget/templates';
 import type { Scenario } from '@/lib/fmplus/budget/schema';

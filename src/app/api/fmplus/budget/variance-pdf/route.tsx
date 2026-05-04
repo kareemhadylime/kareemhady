@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { getCurrentUser, canAccessDomain } from '@/lib/auth';

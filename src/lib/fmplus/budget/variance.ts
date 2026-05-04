@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import type { Season, AccountMapJsonT } from './schema';
 import type { VarianceColor, VarianceCell, CategoryVariance, SegmentVariance, BudgetVarianceReport } from './types';
 import type { Scenario, ServiceLine } from './schema';

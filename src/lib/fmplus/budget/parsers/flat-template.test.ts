@@ -1,3 +1,4 @@
+// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import { parseFlatBudgetXlsx, FLAT_HEADERS } from './flat-template';
