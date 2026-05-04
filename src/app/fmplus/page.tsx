@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Building2, BarChart3, ChevronRight, Wallet } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { FmplusHero } from './_components/fmplus-hero';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,33 +11,29 @@ export default function FmplusLandingPage() {
       <TopNav>
         <span>FMPLUS</span>
       </TopNav>
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-8 flex-1">
-        <header>
-          <p className="text-xs uppercase tracking-wide text-amber-700 font-medium flex items-center gap-1.5">
-            <Building2 size={13} />
-            FMPLUS Property &amp; Facility Management
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight mt-1">FMPLUS</h1>
-          <p className="text-sm text-slate-500 mt-2 max-w-xl">
-            Back-office operations + Odoo tenant host. Lime Investments subsidiary.
-          </p>
-        </header>
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6 flex-1">
+        <FmplusHero
+          eyebrow="FMPLUS · PROPERTY &amp; FACILITY MANAGEMENT"
+          title="FMPLUS"
+          subtitle="Back-office operations + Odoo tenant host. Lime Investments subsidiary."
+          icon={Building2}
+        />
 
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
             href="/fmplus/financials"
-            className="ix-card p-5 hover:border-amber-300 hover:shadow-md transition group"
+            className="ix-card p-5 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md transition group"
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-50">
-                <BarChart3 size={20} className="text-amber-700" />
+              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950">
+                <BarChart3 size={20} className="text-amber-700 dark:text-amber-300" />
               </div>
               <div className="flex-1">
-                <h2 className="font-semibold flex items-center gap-1">
+                <h2 className="font-semibold flex items-center gap-1 text-slate-900 dark:text-slate-100">
                   Financials
                   <ChevronRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition" />
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   P&amp;L · Balance Sheet · Dashboard. Pulled live from Odoo.
                 </p>
               </div>
@@ -45,18 +42,18 @@ export default function FmplusLandingPage() {
 
           <Link
             href="/fmplus/financial/budget"
-            className="ix-card p-5 hover:border-amber-300 hover:shadow-md transition group"
+            className="ix-card p-5 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md transition group"
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-50">
-                <Wallet size={20} className="text-amber-700" />
+              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950">
+                <Wallet size={20} className="text-amber-700 dark:text-amber-300" />
               </div>
               <div className="flex-1">
-                <h2 className="font-semibold flex items-center gap-1">
+                <h2 className="font-semibold flex items-center gap-1 text-slate-900 dark:text-slate-100">
                   Project Budget
                   <ChevronRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition" />
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Per-project budgets vs Odoo actuals. Variance · Compare · Import · Drill-to-journal.
                 </p>
               </div>
@@ -64,8 +61,8 @@ export default function FmplusLandingPage() {
           </Link>
 
           <div className="ix-card p-5 opacity-50 cursor-not-allowed">
-            <h2 className="font-semibold text-slate-500">Operations</h2>
-            <p className="text-xs text-slate-400 mt-1">Coming soon.</p>
+            <h2 className="font-semibold text-slate-500 dark:text-slate-400">Operations</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Coming soon.</p>
           </div>
         </section>
       </main>

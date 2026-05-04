@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ChevronRight, BarChart3, Briefcase, Landmark, LineChart, FolderTree } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
+import { FmplusHero } from '@/app/fmplus/_components/fmplus-hero';
 import { resolvePeriodSeries } from '@/lib/fmplus/period-series';
 import { buildFmplusPnl, buildFmplusBalanceSheet } from '@/lib/fmplus/financials';
 import { buildFmplusDashboard } from '@/lib/fmplus/dashboard';
@@ -161,22 +162,13 @@ export default async function FinancialsPage({
       </TopNav>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6 flex-1">
-        {/* Hero header — matches Beithady launcher card visual language */}
-        <header className="relative ix-card p-6 overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 opacity-[0.08] blur-3xl pointer-events-none" />
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-xl inline-flex items-center justify-center bg-amber-50 dark:bg-amber-950 shrink-0">
-              <LineChart size={28} strokeWidth={2.2} className="text-amber-700 dark:text-amber-300" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-400 font-semibold">FMPLUS · Financials</p>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-0.5">Financials Dashboard</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                FMPLUS Property &amp; Facility Management — Dashboard, P&amp;L, and Balance Sheet pulled live from Odoo.
-              </p>
-            </div>
-          </div>
-        </header>
+        {/* Hero header — shared FmplusHero (FM+ logo on the right) */}
+        <FmplusHero
+          eyebrow="FMPLUS · FINANCIALS"
+          title="Financials Dashboard"
+          subtitle="FMPLUS Property & Facility Management — Dashboard, P&L, and Balance Sheet pulled live from Odoo."
+          icon={LineChart}
+        />
 
         {/* Tab nav */}
         <nav className="border-b border-slate-200 dark:border-slate-700 flex gap-1 -mt-2">
