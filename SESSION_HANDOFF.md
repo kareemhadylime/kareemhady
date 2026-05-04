@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget v2: Task 14 complete — catalog page UI (table + override side panel)
+
+**Task 14 done (commit `0a4bc55`, NOT pushed per constraints):**
+- `src/app/fmplus/financial/budget/catalog/actions.ts` — 38 lines, server actions: `saveItemAction`, `archiveItemAction`, `saveOverrideAction`, `removeOverrideAction`
+- `src/app/fmplus/financial/budget/catalog/page.tsx` — 79 lines, server component; fetches items via `searchCatalog`, selected item detail + overrides + contract list from Supabase
+- `src/app/fmplus/financial/budget/catalog/_components/catalog-table.tsx` — 192 lines, client component; sticky toolbar with search + 3 filters, table with status dot/code/name/unit/price/services/tags/actions, row selection via URL param
+- `src/app/fmplus/financial/budget/catalog/_components/override-side-panel.tsx` — 215 lines, client component; placeholder when no item selected, item summary card, contract picker + price input + delta%, existing overrides list with remove
+- tsc clean (0 catalog errors), existing 22 test files still pass (1 pre-existing `personal-email/label-sync.test.ts` failure unrelated to this task)
+- Route accessible at `/fmplus/financial/budget/catalog` directly via URL; Task 19 will add the tab to layout
+
+**Next step:** Task 15 (Bulk import UI), then Task 19 (layout tab strip rewrite).
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget v2: Task 12 complete — catalog seed parser + migration 0082 applied
 
 **Task 12 done (local commit `aa520e1`, NOT pushed per constraints):**
