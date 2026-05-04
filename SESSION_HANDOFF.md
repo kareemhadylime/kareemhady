@@ -1,5 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — Beithady F&B Phase F&B-2 v1.5: Recipe backend (commit `dde0411`)
+
+**Status: DONE_WITH_CONCERNS** (fx_rates schema differs from spec assumption — adapted)
+
+**What shipped:**
+- **Migration `0085_fnb_item_recipe_lines`** applied to Supabase. Table `fnb_item_recipe_lines` created with: PK uuid, `item_id` FK → `fnb_items(id)` ON DELETE CASCADE, `inventory_item_id` FK → `beithady_inventory_items(id)` ON DELETE RESTRICT, `quantity numeric(10,3)` with CHECK > 0, `notes text`, `created_at`/`updated_at`. UNIQUE(item_id, inventory_item_id). `fnb_set_updated_at()` trigger. Verified: 5 constraints (PK + 2 FK + UNIQUE + CHECK) + index.
+- **`src/lib/beithady/fnb/types.ts`** — Added `RecipeLineSchema` + `RecipeLine` type after `BuildingOverrideSchema`.
+- **`src/lib/beithady/fnb/repo.ts`** — Added `listRecipeLines`, `upsertRecipeLine`, `deleteRecipeLine`, `computeRecipeCost`. All use existing `recordAudit` + `AuditCtx`.
+- **`src/app/api/beithady/fnb/items/[id]/recipe/route.ts`** — GET (list lines + compute cost) + POST (upsert line).
+- **`src/app/api/beithady/fnb/items/[id]/recipe/[lineId]/route.ts`** — DELETE (remove line).
+- **`src/app/api/beithady/fnb/items/[id]/recipe/compute-cost/route.ts`** — POST: compute cost, persist to `fnb_items.cost_usd`, return breakdown.
+- **`src/app/api/beithady/fnb/inventory-items/route.ts`** — GET proxy to inventory catalog, active only, max 200, searchable.
+
+**fx_rates concern:** The spec assumed columns `egp_per_usd` and `as_of`. Actual schema is `(rate_date, base, quote, rate, source, fetched_at)`. The `computeRecipeCost` function was adapted to query `WHERE base='USD' AND quote='EGP' ORDER BY rate_date DESC LIMIT 1` and use `.rate` as the EGP-per-USD value. FX fetch failures are swallowed (try/catch) — null cost for affected items, no crash.
+
+**tsc:** Clean (0 errors).
+
+**Next:** Recipe UI tab (Phase F&B-2 UI) on the item editor — wire up the Recipe tab placeholder in `/beithady/fnb/menu`.
+
+---
+
 ## 🎉 2026-05-04 — Beithady F&B / In-Room Dining COMPLETE — 73-task plan shipped to prod
 
 **Engineering 68/73 tasks done + verified; T70–T73 are operator runbook tasks (translate items via the AI button in Menu admin, upload photos, configure per-building WA recipients in Settings → Buildings, print QRs from boarding pass page).**
