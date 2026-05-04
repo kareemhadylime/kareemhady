@@ -6,6 +6,7 @@ import { Search, Plus, Upload, Archive } from 'lucide-react';
 import type { FmplusCatalogItem } from '@/lib/fmplus/budget/schema';
 import { archiveItemAction } from '../actions';
 import { BulkImportModal } from './bulk-import-modal';
+import { AddItemModal } from './add-item-modal';
 
 interface Props {
   items: FmplusCatalogItem[];
@@ -19,6 +20,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -106,9 +108,8 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
               </button>
               <button
                 type="button"
-                disabled
-                className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 opacity-60 cursor-not-allowed"
-                title="Manual add UI coming in a future task"
+                onClick={() => setAddOpen(true)}
+                className="text-xs px-3 py-1.5 bg-accent text-white rounded font-semibold flex items-center gap-1 hover:bg-accent/90"
               >
                 <Plus size={13} /> Add item
               </button>
@@ -189,6 +190,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
         <div className="absolute top-1 right-1 text-[10px] text-text-secondary">…</div>
       )}
       <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
+      <AddItemModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

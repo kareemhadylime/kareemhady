@@ -425,3 +425,72 @@ export async function copyYearAction(input: unknown) {
   revalidatePath('/fmplus/financial/budget/edit');
   return result;
 }
+
+const UpdateLineQtyCostInputSchema = z.object({
+  line_id: z.number().int().positive(),
+  qty: z.number().nonnegative(),
+  unit_cost: z.number().nonnegative(),
+});
+
+/**
+ * Update qty + unit_cost on a single budget_line. Used by inline cell editing
+ * in the Editor's section accordion. Refuses to edit lines on a published year.
+ *
+ * Note: this does NOT touch the CTC components — manning lines should keep
+ * using `updateLineCtcAction` for CTC-driven unit_cost. Use this for the
+ * non-manning case (tools/PPE/transport/etc.) where unit_cost is a flat number.
+ */
+export async function updateLineQtyCostAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = UpdateLineQtyCostInputSchema.parse(input);
+  const sb = budgetDb();
+
+  const { data: line } = await sb.from(TABLES.lines)
+    .select('id, year_id')
+    .eq('id', parsed.line_id)
+    .single();
+  if (!line) throw new Error('Line not found');
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('status')
+    .eq('id', line.year_id)
+    .single();
+  if (!year || year.status !== 'draft') {
+    throw new Error('Cannot edit lines on a published year. Create a revised scenario first.');
+  }
+
+  const { error } = await sb.from(TABLES.lines)
+    .update({ qty: parsed.qty, unit_cost: parsed.unit_cost })
+    .eq('id', parsed.line_id);
+  if (error) throw error;
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
+
+/**
+ * Delete a single budget_line. Refuses on published years.
+ */
+export async function deleteLineAction(lineId: number) {
+  await requireBudgetAdmin();
+  if (!Number.isInteger(lineId) || lineId <= 0) throw new Error('Invalid line_id');
+  const sb = budgetDb();
+
+  const { data: line } = await sb.from(TABLES.lines)
+    .select('id, year_id')
+    .eq('id', lineId)
+    .single();
+  if (!line) throw new Error('Line not found');
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('status')
+    .eq('id', line.year_id)
+    .single();
+  if (!year || year.status !== 'draft') {
+    throw new Error('Cannot delete lines on a published year.');
+  }
+
+  const { error } = await sb.from(TABLES.lines).delete().eq('id', lineId);
+  if (error) throw error;
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
