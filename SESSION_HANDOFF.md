@@ -1,5 +1,60 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
+## ✅ 2026-05-04 — FM+ Project Budget v2 spec doc written (Path A)
+
+User came into this worktree (`eager-williamson-5787df`) saying "see
+where did we stop" on Budget Module work. v2 design conversation lived
+in sibling worktree `quizzical-hoover-5cfcca` (where v1 was originally
+built). That conversation reached a "design locked at 95% confidence"
+state with all 7 clarifying questions answered and 10 improvement
+suggestions absorbed, then forked at A (write spec now) vs B (visual
+mockups first). Per auto-mode + the prior session's recommendation, I
+took **Path A**.
+
+**Output**: [docs/superpowers/specs/2026-05-04-fmplus-project-budget-v2-design.md](docs/superpowers/specs/2026-05-04-fmplus-project-budget-v2-design.md)
+— 600 lines, 18 sections, mirrors v1 spec format (`2026-05-03-…`) for
+consistency. Captures:
+
+- **Why v2**: 4 reference XLSX studied (AUC/TRIO/CityGate/Emaar Uptown)
+  — v1's data model can't carry multi-year, multi-service, richer-CTC,
+  catalog-driven entry, or governmental expenses.
+- **8 tabs** (was 6): adds Project Hub + Catalog.
+- **10 tables** (was 7): drops all v1 tables, creates fresh — `0081`
+  is big-bang per Q1. New: `project_contracts` · `project_services` ·
+  `project_years` · `project_year_services` · `budget_lines` (rebuilt) ·
+  `mobilization_lines` · `fmplus_catalog` · `project_catalog_overrides` ·
+  `budget_audit` · `budget_settings`.
+- **7 service-line templates fully baked at launch** (HK/MEP/Landscape/
+  Security/Pest Ctrl/Waste Mgmt/Back Office) per Q7. Governmental
+  category seeded globally on every template (تامينات مقاولات + tax
+  stamps + work permits).
+- **Bilingual labels** (`name_en` + `name_ar`) on every catalog item +
+  template line. Session-toggle UI.
+- **Multi-year flow**: Y1/Y2/Y3 tabs in Editor + "Copy year" dialog
+  with 3 uniform inflation knobs (revenue/manpower/non-manpower) +
+  per-line "Tweak" override panel per Q4.
+- **Mobilization** as a project-level entity (separate table),
+  amortized into Variance per Q6 (default 24 months, Settings-overridable).
+- **Catalog**: `fmplus_catalog` (admin) + `project_catalog_overrides`
+  per Q3. Seeded ~80–100 items from Emaar Uptown's Items Pricelist.
+- **Per-line variance threshold override** + asymmetric thresholds
+  preserved from v1.
+- **5 Excel parsers** with auto-detect dispatcher (AUC/TRIO/CityGate/
+  Emaar/flat). 0.5% drift tolerance per parser.
+- **8 acceptance criteria sections + risks/mitigations**.
+
+**Migration semantics**: drops v1 tables (only AUC v1 budget exists in
+prod; user accepted re-entry via v2 Editor + Import). Forward-only.
+
+**Next step** — awaiting user's review of the spec doc. Once
+approved, invoke `superpowers:writing-plans` to break v2.0 into
+commit-sized increments (estimated 30–40 commits across 8 phases).
+Then user reviews the plan. Then subagent-driven coding (auto mode).
+
+No code changes this turn beyond the spec doc.
+
+---
+
 ## ✅ 2026-05-04 — OAuth redirect URI fixed in production
 
 User chose option C — loosened CLAUDE.md to allow env-var edits via
