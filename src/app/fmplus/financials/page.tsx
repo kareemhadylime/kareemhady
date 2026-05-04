@@ -4,11 +4,13 @@ import { TopNav } from '@/app/_components/brand';
 import { resolvePeriodSeries } from '@/lib/fmplus/period-series';
 import { buildFmplusPnl, buildFmplusBalanceSheet } from '@/lib/fmplus/financials';
 import { buildFmplusDashboard } from '@/lib/fmplus/dashboard';
+import { buildFmplusPayables } from '@/lib/fmplus/payables';
 import { discoverFmplusCompanyId } from '@/lib/fmplus/discover-company';
 import { FilterBar } from './_components/FilterBar';
 import { PnlTable } from './_components/PnlTable';
 import { BalanceSheetTable } from './_components/BalanceSheetTable';
 import { Dashboard } from './_components/Dashboard';
+import { PayablesGrid } from './_components/PayablesGrid';
 import type { Granularity, ScopeMode, Scope } from '@/lib/fmplus/types';
 
 export const dynamic = 'force-dynamic';
@@ -179,7 +181,15 @@ export default async function FinancialsPage({
         />
 
         {view === 'dashboard' && (
-          <Dashboard data={await buildFmplusDashboard({ granularity, asof, scope })} />
+          <>
+            <Dashboard data={await buildFmplusDashboard({ granularity, asof, scope })} />
+            <PayablesGrid
+              report={await buildFmplusPayables({
+                asOf: periodSeries[0].toDate,
+                companyId: fmplusCompanyId,
+              })}
+            />
+          </>
         )}
         {view === 'pnl' && (
           <PnlTable
@@ -188,10 +198,18 @@ export default async function FinancialsPage({
           />
         )}
         {view === 'balance_sheet' && (
-          <BalanceSheetTable
-            report={await buildFmplusBalanceSheet({ periods: periodSeries, scope })}
-            exportProps={{ ...exportPropsBase, view: 'balance_sheet' }}
-          />
+          <>
+            <BalanceSheetTable
+              report={await buildFmplusBalanceSheet({ periods: periodSeries, scope })}
+              exportProps={{ ...exportPropsBase, view: 'balance_sheet' }}
+            />
+            <PayablesGrid
+              report={await buildFmplusPayables({
+                asOf: periodSeries[0].toDate,
+                companyId: fmplusCompanyId,
+              })}
+            />
+          </>
         )}
       </main>
     </>
