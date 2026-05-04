@@ -1,104 +1,99 @@
-// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
 'use client';
+
 import { useState } from 'react';
-import type { SegmentVariance } from '@/lib/fmplus/budget/types';
-import type { Template } from '@/lib/fmplus/budget/templates';
+import type { ServiceSegment, VarianceColor } from '@/lib/fmplus/budget/variance';
+import type { Bilingual } from '@/lib/fmplus/budget/types';
 import { DrillDrawer } from './drill-drawer';
 
-const MONTHS = [1,2,3,4,5,6,7,8,9,10,11,12];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-export function VarianceGrid({
-  projectId, year, serviceLine, templateVersion, template, segment, ytdThrough,
-}: {
-  projectId: number; year: number; serviceLine: string; templateVersion: number;
-  template: Template; segment: SegmentVariance; ytdThrough: number;
-}) {
+const COLOR_CLASSES: Record<VarianceColor, string> = {
+  green: 'bg-green-500/10 text-green-400',
+  amber: 'bg-amber-500/15 text-amber-400',
+  red:   'bg-red-500/15 text-red-400',
+};
+
+interface Props {
+  segment: ServiceSegment;
+  contractId: number;
+  yearIndex: number;
+  scenario: string;
+  bilingual: Bilingual;
+}
+
+export function VarianceGrid({ segment, contractId, yearIndex, scenario, bilingual }: Props) {
   const [drill, setDrill] = useState<{ category: string; month: number } | null>(null);
-  const lowSet = new Set(template.schema_json.season_months.low);
+
+  const fmt = (n: number) => n === 0 ? '—' : Math.round(n).toLocaleString();
 
   return (
-    <>
+    <div className="bg-bg-tertiary border border-border rounded-lg overflow-hidden">
+      <header className="px-4 py-2.5 border-b border-border bg-bg-secondary flex justify-between items-center flex-wrap gap-2">
+        <strong className="text-sm text-text-primary uppercase">{segment.service_line}</strong>
+        <span className="text-[11px] text-text-secondary tabular-nums">
+          Budget: <strong>{(segment.segment_budget / 1_000_000).toFixed(2)} M</strong>
+          {' · '}
+          Actual: <strong>{(segment.segment_actual / 1_000_000).toFixed(2)} M</strong>
+          {' · '}
+          Var: <strong className={
+            segment.segment_variance_pct == null ? '' :
+            Math.abs(segment.segment_variance_pct * 100) <= 5 ? 'text-green-400' :
+            (segment.segment_variance_pct * 100) > 15 ? 'text-red-400' : 'text-amber-400'
+          }>
+            {segment.segment_variance_pct != null ? `${(segment.segment_variance_pct * 100).toFixed(1)}%` : '—'}
+          </strong>
+        </span>
+      </header>
+
       <div className="overflow-x-auto">
-        <table className="text-xs border-collapse min-w-full">
+        <table className="w-full text-[11px]">
           <thead>
-            <tr className="bg-slate-50 dark:bg-slate-800">
-              <th className="p-1.5 text-left border-b border-slate-200 dark:border-slate-700 sticky left-0 bg-slate-50 dark:bg-slate-800">Category</th>
-              {MONTHS.map(m => (
-                <th key={m} className={`p-1.5 text-right border-b border-slate-200 dark:border-slate-700 ${lowSet.has(m) ? 'bg-slate-100 dark:bg-slate-700' : ''}`}>
-                  {new Date(2000, m-1, 1).toLocaleString('en', { month: 'short' })}
-                </th>
+            <tr className="bg-bg-secondary border-b border-border text-[10px] text-text-secondary uppercase">
+              <th className="px-2 py-1.5 text-left sticky left-0 bg-bg-secondary z-10 min-w-[140px]">Category</th>
+              {MONTHS.map((m) => (
+                <th key={m} className="px-1.5 py-1.5 text-right tabular-nums min-w-[60px]">{m}</th>
               ))}
-              <th className="p-1.5 text-right border-b border-slate-200 dark:border-slate-700 font-bold">YTD</th>
-              <th className="p-1.5 text-right border-b border-slate-200 dark:border-slate-700 text-slate-500">Var %</th>
+              <th className="px-2 py-1.5 text-right tabular-nums min-w-[80px]">YTD</th>
+              <th className="px-2 py-1.5 text-right tabular-nums min-w-[60px]">Var %</th>
             </tr>
           </thead>
-          <tbody className="font-variant-numeric tabular-nums">
+          <tbody>
             {segment.categories.map(cat => (
-              <tr key={cat.category} className="border-b border-slate-100 dark:border-slate-800">
-                <td className="p-1.5 font-semibold sticky left-0 bg-white dark:bg-slate-900">{labelFor(cat.category, template)}</td>
-                {MONTHS.map(m => {
-                  const cell = cat.cells.find(c => c.month === m);
-                  if (!cell) return <td key={m} className={`p-1.5 text-right text-slate-400 ${lowSet.has(m) ? 'bg-slate-100/50 dark:bg-slate-700/50' : ''}`}>—</td>;
-                  return (
-                    <td key={m}
-                        onClick={() => setDrill({ category: cat.category, month: m })}
-                        className={`p-1.5 text-right cursor-pointer ${cellBg(cell.color)} ${lowSet.has(m) ? 'border-l border-slate-300 dark:border-slate-600' : ''}`}
-                        title={`B ${fmt(cell.budget)} · A ${fmt(cell.actual)} · ${fmtPct(cell.variance_pct)}`}>
-                      <div>{fmtK(cell.budget)}</div>
-                      <div className="text-[10px] text-slate-600 dark:text-slate-400">/ {fmtK(cell.actual)}</div>
-                    </td>
-                  );
-                })}
-                <td className="p-1.5 text-right font-semibold">
-                  <div>{fmt(cat.ytd.budget)}</div>
-                  <div className="text-[10px] text-slate-600 dark:text-slate-400">/ {fmt(cat.ytd.actual)}</div>
+              <tr key={cat.category} className="border-b border-border hover:bg-bg-tertiary/30">
+                <td className="px-2 py-1.5 sticky left-0 bg-bg-tertiary font-medium text-text-primary z-10">
+                  {bilingual === 'ar' && cat.label_ar ? cat.label_ar : cat.label_en}
                 </td>
-                <td className={`p-1.5 text-right ${cat.ytd.color === 'red' ? 'text-rose-600' : cat.ytd.color === 'amber' ? 'text-amber-600' : 'text-emerald-700'}`}>{fmtPct(cat.ytd.variance_pct)}</td>
+                {cat.cells.map(cell => (
+                  <td key={cell.month}
+                    onClick={() => cell.actual !== 0 && setDrill({ category: cat.category, month: cell.month })}
+                    className={`px-1.5 py-1.5 text-right tabular-nums cursor-pointer ${COLOR_CLASSES[cell.color]}`}
+                    title={`Budget: ${cell.budget.toLocaleString()} | Actual: ${cell.actual.toLocaleString()} | Var: ${cell.variance.toLocaleString()}`}>
+                    {fmt(cell.actual)}
+                  </td>
+                ))}
+                <td className={`px-2 py-1.5 text-right tabular-nums font-semibold ${COLOR_CLASSES[cat.ytd_color]}`}>
+                  {fmt(cat.ytd_actual)}
+                </td>
+                <td className={`px-2 py-1.5 text-right tabular-nums ${COLOR_CLASSES[cat.ytd_color]}`}>
+                  {cat.ytd_variance_pct != null ? `${(cat.ytd_variance_pct * 100).toFixed(0)}%` : '—'}
+                </td>
               </tr>
             ))}
-            <tr className="bg-slate-50 dark:bg-slate-800 font-bold border-t border-slate-300 dark:border-slate-600">
-              <td className="p-2 sticky left-0 bg-slate-50 dark:bg-slate-800">{serviceLine.toUpperCase()} total</td>
-              {MONTHS.map(m => {
-                const sum = segment.categories.reduce((a, c) => a + (c.cells.find(x => x.month === m)?.budget ?? 0), 0);
-                const sumA = segment.categories.reduce((a, c) => a + (c.cells.find(x => x.month === m)?.actual ?? 0), 0);
-                return (
-                  <td key={m} className={`p-1.5 text-right ${lowSet.has(m) ? 'bg-slate-100 dark:bg-slate-700' : ''}`}>
-                    <div>{fmtK(sum)}</div>
-                    <div className="text-[10px] text-slate-600 dark:text-slate-400">/ {fmtK(sumA)}</div>
-                  </td>
-                );
-              })}
-              <td className="p-2 text-right">
-                <div>{fmt(segment.ytd.budget)}</div>
-                <div className="text-[10px] text-slate-600 dark:text-slate-400">/ {fmt(segment.ytd.actual)}</div>
-              </td>
-              <td className={`p-2 text-right ${segment.ytd.color === 'red' ? 'text-rose-600' : segment.ytd.color === 'amber' ? 'text-amber-600' : 'text-emerald-700'}`}>{fmtPct(segment.ytd.variance_pct)}</td>
-            </tr>
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-slate-500 mt-2">Click any cell to see the underlying Odoo journal entries. Low-season columns shaded.</p>
 
       {drill && (
         <DrillDrawer
-          projectId={projectId} year={year}
-          serviceLine={serviceLine} templateVersion={templateVersion}
-          category={drill.category} month={drill.month}
+          contractId={contractId}
+          yearIndex={yearIndex}
+          scenario={scenario as 'initial' | 'revised' | 'reforecast'}
+          serviceLine={segment.service_line}
+          category={drill.category as import('@/lib/fmplus/budget/types').Category}
+          month={drill.month}
           onClose={() => setDrill(null)}
         />
       )}
-    </>
+    </div>
   );
 }
-
-function labelFor(catCode: string, template: Template): string {
-  return template.schema_json.categories.find(c => c.code === catCode)?.label ?? catCode;
-}
-function cellBg(color: 'green'|'amber'|'red'): string {
-  if (color === 'red')   return 'bg-rose-100/70 dark:bg-rose-900/30';
-  if (color === 'amber') return 'bg-amber-100/70 dark:bg-amber-900/30';
-  return 'bg-emerald-50/70 dark:bg-emerald-900/20';
-}
-function fmt(n: number): string { return new Intl.NumberFormat('en-EG', { maximumFractionDigits: 0 }).format(n); }
-function fmtK(n: number): string { return n >= 10000 ? `${Math.round(n/1000)}k` : n.toFixed(0); }
-function fmtPct(p: number | null): string { if (p == null) return '—'; return `${p > 0 ? '+' : ''}${p.toFixed(1)}%`; }

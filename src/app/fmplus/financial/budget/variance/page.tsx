@@ -1,111 +1,188 @@
-// @ts-nocheck — v1 orphan; route gets rewritten in Tasks 17-39 of fmplus-budget-v2 plan
-import { redirect } from 'next/navigation';
-import { buildBudgetVariance } from '@/lib/fmplus/budget/variance';
-import { PeriodControl } from '../_components/period-control';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
+import { requireBudgetView } from '@/lib/fmplus/budget/permissions';
+import { buildBudgetVarianceV2 } from '@/lib/fmplus/budget/variance';
+import type { ServiceLine } from '@/lib/fmplus/budget/types';
 import { VarianceGrid } from './_components/variance-grid';
-import { getTemplate } from '@/lib/fmplus/budget/templates';
-import type { Scenario } from '@/lib/fmplus/budget/schema';
-import { ScenarioSchema } from '@/lib/fmplus/budget/schema';
 
-export default async function VariancePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ project?: string; year?: string; scenario?: string; through?: string; segment?: string }>;
-}) {
-  const sp = await searchParams;
-  const projectId = Number(sp.project ?? 0);
-  if (!projectId) redirect('/fmplus/financial/budget');
-  const year = Number(sp.year ?? new Date().getUTCFullYear());
-  const sParse = ScenarioSchema.safeParse(sp.scenario ?? 'initial');
-  const scenario: Scenario = sParse.success ? sParse.data : 'initial';
-  const through = Number(sp.through ?? new Date().getUTCMonth() + 1);
-  const activeSegmentId = sp.segment ? Number(sp.segment) : null;
+export const dynamic = 'force-dynamic';
 
-  const report = await buildBudgetVariance({ projectId, fiscalYear: year, scenario, ytdThrough: through });
+interface VariancePageProps {
+  searchParams: Promise<{
+    contract?: string;
+    year?: string;
+    scenario?: string;
+    service?: string;
+  }>;
+}
 
-  if (!report) {
+const SERVICE_VALUES: ServiceLine[] = ['hk','mep','landscape','security','pest_ctrl','waste_mgmt','back_office'];
+
+export default async function VariancePage(props: VariancePageProps) {
+  const sp = await props.searchParams;
+  await requireBudgetView();
+
+  const contractId = Number(sp.contract);
+  const yearIndex = Number(sp.year) || 1;
+
+  if (!Number.isFinite(contractId) || contractId <= 0) {
+    // No contract — show contract picker
+    const sb = budgetDb();
+    const { data: contracts } = await sb.from(TABLES.contracts)
+      .select('id, name, customer')
+      .order('name');
     return (
-      <section className="space-y-3">
-        <p className="text-sm text-slate-500">No budget for this project · year · scenario.</p>
-        <a href={`/fmplus/financial/budget/edit?project=${projectId}&year=${year}&scenario=${scenario}`}
-           className="inline-block px-3 py-2 rounded bg-amber-600 text-white text-sm">Create budget</a>
-      </section>
+      <div className="space-y-4">
+        <h2 className="text-base font-semibold text-text-primary">Variance</h2>
+        <div className="border border-border rounded-lg p-6">
+          <p className="text-sm text-text-secondary mb-3">
+            Pick a contract to view its variance report.
+          </p>
+          <ul className="space-y-1">
+            {(contracts ?? []).map(c => (
+              <li key={c.id}>
+                <Link href={`/fmplus/financial/budget/variance?contract=${c.id}&year=1`}
+                  className="text-accent text-sm hover:underline">
+                  {c.name}{(c as any).customer ? ` — ${(c as any).customer}` : ''}
+                </Link>
+              </li>
+            ))}
+            {(contracts ?? []).length === 0 && (
+              <li className="text-text-secondary text-xs italic">No contracts yet. Create one from Project Hub.</li>
+            )}
+          </ul>
+        </div>
+      </div>
     );
   }
 
-  const seg = activeSegmentId
-    ? report.segments.find(s => s.segment_id === activeSegmentId) ?? report.segments[0]
-    : report.segments[0];
+  const serviceLine = SERVICE_VALUES.includes(sp.service as ServiceLine)
+    ? (sp.service as ServiceLine) : undefined;
+
+  let report: Awaited<ReturnType<typeof buildBudgetVarianceV2>> | undefined;
+  let error: string | null = null;
+  try {
+    report = await buildBudgetVarianceV2({
+      contractId,
+      yearIndex,
+      scenario: (sp.scenario as 'initial' | 'revised' | 'reforecast') ?? 'initial',
+      serviceLine,
+    });
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+  }
+
+  if (error || !report) {
+    return (
+      <div className="space-y-4">
+        <Link href="/fmplus/financial/budget/projects"
+          className="text-[11px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1">
+          <ArrowLeft size={11} /> Project Hub
+        </Link>
+        <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-4">
+          <strong className="text-sm text-text-primary">Could not build variance</strong>
+          <p className="text-xs text-text-secondary mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // KPI strip
+  const variancePctDisplay = report.total_variance_pct != null
+    ? `${(report.total_variance_pct * 100).toFixed(1)}%`
+    : '—';
+  const varianceColor = report.total_variance_pct == null
+    ? 'text-text-primary'
+    : Math.abs(report.total_variance_pct * 100) <= 5
+      ? 'text-green-400'
+      : (report.total_variance_pct * 100) > 15
+        ? 'text-red-400'
+        : 'text-amber-400';
 
   return (
-    <section className="space-y-4">
-      <header className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">{report.project_name}</h2>
-          <p className="text-xs text-slate-500">FY {report.fiscal_year} · Scenario: {report.scenario} · Status: {report.status} · Start month: {report.start_month}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <PeriodControl />
-          <a href={`/api/fmplus/budget/variance-xlsx?project=${projectId}&year=${year}&scenario=${scenario}&through=${through}`}
-             className="text-sm px-3 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">⬇ XLSX</a>
-          <a href={`/api/fmplus/budget/variance-pdf?project=${projectId}&year=${year}&scenario=${scenario}&through=${through}`}
-             className="text-sm px-3 py-1 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800">⬇ PDF</a>
+    <div className="space-y-4">
+      {/* Breadcrumb + header */}
+      <header>
+        <Link href="/fmplus/financial/budget/projects"
+          className="text-[11px] text-text-secondary hover:text-text-primary inline-flex items-center gap-1 mb-1">
+          <ArrowLeft size={11} /> Project Hub
+        </Link>
+        <h2 className="text-sm font-semibold text-text-primary">
+          {report.contract_name} <span className="text-text-secondary text-[11px] font-normal ml-1">· Y{report.year_index}{report.fiscal_year ? ` (FY ${report.fiscal_year})` : ''} · {report.scenario}</span>
+        </h2>
+        <div className="text-[11px] text-text-secondary mt-0.5">
+          Status: <span className={report.status === 'published' ? 'text-green-400' : 'text-amber-400'}>{report.status}</span>
+          {' · '}
+          Generated: {new Date(report.generated_at).toLocaleString()}
         </div>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiTile label="Annual budget" value={fmt(report.segments.flatMap(s => s.categories.flatMap(c => c.cells)).reduce((sum, c) => sum + c.budget, 0))} />
-        <KpiTile label="YTD budget" value={fmt(report.ytd.budget)} />
-        <KpiTile label="YTD actual" value={fmt(report.ytd.actual)} />
-        <KpiTile label="Variance" value={fmt(report.ytd.variance)} accent={report.ytd.color} />
-        <KpiTile label="Variance %" value={fmtPct(report.ytd.variance_pct)} accent={report.ytd.color} />
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Kpi label="YTD Budget" value={(report.total_budget / 1_000_000).toFixed(2) + ' M EGP'} />
+        <Kpi label="YTD Actual" value={(report.total_actual / 1_000_000).toFixed(2) + ' M EGP'} />
+        <Kpi label="Variance" value={((report.total_actual - report.total_budget) / 1_000_000).toFixed(2) + ' M'} color={varianceColor} />
+        <Kpi label="Variance %" value={variancePctDisplay} color={varianceColor} />
       </div>
 
-      {report.unmapped_actuals_total !== 0 && (
-        <div className="rounded border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs">
-          <strong>{fmt(report.unmapped_actuals_total)} EGP of actuals</strong> didn&apos;t match any category. Configure mappings in Settings.
-        </div>
-      )}
-
-      <nav className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-        {report.segments.map(s => (
-          <a key={s.segment_id}
-             href={`?project=${projectId}&year=${year}&scenario=${scenario}&through=${through}&segment=${s.segment_id}`}
-             className={`px-3 py-2 text-sm border-b-2 -mb-px ${seg?.segment_id === s.segment_id ? 'border-amber-600 text-amber-700 font-semibold' : 'border-transparent text-slate-500'}`}>
-            {s.service_line.toUpperCase()}{s.is_stub ? ' (stub)' : ''}
-          </a>
+      {/* Year/scenario picker (simple links) */}
+      <div className="text-[11px] text-text-secondary flex gap-2 flex-wrap">
+        <span>Year:</span>
+        {[1,2,3].map(yi => (
+          <Link key={yi} href={`?contract=${contractId}&year=${yi}`}
+            className={yi === report!.year_index ? 'text-accent font-semibold' : 'hover:text-text-primary'}>
+            Y{yi}
+          </Link>
         ))}
-      </nav>
+        <span className="ml-3">Service:</span>
+        <Link href={`?contract=${contractId}&year=${report.year_index}`}
+          className={!serviceLine ? 'text-accent font-semibold' : 'hover:text-text-primary'}>All</Link>
+        {report.segments.map(s => (
+          <Link key={s.service_line}
+            href={`?contract=${contractId}&year=${report!.year_index}&service=${s.service_line}`}
+            className={serviceLine === s.service_line ? 'text-accent font-semibold' : 'hover:text-text-primary'}>
+            {s.service_line.toUpperCase()}
+          </Link>
+        ))}
+      </div>
 
-      {seg?.is_stub ? (
-        <div className="rounded border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm">
-          {seg.service_line.toUpperCase()} template is not yet defined — variance cannot be computed for this segment.
+      {/* Per-segment grids */}
+      {report.segments.length === 0 ? (
+        <div className="border border-border rounded-lg p-4 text-xs text-text-secondary italic">
+          No segments to display. Use the Editor to add lines first.
         </div>
-      ) : seg ? (
-        <VarianceGrid
-          projectId={projectId}
-          year={year}
-          serviceLine={seg.service_line}
-          templateVersion={seg.template_version}
-          template={getTemplate(seg.service_line, seg.template_version)}
-          segment={seg}
-          ytdThrough={through}
-        />
       ) : (
-        <p className="text-sm text-slate-500">No segments on this budget.</p>
+        <div className="space-y-4">
+          {report.segments.map(seg => (
+            <VarianceGrid key={seg.service_line}
+              segment={seg}
+              contractId={contractId}
+              yearIndex={report!.year_index}
+              scenario={report!.scenario}
+              bilingual={report!.bilingual} />
+          ))}
+        </div>
       )}
-    </section>
-  );
-}
 
-function KpiTile({ label, value, accent }: { label: string; value: string; accent?: 'green'|'amber'|'red' }) {
-  const border = accent === 'red' ? 'border-rose-500' : accent === 'amber' ? 'border-amber-500' : accent === 'green' ? 'border-emerald-500' : '';
-  return (
-    <div className={`rounded-lg p-3 bg-slate-50 dark:bg-slate-800 ${border ? `border-l-4 ${border}` : ''}`}>
-      <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="text-lg font-semibold">{value}</div>
+      {/* Unmapped warning */}
+      {report.unmapped_actuals > 0 && (
+        <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-3 text-xs">
+          <strong className="text-text-primary">Unmapped actuals: {(report.unmapped_actuals / 1_000_000).toFixed(2)} M EGP</strong>
+          <span className="text-text-secondary ml-2">
+            Account codes that did not match any template&apos;s account_map_json. Update Settings to capture these.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
-function fmt(n: number): string { return new Intl.NumberFormat('en-EG', { maximumFractionDigits: 0 }).format(n); }
-function fmtPct(p: number | null): string { if (p == null) return '—'; return `${p > 0 ? '+' : ''}${p.toFixed(1)}%`; }
+
+function Kpi({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="bg-bg-tertiary border border-border rounded p-3">
+      <div className="text-[10px] text-text-secondary uppercase">{label}</div>
+      <div className={`text-base font-semibold tabular-nums mt-0.5 ${color ?? 'text-text-primary'}`}>{value}</div>
+    </div>
+  );
+}
