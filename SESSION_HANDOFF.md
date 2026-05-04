@@ -1,6 +1,6 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
-## 🟢 2026-05-04 — FMPLUS Financials: Phase 1 (cascading analytic-account picker) — local build passes, push pending
+## 🟢 2026-05-04 — FMPLUS Financials: Phase 1 (cascading analytic-account picker) — local build passes, push pending (parallel session)
 
 After user clarified the cascade ("Service Line first, then Projects under it") and replied "Defaults" to all earlier picker design questions, shipped Phase 1:
 
@@ -8,18 +8,21 @@ After user clarified the cascade ("Service Line first, then Projects under it") 
 - `src/lib/fmplus/analytic-picker.ts` — `listFmplusPlansWithActivity` and `listFmplusProjectsWithActivity` helpers. Active = ≥1 move-line in `odoo_move_line_analytics` joined to `odoo_move_lines` for the period. Plans returned in canonical order (HK/MEP/Mix/Security) with `active_count` per plan.
 - `src/app/fmplus/financials/_components/AnalyticPicker.tsx` — Beithady-style cascade card. Tier 1 = service-line pills with "(N)" active counts. Tier 2 = project pills (only appears after a plan is picked), with multi-select toggle (capped at 5 for side-by-side compare). Selected projects render as removable chips above the project pills in multi mode.
 
-**page.tsx changes:**
-- New URL params: `plan` (slug 'hk'/'mep'/'mix'/'security' replacing the legacy numeric `plan` ID), `account` (single project id), `accounts` (csv multi), `multi` ('1' to enable). Legacy `plans` removed.
-- Picker data fetched in parallel with main data using the period's full window (earliest fromDate → latest toDate) so projects don't flicker in/out as you change `periods=` count.
-- Slug → numeric plan_id resolved server-side.
-- `Scope.planId` set when a service line is picked AND no individual projects selected; `Scope.accountIds` set when ≥1 project selected. Doesn't gate on `mode` anymore (mode stays 'trend' since old plans/accounts modes weren't user-facing).
-- Renders above FilterBar on Dashboard + P&L (skipped on BS — analytic_account_id doesn't apply to balance-sheet move-lines).
+**page.tsx changes:** new URL params (`plan` slug 'hk'/'mep'/'mix'/'security', `account` single project id, `accounts` csv multi, `multi='1'` to enable). Legacy `plans` removed. Picker data fetched in parallel; slug → numeric plan_id resolved server-side. `Scope.planId` / `Scope.accountIds` set based on selection. Renders above FilterBar on Dashboard + P&L (skipped on BS).
 
-**FilterBar cleanup:** dropped the `planIds`/`planId`/`accountIds` props plus the disabled `AccountPicker` import (the legacy plans/accounts mode UI). FilterBar is now pure period+granularity+options.
+**FilterBar cleanup:** dropped the `planIds`/`planId`/`accountIds` props plus the disabled `AccountPicker` import. FilterBar is now pure period+granularity+options.
 
 **Phase 2 still pending**: new `Projects` view (4 ranking cards — Top Revenue, Best by GP, Best by Margin%, Worst by Margin%, all top/bottom-10) + side-by-side P&L rendering when 2-5 projects are multi-selected. `tsc --noEmit` clean. `npm run build` clean. Awaiting commit + push.
 
 ---
+
+## ✅ 2026-05-04 — FM+ Budget v2.1 design polish (this session, commits `e2f6daf` + `73bcd8a`)
+
+- Replaced 472 broken Tailwind token occurrences across 34 budget files (bg-bg-*, text-text-*, border-border, bg-accent, text-accent → real slate/indigo tokens). These were silently no-op in v2.0; v2 surfaces now actually render with backgrounds, borders, and proper text contrast in dark mode.
+- Added Noto Sans Arabic via `next/font/google`; applied via `[dir="rtl"]` and `:lang(ar)` selectors in `globals.css`. Bilingual toggle now produces real Arabic typography instead of system fallback.
+- Bumped variance/compare grid color cells to light-mode-legible classes (green-100/amber-100/red-100 in light, original /10-/15 opacities in dark).
+- Fixed contract-card.tsx service chips for light-mode contrast (emerald-100/emerald-700 in light, green-500/15 dark unchanged).
+- TS check: 0 fmplus errors. Tests: 159 passed / 9 skipped. Pushed to main as part of this session's handoff cycle.
 
 ## ✅ FINAL 2026-05-04 — FM+ Budget v2.0 COMPLETE — all surfaces functional, 3 audit gaps closed
 
