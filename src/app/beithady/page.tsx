@@ -9,6 +9,7 @@ import {
   ShieldOff,
   CalendarRange,
   Package,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getEffectiveBeithadyRoles, visibleCategoriesFor, type BeithadyCategory } from '@/lib/beithady/auth';
@@ -89,6 +90,14 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
     accent: 'emerald',
     badge: { label: 'Phase M', tone: 'gold' },
   },
+  fnb: {
+    href: '/beithady/fnb',
+    title: 'F&B',
+    description: 'In-room dining & minibar · Menu builder · Orders · COGS tracking · Minibar restock alerts.',
+    icon: UtensilsCrossed,
+    accent: 'amber',
+    badge: { label: 'Phase F', tone: 'gold' },
+  },
 };
 
 // All categories now live — historical map kept for future phases.
@@ -102,6 +111,7 @@ const PHASE_PENDING: Record<BeithadyCategory, string | undefined> = {
   ads: undefined,
   operations: undefined,
   inventory: undefined,
+  fnb: undefined,
 };
 
 export default async function BeithadyHome() {
@@ -109,7 +119,7 @@ export default async function BeithadyHome() {
   const roles = user ? await getEffectiveBeithadyRoles(user) : [];
   const visible = visibleCategoriesFor(roles);
 
-  // Order: Financial → Analytics → CRM → Communication → Operations → Inventory → Settings → Gallery → Ads
+  // Order: Financial → Analytics → CRM → Communication → Operations → Inventory → F&B → Settings → Gallery → Ads
   const order: BeithadyCategory[] = [
     'financial',
     'analytics',
@@ -117,6 +127,7 @@ export default async function BeithadyHome() {
     'communication',
     'operations',
     'inventory',
+    'fnb',
     'settings',
     'gallery',
     'ads',

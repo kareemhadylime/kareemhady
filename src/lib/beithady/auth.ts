@@ -17,6 +17,7 @@ export const BEITHADY_ROLES = [
   'warehouse_manager',         // Phase M — owns Inventory category
   'housekeeper',               // Phase M — limited mobile-app access via PIN gate
   'business_analyst',          // Reporting role — broad read, full analytics, no financial/comm
+  'fnb_manager',               // Phase F — F&B / In-Room Dining module owner
 ] as const;
 export type BeithadyRole = (typeof BEITHADY_ROLES)[number];
 
@@ -29,7 +30,8 @@ export type BeithadyCategory =
   | 'gallery'
   | 'ads'
   | 'operations'
-  | 'inventory';               // Phase M
+  | 'inventory'                // Phase M
+  | 'fnb';                     // Phase F — F&B / In-Room Dining
 
 export type Permission = 'none' | 'read' | 'full';
 
@@ -45,6 +47,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'none',
     operations: 'read',
     inventory: 'none',
+    fnb: 'full',
   },
   finance: {
     financial: 'full',
@@ -56,6 +59,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'none',
     operations: 'read',
     inventory: 'read',         // sees stock value + approves PO/GRN > finance threshold
+    fnb: 'read',
   },
   ops: {
     financial: 'read',
@@ -67,6 +71,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'none',
     operations: 'full',        // operations role owns this category
     inventory: 'full',
+    fnb: 'full',
   },
   manager: {
     financial: 'full',
@@ -78,6 +83,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'full',
     operations: 'full',
     inventory: 'full',
+    fnb: 'full',
   },
   admin: {
     financial: 'full',
@@ -89,6 +95,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'full',
     operations: 'full',
     inventory: 'full',
+    fnb: 'full',
   },
   warehouse_manager: {
     financial: 'none',
@@ -100,6 +107,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'none',
     operations: 'read',        // sees calendar + tasks (needed for issue context)
     inventory: 'full',
+    fnb: 'none',
   },
   housekeeper: {
     financial: 'none',
@@ -111,6 +119,7 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'none',
     operations: 'none',
     inventory: 'read',         // mobile app uses PIN gate, not role gate, for write actions
+    fnb: 'none',
   },
   business_analyst: {
     financial: 'none',         // Odoo P&L excluded by design — segregation of duties
@@ -122,6 +131,19 @@ const PERMISSIONS: Record<BeithadyRole, Record<BeithadyCategory, Permission>> = 
     ads: 'read',               // ad spend feeds attribution / ROAS reports
     operations: 'read',        // SLA / calendar / morning brief feed ops dashboards
     inventory: 'read',         // stock value / turnover / GRN history for COGS reports
+    fnb: 'read',
+  },
+  fnb_manager: {
+    financial: 'none',
+    analytics: 'read',
+    crm: 'read',
+    communication: 'none',
+    settings: 'read',
+    gallery: 'none',
+    ads: 'none',
+    operations: 'read',
+    inventory: 'none',
+    fnb: 'full',               // Phase F — owns F&B / In-Room Dining module
   },
 };
 
@@ -208,6 +230,7 @@ export function visibleCategoriesFor(roles: BeithadyRole[]): BeithadyCategory[] 
     'ads',
     'operations',
     'inventory',
+    'fnb',
   ];
   return all.filter(c => rolesGrantPermission(roles, c, 'read'));
 }
