@@ -95,7 +95,7 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
     title: 'F&B',
     description: 'In-room dining & minibar · Menu builder · Orders · COGS tracking · Minibar restock alerts.',
     icon: UtensilsCrossed,
-    accent: 'amber',
+    accent: 'rose',
     badge: { label: 'Phase F', tone: 'gold' },
   },
 };
