@@ -6,10 +6,17 @@ import { supabaseAdmin } from '@/lib/supabase';
 // Maps the authorizing email's domain to the user-visible label shown
 // in the dashboard. Personal mailboxes use these short tags; non-
 // personal accounts get a generic `<local-part>` upper-cased.
+//
+// Patterns are intentionally substring-based so any TLD works
+// (`@limeinc.cc`, `@limeinc.com`, `@lime-investments.com`, etc.).
 function deriveDisplayName(email: string): string {
   const lower = email.toLowerCase();
   if (lower.endsWith('@gmail.com')) return 'GMAIL';
-  if (lower.includes('@lime-investments') || lower.includes('@lime.')) return 'LIME';
+  if (
+    lower.includes('@limeinc') ||
+    lower.includes('@lime-investments') ||
+    lower.includes('@lime.')
+  ) return 'LIME';
   if (lower.includes('@fmplus')) return 'FM+';
   return email.split('@')[0].toUpperCase();
 }

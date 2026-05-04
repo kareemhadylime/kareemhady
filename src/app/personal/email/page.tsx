@@ -7,6 +7,7 @@ import type { CategorySlug } from '@/lib/personal-email/types';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PersonalShell, PersonalHeader } from '../_components/personal-shell';
 import { AccountFilter } from './_components/account-filter';
+import { MailboxStatusBar } from './_components/mailbox-status-bar';
 import { TierSection } from './_components/tier-section';
 import { CategoryCard } from './_components/category-card';
 import { RefreshButton } from './_components/refresh-button';
@@ -79,15 +80,8 @@ export default async function PersonalEmailPage({
         <Stat label="Delete-bait" value={((countsBySlug.promotions ?? 0) + (countsBySlug.spam ?? 0)).toLocaleString()} accent="zinc" />
       </section>
 
-      {/* Account filter row */}
-      {accountCount > 0 && (
-        <section className="flex items-center gap-3 flex-wrap">
-          <span className="text-[11px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400">
-            Mailbox
-          </span>
-          <AccountFilter selected={accountId} />
-        </section>
-      )}
+      {/* Mailbox status bar — shows each mailbox with sync status, also acts as filter */}
+      {accountCount > 0 && <MailboxStatusBar selected={accountId} />}
 
       {/* Empty state */}
       {accountCount === 0 ? (
