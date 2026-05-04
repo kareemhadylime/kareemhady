@@ -1,5 +1,34 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 2026-05-04 — Beithady F&B Phase F.2 SHIPPED (commit `4144177`)
+
+13 cherry-picked feat/fix commits, all live on main. Vercel building. Local `npm run build` passed before push.
+
+**Phase F.2 — Menu admin** (Tasks 9–19) shipped:
+- T9 types.ts (Zod schemas, 11 tests) — `e3aa4d6` + `a8cc17b` fix (datetime offset, HHMM regex, missing aliases)
+- T10 repo.ts (CRUD + audit, shared helper, soft-delete fields exposed) — `9bf1005` + `36d11e4` fix
+- T11 categories CRUD API — `9424b8c`
+- T12 items CRUD API (with `?category_id=` + `?include_deleted=1` filters) — `4825681`
+- T13 photo upload signed-URL endpoint — `4c2364e`
+- T14 menu admin page + category tree — `abf707b`
+- T15 item editor shell (5 inner tabs) + Basics tab live — `834c46e`
+- T16 Photo tab (drag-drop upload + new `/api/beithady/fnb/photo` preview endpoint) — `28fcc29`
+- T17 Modifiers tab + API — `ffdc5b6`
+- T18 Availability tab + API (hours override + 5-building stock-out grid) — `6253501`
+- T19 Bulk price update endpoint + dialog — `c675de4`
+
+Production tip is `4144177`. F&B tile + menu admin (`/beithady/fnb/menu`) + item editor with all 4 functional tabs are now live.
+
+**Next: Phase F.3 — Guest menu read-only with full BH brand styling** (T20–T25):
+- T20 lib/beithady/fnb/token-validate.ts (boarding-pass token gate)
+- T21 API `/api/dine/[token]/menu`
+- T22 `/dine/[token]` page — mobile menu (Cormorant Garamond + Poppins + Cairo, navy/cream/coral palette, palm + halftone motifs)
+- T23 item bottom-sheet + cart bar (cart state in localStorage)
+- T24 boarding-pass page integration (Order Food CTA)
+- T25 QR code rendering on boarding-pass page
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget Catalog: inline edit via pencil icon — commit `58d0edb`
 
 Extended `AddItemModal` with optional `existingItem` prop; pencil icon in each catalog row now opens the modal in edit mode prefilled with that row's data.
