@@ -39,9 +39,10 @@
 - T28 `b43df3b` parser auto-detect dispatcher (5 paths)
 - T29-T33 ⏳ rich XLSX parsers — DEFERRED; need per-file column-mapping inspection
 
-### Phase 7 🟡 Variance — only mobilization math done (T34)
+### Phase 7 🟡 Variance — mobilization math + core engine done (T34-35)
 - T34 `df940dd` mobilization.ts amortization (straight_line + flat) with end_date truncation
-- T35-T37 ⏳ variance.ts v2, Variance page, Settings page v2
+- T35 `65acdf4` variance.ts v2 + variance-drill.ts v2 + 2 test files (unit gate: 2 pass, integration: 2 skipped)
+- T36-T37 ⏳ Variance page, Settings page v2
 
 ### Phase 8 ⏳ Compare/Exports/Acceptance (T38-T40)
 
@@ -74,7 +75,7 @@
 ## Remaining work breakdown (12 tasks)
 
 **Easier, less time-consuming (~6 tasks, ~3 hours)**:
-- T35 — variance.ts v2 (carries over v1 logic + adds mob amortization + per-line threshold override + bilingual)
+- T35 ✅ `65acdf4` variance.ts v2 (buildBudgetVarianceV2 + cellToMoveLines stub + 2 test files)
 - T36 — Variance page + drill drawer (rewrite v1 with v2 schema)
 - T37 — Settings page v2 (extend v1 with bilingual default + 3 inflation defaults + mob amort default)
 - T38 — Compare YoY mode (extend v1 with new toggle)
