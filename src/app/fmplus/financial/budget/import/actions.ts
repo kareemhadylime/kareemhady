@@ -8,6 +8,7 @@ import { detectParser } from '@/lib/fmplus/budget/parsers/auto-detect';
 import { parseFlatTemplate, type FlatRow } from '@/lib/fmplus/budget/parsers/flat-template';
 import { parseAucStyle } from '@/lib/fmplus/budget/parsers/rich-auc-style';
 import { parseTrioStyle } from '@/lib/fmplus/budget/parsers/trio-style';
+import { parseCityGateMultiYear } from '@/lib/fmplus/budget/parsers/city-gate-multi-year';
 import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
 import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
 
@@ -32,8 +33,8 @@ export interface PreviewResult {
  * Inspect an uploaded XLSX, classify it, parse it, and return a preview of
  * what would be imported. Does NOT write to DB.
  *
- * Supported parsers: flat-template, rich-auc-style, trio-style.
- * Deferred (v2.2): city-gate-multi-year, emaar-zone-style.
+ * Supported parsers: flat-template, rich-auc-style, trio-style, city-gate-multi-year.
+ * Deferred (v2.2): emaar-zone-style.
  */
 export async function previewImportAction(formData: FormData): Promise<PreviewResult> {
   await requireBudgetAdmin();
@@ -49,10 +50,9 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
   try {
     const detection = await detectParser(tmp);
 
-    // Gate unsupported parsers — rich-auc-style + trio-style are now live, others remain deferred
+    // Gate unsupported parsers — rich-auc-style, trio-style, city-gate-multi-year are live; emaar deferred
     if (
       detection.parser === 'unknown' ||
-      detection.parser === 'city-gate-multi-year' ||
       detection.parser === 'emaar-zone-style'
     ) {
       return {
@@ -64,7 +64,7 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
           row: 0,
           message: `${detection.parser} parser is not yet implemented. ` +
             `Re-export your data using the flat template (Download Blank Template button) and try again. ` +
-            `Rich parsers for TRIO/CityGate/Emaar layouts are tracked for v2.2.`,
+            `Rich parser for Emaar zone layout is tracked for v2.2.`,
         }],
         warnings: [],
         byContract: [],
@@ -137,6 +137,35 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
         errors: trioResult.errors.map(e => ({ row: e.row, message: `${e.sheet}: ${e.message}` })),
         warnings: trioResult.warnings,
         suggestedContractName: trioResult.contract_name,
+      };
+    } else if (detection.parser === 'city-gate-multi-year') {
+      const cgResult = await parseCityGateMultiYear(tmp);
+      parsed = {
+        rows: cgResult.rows.map(r => ({
+          contract_name: cgResult.contract_name,
+          customer: null,
+          year_index: r.year_index,
+          service_line: r.service_line,
+          category: r.category,
+          line_code: r.line_code,
+          label_en: r.label_en,
+          label_ar: r.label_ar,
+          season: 'high' as const,
+          qty: r.qty,
+          unit_cost: r.unit_cost,
+          ctc_net: r.ctc_net,
+          ctc_relievers: r.ctc_relievers,
+          ctc_ot: r.ctc_ot,
+          ctc_training: r.ctc_training,
+          ctc_insurance: r.ctc_insurance,
+          ctc_medical: r.ctc_medical,
+          threshold_green: null,
+          threshold_amber: null,
+          notes: null,
+        })),
+        errors: cgResult.errors.map(e => ({ row: e.row, message: `${e.sheet}: ${e.message}` })),
+        warnings: cgResult.warnings,
+        suggestedContractName: cgResult.contract_name,
       };
     } else {
       // Defensive — should never reach
