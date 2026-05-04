@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { validateDineToken } from '@/lib/beithady/fnb/token-validate';
 import { computeCartTotals, computeLineTotal } from '@/lib/beithady/fnb/cart';
 import { SubmitOrderPayloadSchema } from '@/lib/beithady/fnb/types';
+import { notifyKitchen } from '@/lib/beithady/fnb/wa-notifier';
 
 interface Ctx { params: Promise<{ token: string }> }
 
@@ -191,8 +192,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     notes: 'Order submitted by guest',
   } as any);
 
-  // 7. Fire WA push to kitchen — Phase F.5 wires this
-  // TODO: T33 — notifyKitchen(order.id).catch(err => console.error('[fnb] notifyKitchen failed', err));
+  // 7. Fire WA push to kitchen — Phase F.5 / T33
+  notifyKitchen(order.id).catch(err =>
+    console.error('[fnb] notifyKitchen failed', err));
 
   return NextResponse.json({ order }, { status: 201 });
 }
