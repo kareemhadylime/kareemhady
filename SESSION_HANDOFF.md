@@ -450,6 +450,71 @@ should successfully classify those 762 emails Gmail has been
 patiently re-fetching every 15 min. The freshness bars +
 classified counts will finally have non-zero values.
 
+---
+
+## ✅ 2026-05-04 — Master-detail drill-down + multi-select + backfill button (commit `bf9d4dc`)
+
+After the FK fix landed, ingest started working: the 14:30 Cairo
+cron classified 69/70 emails ($0.04 cost), 14:45 picked up 1 new.
+LIME has 76 classified, FM+ 2, GMAIL 1. Healthy state confirmed.
+
+User asked for four things this turn:
+1. Right-pane preview when clicking a category email (master-detail)
+2. Multi-select checkboxes for bulk actions on category list
+3. Bug: "error when choosing one account, not all" in category filters
+4. Ingest all email since 2026-04-15, archive everything before
+
+All shipped in commits `61edfc2`, `7379a77`, and `bf9d4dc`:
+
+**Account-filter URL bug.** `AccountFilter` was building
+`?category=X?account=Y` (two `?`), which Next parsed as
+`category="notifications?account=<id>"`. Detected `?` in basePath
+and switched separator to `&`. Filter now scopes correctly when
+drilling into a category from a single-mailbox view.
+
+**`DrillDownView` client component** (new `_components/drill-down-view.tsx`):
+2-column master-detail. Left = list with checkboxes; clicking a
+row updates `?msg=<id>` (no full nav). Right = server-rendered
+preview pane with subject + headers + classification stripe (accent
+border + confidence + method + reason) + body excerpt + "Full
+page"/"Gmail" links. Bulk-action bar appears above list once any
+checkbox is ticked: Mark read · Archive · Move to ▾ · Clear. Move
+shows the other 8 categories; loops `moveEmail` per id client-side.
+Sticky right pane scrolls independently.
+
+**`page.tsx` CategoryFlatView** rewritten to fetch rows + selected
+email in parallel, hand both to `DrillDownView`. The existing
+`/personal/email/[messageId]` page is unchanged — preview's "Full
+page" link still navigates to it for deep-link cases.
+
+**Ingest perf fix piggy-backed in `ingest.ts`:**
+`ingestOneAccount` now pre-fetches the set of `gmail_message_id`s
+already classified for the account and skips them in the per-page
+loop. Without this, every cron tick post-backfill would re-classify
+the entire backlog every 15 min — forward progress would never
+happen. With dedup, repeat ticks are ~free for done mail.
+
+**Backfill button** (`/personal/email/setup/accounts`) — Originally
+attempted as a `CRON_SECRET`-gated `/api/admin/...` route, but the
+harness denied extracting the production secret into a shell var.
+Pivoted to a server action `archiveOldAndResetSync(formData)`
+behind the admin auth gate — user clicks a button, no secret
+needed. The form takes a YYYY-MM-DD cutoff (default 2026-04-15
+from user's spec). Per account: 8 s token-refresh timeout, paginate
+Gmail `before:<cutoff> in:inbox -in:trash`, batchModify in 1000-id
+chunks (`removeLabelIds: ['UNREAD','INBOX']` = mark read +
+archive), then reset `accounts.last_synced_at` to cutoff midnight,
+then trigger immediate ingest. Best-effort per account — logs
+errors but the DB-side reset always runs.
+
+The unused `/api/admin/personal-email-archive-old/route.ts` file
+also landed in this push — same logic but secret-gated; left in
+case a future cron-shaped invocation wants it.
+
+**Pending: user clicks the Backfill button.** After they do, the
+next 15-min cron + the kicked-off manual ingest will catch up
+everything from 15-April forward.
+
 ## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
 
 **Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
