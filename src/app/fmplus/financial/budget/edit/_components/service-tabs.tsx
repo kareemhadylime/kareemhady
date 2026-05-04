@@ -13,7 +13,7 @@ interface Props {
   contractId: number;
   yearIndex: number;
   services: ServiceLine[];
-  activeService: ServiceLine;
+  activeService: string; // widened to string to accommodate '__revenue' / '__mobilization' sentinels
 }
 
 export function ServiceTabs({ services, activeService }: Props) {
@@ -43,14 +43,22 @@ export function ServiceTabs({ services, activeService }: Props) {
         </button>
       ))}
       <span className="mx-1 text-border">|</span>
-      <button type="button" disabled
-        className="px-3 py-1 text-[11px] bg-bg-tertiary border border-border rounded-full text-text-secondary opacity-60 cursor-not-allowed"
-        title="Revenue tab ships in Task 25">
+      <button type="button"
+        onClick={() => switchService('__revenue')}
+        className={`px-3 py-1 text-[11px] font-semibold rounded-full ${
+          activeService === '__revenue'
+            ? 'bg-accent text-white'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border'
+        }`}>
         💰 Revenue
       </button>
-      <button type="button" disabled
-        className="px-3 py-1 text-[11px] bg-bg-tertiary border border-border rounded-full text-text-secondary opacity-60 cursor-not-allowed"
-        title="Mobilization tab ships in Task 25">
+      <button type="button"
+        onClick={() => switchService('__mobilization')}
+        className={`px-3 py-1 text-[11px] font-semibold rounded-full ${
+          activeService === '__mobilization'
+            ? 'bg-accent text-white'
+            : 'bg-bg-tertiary text-text-secondary hover:text-text-primary border border-border'
+        }`}>
         🏗️ Mobilization
       </button>
       {isPending && <span className="text-[10px] text-text-secondary">…</span>}

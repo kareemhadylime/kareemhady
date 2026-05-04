@@ -8,6 +8,8 @@ import { YearTabs } from './_components/year-tabs';
 import { ServiceTabs } from './_components/service-tabs';
 import { SectionAccordion } from './_components/section-accordion';
 import { SavePublishButtons } from './_components/save-publish-buttons';
+import { RevenueTab } from './_components/revenue-tab';
+import { MobilizationTab } from './_components/mobilization-tab';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,40 +84,90 @@ export default async function EditPage(props: EditPageProps) {
     );
   }
 
-  // Service tab — defaults to first service if none selected
-  const targetService = SERVICE_VALUES.includes(sp.service as ServiceLine)
+  // Special service modes — sentinels not in SERVICE_VALUES
+  const isRevenue = sp.service === '__revenue';
+  const isMobilization = sp.service === '__mobilization';
+
+  // Service tab — defaults to first service if none selected (only when in normal mode)
+  const targetService = (!isRevenue && !isMobilization && SERVICE_VALUES.includes(sp.service as ServiceLine))
     ? (sp.service as ServiceLine)
     : (services[0]?.service_line ?? 'hk');
 
-  // Lines for (year, service)
-  const { data: lineRows } = await sb
-    .from(TABLES.lines)
-    .select('*')
-    .eq('year_id', currentYear.id)
-    .eq('service_line', targetService)
-    .order('category')
-    .order('line_code');
+  // Determine which service string to pass to ServiceTabs (sentinels pass through as-is)
+  const activeServiceForTabs: string = isRevenue ? '__revenue' : isMobilization ? '__mobilization' : targetService;
 
-  // Year-service summary (revenue)
-  const { data: yearServiceRow } = await sb
-    .from(TABLES.year_services)
-    .select('monthly_revenue, vat_pct')
-    .eq('year_id', currentYear.id)
-    .eq('service_line', targetService)
-    .maybeSingle();
+  // Revenue tab data
+  let revenueRows: any[] = [];
+  let mobRows: any[] = [];
+  let defaultAmortMonths = 24;
 
-  // Get template for this service to render section accordion
-  const template = getTemplate(targetService, 1);
+  if (isRevenue) {
+    const { data } = await sb.from(TABLES.year_services)
+      .select('service_line, monthly_revenue, vat_pct, manpower_ramp')
+      .eq('year_id', currentYear.id);
+    revenueRows = (data ?? []).map((r: any) => ({
+      ...r,
+      monthly_revenue: Number(r.monthly_revenue),
+      vat_pct: Number(r.vat_pct),
+      manpower_ramp: r.manpower_ramp ?? {},
+    }));
+  }
 
-  // KPI summary computed from lines
-  const totalCost = (lineRows ?? []).reduce(
-    (a: number, l: any) => a + Number(l.qty) * Number(l.unit_cost) * 12, 0
-  );
-  const annualRevenue = Number(yearServiceRow?.monthly_revenue ?? 0) * 12;
-  const gmPct = annualRevenue > 0 ? ((annualRevenue - totalCost) / annualRevenue * 100) : null;
-  const headcount = (lineRows ?? [])
-    .filter((l: any) => l.category === 'manning')
-    .reduce((a: number, l: any) => a + Number(l.qty), 0);
+  if (isMobilization) {
+    const { data } = await sb.from(TABLES.mob)
+      .select('category, label_en, label_ar, qty, unit_cost, amortization, amortization_months, notes')
+      .eq('contract_id', contractId);
+    mobRows = (data ?? []).map((r: any) => ({
+      ...r,
+      qty: Number(r.qty),
+      unit_cost: Number(r.unit_cost),
+    }));
+    const { data: settings } = await sb.from(TABLES.settings).select('default_mob_amortization_months').eq('id', 1).single();
+    defaultAmortMonths = (settings as any)?.default_mob_amortization_months ?? 24;
+  }
+
+  // Lines, template, KPIs — only for normal service mode
+  let lineRows: any[] | null = null;
+  let yearServiceRow: any = null;
+  let template: any = null;
+  let totalCost = 0;
+  let annualRevenue = 0;
+  let gmPct: number | null = null;
+  let headcount = 0;
+
+  if (!isRevenue && !isMobilization) {
+    // Lines for (year, service)
+    const linesRes = await sb
+      .from(TABLES.lines)
+      .select('*')
+      .eq('year_id', currentYear.id)
+      .eq('service_line', targetService)
+      .order('category')
+      .order('line_code');
+    lineRows = linesRes.data ?? [];
+
+    // Year-service summary (revenue)
+    const ysr = await sb
+      .from(TABLES.year_services)
+      .select('monthly_revenue, vat_pct')
+      .eq('year_id', currentYear.id)
+      .eq('service_line', targetService)
+      .maybeSingle();
+    yearServiceRow = ysr.data;
+
+    // Get template for this service to render section accordion
+    template = getTemplate(targetService, 1);
+
+    // KPI summary computed from lines
+    totalCost = (lineRows ?? []).reduce(
+      (a: number, l: any) => a + Number(l.qty) * Number(l.unit_cost) * 12, 0
+    );
+    annualRevenue = Number(yearServiceRow?.monthly_revenue ?? 0) * 12;
+    gmPct = annualRevenue > 0 ? ((annualRevenue - totalCost) / annualRevenue * 100) : null;
+    headcount = (lineRows ?? [])
+      .filter((l: any) => l.category === 'manning')
+      .reduce((a: number, l: any) => a + Number(l.qty), 0);
+  }
 
   return (
     <div className="space-y-3">
@@ -160,29 +212,49 @@ export default async function EditPage(props: EditPageProps) {
         contractId={contractId}
         yearIndex={currentYear.year_index}
         services={services.map(s => s.service_line)}
-        activeService={targetService}
+        activeService={activeServiceForTabs}
       />
 
-      {/* KPI strip */}
-      <div className="bg-bg-tertiary border border-border rounded-lg px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
-        <div><span className="text-text-secondary">Y{currentYear.year_index} {targetService.toUpperCase()} Revenue:</span> <strong className="tabular-nums">{annualRevenue > 0 ? (annualRevenue / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
-        <div><span className="text-text-secondary">Cost:</span> <strong className="tabular-nums">{totalCost > 0 ? (totalCost / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
-        <div><span className="text-text-secondary">GM:</span> <strong className={gmPct != null && gmPct > 15 ? 'text-green-400' : gmPct != null && gmPct >= 0 ? 'text-amber-400' : 'text-text-primary'}>{gmPct != null ? gmPct.toFixed(1) + '%' : '—'}</strong></div>
-        <div><span className="text-text-secondary">Headcount:</span> <strong className="tabular-nums">{headcount.toFixed(0)}</strong></div>
-        <div><span className="text-text-secondary">Lines:</span> <strong className="tabular-nums">{(lineRows ?? []).length}</strong></div>
-      </div>
+      {/* KPI strip — only for normal service mode */}
+      {!isRevenue && !isMobilization && (
+        <div className="bg-bg-tertiary border border-border rounded-lg px-4 py-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          <div><span className="text-text-secondary">Y{currentYear.year_index} {targetService.toUpperCase()} Revenue:</span> <strong className="tabular-nums">{annualRevenue > 0 ? (annualRevenue / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
+          <div><span className="text-text-secondary">Cost:</span> <strong className="tabular-nums">{totalCost > 0 ? (totalCost / 1_000_000).toFixed(2) + ' M' : '—'}</strong></div>
+          <div><span className="text-text-secondary">GM:</span> <strong className={gmPct != null && gmPct > 15 ? 'text-green-400' : gmPct != null && gmPct >= 0 ? 'text-amber-400' : 'text-text-primary'}>{gmPct != null ? gmPct.toFixed(1) + '%' : '—'}</strong></div>
+          <div><span className="text-text-secondary">Headcount:</span> <strong className="tabular-nums">{headcount.toFixed(0)}</strong></div>
+          <div><span className="text-text-secondary">Lines:</span> <strong className="tabular-nums">{(lineRows ?? []).length}</strong></div>
+        </div>
+      )}
 
-      {/* Section accordion */}
-      <SectionAccordion
-        template={template}
-        lines={(lineRows ?? []) as any[]}
-        canEdit={Boolean(user.is_admin) && currentYear.status !== 'published'}
-        openSection={sp.section}
-        contractId={contractId}
-        yearId={currentYear.id}
-        yearIndex={currentYear.year_index}
-        serviceLine={targetService}
-      />
+      {/* Main content — branch on mode */}
+      {isRevenue ? (
+        <RevenueTab
+          yearId={currentYear.id}
+          yearIndex={currentYear.year_index}
+          initialRows={revenueRows}
+          canEdit={Boolean(user.is_admin) && currentYear.status !== 'published'}
+        />
+      ) : isMobilization ? (
+        <MobilizationTab
+          contractId={contractId}
+          contractName={(contract as any).name}
+          durationMonths={(contract as any).duration_months ?? 12}
+          initialRows={mobRows}
+          canEdit={Boolean(user.is_admin)}
+          defaultAmortMonths={defaultAmortMonths}
+        />
+      ) : (
+        <SectionAccordion
+          template={template}
+          lines={(lineRows ?? []) as any[]}
+          canEdit={Boolean(user.is_admin) && currentYear.status !== 'published'}
+          openSection={sp.section}
+          contractId={contractId}
+          yearId={currentYear.id}
+          yearIndex={currentYear.year_index}
+          serviceLine={targetService}
+        />
+      )}
     </div>
   );
 }

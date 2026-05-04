@@ -331,3 +331,76 @@ export async function addYearAction(input: unknown) {
   revalidatePath('/fmplus/financial/budget/edit');
   return { year_id: newYear.id, year_index: newYear.year_index };
 }
+
+const SaveRevenueInputSchema = z.object({
+  year_id: z.number().int().positive(),
+  rows: z.array(z.object({
+    service_line: ServiceLineEnum,
+    monthly_revenue: z.number().nonnegative(),
+    vat_pct: z.number().nonnegative(),
+    manpower_ramp: z.record(z.string(), z.number()).default({}),
+  })),
+});
+
+/**
+ * Replace all project_year_services rows for a given year. Each row carries
+ * a service_line, monthly revenue, VAT, and an optional manpower_ramp jsonb
+ * that overrides default headcount per role. Used by the Revenue tab.
+ */
+export async function saveRevenueAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = SaveRevenueInputSchema.parse(input);
+  const sb = budgetDb();
+
+  const { data: year } = await sb.from(TABLES.years)
+    .select('status')
+    .eq('id', parsed.year_id)
+    .single();
+  if (!year) throw new Error('Year not found');
+  if (year.status === 'published') {
+    throw new Error('Cannot edit revenue on a published year. Create a revised scenario first.');
+  }
+
+  await sb.from(TABLES.year_services).delete().eq('year_id', parsed.year_id);
+  if (parsed.rows.length > 0) {
+    const insertRows = parsed.rows.map(r => ({ year_id: parsed.year_id, ...r }));
+    const { error } = await sb.from(TABLES.year_services).insert(insertRows);
+    if (error) throw error;
+  }
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
+
+const SaveMobilizationInputSchema = z.object({
+  contract_id: z.number().int().positive(),
+  rows: z.array(z.object({
+    category: z.enum(['capex','opex_one_time','training','recruitment']),
+    label_en: z.string().min(1),
+    label_ar: z.string().nullable(),
+    qty: z.number().nonnegative(),
+    unit_cost: z.number().nonnegative(),
+    amortization: z.enum(['straight_line','flat']),
+    amortization_months: z.number().int().positive(),
+    notes: z.string().nullable(),
+  })),
+});
+
+/**
+ * Replace all mobilization_lines for a contract. Mobilization is a
+ * contract-level (not year-level) entity per spec § 4 Q6 — amortized into
+ * variance over the contract duration via Task 34's amortizeMobilization().
+ */
+export async function saveMobilizationAction(input: unknown) {
+  await requireBudgetAdmin();
+  const parsed = SaveMobilizationInputSchema.parse(input);
+  const sb = budgetDb();
+
+  await sb.from(TABLES.mob).delete().eq('contract_id', parsed.contract_id);
+  if (parsed.rows.length > 0) {
+    const insertRows = parsed.rows.map(r => ({ contract_id: parsed.contract_id, ...r }));
+    const { error } = await sb.from(TABLES.mob).insert(insertRows);
+    if (error) throw error;
+  }
+
+  revalidatePath('/fmplus/financial/budget/edit');
+}
