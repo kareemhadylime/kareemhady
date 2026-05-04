@@ -42,23 +42,16 @@ export default async function ProjectsPage(props: ProjectsPageProps) {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Project Hub</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {cards.length} contract{cards.length === 1 ? '' : 's'} ·
-            v2 multi-year, multi-service
-          </p>
-        </div>
+      <div className="flex items-center justify-end">
         {user.is_admin && (
           <Link
             href="/fmplus/financial/budget/projects/new"
-            className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 hover:bg-indigo-700"
+            className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-semibold flex items-center gap-1"
           >
             + New Contract
           </Link>
         )}
-      </header>
+      </div>
 
       <ProjectsToolbar
         currentSearch={{ q: sp.q ?? '', service: service_line ?? '' }}

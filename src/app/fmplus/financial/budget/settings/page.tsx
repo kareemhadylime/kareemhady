@@ -67,13 +67,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <header>
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Settings</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Variance thresholds, default inflation knobs, mobilization amortization, bilingual default, and template overview.
-          {!user.is_admin && <span className="ml-1 text-amber-400">View-only — admin role required to edit.</span>}
-        </p>
-      </header>
+      {!user.is_admin && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">View-only — admin role required to edit.</p>
+      )}
 
       <ThresholdEditor
         initial={{

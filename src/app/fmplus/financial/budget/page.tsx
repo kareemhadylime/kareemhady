@@ -81,13 +81,6 @@ export default async function OverviewPage(props: OverviewPageProps) {
 
   return (
     <div className="space-y-5">
-      <header>
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Overview</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Portfolio rollup across all FMPLUS contracts{serviceLine ? ` · filtered to ${serviceLine.toUpperCase()}` : ''}
-        </p>
-      </header>
-
       {/* Service-line filter */}
       <div className="flex gap-1.5 flex-wrap text-xs">
         <Link href="?"

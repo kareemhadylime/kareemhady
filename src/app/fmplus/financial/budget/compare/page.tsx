@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
 import { requireBudgetView } from '@/lib/fmplus/budget/permissions';
 import { buildBudgetVarianceV2 } from '@/lib/fmplus/budget/variance';
@@ -99,15 +98,6 @@ async function ProjectsView({ contracts, serviceLine }: { contracts: any[]; serv
 
   return (
     <div className="space-y-4">
-      <header>
-        <Link href="/fmplus/financial/budget/projects"
-          className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 mb-1">
-          <ArrowLeft size={11} /> Project Hub
-        </Link>
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Compare</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Cross-project variance by category</p>
-      </header>
-
       <YoyModeToggle mode="projects" />
 
       {/* Service-line filter chips */}
@@ -149,7 +139,6 @@ async function YoyView({ contracts, contractIdParam, serviceLine }: { contracts:
   if (!targetContract) {
     return (
       <div className="space-y-4">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Compare — Year vs Year</h2>
         <YoyModeToggle mode="yoy" />
         <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-6 text-xs text-slate-500 dark:text-slate-400 italic text-center">
           No multi-year contracts available. YoY mode needs ≥2 years on the same contract. Use the Editor&apos;s &quot;Copy year&quot; dialog to create Y2.
@@ -206,15 +195,6 @@ async function YoyView({ contracts, contractIdParam, serviceLine }: { contracts:
 
   return (
     <div className="space-y-4">
-      <header>
-        <Link href="/fmplus/financial/budget/projects"
-          className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 mb-1">
-          <ArrowLeft size={11} /> Project Hub
-        </Link>
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Compare — Year vs Year</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{targetContract.name} · {serviceLine.toUpperCase()}</p>
-      </header>
-
       <YoyModeToggle mode="yoy" />
 
       <div className="flex gap-2 flex-wrap text-xs">
