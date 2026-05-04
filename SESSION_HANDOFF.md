@@ -154,12 +154,57 @@ Plan committed `1d8563a` on `claude/eager-williamson-5787df`. Push to
 main pending (rebase needs SESSION_HANDOFF stage first — handled by
 this turn's stop hook update).
 
-**Next step**: ask user to pick **execution mode**:
-- (1) **Subagent-Driven** (recommended): fresh subagent per task,
-  two-stage review, fast iteration
-- (2) **Inline Execution**: batch in this session with checkpoints
+---
 
-Then start Phase 1.
+## ✅ 2026-05-04 — FM+ Budget v2 Phase 1 complete (Tasks 1-3)
+
+**Task 1**: Migration 0081 (big-bang schema drop + recreate all 10 v2 tables).
+- Already committed in prior session. Verified in git log.
+- Commit hash: `8cec1a5`.
+
+**Task 2**: Zod schemas + TypeScript types for all 10 v2 tables.
+- File: `src/lib/fmplus/budget-v2/schema.ts` (356 lines)
+  - 7 enum schemas (ServiceLine, YearTracking, Scenario, Status, Amortization, CatalogUnit, Season)
+  - 10 table schemas + Create/Update variants for mutable tables
+  - 4 aggregate/UI schemas (ProjectBudgetGraph, EditorBudget, InflationInput, CatalogSearchInput)
+- File: `src/lib/fmplus/budget-v2/types.ts` (280+ lines)
+  - TypeScript-only computed types (BudgetLineWithCatalog, VarianceGrid, etc.)
+  - UI/domain types, error types, permission types
+- Fixed z.record() type errors (3 occurrences) to pass explicit key types.
+- Build: ✓ TypeScript compilation successful.
+- Commits: `26b7f71` (schema.ts fix), consolidated prior.
+
+**Task 3**: RLS policies + application-level permission gates.
+- File: `supabase/migrations/0082_fmplus_budget_v2_rls.sql` (357 lines)
+  - Enable RLS on all 10 v2 tables
+  - Contract-owner isolation: `created_by = auth.uid()`
+  - Cascading access through FK hierarchy: contract → year/service → lines
+  - Global read on catalog (fmplus_catalog), admin-only writes
+  - Singleton budget_settings: global read, admin write
+  - 4 permission gate functions: budget_can_view_contract, budget_can_edit_contract, budget_can_edit_year, budget_user_contracts()
+  - Audit log integration for compliance
+- File: `src/lib/fmplus/budget-v2/permissions.ts` (380+ lines)
+  - budgetCanViewContract, budgetCanEditContract, budgetCanDeleteContract
+  - budgetCanCreateYear, budgetCanEditYear, budgetCanManageCatalog
+  - budgetLoadUserPermissions: batch permission summary
+  - Assertion helpers (assertCanEditContract, etc.) for server actions
+  - budgetCheckPermission: unified client-side check
+- Migration applied to Supabase. Verified.
+- Build: ✓ TypeScript compilation successful.
+- Commits: `cbb65ff` (RLS + perms), `183c9a0` (import fix).
+
+**Phase 1 Summary**:
+- ✓ Core data model (schema.ts, types.ts)
+- ✓ Database table creation + triggers (migration 0081)
+- ✓ Row-level security + permission gates (migration 0082, permissions.ts)
+- ✓ All TypeScript checks pass; ready for Phase 2
+
+**Pending**: Push to main (awaiting SESSION_HANDOFF refresh per stop hook).
+
+**Next step**: Phase 2 (Tasks 4-12):
+- Task 4: Create 7 service-line template definitions (HK, MEP, Landscape, Security, Pest Ctrl, Waste Mgmt, Back Office)
+- Task 5-11: Implement template seed migration + parsing + catalog seeding
+- Task 12: Governmental category post-merge integration
 
 (legacy line preserved below for diff context)
 **Awaiting** — invoke `superpowers:writing-plans` to break v2.0 into
