@@ -1,0 +1,32 @@
+import 'server-only';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireBeithadyPermission } from '@/lib/beithady/auth';
+import { getItem, updateItem, softDeleteItem } from '@/lib/beithady/fnb/repo';
+import { ItemSchema } from '@/lib/beithady/fnb/types';
+
+interface Ctx { params: Promise<{ id: string }> }
+
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  await requireBeithadyPermission('fnb', 'read');
+  const { id } = await ctx.params;
+  const item = await getItem(id);
+  if (!item) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  return NextResponse.json({ item });
+}
+
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { user } = await requireBeithadyPermission('fnb', 'full');
+  const { id } = await ctx.params;
+  const body = await req.json();
+  const parsed = ItemSchema.partial().omit({ id: true }).parse(body);
+  return NextResponse.json({
+    item: await updateItem(id, parsed, { actor_user_id: user.id }),
+  });
+}
+
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  const { user } = await requireBeithadyPermission('fnb', 'full');
+  const { id } = await ctx.params;
+  await softDeleteItem(id, { actor_user_id: user.id });
+  return NextResponse.json({ ok: true });
+}
