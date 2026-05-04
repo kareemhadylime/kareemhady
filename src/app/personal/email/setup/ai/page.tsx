@@ -2,9 +2,13 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { SetupTabs } from '../_components/setup-tabs';
 import { readDailyCapFromEnv } from '@/lib/personal-email/cost-guard';
-import { recomputeRange } from './actions';
+import { RecomputeForm } from './_recompute-form';
 
 export const dynamic = 'force-dynamic';
+// The recompute action clears classifications + triggers a fresh ingest
+// across the full range; for large ranges this exceeds the 60 s default
+// server-action budget. 300 s = Vercel Pro ceiling.
+export const maxDuration = 300;
 
 export default async function AiSetupPage() {
   const sb = supabaseAdmin();
@@ -45,17 +49,7 @@ export default async function AiSetupPage() {
           and runs a fresh ingest. Use after editing rules or category names to apply changes
           retroactively.
         </p>
-        <form action={recomputeRange} className="flex items-end gap-2">
-          <label className="block">
-            <span className="block text-xs text-slate-600 mb-1">From</span>
-            <input type="date" name="from_iso" defaultValue={fromDefault} className="ix-input" required />
-          </label>
-          <label className="block">
-            <span className="block text-xs text-slate-600 mb-1">To</span>
-            <input type="date" name="to_iso" defaultValue={toDefault} className="ix-input" required />
-          </label>
-          <button type="submit" className="ix-btn-primary">Recompute range</button>
-        </form>
+        <RecomputeForm defaultFromIso={fromDefault} defaultToIso={toDefault} />
       </section>
 
       <section>
