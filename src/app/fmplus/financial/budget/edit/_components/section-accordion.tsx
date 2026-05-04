@@ -5,6 +5,7 @@ import { ChevronRight, ChevronDown, Plus } from 'lucide-react';
 import type { Template } from '@/lib/fmplus/budget/schema';
 import type { BudgetLine } from '@/lib/fmplus/budget/schema';
 import { BudgetLineRow } from './budget-line-row';
+import { AddLinePicker } from './add-line-picker';
 
 interface Props {
   template: Template;
@@ -17,10 +18,11 @@ interface Props {
   serviceLine: string;
 }
 
-export function SectionAccordion({ template, lines, canEdit, openSection }: Props) {
+export function SectionAccordion({ template, lines, canEdit, openSection, contractId, yearId, serviceLine }: Props) {
   // Open by default: 'manning' (the most-edited section), or the section in URL
   const initialOpen = new Set<string>([openSection || 'manning']);
   const [opened, setOpened] = useState(initialOpen);
+  const [openModalFor, setOpenModalFor] = useState<string | null>(null);
 
   const toggle = (code: string) => {
     setOpened(prev => {
@@ -61,11 +63,11 @@ export function SectionAccordion({ template, lines, canEdit, openSection }: Prop
                 )}
               </div>
               {canEdit && (
-                <span
-                  className="text-[10px] px-2 py-1 bg-blue-500/15 text-accent border border-accent/40 rounded inline-flex items-center gap-1 opacity-50 cursor-not-allowed"
-                  title="Add line picker ships in Task 22">
+                <button type="button"
+                  onClick={(e) => { e.stopPropagation(); setOpenModalFor(cat.code); }}
+                  className="text-[10px] px-2 py-1 bg-blue-500/15 text-accent border border-accent/40 rounded inline-flex items-center gap-1 hover:bg-blue-500/25">
                   <Plus size={10} /> Add line
-                </span>
+                </button>
               )}
             </button>
 
@@ -101,6 +103,14 @@ export function SectionAccordion({ template, lines, canEdit, openSection }: Prop
           </div>
         );
       })}
+      <AddLinePicker
+        open={openModalFor !== null}
+        onClose={() => setOpenModalFor(null)}
+        contractId={contractId}
+        yearId={yearId}
+        serviceLine={serviceLine as any}
+        category={(openModalFor ?? 'manning') as any}
+      />
     </div>
   );
 }
