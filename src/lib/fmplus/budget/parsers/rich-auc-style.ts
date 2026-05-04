@@ -1,290 +1,272 @@
-// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
-/**
- * Rich AUC-style XLSX parser — Strategy A (Grand Total Budget sheet).
- *
- * The AUC Budget workbook has a "AUC Grand Total Budget" sheet with all
- * cost lines and per-sub-location HC columns.  We read this single sheet
- * and emit FlatRow[] records — one row per (role, sub_location, season).
- *
- * Column map (1-based) for the Grand Total Budget sheet:
- *   C2  = role label
- *   C3  = Total High HC
- *   C4  = Total Low HC
- *   C6  = CTC (EGP / person / month)  — for transport: cost per vehicle/month
- *   C7  = Total High Monthly  (= C3 × C6)
- *   C9  = Total Low Monthly   (= C4 × C6)
- *
- *   Sub-location block layout (High HC | Low HC | Hi Monthly | Lo Monthly):
- *     Inner Campus:      C13 | C14 | C15 | C17
- *     Outer Campus:      C20 | C21 | C22 | C24
- *     NC Off-Campus:     C27 | C28 | C29 | C31
- *     Maadi Buildings:   C34 | C35 | C36 | C38
- *
- * Row ranges on the Grand Total sheet:
- *   R6–R20  : manning roles
- *   R28–R33 : transport / vehicles
- *
- * Sub-location rows are emitted when the HC value > 0.
- * If a role has no non-zero sub-location HC, a single "total" row is emitted
- * using the total HC and CTC from the sheet (unit_cost = CTC, qty = HC).
- */
-
 import ExcelJS from 'exceljs';
-import type { FlatRow } from './flat-template';
+import type { ServiceLine, Category } from '../types';
 
-// ── sheet detection ──────────────────────────────────────────────────────────
-
-const SHEET_NAME_PATTERNS: Array<{ pattern: RegExp; category: string }> = [
-  { pattern: /Total\s+Manning/i,                  category: 'manning'     },
-  { pattern: /Total\s+Equipment/i,                category: 'equipment'   },
-  { pattern: /Total\s+Tools/i,                    category: 'tools'       },
-  { pattern: /Total\s+Consumables/i,              category: 'consumables' },
-  { pattern: /Total\s+Transportation/i,           category: 'transport'   },
-  { pattern: /Total\s+IT/i,                       category: 'it'          },
-  { pattern: /Grand\s*Total.*Budget/i,            category: '__grand__'   },
-];
-
-export async function isRichAucStyleWorkbook(buf: Buffer | ArrayBuffer): Promise<boolean> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf as ArrayBuffer);
-  const names = wb.worksheets.map(w => w.name);
-  return SHEET_NAME_PATTERNS.some(p => names.some(n => p.pattern.test(n)));
+export interface ParsedBudgetRow {
+  service_line: ServiceLine;
+  category: Category;
+  line_code: string;
+  label_en: string;
+  label_ar: string | null;
+  qty: number;
+  unit_cost: number;
+  ctc_net?: number | null;
+  ctc_relievers?: number | null;
+  ctc_ot?: number | null;
+  ctc_training?: number | null;
+  ctc_insurance?: number | null;
+  ctc_medical?: number | null;
 }
 
-// ── types ─────────────────────────────────────────────────────────────────────
-
-export type RichParseResult = {
-  rows: FlatRow[];
+export interface ParseAucResult {
+  /** Suggested contract name from the workbook (e.g. "AUC"). User can override at commit. */
+  contract_name: string;
+  /** Single Y1 worth of budget lines, all under HK service. */
+  rows: ParsedBudgetRow[];
+  /** Validation: parsed totals per category vs Budget Items Summary sheet. */
+  validation: {
+    summary: Record<string, {
+      parsed_low: number;
+      parsed_high: number;
+      expected_low: number | null;
+      expected_high: number | null;
+      drift_pct: number | null;
+    }>;
+    warnings: string[];
+  };
   errors: Array<{ sheet: string; row: number; message: string }>;
+}
+
+const SHEET_TO_CATEGORY: Record<string, Category> = {
+  'AUC Total Manning':            'manning',
+  'AUC Total Equipment':          'tools',
+  'AUC Total Tools':              'tools',
+  'AUC Total Consumables':        'consumables',
+  'AUC Total Transportation':     'transport',
+  'AUC Total IT & Communication': 'it',
 };
 
-// ── sub-location column config ────────────────────────────────────────────────
-// Each entry: (keyword matched against row-3 header text, sub_location label,
-//   highHcCol, lowHcCol, highMonthlyCol, lowMonthlyCol)
-const SUB_LOCATION_COLS: Array<{
-  keyword: string;
-  sub_location: string;
-  highHcCol: number;
-  lowHcCol: number;
-  highMoCol: number;
-  lowMoCol: number;
-}> = [
-  {
-    keyword: 'INNER',
-    sub_location: 'NC Inner Campus',
-    highHcCol: 13, lowHcCol: 14,
-    highMoCol: 15, lowMoCol: 17,
-  },
-  {
-    keyword: 'OUTER',
-    sub_location: 'Outer Campus',
-    highHcCol: 20, lowHcCol: 21,
-    highMoCol: 22, lowMoCol: 24,
-  },
-  {
-    keyword: 'OFF',
-    sub_location: 'NC Off-Campus Housing',
-    highHcCol: 27, lowHcCol: 28,
-    highMoCol: 29, lowMoCol: 31,
-  },
-  {
-    keyword: 'MAADI',
-    sub_location: 'Maadi Buildings',
-    highHcCol: 34, lowHcCol: 35,
-    highMoCol: 36, lowMoCol: 38,
-  },
-];
+const COL = { name: 2, qty_hi: 3, qty_lo: 4, deprec: 5, price: 6, mo_hi: 7, mo_lo: 9 } as const;
 
-// ── role label → line_code mapping ───────────────────────────────────────────
-const MANNING_LABELS: Array<{ re: RegExp; code: string }> = [
-  { re: /^HK\s+Manager/i,                                   code: 'hk_manager'     },
-  { re: /^Ass\.?\s*\.?\s*Mang?er/i,                         code: 'asst_manager'   },
-  { re: /S[ie]+nior\s+Supervisor/i,                         code: 'sr_supervisor'  },
-  { re: /^Supervisor\s+8H\s+R/i,                            code: 'sup_8h_r'       },
-  { re: /^Supervisor\s+8H/i,                                code: 'sup_8h'         },
-  { re: /HK\s+(Male\s*[&and]+\s*Female|Male|Female)\s+8H\s+R/i, code: 'hk_f_8h_r'},
-  { re: /HK\s+Male\s*[&and]+\s*Female\s+8H/i,              code: 'hk_mf_8h'       },
-  { re: /Facades\s+Supervisor/i,                            code: 'facades_sup'    },
-  { re: /Facades\s+Labor/i,                                 code: 'facades_lab'    },
-  { re: /Supervisor\s+Waste/i,                              code: 'waste_sup'      },
-  { re: /Labor\s+Waste/i,                                   code: 'waste_lab'      },
-  { re: /^Admin/i,                                          code: 'admin'          },
-  { re: /Storekeeper/i,                                     code: 'storekeeper'    },
-  { re: /Drivers?/i,                                        code: 'driver'         },
-  { re: /^Trainer/i,                                        code: 'trainer'        },
-];
-
-const TRANSPORT_LABELS: Array<{ re: RegExp; code: string }> = [
-  { re: /^Bus$/i,                                  code: 'bus'       },
-  { re: /Microbus/i,                               code: 'microbus'  },
-  { re: /Sidan|Sedan/i,                            code: 'sedan'     },
-  { re: /^Minivan$/i,                              code: 'minivan'   },
-  { re: /Pick\s*[-\s]?up/i,                        code: 'pickup'    },
-  { re: /Fu[el]{2}|Fule/i,                         code: 'fuel'      },
-];
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-/** Resolve an ExcelJS cell value to a number, handling formula result objects. */
-function cellNum(row: ExcelJS.Row, col: number): number | null {
-  const raw: unknown = row.getCell(col).value;
-  if (raw == null) return null;
-  // CellFormulaValue has a `result` property with the cached computed value.
-  if (typeof raw === 'object' && raw !== null && 'result' in raw) {
-    const n = Number((raw as { result: unknown }).result);
-    return Number.isFinite(n) ? n : null;
+function unwrapValue(v: unknown): number {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'object' && v !== null) {
+    const obj = v as { result?: unknown; value?: unknown };
+    if ('result' in obj) return unwrapValue(obj.result);
+    if ('value' in obj) return unwrapValue(obj.value);
   }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
-/** Resolve an ExcelJS cell value to a trimmed string, handling formula results. */
-function cellStr(row: ExcelJS.Row, col: number): string {
-  const raw: unknown = row.getCell(col).value;
-  if (raw == null) return '';
-  if (typeof raw === 'object' && raw !== null && 'result' in raw) {
-    return String((raw as { result: unknown }).result ?? '').trim();
+function unwrapString(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'object' && v !== null) {
+    const obj = v as { result?: unknown; value?: unknown; text?: unknown; richText?: unknown };
+    if ('result' in obj) return unwrapString(obj.result);
+    if ('value' in obj) return unwrapString(obj.value);
+    if ('text' in obj) return String(obj.text ?? '').trim();
+    // richText array (ExcelJS RichTextValue)
+    if ('richText' in obj && Array.isArray((obj as { richText: unknown[] }).richText)) {
+      return (obj as { richText: Array<{ text?: string }> }).richText
+        .map(rt => rt.text ?? '')
+        .join('')
+        .trim();
+    }
   }
-  return String(raw).trim();
+  return String(v).trim();
 }
 
-// ── main parse ───────────────────────────────────────────────────────────────
+function deriveLineCode(name: string, prefix: string): string {
+  return prefix + '_' + name.toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, 32);
+}
 
-export async function parseRichAucStyleXlsx(
-  buf: Buffer | ArrayBuffer,
-  opts: { project: string },
-): Promise<RichParseResult> {
+export async function parseAucStyle(filePath: string): Promise<ParseAucResult> {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf as ArrayBuffer);
+  await wb.xlsx.readFile(filePath);
 
-  const gts = wb.worksheets.find(w => /Grand\s*Total.*Budget/i.test(w.name));
-  if (!gts) {
-    return {
-      rows: [],
-      errors: [{ sheet: '(none)', row: 0, message: 'No "Grand Total Budget" sheet found' }],
+  const rows: ParsedBudgetRow[] = [];
+  const errors: Array<{ sheet: string; row: number; message: string }> = [];
+  const warnings: string[] = [];
+  const seenCodes = new Set<string>();
+  const parsedTotals: Record<string, { low: number; high: number }> = {};
+
+  for (const sheetName of Object.keys(SHEET_TO_CATEGORY)) {
+    const sheet = wb.getWorksheet(sheetName);
+    if (!sheet) {
+      warnings.push(`Sheet "${sheetName}" not found — skipped`);
+      continue;
+    }
+    const category = SHEET_TO_CATEGORY[sheetName];
+
+    if (category === 'manning') {
+      // Manning sheet: aggregate total HC from col 2, CTC not in source
+      let totalHc = 0;
+      for (let r = 5; r <= sheet.rowCount; r++) {
+        const row = sheet.getRow(r);
+        const name = unwrapString(row.getCell(1).value);
+        if (!name || /total|grand/i.test(name)) continue;
+        const qty = unwrapValue(row.getCell(2).value);
+        if (qty === 0) continue;
+
+        let code = deriveLineCode(name, 'hk_mng');
+        let suffix = 1;
+        while (seenCodes.has(code)) {
+          code = `${deriveLineCode(name, 'hk_mng').slice(0, 30)}_${suffix++}`;
+        }
+        seenCodes.add(code);
+
+        rows.push({
+          service_line: 'hk',
+          category: 'manning',
+          line_code: code,
+          label_en: name,
+          label_ar: null,
+          qty,
+          unit_cost: 0, // CTC not in source — user fills via Editor expand panel
+        });
+        totalHc += qty;
+      }
+      if (totalHc === 0) {
+        warnings.push('Manning sheet had 0 total headcount — check the source workbook');
+      }
+      // Manning doesn't contribute to parsedTotals (unit_cost=0, no monthly figures)
+      continue;
+    }
+
+    // Non-manning sheets: simpler row structure
+    let lowSum = 0;
+    let highSum = 0;
+
+    const prefix = 'hk_' + (
+      sheetName.toLowerCase().includes('equip') ? 'eq' :
+      sheetName.toLowerCase().includes('tool')  ? 'tl' :
+      sheetName.toLowerCase().includes('cons')  ? 'cn' :
+      sheetName.toLowerCase().includes('trans') ? 'tr' :
+      sheetName.toLowerCase().includes('it')    ? 'it' : 'misc'
+    );
+
+    for (let r = 6; r <= sheet.rowCount; r++) {
+      const row = sheet.getRow(r);
+      const name = unwrapString(row.getCell(COL.name).value);
+      if (!name || /total|grand|subtotal/i.test(name)) continue;
+
+      const qtyHi = unwrapValue(row.getCell(COL.qty_hi).value);
+      const qtyLo = unwrapValue(row.getCell(COL.qty_lo).value);
+      const deprecRaw = unwrapValue(row.getCell(COL.deprec).value);
+      const deprec = Math.max(deprecRaw, 1);
+      const price = unwrapValue(row.getCell(COL.price).value);
+      const monthlyHi = unwrapValue(row.getCell(COL.mo_hi).value);
+      const monthlyLo = unwrapValue(row.getCell(COL.mo_lo).value);
+
+      if (qtyHi === 0 && qtyLo === 0) continue;
+      const qty = Math.max(qtyHi, qtyLo);
+
+      const rawPriceCell = row.getCell(COL.price).value;
+      const priceIsBlank = rawPriceCell === null || rawPriceCell === undefined;
+      if (priceIsBlank) {
+        // IT sheet (and some consumable rows) leave price blank in the source workbook.
+        // Emit the row with unit_cost=0 so the user can fill it via the Editor.
+        warnings.push(`${sheetName} R${r} "${name}": price is blank — unit_cost=0, fill via Editor`);
+      }
+
+      const effectiveUnitCost = price / deprec;
+
+      let code = deriveLineCode(name, prefix);
+      let suffix = 1;
+      while (seenCodes.has(code)) {
+        code = `${deriveLineCode(name, prefix).slice(0, 30)}_${suffix++}`;
+      }
+      seenCodes.add(code);
+
+      rows.push({
+        service_line: 'hk',
+        category,
+        line_code: code,
+        label_en: name,
+        label_ar: null,
+        qty,
+        unit_cost: Math.round(effectiveUnitCost * 100) / 100,
+      });
+
+      lowSum += monthlyLo;
+      highSum += monthlyHi;
+    }
+
+    const existing = parsedTotals[category];
+    parsedTotals[category] = existing
+      ? { low: existing.low + lowSum, high: existing.high + highSum }
+      : { low: lowSum, high: highSum };
+  }
+
+  // Validate against Budget Items Summary sheet
+  const summary: Record<string, {
+    parsed_low: number;
+    parsed_high: number;
+    expected_low: number | null;
+    expected_high: number | null;
+    drift_pct: number | null;
+  }> = {};
+
+  const summarySheet = wb.getWorksheet('Budget Items Summary');
+  const expectedByLabel = new Map<string, { low: number; high: number }>();
+  if (summarySheet) {
+    for (let r = 5; r <= summarySheet.rowCount; r++) {
+      const row = summarySheet.getRow(r);
+      const label = unwrapString(row.getCell(2).value).toLowerCase();
+      const low = unwrapValue(row.getCell(3).value);
+      const high = unwrapValue(row.getCell(4).value);
+      if (label) expectedByLabel.set(label, { low, high });
+    }
+  }
+
+  function expectedKey(cat: Category): string | null {
+    if (cat === 'manning')     return 'manpower';
+    if (cat === 'tools')       return 'tools';
+    if (cat === 'consumables') return 'consumables';
+    if (cat === 'transport')   return 'transportation';
+    if (cat === 'it')          return null; // not always in summary
+    return null;
+  }
+
+  for (const [cat, totals] of Object.entries(parsedTotals)) {
+    const ek = expectedKey(cat as Category);
+    let expected_low: number | null = null;
+    let expected_high: number | null = null;
+    if (ek) {
+      for (const [k, v] of expectedByLabel) {
+        if (k.includes(ek)) { expected_low = v.low; expected_high = v.high; break; }
+      }
+    }
+    const drift_pct = expected_high && totals.high
+      ? Math.abs((totals.high - expected_high) / expected_high)
+      : null;
+
+    summary[cat] = {
+      parsed_low: totals.low,
+      parsed_high: totals.high,
+      expected_low,
+      expected_high,
+      drift_pct,
     };
-  }
 
-  const out: FlatRow[] = [];
-  const errors: RichParseResult['errors'] = [];
-
-  // ── Manning rows: R6–R20 ──────────────────────────────────────────────────
-  for (let r = 6; r <= 20; r++) {
-    const row = gts.getRow(r);
-    const label = cellStr(row, 2);
-    if (!label) continue;
-
-    const lineDef = MANNING_LABELS.find(l => l.re.test(label));
-    if (!lineDef) {
-      errors.push({ sheet: gts.name, row: r, message: `Unrecognised manning label: "${label}"` });
-      continue;
-    }
-
-    const ctc = cellNum(row, 6);
-    if (ctc == null || ctc <= 0) {
-      errors.push({ sheet: gts.name, row: r, message: `Missing/zero CTC for "${label}" at R${r}` });
-      continue;
-    }
-
-    // Emit sub-location rows where HC > 0
-    let emittedAny = false;
-    for (const sl of SUB_LOCATION_COLS) {
-      const hiHc = cellNum(row, sl.highHcCol);
-      const loHc = cellNum(row, sl.lowHcCol);
-
-      if (hiHc != null && hiHc > 0) {
-        out.push({
-          project: opts.project,
-          service_line: 'hk',
-          sub_location: sl.sub_location,
-          category: 'manning',
-          line_code: lineDef.code,
-          season: 'high',
-          qty: hiHc,
-          unit_cost: ctc,
-          notes: null,
-        });
-        emittedAny = true;
-      }
-      if (loHc != null && loHc > 0) {
-        out.push({
-          project: opts.project,
-          service_line: 'hk',
-          sub_location: sl.sub_location,
-          category: 'manning',
-          line_code: lineDef.code,
-          season: 'low',
-          qty: loHc,
-          unit_cost: ctc,
-          notes: null,
-        });
-        emittedAny = true;
-      }
-    }
-
-    // If no sub-location breakdown, fall back to the total HC columns
-    if (!emittedAny) {
-      const totHiHc = cellNum(row, 3);
-      const totLoHc = cellNum(row, 4);
-      if (totHiHc != null && totHiHc > 0) {
-        out.push({
-          project: opts.project, service_line: 'hk', sub_location: null,
-          category: 'manning', line_code: lineDef.code, season: 'high',
-          qty: totHiHc, unit_cost: ctc, notes: null,
-        });
-      }
-      if (totLoHc != null && totLoHc > 0) {
-        out.push({
-          project: opts.project, service_line: 'hk', sub_location: null,
-          category: 'manning', line_code: lineDef.code, season: 'low',
-          qty: totLoHc, unit_cost: ctc, notes: null,
-        });
-      }
+    if (drift_pct != null && drift_pct > 0.05) {
+      warnings.push(
+        `${cat}: parsed total ${(totals.high / 1_000_000).toFixed(2)}M differs from summary by ` +
+        `${(drift_pct * 100).toFixed(1)}% — review`
+      );
     }
   }
 
-  // ── Transport rows: R28–R33 ───────────────────────────────────────────────
-  // NOTE: some sub-location vehicle counts are inconsistent with the total HC in
-  // the source XLSX (e.g. Minivan inner+outer = 5 but total = 3).  The Budget
-  // Summary formula uses C7 = C3 × CTC (the total HC column), so we always emit
-  // transport rows using the *total* HC (C3/C4) rather than per-sub-location HCs.
-  // This guarantees the combined sum matches the 2,466,250 ground truth.
-  for (let r = 28; r <= 33; r++) {
-    const row = gts.getRow(r);
-    const label = cellStr(row, 2);
-    if (!label) continue;
-
-    const lineDef = TRANSPORT_LABELS.find(l => l.re.test(label));
-    if (!lineDef) {
-      errors.push({ sheet: gts.name, row: r, message: `Unrecognised transport label: "${label}"` });
-      continue;
-    }
-
-    // For transport: qty = vehicle count, unit_cost = cost-per-vehicle-per-month.
-    const ctc = cellNum(row, 6);
-    const totHiHc = cellNum(row, 3);
-    const totLoHc = cellNum(row, 4);
-
-    if (ctc == null || ctc <= 0) {
-      // No vehicle price or formula-only cell with no cached result — skip.
-      continue;
-    }
-
-    if (totHiHc != null && totHiHc > 0) {
-      out.push({
-        project: opts.project, service_line: 'hk', sub_location: null,
-        category: 'transport', line_code: lineDef.code, season: 'high',
-        qty: totHiHc, unit_cost: ctc, notes: null,
-      });
-    }
-    if (totLoHc != null && totLoHc > 0) {
-      out.push({
-        project: opts.project, service_line: 'hk', sub_location: null,
-        category: 'transport', line_code: lineDef.code, season: 'low',
-        qty: totLoHc, unit_cost: ctc, notes: null,
-      });
-    }
-  }
-
-  return { rows: out, errors };
+  return {
+    contract_name: 'AUC',
+    rows,
+    validation: { summary, warnings },
+    errors,
+  };
 }

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { detectParser } from '@/lib/fmplus/budget/parsers/auto-detect';
 import { parseFlatTemplate, type FlatRow } from '@/lib/fmplus/budget/parsers/flat-template';
+import { parseAucStyle } from '@/lib/fmplus/budget/parsers/rich-auc-style';
 import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
 import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
 
@@ -27,11 +28,11 @@ export interface PreviewResult {
 }
 
 /**
- * Inspect an uploaded XLSX, classify it, parse it (if flat-template), and
- * return a preview of what would be imported. Does NOT write to DB.
+ * Inspect an uploaded XLSX, classify it, parse it, and return a preview of
+ * what would be imported. Does NOT write to DB.
  *
- * For non-flat parsers (rich-auc-style etc.), returns the detection result
- * but no rows — those parsers ship in v2.1.
+ * Supported parsers: flat-template, rich-auc-style.
+ * Deferred (v2.2): trio-style, city-gate-multi-year, emaar-zone-style.
  */
 export async function previewImportAction(formData: FormData): Promise<PreviewResult> {
   await requireBudgetAdmin();
@@ -46,7 +47,14 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
 
   try {
     const detection = await detectParser(tmp);
-    if (detection.parser !== 'flat-template') {
+
+    // Gate unsupported parsers — rich-auc-style is now live, others remain deferred
+    if (
+      detection.parser === 'unknown' ||
+      detection.parser === 'trio-style' ||
+      detection.parser === 'city-gate-multi-year' ||
+      detection.parser === 'emaar-zone-style'
+    ) {
       return {
         parser: detection.parser,
         reason: detection.reason,
@@ -54,15 +62,57 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
         rows: [],
         errors: [{
           row: 0,
-          message: `${detection.parser} parser is not yet implemented in v2.0. ` +
-            `Re-export your data using the flat template (Download Blank Template button on this page) and try again. ` +
-            `Rich parsers for AUC/TRIO/CityGate/Emaar layouts are tracked for v2.1.`,
+          message: `${detection.parser} parser is not yet implemented. ` +
+            `Re-export your data using the flat template (Download Blank Template button) and try again. ` +
+            `Rich parsers for TRIO/CityGate/Emaar layouts are tracked for v2.2.`,
         }],
         warnings: [],
         byContract: [],
       };
     }
-    const parsed = await parseFlatTemplate(tmp);
+
+    let parsed: {
+      rows: FlatRow[];
+      errors: Array<{ row: number; message: string }>;
+      warnings: string[];
+      suggestedContractName?: string;
+    };
+
+    if (detection.parser === 'flat-template') {
+      parsed = await parseFlatTemplate(tmp);
+    } else if (detection.parser === 'rich-auc-style') {
+      const aucResult = await parseAucStyle(tmp);
+      parsed = {
+        rows: aucResult.rows.map(r => ({
+          contract_name: aucResult.contract_name,
+          customer: null,
+          year_index: 1,
+          service_line: r.service_line,
+          category: r.category,
+          line_code: r.line_code,
+          label_en: r.label_en,
+          label_ar: r.label_ar,
+          season: 'high' as const,
+          qty: r.qty,
+          unit_cost: r.unit_cost,
+          ctc_net: null,
+          ctc_relievers: null,
+          ctc_ot: null,
+          ctc_training: null,
+          ctc_insurance: null,
+          ctc_medical: null,
+          threshold_green: null,
+          threshold_amber: null,
+          notes: null,
+        })),
+        errors: aucResult.errors.map(e => ({ row: e.row, message: `${e.sheet}: ${e.message}` })),
+        warnings: aucResult.validation.warnings,
+        suggestedContractName: aucResult.contract_name,
+      };
+    } else {
+      // Defensive — should never reach
+      throw new Error(`Unhandled parser: ${detection.parser}`);
+    }
 
     // Diff: per (contract_name, year_index)
     const sb = budgetDb();
