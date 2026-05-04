@@ -97,6 +97,20 @@ travel 1.
 
 **Health:** `tsc --noEmit` = 0 errors. Vitest: 159 pass / 9 skipped (label-sync
 test updated to mock `Lime/Technology` label). `npm run build` clean.
+---
+
+## ✅ 2026-05-04 — FM+ Budget v2.1 — T31 City Gate multi-year parser SHIPPED (commit `bb8b2d3`)
+
+Implemented the City Gate multi-year XLSX parser (Task 31).
+
+**Files changed:**
+- `src/lib/fmplus/budget/parsers/city-gate-multi-year.ts` — new parser. Reads 8 service×year sheets (MEP Y1/Y2, Landscape Y1/Y2, Security Y1/Y2, Pest Control Y-1/Y-2). Each row carries `year_index` (1 or 2). Manning-row gate: Sheet HC (col 4) > 0 distinguishes direct personnel from indirect cost items. Budget HC preferred; falls back to Sheet HC. CTC from col 6. Position in col 2.
+- `src/lib/fmplus/budget/parsers/city-gate-multi-year.test.ts` — 7 tests, all pass.
+- `src/app/fmplus/financial/budget/import/actions.ts` — `city-gate-multi-year` routed to new parser, maps to `FlatRow[]` with `year_index = r.year_index` (multi-year aware).
+
+**Row counts from fixture:** 61 total (mep_y1=18, mep_y2=18, landscape_y1=4, landscape_y2=4, security_y1=5, security_y2=6, pest_ctrl_y1=3, pest_ctrl_y2=3).
+
+**Verification:** tsc=0 errors. Parser tests 7/7. Full suite: 189 passed, 12 skipped.
 
 ---
 
