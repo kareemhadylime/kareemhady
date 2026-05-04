@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { ingestPersonalEmails } from '@/lib/personal-email/ingest';
 
 export const dynamic = 'force-dynamic';
+// Lambda budget. 300 s = Vercel Pro ceiling for serverless functions.
+// Each account-ingest is wrapped at 240 s; with three accounts the
+// worst case is one big-backlog account chewing through the budget
+// while the other two finish their small-delta passes first.
+export const maxDuration = 300;
 
 const CAIRO_TZ = 'Africa/Cairo';
 

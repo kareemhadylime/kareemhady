@@ -22,7 +22,14 @@ const DEFAULT_INITIAL_LOOKBACK_HOURS = 24;
 // it without flushing any progress to the run row. With them, a hung
 // account fails fast and the loop moves on to the next mailbox.
 const TOKEN_REFRESH_TIMEOUT_MS = 8_000;
-const ACCOUNT_INGEST_TIMEOUT_MS = 90_000;
+// Per-account ingest budget. Bumped from 90 s → 240 s after the
+// 15-April backfill exposed accounts (LIME) with multi-thousand
+// email backlogs that couldn't finish a single sweep inside 90 s.
+// Pairs with maxDuration=300 on the cron route (3 × 240 capped by
+// the outer route budget; in practice we get ~80 s per account on
+// average if all three need work, but enough headroom for one
+// laggard to make real progress per tick).
+const ACCOUNT_INGEST_TIMEOUT_MS = 240_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
