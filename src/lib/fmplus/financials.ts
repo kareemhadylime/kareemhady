@@ -25,6 +25,13 @@ const COST_CATEGORY_ORDER = [
   'transport', 'subcontractors', 'insurance', 'penalties', 'indirect',
 ];
 
+// Account types that BELONG on the P&L. Anything else (asset_*, liability_*,
+// equity, equity_unaffected) is balance-sheet-only and must NOT surface in
+// the P&L unclassified panel even if the source RPC accidentally returns it.
+const PNL_RELEVANT_TYPES = new Set<string>([
+  'income', 'income_other', 'expense', 'expense_direct_cost', 'expense_depreciation',
+]);
+
 type RpcRow = {
   period_key: string;
   code: string;
@@ -83,7 +90,11 @@ export async function buildFmplusPnl(args: {
     const balance = Number(r.sum_balance) || 0;
 
     if (!cls) {
-      // Unclassified — surface in UI panel
+      // Only surface true P&L unclassifieds (P&L account_type with no prefix
+      // match). Balance-sheet account types are not P&L data and must not
+      // appear in the unclassified panel — they were leaking in because the
+      // classifier returns null for them too.
+      if (!PNL_RELEVANT_TYPES.has(r.account_type)) continue;
       let leaf = unclassified.find(l => l.code === r.code);
       if (!leaf) {
         leaf = { code: r.code, name: r.name, account_type: r.account_type as AccountType, values: {} };
@@ -289,10 +300,15 @@ export async function buildFmplusBalanceSheet(args: {
   type AccRow = { code: string; name: string; account_type: string; values: PeriodValues };
   const acc = new Map<string, AccRow>();
 
-  // Seed snapshot: when asof >= OPENING_BALANCE_DATE, prime the acc with
-  // the static opening balances (currently an empty stub — no-op).
+  // Seed snapshot: when asof >= OPENING_BALANCE_DATE AND the seed has actual
+  // entries, prime the acc with the static opening balances. If the seed is
+  // empty (the current state per opening-balance.ts header), there's nothing
+  // to seed and we must fall back to summing the full sync window — otherwise
+  // BS for asof >= seed-date renders as all zeros (no opening + filtered-out
+  // pre-seed-date deltas).
+  const seedActive = FMPLUS_OPENING_BALANCES_2026_02.length > 0;
   for (const p of args.periods) {
-    if (p.toDate >= OPENING_BALANCE_DATE) {
+    if (seedActive && p.toDate >= OPENING_BALANCE_DATE) {
       for (const op of FMPLUS_OPENING_BALANCES_2026_02) {
         const k = `${op.code}||${op.name}||${op.account_type}`;
         let row = acc.get(k);
@@ -307,9 +323,10 @@ export async function buildFmplusBalanceSheet(args: {
 
   // Fetch move-line balance deltas per period.
   // When using the seed, only pull lines AFTER the seed date (incremental).
-  // Otherwise pull all lines up to asof (full historical; may be incomplete).
+  // Otherwise pull all lines up to asof (full historical; may be incomplete
+  // pre-sync-window — flagged via report.opening_seed=false in the response).
   for (const p of args.periods) {
-    const useSeed = p.toDate >= OPENING_BALANCE_DATE;
+    const useSeed = seedActive && p.toDate >= OPENING_BALANCE_DATE;
     const PAGE = 1000;
     let offset = 0;
     while (true) {
