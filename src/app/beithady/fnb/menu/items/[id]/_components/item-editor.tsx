@@ -4,6 +4,7 @@ import type { Item, Category } from '@/lib/beithady/fnb/types';
 import { BasicsForm } from './basics-form';
 import { PhotoForm } from './photo-form';
 import { ModifiersForm } from './modifiers-form';
+import { AvailabilityForm } from './availability-form';
 
 const INNER_TABS = [
   { key: 'basics',       label: 'Basics' },
@@ -49,9 +50,7 @@ export function ItemEditor({
       )}
       {tab === 'photo' && <PhotoForm item={item} onSaved={setItem} />}
       {tab === 'modifiers' && <ModifiersForm itemId={item.id!} />}
-      {tab === 'availability' && (
-        <div className="text-slate-500 text-sm">Availability + stock-out — wired in Task 18.</div>
-      )}
+      {tab === 'availability' && <AvailabilityForm item={item} onSaved={setItem} />}
       {tab === 'recipe' && (
         <div className="text-slate-500 text-sm">Phase F&B-2 — recipe + inventory link.</div>
       )}
