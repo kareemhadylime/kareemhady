@@ -4,6 +4,7 @@ export const CATEGORY_SLUGS = [
   'action_required',
   'security',
   'travel',
+  'banking',
   'bills_receipts',
   'personal',
   'subsidiary_beithady',

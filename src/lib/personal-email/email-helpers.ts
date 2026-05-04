@@ -37,3 +37,37 @@ export function isNewReservation(
   }
   return NEW_RESERVATION_PATTERN.test(subject);
 }
+
+// Detect emails that need immediate intervention — verify-account
+// prompts, suspicious-activity alerts, frozen/blocked card notices,
+// declined transactions, account-expiring warnings, etc. Triggers a
+// red "URGENT" marker in the UI.
+//
+// Patterns:
+//   - "urgent" / "important: action required"
+//   - "verify your account" / "verify your identity"
+//   - "suspicious" / "fraud" / "unauthorized"
+//   - "blocked" / "frozen" / "locked" / "suspended"
+//   - "declined" / "failed" / "rejected"
+//   - "past due" / "overdue" / "expir(ed|ing)"
+//   - "security alert" / "security warning"
+const URGENT_PATTERN =
+  /\b(urgent|action\s+required|verify\s+your|suspicious|fraud(?:ulent)?|unauthorized|blocked|frozen|locked|suspended|declined|past\s+due|overdue|expir(?:ed|ing)|security\s+(?:alert|warning|notice)|attention\s+required|important:?\s*(?:action|response|notice))\b/i;
+
+// Only fire the urgency marker for categories where it's actionable.
+// Promotion emails like "URGENT: Last chance — 50% off!" should not
+// light up red.
+const URGENT_CATEGORIES: ReadonlySet<string> = new Set([
+  'banking',
+  'security',
+  'action_required',
+]);
+
+export function isImmediateIntervention(
+  subject: string | null | undefined,
+  category?: string | null,
+): boolean {
+  if (!subject) return false;
+  if (category && !URGENT_CATEGORIES.has(category)) return false;
+  return URGENT_PATTERN.test(subject);
+}

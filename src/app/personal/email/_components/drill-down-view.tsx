@@ -21,7 +21,7 @@ import {
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow } from '@/lib/personal-email/inbox-query';
-import { isNewReservation } from '@/lib/personal-email/email-helpers';
+import { isNewReservation, isImmediateIntervention } from '@/lib/personal-email/email-helpers';
 
 // Master-detail drill-down: list on the left, preview on the right.
 // Selected email lives in URL as `?msg=<id>` so deep links work and
@@ -157,6 +157,13 @@ export function DrillDownView({
             const isSelected = selected?.id === r.id;
             const isChecked = checked.has(r.id);
             const newReservation = isNewReservation(r.subject, r.category);
+            const urgent = isImmediateIntervention(r.subject, r.category);
+            // Urgent wins over new-reservation when both fire (rare).
+            const rowAccentClass = urgent
+              ? 'bg-rose-50/40 dark:bg-rose-950/15 hover:bg-rose-50/70 dark:hover:bg-rose-950/35'
+              : newReservation
+                ? 'bg-emerald-50/30 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30'
+                : 'hover:bg-slate-50 dark:hover:bg-slate-900/40';
             return (
               <li
                 key={r.id}
@@ -165,9 +172,7 @@ export function DrillDownView({
                     ? 'bg-slate-100 dark:bg-slate-800/70'
                     : isChecked
                       ? 'bg-amber-50/40 dark:bg-amber-950/20'
-                      : newReservation
-                        ? 'bg-emerald-50/30 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/30'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
+                      : rowAccentClass
                 }`}
                 onClick={() => navTo(r.id)}
               >
@@ -178,14 +183,22 @@ export function DrillDownView({
                   onClick={e => e.stopPropagation()}
                   className="mt-1 h-4 w-4 cursor-pointer shrink-0"
                 />
-                {/* Left edge accent: solid emerald bar for new
-                    reservations so they pop in long lists. */}
-                {newReservation && (
+                {/* Left edge accent: solid color bar for urgent (rose)
+                    or new-reservation (emerald) so they pop in long
+                    lists. Urgent wins over new when both fire. */}
+                {urgent ? (
+                  <span className="self-stretch w-0.5 -mx-1 bg-rose-500 rounded-full shrink-0" aria-hidden />
+                ) : newReservation ? (
                   <span className="self-stretch w-0.5 -mx-1 bg-emerald-500 rounded-full shrink-0" aria-hidden />
-                )}
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm truncate flex items-center gap-1.5">
-                    {newReservation && (
+                    {urgent && (
+                      <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-rose-600 text-white">
+                        URGENT
+                      </span>
+                    )}
+                    {newReservation && !urgent && (
                       <span className="shrink-0 text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-emerald-500 text-white">
                         NEW
                       </span>
@@ -306,12 +319,20 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
   const accent = cat?.accentColor ?? 'slate';
   const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${email.gmail_thread_id ?? email.gmail_message_id}`;
   const newReservation = isNewReservation(email.subject, email.category);
+  const urgent = isImmediateIntervention(email.subject, email.category);
 
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          {newReservation && (
+          {urgent && (
+            <div className="mb-1.5">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-600 text-white">
+                ⚠ NEEDS ACTION
+              </span>
+            </div>
+          )}
+          {newReservation && !urgent && (
             <div className="mb-1.5">
               <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white">
                 NEW RESERVATION
