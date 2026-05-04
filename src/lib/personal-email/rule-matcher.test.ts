@@ -82,4 +82,34 @@ describe('matchRule', () => {
     const f = { ...baseFeatures, fromDomain: 'unknown.com', subject: 'hi' };
     expect(matchRule(f, [baseRule({ match_value: 'stripe.com' })])).toBeNull();
   });
+
+  it('to_omits_owner matches when To does not contain account email', () => {
+    const f = { ...baseFeatures, toAddress: 'list@blast.example' };
+    const m = matchRule(
+      f,
+      [baseRule({ match_type: 'to_omits_owner', match_value: '', target_category: 'spam' })],
+      null,
+      'kareem@limeinc.cc',
+    );
+    expect(m?.target_category).toBe('spam');
+  });
+
+  it('to_omits_owner does NOT match when To contains the owner email (case-insensitive)', () => {
+    const f = { ...baseFeatures, toAddress: 'KAREEM@LimeInc.cc' };
+    const m = matchRule(
+      f,
+      [baseRule({ match_type: 'to_omits_owner', match_value: '', target_category: 'spam' })],
+      null,
+      'kareem@limeinc.cc',
+    );
+    expect(m).toBeNull();
+  });
+
+  it('to_omits_owner returns false when accountEmail not supplied (no false positives)', () => {
+    const f = { ...baseFeatures, toAddress: 'someone@else.com' };
+    const m = matchRule(f, [baseRule({
+      match_type: 'to_omits_owner', match_value: '', target_category: 'spam',
+    })]);
+    expect(m).toBeNull();
+  });
 });

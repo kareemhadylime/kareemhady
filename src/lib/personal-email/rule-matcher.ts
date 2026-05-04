@@ -5,10 +5,15 @@ import type { PersonalEmailRule, EmailFeatures } from './types';
 //
 // `accountId` scopes which account-bound rules can match. `account_id IS
 // NULL` rules are global and always considered.
+//
+// `accountEmail` is the email address of the mailbox this email arrived
+// in — used by the owner-relative `to_omits_owner` match type. Pass
+// the account's `accounts.email` from the caller (pipeline.ts).
 export function matchRule(
   features: EmailFeatures,
   rules: PersonalEmailRule[],
   accountId: string | null = null,
+  accountEmail: string | null = null,
 ): PersonalEmailRule | null {
   // Sort by priority ascending (lower = higher precedence). Defensive:
   // caller may not have sorted.
@@ -16,12 +21,16 @@ export function matchRule(
   for (const r of sorted) {
     if (!r.enabled) continue;
     if (r.account_id && r.account_id !== accountId) continue;
-    if (matches(features, r)) return r;
+    if (matches(features, r, accountEmail)) return r;
   }
   return null;
 }
 
-function matches(f: EmailFeatures, r: PersonalEmailRule): boolean {
+function matches(
+  f: EmailFeatures,
+  r: PersonalEmailRule,
+  accountEmail: string | null,
+): boolean {
   const v = r.match_value;
   const vLower = v.toLowerCase();
   switch (r.match_type) {
@@ -42,5 +51,12 @@ function matches(f: EmailFeatures, r: PersonalEmailRule): boolean {
       return false;
     case 'gmail_label':
       return f.gmailLabelIds.includes(v) || f.gmailLabelNames.includes(v);
+    case 'to_omits_owner': {
+      // Fires when the To header doesn't contain the mailbox owner's
+      // email — i.e. broadcast/list-blast that wasn't personally
+      // addressed. `match_value` is ignored for this type.
+      if (!accountEmail) return false;
+      return !f.toAddress.toLowerCase().includes(accountEmail.toLowerCase());
+    }
   }
 }

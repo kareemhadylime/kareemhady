@@ -41,7 +41,12 @@ export async function classifyOneEmail(
   input: ClassifyOneEmailInput,
 ): Promise<ClassifyOneEmailResult> {
   const rules = input.rules ?? (await loadActiveRules());
-  const ruleHit = matchRule(input.features, rules, input.account.id);
+  const ruleHit = matchRule(
+    input.features,
+    rules,
+    input.account.id,
+    input.account.email,  // for owner-relative rules (to_omits_owner)
+  );
 
   // Special: gmail SPAM short-circuits both rule + AI.
   if (ruleHit && ruleHit.target_category === 'spam') {

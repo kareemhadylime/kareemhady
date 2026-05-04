@@ -8,6 +8,7 @@ export const CATEGORY_SLUGS = [
   'personal',
   'subsidiary_beithady',
   'subsidiary_kika',
+  'facebook',
   'newsletters',
   'notifications',
   'promotions',
@@ -23,6 +24,11 @@ export const MATCH_TYPES = [
   'header_present',
   'body_contains',
   'gmail_label',
+  // Owner-relative match — fires when this email's To: header does
+  // NOT include the mailbox owner's email address. match_value is
+  // ignored. Use to flag broadcast / list-blast mail that wasn't
+  // personally addressed to the user.
+  'to_omits_owner',
 ] as const;
 
 export const MatchType = z.enum(MATCH_TYPES);

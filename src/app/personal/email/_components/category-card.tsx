@@ -12,6 +12,7 @@ import {
   XCircle,
   ShoppingBag,
   Home,
+  MessageSquare,
   Mail,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ const ICONS: Record<string, LucideIcon> = {
   XCircle,
   ShoppingBag,
   Home,
+  MessageSquare,
 };
 
 // Pre-rendered Tailwind class lookups so dynamic accents work in
@@ -78,6 +80,12 @@ const ACCENTS: Record<string, {
     hoverBorder: 'group-hover:border-teal-400', arrow: 'group-hover:text-teal-600',
     countBg: 'bg-teal-50 dark:bg-teal-950', countText: 'text-teal-700 dark:text-teal-300',
     gradFrom: 'from-teal-400', gradTo: 'to-teal-600',
+  },
+  blue: {
+    iconBg: 'bg-blue-50 dark:bg-blue-950', iconText: 'text-blue-700 dark:text-blue-300',
+    hoverBorder: 'group-hover:border-blue-400', arrow: 'group-hover:text-blue-600',
+    countBg: 'bg-blue-50 dark:bg-blue-950', countText: 'text-blue-700 dark:text-blue-300',
+    gradFrom: 'from-blue-400', gradTo: 'to-blue-600',
   },
   indigo: {
     iconBg: 'bg-indigo-50 dark:bg-indigo-950', iconText: 'text-indigo-700 dark:text-indigo-300',
