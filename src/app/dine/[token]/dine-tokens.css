@@ -1,0 +1,178 @@
+/* ============================================================
+   Beit Hady In-Room Dining — design token layer
+   Palette: navy #0F3F58 · cream #E9E5DE · coral #E5A29C
+   Fonts:   Cormorant Garamond (display) · Poppins (body) · Cairo (arabic)
+   ============================================================ */
+
+:root {
+  /* Brand palette */
+  --bh-navy:       #0F3F58;
+  --bh-cream:      #E9E5DE;
+  --bh-coral:      #E5A29C;
+  --bh-coral-dark: #c97b74;
+  --bh-ink:        #1a1a1a;
+  --bh-ink-muted:  #6b5e54;
+  --bh-rail-bg:    #E5A29C;   /* coral side rails */
+  --bh-rail-width: 18px;
+
+  /* Font stacks */
+  --bh-ff-display: var(--bh-font-display, 'Cormorant Garamond', 'Georgia', serif);
+  --bh-ff-body:    var(--bh-font-body, 'Poppins', system-ui, sans-serif);
+  --bh-ff-arabic:  var(--bh-font-arabic, 'Cairo', 'Segoe UI', sans-serif);
+}
+
+/* ---- Page surface ---- */
+.dine-surface {
+  background-color: var(--bh-cream);
+  color: var(--bh-ink);
+  font-family: var(--bh-ff-body);
+}
+
+/* Coral left + right rails */
+.dine-rails {
+  border-left:  var(--bh-rail-width) solid var(--bh-rail-bg);
+  border-right: var(--bh-rail-width) solid var(--bh-rail-bg);
+  background-color: var(--bh-cream);
+  /* Full bleed below max-width: rails become internal gutters */
+}
+
+/* ---- Display font helper ---- */
+.display {
+  font-family: var(--bh-ff-display);
+  color: var(--bh-navy);
+  letter-spacing: 0.04em;
+}
+
+/* ---- Category section heading ---- */
+.dine-section-title {
+  font-family: var(--bh-ff-display);
+  font-size: 1.5rem;         /* 24px */
+  font-weight: 600;
+  color: var(--bh-navy);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--bh-coral);
+  padding: 0.75rem 1rem 0.5rem;
+  margin-bottom: 0;
+}
+
+/* ---- Item row ---- */
+.dine-item-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name  price"
+    "desc  desc"
+    "photo photo";
+  align-items: baseline;
+  gap: 0.125rem 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--bh-coral) 30%, transparent);
+  transition: background 0.15s;
+}
+
+.dine-item-row:last-child {
+  border-bottom: none;
+}
+
+.dine-item-name {
+  grid-area: name;
+  font-family: var(--bh-ff-body);
+  font-size: 0.9375rem;      /* 15px */
+  font-weight: 500;
+  color: var(--bh-navy);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.dine-item-price {
+  grid-area: price;
+  font-family: var(--bh-ff-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--bh-navy);
+  white-space: nowrap;
+}
+
+.dine-item-desc {
+  grid-area: desc;
+  font-size: 0.8125rem;      /* 13px */
+  color: var(--bh-ink-muted);
+  margin: 0.25rem 0 0;
+  line-height: 1.5;
+}
+
+.dine-item-photo {
+  grid-area: photo;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+/* ---- Stockout state ---- */
+.dine-stockout {
+  opacity: 0.45;
+  pointer-events: none;
+  position: relative;
+}
+
+.dine-stockout::after {
+  content: 'Unavailable';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--bh-ff-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--bh-coral-dark);
+  background: color-mix(in srgb, var(--bh-cream) 60%, transparent);
+  border-radius: 4px;
+}
+
+/* ---- Cart bar (placeholder for T23) ---- */
+.dine-cart-bar {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 0);
+  left: 0;
+  right: 0;
+  padding: 0.875rem 1.25rem;
+  background: var(--bh-navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--bh-ff-body);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  z-index: 50;
+}
+
+/* ---- Fine print ---- */
+.dine-fineprint {
+  font-size: 0.6875rem;      /* 11px */
+  color: var(--bh-ink-muted);
+  text-align: center;
+  padding: 0.75rem 1rem 0.25rem;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Decorative: halftone cluster (positioned absolute by parent) ---- */
+.dine-halftone {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.18;
+  user-select: none;
+}
+
+/* ---- Decorative: palm silhouette ---- */
+.dine-palm {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.08;
+  user-select: none;
+}
