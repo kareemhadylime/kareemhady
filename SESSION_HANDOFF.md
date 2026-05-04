@@ -1,5 +1,49 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🎉 2026-05-04 — Beithady F&B / In-Room Dining COMPLETE — 73-task plan shipped to prod
+
+**Engineering 68/73 tasks done + verified; T70–T73 are operator runbook tasks (translate items via the AI button in Menu admin, upload photos, configure per-building WA recipients in Settings → Buildings, print QRs from boarding pass page).**
+
+**T69 production seed verification** (just ran via Supabase MCP):
+- `fnb_categories` = 3 ✓ (Breakfast / Sandwiches / Salads & Kids)
+- `fnb_items` = 10 ✓ (4 breakfast + 3 sandwich + 3 salad/kids from PDF)
+- `fnb_item_modifiers` = 2 ✓ (Sausage Ful upgrade + Add Grilled Chicken)
+- `fnb_buildings` = 5 ✓ (BH-26 / BH-73 / BH-435 / BH-OK / BH-34, all initially disabled)
+- `fnb_orders` / `fnb_order_items` / `beithady_audit_log[module=fnb]` = 0 (expected — fresh module)
+- `beithady_role` enum: 9 values ending in `fnb_manager` ✓
+- `fnb_order_status` enum: 6 values ✓
+
+**What's live in production:**
+
+- **DB schema:** 6 main migrations (0079–0084) + 3 corrective (0080a / 0083a / 0084a)
+- **Permissions:** 10th BeithadyCategory `fnb` + new `fnb_manager` role; full 9-role × 10-category matrix
+- **Tile:** F&B card in `/beithady` launcher (rose accent, Phase F badge, BH-DXB hidden)
+- **Module shell:** 5-tab nav at `/beithady/fnb` (Orders / Menu / Analytics / Settings / Audit)
+- **Menu admin** at `/beithady/fnb/menu`: category tree, two-pane item editor with 4 inner tabs (Basics / Photo / Modifiers / Availability) and a Recipe placeholder for v1.5; 4-language inputs (EN/AR/RU/FR) with `✨ Translate` AI button + `[AI]` chip + `Approve` gate per non-EN field; direct-to-Supabase signed-URL photo upload; per-line per-building stock-out toggles; bulk price update dialog
+- **Guest mobile menu** at `/dine/[token]`: full BH PDF-matched brand identity (navy `#0F3F58` / cream `#E9E5DE` / coral `#E5A29C`, Cormorant Garamond display + Poppins body + Cairo for AR); coral side rails, halftone clusters, palm silhouette, BH wordmark; 4-language switcher with RTL for AR; item bottom-sheet with modifiers / qty / notes; sticky cart bar
+- **Cart + order flow** at `/dine/[token]/order` and `/dine/[token]/order/[id]`: editable cart with VAT/service breakdown, ASAP/30/60-min delivery picker, idempotency-key submit, order confirmation page with 5-sec live-status poll + 1-sec grace countdown + cancel button (default 120-sec grace, configurable per building)
+- **Operator kanban** at `/beithady/fnb` (default Orders tab): @dnd-kit drag-drop across 4 columns (Submitted → Preparing → Ready → Delivered), 8-sec auto-refresh, building filter pills, click-through to detail page
+- **Operator order detail** at `/beithady/fnb/orders/[id]`: full line list, status timeline, advance/cancel buttons (cancel admin/manager/fnb_manager only), per-line stock-out toggle
+- **WA notifier** with 3-tier fallback: WA Cloud (501 stub today, ready when WABA provisioned) → WA Casual via Green-API (kitchen alerts working today) → Guesty conversation (guest status notifications + receipt-link fallback)
+- **Receipt PDF** via React-PDF: BH brand chrome (navy/cream/coral, Cormorant + Poppins + Cairo), 4 languages, auto-sent at `delivered` via WA-or-Guesty pipeline + 14-day signed URL stored at `beithady-gallery/fnb-receipts/{orderId}.pdf`; rate-limited resend (3/hour)
+- **Settlement** (manual Guesty mirror, since Guesty addCharge API doesn't support arbitrary line items per spec resolution): `Mark settled` button surfaces in the existing Operations calendar reservation drawer as a new "F&B charges" tab — front-desk taps, captures optional Guesty receipt #, order flips to `closed` and writes `guesty_charge_id`
+- **Settings** at `/beithady/fnb/settings`: 5 sub-tabs (Buildings live with full editor for enable / WA recipients / SLA / grace / VAT line; Hours live with per-category editor; Notifications admin-only stub; Receipt + Cancellation thin redirectors to Buildings)
+- **Analytics** at `/beithady/fnb/analytics`: KPI cards (revenue today + delta, orders, avg ticket, avg prep time, top item) + recharts revenue line chart (30-day window) + CSV/PDF export endpoints
+- **Audit log** at `/beithady/fnb/audit`: filtered view of `beithady_audit_log` with module=fnb; admin/manager/fnb_manager see full before/after JSON, others see headers only
+- **4 cron jobs** registered in `vercel.json` with DST-safe doubling: stale-orders (every 5 min, skipped 23:00–07:00 Cairo); clear-stockouts (Cairo midnight); close-delivered (Cairo 03:00); checkout-reminder (Cairo 09:00 — surfaces unsettled F&B totals for reservations checking out today)
+
+**Documentation:**
+- Spec at `docs/superpowers/specs/2026-05-04-beithady-fnb-menu-design.md` (1,116 lines)
+- Plan at `docs/superpowers/plans/2026-05-04-beithady-fnb-menu.md` (9,054 lines, 73 tasks)
+
+**Operator next steps (T70–T73 runbook):**
+1. **Translate** all 10 items × 3 langs (AR/RU/FR) via Menu admin: click each item → Basics tab → switch lang → click `✨ Translate from English` → review → `Approve`
+2. **Upload photos** for all 10 items via Menu admin → Photo tab
+3. **Configure each building** in Settings → Buildings: toggle `enabled` ON, paste kitchen WA number(s) (E.164), confirm SLA/grace, optional VAT line
+4. **Print QR codes** from `/r/beithady/stay/[token]` for each active reservation (the print stylesheet is already in place; ops just hits browser print)
+
+---
+
 ## ✅ 2026-05-04 — FM+ unified theme: shared FmplusHero across landing + Financials + Budget (commit `c341f0a`)
 
 User asked for "Same Theme, Colors, Logo, Through Out FM+ Module & Its Sub Modules". Followed up the Budget redesign by:
