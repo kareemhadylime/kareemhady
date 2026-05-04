@@ -1,5 +1,16 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ unified theme: shared FmplusHero across landing + Financials + Budget (commit `c341f0a`)
+
+User asked for "Same Theme, Colors, Logo, Through Out FM+ Module & Its Sub Modules". Followed up the Budget redesign by:
+
+- **`src/app/fmplus/page.tsx`** — Landing page rebuilt to use `<FmplusHero>` (was a plain `<header>` with no dark tokens, no logo). Layout grid expanded `max-w-5xl → max-w-7xl` to match Financials + Budget rhythm. Launcher cards picked up missing dark-mode tokens (`bg-amber-50 dark:bg-amber-950`, `text-slate-900 dark:text-slate-100`, `hover:border-amber-700` dark variant).
+- **`src/app/fmplus/financials/page.tsx`** — Inlined hero (~14 lines of duplicated `ix-card`/blur/icon-box markup) replaced with `<FmplusHero>`. Now picks up FM+ wordmark on the right side automatically (was missing the logo).
+
+Result: identical hero pattern + FM+ wordmark on `/fmplus`, `/fmplus/financials`, `/fmplus/financial/budget` (+ all 8 sub-tabs via layout). 0 fmplus TS errors, 209 tests pass / 12 skipped.
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget module redesign to match Financials gold standard (commit `b30bb64`)
 
 User flagged Project Budget chrome as ugly vs `/fmplus/financials`. Rebuilt to match exactly:
