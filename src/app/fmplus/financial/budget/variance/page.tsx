@@ -118,6 +118,18 @@ export default async function VariancePage(props: VariancePageProps) {
         </div>
       </header>
 
+      {/* Export buttons */}
+      <div className="flex gap-2">
+        <a href={`/api/fmplus/budget/variance-xlsx?contract=${contractId}&year=${report.year_index}&scenario=${report.scenario}${serviceLine ? `&service=${serviceLine}` : ''}`}
+          className="text-[11px] px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary inline-flex items-center gap-1">
+          📊 XLSX
+        </a>
+        <a href={`/api/fmplus/budget/variance-pdf?contract=${contractId}&year=${report.year_index}&scenario=${report.scenario}${serviceLine ? `&service=${serviceLine}` : ''}`}
+          className="text-[11px] px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary inline-flex items-center gap-1">
+          📄 PDF
+        </a>
+      </div>
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Kpi label="YTD Budget" value={(report.total_budget / 1_000_000).toFixed(2) + ' M EGP'} />

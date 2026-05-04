@@ -1,37 +1,38 @@
-// @ts-nocheck — v1 orphan; replaced in Tasks 13-39 of fmplus-budget-v2 plan
 import { NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
-import { getCurrentUser, canAccessDomain } from '@/lib/auth';
-import { buildBudgetVariance } from '@/lib/fmplus/budget/variance';
-import { ScenarioSchema } from '@/lib/fmplus/budget/schema';
-import { VariancePdfDocument } from '@/lib/fmplus/budget/exports/variance-pdf';
+import { requireBudgetView } from '@/lib/fmplus/budget/permissions';
+import { buildBudgetVarianceV2 } from '@/lib/fmplus/budget/variance';
+import { VariancePdfDocumentV2 } from '@/lib/fmplus/budget/exports/variance-pdf';
+import type { ServiceLine } from '@/lib/fmplus/budget/types';
+import React from 'react';
 
-export const runtime = 'nodejs';
+const SERVICE_VALUES: ServiceLine[] = ['hk','mep','landscape','security','pest_ctrl','waste_mgmt','back_office'];
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  const user = await getCurrentUser();
-  if (!user || !canAccessDomain(user, 'fmplus')) {
-    return new NextResponse('Forbidden', { status: 403 });
-  }
+  await requireBudgetView();
   const url = new URL(req.url);
-  const projectId = Number(url.searchParams.get('project') ?? 0);
-  const year = Number(url.searchParams.get('year') ?? new Date().getUTCFullYear());
-  const scenario = ScenarioSchema.safeParse(url.searchParams.get('scenario') ?? 'initial');
-  const through = Number(url.searchParams.get('through') ?? new Date().getUTCMonth() + 1);
-  if (!projectId || !scenario.success) {
-    return new NextResponse('Bad request', { status: 400 });
+  const contractId = Number(url.searchParams.get('contract'));
+  const yearIndex = Number(url.searchParams.get('year')) || 1;
+  const scenario = (url.searchParams.get('scenario') ?? 'initial') as 'initial' | 'revised' | 'reforecast';
+  const service = url.searchParams.get('service');
+
+  if (!Number.isFinite(contractId) || contractId <= 0) {
+    return NextResponse.json({ error: 'invalid contract' }, { status: 400 });
   }
-  const report = await buildBudgetVariance({
-    projectId, fiscalYear: year, scenario: scenario.data, ytdThrough: through,
+
+  const report = await buildBudgetVarianceV2({
+    contractId, yearIndex, scenario,
+    serviceLine: SERVICE_VALUES.includes(service as ServiceLine) ? (service as ServiceLine) : undefined,
   });
-  if (!report) return new NextResponse('Not found', { status: 404 });
-  const buf = await renderToBuffer(<VariancePdfDocument report={report} />);
-  const fname = `variance-${report.project_name}-${year}-${scenario.data}.pdf`.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const buf = await renderToBuffer(<VariancePdfDocumentV2 report={report} />);
+  const filename = `variance-${report.contract_name.replace(/[^a-z0-9]/gi, '_')}-Y${report.year_index}.pdf`;
+
   return new NextResponse(buf as unknown as BodyInit, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${fname}"`,
+      'Content-Disposition': `attachment; filename="${filename}"`,
     },
   });
 }
