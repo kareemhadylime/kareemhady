@@ -1,5 +1,55 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — Admin/Users: Send credentials by WhatsApp button — commit `a64df53`
+
+Added a "Send credentials" button beside the Edit button on every row in
+Setup → Users & Roles ([src/app/admin/users/_components/user-row-edit.tsx](src/app/admin/users/_components/user-row-edit.tsx)).
+Wires up to a new server action `sendCredentialsViaWhatsAppStateAction`
+in [src/app/admin/users/actions.ts](src/app/admin/users/actions.ts).
+
+**Flow** (handles the scrypt-hash limitation — passwords are one-way so
+we can't recover them):
+
+1. Admin clicks → `confirm()` dialog warns the existing password will be
+   replaced.
+2. Action generates a 12-char temp password (alphabet excludes
+   0/O/1/l/I to be phone-screen friendly).
+3. Sends WhatsApp **first** via `sendWhatsApp` from
+   [src/lib/whatsapp/green-api.ts](src/lib/whatsapp/green-api.ts) — only
+   if the send succeeds does it write the new `password_hash` to
+   `app_users`. A failed send leaves the user's existing password intact
+   so they aren't locked out.
+
+**Message body:**
+```
+🌿 Welcome to Lime Investments Dashboard
+
+You've been invited to access the Lime Investments operations cockpit.
+
+🔗 App URL: https://limeinc.vercel.app
+👤 Username: ...
+🔑 Password: ...
+
+Please sign in and change your password from the account settings.
+
+⚠️ The app is still in Beta — your review and feedback are invited.
+
+— Lime Investments
+```
+
+**UI feedback:**
+- Pending: spinner + "Sending…"
+- Success: green pill "Sent" (auto-clears in 4s)
+- Fail: red pill with error message (truncated, full text in title)
+- Disabled with tooltip when user has no `mobile_number` on file.
+
+`SaveResult` discriminated union extended with `'wa-creds'` kind.
+`tsc --noEmit` = clean for changed files (only pre-existing
+qrcode-types error from T25 remains, unrelated). Pushed to `main`,
+GitHub→Vercel auto-deploy in flight to `limeinc.vercel.app`.
+
+---
+
 ## ✅ 2026-05-04 — Beithady F&B T25: QR code endpoint + boarding-pass QR section — commit `728a60d`
 
 Installed `qrcode@1.5.4` + `@types/qrcode@1.5.6`. Created `src/app/api/dine/[token]/qr.svg/route.ts` — GET returns an SVG QR code (BH navy `#0F3F58` on transparent bg) gated on `validateDineToken`. Target URL = `https://<origin>/dine/<token>`. Added a printable QR section to `src/app/r/beithady/stay/[token]/page.tsx` after the "Order Food" CTA, gated on `fnb.ok`. Includes `print:` Tailwind variants for clean ops-print output. `tsc --noEmit` = 0 errors. DO NOT push (per task spec).
