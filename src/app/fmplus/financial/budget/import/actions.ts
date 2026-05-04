@@ -9,6 +9,7 @@ import { parseFlatTemplate, type FlatRow } from '@/lib/fmplus/budget/parsers/fla
 import { parseAucStyle } from '@/lib/fmplus/budget/parsers/rich-auc-style';
 import { parseTrioStyle } from '@/lib/fmplus/budget/parsers/trio-style';
 import { parseCityGateMultiYear } from '@/lib/fmplus/budget/parsers/city-gate-multi-year';
+import { parseEmaarZoneStyle } from '@/lib/fmplus/budget/parsers/emaar-zone-style';
 import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
 import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
 
@@ -33,8 +34,7 @@ export interface PreviewResult {
  * Inspect an uploaded XLSX, classify it, parse it, and return a preview of
  * what would be imported. Does NOT write to DB.
  *
- * Supported parsers: flat-template, rich-auc-style, trio-style, city-gate-multi-year.
- * Deferred (v2.2): emaar-zone-style.
+ * Supported parsers: flat-template, rich-auc-style, trio-style, city-gate-multi-year, emaar-zone-style.
  */
 export async function previewImportAction(formData: FormData): Promise<PreviewResult> {
   await requireBudgetAdmin();
@@ -50,11 +50,8 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
   try {
     const detection = await detectParser(tmp);
 
-    // Gate unsupported parsers — rich-auc-style, trio-style, city-gate-multi-year are live; emaar deferred
-    if (
-      detection.parser === 'unknown' ||
-      detection.parser === 'emaar-zone-style'
-    ) {
+    // Gate unsupported parsers — all 4 rich parsers are live; only 'unknown' is unimplemented
+    if (detection.parser === 'unknown') {
       return {
         parser: detection.parser,
         reason: detection.reason,
@@ -63,8 +60,7 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
         errors: [{
           row: 0,
           message: `${detection.parser} parser is not yet implemented. ` +
-            `Re-export your data using the flat template (Download Blank Template button) and try again. ` +
-            `Rich parser for Emaar zone layout is tracked for v2.2.`,
+            `Re-export your data using the flat template (Download Blank Template button) and try again.`,
         }],
         warnings: [],
         byContract: [],
@@ -166,6 +162,35 @@ export async function previewImportAction(formData: FormData): Promise<PreviewRe
         errors: cgResult.errors.map(e => ({ row: e.row, message: `${e.sheet}: ${e.message}` })),
         warnings: cgResult.warnings,
         suggestedContractName: cgResult.contract_name,
+      };
+    } else if (detection.parser === 'emaar-zone-style') {
+      const emaarResult = await parseEmaarZoneStyle(tmp);
+      parsed = {
+        rows: emaarResult.rows.map(r => ({
+          contract_name: emaarResult.contract_name,
+          customer: null,
+          year_index: 1,
+          service_line: r.service_line,
+          category: r.category,
+          line_code: r.line_code,
+          label_en: r.label_en,
+          label_ar: r.label_ar,
+          season: 'high' as const,
+          qty: r.qty,
+          unit_cost: r.unit_cost,
+          ctc_net: r.ctc_net,
+          ctc_relievers: r.ctc_relievers,
+          ctc_ot: r.ctc_ot,
+          ctc_training: r.ctc_training,
+          ctc_insurance: r.ctc_insurance,
+          ctc_medical: r.ctc_medical,
+          threshold_green: null,
+          threshold_amber: null,
+          notes: null,
+        })),
+        errors: emaarResult.errors.map(e => ({ row: e.row, message: `${e.sheet}: ${e.message}` })),
+        warnings: emaarResult.warnings,
+        suggestedContractName: emaarResult.contract_name,
       };
     } else {
       // Defensive — should never reach
