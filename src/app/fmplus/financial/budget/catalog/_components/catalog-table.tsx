@@ -1,10 +1,11 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Search, Plus, Upload, Archive } from 'lucide-react';
 import type { FmplusCatalogItem } from '@/lib/fmplus/budget/schema';
 import { archiveItemAction } from '../actions';
+import { BulkImportModal } from './bulk-import-modal';
 
 interface Props {
   items: FmplusCatalogItem[];
@@ -17,6 +18,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -97,9 +99,8 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
             <>
               <button
                 type="button"
-                disabled
-                className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-secondary cursor-not-allowed flex items-center gap-1"
-                title="Bulk import coming in Task 15"
+                onClick={() => setBulkOpen(true)}
+                className="text-xs px-3 py-1.5 bg-bg-secondary border border-border rounded text-text-primary hover:bg-bg-tertiary flex items-center gap-1"
               >
                 <Upload size={13} /> Bulk import
               </button>
@@ -187,6 +188,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
       {isPending && (
         <div className="absolute top-1 right-1 text-[10px] text-text-secondary">…</div>
       )}
+      <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
     </div>
   );
 }
