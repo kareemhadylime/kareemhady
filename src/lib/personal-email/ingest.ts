@@ -182,10 +182,14 @@ async function processOneMessage(args: {
   });
 
   // Upsert the email_logs row (existing schema has unique(account_id, gmail_message_id)).
+  // NOTE: `run_id` (legacy FK to public.runs) is left NULL for personal-email
+  // rows; their classification-run linkage lives in `personal_run_id` instead
+  // (mig 0082). The legacy column stays for backwards-compat with the Phase-1
+  // ingest path that other domains still use.
   const { data: upserted, error: upErr } = await sb
     .from('email_logs')
     .upsert({
-      run_id: args.run_id,
+      personal_run_id: args.run_id,
       account_id: args.account.id,
       gmail_message_id: args.gmailMessageId,
       gmail_thread_id: args.gmailThreadId,
