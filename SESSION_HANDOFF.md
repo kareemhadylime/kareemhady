@@ -8,6 +8,19 @@
 
 ---
 
+## ✅ 2026-05-04 — FM+ Budget v2.1 — T30 TRIO-style parser SHIPPED (commit `2806c84`)
+
+Implemented the TRIO-style XLSX parser for multi-service budget workbooks.
+
+**Files changed:**
+- `src/lib/fmplus/budget/parsers/trio-style.ts` — new parser. Reads 5 Budget sheets (HK/MEP/LS/Pest Control/Back Office). Extracts manning rows where CTC Rate > 0 and HC > 0. Maps CTC Rate → `unit_cost`, Net Rate → `ctc_net`. Skips equipment/indirect/BOQ sections via col-2 item-number detection (pattern `^\d+\.\d+`). Also filters Arabic-named equipment items and section headers. Reports skipped sheets. Deferred warning emitted.
+- `src/lib/fmplus/budget/parsers/trio-style.test.ts` — 6 tests, all 6 pass.
+- `src/app/fmplus/financial/budget/import/actions.ts` — `trio-style` removed from unsupported gate; new routing branch calls `parseTrioStyle` and maps to `FlatRow[]`.
+
+**Verification:** tsc=0 fmplus errors. Tests: 6/6 new + 180/191 full suite passed (29 files). Constraint: commit only, no push to main, no npm install, no migrations.
+
+---
+
 ## ✅ 2026-05-04 — FM+ Budget v2.1 — T29 AUC parser SHIPPED (commit `9a582dc`)
 
 Implemented the rich AUC-style XLSX parser that was deferred to v2.1.
