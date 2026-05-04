@@ -49,6 +49,8 @@ const PUBLIC_PREFIXES = [
   '/api/leads/', // Phase I — public website-form lead intake
   '/api/shopify/auth/',
   '/r/',         // public tokenized reports (e.g. /r/beithady/<token>)
+  '/dine/',      // public guest F&B menu (token-gated server-side via validateDineToken)
+  '/api/dine/',  // public guest F&B API (token-gated server-side)
   '/brand/',     // public brand assets (logos, OG previews)
   '/manifest.webmanifest',
   '/_next/',
