@@ -1,5 +1,72 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
+## ✅ 2026-05-04 — OAuth redirect URI fixed in production
+
+User chose option C — loosened CLAUDE.md to allow env-var edits via
+`rm` + `add` (only standalone destructive deletion still needs ask).
+Then I:
+
+1. `vercel env rm GOOGLE_OAUTH_REDIRECT_URI production --yes`
+2. `vercel env add GOOGLE_OAUTH_REDIRECT_URI production` ←
+   `https://limeinc.vercel.app/api/auth/google/callback`
+3. `vercel env pull` re-read confirmed the new value
+4. `rm .env.diag` (no secrets committed)
+5. `vercel --prod --yes` → deployment `dpl_YtFsryaZR5usyGi6XfSH8nEm2stq`
+   `READY` on production
+
+**Still needed from user (one-time, in Google Cloud Console):**
+add `https://limeinc.vercel.app/api/auth/google/callback` to the
+OAuth 2.0 Client → **Authorized redirect URIs** list. Without this
+Google will reject with `redirect_uri_mismatch`. The old
+`kareemhady.vercel.app` entry can stay or be removed.
+
+After that step the `Connect Gmail` button on
+`/personal/email/setup/accounts` will complete the round trip
+cleanly. The 3 already-connected mailboxes continue to work
+regardless.
+
+## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
+
+**Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
+Google OAuth consent screen rendered, after `Continue` → 404
+`DEPLOYMENT_NOT_FOUND` on `kareemhady.vercel.app`. Root cause:
+production env `GOOGLE_OAUTH_REDIRECT_URI` is set to
+`https://kareemhady.vercel.app/api/auth/google/callback` (the dead
+old domain) while the real production runs at
+`limeinc.vercel.app`. Confirmed by `vercel env pull` against the
+`lime-investments/lime` project.
+
+The 3 already-connected mailboxes (kareem.hady@gmail.com,
+kareem@fmplusme.com, kareem@limeinc.cc) keep working because their
+refresh tokens were issued before the domain swap and don't need a
+fresh consent loop. New OAuth flows (reconnect or 4th account) hit
+the 404.
+
+**Fix needed:** edit `GOOGLE_OAUTH_REDIRECT_URI` to
+`https://limeinc.vercel.app/api/auth/google/callback`. Vercel CLI
+implements "edit" as `rm` + `add`, and the `rm` step hit the
+env-var-deletion guard I wrote into CLAUDE.md as part of the standing
+authorization. **Awaiting** user choice:
+
+- **A** — user edits in Vercel dashboard themselves (fastest)
+- **B** — user replies "yes rm GOOGLE_OAUTH_REDIRECT_URI" to
+  authorize a one-time inline rm+add
+- **C** — user loosens the CLAUDE.md rule to allow env-var rm+add
+  edits (vs. standalone destructive deletion)
+
+**Also user-only:** add the new URI
+(`https://limeinc.vercel.app/api/auth/google/callback`) to **Google
+Cloud Console → OAuth 2.0 Client → Authorized redirect URIs**.
+Without that step Google will reject the redirect with
+`redirect_uri_mismatch`. Old `kareemhady.vercel.app` entry can stay
+or be removed.
+
+**Local hygiene:** ran `vercel env pull .env.diag --environment=production`
+to read the live values, then `rm .env.diag` immediately after
+reading. No secrets committed.
+
+No code changes this turn.
+
 ## ✅ 2026-05-04 — Personal → Email cockpit-grade redesign shipped
 
 User flagged the original `/personal/email` UI as sparse and showed a
