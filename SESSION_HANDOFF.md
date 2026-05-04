@@ -37,6 +37,43 @@ Pending: user clicks Save in Google Cloud Console + waits 5 min for
 Google's propagation window. Then `Connect Gmail` should round-trip
 cleanly. No further action needed on our side.
 
+---
+
+## ✅ 2026-05-04 — MailboxStatusBar + display-name fixes (after user asked "how to know they're connected")
+
+User saw the redesigned `/personal/email` page with stats showing
+"3 connected mailboxes" but the filter pills were ambiguous: one
+labeled `KAREEM` (should be `LIME`), another showed the full
+`kareem@fmplusme.com` (display_name was NULL). Asked how to verify
+connections.
+
+**Fixes shipped (commit `38ec9f3` → main):**
+
+1. **`deriveDisplayName` regex** in OAuth callback — added
+   `@limeinc` substring (covers `.cc`, `.com`, etc.). Was missing
+   so `kareem@limeinc.cc` fell through to local-part-uppercased.
+2. **DB backfill** for the 3 existing rows via `execute_sql`:
+   - kareem.hady@gmail.com → GMAIL (was already correct)
+   - kareem@limeinc.cc → LIME (was 'KAREEM')
+   - kareem@fmplusme.com → FM+ (was NULL)
+3. **`MailboxStatusBar`** new component — replaces the bare
+   AccountFilter pill row on the main triage page. Shows for each
+   mailbox: display name (bold), full email (mono small), relative
+   last-sync time, status dot (green <30 min, amber <24 h, red
+   otherwise), tooltip with exact timestamp. Doubles as filter.
+
+**Diagnostic finding (not addressed yet):** queried
+`personal_email_classification_runs` and found a manual run
+started at `2026-05-04 00:25:27 UTC` with `finished_at=NULL`,
+`accounts=[]`, `emails_seen=0`. The serverless function appears to
+have died before flushing progress (no `errors` written either).
+Possible causes: Vercel function timeout (Pro = max 5 min for
+server actions), refresh-token issue on one of the 3 accounts, or
+an exception in the early setup before the per-account try/catch.
+User should re-click Refresh now that the redesigned page surfaces
+sync status more clearly — if it stalls again, we'd need to add
+incremental progress writes + lambda log inspection.
+
 ## ⏸️ 2026-05-04 (paused, now resolved) — OAuth redirect URI points to dead domain; awaiting user authorization to env-var edit
 
 **Bug:** User clicked `Connect Gmail` on `/personal/email/setup/accounts`,
