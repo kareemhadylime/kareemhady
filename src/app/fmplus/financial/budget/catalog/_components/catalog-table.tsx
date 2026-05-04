@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { Search, Plus, Upload, Archive } from 'lucide-react';
+import { Search, Plus, Upload, Archive, Pencil } from 'lucide-react';
 import type { FmplusCatalogItem } from '@/lib/fmplus/budget/schema';
 import { archiveItemAction } from '../actions';
 import { BulkImportModal } from './bulk-import-modal';
@@ -21,6 +21,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
   const [isPending, startTransition] = useTransition();
   const [bulkOpen, setBulkOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editItem, setEditItem] = useState<FmplusCatalogItem | null>(null);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -168,13 +169,22 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
                         {isSelected ? (
                           <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">SELECTED</span>
                         ) : (
-                          <button
-                            onClick={() => it.id != null && onArchive(it.id)}
-                            className="text-slate-500 dark:text-slate-400 hover:text-red-500 text-xs"
-                            title="Archive"
-                          >
-                            <Archive size={12} />
-                          </button>
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditItem(it); }}
+                              className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs"
+                              title="Edit item"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              onClick={() => it.id != null && onArchive(it.id)}
+                              className="text-slate-500 dark:text-slate-400 hover:text-red-500 text-xs ml-2"
+                              title="Archive"
+                            >
+                              <Archive size={12} />
+                            </button>
+                          </>
                         )}
                       </td>
                     )}
@@ -191,6 +201,7 @@ export function CatalogTable({ items, selectedId, canEdit, currentSearch }: Prop
       )}
       <BulkImportModal open={bulkOpen} onClose={() => setBulkOpen(false)} />
       <AddItemModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddItemModal open={editItem !== null} onClose={() => setEditItem(null)} existingItem={editItem} />
     </div>
   );
 }

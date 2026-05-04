@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Save } from 'lucide-react';
 import { saveItemAction } from '../actions';
 import type { ServiceLine, Category } from '@/lib/fmplus/budget/types';
+import type { FmplusCatalogItem } from '@/lib/fmplus/budget/schema';
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** When provided, modal opens in edit mode and prefills with these values. */
+  existingItem?: FmplusCatalogItem | null;
 }
 
 const SERVICES: ServiceLine[] = ['hk','mep','landscape','security','pest_ctrl','waste_mgmt','back_office'];
@@ -17,19 +20,33 @@ const UNITS: Array<'each'|'monthly'|'annual'|'per_head'|'liter'|'kg'|'m2'|'pct_r
   'each','monthly','annual','per_head','liter','kg','m2','pct_revenue',
 ];
 
-export function AddItemModal({ open, onClose }: Props) {
+export function AddItemModal({ open, onClose, existingItem }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [code, setCode] = useState('');
-  const [nameEn, setNameEn] = useState('');
-  const [nameAr, setNameAr] = useState('');
-  const [unit, setUnit] = useState<'each'|'monthly'|'annual'|'per_head'|'liter'|'kg'|'m2'|'pct_revenue'>('each');
-  const [defaultPrice, setDefaultPrice] = useState('0');
-  const [serviceLines, setServiceLines] = useState<ServiceLine[]>(['hk']);
-  const [category, setCategory] = useState<Category>('tools');
-  const [tags, setTags] = useState('');
+  const [code, setCode] = useState(existingItem?.code ?? '');
+  const [nameEn, setNameEn] = useState(existingItem?.name_en ?? '');
+  const [nameAr, setNameAr] = useState(existingItem?.name_ar ?? '');
+  const [unit, setUnit] = useState<typeof UNITS[number]>(existingItem?.unit ?? 'each');
+  const [defaultPrice, setDefaultPrice] = useState(String(existingItem?.default_price ?? '0'));
+  const [serviceLines, setServiceLines] = useState<ServiceLine[]>(existingItem?.service_lines ?? ['hk']);
+  const [category, setCategory] = useState<Category>(existingItem?.category ?? 'tools');
+  const [tags, setTags] = useState((existingItem?.tags ?? []).join(', '));
+
+  useEffect(() => {
+    if (open) {
+      setCode(existingItem?.code ?? '');
+      setNameEn(existingItem?.name_en ?? '');
+      setNameAr(existingItem?.name_ar ?? '');
+      setUnit(existingItem?.unit ?? 'each');
+      setDefaultPrice(String(existingItem?.default_price ?? '0'));
+      setServiceLines(existingItem?.service_lines ?? ['hk']);
+      setCategory(existingItem?.category ?? 'tools');
+      setTags((existingItem?.tags ?? []).join(', '));
+      setError(null);
+    }
+  }, [open, existingItem]);
 
   const reset = () => {
     setCode(''); setNameEn(''); setNameAr(''); setUnit('each');
@@ -37,7 +54,7 @@ export function AddItemModal({ open, onClose }: Props) {
     setError(null);
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => { if (!existingItem) reset(); onClose(); };
 
   if (!open) return null;
 
@@ -58,6 +75,7 @@ export function AddItemModal({ open, onClose }: Props) {
     startTransition(async () => {
       try {
         await saveItemAction({
+          ...(existingItem?.id ? { id: existingItem.id } : {}),
           code: code.trim(),
           name_en: nameEn.trim(),
           name_ar: nameAr.trim() || null,
@@ -80,16 +98,22 @@ export function AddItemModal({ open, onClose }: Props) {
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg max-w-md w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <strong className="text-sm text-slate-900 dark:text-slate-100">+ Add catalog item</strong>
+          <strong className="text-sm text-slate-900 dark:text-slate-100">
+            {existingItem ? 'Edit catalog item' : '+ Add catalog item'}
+          </strong>
           <button onClick={handleClose} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"><X size={16} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <label className="block">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase">Code <span className="text-red-400">*</span></span>
-            <input value={code} onChange={e => setCode(e.currentTarget.value)} disabled={isPending}
+            <input value={code} onChange={e => setCode(e.currentTarget.value)}
+              disabled={isPending || !!existingItem}
               placeholder="e.g. tool_pressure_washer"
               className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-0.5 font-mono disabled:opacity-50" />
+            {existingItem && (
+              <span className="text-[9px] text-slate-500 dark:text-slate-400">code is the conflict key — not editable</span>
+            )}
           </label>
 
           <label className="block">
@@ -158,7 +182,7 @@ export function AddItemModal({ open, onClose }: Props) {
           </button>
           <button onClick={onSave} disabled={isPending || !code.trim() || !nameEn.trim()}
             className="text-xs px-4 py-1.5 bg-indigo-600 text-white rounded font-semibold flex items-center gap-1 disabled:opacity-50">
-            <Save size={12} /> {isPending ? 'Saving…' : 'Add item'}
+            <Save size={12} /> {isPending ? 'Saving…' : (existingItem ? 'Save changes' : 'Add item')}
           </button>
         </div>
       </div>
