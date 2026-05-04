@@ -1,5 +1,114 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## 🟢 CHECKPOINT 2026-05-04 — FM+ Budget v2 at 21/40 tasks (52.5%) — Phases 1-4 done, Phase 5 in progress
+
+**Strategy:** subagent-driven execution with hard-guardrail prompts. Pattern verified across 21 tasks: each implementer dispatch uses verbatim code blocks + "Task N only" + "do NOT push" + post-verification. Reliable.
+
+### What's on `main` (21 tasks shipped)
+
+**Phase 1 — Foundation ✓**
+- T1 `5875a83` — Migration 0081 (drops v1's 7 tables, creates v2's 10)
+- T2 `1cddfb3..d522fae` — Zod schemas, types, v1 transition `// @ts-nocheck` headers
+- T3 `dfa04f1` — `permissions.ts` + `db.ts`
+
+**Phase 2 — Templates ✓**
+- T4 `c0a25f8` — HK template (richer CTC structure)
+- T5–T10 `c9ec5db..60e27d1` — MEP, Landscape, Security, Pest Ctrl, Waste Mgmt, Back Office templates
+- T11 `0d12ed1` — Governmental category + `getTemplate()` post-merge for all 7 services
+- T12 `aa520e1` — Catalog seed parser + migration 0082 (76 items in `fmplus_catalog`: 37 consumables, 36 tools, 3 ppe)
+
+**Phase 3 — Catalog ✓**
+- T13 `a6756d2` — `catalog/search.ts` + `upsert.ts` + `overrides.ts` (server-side modules)
+- T14 `0a4bc55` — Catalog page UI (table + override side panel)
+- T15 `d5e99e7` — Catalog bulk import (XLSX) with diff summary modal
+
+**Phase 4 — Project Hub ✓**
+- T16 `0c26e78` — `portfolio.ts` `buildPortfolio()` aggregator
+- T17 `cf51a6e` — Project Hub page (contract-card grid + filter toolbar + action-needed banner)
+- T18 `d1f8021` — `+ New Contract` wizard (single-page form, atomic createContract)
+- T19 `0029290` — Layout v2 (8-tab strip) + bilingual toggle (en/ع localStorage)
+
+**Phase 5 — Editor (in progress, 2 of 8 tasks done)**
+- T20 `bb75165` — Editor page scaffold + year tabs + service tabs
+- T21 `8b10936` — Section accordion + budget-line row component (read-only display)
+
+### Repo state at checkpoint
+
+- Branch `claude/eager-williamson-5787df` is at `8b10936`, all pushed to `origin/main` (this turn pushes the SESSION_HANDOFF separately)
+- `npx tsc --noEmit` = **0 errors** in `src/lib/fmplus/budget/` and `src/app/fmplus/financial/budget/`
+- All vitest suites that were passing continue to pass
+- 50+ v1 orphan files have `// @ts-nocheck` headers (will be replaced by Tasks 24, 25, 27, 29-33, 35, 36, 37, 39 — natural attrition)
+- Supabase: 10 v2 tables present + populated where applicable (`fmplus_catalog` has 76 rows; everything else awaits user data via the `+ New Contract` wizard)
+- 0 RLS policies, 0 budget_* helper functions (the Task 1 over-reach state was cleaned)
+- `/fmplus/financial/budget/projects` and `/catalog` are functional in production. `/edit` shows the v2 scaffold (read-only). Other tabs (Overview, Import, Variance, Compare, Settings) still show v1 orphan content with broken queries (tables dropped — those routes get rewritten in Phase 7-8).
+
+### What's left (19 tasks)
+
+**Phase 5 — Editor (6 remaining)**
+- T22 — `+ Add line` catalog picker modal (uses `searchCatalog`)
+- T23 — CTC expand panel for manning lines (Net + Relievers + OT + Training + Insurance + Medical inputs)
+- T24 — Save Draft / Publish server actions + un-stub buttons
+- T25 — Revenue tab + Mobilization tab (per-year `project_year_services` + project-level `mobilization_lines` editors)
+- T26 — `inflation-calc.ts` (pure math + tests for Copy-year dialog)
+- T27 — Copy Y1 → Y2 dialog (uses inflation-calc) + `contracts/duplicate.ts`
+
+**Phase 6 — Excel parsers (6)**
+- T28 — `parsers/auto-detect.ts` dispatcher
+- T29 — Rich AUC-style parser (port from v1 + v2 schema)
+- T30 — TRIO-style parser (multi-service single-year)
+- T31 — City Gate multi-year parser
+- T32 — Emaar zone-style parser (zone collapse + richer CTC)
+- T33 — Flat template v2 (parser + writer round-trip)
+
+**Phase 7 — Variance (4)**
+- T34 — `mobilization.ts` amortization
+- T35 — `variance.ts` v2 (mob-adjusted, per-line threshold override, bilingual)
+- T36 — Variance page + drill-drawer (rewrite v1)
+- T37 — Settings page v2 (thresholds + inflation defaults + mob amort + bilingual default)
+
+**Phase 8 — Compare/Exports/Acceptance (3)**
+- T38 — Compare tab + Year-vs-Year mode
+- T39 — Variance exports v2 (PDF + XLSX)
+- T40 — End-to-end acceptance walk-through
+
+### How to resume in a fresh session
+
+1. Read this SESSION_HANDOFF + the plan at `docs/superpowers/plans/2026-05-04-fmplus-project-budget-v2.md`
+2. Invoke `superpowers:subagent-driven-development`
+3. Continue from Task 22 (`+ Add line catalog picker modal`)
+4. Use the same hard-guardrail prompt template that has worked across all 21 tasks: verbatim code blocks + "Task N only" + "do NOT push" + post-verification + "do NOT create migrations beyond what the plan specifies"
+5. Each subagent dispatch: implement → verify (git log + tsc + tests) → push → mark complete → next
+
+### Known transitional brokenness (accepted — Phase 4 Q1 of spec)
+
+- `/fmplus/financial/budget` (Overview), `/import`, `/variance`, `/compare`, `/settings` routes show v1 orphan content with broken queries against dropped v1 tables. Each route gets rewritten in Phase 7-8.
+- Old `vercel.json` cron jobs aren't affected — these are app routes, not cron.
+- AUC v1 budget data is gone. User accepted re-entry via v2 Editor + Import.
+
+### Subagent over-reach lesson (logged earlier, still relevant)
+
+First Task 1 implementer over-reached and built Tasks 2+3 with wrong directory + `z.bigint()` IDs + RLS migration. Reverted via path A (3 reverts + Supabase RLS cleanup via `execute_sql`). Subsequent prompts use **hard guardrails** and have produced clean output for 20 consecutive tasks.
+
+---
+
+## ✅ 2026-05-04 — FM+ Budget v2: Tasks 20 + 21 complete — Editor v2 scaffold
+
+**Task 20 done (commit `bb75165`, NOT pushed per constraints):**
+- `src/app/fmplus/financial/budget/edit/page.tsx` — OVERWRITTEN; server component reads `?contract=`, `?year=`, `?service=`, `?section=`; fetches contract + embedded project_services/project_years; resolves active year (initial scenario) + active service; loads budget lines + year_service revenue; renders header/breadcrumb, stub Save Draft + Publish buttons, KPI strip (Revenue/Cost/GM/HC/Lines), then delegates to YearTabs/ServiceTabs/SectionAccordion
+- `src/app/fmplus/financial/budget/edit/_components/year-tabs.tsx` — NEW; client component; `useSearchParams` + `useTransition` for smooth URL-only year switching; Add year + Copy year are visually-disabled stubs (Tasks 24/27)
+- `src/app/fmplus/financial/budget/edit/_components/service-tabs.tsx` — NEW; client component; pill-style service switcher; Revenue + Mobilization tabs are stubs (Task 25)
+
+**Task 21 done (commit `8b10936`, NOT pushed per constraints):**
+- `src/app/fmplus/financial/budget/edit/_components/budget-line-row.tsx` — NEW; server component; renders single budget line row (label_en/ar, qty, unit_cost, monthly total, threshold badge, CTC expand indicator)
+- `src/app/fmplus/financial/budget/edit/_components/section-accordion.tsx` — NEW; client component; `useState` collapse/expand; defaults `manning` open; shows per-section line count + annual M EGP; "+ Add line" is disabled stub (Task 22); Governmental section gets amber border + "NEW in v2" badge
+- tsc edit/: **0 errors**
+
+**Next step:** Task 22 (catalog picker), Task 23 (CTC expand), Task 24 (save/publish actions).
+
+---
+
+
+
 ## ✅ 2026-05-04 — FM+ Budget v2: Task 18 complete — + New Contract wizard
 
 **Task 18 done (commit `d1f8021`, NOT pushed per constraints):**
