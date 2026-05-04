@@ -1,5 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-04 — FM+ Budget Catalog: inline edit via pencil icon — commit `58d0edb`
+
+Extended `AddItemModal` with optional `existingItem` prop; pencil icon in each catalog row now opens the modal in edit mode prefilled with that row's data.
+
+**Modified files only (no new files, no migrations, no server actions added):**
+- `src/app/fmplus/financial/budget/catalog/_components/add-item-modal.tsx` — added `existingItem?: FmplusCatalogItem | null` prop; `useEffect` resets form on `open`/`existingItem` change; `code` input `disabled` when editing + hint text; title/button label flip to "Edit catalog item" / "Save changes"; `saveItemAction` call passes `id` when editing so upsert hits the existing row.
+- `src/app/fmplus/financial/budget/catalog/_components/catalog-table.tsx` — added `Pencil` lucide import, `editItem` state; replaced single archive button with pencil+archive pair; added second `<AddItemModal>` mount wired to `editItem`.
+
+**Verification:** `tsc --noEmit` catalog errors = 0. Tests: 159 passed / 9 skipped.
+
+---
+
+
 ## ✅ 2026-05-04 — FMPLUS Financials: Phase 2 SHIPPED (commit `6e35b7d`, parallel session) — Projects tab + side-by-side P&L + Apply spinner
 
 Three deliverables on top of Phase 1:
