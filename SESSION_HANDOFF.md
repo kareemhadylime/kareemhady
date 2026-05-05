@@ -2843,3 +2843,69 @@ When `FMPLUS_BUDGET_INTEGRATION=1` is set and the service role key is passed, Su
 - `891ef04` — 10 integration tests
 
 **Next Phase C tasks:** C9 (BudgetTabStrip 9th tab) → C10-C25 (on-screen UI) → C26-C42 (PDF pages) → C43 (API route) → C44 (EditContractForm) → C45 (deep links) → C46 (acceptance test).
+
+---
+
+## 🎉 2026-05-05 — FM+ PROJECT REPORT TAB — FULLY SHIPPED (commits `66fff25` → `2812190`)
+
+ALL 3 PHASES of the FM+ Project Report + Brand Retrofit are LIVE on main. Vercel auto-deploying.
+
+### Phase A — FM+ Brand Foundation (7 commits)
+- Real brand: yellow #FDCF00, gold #EEB91D, geometric 4-quadrant "+" monogram, Lalezar/DM Serif Display/Lato fonts
+- `src/lib/fmplus/brand.ts`, `globals.css @theme inline`, rebuilt `fmplus-logo.tsx`, retrofitted `fmplus-hero.tsx`
+- 8 new logo unit tests + vitest config tuned (per-file jsdom pragma)
+- Final code review APPROVED
+
+### Phase B — Page Retrofits (4 commits)
+- `/fmplus` landing launcher cards · `/fmplus/financials` tab strip · `BudgetTabStrip`
+- Mechanical amber-* → fmplus-* token swap. Semantic warning amber preserved (override badges, draft status).
+
+### Phase C — Project Report Tab (~25 commits)
+**Migration + Schema:**
+- `0083_fmplus_budget_report_columns.sql` applied — 4 cols on project_contracts, project_year_signoffs + budget_report_exports tables
+- schema.ts: ProjectContractSchema extended, CustomerContactSchema/ProjectYearSignoffSchema/BudgetReportExportSchema added
+
+**Data layer:**
+- `src/lib/fmplus/budget/report/types.ts` — typed ReportData with 14 sections
+- `src/lib/fmplus/budget/report/build-report.ts` — 7 load helpers + aggregate + buildProjectReport entry (10-step pipeline)
+- `src/lib/fmplus/budget/report/visibility.ts` — defense-in-depth strip for customer mode (5 unit tests)
+- 10 integration tests (gated behind `FMPLUS_BUDGET_INTEGRATION=1` env, consistent with codebase pattern)
+
+**On-screen UI (17 files):**
+- 11 section components under `report/on-screen/sections/`
+- `OnScreenReport` top-level + tab landing + per-contract page
+- 3 client components: report-mode-toggle (4-pill), report-year-picker, report-export-dialog (EN/AR/Both stacked radio)
+- 9th "Report" tab added to BudgetTabStrip (between Variance and Compare)
+
+**PDF tree (18 files):**
+- `theme.ts` — PDF StyleSheet + Font.register (NotoSansArabic with try/catch fallback; Lalezar/DM Serif/Lato deferred to v1.5 once TTFs added to public/fonts/)
+- 4 shared: pdf-header, pdf-footer, label-dual (bilingual), status-pill
+- 11 page components: cover-hero, project-details, service-line-summary, manning-table (landscape), budget-breakdown (landscape), mobilization, payment-terms, change-vs-initial, variance-snapshot, sign-off, contract-rollup
+- `pdf-document.tsx` top-level + 1 snapshot test
+
+**API route:**
+- `src/app/api/fmplus/budget/report/[contractId]/[yearId]/pdf/route.tsx` — server-side renderToBuffer, customer+draft 403 block, audit log insert, filename `{slug}_{scenario}_Y{n}_{mode}_{lang}.pdf`
+
+**Integrations:**
+- EditContractForm extended with 4 new fields (customer_logo_url, customer_contacts JSON, payment_terms, scope_summary)
+- Deep links: contract page → "View Report" button + variance page → "Generate Sign-off Report →" link
+
+### Final test suite
+- **224 passing** (was 209 baseline) + **22 skipped** (10 integration + 12 prior). 0 regressions.
+- TypeScript clean for all FM+ paths.
+
+### Manual verification needed (acceptance C46)
+Once Vercel deploy lands on `limeinc.vercel.app`:
+1. Visit `/fmplus/financial/budget/report` → contract picker grid renders.
+2. Click TRIO → `/report/5?mode=signoff` renders on-screen view with FM+ brand.
+3. Click "Export PDF" → dialog opens → pick EN → downloads `TRIO_COMPOUND_initial_Y1_signoff_en.pdf`.
+4. Verify PDF: FM+ branding, no amber, 7-8 pages depending on mobilization presence.
+5. Switch to "Customer" mode + try export → should 403 if year is draft.
+
+### Known v1 limitations
+- Lalezar/DM Serif Display/Lato fonts not yet bundled for PDF rendering (uses Helvetica fallback). Add TTFs to `public/fonts/` and uncomment in `theme.ts` to enable.
+- Integration tests require `FMPLUS_BUDGET_INTEGRATION=1` + valid Supabase service-role key.
+- Customer logo upload is via direct URL paste in EditContractForm (no in-app upload widget yet — paste URL after uploading via Supabase Studio).
+- Sign-off block shows blank signature lines (digital sign-off / signoff_history table populated but no in-app sign-off button — manual sign-and-scan flow expected for v1).
+
+**Status:** Phase A + B + C COMPLETE. Awaiting user manual verification on production deploy.
