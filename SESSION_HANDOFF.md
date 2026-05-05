@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — FmplusLogo: shrink hero, swap dashboard tile icon
+
+**Status: DONE** — kareem asked to (a) shrink the hero logo by ~50% and (b) put a brand-correct logo on the FMPLUS portfolio tile (`/`) instead of the generic `Building2` Lucide icon.
+
+**Fixes:**
+- `fmplus-hero.tsx`: hero `<FmplusLogo>` size dropped from `2xl` (200 px) to `lg` (88 px). White card padding tightened (`px-4 py-3` → `px-2.5 py-2`, `rounded-2xl` → `rounded-xl`).
+- `app/page.tsx`: FMPLUS portfolio tile now special-cases `d === 'fmplus'` to render `<FmplusLogo size="md" variant="yellow-on-white" showWordmark={false} />` inside a 48 × 48 white-rounded card (matching the existing 12 × 12 icon-box footprint), instead of `<DomainIcon domain="fmplus" />`. Other domain tiles unchanged.
+
+**Files modified:**
+- `src/app/fmplus/_components/fmplus-hero.tsx`
+- `src/app/page.tsx`
+
+**Verification:** `tsc --noEmit -p tsconfig.json` clean.
+
+---
+
 ## ✅ 2026-05-06 — FmplusLogo follow-up: fix duplicate render, switch to color asset, bump size
 
 **Status: DONE** — first pass at the FmplusLogo refactor (commit `aba5823`) shipped two visible bugs that kareem caught immediately:

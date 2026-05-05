@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, Mail, ShieldCheck, Leaf } from 'lucide-react';
 import { TopNav } from './_components/brand';
 import { DomainIcon } from './_components/domain-icon';
+import { FmplusLogo } from './fmplus/_components/fmplus-logo';
 import { DOMAINS, DOMAIN_LABELS } from '@/lib/rules/presets';
 import { DOMAIN_THEMES } from '@/lib/brand-theme';
 import { getCurrentUser, canAccessDomain } from '@/lib/auth';
@@ -80,11 +81,17 @@ export default async function Home() {
                     className={`absolute -top-8 -right-8 w-40 h-40 rounded-full bg-gradient-to-br ${theme.accent.gradientFrom} ${theme.accent.gradientTo} opacity-10 blur-2xl pointer-events-none group-hover:opacity-20 transition`}
                   />
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <div
-                      className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${theme.accent.tint} ${theme.accent.text}`}
-                    >
-                      <DomainIcon domain={d as Domain} size={24} />
-                    </div>
+                    {d === 'fmplus' ? (
+                      <div className="w-12 h-12 rounded-xl bg-white ring-1 ring-slate-900/5 shadow-sm overflow-hidden inline-flex items-center justify-center">
+                        <FmplusLogo size="md" variant="yellow-on-white" showWordmark={false} />
+                      </div>
+                    ) : (
+                      <div
+                        className={`w-12 h-12 rounded-xl inline-flex items-center justify-center ${theme.accent.tint} ${theme.accent.text}`}
+                      >
+                        <DomainIcon domain={d as Domain} size={24} />
+                      </div>
+                    )}
                     <ArrowRight
                       size={18}
                       className="text-slate-400 group-hover:text-lime-600 transition"

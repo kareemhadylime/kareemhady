@@ -37,8 +37,8 @@ export function FmplusHero({ eyebrow, title, subtitle, icon: Icon, showLogo = tr
                 stay readable on the dark hero surface. The color asset has
                 yellow tiles + black M + black wordmark — designed for a
                 light background. */}
-            <div className="bg-white rounded-2xl px-4 py-3 ring-1 ring-slate-900/5 shadow-sm">
-              <FmplusLogo size="2xl" variant="yellow-on-white" />
+            <div className="bg-white rounded-xl px-2.5 py-2 ring-1 ring-slate-900/5 shadow-sm">
+              <FmplusLogo size="lg" variant="yellow-on-white" />
             </div>
           </div>
         )}
