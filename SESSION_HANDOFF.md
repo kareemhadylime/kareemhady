@@ -1,4 +1,51 @@
-# Kareemhady — Session Handoff (2026-05-04)
+# Kareemhady — Session Handoff (2026-05-05)
+
+## 🟡 2026-05-05 — DIAGNOSTIC ONLY: deep analysis of our daily-report vs Guesty Analytics — three Guesty views measure three different things; awaiting user choice on the fix
+
+User shipped today's daily-report email showing **Revenue MTD $13,093** for May, then opened Guesty Analytics → General Overview filtered "This Month" + Country=Egypt and saw **$16,695**. Asked for a deep analysis of the gap.
+
+**Key finding: the user is comparing across THREE different Guesty views, each with different filter defaults:**
+
+| View | Filter | What it measures |
+|---|---|---|
+| Guesty Homepage | today only | "What needs my attention right now?" |
+| Guesty Analytics → General Overview | **Date (Reservation Created): This Month** | "How much business did we book this month?" |
+| Guesty Analytics → Reservations | same as above | "Which channels brought what" |
+| Our daily-report email | **check-in date in month** (after commit `3174de0`) | "How much revenue have we earned this month?" |
+
+These ARE different cohorts. For May 2026 Egypt-only, my SQL queried every plausible methodology:
+
+| methodology | total |
+|---|---|
+| host_payout, **created in May**, confirmed | **$8,695** (23 res) |
+| fare_accom, created in May, confirmed | $9,136 |
+| host_payout+commission, created in May, confirmed | $12,902 ← closest to email's $13,093 |
+| host_payout, created in May, all (incl. inquiry) | $25,635 |
+| host_payout, **check-in in May**, confirmed | **$18,458** (45 res) ← what new code computes today |
+| host_payout, check-out in May, confirmed | $32,998 |
+| host_payout × nights_in_may/total_nights | $24,981 ← old proportional method |
+| host_payout, stay touches May, confirmed | $37,101 |
+| **Guesty Analytics shows** | **$16,695** ← doesn't match anything cleanly |
+
+**Two structural differences identified:**
+1. **Filter window**: Guesty Analytics defaults to creation date; our app uses check-in date. Different cohorts, different totals.
+2. **Money-field ambiguity**: sampled raw `money` payload from Guesty API and found `commission == hostPayout` in many rows (e.g. `{commission: 133.37, hostPayout: 133.37, fareAccommodation: 137}`). Guesty Analytics' "Revenue" and "Commission" labels likely come from derived fields we don't see — explains why no exact match exists.
+
+**Email's $13,093 mystery**: doesn't match either old ($24,981) or new ($18,458) method. Hypothesis: partial deploy state — BH-DXB exclusion (`de32f5b`) was active when the 06:00 UTC cron fired but revenue-methodology fix (`3174de0`) hadn't deployed yet, leaving the report on old code with mid-flight inventory-corpus changes that filtered out small Egypt clusters too. Will resolve cleanly on tomorrow's cron.
+
+**Other deltas surfaced**:
+- Listing count: our app 77 (= 85 active − MTL parents − 3 UAE), Guesty 85 active.
+- Occupancy: our 44.2% (yesterday snapshot of 34/77) vs Guesty 13.95% (forward-booked May nights / available May nights). Two different metrics, both valid.
+- ANR: our $98 (revenue / nights_mtd_elapsed) vs Guesty $70 (revenue / total-month-nights). Same numerator, different denominator.
+
+**3 fix options proposed to user — AWAITING CHOICE:**
+1. **Add a new "Bookings Created MTD" line** alongside the existing "Revenue MTD" — keeps both views, no methodology change.
+2. **Switch existing "Revenue MTD" line entirely to created-date attribution** — single number, ~$13k range, closer to Guesty Analytics but still not exact match.
+3. **Both lines** with explicit methodology labels — most complete, clearest provenance.
+
+No code changes shipped this turn. SQL is read-only. Work continues from this branch state when user picks an option.
+
+---
 
 ## ✅ 2026-05-05 — Beithady F&B "always send menu link via guest's WhatsApp" (commit `0fd77cc`)
 
