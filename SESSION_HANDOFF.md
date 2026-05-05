@@ -1,5 +1,91 @@
 # Kareemhady — Session Handoff (2026-05-04)
 
+## ✅ 2026-05-05 — Beithady F&B "always send menu link via guest's WhatsApp" (commit `0fd77cc`)
+
+**Status: DEPLOYED_AWAITING_TRIGGER** — code shipped, migration applied, demo trigger blocked on CRON_SECRET read safety gate (user fires curl).
+
+**Why:** kareem asked: "Always send the Menu App access details by Guest Recorded WhatsApp number, start demo to me." Permanent rule + immediate trigger.
+
+**What shipped (commit `0fd77cc`):**
+
+- **Migration `0094_boarding_passes_menu_link_sent_at`** applied to Supabase (`bpjproljatbrbmszwbov`):
+  - `beithady_boarding_passes.menu_link_sent_at timestamptz NULL` (idempotency)
+  - `beithady_boarding_passes.menu_link_message_id text NULL` (Green-API trace)
+  - Partial index `idx_boarding_passes_menu_link_pending` on `(reservation_id) WHERE menu_link_sent_at IS NULL`
+  - Verified via `information_schema.columns`
+- **`src/lib/beithady/fnb/send-menu-link.ts`** — `sendMenuLinkToGuest(token, opts)` and `sendMenuLinksToEligibleGuests()` batch:
+  - Reuses `validateDineToken` to enforce: boarding pass exists + not expired + reservation `checked_in` + `fnb_buildings.enabled=true`
+  - Renders 4 langs (EN/AR/RU/FR) with first-name + unit_code + dine URL + SLA minutes from `fnb_buildings.delivery_sla_minutes`
+  - Sends via `sendWhatsApp` (Green-API) to `beithady_guests.phone_e164`
+  - Stamps `menu_link_sent_at` + `menu_link_message_id` on success
+  - `recordAudit({ module: 'fnb', action: 'menu_link_sent' | 'menu_link_send_failed' | 'menu_link_batch_run' })`
+  - `opts.resend` bypasses idempotency for ops re-sends
+- **`src/app/api/cron/fnb-send-menu-link/route.ts`** — bearer-auth (`Bearer ${CRON_SECRET}`), no force-bypass:
+  - `?token=xxx[&resend=1]` → single send (used for ops + demo)
+  - no token → batch over all eligible (used by cron)
+- **`vercel.json`** — added `*/10 * * * *` schedule for `/api/cron/fnb-send-menu-link` (every 10 min batch)
+- **`src/lib/beithady/engagement/boarding-pass.ts`** — best-effort menu-link side-effect on boarding-pass dispatch success. Mostly a no-op at dispatch time (guest is `reserved`, not `checked_in`), but covers the late-arriving / rebook case so they don't wait for the next cron tick.
+
+**TypeScript:** clean (0 errors on new files).
+
+**Deploy:** `git push origin HEAD:main` → GitHub→Vercel auto-deploy to `limeinc.vercel.app`.
+
+**Demo trigger (RUN THIS):**
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://limeinc.vercel.app/api/cron/fnb-send-menu-link?token=kareem-fnb-demo-2026-may"
+```
+
+Expected response: `{"ok":true,"provider_message_id":"...","phone_e164_last4":"9899","dine_url":"https://limeinc.vercel.app/dine/kareem-fnb-demo-2026-may","lang":"en","building_code":"BH-26","unit_code":"BH-26-001"}`
+
+Expected on your phone (+201222109899) — a WA message:
+> Hi Kareem 👋
+>
+> Welcome to Beit Hady · BH-26-001.
+>
+> 🍽️ In-Room Dining is now open. Tap below to browse the menu and order from your phone — we deliver to your apartment in ~30 min.
+>
+> https://limeinc.vercel.app/dine/kareem-fnb-demo-2026-may
+>
+> Reply here if you need anything.
+
+If you want a re-send (after testing): append `&resend=1` to bypass the `menu_link_sent_at` stamp.
+
+**Permanent rule going forward:** every guest checked into an F&B-enabled building with a recorded WA phone will receive this message within 10 min of becoming eligible. The cron schedule is live in vercel.json and idempotency is enforced via `menu_link_sent_at`.
+
+**Next:** await your "got it" / "didn't get it" on the demo. Then move to Recipe UI tab integration on top of `dde0411` backend.
+
+---
+
+## ✅ 2026-05-04 — Beithady F&B live demo wired for kareem + proxy bug fix (commit `ea61625`)
+
+**Status: AWAITING_USER_DEMO** — guest URLs delivered, user to act as guest+kitchen for end-to-end validation.
+
+**What shipped:**
+
+- **Proxy bug fix** in `src/proxy.ts`: added `'/dine/'` and `'/api/dine/'` to `PUBLIC_PREFIXES` array. Without this, the auth middleware was 307-redirecting guest-facing routes to `/login?next=...`, killing the entire boarding-pass flow. Discovered via curl when the QR-scanned URL bounced. Two-line edit, commit `ea61625` ("fix(beithady/fnb): allow /dine/* and /api/dine/* through proxy as public"), auto-deployed to limeinc.vercel.app via GitHub→Vercel integration.
+- **Test fixtures inserted** via Supabase MCP for kareem to demo as guest:
+  - `beithady_guests` row: id `11111111-1111-1111-1111-111111111111`, name "Kareem Hady", phone `+201222109899`, lang `en`, email `kareem.hady@gmail.com`
+  - `guesty_reservations` row: id `test-fnb-kareem-2026`, status `checked_in`, listing `BH-26-001` (real Guesty listing id `683c126126abd20013ca7ffb`), check-in today, check-out +3 days. Initial attempt with synthetic listing id failed FK; resolved by querying `guesty_listings` and using a real one.
+  - `beithady_boarding_passes` row: id `22222222-2222-2222-2222-222222222222`, token `kareem-fnb-demo-2026-may`, building_code `BH-26`, expires +30 days
+  - `fnb_buildings` BH-26: `enabled=true`, `kitchen_wa_recipients=['+201222109899']`, SLA 30 min, grace 120 sec — so kareem receives the kitchen WA on his own phone
+
+**Demo URLs delivered to user:**
+- Boarding pass landing: `https://limeinc.vercel.app/r/beithady/stay/kareem-fnb-demo-2026-may`
+- Guest menu (EN): `https://limeinc.vercel.app/dine/kareem-fnb-demo-2026-may`
+- Guest menu (AR RTL): `https://limeinc.vercel.app/dine/kareem-fnb-demo-2026-may?lang=ar`
+- QR SVG: `https://limeinc.vercel.app/api/dine/kareem-fnb-demo-2026-may/qr.svg`
+- Menu API: `https://limeinc.vercel.app/api/dine/kareem-fnb-demo-2026-may/menu` — verified returning correct JSON (3 cats, 10 items, kareem context)
+
+**Browser MCP screenshot:** Attempted Chrome MCP automation for screenshot capture — failed with "Grouping is not supported by tabs in this window" (user has tab-grouping disabled in Chrome). Worked around by curl-verifying the API returns 200 + correct payload, and asked user to capture their own screenshots.
+
+**Cleanup SQL** (when demo done) — DELETE in this order: `fnb_orders` where boarding_pass_id matches → `beithady_boarding_passes` id `22222222-...` → `guesty_reservations` id `test-fnb-kareem-2026` → `beithady_guests` id `11111111-...` → revert `fnb_buildings` BH-26 to `enabled=false` and clear WA recipients.
+
+**Next:** When user reports demo result, either (a) move to Recipe UI tab integration on top of the `dde0411` backend, or (b) iterate on whatever guest-flow issue they hit.
+
+---
+
 ## ✅ 2026-05-04 — Beithady F&B Phase F&B-2 v1.5: Recipe backend (commit `dde0411`)
 
 **Status: DONE_WITH_CONCERNS** (fx_rates schema differs from spec assumption — adapted)
