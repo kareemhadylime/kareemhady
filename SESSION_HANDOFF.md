@@ -1,5 +1,94 @@
 # Kareemhady — Session Handoff (2026-05-05)
 
+## ⏳ 2026-05-05 — Brainstorming new "Project Report" tab in FM+ Budget module — IN PROGRESS
+
+User asked for a management-approval Project Report tab (printable / A4 PDF exportable) inside `/fmplus/financial/budget/`. Sections wanted: project details, customer/contacts, period, manning numbers + budget, budget by service line, financials, upfront investment, payment terms.
+
+Constraints from user:
+- FM+ theme strict (navy + gold + amber, FmplusHero, FmplusLogo) — already established components.
+- Workflow: Plan → ask questions → 95% confidence → workflow phase → review → 95% confidence → code. (Following superpowers:brainstorming skill.)
+
+**Existing infrastructure to leverage (already explored):**
+- `src/lib/fmplus/budget/exports/variance-pdf.tsx` uses `@react-pdf/renderer` (Document/Page/StyleSheet). Pattern can be cloned.
+- `MobilizationLineSchema` already covers upfront investment (capex / opex_one_time / training / recruitment) with amortization.
+- `BudgetSettingsSchema` covers green/amber thresholds + bilingual default.
+- Contracts already have customer, dates, contract_value, vat_pct, zones, notes. Project services + budget_lines + project_year_services hold the rest.
+
+**Brainstorm progress (decisions made so far):**
+- **Q1 — Audience:** E (multi-mode with toggle) — pre-contract approval / budget sign-off / customer-facing / periodic snapshot, all on one template with mode toggle controlling field visibility.
+- **Q2 — Default mode + permission:** B (post-contract budget sign-off is default, used >60%) + Permission 1 (anyone with budget-view can switch modes freely; no role gating on customer-facing mode).
+- **Q3 — Scope:** C (per-year is default since sign-off approves one year at a time; auto-appended "Contract Rollup" page if contract has >1 year; single-year contracts skip the rollup).
+- **Q4 — Year status gate:** B (status pill in header only — amber DRAFT / green PUBLISHED badge next to project title; no watermark; cleaner look). Customer-facing mode (C) further BLOCKS export when status=draft (per Q8 confirmation 2).
+- **Q5 — Comparison view:** A (auto-comparison when scenario != 'initial' — extra "Change vs. Initial" section with per-service-line and per-category deltas).
+- **Q6 — Page format:** C (mixed orientation — portrait main pages, landscape inserted only for budget breakdown / manning detail pages where tables need horizontal room).
+- **Q7 — Bilingual:** B (PDF export dialog has `[ EN ] [ AR ] [ Both stacked ]` picker; on-screen toggle and PDF language are independent).
+- **Q8 — Field visibility matrix CONFIRMED:**
+  - Customer-facing mode (C) hides ALL cost detail (CTC rates, GP %, per-line cost, manning ramp/reliever) — customer sees only offer rates + totals + scope + HC required.
+  - Customer-facing mode blocks export when year is draft.
+  - Customer logo: new admin-uploaded `customer_logo_url` column on `project_contracts`.
+  - Sign-off block: 2 signature lines per mode (internal: Project Manager + Finance Director; customer: FMPlus Authorized Signatory + Customer Authorized Signatory).
+  - Other matrix details captured in conversation transcript.
+
+**Architecture chosen:** Approach 1 — `@react-pdf/renderer` + parallel HTML tree, sharing one data function `buildProjectReport(contractId, yearId, mode, lang)`. Same lib as existing `variance-pdf.tsx`. Supports per-page orientation (needed for Q6-C), runs server-side on Vercel.
+
+**Design sections (presenting one at a time, getting approval per section):**
+
+- **Section 1 — File Structure & Routes:** ✅ APPROVED.
+  - 9th tab "Report" added to BudgetTabStrip between Variance and Compare.
+  - `/fmplus/financial/budget/report` (tab landing with contract picker) + `/report/[contractId]` (deep link with `?year=&mode=` params).
+  - PDF endpoint: `/api/fmplus/budget/report/[contractId]/[yearId]/pdf?mode=&lang=`.
+  - Library: `src/lib/fmplus/budget/report/{build-report,types,visibility,theme,pdf-document}.ts`.
+  - Deep links from contract edit page + Variance tab.
+
+- **Section 2 — Data Model Changes:** ✅ APPROVED with one upgrade (sign-offs added in v1, not v2).
+  - Migration `0083_fmplus_budget_report_columns.sql`: ADD COLUMN `customer_logo_url`, `customer_contacts jsonb`, `payment_terms text`, `scope_summary text` to `project_contracts`.
+  - NEW table `project_year_signoffs` (year_id, signed_by, signed_role, signed_at, mode, notes) — user pushed this from v2 to v1 to track digital sign-off history.
+  - Supabase storage bucket `customer-logos` (public, 2 MB cap, PNG/JPEG/SVG).
+  - `EditContractForm` extended with logo upload widget (uses existing direct-to-Supabase signed-URL pattern).
+  - Schema updates to `src/lib/fmplus/budget/schema.ts`: extend `ProjectContractSchema` + new `CustomerContactSchema`, `ProjectYearSignoffSchema`.
+
+- **Section 3 — Data Aggregation Function:** PRESENTED, awaiting user response.
+  - `buildProjectReport({contract_id, year_id, mode, lang})` returns typed `ReportData`.
+  - 10-step pipeline (parallelizable steps 1-7): load contract + year + year_services + budget_lines + mobilization + signoffs + (conditional) initial-scenario sibling for deltas + (conditional) all years for rollup.
+  - Defense-in-depth `applyVisibility(data, mode)` STRIPS fields at data layer for customer mode (not just hides at render). Customer mode deletes: ctc_rate, qty, gp_pct, hc_budgeted, mobilization line items.
+  - Bilingual handled at render layer: data always returns both `label_en` + `label_ar`; `lang` param controls which the component renders.
+  - 8-10 unit tests covering each visibility profile + delta + rollup edge cases.
+  - 4 confirms requested: defense-in-depth strip, helper-split vs single fn, no v1 caching, snapshot mode reuses variance.ts builder.
+
+- **Section 4 — Component Architecture & PDF Layout:** ✅ APPROVED with major brand correction.
+  - Parallel HTML + PDF trees, shared data function. Per-page orientation declared explicitly.
+  - **Brand correction from `C:/kareemhady/.claude/FMPLUS/Branding/FMPlus rebranding.pdf` (2025):**
+    - Primary Yellow `#FDCF00` · Accent Gold `#EEB91D` · Anchor Black `#000000` · Dark Grey `#8A867F` · Light Grey `#D4D4D4`
+    - Fonts: Lalezar (headlines) · DM Serif Display (primary) · Lato (body) — all Google Fonts
+    - Logo = geometric 4-quadrant "+" monogram (Asset 4); 4.19:5.19 aspect locked
+  - **Existing `fmplus-logo.tsx` is WRONG** (renders "FM"+"+" letters in navy/gold) and whole FM+ module chrome uses wrong amber palette — must retrofit.
+
+- **Brand retrofit scope decision:** **B** — bundle FM+ module retrofit with this work. Phase A (brand foundation: brand.ts tokens, Google Fonts via next/font, rebuild fmplus-logo.tsx as 4-quadrant monogram, retrofit fmplus-hero.tsx) → then Phase B (page retrofits: /fmplus, /financials, /budget) + Phase C (new Project Report feature) in parallel.
+
+- **Section 5 — Modes / Bilingual / Edge Cases:** ✅ APPROVED (5/5 Y).
+  - Mode toolbar = 4-pill toggle above hero; Sign-off active filled with fmplus-yellow; URL `?mode=` for deep links.
+  - Customer + draft year → page banner + Export disabled (greyed-out + tooltip).
+  - Export dialog modal with EN/AR/Both-stacked radio + filename preview + download button.
+  - Edge cases catalogued: missing logo (placeholder), missing payment_terms (omit page), empty manning (empty state), revised w/ no initial sibling (warning), concurrent export (lockout), bilingual stacked + RTL, etc.
+  - PDF metadata (`<Document title author subject keywords>`) + audit trail in new `budget_report_exports` table per export.
+  - Phase order: A → B+C parallel.
+  - Drop reference logo `/public/brand/beithady/logo-fmplus.jpg` (file kept; references removed).
+
+## ✅ Spec written + committed: `c7b1a9e`
+
+`docs/superpowers/specs/2026-05-05-fmplus-project-report-design.md` (606 lines, 14 sections):
+1. Overview · 2. Out of scope · 3. Brainstorm decisions Q1-Q8 · 4. Architecture · 5. File Structure · 6. Data Model Changes (migration 0083 + storage bucket + schema updates) · 7. buildProjectReport function (10-step pipeline + applyVisibility strip rules) · 8. PDF Page Layout (full per-mode page table) · 9. FM+ Brand Tokens · 10. Modes/Visibility/Edge Cases · 11. FM+ Brand Retrofit (Phase A/B/C) · 12. Testing Strategy · 13. Acceptance Criteria · 14. References.
+
+Spec self-review found 2 ambiguities (fixed inline before commit):
+- §8 page table now has explicit per-mode columns (✅/❌/⚠️ per page).
+- Customer-mode "Monthly Fee" allocation formula stated: `contract_value × (service_cost_share / total_cost) / 12`.
+- Page 5 Budget Breakdown Matrix explicitly HIDDEN in customer mode (cost-leak risk).
+
+**Status:** Spec ready for user review. Once approved → invoke `writing-plans` skill to generate implementation plan. The plan will likely split into 3 sub-plans (Phase A foundation; Phase B page retrofits; Phase C Project Report feature) since each is independently shippable.
+
+---
+
+
 ## ✅ 2026-05-05 — Dine post-order: "Thanks for your order" banner + 15s auto-redirect (commit `566636e`)
 
 **Status: SHIPPED** — guest gets a localized thank-you screen, then auto-returns to the menu.
