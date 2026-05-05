@@ -32,9 +32,14 @@ export function FmplusHero({ eyebrow, title, subtitle, icon: Icon, showLogo = tr
           )}
         </div>
         {showLogo && (
-          <div className="hidden md:flex items-center shrink-0 self-start mt-1.5">
-            <FmplusLogo size="lg" variant="monochrome-black" showWordmark={false} className="dark:hidden" />
-            <FmplusLogo size="lg" variant="monochrome-white" showWordmark={false} className="hidden dark:block" />
+          <div className="hidden md:flex items-center shrink-0 self-start">
+            {/* White card-within-card so the black FMPLUS wordmark + tagline
+                stay readable on the dark hero surface. The color asset has
+                yellow tiles + black M + black wordmark — designed for a
+                light background. */}
+            <div className="bg-white rounded-2xl px-4 py-3 ring-1 ring-slate-900/5 shadow-sm">
+              <FmplusLogo size="2xl" variant="yellow-on-white" />
+            </div>
           </div>
         )}
       </div>

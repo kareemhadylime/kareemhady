@@ -19,9 +19,18 @@ describe('FmplusLogo', () => {
     const img = container.querySelector('img');
     expect(img).not.toBeNull();
     expect(img!.getAttribute('src')).toMatch(/\/brand\/fmplus\/fmplus-(color|black)\.png$/);
-    // The earlier revision rendered an inline <svg> with a hand-coded mark.
-    // Make sure that approximation has been removed.
     expect(container.querySelector('svg')).toBeNull();
+  });
+
+  test('wrapper is a <div> (not a <span>) so Tailwind hidden/dark:block classes work', () => {
+    // Earlier revision used <span> with inline display: 'inline-block', which
+    // overrode `hidden` (display: none) and caused both light + dark variants
+    // to render side-by-side in the FM+ hero.
+    const { container } = render(<FmplusLogo />);
+    expect(container.querySelector('span[role="img"]')).toBeNull();
+    const wrap = container.querySelector('div[role="img"]');
+    expect(wrap).not.toBeNull();
+    expect((wrap as HTMLElement).style.display).toBe('');
   });
 
   test('default size = md (56px wide)', () => {
@@ -36,29 +45,45 @@ describe('FmplusLogo', () => {
     expect(img.getAttribute('width')).toBe('144');
   });
 
+  test('2xl size = 200px wide (used in FM+ hero)', () => {
+    const { container } = render(<FmplusLogo size="2xl" />);
+    const img = container.querySelector('img')!;
+    expect(img.getAttribute('width')).toBe('200');
+  });
+
   test('showWordmark=false clips the wrapper to the icon-only portion', () => {
     const { container: full } = render(<FmplusLogo size="lg" showWordmark />);
     const { container: icon } = render(<FmplusLogo size="lg" showWordmark={false} />);
-    const fullWrap = full.querySelector('span[role="img"]') as HTMLElement;
-    const iconWrap = icon.querySelector('span[role="img"]') as HTMLElement;
+    const fullWrap = full.querySelector('div[role="img"]') as HTMLElement;
+    const iconWrap = icon.querySelector('div[role="img"]') as HTMLElement;
     const fullH = parseInt(fullWrap.style.height, 10);
     const iconH = parseInt(iconWrap.style.height, 10);
     expect(iconH).toBeLessThan(fullH);
     expect(fullWrap.style.overflow).toBe('hidden');
   });
 
-  test('variant=black-on-yellow uses the FM+ yellow background and color asset', () => {
-    const { container } = render(<FmplusLogo variant="black-on-yellow" />);
-    const wrap = container.querySelector('span[role="img"]') as HTMLElement;
+  test('variant=yellow-on-white uses transparent bg + the COLOR asset', () => {
+    const { container } = render(<FmplusLogo variant="yellow-on-white" />);
+    const wrap = container.querySelector('div[role="img"]') as HTMLElement;
     const img = container.querySelector('img')!;
-    // Accept hex (#FDCF00) or rgb formats jsdom may serialize to.
-    expect(wrap.style.background).toMatch(/#FDCF00|rgb\(253,\s*207,\s*0\)/i);
+    expect(wrap.style.background).toMatch(/transparent|rgba\(0,\s*0,\s*0,\s*0\)/i);
     expect(img.getAttribute('src')).toContain('fmplus-color.png');
+  });
+
+  test('variant=black-on-yellow uses the FM+ yellow bg + the BLACK asset', () => {
+    // Brand combo: black foreground on yellow background. The COLOR asset's
+    // yellow tiles would blend into a yellow surface, so this variant pulls
+    // from the BLACK lockup.
+    const { container } = render(<FmplusLogo variant="black-on-yellow" />);
+    const wrap = container.querySelector('div[role="img"]') as HTMLElement;
+    const img = container.querySelector('img')!;
+    expect(wrap.style.background).toMatch(/#FDCF00|rgb\(253,\s*207,\s*0\)/i);
+    expect(img.getAttribute('src')).toContain('fmplus-black.png');
   });
 
   test('variant=monochrome-black uses transparent background and the black asset', () => {
     const { container } = render(<FmplusLogo variant="monochrome-black" />);
-    const wrap = container.querySelector('span[role="img"]') as HTMLElement;
+    const wrap = container.querySelector('div[role="img"]') as HTMLElement;
     const img = container.querySelector('img')!;
     expect(wrap.style.background).toMatch(/transparent|rgba\(0,\s*0,\s*0,\s*0\)/i);
     expect(img.getAttribute('src')).toContain('fmplus-black.png');
@@ -72,7 +97,7 @@ describe('FmplusLogo', () => {
 
   test('aria-label declares the brand name', () => {
     const { container } = render(<FmplusLogo />);
-    const wrap = container.querySelector('span[role="img"]')!;
+    const wrap = container.querySelector('div[role="img"]')!;
     expect(wrap.getAttribute('aria-label')).toBe('FMPLUS — Facility Management');
   });
 });

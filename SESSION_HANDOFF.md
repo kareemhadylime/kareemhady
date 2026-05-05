@@ -1,5 +1,28 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — FmplusLogo follow-up: fix duplicate render, switch to color asset, bump size
+
+**Status: DONE** — first pass at the FmplusLogo refactor (commit `aba5823`) shipped two visible bugs that kareem caught immediately:
+
+1. **Logo doubled in the hero.** I set `display: 'inline-block'` via inline style on the wrapper. Inline `display` always wins over class-based `display: none`, so Tailwind's `dark:hidden` / `hidden dark:block` on the two sibling `<FmplusLogo>` instances in `fmplus-hero.tsx` did nothing — both rendered side-by-side.
+2. **Wrong asset.** I pointed `monochrome-black/white` at `fmplus-black.png` (full-black lockup) for the hero. Per kareem's instruction the hero must use the canonical yellow + black color logo.
+3. **Box too small.** Hero rendered at `size="lg"` (88 px) — visually undersized for the page header.
+
+**Fixes:**
+- `fmplus-logo.tsx`: changed wrapper from `<span>` to `<div>`, removed the inline `display` style entirely. Tailwind visibility classes now work as intended. Added a `2xl` size (200 px) for hero use.
+- `fmplus-hero.tsx`: removed the dual light/dark `<FmplusLogo>` pair. Now renders a single `<FmplusLogo size="2xl" variant="yellow-on-white" />` inside a white-rounded card-within-card so the black FMPLUS wordmark + tagline stay readable on the dark hero surface (the color asset is designed for a light background — yellow tiles + black M + black wordmark — so it needs the white card to read on dark).
+- `resolveStyle()`: the `black-on-yellow` variant now pulls from the BLACK lockup (not COLOR) because the color asset's yellow tiles would otherwise blend into a yellow background. Per official brand guidelines this combo means "black foreground on yellow surface."
+- `fmplus-logo.test.tsx`: updated all `span[role="img"]` selectors to `div[role="img"]`, added a regression test asserting the wrapper is a `<div>` with no inline `display` (so `hidden` etc. keep working), added a `2xl` size test, and added a `yellow-on-white` variant test.
+
+**Files modified:**
+- `src/app/fmplus/_components/fmplus-logo.tsx`
+- `src/app/fmplus/_components/fmplus-hero.tsx`
+- `src/app/fmplus/_components/fmplus-logo.test.tsx`
+
+**Verification:** `tsc --noEmit -p tsconfig.json` clean (only pre-existing `qrcode` types and missing `@testing-library/react` typings, neither from this change).
+
+---
+
 ## ✅ 2026-05-06 — FmplusLogo: replace hand-drawn SVG with official PNG asset
 
 **Status: DONE** — kareem flagged that the FM+ "logo" rendered in the FMPlus hero (top-right corner of every `/fmplus/financial/budget/**` page, plus the snapshot report cover) was a hand-drawn SVG approximation made of `<rect>` and `<polygon>` shapes — not the real brand mark. He attached the canonical asset; we already have it on disk in `C:/kareemhady/.claude/FMPLUS/Branding/Asset {2..6}.png`.

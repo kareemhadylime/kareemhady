@@ -9,7 +9,7 @@ export type FmplusLogoVariant =
   | 'monochrome-white'; /* pure white — for dark backgrounds, headers */
 
 export interface FmplusLogoProps {
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   variant?: FmplusLogoVariant;
   /** Show the FMPLUS wordmark + FACILITY MANAGEMENT tagline below the icon */
   showWordmark?: boolean;
@@ -17,10 +17,11 @@ export interface FmplusLogoProps {
 }
 
 const SIZE_PX: Record<NonNullable<FmplusLogoProps['size']>, number> = {
-  sm: 32,
-  md: 56,
-  lg: 88,
-  xl: 144,
+  sm:    32,
+  md:    56,
+  lg:    88,
+  xl:    144,
+  '2xl': 200,
 };
 
 /**
@@ -38,6 +39,12 @@ const ICON_FRACTION = 0.6;
  * FMPlus rebranding pack. Earlier revisions of this component drew the mark
  * with hand-coded `<rect>` and `<polygon>` shapes — that approximation looked
  * off-brand and has been replaced with the real artwork.
+ *
+ * NOTE: The wrapper is a `<div>` (not a `<span>`) so Tailwind's `hidden` /
+ * `dark:block` visibility classes work — earlier revisions set
+ * `display: 'inline-block'` via inline style, which overrode the Tailwind
+ * `display: none` from `hidden` and caused both light + dark variants to
+ * render side-by-side in the FM+ hero.
  */
 export function FmplusLogo({
   size = 'md',
@@ -56,16 +63,15 @@ export function FmplusLogo({
     height: showWordmark ? fullH : iconH,
     background,
     overflow: 'hidden',
-    display: 'inline-block',
     flexShrink: 0,
   };
 
-  const imageStyle: React.CSSProperties | undefined = filter
+  const imageStyle: React.CSSProperties = filter
     ? { filter, display: 'block' }
     : { display: 'block' };
 
   return (
-    <span
+    <div
       role="img"
       aria-label="FMPLUS — Facility Management"
       className={className}
@@ -77,9 +83,9 @@ export function FmplusLogo({
         width={w}
         height={fullH}
         style={imageStyle}
-        priority={size === 'lg' || size === 'xl'}
+        priority={size === 'lg' || size === 'xl' || size === '2xl'}
       />
-    </span>
+    </div>
   );
 }
 
@@ -95,7 +101,10 @@ function resolveStyle(variant: FmplusLogoVariant): {
 
   switch (variant) {
     case 'black-on-yellow':
-      return { src: COLOR, background: c.yellow };
+      // Note: the COLOR asset already has yellow tiles. Putting it on a yellow
+      // background blends the tiles in — but per brand guidelines this combo
+      // is meant for the BLACK lockup on a yellow surface (so we use BLACK).
+      return { src: BLACK, background: c.yellow };
     case 'yellow-on-white':
       // Background is `transparent` (not the strict white #FFFFFF) so the
       // logo can sit on any surface — colored cards, gradients, photos.
