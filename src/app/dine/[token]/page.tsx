@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { BrandShell } from './_components/brand-shell';
 import { CategorySection } from './_components/category-section';
 import { CartBar } from './_components/cart-bar';
+import { tr } from './_components/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,17 +21,23 @@ export default async function DinePage({ params, searchParams }: Ctx) {
   const sp = await searchParams;
   const c = await validateDineToken(token);
 
+  // Error-state language: prefer ?lang= override, then default to EN since
+  // we have no validated guest context to read from.
+  const errLang: Lang = (VALID_LANGS as readonly string[]).includes(sp?.lang ?? '')
+    ? (sp!.lang as Lang)
+    : 'en';
+
   if (!c.ok) {
     return (
-      <BrandShell guestName={null} buildingCode={null} unitCode={null} lang="en">
+      <BrandShell guestName={null} buildingCode={null} unitCode={null} lang={errLang}>
         <div className="text-center py-16 px-6">
-          <h2 className="display text-3xl mb-4">Service unavailable</h2>
+          <h2 className="display text-3xl mb-4">{tr('service_unavailable_title', errLang)}</h2>
           <p className="text-sm" style={{ color: 'var(--bh-ink-muted)' }}>
             {c.reason === 'reservation_not_checked_in'
-              ? 'Available once you check in.'
+              ? tr('not_checked_in', errLang)
               : c.reason === 'building_disabled' || c.reason === 'building_not_egypt'
-                ? 'In-room dining is not available at this property.'
-                : 'Please contact reception by dialling 0 from your living room.'}
+                ? tr('building_disabled', errLang)
+                : tr('contact_reception', errLang)}
           </p>
         </div>
       </BrandShell>
@@ -105,11 +112,12 @@ export default async function DinePage({ params, searchParams }: Ctx) {
             items={catItems as never}
             modifiers={catMods as never}
             outOfStock={outOfStock}
+            lang={lang}
           />
         );
       })}
       <p className="dine-fineprint">
-        All prices are inclusive of 14% VAT &amp; 12% Service Charge
+        {tr('vat_service_line', lang)}
       </p>
       <CartBar token={token} />
     </BrandShell>

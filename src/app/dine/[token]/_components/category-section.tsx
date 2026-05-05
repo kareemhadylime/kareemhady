@@ -1,17 +1,20 @@
 import 'server-only';
 import type { Category, Item, Modifier } from '@/lib/beithady/fnb/types';
 import { ItemCard } from './item-card';
+import { tr, type DineLang } from './i18n';
 
 export function CategorySection({
   category,
   items,
   modifiers,
   outOfStock,
+  lang,
 }: {
   category: Category;
   items: Item[];
   modifiers: Modifier[];
   outOfStock: Set<string>;
+  lang: DineLang;
 }) {
   return (
     <section className="relative px-2">
@@ -23,11 +26,15 @@ export function CategorySection({
             item={item}
             modifiers={modifiers.filter(m => m.item_id === item.id)}
             outOfStock={outOfStock.has(item.id!)}
+            lang={lang}
           />
         ))}
       </div>
       <p className="dine-fineprint">
-        Available daily from {category.hours_start.slice(0, 5)} – {category.hours_end.slice(0, 5)}
+        {tr('available_daily', lang, {
+          start: category.hours_start.slice(0, 5),
+          end: category.hours_end.slice(0, 5),
+        })}
       </p>
     </section>
   );

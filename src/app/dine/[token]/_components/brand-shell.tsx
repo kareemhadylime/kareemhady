@@ -2,6 +2,7 @@ import 'server-only';
 import Image from 'next/image';
 import { ReactNode, Suspense } from 'react';
 import { LanguageSwitcher } from './language-switcher';
+import { tr } from './i18n';
 
 export function BrandShell({
   children,
@@ -16,8 +17,13 @@ export function BrandShell({
   unitCode: string | null;
   lang: 'en' | 'ar' | 'ru' | 'fr';
 }) {
+  const isRtl = lang === 'ar';
   return (
-    <main className="dine-surface min-h-dvh relative" lang={lang}>
+    <main
+      className="dine-surface min-h-dvh relative"
+      lang={lang}
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
       <div className="dine-rails relative max-w-md mx-auto pb-32">
         {/* Header */}
         <section className="relative pt-10 pb-8 px-6 text-center">
@@ -39,7 +45,7 @@ export function BrandShell({
             className="mx-auto relative z-10"
           />
           <h1 className="display mt-4 text-3xl tracking-wider relative z-10">
-            IN-ROOM DINING
+            {tr('in_room_dining', lang)}
           </h1>
           <Suspense fallback={null}>
             <LanguageSwitcher current={lang} />
@@ -49,7 +55,7 @@ export function BrandShell({
               className="mt-2 text-sm relative z-10"
               style={{ color: 'var(--bh-ink-muted)' }}
             >
-              Welcome, {guestName.split(' ')[0]}
+              {tr('welcome_name', lang, { name: guestName.split(' ')[0] })}
             </p>
           )}
           {buildingCode && unitCode && (
@@ -57,7 +63,7 @@ export function BrandShell({
               className="mt-1 text-xs relative z-10"
               style={{ color: 'var(--bh-ink-muted)' }}
             >
-              {buildingCode} · Unit {unitCode}
+              {tr('building_unit', lang, { building: buildingCode, unit: unitCode })}
             </p>
           )}
         </section>

@@ -2,10 +2,12 @@
 import { useState } from 'react';
 import type { Item, Modifier } from '@/lib/beithady/fnb/types';
 import { ItemSheet } from './item-sheet';
+import type { DineLang } from './i18n';
 
 export function ItemCard({
-  item, modifiers, outOfStock,
-}: { item: Item; modifiers: Modifier[]; outOfStock: boolean }) {
+  item, modifiers, outOfStock, lang,
+}: { item: Item; modifiers: Modifier[]; outOfStock: boolean; lang?: DineLang }) {
+  void lang; // surfaced for future per-card i18n; ItemSheet already reads its own context
   const [open, setOpen] = useState(false);
   return (
     <>
