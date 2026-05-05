@@ -1,5 +1,20 @@
 # Kareemhady — Session Handoff (2026-05-05)
 
+## ✅ 2026-05-05 — Phase C Tasks C44 + C45: EditContractForm + deep links to report (commits `020192c`, `f0888e1`)
+
+**Status: DONE** — Both tasks complete. C44 adds 4 new form fields (customer_logo_url, customer_contacts JSON, payment_terms, scope_summary) to EditContractForm. C45 adds "View Report" button on contract page + "Generate Sign-off Report" link on variance page, both linking to `/fmplus/financial/budget/report/{contractId}?year={yearId}&mode=signoff`. TS clean. 224 tests pass (unchanged).
+
+**Files modified:**
+- `src/app/fmplus/financial/budget/projects/[contractId]/_components/edit-contract-form.tsx` — Extended ContractDraft interface + added 4 new form inputs (customer logo, contacts JSON, payment terms, scope summary)
+- `src/app/fmplus/financial/budget/projects/actions.ts` — Added `tryParseJson` helper + wired new fields to updateContractAction
+- `src/lib/fmplus/budget/contracts/edit.ts` — Extended updateContractMetadata to accept + persist new 4 fields
+- `src/app/fmplus/financial/budget/projects/[contractId]/page.tsx` — Passed new fields to EditContractForm + added "View Report" button in header (links to first year if available)
+- `src/app/fmplus/financial/budget/variance/page.tsx` — Added "Generate Sign-off Report →" link below KPI tiles
+
+**Self-review:** Form schema matches migration 0083 columns exactly. JSON parsing uses safe `tryParseJson` helper with fallback. Deep links use `year_index` from existing year objects (contract page uses first year; variance page uses current report year). All new fields optional in updateContractMetadata, no breaking changes.
+
+---
+
 ## ✅ 2026-05-05 — Phase C Tasks C10–C25: FM+ Project Report on-screen UI tree (17 components) (commits `dd9a793`, `5066b2b`)
 
 **Status: DONE** — All 17 on-screen UI components shipped in 2 commits. TS clean (0 errors). 222 tests pass (unchanged).
