@@ -32,8 +32,12 @@ export function CategorySection({
       </div>
       <p className="dine-fineprint">
         {tr('available_daily', lang, {
-          start: category.hours_start.slice(0, 5),
-          end: category.hours_end.slice(0, 5),
+          start: lang === 'ar'
+            ? category.hours_start.slice(0, 5).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d, 10)])
+            : category.hours_start.slice(0, 5),
+          end: lang === 'ar'
+            ? category.hours_end.slice(0, 5).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d, 10)])
+            : category.hours_end.slice(0, 5),
         })}
       </p>
     </section>

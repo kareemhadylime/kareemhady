@@ -62,7 +62,7 @@
   grid-template-columns: 1fr auto;
   grid-template-areas:
     "name  price"
-    "desc  desc"
+    "meta  meta"
     "photo photo";
   align-items: baseline;
   gap: 0.125rem 0.75rem;
@@ -94,11 +94,29 @@
   white-space: nowrap;
 }
 
+/* Wrapper that holds description + modifier list, keeps them stacked
+   instead of colliding on the same grid-area (pre-fix bug). */
+.dine-item-meta {
+  grid-area: meta;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-top: 0.25rem;
+}
+
 .dine-item-desc {
-  grid-area: desc;
   font-size: 0.8125rem;      /* 13px */
   color: var(--bh-ink-muted);
-  margin: 0.25rem 0 0;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dine-item-modifier {
+  font-size: 0.8125rem;
+  color: var(--bh-ink-muted);
+  font-style: italic;
+  padding-inline-start: 1rem;
+  margin: 0;
   line-height: 1.5;
 }
 

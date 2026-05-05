@@ -2,13 +2,14 @@
 import { useState } from 'react';
 import type { Item, Modifier } from '@/lib/beithady/fnb/types';
 import { ItemSheet } from './item-sheet';
-import type { DineLang } from './i18n';
+import { formatPrice, type DineLang } from './i18n';
 
 export function ItemCard({
-  item, modifiers, outOfStock, lang,
+  item, modifiers, outOfStock, lang = 'en',
 }: { item: Item; modifiers: Modifier[]; outOfStock: boolean; lang?: DineLang }) {
-  void lang; // surfaced for future per-card i18n; ItemSheet already reads its own context
   const [open, setOpen] = useState(false);
+  const description =
+    (item as unknown as { description?: string | null }).description ?? item.description_en;
   return (
     <>
       <article
@@ -17,19 +18,17 @@ export function ItemCard({
         style={{ cursor: outOfStock ? 'default' : 'pointer' }}
       >
         <h3 className="dine-item-name">{(item as unknown as { name?: string }).name ?? item.name_en}</h3>
-        <span className="dine-item-price">${item.price_usd.toFixed(0)}</span>
-        {((item as unknown as { description?: string | null }).description ?? item.description_en) && (
-          <p className="dine-item-desc">{(item as unknown as { description?: string | null }).description ?? item.description_en}</p>
+        <span className="dine-item-price">{formatPrice(item.price_usd, lang)}</span>
+        {(description || modifiers.length > 0) && (
+          <div className="dine-item-meta">
+            {description && <p className="dine-item-desc">{description}</p>}
+            {modifiers.map(m => (
+              <p key={m.id} className="dine-item-modifier">
+                + {(m as unknown as { name?: string }).name ?? m.name_en} {formatPrice(m.price_delta_usd, lang)}
+              </p>
+            ))}
+          </div>
         )}
-        {modifiers.map(m => (
-          <p
-            key={m.id}
-            className="dine-item-desc"
-            style={{ paddingLeft: '1rem', fontStyle: 'italic' }}
-          >
-            + {(m as unknown as { name?: string }).name ?? m.name_en} ${m.price_delta_usd.toFixed(0)}
-          </p>
-        ))}
       </article>
       {open && (
         <ItemSheet
@@ -37,6 +36,7 @@ export function ItemCard({
           modifiers={modifiers}
           onClose={() => setOpen(false)}
           outOfStock={outOfStock}
+          lang={lang}
         />
       )}
     </>

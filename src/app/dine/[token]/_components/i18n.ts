@@ -74,3 +74,76 @@ export function tr(key: keyof typeof t, lang: DineLang, vars: Record<string, str
   const template = t[key]?.[lang] ?? t[key]?.en ?? '';
   return template.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 }
+
+// Numeral localization. AR mode uses Eastern Arabic / Hindi digits
+// (٠١٢٣٤٥٦٧٨٩) per Egyptian convention; EN/RU/FR keep Latin digits.
+const EASTERN_ARABIC_DIGITS = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+
+export function formatNumber(n: number | string, lang: DineLang): string {
+  const s = typeof n === 'number' ? String(n) : n;
+  if (lang !== 'ar') return s;
+  return s.replace(/\d/g, d => EASTERN_ARABIC_DIGITS[parseInt(d, 10)]);
+}
+
+// Prices stay in USD across the menu. AR localizes the digits and puts
+// the symbol after the number with a non-breaking space (Egyptian retail
+// convention). Other langs keep the leading $.
+export function formatPrice(usd: number, lang: DineLang, opts: { signed?: boolean } = {}): string {
+  const sign = opts.signed && usd > 0 ? '+' : opts.signed && usd < 0 ? '−' : '';
+  const abs = Math.abs(usd);
+  const integer = abs % 1 === 0;
+  const formatted = integer ? abs.toFixed(0) : abs.toFixed(2);
+  if (lang === 'ar') {
+    return `${sign}${formatNumber(formatted, 'ar')} $`;
+  }
+  return `${sign}$${formatted}`;
+}
+
+export function formatTime(hhmm: string, lang: DineLang): string {
+  return formatNumber(hhmm, lang);
+}
+
+// Additional UI strings used by the item bottom-sheet.
+export const sheetT: Record<string, Dict> = {
+  add_ons: {
+    en: 'Add-ons',
+    ar: 'إضافات',
+    ru: 'Дополнения',
+    fr: 'Suppléments',
+  },
+  quantity: {
+    en: 'Quantity',
+    ar: 'الكمية',
+    ru: 'Количество',
+    fr: 'Quantité',
+  },
+  notes_optional: {
+    en: 'Notes (optional)',
+    ar: 'ملاحظات (اختيارية)',
+    ru: 'Примечания (необязательно)',
+    fr: 'Notes (facultatif)',
+  },
+  notes_placeholder: {
+    en: 'No onions, extra sauce, …',
+    ar: 'بدون بصل، صلصة إضافية، …',
+    ru: 'Без лука, дополнительный соус, …',
+    fr: 'Sans oignons, sauce en plus, …',
+  },
+  cancel: {
+    en: 'Cancel',
+    ar: 'إلغاء',
+    ru: 'Отмена',
+    fr: 'Annuler',
+  },
+  add_to_order: {
+    en: 'Add to order · {price}',
+    ar: 'أضف إلى الطلب · {price}',
+    ru: 'Добавить · {price}',
+    fr: 'Ajouter · {price}',
+  },
+};
+
+export function trSheet(key: keyof typeof sheetT, lang: DineLang, vars: Record<string, string | number> = {}): string {
+  const template = sheetT[key]?.[lang] ?? sheetT[key]?.en ?? '';
+  return template.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+}

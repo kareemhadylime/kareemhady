@@ -2,14 +2,16 @@
 import { useState } from 'react';
 import type { Item, Modifier } from '@/lib/beithady/fnb/types';
 import { cart } from './cart-store';
+import { formatPrice, formatNumber, trSheet, type DineLang } from './i18n';
 
 export function ItemSheet({
-  item, modifiers, onClose, outOfStock,
+  item, modifiers, onClose, outOfStock, lang = 'en',
 }: {
   item: Item;
   modifiers: Modifier[];
   onClose: () => void;
   outOfStock: boolean;
+  lang?: DineLang;
 }) {
   const [qty, setQty] = useState(1);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -54,7 +56,7 @@ export function ItemSheet({
       >
         <h3 className="display text-2xl mb-2">{(item as unknown as { name?: string }).name ?? item.name_en}</h3>
         <span className="dine-item-price text-lg block mb-3">
-          ${item.price_usd.toFixed(0)}
+          {formatPrice(item.price_usd, lang)}
         </span>
         {((item as unknown as { description?: string | null }).description ?? item.description_en) && (
           <p className="dine-item-desc mb-4">{(item as unknown as { description?: string | null }).description ?? item.description_en}</p>
@@ -62,7 +64,7 @@ export function ItemSheet({
         {modifiers.length > 0 && (
           <fieldset className="mb-4">
             <legend className="text-xs uppercase tracking-wide font-semibold mb-2">
-              Add-ons
+              {trSheet('add_ons', lang)}
             </legend>
             {modifiers.map(m => (
               <label key={m.id} className="flex items-center gap-2 py-1">
@@ -78,34 +80,36 @@ export function ItemSheet({
                   }}
                 />
                 <span className="text-sm">
-                  {(m as unknown as { name?: string }).name ?? m.name_en} +${m.price_delta_usd.toFixed(0)}
+                  {(m as unknown as { name?: string }).name ?? m.name_en} {formatPrice(m.price_delta_usd, lang, { signed: true })}
                 </span>
               </label>
             ))}
           </fieldset>
         )}
         <div className="flex items-center gap-3 mb-4">
-          <span className="text-sm">Quantity</span>
+          <span className="text-sm">{trSheet('quantity', lang)}</span>
           <button
             onClick={() => setQty(q => Math.max(1, q - 1))}
             className="w-8 h-8 rounded-full border"
+            aria-label="decrease"
           >−</button>
-          <span className="font-semibold">{qty}</span>
+          <span className="font-semibold">{formatNumber(qty, lang)}</span>
           <button
             onClick={() => setQty(q => Math.min(10, q + 1))}
             className="w-8 h-8 rounded-full border"
+            aria-label="increase"
           >+</button>
         </div>
         <label className="block mb-4">
           <span className="text-xs uppercase tracking-wide font-semibold">
-            Notes (optional)
+            {trSheet('notes_optional', lang)}
           </span>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value.slice(0, 200))}
             className="w-full mt-1 rounded border p-2 text-sm"
             rows={2}
-            placeholder="No onions, extra sauce, …"
+            placeholder={trSheet('notes_placeholder', lang)}
           />
         </label>
         <div className="flex gap-2">
@@ -113,13 +117,13 @@ export function ItemSheet({
             onClick={onClose}
             className="flex-1 py-3 rounded-full border"
             style={{ borderColor: 'var(--bh-navy)', color: 'var(--bh-navy)' }}
-          >Cancel</button>
+          >{trSheet('cancel', lang)}</button>
           <button
             onClick={add}
             disabled={outOfStock}
             className="flex-1 py-3 rounded-full text-white disabled:opacity-50"
             style={{ background: 'var(--bh-navy)' }}
-          >Add to order · ${lineTotal.toFixed(0)}</button>
+          >{trSheet('add_to_order', lang, { price: formatPrice(lineTotal, lang) })}</button>
         </div>
       </div>
     </div>

@@ -32,8 +32,15 @@ function emit() {
 function getSnap() { return state; }
 function subscribe(cb: () => void) { subs.add(cb); return () => subs.delete(cb); }
 
+// React 19 + useSyncExternalStore requires getServerSnapshot to return a
+// stable cached reference — returning `{ lines: [] }` on every call would
+// throw "The result of getServerSnapshot should be cached" at runtime,
+// surfacing in the console as a script error and breaking SSR hydration.
+const SERVER_SNAP: CartState = { lines: [] };
+function getServerSnap() { return SERVER_SNAP; }
+
 export function useCart() {
-  return useSyncExternalStore(subscribe, getSnap, () => ({ lines: [] }));
+  return useSyncExternalStore(subscribe, getSnap, getServerSnap);
 }
 
 export const cart = {
