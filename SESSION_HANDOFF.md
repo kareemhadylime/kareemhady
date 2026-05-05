@@ -355,6 +355,66 @@ If you want a re-send (after testing): append `&resend=1` to bypass the `menu_li
 
 ---
 
+## ✅ 2026-05-05 — TRIO data entry COMPLETE (159 budget_lines, 32.5M/yr cost vs 34.5M contract)
+
+Walked through TRIO sheet-by-sheet with the user; all 5 service lines now have full line-item detail. Numbers tie to BOQ rollups within 0.01%-1%.
+
+**Final structure (project_contracts.id=5, year_id=6, contract_value=34,510,421 ex-VAT, VAT 14%):**
+- **HK: 61 lines, 12,390,017/yr (target 12,391,373 — 99.99% match).** Manning 5 + Consumables 13 (BOQ 2.2 detail) + Tools 21 (BOQ 2.3 detail) + PPE 1 + Transport 1 + IT 1 + Heavy Equipment 19 (BOQ 4.1-4.19 detail with monthly amortized rates × qty).
+- **MEP: 52 lines, 12,883,512/yr (target 14,171,832 — 91% match, gap = 10% sub-section GP).** Rebuilt manning fresh (parser had only 21 of 34 valid rows due to dedup against Public). Sub-sections encoded in line_code (`mep_mng_pub_*` / `mep_mng_pmp_*` / `mep_mng_int_*`): 19 Public + 6 Pump Stations + 9 Internal. Indirects 6 lines × 3 sub-sections = 18 (PPE/Cons/Tools/Equipment/Transport/IT). All 3 sub-section InD totals match BOQ rollups exactly (110,550 + 26,500 + 52,440).
+- **Landscape: 31 lines, 4,332,660/yr (target 4,740,720 — 91% match, gap = 10% GP).** Manning labels updated with Public/Internal suffix + Arabic. Indirects 12 (6 per sub-section). Heavy Equipment 9 (5 Public Honda mower/Stiga trimmers + 4 Internal 220V cutters/sprayers).
+- **Pest Control: 7 lines, 777,600/yr (target 855,360 — 91% match, gap = 10% GP).** Existing 1 manning line (Pest Control Tech) + 6 indirects (PPE Uniform, Cons, Tools, Equipment, Transport Outside, IT). Pest Control Engineer at HC=0 not added (intentionally not budgeted on TRIO).
+- **Back Office: 8 lines, 2,157,000/yr (target 2,351,136 — 92% match, gap = 9% GP).** 6 manning + 2 indirects (Transport 7×1500 + IT 1×3500). Rows 2.1-2.5 of BO BOQ all qty=0 → not charged on TRIO.
+
+**Sub-section convention adopted (consistent across MEP + Landscape):** line_code suffix `_pub` (Public) / `_pmp` (Pump Stations) / `_int` (Internal) + label_en suffix `(Public)` / `(Pumps)` / `(Internal)` + Arabic translation in label_ar. Cleanly distinguishes operational sections in the editor UI.
+
+**Standing TRIO contract header questions still open:** start_date defaulted to today 2026-05-05, end_date 1y out 2027-05-04, customer = SODIC (might be TRIO HOA?), zones = []. Update when user confirms.
+
+**Inspection helper:** `scripts/trio-inspect.ts` — used to dump any sheet/row range from `C:/kareemhady/.claude/FMPLUS/TRIO Budget .xlsx` for verification. Generic enough to reuse for the other 3 contracts.
+
+---
+
+## ⏳ 2026-05-05 — TRIO data entry IN PROGRESS — HK Manning + Consumables done
+
+Walking the user through TRIO line-by-line. They confirmed Odoo analytic = `TRIO COMPOUND` (in "Project / Mix Projects" plan) and gave Budget Summary annual Ex.VAT targets:
+- Houskeeping 12,391,373 · MEP 14,171,832 · Landscape 4,740,720 · Pest Control 855,360 · Backoffice 2,351,136 · **Total Annual 34,510,421** (with markup 39,341,879.94).
+
+**HK service-line status (TRIO contract_id=5, year_id=6):**
+- ✅ Manning: 5 lines, 458,200/mo (auto-imported)
+- ✅ Consumables: 13 lines, 65,665/mo — Section 1 of "HK - Light Tools & Cons" sheet. Verified == BOQ row 2.2 rollup.
+- ✅ Tools: 21 lines, 43,029/mo — Section 2 of same sheet. Verified == BOQ row 2.3 rollup.
+- ✅ PPE Uniform: 1 line, 30,000/mo (60 × 500). Transport Outside: 1 line, 156,000/mo (52 × 3,000). IT: 1 line, 3,000/mo (1 × 3,000). BOQ row 2.4 Equipment & 2.5 Inside Transport are blank on TRIO sheet (not charged).
+- ⏳ Heavy Equipment (BOQ rows 4.x — Sweeper, Ride On, manlift, Hoover, ladders, trolleys ~19+ items, est ~197k/mo). Not yet imported — need to re-read the heavy equipment section since the screenshot cut off.
+
+**HK total so far:** 41 lines · 755,894/mo · 9,070,728/yr (annual target 12,391,373 — still need ~3.3M/yr in heavy equipment + 10% GP).
+
+**MEP service-line status (TRIO contract_id=5, year_id=6):**
+- 🔁 **Rebuilt manning from scratch** (parser had imported only 21 of 34 valid rows — Pump Stations was deduped against Public; Internal partially missed). Now: 19 Public + 6 Pump Stations + 9 Internal = 34 manning lines, 884,136/mo. Sub-section encoded in line_code (`mep_mng_pub_*` / `mep_mng_pmp_*` / `mep_mng_int_*`) and label_en suffix.
+- ✅ Indirects per sub-section (6 categories × 3 sub-sections = 18 lines): PPE 35,350/mo · Consumables (rollup) 13,500/mo · Tools (rollup) 17,350/mo · Equipment (cat=other) 10,790/mo · Transport 107,500/mo · IT 5,000/mo. Each sub-total matches the BOQ "Total InD" rollups (110,550 + 26,500 + 52,440).
+- ⏳ Heavy Equipment + 10% GP allocation. Not yet imported (~107k/mo gap to 14.17M annual target).
+
+**MEP total so far:** 52 lines · 1,073,626/mo · 12,883,512/yr.
+
+**TRIO grand total so far:** 110 lines · 2,241,840/mo · 26,902,080/yr (annual target 34,510,421 → 78% covered, ~7.6M/yr gap = HK heavy equipment + Landscape/Pest/BO indirects + GP).
+
+**Still open for TRIO contract header:** start_date, end_date, contract_value, customer (SODIC vs HOA), zones, multi-year + inflation, security/waste services. Will fix once line-item entry is done.
+
+Inspection helper at `scripts/trio-inspect.ts`.
+
+**Current TRIO state:** 5 services (hk/mep/landscape/pest_ctrl/back_office), 1 year, **43 manning lines**, monthly cost ≈ **1,503,376 EGP**. Contract header is mostly defaults (contract_value=0, customer=SODIC, project_id=33, start=today, end=today+1y, zones=[]).
+
+**Open questions (waiting on user):**
+1. Contract header (contract_value, real start/end, real customer, Odoo analytic id, zones)
+2. **BOQ sheets NOT imported** — Housekeeping/MEP/Landscape/Pest/Backoffice BOQ + HK Light Tools & Cons (PPE/tools/consumables/transport/IT). v2.1 parser is manning-only.
+3. CTC breakdown (relievers/OT/training/insurance/medical) — xlsx applies single 20% blanket on Net Rate → CTC Rate; no per-component split. Need rule (a) leave null, (b) default split, or (c) user-provided %s.
+4. **36/43 lines missing Arabic labels** (Position cells are Excel cross-sheet formulas — parser grabbed resolved English). Offer: run all through Anthropic translate helper.
+5. Year count — 1y or multi-year w/ inflation?
+6. Missing services — does TRIO need security and/or waste_mgmt?
+
+Inspection helper saved at `scripts/trio-inspect.ts` (lists all sheets + first 4 non-empty rows of each — useful for the other 3 contracts too).
+
+---
+
 ## ✅ 2026-05-04 — FM+ unified theme: shared FmplusHero across landing + Financials + Budget (commit `c341f0a`)
 
 User asked for "Same Theme, Colors, Logo, Through Out FM+ Module & Its Sub Modules". Followed up the Budget redesign by:
