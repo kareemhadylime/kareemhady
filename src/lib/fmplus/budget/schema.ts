@@ -14,6 +14,15 @@ export const MobAmortEnum     = z.enum(['straight_line','flat']);
 // Insert/update shape only. Server-generated columns (created_by, created_at,
 // updated_at, computed duration_months) are NOT validated here. Fetch shapes
 // pass through unvalidated; add a *RowSchema variant later if needed.
+export const CustomerContactSchema = z.object({
+  name: z.string().min(1),
+  role: z.string().default(''),
+  email: z.string().email().or(z.literal('')),
+  phone: z.string().default(''),
+  primary: z.boolean().default(false),
+});
+export type CustomerContact = z.infer<typeof CustomerContactSchema>;
+
 export const ProjectContractSchema = z.object({
   id: z.number().optional(),
   project_id: z.number(),
@@ -27,8 +36,36 @@ export const ProjectContractSchema = z.object({
   reimbursables: z.array(z.any()).default([]),
   zones: z.array(z.any()).default([]),
   notes: z.string().nullable().optional(),
+  // Project Report support (migration 0083)
+  customer_logo_url: z.string().nullable().optional(),
+  customer_contacts: z.array(CustomerContactSchema).default([]),
+  payment_terms: z.string().nullable().optional(),
+  scope_summary: z.string().nullable().optional(),
 });
 export type ProjectContract = z.infer<typeof ProjectContractSchema>;
+
+export const ProjectYearSignoffSchema = z.object({
+  id: z.number().optional(),
+  year_id: z.number(),
+  signed_by: z.string().uuid(),
+  signed_role: z.enum(['project_manager', 'finance_director', 'fmplus_signatory', 'customer_signatory']),
+  signed_at: z.string().optional(),
+  mode: z.enum(['pre', 'signoff', 'customer', 'snapshot']),
+  notes: z.string().nullable().optional(),
+});
+export type ProjectYearSignoff = z.infer<typeof ProjectYearSignoffSchema>;
+
+export const BudgetReportExportSchema = z.object({
+  id: z.number().optional(),
+  year_id: z.number(),
+  contract_id: z.number(),
+  mode: z.enum(['pre', 'signoff', 'customer', 'snapshot']),
+  lang: z.enum(['en', 'ar', 'both']),
+  exported_by: z.string().uuid(),
+  exported_at: z.string().optional(),
+  user_agent: z.string().nullable().optional(),
+});
+export type BudgetReportExport = z.infer<typeof BudgetReportExportSchema>;
 
 export const ProjectServiceSchema = z.object({
   id: z.number().optional(),
