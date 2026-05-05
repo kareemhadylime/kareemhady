@@ -2951,3 +2951,36 @@ User dropped new key at `C:\kareemhady\.claude\tmp\supa_key.txt`. New key authen
 - Any other route using `supabaseAdmin()` (~half the FM+ routes) continues to work.
 
 **Cleanup:** delete `C:\kareemhady\.claude\tmp\supa_key.txt` once you've confirmed the rotation worked end-to-end.
+
+---
+
+## 🚨 2026-05-05 — User locked out of production after key rotation — DIAGNOSING
+
+After rotating the Supabase service-role key on Vercel `lime` production (`6af630a` deploy READY), the user reported "Wrong username or password" on login. Investigation:
+
+**Confirmed working:**
+- New JWT decodes correctly: `iss=supabase`, `ref=bpjproljatbrbmszwbov` (right project), `role=service_role` (right role), `iat=2026-05-05` (just rotated).
+- Key file is clean: 219 bytes, no BOM, no CRLF, JWT 3-part format.
+- Vercel deploy `dpl_52NRvnyWZrz5FoV7NY6ixKYU2Vw5` (commit `6af630a`) READY in production state.
+- Runtime logs show `POST /api/auth/login → 303` (3 recent attempts) with NO error/warning level logs — function executing cleanly.
+- Supabase MCP confirms `app_users` row for `kareemhady` exists: id=`d0a600f5-02a1-4849-90c2-3b72c3eddc54`, role=`admin`, scrypt hash format prefix `scrypt$16384$8$1$QQy...`, hash length 130 chars, created/updated `2026-04-22` (no recent changes).
+- `auth.ts` code unchanged in this session except the diagnostic just added.
+
+**The mystery:** 303 redirect = `loginWithPassword` returned `invalid_credentials`. The user record exists with the right scrypt hash. So either:
+1. Supabase query is returning an error that the code silently swallows (original code: `const { data } = await sb...` ignores `error`)
+2. `verifyPassword` is returning false for the user's correct password
+
+**Diagnostic deployed (commit `7638dc8`, deploy `dpl_2YjNkak7TBtmxkQ7UJZuRCU7R9Yz` BUILDING):**
+- Added `console.error` to `loginWithPassword` printing which branch failed:
+  - `[auth.login] supabase query error: <msg> <code>` — DB query failed
+  - `[auth.login] no row found for username: <name>` — query empty (RLS/query issue)
+  - `[auth.login] password hash mismatch for user <id> hash_prefix: <30 chars>` — verifyPassword false
+- Will be reverted once root cause is known.
+
+**Next steps waiting on user:**
+1. User to try login again once `7638dc8` deploy lands READY.
+2. Read runtime logs via Vercel MCP (`get_runtime_logs` with `query="auth.login"` filter) to see which diagnostic line printed.
+3. Apply fix (rotate to different key, fix query, or reset password) based on what we see.
+4. Revert the diagnostic logging once fixed.
+
+**If urgent rollback needed:** I do NOT have the old legacy key. The rotation flow only saved the new key value to `.env.local` + Vercel. Rollback requires either (a) Supabase dashboard "view legacy key" action by user, or (b) accepting the new key works once we identify the actual login issue.
