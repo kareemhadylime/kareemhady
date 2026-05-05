@@ -1,5 +1,54 @@
 # Kareemhady — Session Handoff (2026-05-05)
 
+## ✅ 2026-05-05 — Dine fixes: item-row overlap, AR numerals, sheet i18n, SSR snapshot (commit `133ed83`)
+
+**Status: SHIPPED** — kareem flagged 3 issues from a screenshot of `/dine/?lang=ar`; all four causes addressed.
+
+**Reported issues:**
+1. Modifier text "+ Replace Ful w/ Sausage Ful $3" rendering ON TOP OF the item description (visible in EN mode too).
+2. Prices in Latin digits ("$8") on the AR view — should be Eastern Arabic numerals (٨).
+3. "Script error" (no specifics provided; investigated via Vercel runtime logs + code review).
+
+**Root causes found:**
+1. **CSS Grid stacking bug** in `dine-tokens.css`. `.dine-item-row` had `grid-template-areas: 'name price' / 'desc desc' / 'photo photo'` and EVERY `.dine-item-desc` `<p>` (the description AND each modifier line) carried `grid-area: desc`. When multiple grid children share a single area they STACK on top of each other. The original developer must have only tested items without modifiers.
+2. **No numeral localization** anywhere in the dine surface — `price_usd.toFixed(0)` always renders Latin digits.
+3. **Likely script error: React 19 + `useSyncExternalStore`** in `cart-store.ts` was passing `() => ({ lines: [] })` as `getServerSnapshot` — that's a fresh object literal on every call, which violates the cached-reference contract and throws "The result of getServerSnapshot should be cached" in the console. Causes hydration noise in dev / can break SSR snapshot caching in prod.
+
+**Fixes shipped (commit `133ed83`):**
+
+1. **CSS structural fix:**
+   - `.dine-item-row` grid renamed `desc` area → `meta`
+   - New `.dine-item-meta` div wrapper holds `grid-area: meta` and lays out children as flex column
+   - Description + modifiers nested inside the wrapper as siblings (no overlap possible)
+   - Removed inline `paddingLeft + fontStyle` on modifier `<p>`; promoted to a real `.dine-item-modifier` class using `padding-inline-start` (RTL-correct)
+
+2. **Numeral localization** in `_components/i18n.ts`:
+   - `formatNumber(n, lang)` — replaces 0-9 with ٠-٩ in AR, identity for EN/RU/FR
+   - `formatPrice(usd, lang, opts?)` — AR returns "٨ $" (Egyptian retail convention: digits then symbol); other langs return "$8"; `opts.signed` adds + or − prefix for modifier deltas
+   - `formatTime(hhmm, lang)` — used for "Available daily from X – Y" in category footer
+   - Threaded `lang` prop through `page.tsx` → `CategorySection` → `ItemCard` → `ItemSheet`
+   - Applied to: item-card price, modifier delta, item-sheet price, modifier checkbox, qty counter, "Add to order · {price}" CTA, category-section hours
+
+3. **Item-sheet i18n** — `sheetT` dictionary in i18n.ts with EN/AR/RU/FR for: Add-ons, Quantity, Notes (optional), Notes placeholder, Cancel, Add to order. `trSheet(key, lang, vars)` helper.
+
+4. **SSR snapshot fix** — module-level `SERVER_SNAP` constant; `getServerSnap` returns the same reference on every call. Eliminates the React-19 "script error" surfacing in console.
+
+**TypeScript:** clean.
+
+**Verification:** Vercel runtime logs (last 2h, error/fatal level) show only an unrelated `beithady-crm-sync` 504 timeout — no dine-page server errors. The script error was therefore a CLIENT-side React warning, addressed by fix #4.
+
+**User action:** hard refresh `https://limeinc.vercel.app/dine/kareem-fnb-demo-2026-may?lang=ar` after the GitHub→Vercel auto-deploy lands (~30-60s). Expected:
+- No more text overlap on Oriental Breakfast (or any other item with modifiers)
+- Prices render as `٨ $`, `١٩ $`, `+٣ $` etc. instead of `$8`, `$19`, `+$3`
+- Quantity counter and "Add to order · ٢٤ $" both in Arabic numerals
+- Item bottom-sheet labels in Arabic (إضافات / الكمية / ملاحظات / إلغاء / أضف إلى الطلب)
+- "Available daily from ٠٨:٠٠ – ١٤:٠٠"
+- Browser console: no more "result of getServerSnapshot should be cached" warnings
+
+**Next:** await reload feedback. If script error persists, kareem to share the actual console message.
+
+---
+
 ## ✅ 2026-05-05 — Beithady F&B menu translations (AR/RU/FR) + dine UI i18n (commit `0717b62` → rebased onto main)
 
 **Status: SHIPPED** — DB content + UI chrome both localized.
