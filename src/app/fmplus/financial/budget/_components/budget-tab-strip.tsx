@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Building2, Pencil, BookOpen, Upload, TrendingUp, Scale, Settings } from 'lucide-react';
+import { BarChart3, Building2, Pencil, BookOpen, Upload, TrendingUp, FileText, Scale, Settings } from 'lucide-react';
 
 const TABS = [
   { id: 'overview',  label: 'Overview',     href: '/fmplus/financial/budget',          Icon: BarChart3,   match: (p: string) => p === '/fmplus/financial/budget' },
@@ -11,6 +11,7 @@ const TABS = [
   { id: 'catalog',   label: 'Catalog',      href: '/fmplus/financial/budget/catalog',  Icon: BookOpen,    match: (p: string) => p.startsWith('/fmplus/financial/budget/catalog') },
   { id: 'import',    label: 'Import',       href: '/fmplus/financial/budget/import',   Icon: Upload,      match: (p: string) => p.startsWith('/fmplus/financial/budget/import') },
   { id: 'variance',  label: 'Variance',     href: '/fmplus/financial/budget/variance', Icon: TrendingUp,  match: (p: string) => p.startsWith('/fmplus/financial/budget/variance') },
+  { id: 'report',    label: 'Report',       href: '/fmplus/financial/budget/report',   Icon: FileText,    match: (p: string) => p.startsWith('/fmplus/financial/budget/report') },
   { id: 'compare',   label: 'Compare',      href: '/fmplus/financial/budget/compare',  Icon: Scale,       match: (p: string) => p.startsWith('/fmplus/financial/budget/compare') },
   { id: 'settings',  label: 'Settings',     href: '/fmplus/financial/budget/settings', Icon: Settings,    match: (p: string) => p.startsWith('/fmplus/financial/budget/settings') },
 ] as const;
