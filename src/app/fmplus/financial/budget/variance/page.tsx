@@ -138,6 +138,16 @@ export default async function VariancePage(props: VariancePageProps) {
         <Kpi label="Variance %" value={variancePctDisplay} color={varianceColor} />
       </div>
 
+      {/* Generate Sign-off Report link */}
+      <div className="text-sm">
+        <Link
+          href={`/fmplus/financial/budget/report/${contractId}?year=${report.year_index}&mode=signoff`}
+          className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1"
+        >
+          Generate Sign-off Report →
+        </Link>
+      </div>
+
       {/* Year/scenario picker (simple links) */}
       <div className="text-[11px] text-slate-500 dark:text-slate-400 flex gap-2 flex-wrap">
         <span>Year:</span>
