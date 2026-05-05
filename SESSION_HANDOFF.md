@@ -2588,3 +2588,96 @@ Added three FM+ brand fonts via `next/font/google` import in `src/app/layout.tsx
 All three CSS variables appended to `<html className>` alongside existing geist/notoArabic variables. Existing fonts untouched. `npx tsc --noEmit` clean for layout.tsx (unrelated pre-existing qrcode error in dine route only).
 
 **Status:** A1 DONE — awaiting controller for next task.
+
+---
+
+## ✅ 2026-05-05 — Phase A Task A5: FmplusLogo test suite (8 unit tests, commit `7c9c042`)
+
+Created `src/app/fmplus/_components/fmplus-logo.test.tsx` with 8 unit tests encoding the brand contract:
+
+1. **Locked viewBox** — 0 0 419 519 (4.19:5.19 aspect ratio)
+2. **Default size (md)** — 56px wide, ~69px tall (aspect-respecting scaling)
+3. **Size variant (xl)** — 144px wide
+4. **showWordmark=false** — hides FMPLUS + FACILITY MANAGEMENT text
+5. **showWordmark=true** — renders both wordmark and tagline (default)
+6. **variant=black-on-yellow** — yellow background + black foreground (accepts hex or rgb color formats)
+7. **variant=monochrome-black** — transparent background + black foreground
+8. **aria-label** — declares "FMPLUS — Facility Management" for accessibility
+
+**Changes:**
+- Created test file with @testing-library/react
+- Installed `@testing-library/react`, `@testing-library/dom`, `jsdom` (npm)
+- Updated `vitest.config.ts` to use `jsdom` environment (was `node`) to enable DOM testing
+
+**Test Results:**
+- All 8 tests pass ✓
+- Full suite: 217 tests pass (no regressions, 12 skipped)
+- Commit SHA: `7c9c042`
+
+**Status:** A5 DONE — test contract locked, ready for Task A6 (final integration).
+
+---
+
+## 2026-05-05 · TASK A6 COMPLETE ✓
+
+**Task:** Retrofit `fmplus-hero.tsx` to use real FM+ brand tokens
+
+**Status:** DONE
+
+**Changes:**
+- File: `src/app/fmplus/_components/fmplus-hero.tsx`
+- Replaced all amber utility classes with FM+ tokens:
+  - Gradient blur: `from-amber-400 to-amber-600` → `from-fmplus-yellow to-fmplus-gold` (opacity 0.10)
+  - Icon box bg: `bg-amber-50 dark:bg-amber-950` → `bg-fmplus-yellow/15 dark:bg-fmplus-gold/20`
+  - Icon foreground: `text-amber-700 dark:text-amber-300` → `text-fmplus-black dark:text-fmplus-yellow`
+  - Eyebrow text: `text-amber-700 dark:text-amber-400` → `text-fmplus-gold dark:text-fmplus-yellow`
+- Added typography classes:
+  - Title: `font-serif` (DM Serif Display)
+  - Eyebrow/subtitle: `font-body` (Lato)
+- Updated logo rendering to use new `FmplusLogo` variants:
+  - Light mode: `variant="monochrome-black" showWordmark={false}`
+  - Dark mode: `variant="monochrome-white" showWordmark={false}`
+
+**Testing:**
+- TypeScript check: ✓ No errors
+- Test suite: ✓ 217 passing (same as after A5)
+- Consuming files verified: 3 files use FmplusHero (budget layout, financials page, landing page)
+  - All pass the same props (eyebrow, title, icon, showLogo)
+  - No changes required — component API unchanged
+
+**Commit:** `9bec181` (style(fmplus-brand): retrofit fmplus-hero.tsx to real FM+ tokens)
+
+**Phase A Status:** All 6 tasks complete ✓
+- A1: Define FM+ brand tokens ✓
+- A2: Create theme-agnostic shared `ix-card` ✓
+- A3: Retrofit `fm-plus-landing.tsx` ✓
+- A4: Rebuild `FmplusLogo` ✓
+- A5: Unify FM+ Landing + Financials with `FmplusHero` ✓
+- A6: Retrofit `fmplus-hero.tsx` to real tokens ✓
+
+Ready to proceed to Phase B: Page retrofits (FM+ Budget, VoltAuto, remaining pages).
+
+---
+
+## ✅ 2026-05-05 — Phase A FM+ Brand Foundation FULLY COMPLETE (commits `0ee9b75` → `12e3875`)
+
+All 6 tasks shipped via subagent-driven-development. Final code review APPROVED with 1 important + 2 minor issues, all addressed inline.
+
+**Commits (chronological):**
+1. `0ee9b75` (A1) — Lalezar/DM Serif Display/Lato Google Fonts via `next/font/google` in layout.tsx
+2. `afa9f39` (A2) — `src/lib/fmplus/brand.ts` — single source of truth for FM+ tokens (yellow #FDCF00, gold #EEB91D, black, dark/light grey, fonts, logo aspect 4.19:5.19, 4 brand-allowed combos)
+3. `42356bc` (A3) — `globals.css @theme inline` extended with `--color-fmplus-*` and `--font-{display,serif,body}` tokens (existing tokens preserved)
+4. `74fe4c8` (A4) — `fmplus-logo.tsx` rebuilt as geometric 4-quadrant "+" monogram (locked viewBox 0 0 419 519, 5 variants, FMPLUS_BRAND-driven colors)
+5. `7c9c042` (A5) — 8 unit tests in `fmplus-logo.test.tsx` encoding the brand contract (aspect, sizes, variants, accessibility); also added @testing-library/react + jsdom devDeps
+6. `9bec181` (A6) — `fmplus-hero.tsx` retrofitted: amber-* → fmplus-* tokens, font-serif/font-body, FmplusLogo monochrome-black/white variants for light/dark
+7. `12e3875` (fixup per code review) — reverted vitest global env from jsdom → node + per-file `// @vitest-environment jsdom` pragma (3x test speed-up: 6.47s → 2.75s); added clarifying comment in resolveColors() for yellow-on-white intentional transparent-bg
+
+**Test suite:** 217 passing / 12 skipped (was 209 prior + 8 new logo tests). 0 regressions.
+**TypeScript:** clean for FM+ paths.
+**Final code review:** APPROVED — "The architecture is sound, responsibilities are cleanly separated, no duplication exists, and the test suite covers the brand contract."
+
+**What this unlocks:** Phase B (page retrofits, depends only on tokens + retrofitted FmplusHero — can start now) and Phase C (Project Report tab, can run parallel to Phase B).
+
+**Files changed:** layout.tsx · brand.ts · globals.css · fmplus-logo.tsx · fmplus-logo.test.tsx · fmplus-hero.tsx · vitest.config.ts. Plus package.json/lock for new devDeps.
+
+**Status:** Phase A complete and tested. Awaiting controller for Phase B / Phase C kickoff.
