@@ -22,11 +22,11 @@ export default function FmplusLandingPage() {
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
             href="/fmplus/financials"
-            className="ix-card p-5 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md transition group"
+            className="ix-card p-5 hover:border-fmplus-yellow dark:hover:border-fmplus-gold hover:shadow-md transition group"
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950">
-                <BarChart3 size={20} className="text-amber-700 dark:text-amber-300" />
+              <div className="p-2 rounded-lg bg-fmplus-yellow/15 dark:bg-fmplus-gold/20">
+                <BarChart3 size={20} className="text-fmplus-black dark:text-fmplus-yellow" />
               </div>
               <div className="flex-1">
                 <h2 className="font-semibold flex items-center gap-1 text-slate-900 dark:text-slate-100">
@@ -42,11 +42,11 @@ export default function FmplusLandingPage() {
 
           <Link
             href="/fmplus/financial/budget"
-            className="ix-card p-5 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md transition group"
+            className="ix-card p-5 hover:border-fmplus-yellow dark:hover:border-fmplus-gold hover:shadow-md transition group"
           >
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950">
-                <Wallet size={20} className="text-amber-700 dark:text-amber-300" />
+              <div className="p-2 rounded-lg bg-fmplus-yellow/15 dark:bg-fmplus-gold/20">
+                <Wallet size={20} className="text-fmplus-black dark:text-fmplus-yellow" />
               </div>
               <div className="flex-1">
                 <h2 className="font-semibold flex items-center gap-1 text-slate-900 dark:text-slate-100">
