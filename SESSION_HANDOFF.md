@@ -2552,3 +2552,16 @@ Visual companion server has long-since auto-exited (30-min idle timeout). Re-lau
 - Pure math module ✓
 
 **Next:** Task 27 will wire this into the Copy-year dialog UI component.
+
+---
+
+## ✅ 2026-05-05 — Phase A Task A1: Lalezar + DM Serif Display + Lato Google Fonts registered (commit `0ee9b75`)
+
+Added three FM+ brand fonts via `next/font/google` import in `src/app/layout.tsx`:
+- `Lalezar` (arabic+latin subsets, wt 400) → `--font-lalezar`
+- `DM_Serif_Display` (latin, wt 400) → `--font-dm-serif`
+- `Lato` (latin, wt 400/700/900) → `--font-lato`
+
+All three CSS variables appended to `<html className>` alongside existing geist/notoArabic variables. Existing fonts untouched. `npx tsc --noEmit` clean for layout.tsx (unrelated pre-existing qrcode error in dine route only).
+
+**Status:** A1 DONE — awaiting controller for next task.
