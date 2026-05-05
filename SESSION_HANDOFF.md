@@ -2713,3 +2713,34 @@ Completed full Phase B token-swap retrofit across all 3 FM+ landing & financials
 - Test suite: ✓ 217 tests passing (no regressions)
 
 **Status:** COMPLETE. Phase B is done — FM+ landing page, financials tab nav, and budget tab strip all show correct FM+ brand tokens. Phase A shared components (FmplusHero, FmplusLogo) remain retrofitted. All 3 commits staged for push.
+
+---
+
+## ✅ 2026-05-05 — Phase C Tasks C5+C6+C7+C8: FM+ Project Report data layer (commits `273f5b9`, `d02ec14`, `891ef04`)
+
+**Status: DONE_WITH_CONCERNS** — All 4 files created, TS clean, 5 visibility tests pass. 10 integration tests are SKIPPED (see concern below).
+
+### Files created
+
+| File | Description |
+|---|---|
+| `src/lib/fmplus/budget/report/build-report.ts` | 7 load helpers + `aggregate()` pure function + `buildProjectReport()` entry |
+| `src/lib/fmplus/budget/report/visibility.ts` | `applyVisibility(data, mode)` — defense-in-depth customer-mode strip |
+| `src/lib/fmplus/budget/report/visibility.test.ts` | 5 unit tests (pure logic, no Supabase needed) — all PASS |
+| `src/lib/fmplus/budget/report/build-report.test.ts` | 10 integration tests guarded by `FMPLUS_BUDGET_INTEGRATION=1` env var |
+
+### Test results
+- Visibility tests: **5/5 PASS**
+- Build-report tests: **10 SKIPPED** (guard: `FMPLUS_BUDGET_INTEGRATION=1`)
+- Full suite: **222 passed | 22 skipped** (no regressions)
+- TypeScript: **clean** (0 errors in report/* files)
+
+### Concern: Integration tests need Supabase
+When `FMPLUS_BUDGET_INTEGRATION=1` is set and the service role key is passed, Supabase returns "Legacy API keys are disabled" — the current key in `.env.local` appears to be a legacy JWT format that the Supabase project has deprecated. The tests are correctly SKIPPED in normal runs (consistent with `portfolio.test.ts`, `integration.test.ts` pattern). To re-enable: either refresh the Supabase service role key from the Supabase dashboard, or the tests will run automatically once the key is rotated.
+
+### Commits
+- `273f5b9` — load helpers + aggregate + entry function
+- `d02ec14` — visibility strip + 5 tests
+- `891ef04` — 10 integration tests
+
+**Next Phase C tasks:** C9 (BudgetTabStrip 9th tab) → C10-C25 (on-screen UI) → C26-C42 (PDF pages) → C43 (API route) → C44 (EditContractForm) → C45 (deep links) → C46 (acceptance test).
