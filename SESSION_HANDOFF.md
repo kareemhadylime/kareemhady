@@ -110,6 +110,29 @@ User approved spec. Invoked `writing-plans` skill which (per its scope-check gui
 
 ---
 
+## ✅ 2026-05-05 — Phase A Task A4: Rebuilt fmplus-logo.tsx as geometric 4-quadrant "+" monogram (commit `74fe4c8`)
+
+**Status: DONE** — Task A4 of the FM+ Brand Foundation plan is complete.
+
+**What changed:** Full rewrite of `src/app/fmplus/_components/fmplus-logo.tsx`.
+
+- Old: SVG with dynamic `viewBox`, navy "FM" + gold "+" text glyphs rendered via `<text>` tags in Cormorant Garamond. Completely wrong per 2025 brand guidelines.
+- New: Fixed `viewBox="0 0 419 519"` (locked aspect 4.19:5.19 per guidelines page 11). Icon is 4 `<g>` groups of `<rect>` + one `<polygon>` approximating the 4-quadrant "+" monogram from Asset 4. FMPLUS wordmark (Lato Black 900) + FACILITY MANAGEMENT tagline (Lato Regular 400) below the icon.
+
+**New props added:**
+- `variant?: FmplusLogoVariant` — 5 brand-allowed color combinations: `black-on-yellow` (default, primary), `yellow-on-white`, `white-on-black`, `monochrome-black`, `monochrome-white`.
+- `showWordmark?: boolean` — toggle the wordmark+tagline band (default `true`).
+- `size` and `className` props preserved from old API.
+
+**Colors resolved via `FMPLUS_BRAND.colors` tokens** (from Task A2 `brand.ts` — no hardcoded hex except white `#FFFFFF`).
+
+**TypeScript:** clean (only pre-existing unrelated error on `qrcode` types in a different file).
+
+**SVG geometry note:** Rects + polygon are structural approximations of the brand asset — NOT pixel-perfect traces (no SVG source file exists). Conveys correct visual identity (4-quadrant "+" with letter cuts per quadrant). Fine-tuning in follow-up Task A5 (tests).
+
+**Next Task A5:** Unit tests for `FmplusLogo` covering all 5 variants × `showWordmark` boolean + aspect ratio check.
+
+---
 
 ## ✅ 2026-05-05 — Dine post-order: "Thanks for your order" banner + 15s auto-redirect (commit `566636e`)
 
