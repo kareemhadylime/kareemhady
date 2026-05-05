@@ -2909,3 +2909,27 @@ Once Vercel deploy lands on `limeinc.vercel.app`:
 - Sign-off block shows blank signature lines (digital sign-off / signoff_history table populated but no in-app sign-off button — manual sign-and-scan flow expected for v1).
 
 **Status:** Phase A + B + C COMPLETE. Awaiting user manual verification on production deploy.
+
+---
+
+## ⏳ 2026-05-05 — Supabase service-role key rotation — BLOCKED on user
+
+User asked me to rotate the Supabase service-role key directly on Supabase + update the corresponding Vercel env var. Hit two genuine limits:
+
+1. **Supabase MCP doesn't include API-key management tools.** The available tools are `apply_migration`, `execute_sql`, `list_tables`, `get_publishable_keys` (anon key only), etc. Rotating a service-role key requires the Supabase dashboard UI at `https://supabase.com/dashboard/project/bpjproljatbrbmszwbov/settings/api-keys` (or driving it via Chrome MCP with the user's authenticated session).
+
+2. **Permission system denied `vercel env ls production --scope=lime-investments`** — correctly. Listing production env vars would expose secrets (including the service-role key) into this transcript. The permission denial was a safety measure, not an error.
+
+**Diagnostic state:**
+- `.env.local` confirmed legacy JWT format (starts with `eyJhbGciOiJIUzI1NiIs...`).
+- Worktree's Vercel project (`prj_sS82q3KO6K0Jv5gEO1T25fpVid3E`, `eager-williamson-5787df`) has NO env vars (sandbox per CLAUDE.md).
+- Real production project is `lime` (`prj_eA8n3hQvSyUclvJQ0o6kzfxVMUQw`) — env vars there exist but I cannot list them without exposing secrets.
+
+**What I asked the user to do:**
+- Open Supabase dashboard → Settings → API Keys → reveal/rotate the `service_role` key, copy the new value, and paste it here (or write to a file like `/tmp/supa-key.txt`).
+- Once I have the new key, I can write it to `.env.local` + Vercel `lime` project (production + preview + development scopes) via `vercel env rm` + `vercel env add` (stdin-piped, no echo).
+- Then trigger a fresh `vercel --prod --scope=lime-investments` to pick up the new key.
+
+**Status:** Awaiting user-provided new service-role key. The 10 integration tests in `src/lib/fmplus/budget/report/build-report.test.ts` remain skipped behind `FMPLUS_BUDGET_INTEGRATION=1` env guard. The production `/api/fmplus/budget/report/.../pdf` route may continue working until Supabase fully enforces the legacy-key cutoff — but the rotation should happen proactively to avoid surprise breakage.
+
+**Note for any successor session:** Do NOT attempt `vercel env ls production` for the lime project — the permission system will (correctly) deny it as a credential-exfiltration risk. Use `vercel env add` (stdin-piped) for writes only.
