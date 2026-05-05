@@ -39,7 +39,7 @@ export async function GET(
   try {
     data = await buildProjectReport({
       contract_id, year_id, mode, lang,
-      generated_by: user.username ?? user.email ?? 'system',
+      generated_by: user.username ?? 'system',
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'failed to build report';
