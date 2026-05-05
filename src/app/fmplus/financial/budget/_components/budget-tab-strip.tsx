@@ -27,7 +27,7 @@ export function BudgetTabStrip() {
             href={t.href}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition flex items-center gap-1.5 whitespace-nowrap ${
               active
-                ? 'border-amber-500 text-amber-700 dark:text-amber-300'
+                ? 'border-fmplus-yellow text-fmplus-gold dark:text-fmplus-yellow'
                 : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
