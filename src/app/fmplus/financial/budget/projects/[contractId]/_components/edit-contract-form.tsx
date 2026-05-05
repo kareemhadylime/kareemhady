@@ -27,6 +27,10 @@ interface ContractDraft {
   year_tracking: 'contract' | 'fiscal';
   zones: string[];
   notes: string | null;
+  customer_logo_url: string | null;
+  customer_contacts: Array<{name: string; role: string; email: string; phone: string; primary: boolean}>;
+  payment_terms: string | null;
+  scope_summary: string | null;
 }
 
 interface Props {
@@ -175,6 +179,59 @@ export function EditContractForm({ contract, services, availableServices, canEdi
           <textarea name="notes" defaultValue={contract.notes ?? ''} rows={2}
             disabled={!canEdit || isPending}
             className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5 mt-0.5 text-slate-900 dark:text-slate-100 disabled:opacity-50 resize-y" />
+        </label>
+
+        {/* Customer Logo URL — paste public Supabase storage URL */}
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Customer Logo URL</span>
+          <input
+            type="url"
+            name="customer_logo_url"
+            defaultValue={contract.customer_logo_url ?? ''}
+            placeholder="https://bpjproljatbrbmszwbov.supabase.co/storage/v1/object/public/customer-logos/5.png"
+            disabled={!canEdit || isPending}
+            className="mt-1 w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50 text-slate-900 dark:text-slate-100"
+          />
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Paste public URL after uploading via Supabase Studio → Storage → customer-logos. Rendered on customer-facing PDFs.</p>
+        </label>
+
+        {/* Customer Contacts — JSON array of {name, role, email, phone, primary} */}
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Customer Contacts (JSON array)</span>
+          <textarea
+            name="customer_contacts"
+            rows={4}
+            defaultValue={JSON.stringify(contract.customer_contacts ?? [], null, 2)}
+            placeholder={'[{"name":"Ahmed Hassan","role":"Facility Manager","email":"x@y.com","phone":"+201","primary":true}]'}
+            disabled={!canEdit || isPending}
+            className="mt-1 w-full px-3 py-1.5 text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50 text-slate-900 dark:text-slate-100 resize-y"
+          />
+        </label>
+
+        {/* Payment Terms — free-form text rendered in customer/sign-off reports */}
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Terms</span>
+          <textarea
+            name="payment_terms"
+            rows={3}
+            defaultValue={contract.payment_terms ?? ''}
+            placeholder="Net 30 monthly. Mobilization 100% upfront. Final invoice payable within 14 days of contract end."
+            disabled={!canEdit || isPending}
+            className="mt-1 w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50 text-slate-900 dark:text-slate-100 resize-y"
+          />
+        </label>
+
+        {/* Scope Summary — customer-visible 1-2 paragraph project description */}
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Scope Summary <span className="text-xs text-slate-500 dark:text-slate-400">(1-2 paragraphs, customer-visible)</span></span>
+          <textarea
+            name="scope_summary"
+            rows={4}
+            defaultValue={contract.scope_summary ?? ''}
+            placeholder="TFM Package — 5 service lines (HK, MEP, Landscape, Pest Control, Back Office) over 12 months."
+            disabled={!canEdit || isPending}
+            className="mt-1 w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50 text-slate-900 dark:text-slate-100 resize-y"
+          />
         </label>
 
         {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}

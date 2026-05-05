@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import { budgetDb, TABLES } from '@/lib/fmplus/budget/db';
 import { requireBudgetView } from '@/lib/fmplus/budget/permissions';
 import type { ServiceLine } from '@/lib/fmplus/budget/types';
@@ -55,13 +55,25 @@ export default async function ContractDetailPage(props: ContractDetailProps) {
           className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1 mb-2">
           <ArrowLeft size={11} /> Project Hub
         </Link>
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          {(contract as any).name}
-        </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Edit contract metadata, manage service lines, or delete the entire contract.
-          {!user.is_admin && <span className="ml-1 text-amber-600 dark:text-amber-400">View-only — admin role required.</span>}
-        </p>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              {(contract as any).name}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Edit contract metadata, manage service lines, or delete the entire contract.
+              {!user.is_admin && <span className="ml-1 text-amber-600 dark:text-amber-400">View-only — admin role required.</span>}
+            </p>
+          </div>
+          {initialYears.length > 0 && (
+            <Link
+              href={`/fmplus/financial/budget/report/${(contract as any).id}?year=${initialYears[0].year_index}&mode=signoff`}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap"
+            >
+              <FileText size={14} /> View Report
+            </Link>
+          )}
+        </div>
       </header>
 
       {/* Read-only header strip */}
@@ -107,6 +119,10 @@ export default async function ContractDetailPage(props: ContractDetailProps) {
           year_tracking: (contract as any).year_tracking,
           zones: Array.isArray((contract as any).zones) ? (contract as any).zones : [],
           notes: (contract as any).notes,
+          customer_logo_url: (contract as any).customer_logo_url,
+          customer_contacts: Array.isArray((contract as any).customer_contacts) ? (contract as any).customer_contacts : [],
+          payment_terms: (contract as any).payment_terms,
+          scope_summary: (contract as any).scope_summary,
         }}
         services={services}
         availableServices={availableServices}

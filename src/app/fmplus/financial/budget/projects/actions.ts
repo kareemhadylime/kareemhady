@@ -7,6 +7,10 @@ import { updateContractMetadata, addServiceLine, deleteContract } from '@/lib/fm
 import { requireBudgetAdmin } from '@/lib/fmplus/budget/permissions';
 import type { ServiceLine } from '@/lib/fmplus/budget/types';
 
+function tryParseJson<T>(s: string, fallback: T): T {
+  try { return JSON.parse(s) as T; } catch { return fallback; }
+}
+
 export async function createContractAction(formData: FormData) {
   await requireBudgetAdmin();
 
@@ -64,12 +68,17 @@ export async function updateContractAction(formData: FormData) {
   const year_tracking = (String(formData.get('year_tracking') ?? 'contract')) as 'contract' | 'fiscal';
   const zones = String(formData.get('zones') ?? '').split(',').map(s => s.trim()).filter(Boolean);
   const notes = String(formData.get('notes') ?? '').trim() || null;
+  const customer_logo_url = String(formData.get('customer_logo_url') ?? '').trim() || null;
+  const customer_contacts = tryParseJson(formData.get('customer_contacts')?.toString() ?? '[]', []);
+  const payment_terms = String(formData.get('payment_terms') ?? '').trim() || null;
+  const scope_summary = String(formData.get('scope_summary') ?? '').trim() || null;
 
   if (!Number.isFinite(contract_id) || contract_id <= 0) throw new Error('Invalid contract_id');
   if (!name || !start_date || !end_date) throw new Error('Name, start, and end dates are required');
 
   await updateContractMetadata({
     contract_id, name, customer, start_date, end_date, contract_value, vat_pct, year_tracking, zones, notes,
+    customer_logo_url, customer_contacts, payment_terms, scope_summary,
   });
 
   revalidatePath('/fmplus/financial/budget/projects');

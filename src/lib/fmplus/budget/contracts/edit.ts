@@ -3,7 +3,7 @@ import { ProjectContractSchema } from '../schema';
 import type { ServiceLine } from '../types';
 
 /**
- * Update contract metadata (name/customer/dates/value/VAT/year_tracking/zones/notes).
+ * Update contract metadata (name/customer/dates/value/VAT/year_tracking/zones/notes/customer_logo_url/customer_contacts/payment_terms/scope_summary).
  * project_id and reimbursables are NOT editable via this path — they're set at create-time.
  */
 export async function updateContractMetadata(input: {
@@ -17,6 +17,10 @@ export async function updateContractMetadata(input: {
   year_tracking: 'contract' | 'fiscal';
   zones: string[];
   notes: string | null;
+  customer_logo_url?: string | null;
+  customer_contacts?: Array<{name: string; role: string; email: string; phone: string; primary: boolean}>;
+  payment_terms?: string | null;
+  scope_summary?: string | null;
 }) {
   const sb = budgetDb();
   // Verify contract exists
@@ -51,6 +55,10 @@ export async function updateContractMetadata(input: {
     year_tracking: input.year_tracking,
     zones: input.zones,
     notes: input.notes,
+    customer_logo_url: input.customer_logo_url ?? null,
+    customer_contacts: input.customer_contacts ?? [],
+    payment_terms: input.payment_terms ?? null,
+    scope_summary: input.scope_summary ?? null,
   }).eq('id', input.contract_id);
   if (error) throw error;
 }
