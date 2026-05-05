@@ -148,10 +148,14 @@ function BuildingsTable({ payload }: { payload: DailyReportPayload }) {
     { label: 'Turnovers', val: b => fmtNum(b.turnovers_today) },
 
     {
-      label: 'Revenue MTD',
+      label: 'Revenue (check-in this month)',
       val: b => <strong>{fmtUsd1(b.revenue_mtd_usd)}</strong>,
       section: 'mtd',
       sectionLabel: 'MONTH-TO-DATE',
+    },
+    {
+      label: 'Revenue (booked this month)',
+      val: b => <strong>{fmtUsd1(b.revenue_created_mtd_usd)}</strong>,
     },
     {
       label: 'Forward occupancy',

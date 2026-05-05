@@ -111,6 +111,7 @@ export async function buildDailyReport(
     checkOuts: buildings.all.check_outs_today,
     turnovers: buildings.all.turnovers_today,
     revenueMtd: buildings.all.revenue_mtd_usd,
+    revenueCreatedMtd: buildings.all.revenue_created_mtd_usd,
     pickupPct: buildings.all.pickup_vs_prior_month_pct,
     monthLabelStr: monthLabel(today),
     reviewsCount: reviewsResult.section.count_mtd,
@@ -177,6 +178,7 @@ function composeDigest(p: {
   checkOuts: number;
   turnovers: number;
   revenueMtd: number;
+  revenueCreatedMtd: number;
   pickupPct: number;
   monthLabelStr: string;
   reviewsCount: number;
@@ -198,7 +200,8 @@ function composeDigest(p: {
   return (
     `Yesterday: ${p.occupiedAll}/${p.totalUnits} occupied (${p.occPct.toFixed(1)}%). ` +
     `${p.checkIns} check-ins · ${p.checkOuts} check-outs · ${p.turnovers} turnovers. ` +
-    `${p.monthLabelStr} revenue ${fmtUsd(p.revenueMtd)}${pickup}. ` +
+    `${p.monthLabelStr} revenue ${fmtUsd(p.revenueMtd)} (check-in)${pickup} · ` +
+    `${fmtUsd(p.revenueCreatedMtd)} (booked, Guesty Analytics parity). ` +
     `${p.reviewsCount} reviews this month · ${p.avgRating.toFixed(1)}★ avg${flag}.`
   );
 }

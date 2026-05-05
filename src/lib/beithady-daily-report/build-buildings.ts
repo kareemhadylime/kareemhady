@@ -27,6 +27,7 @@ function emptyBucket(total_units: number): BuildingBucket {
     check_outs_today: 0,
     turnovers_today: 0,
     revenue_mtd_usd: 0,
+    revenue_created_mtd_usd: 0,
     forward_occupancy_pct: 0,
     backward_occupancy_pct: 0,
     backward_avg_units_per_day: 0,
@@ -48,7 +49,8 @@ type Accumulator = {
   checkin_listings: Set<string>;
   checkout_listings: Set<string>;
   // MTD
-  revenue_usd: number;
+  revenue_usd: number;                      // host_payout, check-in attribution (Guesty Homepage)
+  revenue_created_mtd_usd: number;          // host_payout for reservations CREATED in month (Guesty Analytics parity)
   nights_mtd: number;                       // nights between [start, today]
   forward_nights_booked: number;            // nights between (today, end]
   backward_nights_started_in_month: number; // user's literal-formula numerator
@@ -70,6 +72,7 @@ function emptyAcc(): Accumulator {
     checkin_listings: new Set(),
     checkout_listings: new Set(),
     revenue_usd: 0,
+    revenue_created_mtd_usd: 0,
     nights_mtd: 0,
     forward_nights_booked: 0,
     backward_nights_started_in_month: 0,
@@ -209,6 +212,13 @@ export function buildBuildingsTable(
     if (isInIsoRange(r.created_at_iso, monthStart, today)) {
       acc.bookings_created_mtd += 1;
       accAll.bookings_created_mtd += 1;
+      // Revenue (Guesty Analytics parity): host_payout for reservations
+      // CREATED this month, not check-in this month. Matches the
+      // "Date (Reservation Created): This Month" filter that Guesty
+      // Analytics → General Overview applies by default. User asked
+      // for both methodologies side-by-side (2026-05-05).
+      acc.revenue_created_mtd_usd += usd;
+      accAll.revenue_created_mtd_usd += usd;
       // Lead time: created → check-in
       if (r.created_at_iso && r.check_in_date) {
         const leadDays = Math.max(0, dayDiff(r.created_at_iso.slice(0, 10), r.check_in_date));
@@ -266,6 +276,7 @@ export function buildBuildingsTable(
       check_outs_today: acc.check_outs,
       turnovers_today: turnovers,
       revenue_mtd_usd: round2(acc.revenue_usd),
+      revenue_created_mtd_usd: round2(acc.revenue_created_mtd_usd),
       forward_occupancy_pct: pct(acc.forward_nights_booked, fwd_avail),
       backward_occupancy_pct: pct(acc.nights_mtd, ctx.days_elapsed * units),
       backward_avg_units_per_day:
@@ -332,6 +343,7 @@ export function buildBuildingsTable(
     check_outs_today: accAll.check_outs,
     turnovers_today: turnoversAll,
     revenue_mtd_usd: round2(accAll.revenue_usd),
+    revenue_created_mtd_usd: round2(accAll.revenue_created_mtd_usd),
     forward_occupancy_pct: pct(accAll.forward_nights_booked, fwd_avail_all),
     backward_occupancy_pct: pct(accAll.nights_mtd, ctx.days_elapsed * totalUnits),
     backward_avg_units_per_day:

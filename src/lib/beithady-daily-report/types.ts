@@ -31,7 +31,19 @@ export type BuildingBucket = {
   check_outs_today: number;
   turnovers_today: number;         // same-unit checkout + checkin same day
   // ---- MTD performance ----
-  revenue_mtd_usd: number;         // sum host_payout for reservations touching this month
+  // Two revenue lines, per user request 2026-05-05:
+  //   revenue_mtd_usd       = host_payout for reservations whose CHECK-IN
+  //                           is in this calendar month (Guesty Homepage
+  //                           parity / "money earned via stays starting
+  //                           this month")
+  //   revenue_created_mtd_usd = host_payout for reservations CREATED in
+  //                           this calendar month (Guesty Analytics →
+  //                           General Overview default filter / "how
+  //                           much we booked this month")
+  // Both shown side-by-side in the report so the methodology of each
+  // is explicit and the user can sanity-check against Guesty UI.
+  revenue_mtd_usd: number;
+  revenue_created_mtd_usd: number;
   forward_occupancy_pct: number;   // today → end of month, on-the-books
   backward_occupancy_pct: number;  // start-of-month → today, classic %
   backward_avg_units_per_day: number; // user's literal formula: nights/days_elapsed
