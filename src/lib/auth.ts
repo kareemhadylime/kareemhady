@@ -169,22 +169,14 @@ export async function loginWithPassword(
   password: string
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const sb = supabaseAdmin();
-  const { data, error } = await sb
+  const { data } = await sb
     .from('app_users')
     .select('id, password_hash')
     .eq('username', username.trim().toLowerCase())
     .maybeSingle();
-  if (error) {
-    console.error('[auth.login] supabase query error:', error.message, error.code);
-    return { ok: false, error: 'invalid_credentials' };
-  }
-  if (!data) {
-    console.error('[auth.login] no row found for username:', username.trim().toLowerCase());
-    return { ok: false, error: 'invalid_credentials' };
-  }
+  if (!data) return { ok: false, error: 'invalid_credentials' };
   const row = data as { id: string; password_hash: string };
   if (!verifyPassword(password, row.password_hash)) {
-    console.error('[auth.login] password hash mismatch for user', row.id, 'hash_prefix:', row.password_hash.slice(0, 30));
     return { ok: false, error: 'invalid_credentials' };
   }
   return { ok: true, userId: row.id };
