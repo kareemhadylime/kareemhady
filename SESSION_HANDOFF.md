@@ -88,6 +88,28 @@ Spec self-review found 2 ambiguities (fixed inline before commit):
 
 ---
 
+## ✅ 2026-05-05 — Spec approved + 3 implementation plans written (commit `74bebbd`)
+
+User approved spec. Invoked `writing-plans` skill which (per its scope-check guidance) split the bundled spec into 3 plan files since each phase is independently shippable:
+
+| Plan | Tasks | Lines | Status |
+|---|---:|---:|---|
+| `docs/superpowers/plans/2026-05-05-fmplus-brand-foundation.md` (Phase A) | 6 | ~580 | Ready to execute |
+| `docs/superpowers/plans/2026-05-05-fmplus-page-retrofits.md` (Phase B) | 3 | ~165 | Depends on Phase A |
+| `docs/superpowers/plans/2026-05-05-fmplus-project-report.md` (Phase C) | ~30 | ~1,500 | Depends on Phase A; can run parallel with B |
+
+**Phase A — Brand Foundation:** install Lalezar/DM Serif Display/Lato Google Fonts via next/font, create `src/lib/fmplus/brand.ts` with FM+ tokens (yellow #FDCF00, gold #EEB91D, black, dark/light grey), add Tailwind v4 `@theme` block, REBUILD `fmplus-logo.tsx` as geometric 4-quadrant "+" monogram per Asset 4 (4.19:5.19 aspect, 5 variants), retrofit `fmplus-hero.tsx` from amber tokens to fmplus-* tokens with font-serif/font-body. 8 unit tests.
+
+**Phase B — Page Retrofits:** mechanical amber→fmplus token swap on `/fmplus` landing launcher cards, `/fmplus/financials` tab strip, `BudgetTabStrip`. No structural changes. Depends on Phase A.
+
+**Phase C — Project Report Tab:** migration 0083 (4 columns on project_contracts + project_year_signoffs + budget_report_exports tables), buildProjectReport function (10-step pipeline + applyVisibility defense-in-depth strip), 16 on-screen UI components, 17 PDF pages via @react-pdf/renderer, API route handler `/api/fmplus/budget/report/[contractId]/[yearId]/pdf`, EditContractForm extensions for new fields, deep links from contract page + variance tab, 12-PDF acceptance test on TRIO Y1 (4 modes × 3 langs). 20+ new tests.
+
+**Self-review tradeoff acknowledged:** Tasks C10-C25 (on-screen sections) and C26-C42 (PDF pages) are listed at component level rather than fully scripted. Each follows the same TDD pattern; the spec §8 page layouts are the per-section reference. Agentic worker reads spec for content detail.
+
+**Status:** Plans committed to `74bebbd`. Awaiting user choice on execution mode (subagent-driven recommended vs. inline) and starting phase. Recommended: subagent-driven, Phase A first.
+
+---
+
 
 ## ✅ 2026-05-05 — Dine post-order: "Thanks for your order" banner + 15s auto-redirect (commit `566636e`)
 
