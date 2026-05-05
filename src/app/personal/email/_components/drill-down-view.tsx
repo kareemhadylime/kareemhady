@@ -228,6 +228,7 @@ export function DrillDownView({
           {sortedRows.map(r => {
             const isSelected = selected?.id === r.id;
             const isChecked = checked.has(r.id);
+            const isUnread = r.label_ids.includes('UNREAD');
             const newReservation = isNewReservation(r.subject, r.category);
             const urgent = isImmediateIntervention(r.subject, r.category);
             const toPay = isInvoiceToBePaid(r.subject, r.category);
@@ -299,10 +300,14 @@ export function DrillDownView({
                       </span>
                     )}
                     <span className="truncate">
-                      <span className="font-semibold text-slate-900 dark:text-slate-50">
+                      <span className={isUnread
+                        ? 'font-semibold text-slate-900 dark:text-slate-50'
+                        : 'font-normal text-slate-600 dark:text-slate-400'}>
                         {r.from_address?.split('<')[0].trim() || '—'}
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400">
+                      <span className={isUnread
+                        ? 'text-slate-700 dark:text-slate-300'
+                        : 'text-slate-500 dark:text-slate-500'}>
                         {' · '}{r.subject || '(no subject)'}
                       </span>
                     </span>
