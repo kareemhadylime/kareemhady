@@ -1,4 +1,28 @@
-# Kareemhady — Session Handoff (2026-05-05)
+# Kareemhady — Session Handoff (2026-05-06)
+
+## ✅ 2026-05-06 — FmplusLogo: replace hand-drawn SVG with official PNG asset
+
+**Status: DONE** — kareem flagged that the FM+ "logo" rendered in the FMPlus hero (top-right corner of every `/fmplus/financial/budget/**` page, plus the snapshot report cover) was a hand-drawn SVG approximation made of `<rect>` and `<polygon>` shapes — not the real brand mark. He attached the canonical asset; we already have it on disk in `C:/kareemhady/.claude/FMPLUS/Branding/Asset {2..6}.png`.
+
+**What shipped:**
+- Copied 3 official PNG variants into `public/brand/fmplus/`:
+  - `fmplus-color.png` — yellow tiles + black M + black wordmark (Asset 4, primary)
+  - `fmplus-black.png` — full-black lockup (Asset 3)
+  - `fmplus-mark.png` — light-grey icon-only mark (Asset 5, currently unused but reserved)
+- Rewrote `src/app/fmplus/_components/fmplus-logo.tsx` — same `FmplusLogoProps` API (`size`, `variant`, `showWordmark`, `className`) but now renders a `next/image` of the real PNG. The 5 variants pick `color` vs `black` source + background color, with `monochrome-white`/`white-on-black` applying `filter: invert(1)` to the black asset. `showWordmark={false}` clips the wrapper to the top ~60% of the canvas (icon-only crop).
+- Rewrote `fmplus-logo.test.tsx` to match: now asserts the rendered `<img>` src points to the official PNG, the wrapper crops correctly when `showWordmark=false`, and the previous hand-drawn `<svg>` is gone.
+- Only consumer is `fmplus-hero.tsx` (`monochrome-black` light + `monochrome-white` dark, `size="lg"`, `showWordmark={false}`) — the underlying API is unchanged so no caller updates were needed.
+
+**Files modified:**
+- `src/app/fmplus/_components/fmplus-logo.tsx`
+- `src/app/fmplus/_components/fmplus-logo.test.tsx`
+- `public/brand/fmplus/{fmplus-color,fmplus-black,fmplus-mark}.png` (new)
+
+**Verification:**
+- `tsc --noEmit -p tsconfig.json`: 0 new errors. Pre-existing errors (`qrcode` types, `@testing-library/react` types) are setup-related, not from this change.
+- Vitest could not run locally (worktree `node_modules` is empty / parent has no `jsdom` install) — same situation as the original test file. CI / Vercel will pick it up.
+
+---
 
 ## ✅ 2026-05-05 — Phase C Tasks C44 + C45: EditContractForm + deep links to report (commits `020192c`, `f0888e1`)
 

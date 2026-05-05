@@ -1,59 +1,78 @@
 // @vitest-environment jsdom
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { FmplusLogo } from './fmplus-logo';
 
+// next/image rendering is jsdom-incompatible — stub it as a plain <img> so
+// asserts on src / dimensions still work without the runtime image optimizer.
+vi.mock('next/image', () => ({
+  __esModule: true,
+  default: (props: Record<string, unknown>) => {
+    // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+    return <img {...props} />;
+  },
+}));
+
 describe('FmplusLogo', () => {
-  test('renders an svg with the locked viewBox 0 0 419 519 (4.19:5.19 aspect)', () => {
+  test('renders the official PNG asset (not a hand-drawn SVG)', () => {
     const { container } = render(<FmplusLogo />);
-    const svg = container.querySelector('svg');
-    expect(svg).not.toBeNull();
-    expect(svg!.getAttribute('viewBox')).toBe('0 0 419 519');
+    const img = container.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toMatch(/\/brand\/fmplus\/fmplus-(color|black)\.png$/);
+    // The earlier revision rendered an inline <svg> with a hand-coded mark.
+    // Make sure that approximation has been removed.
+    expect(container.querySelector('svg')).toBeNull();
   });
 
-  test('default size = md (56px wide, ~69px tall)', () => {
+  test('default size = md (56px wide)', () => {
     const { container } = render(<FmplusLogo size="md" />);
-    const svg = container.querySelector('svg')!;
-    expect(svg.getAttribute('width')).toBe('56');
-    // 56 * (5.19/4.19) = 69.36 → rounded to 69
-    expect(svg.getAttribute('height')).toBe('69');
+    const img = container.querySelector('img')!;
+    expect(img.getAttribute('width')).toBe('56');
   });
 
   test('xl size = 144px wide', () => {
     const { container } = render(<FmplusLogo size="xl" />);
-    const svg = container.querySelector('svg')!;
-    expect(svg.getAttribute('width')).toBe('144');
+    const img = container.querySelector('img')!;
+    expect(img.getAttribute('width')).toBe('144');
   });
 
-  test('showWordmark=false hides FMPLUS + tagline text', () => {
-    const { container } = render(<FmplusLogo showWordmark={false} />);
-    expect(container.textContent).not.toContain('FMPLUS');
-    expect(container.textContent).not.toContain('FACILITY MANAGEMENT');
+  test('showWordmark=false clips the wrapper to the icon-only portion', () => {
+    const { container: full } = render(<FmplusLogo size="lg" showWordmark />);
+    const { container: icon } = render(<FmplusLogo size="lg" showWordmark={false} />);
+    const fullWrap = full.querySelector('span[role="img"]') as HTMLElement;
+    const iconWrap = icon.querySelector('span[role="img"]') as HTMLElement;
+    const fullH = parseInt(fullWrap.style.height, 10);
+    const iconH = parseInt(iconWrap.style.height, 10);
+    expect(iconH).toBeLessThan(fullH);
+    expect(fullWrap.style.overflow).toBe('hidden');
   });
 
-  test('showWordmark=true (default) renders both FMPLUS + tagline', () => {
-    const { container } = render(<FmplusLogo />);
-    expect(container.textContent).toContain('FMPLUS');
-    expect(container.textContent).toContain('FACILITY MANAGEMENT');
-  });
-
-  test('variant=black-on-yellow has yellow background and black foreground', () => {
+  test('variant=black-on-yellow uses the FM+ yellow background and color asset', () => {
     const { container } = render(<FmplusLogo variant="black-on-yellow" />);
-    const svg = container.querySelector('svg')!;
-    const style = svg.getAttribute('style') || '';
-    // Accept both hex (#FDCF00) and rgb (253, 207, 0) formats
-    expect(style).toMatch(/#FDCF00|rgb\(253,\s*207,\s*0\)|rgb\(253 207 0\)/i);
+    const wrap = container.querySelector('span[role="img"]') as HTMLElement;
+    const img = container.querySelector('img')!;
+    // Accept hex (#FDCF00) or rgb formats jsdom may serialize to.
+    expect(wrap.style.background).toMatch(/#FDCF00|rgb\(253,\s*207,\s*0\)/i);
+    expect(img.getAttribute('src')).toContain('fmplus-color.png');
   });
 
-  test('variant=monochrome-black has transparent background and black foreground', () => {
+  test('variant=monochrome-black uses transparent background and the black asset', () => {
     const { container } = render(<FmplusLogo variant="monochrome-black" />);
-    const svg = container.querySelector('svg')!;
-    expect(svg.getAttribute('style')).toMatch(/transparent/i);
+    const wrap = container.querySelector('span[role="img"]') as HTMLElement;
+    const img = container.querySelector('img')!;
+    expect(wrap.style.background).toMatch(/transparent|rgba\(0,\s*0,\s*0,\s*0\)/i);
+    expect(img.getAttribute('src')).toContain('fmplus-black.png');
+  });
+
+  test('variant=monochrome-white inverts the black asset via CSS filter', () => {
+    const { container } = render(<FmplusLogo variant="monochrome-white" />);
+    const img = container.querySelector('img') as HTMLImageElement;
+    expect(img.style.filter).toMatch(/invert\(1\)/);
   });
 
   test('aria-label declares the brand name', () => {
     const { container } = render(<FmplusLogo />);
-    const svg = container.querySelector('svg')!;
-    expect(svg.getAttribute('aria-label')).toBe('FMPLUS — Facility Management');
+    const wrap = container.querySelector('span[role="img"]')!;
+    expect(wrap.getAttribute('aria-label')).toBe('FMPLUS — Facility Management');
   });
 });

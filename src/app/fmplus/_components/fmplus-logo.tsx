@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { FMPLUS_BRAND } from '@/lib/fmplus/brand';
 
 export type FmplusLogoVariant =
@@ -23,13 +24,20 @@ const SIZE_PX: Record<NonNullable<FmplusLogoProps['size']>, number> = {
 };
 
 /**
- * FM+ Logo — geometric 4-quadrant "+" monogram per official 2025 brand guidelines.
- *
- * The icon is composed of 4 square tiles arranged in a 2×2 grid forming a "+" shape.
- * Each tile contains a stylized letter cut (rotated 90° per quadrant). Locked aspect
- * 4.19 : 5.19 — width 4.19u, height 5.19u (icon ~4.19u + wordmark band ~1u).
- *
- * Reference: C:/kareemhady/.claude/FMPLUS/Branding/Asset 4 (1).png
+ * Native canvas of the official FM+ assets in /public/brand/fmplus/ (274 × 348).
+ * The icon (4-quadrant + lockup) occupies the top ~60%; the FMPLUS wordmark
+ * and FACILITY MANAGEMENT tagline occupy the bottom ~40%.
+ */
+const NATIVE_W = 274;
+const NATIVE_H = 348;
+const ICON_FRACTION = 0.6;
+
+/**
+ * FM+ Logo — official 2025 brand mark. Renders the canonical PNG asset
+ * (`/public/brand/fmplus/fmplus-{color,black,mark}.png`) extracted from the
+ * FMPlus rebranding pack. Earlier revisions of this component drew the mark
+ * with hand-coded `<rect>` and `<polygon>` shapes — that approximation looked
+ * off-brand and has been replaced with the real artwork.
  */
 export function FmplusLogo({
   size = 'md',
@@ -38,103 +46,65 @@ export function FmplusLogo({
   className = '',
 }: FmplusLogoProps) {
   const w = SIZE_PX[size];
-  const h = Math.round(w * (5.19 / 4.19));
+  const fullH = Math.round((w * NATIVE_H) / NATIVE_W);
+  const iconH = Math.round(fullH * ICON_FRACTION);
 
-  const colors = resolveColors(variant);
+  const { src, background, filter } = resolveStyle(variant);
+
+  const wrapperStyle: React.CSSProperties = {
+    width: w,
+    height: showWordmark ? fullH : iconH,
+    background,
+    overflow: 'hidden',
+    display: 'inline-block',
+    flexShrink: 0,
+  };
+
+  const imageStyle: React.CSSProperties | undefined = filter
+    ? { filter, display: 'block' }
+    : { display: 'block' };
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 419 519"
-      width={w}
-      height={h}
+    <span
       role="img"
       aria-label="FMPLUS — Facility Management"
       className={className}
-      style={{ background: colors.background }}
+      style={wrapperStyle}
     >
-      {/* === Icon: 4 quadrant tiles forming a "+"  === */}
-      {/* Top-left tile (rotated F) */}
-      <g fill={colors.foregroundIcon}>
-        <rect x="40"  y="40"  width="80"  height="120" />
-        <rect x="40"  y="40"  width="160" height="40" />
-        <rect x="40"  y="100" width="120" height="40" />
-      </g>
-      {/* Top-right tile (rotated L) */}
-      <g fill={colors.foregroundIcon}>
-        <rect x="219" y="40"  width="160" height="40" />
-        <rect x="299" y="40"  width="80"  height="120" />
-      </g>
-      {/* Bottom-left tile (L mirrored) */}
-      <g fill={colors.foregroundIcon}>
-        <rect x="40"  y="219" width="80"  height="120" />
-        <rect x="40"  y="299" width="160" height="40" />
-      </g>
-      {/* Bottom-right tile (M, the bold anchor letter) */}
-      <g fill={colors.foregroundIcon}>
-        <rect x="219" y="219" width="40" height="160" />
-        <rect x="339" y="219" width="40" height="160" />
-        <rect x="259" y="219" width="40" height="40"  />
-        <rect x="299" y="259" width="40" height="40"  />
-        {/* The diagonal stem cut into the M */}
-        <polygon points="259,259 299,259 319,299 279,299" />
-      </g>
-
-      {showWordmark && (
-        <>
-          {/* "FMPLUS" wordmark — Lato Black, large and bold */}
-          <text
-            x="210"
-            y="445"
-            textAnchor="middle"
-            fontFamily="Lato, system-ui, sans-serif"
-            fontWeight="900"
-            fontSize="68"
-            fill={colors.foregroundWordmark}
-            letterSpacing="4"
-          >
-            FMPLUS
-          </text>
-          {/* "FACILITY MANAGEMENT" tagline — Lato Light/Regular */}
-          <text
-            x="210"
-            y="490"
-            textAnchor="middle"
-            fontFamily="Lato, system-ui, sans-serif"
-            fontWeight="400"
-            fontSize="22"
-            fill={colors.foregroundTagline}
-            letterSpacing="6"
-          >
-            FACILITY MANAGEMENT
-          </text>
-        </>
-      )}
-    </svg>
+      <Image
+        src={src}
+        alt=""
+        width={w}
+        height={fullH}
+        style={imageStyle}
+        priority={size === 'lg' || size === 'xl'}
+      />
+    </span>
   );
 }
 
-/** Map a brand-allowed variant to actual fill/bg colors. */
-function resolveColors(variant: FmplusLogoVariant): {
-  foregroundIcon:     string;
-  foregroundWordmark: string;
-  foregroundTagline:  string;
-  background:         string;
+/** Map a brand-allowed variant to (asset src, background color, optional CSS filter). */
+function resolveStyle(variant: FmplusLogoVariant): {
+  src: string;
+  background: string;
+  filter?: string;
 } {
   const c = FMPLUS_BRAND.colors;
+  const COLOR = '/brand/fmplus/fmplus-color.png';
+  const BLACK = '/brand/fmplus/fmplus-black.png';
+
   switch (variant) {
     case 'black-on-yellow':
-      return { foregroundIcon: c.black, foregroundWordmark: c.black,    foregroundTagline: c.greyDark, background: c.yellow };
+      return { src: COLOR, background: c.yellow };
     case 'yellow-on-white':
-      // Background is `transparent` (not the white #FFFFFF from the brand combo) so
-      // the logo can sit on any surface — colored cards, gradients, photos. Pages
-      // that need the strict yellow-on-white combo can wrap in their own white box.
-      return { foregroundIcon: c.yellow, foregroundWordmark: c.yellow,  foregroundTagline: c.greyDark, background: 'transparent' };
+      // Background is `transparent` (not the strict white #FFFFFF) so the
+      // logo can sit on any surface — colored cards, gradients, photos.
+      return { src: COLOR, background: 'transparent' };
     case 'white-on-black':
-      return { foregroundIcon: '#FFFFFF', foregroundWordmark: '#FFFFFF', foregroundTagline: c.greyLight, background: c.black };
+      return { src: BLACK, background: c.black, filter: 'invert(1)' };
     case 'monochrome-black':
-      return { foregroundIcon: c.black, foregroundWordmark: c.black,    foregroundTagline: c.black,    background: 'transparent' };
+      return { src: BLACK, background: 'transparent' };
     case 'monochrome-white':
-      return { foregroundIcon: '#FFFFFF', foregroundWordmark: '#FFFFFF', foregroundTagline: '#FFFFFF',  background: 'transparent' };
+      return { src: BLACK, background: 'transparent', filter: 'invert(1)' };
   }
 }
