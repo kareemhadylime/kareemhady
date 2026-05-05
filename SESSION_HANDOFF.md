@@ -2681,3 +2681,35 @@ All 6 tasks shipped via subagent-driven-development. Final code review APPROVED 
 **Files changed:** layout.tsx · brand.ts · globals.css · fmplus-logo.tsx · fmplus-logo.test.tsx · fmplus-hero.tsx · vitest.config.ts. Plus package.json/lock for new devDeps.
 
 **Status:** Phase A complete and tested. Awaiting controller for Phase B / Phase C kickoff.
+
+## 2026-05-05 — Phase B: FM+ Page Retrofits (ALL 3 TASKS COMPLETE)
+
+Completed full Phase B token-swap retrofit across all 3 FM+ landing & financials pages:
+
+### Task B1: `/fmplus` Landing Page
+- File: `src/app/fmplus/page.tsx`
+- Replaced amber utility classes in 2 launcher cards (Financials + Budget)
+- Applied: icon box backgrounds (`bg-amber-50 dark:bg-amber-950` → `bg-fmplus-yellow/15 dark:bg-fmplus-gold/20`)
+- Applied: icon foregrounds (`text-amber-700 dark:text-amber-300` → `text-fmplus-black dark:text-fmplus-yellow`)
+- Applied: hover borders (`hover:border-amber-300 dark:hover:border-amber-700` → `hover:border-fmplus-yellow dark:hover:border-fmplus-gold`)
+- Commit: fe2e7fe
+
+### Task B2: `/fmplus/financials` Tab Strip
+- File: `src/app/fmplus/financials/page.tsx`
+- Replaced active tab styling
+- Applied: active border + text (`border-amber-500 text-amber-700 dark:text-amber-300` → `border-fmplus-yellow text-fmplus-gold dark:text-fmplus-yellow`)
+- Commit: d5694c2
+
+### Task B3: `BudgetTabStrip` Component
+- File: `src/app/fmplus/financial/budget/_components/budget-tab-strip.tsx`
+- Replaced active tab styling (8-tab nav)
+- Applied: active border + text (same mapping as B2)
+- Commit: 1e13281
+
+### Verification
+- Individual grep on all 3 files: ✓ ZERO amber-NNN matches
+- Full FM+ module scope check: ✓ No regressions (other amber refs are in deeper budget views, out of scope for Phase B)
+- TypeScript: ✓ Zero errors in FM+ module
+- Test suite: ✓ 217 tests passing (no regressions)
+
+**Status:** COMPLETE. Phase B is done — FM+ landing page, financials tab nav, and budget tab strip all show correct FM+ brand tokens. Phase A shared components (FmplusHero, FmplusLogo) remain retrofitted. All 3 commits staged for push.
