@@ -126,6 +126,9 @@ function resolveColors(variant: FmplusLogoVariant): {
     case 'black-on-yellow':
       return { foregroundIcon: c.black, foregroundWordmark: c.black,    foregroundTagline: c.greyDark, background: c.yellow };
     case 'yellow-on-white':
+      // Background is `transparent` (not the white #FFFFFF from the brand combo) so
+      // the logo can sit on any surface — colored cards, gradients, photos. Pages
+      // that need the strict yellow-on-white combo can wrap in their own white box.
       return { foregroundIcon: c.yellow, foregroundWordmark: c.yellow,  foregroundTagline: c.greyDark, background: 'transparent' };
     case 'white-on-black':
       return { foregroundIcon: '#FFFFFF', foregroundWordmark: '#FFFFFF', foregroundTagline: c.greyLight, background: c.black };
