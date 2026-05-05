@@ -1,5 +1,47 @@
 # Kareemhady — Session Handoff (2026-05-05)
 
+## ✅ 2026-05-05 — Phase C Tasks C10–C25: FM+ Project Report on-screen UI tree (17 components) (commits `dd9a793`, `5066b2b`)
+
+**Status: DONE** — All 17 on-screen UI components shipped in 2 commits. TS clean (0 errors). 222 tests pass (unchanged).
+
+**What shipped:**
+
+### 11 Section Components (`src/lib/fmplus/budget/report/on-screen/sections/`)
+
+| Component | Description | Mode-aware? |
+|---|---|---|
+| `hero-block.tsx` | KPI tiles: annual cost, contract value, GP %, total HC | Yes — GP hidden in customer mode |
+| `project-details.tsx` | Customer + contacts (primary first, max 3), period, zones chips, scope summary | Bilingual LangLabel helper |
+| `service-line-summary.tsx` | Table with HC required/budgeted, monthly cost, fee, annual ex/incl VAT, GP % | Customer = fee-only columns |
+| `manning-summary.tsx` | Grouped by service_line + sub_section; CTC rate + monthly cost | Customer = HC required only |
+| `budget-breakdown-matrix.tsx` | 8-cat × 7-svc monthly cost grid | Returns null in customer mode (cells=null) |
+| `mobilization.tsx` | Detail table (internal) vs summary card (customer) | Dual shape handling |
+| `payment-terms.tsx` | Text card + "(Proposed)" badge in pre mode | Yes |
+| `change-vs-initial.tsx` | Delta table per (service, category) with severity color-coding | Only when data != null |
+| `variance-snapshot.tsx` | YTD budget/actual/variance KPI tiles | Only when data != null |
+| `sign-off-block.tsx` | 2 signature lines + history table | History hidden when empty |
+| `contract-rollup.tsx` | Year-over-year totals table | Only when data != null; customer hides cost cols |
+
+### Top-level + App Pages
+- `on-screen-report.tsx` — composes all 11 sections in spec order, auto-hides null sections
+- `report/page.tsx` — contract picker grid (FM+ card style + empty state)
+- `report/[contractId]/page.tsx` — RSC: reads `?mode` + `?year`, calls `buildProjectReport`, renders toolbar + draft-customer warning banner + `OnScreenReport`
+
+### 3 Client UI Components (`src/app/fmplus/financial/budget/report/[contractId]/_components/`)
+- `report-mode-toggle.tsx` — 4-pill toggle (Pre/Sign-off/Customer/Snapshot); active = `bg-fmplus-yellow text-fmplus-black`; updates `?mode=` via `router.replace`
+- `report-year-picker.tsx` — dropdown for multi-year contracts; single year = plain label only
+- `report-export-dialog.tsx` — modal with EN/AR/Both radio, live filename preview, Download PDF `<a href>` (points to C43 PDF API route, not yet built); disabled + tooltip when `isDraftCustomer`
+
+**Self-review findings:**
+- Manning summary uses `hc_budgeted` from `totals_by_service` for subtotals (data layer provides this). Individual row CTCs shown from `ManningRow.ctc_rate` + `monthly_cost`.
+- Budget breakdown matrix filters `ALL_CATEGORIES` to only show categories with data (no empty rows).
+- `report-export-dialog` uses `<a href download>` pattern — works for GET-downloadable content; once C43 PDF route is built it will work. The dialog renders correctly now.
+- TS issue during development: `budget-breakdown-matrix.tsx` imported `ServiceLine`/`Category` from report `types.ts` (not exported there) — fixed to import from `@/lib/fmplus/budget/types`.
+
+**Next tasks:** C26–C42 (PDF document/pages via @react-pdf/renderer), C43 (API route handler for PDF download).
+
+---
+
 ## ⏳ 2026-05-05 — Brainstorming new "Project Report" tab in FM+ Budget module — IN PROGRESS
 
 User asked for a management-approval Project Report tab (printable / A4 PDF exportable) inside `/fmplus/financial/budget/`. Sections wanted: project details, customer/contacts, period, manning numbers + budget, budget by service line, financials, upfront investment, payment terms.
