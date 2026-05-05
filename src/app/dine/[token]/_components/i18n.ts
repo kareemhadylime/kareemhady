@@ -147,3 +147,114 @@ export function trSheet(key: keyof typeof sheetT, lang: DineLang, vars: Record<s
   const template = sheetT[key]?.[lang] ?? sheetT[key]?.en ?? '';
   return template.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
 }
+
+// Order confirmation + status surface strings.
+export const orderT: Record<string, Dict> = {
+  status_submitted: {
+    en: '🛎  Order received',
+    ar: '🛎  تم استلام طلبك',
+    ru: '🛎  Заказ получен',
+    fr: '🛎  Commande reçue',
+  },
+  status_preparing: {
+    en: '👨‍🍳  Preparing',
+    ar: '👨‍🍳  قيد التحضير',
+    ru: '👨‍🍳  Готовится',
+    fr: '👨‍🍳  En préparation',
+  },
+  status_ready: {
+    en: '✅  Ready',
+    ar: '✅  جاهز',
+    ru: '✅  Готов',
+    fr: '✅  Prêt',
+  },
+  status_delivered: {
+    en: '🍽  Delivered',
+    ar: '🍽  تم التسليم',
+    ru: '🍽  Доставлен',
+    fr: '🍽  Livré',
+  },
+  status_cancelled: {
+    en: '✗  Cancelled',
+    ar: '✗  ملغى',
+    ru: '✗  Отменён',
+    fr: '✗  Annulée',
+  },
+  thanks_for_order: {
+    en: 'Thanks for your order!',
+    ar: 'شكراً لطلبك!',
+    ru: 'Спасибо за ваш заказ!',
+    fr: 'Merci pour votre commande !',
+  },
+  enjoy_meal_shortly: {
+    en: 'You will enjoy your meal shortly.',
+    ar: 'ستستمتع بوجبتك قريباً.',
+    ru: 'Вы скоро насладитесь вашей едой.',
+    fr: 'Vous savourerez votre repas sous peu.',
+  },
+  returning_in: {
+    en: 'Returning to the menu in {n}s',
+    ar: 'العودة إلى القائمة خلال {n} ث',
+    ru: 'Возврат в меню через {n} с',
+    fr: 'Retour au menu dans {n} s',
+  },
+  stay_on_page: {
+    en: 'Stay on this page',
+    ar: 'البقاء في هذه الصفحة',
+    ru: 'Остаться на странице',
+    fr: 'Rester sur cette page',
+  },
+  expected_by: {
+    en: 'Expected by {time}',
+    ar: 'متوقع بحلول {time}',
+    ru: 'Ожидается к {time}',
+    fr: 'Prévu pour {time}',
+  },
+  order_number: {
+    en: 'Order #{n}',
+    ar: 'الطلب رقم {n}',
+    ru: 'Заказ №{n}',
+    fr: 'Commande N° {n}',
+  },
+  total: {
+    en: 'Total',
+    ar: 'الإجمالي',
+    ru: 'Итого',
+    fr: 'Total',
+  },
+  charged_to_room: {
+    en: 'Charged to your room — settled at checkout.',
+    ar: 'يُحتسب على غرفتك — يُسوّى عند تسجيل المغادرة.',
+    ru: 'Списывается на номер — оплата при выезде.',
+    fr: 'Facturé sur votre chambre — réglé au départ.',
+  },
+  cancel_remaining: {
+    en: 'Cancel order ({n}s remaining)',
+    ar: 'إلغاء الطلب (يتبقى {n} ث)',
+    ru: 'Отменить заказ (осталось {n} с)',
+    fr: 'Annuler la commande ({n} s restantes)',
+  },
+  cancel_confirm: {
+    en: 'Cancel this order?',
+    ar: 'هل تريد إلغاء هذا الطلب؟',
+    ru: 'Отменить этот заказ?',
+    fr: 'Annuler cette commande ?',
+  },
+  download_receipt: {
+    en: 'Download receipt',
+    ar: 'تحميل الإيصال',
+    ru: 'Скачать чек',
+    fr: 'Télécharger le reçu',
+  },
+  order_again: {
+    en: 'Order again',
+    ar: 'اطلب مرة أخرى',
+    ru: 'Заказать снова',
+    fr: 'Commander à nouveau',
+  },
+};
+
+export function trOrder(key: keyof typeof orderT, lang: DineLang, vars: Record<string, string | number> = {}): string {
+  const template = orderT[key]?.[lang] ?? orderT[key]?.en ?? '';
+  return template.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+}

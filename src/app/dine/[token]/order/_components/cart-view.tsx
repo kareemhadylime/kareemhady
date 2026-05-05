@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCart, cart } from '../../_components/cart-store';
 import { computeCartTotals } from '@/lib/beithady/fnb/cart';
 import { DeliveryPicker } from './delivery-picker';
+import type { DineLang } from '../../_components/i18n';
 
 export function CartView({
   token, buildingCode, unitCode, deliverySlaMinutes,
@@ -16,6 +17,11 @@ export function CartView({
 }) {
   const { lines } = useCart();
   const router = useRouter();
+  const params = useSearchParams();
+  const lang: DineLang = (() => {
+    const raw = params.get('lang');
+    return raw === 'ar' || raw === 'ru' || raw === 'fr' ? raw : 'en';
+  })();
   const [delivery, setDelivery] = useState<'asap' | 30 | 60>('asap');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +48,7 @@ export function CartView({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         idempotency_key,
-        guest_language: 'en',
+        guest_language: lang,
         requested_delivery_at,
         notes: notes || null,
         lines: lines.map(l => ({
@@ -60,7 +66,10 @@ export function CartView({
     }
     const { order } = await res.json();
     cart.clear();
-    router.push(`/dine/${token}/order/${order.id}`);
+    // ?placed=1 triggers the thank-you banner + 15s auto-redirect on the
+    // confirmation page; preserves ?lang so the menu opens in the right lang.
+    const langParam = lang !== 'en' ? `&lang=${lang}` : '';
+    router.push(`/dine/${token}/order/${order.id}?placed=1${langParam}`);
   }
 
   if (lines.length === 0) {
