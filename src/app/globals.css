@@ -18,6 +18,18 @@
   --color-danger: #e11d48;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* FM+ brand colors — see src/lib/fmplus/brand.ts */
+  --color-fmplus-yellow:     #FDCF00;
+  --color-fmplus-gold:       #EEB91D;
+  --color-fmplus-black:      #000000;
+  --color-fmplus-grey-dark:  #8A867F;
+  --color-fmplus-grey-light: #D4D4D4;
+
+  /* FM+ font families — Google Fonts registered in src/app/layout.tsx */
+  --font-display: var(--font-lalezar), 'Lalezar', system-ui, sans-serif;
+  --font-serif:   var(--font-dm-serif), 'DM Serif Display', Georgia, serif;
+  --font-body:    var(--font-lato), 'Lato', system-ui, sans-serif;
 }
 
 /* Dark theme tokens — applied via .dark class on <html>. */
