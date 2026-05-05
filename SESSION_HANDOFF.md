@@ -1,6 +1,34 @@
 # Kareemhady — Session Handoff (2026-05-05)
 
-## 🟡 2026-05-05 — DIAGNOSTIC ONLY: deep analysis of our daily-report vs Guesty Analytics — three Guesty views measure three different things; awaiting user choice on the fix
+## 🟢 2026-05-05 — SHIPPED to main: Daily Performance Report shows BOTH revenue methodologies side-by-side
+
+User picked option 3 (both lines, explicit labels) after this morning's diagnostic. Commit `40b5d30` shipped two revenue lines in the Daily Performance Report:
+
+| Line | Method | Source of truth |
+|---|---|---|
+| **Revenue (check-in this month)** | host_payout where check_in falls in month | Guesty Homepage tile parity |
+| **Revenue (booked this month)** | host_payout where reservation CREATED in month | Guesty Analytics → General Overview default filter |
+
+Both numbers come from the same accumulator pass — added a second tally inside the existing created-in-month branch (zero extra queries).
+
+**Wired through 6 files:**
+- `build-buildings.ts`: new `Accumulator.revenue_created_mtd_usd`, emitted per-building + on `accAll`
+- `types.ts`: `BuildingBucket.revenue_created_mtd_usd` with comment-block explaining both methodologies
+- `render-html.tsx` + `render-pdf.tsx`: new row right under the existing one
+- `distribute.ts` (WhatsApp + email body): both lines side-by-side, "Guesty Analytics parity" annotation
+- `build.ts composeDigest`: digest one-liner now includes both numbers
+
+**Deployment:** `git push origin claude/zen-euler-d3bd5e:main` (`9192d75..40b5d30`). `vercel --prod` READY at `https://zen-euler-d3bd5e-17fhnncyd-lime-investments.vercel.app`. Tomorrow's 9 AM Cairo cron is the first email with both lines visible.
+
+**Expected numbers in tomorrow's email** (May 2026 Egypt-only, today's data):
+- Revenue (check-in this month): ~$18,458 (45 confirmed reservations checking in)
+- Revenue (booked this month): ~$8,695 (23 confirmed reservations created)
+
+Guesty Analytics' $16,695 still doesn't perfectly match either — residual gap is sync lag + Guesty's idiosyncratic `money.commission == hostPayout` field. User can now sanity-check both views directly.
+
+---
+
+## 🟡 2026-05-05 (earlier) — DIAGNOSTIC: deep analysis of our daily-report vs Guesty Analytics — three Guesty views measure three different things
 
 User shipped today's daily-report email showing **Revenue MTD $13,093** for May, then opened Guesty Analytics → General Overview filtered "This Month" + Country=Egypt and saw **$16,695**. Asked for a deep analysis of the gap.
 
