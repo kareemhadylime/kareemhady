@@ -1,5 +1,46 @@
 # Kareemhady — Session Handoff (2026-05-05)
 
+## ✅ 2026-05-05 — Dine post-order: "Thanks for your order" banner + 15s auto-redirect (commit `566636e`)
+
+**Status: SHIPPED** — guest gets a localized thank-you screen, then auto-returns to the menu.
+
+**Why kareem asked:** "After order confirmation - Thanks for your Order - You will enjoy your meal shortly, then automatically refresh to home page after 15 seconds".
+
+**Flow:**
+1. Guest submits order from `/dine/[token]/order` — `cart-view.tsx` POSTs the order and `router.push`-es to `/dine/[token]/order/[id]?placed=1[&lang=xx]`. (Previously redirected without the `?placed=1` flag, so the post-confirmation thank-you flow had no signal to fire.)
+2. `order/[id]/page.tsx` reads `?placed=1` + `?lang=`, threads both into `OrderStatusView`, also fixes the previously hardcoded `lang="en"` on `BrandShell` (now uses URL param → guest preference → `en`).
+3. `order-status-view.tsx`:
+   - Renders **"Thanks for your order! / You will enjoy your meal shortly"** banner above the status headline, but ONLY when `justPlaced && status === 'submitted'` (so a returning visitor with a stale URL doesn't see the banner).
+   - Runs a 15-second countdown (`setTimeout` per second). Visible line: **"Returning to the menu in Ns"** + a **"Stay on this page"** opt-out button. On hit, `router.push('/dine/{token}'[?lang=xx])` preserving the language.
+   - Cancel button also clears the auto-redirect (if you're cancelling you obviously want to stay).
+   - The pre-existing 5-sec status poll + 1-sec grace tick + cancel within grace window all still work — the auto-redirect is layered on top, not replacing them.
+
+**Localization (orderT dictionary in `i18n.ts`):**
+   - All status labels (submitted / preparing / ready / delivered / cancelled) in EN/AR/RU/FR
+   - "Expected by {time}", "Order #{n}", "Total", "Charged to your room — settled at checkout", "Cancel order ({n}s remaining)", "Cancel this order?", "Download receipt", "Order again"
+   - Thank-you banner copy: thanks_for_order / enjoy_meal_shortly / returning_in / stay_on_page
+   - All quantities, prices, order numbers, remaining seconds run through `formatNumber`/`formatPrice` — Arabic-Hindi numerals (٠-٩) when `lang=ar`
+   - ETA time uses `Intl.DateTimeFormat` with `ar-EG` locale → "٠٢:٣٠" instead of "02:30"
+
+**Cart-view also:**
+   - Now reads URL `?lang=` and sends it as `guest_language` on the order POST (was hardcoded `'en'`)
+   - Note: cart-view's own UI strings ("Your order", "Subtotal", "Submit order", etc.) are NOT yet localized — that's a separate scope (kareem hasn't flagged it yet). Easy follow-up if needed.
+
+**TypeScript:** clean.
+
+**User action:** place a test order (the cart has Oriental Breakfast + maybe a modifier). After Submit you should see:
+1. Thank-you banner at the top
+2. Status "Order received" (in your selected language)
+3. Order details below
+4. Countdown "Returning to the menu in 15s" → 14s → 13s … → home
+5. "Stay on this page" link below the countdown if you want to monitor status / cancel
+
+In Arabic mode: every digit (price, qty, order #, countdown, cancel countdown) renders as ٠-٩.
+
+**Next:** Recipe UI tab integration on `dde0411` backend — that's what's left from the original "continue with recipe coding" ask.
+
+---
+
 ## ✅ 2026-05-05 — Dine fixes: item-row overlap, AR numerals, sheet i18n, SSR snapshot (commit `133ed83`)
 
 **Status: SHIPPED** — kareem flagged 3 issues from a screenshot of `/dine/?lang=ar`; all four causes addressed.
