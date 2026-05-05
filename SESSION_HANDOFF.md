@@ -2984,3 +2984,34 @@ After rotating the Supabase service-role key on Vercel `lime` production (`6af63
 4. Revert the diagnostic logging once fixed.
 
 **If urgent rollback needed:** I do NOT have the old legacy key. The rotation flow only saved the new key value to `.env.local` + Vercel. Rollback requires either (a) Supabase dashboard "view legacy key" action by user, or (b) accepting the new key works once we identify the actual login issue.
+
+---
+
+## ✅ 2026-05-05 — Login lockout ROOT CAUSE FOUND: legacy keys disabled by Supabase
+
+Diagnostic deploy `7638dc8` printed the failing branch in runtime logs:
+> `[auth.login] supabase query error...`
+
+Direct test from local using `.env.local` key (same as on Vercel) hitting Supabase REST API:
+```
+HTTP 401
+{"message":"Legacy API keys are disabled",
+ "hint":"Your legacy API keys (anon, service_role) were disabled on
+        2026-05-03T23:32:15.523383+00:00. Re-enable them in the Supabase
+        dashboard, or use the new..."}
+```
+
+**Root cause:** the key the user copied from the Supabase dashboard and saved to `C:\kareemhady\.claude\tmp\supa_key.txt` is the SAME legacy JWT that Supabase fully disabled on 2026-05-03 (2 days ago). User believed they had rotated; in fact the dashboard still shows the legacy key value but it's no longer accepted by Supabase auth.
+
+This is the SAME error the integration test runner hit earlier in the session — at that point I incorrectly diagnosed it as "rotation needed" and then tested with the same legacy key, which "worked" (since the test reached the DB query layer enough to NOT throw at supabaseAdmin client creation). It was actually still failing at every query — I just didn't read the error closely enough.
+
+**Two paths offered to user:**
+- **Path A (fast)**: Re-enable legacy keys in Supabase dashboard at https://supabase.com/dashboard/project/bpjproljatbrbmszwbov/settings/api-keys. One-click restore. Login works immediately, no redeploy needed.
+- **Path B (proper)**: Create a new-format API key (`sb_secret_...` not `eyJ...`), put it in `supa_key.txt`, I redo the rotation. Should be done within a few days regardless since legacy will be permanently dropped eventually.
+
+**Pending cleanup (after fix lands):**
+- Revert the `console.error` diagnostic in `src/lib/auth.ts` (commit `7638dc8`).
+- Delete `C:\kareemhady\.claude\tmp\supa_key.txt`.
+- Update SESSION_HANDOFF noting login restored.
+
+**Lesson learned:** When a key claims `role: service_role` AND has a valid `ref` AND is structurally a JWT, it can STILL be disabled by Supabase. Always test the key with an actual REST call (HTTP 401 with explicit "Legacy API keys are disabled" message) before assuming it works. The integration test in build-report.test.ts wasn't testing the auth layer — it was failing at query time but I misread the failure as "row not found" rather than "auth rejected".
