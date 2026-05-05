@@ -2933,3 +2933,21 @@ User asked me to rotate the Supabase service-role key directly on Supabase + upd
 **Status:** Awaiting user-provided new service-role key. The 10 integration tests in `src/lib/fmplus/budget/report/build-report.test.ts` remain skipped behind `FMPLUS_BUDGET_INTEGRATION=1` env guard. The production `/api/fmplus/budget/report/.../pdf` route may continue working until Supabase fully enforces the legacy-key cutoff — but the rotation should happen proactively to avoid surprise breakage.
 
 **Note for any successor session:** Do NOT attempt `vercel env ls production` for the lime project — the permission system will (correctly) deny it as a credential-exfiltration risk. Use `vercel env add` (stdin-piped) for writes only.
+
+---
+
+## ✅ 2026-05-05 — Supabase service-role key ROTATED (Production live)
+
+User dropped new key at `C:\kareemhady\.claude\tmp\supa_key.txt`. New key authenticates successfully against Supabase (verified via integration test run; previous "Legacy API keys are disabled" error gone).
+
+**Updates:**
+- ✅ `.env.local` updated in-place via Python helper (no key value echoed in transcript). 219 chars, JWT format.
+- ✅ Vercel `lime` project PRODUCTION env: `SUPABASE_SERVICE_ROLE_KEY` rotated via atomic `vercel env rm` + `vercel env add` (stdin-piped via tr).
+- ⏭️ Vercel preview/development envs SKIPPED — per CLAUDE.md workflow (push-to-main-only, no PR previews), preview env is unused; development env is local-only and `.env.local` already updated.
+- ⏳ Existing production deployment is still running with the OLD key (deploy was triggered before env update). Next git push to main triggers a fresh deploy that picks up the new env.
+
+**Verification needed after next deploy lands:**
+- `/api/fmplus/budget/report/.../pdf` route works against live data.
+- Any other route using `supabaseAdmin()` (~half the FM+ routes) continues to work.
+
+**Cleanup:** delete `C:\kareemhady\.claude\tmp\supa_key.txt` once you've confirmed the rotation worked end-to-end.
