@@ -83,14 +83,14 @@ describe('useVisibility storage helpers', () => {
     expect(result['revenue-waterfall']).toBe(false);
   });
 
-  it('hidden count: two extra panels off = 4 hidden total (includes 2 off-by-default)', () => {
+  it('hidden count: two extra panels off = 5 hidden total (includes 3 off-by-default)', () => {
     const def = defaultVisibility();
     def['hero-revpar'] = false;
     def['hero-pace'] = false;
     _writeToStorage(def);
     const result = _readFromStorage();
-    // revenue-waterfall and stly-yoy are also false by default = 4 hidden total
+    // revenue-waterfall, stly-yoy, snapshot-scrubber are false by default = 5 hidden total
     const hidden = Object.values(result).filter((v) => !v).length;
-    expect(hidden).toBe(4);
+    expect(hidden).toBe(5);
   });
 });

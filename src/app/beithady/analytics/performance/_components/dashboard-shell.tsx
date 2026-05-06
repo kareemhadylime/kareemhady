@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TopBar } from './top-bar';
 import { LeftRail } from './left-rail';
 import { useRailCollapse } from '../_hooks/use-rail-collapse';
@@ -23,6 +23,7 @@ import { MonthlyGoal } from './panels/monthly-goal';
 import { AIInsightsTray } from './panels/ai-insights-tray';
 import { SnapshotScrubber } from './panels/snapshot-scrubber';
 import { CustomizeDrawer } from './customize-drawer';
+import { MobileFilterSheet } from './mobile-filter-sheet';
 import { useVisibility } from '../_hooks/use-visibility';
 import { usePerfUrlState } from '../_hooks/use-url-state';
 import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
@@ -47,8 +48,19 @@ export function DashboardShell({
 }: Props) {
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { visibility, setPanel, hiddenCount } = useVisibility();
   const rail = useRailCollapse();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const updateMobile = () => setIsMobile(mq.matches);
+    updateMobile();
+    mq.addEventListener('change', updateMobile);
+    return () => mq.removeEventListener('change', updateMobile);
+  }, []);
 
   return (
     <div
@@ -69,20 +81,23 @@ export function DashboardShell({
         onCustomizeClick={() => setDrawerOpen(true)}
         onDateChange={(date) => update({ date })}
         currentDate={snapshotDate}
+        onFilterClick={() => setMobileFilterOpen(true)}
       />
       <div
         className="grid transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
-        style={{ gridTemplateColumns: `${rail.collapsed ? 44 : 200}px 1fr` }}
-        onMouseEnter={rail.handleEnter}
-        onMouseLeave={rail.handleLeave}
+        style={{ gridTemplateColumns: `${isMobile ? 0 : (rail.collapsed ? 44 : 200)}px 1fr` }}
+        onMouseEnter={isMobile ? undefined : rail.handleEnter}
+        onMouseLeave={isMobile ? undefined : rail.handleLeave}
       >
-        <LeftRail
-          state={state}
-          onChange={update}
-          collapsed={rail.collapsed}
-          pinned={rail.pinned}
-          onTogglePin={rail.togglePinned}
-        />
+        <div className={isMobile ? 'hidden' : ''}>
+          <LeftRail
+            state={state}
+            onChange={update}
+            collapsed={rail.collapsed}
+            pinned={rail.pinned}
+            onTogglePin={rail.togglePinned}
+          />
+        </div>
         <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
           {/* AI Insights tray (renders nothing when no insights) — full width */}
           {visibility['ai-insights'] && (
@@ -267,6 +282,12 @@ export function DashboardShell({
           onClose={() => setDrawerOpen(false)}
         />
       )}
+      <MobileFilterSheet
+        open={mobileFilterOpen}
+        onClose={() => setMobileFilterOpen(false)}
+        state={state}
+        onChange={update}
+      />
     </div>
   );
 }

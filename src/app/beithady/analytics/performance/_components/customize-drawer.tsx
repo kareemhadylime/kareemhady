@@ -116,11 +116,11 @@ function ToggleRow({
           type="checkbox"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
-          className="peer h-5 w-9 cursor-pointer appearance-none rounded-full bg-[#eae9f3] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-1 checked:bg-[#003462]"
+          className="peer h-5 w-9 cursor-pointer appearance-none rounded-full bg-[#eae9f3] outline-none transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-1 checked:bg-[#003462]"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4"
+          className="pointer-events-none absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform motion-reduce:transition-none peer-checked:translate-x-4"
         />
       </span>
     </label>
