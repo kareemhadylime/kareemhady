@@ -1,5 +1,31 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Task 5: TopBar + LeftRail (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `b53aa31` (branch `claude/flamboyant-agnesi-f34a8d`)
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_components/top-bar.tsx` (70 lines) — `'use client'`; breadcrumb label, wordmark `<Image priority width=120 height=48>`, h1, Export PDF + Customize buttons, date row with toggle date-picker; full `focus-visible:` rings; `aria-label` on date toggle + input.
+- `src/app/beithady/analytics/performance/_components/left-rail.tsx` (107 lines) — `'use client'`; Period/Building/Compare pill sections; `role="region" aria-label="Filters"`; `aria-pressed` on every `<Pill>`; `PerfUrlState` via `../_hooks/use-url-state`.
+
+**tsc --noEmit:** Only 3 pre-existing errors (qrcode, dashboard-shell, @testing-library/react) — no new errors.
+
+---
+
+## ✅ 2026-05-06 — Task 4: URL state hook (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `9d1ad76` (branch `claude/flamboyant-agnesi-f34a8d`)
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_hooks/use-url-state.test.ts` — 3 tests for `buildPerfUrl` (pure function)
+- `src/app/beithady/analytics/performance/_hooks/use-url-state.ts` — `buildPerfUrl` + `usePerfUrlState` hook; `'use client'` directive; `router.push(..., { scroll: false })`
+
+**TDD cycle:** test written first → FAIL (module not found) → implementation → 3/3 PASS
+
+**tsc --noEmit:** Only 3 pre-existing errors (qrcode, dashboard-shell, @testing-library/react) — no new errors.
+
+---
+
 ## ✅ 2026-05-06 — Task 3: Page route + EmptySnapshot fallback (Beithady Performance Dashboard)
 
 **Status: DONE** — commit `e88cddf` (pushed to main)
