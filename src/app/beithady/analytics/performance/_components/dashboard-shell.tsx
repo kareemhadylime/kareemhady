@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { TopBar } from './top-bar';
 import { LeftRail } from './left-rail';
+import { useRailCollapse } from '../_hooks/use-rail-collapse';
 import { HeroKpi } from './panels/hero-kpi';
 import { BuildingsTable } from './panels/buildings-table';
 import { ChannelMixDonut } from './panels/channel-mix-donut';
@@ -44,6 +45,7 @@ export function DashboardShell({
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { visibility, setPanel, hiddenCount } = useVisibility();
+  const rail = useRailCollapse();
 
   return (
     <div
@@ -64,8 +66,19 @@ export function DashboardShell({
         onCustomizeClick={() => setDrawerOpen(true)}
         onDateChange={(date) => update({ date })}
       />
-      <div className="grid" style={{ gridTemplateColumns: '200px 1fr' }}>
-        <LeftRail state={state} onChange={update} />
+      <div
+        className="grid transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
+        style={{ gridTemplateColumns: `${rail.collapsed ? 44 : 200}px 1fr` }}
+        onMouseEnter={rail.handleEnter}
+        onMouseLeave={rail.handleLeave}
+      >
+        <LeftRail
+          state={state}
+          onChange={update}
+          collapsed={rail.collapsed}
+          pinned={rail.pinned}
+          onTogglePin={rail.togglePinned}
+        />
         <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
           {/* AI Insights tray (renders nothing when no insights) — full width */}
           {visibility['ai-insights'] && (
