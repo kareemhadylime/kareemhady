@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword } from '@/lib/auth';
 import { requireBoatAdmin, s, sOrNull } from '@/lib/boat-rental/server-helpers';
+import { enqueueNotification, flushPendingNonReservation } from '@/lib/boat-rental/notifications';
 
 // Username is stored lowercase throughout the codebase (see existing
 // /admin/users create flow). Passwords are set by admin directly; users
@@ -81,6 +82,40 @@ async function upsertUserWithRole(args: {
   return { userId, created };
 }
 
+// Send the welcome WhatsApp with sign-in details. No-op if user has no WhatsApp.
+// Uses the password the admin just typed (we have it in plaintext at the
+// invite-form moment because the form submitted it).
+async function sendWelcomeWhatsapp(args: {
+  userId: string;
+  username: string;
+  whatsapp: string | null;
+  password: string;
+  role: 'broker' | 'owner';
+  displayName: string | null;
+}): Promise<void> {
+  if (!args.whatsapp) return;
+  const appUrl = process.env.NEXT_PUBLIC_APP_HOST || 'https://limeinc.vercel.app';
+  await enqueueNotification({
+    reservationId: null,
+    to: { userId: args.userId, phone: args.whatsapp, role: args.role },
+    templateKey: 'admin_signin_details',
+    language: 'en',
+    context: {
+      // Required NotifContext fields not used by this template
+      boatName: '',
+      bookingDate: '',
+      shortRef: '',
+      // Sign-in fields
+      username: args.username,
+      tempPassword: args.password,
+      signinRole: args.role,
+      appUrl,
+      displayName: args.displayName,
+    },
+  });
+  await flushPendingNonReservation();
+}
+
 export async function inviteBrokerAction(formData: FormData) {
   await requireBoatAdmin();
   const username = s(formData.get('username')).toLowerCase();
@@ -88,7 +123,17 @@ export async function inviteBrokerAction(formData: FormData) {
   const wa = normalizeWhatsapp(s(formData.get('whatsapp')));
   if (wa === 'invalid') throw new Error('whatsapp_invalid');
   if (!username || password.length < 8) return;
-  await upsertUserWithRole({ username, password, whatsapp: wa, role: 'broker', ownerId: null });
+  const result = await upsertUserWithRole({ username, password, whatsapp: wa, role: 'broker', ownerId: null });
+  if ('userId' in result) {
+    await sendWelcomeWhatsapp({
+      userId: result.userId,
+      username,
+      whatsapp: wa,
+      password,
+      role: 'broker',
+      displayName: null,   // never set on initial invite
+    });
+  }
   revalidatePath('/emails/boat-rental/admin/users');
 }
 
@@ -108,6 +153,15 @@ export async function inviteOwnerAction(formData: FormData) {
       .from('boat_rental_owners')
       .update({ user_id: result.userId, updated_at: new Date().toISOString() })
       .eq('id', ownerId);
+    // Send welcome WhatsApp with sign-in details
+    await sendWelcomeWhatsapp({
+      userId: result.userId,
+      username,
+      whatsapp: wa,
+      password,
+      role: 'owner',
+      displayName: null,
+    });
   }
   revalidatePath('/emails/boat-rental/admin/users');
 }
