@@ -61,7 +61,7 @@ const { buildPortfolioPerformance } = await import('./build-portfolio');
 describe('buildPortfolioPerformance', () => {
   test('aggregates totals + sorts by |variance_pct| desc', async () => {
     const r = await buildPortfolioPerformance({
-      period: { chip: 'last-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
     });
     expect(r.totals.expense).toBe(2_450_000);
     expect(r.contracts[0].contract_id).toBe(1);          // worst variance first

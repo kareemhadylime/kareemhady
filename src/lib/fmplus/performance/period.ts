@@ -5,6 +5,7 @@ export interface ResolveInput {
   chip: PeriodChip;
   from?: string;
   to?: string;
+  offset?: number;       // for prev-month
 }
 
 function fmt(d: Date) {
@@ -27,31 +28,64 @@ function monthLabel(d: Date) {
 }
 
 export function resolvePeriod(input: ResolveInput, now: Date = new Date()): PeriodRange {
+  // Backward-compat: old chip ids → new ids
+  const legacy = input.chip as string;
+  if (legacy === 'last-month') input = { ...input, chip: 'prev-month' };
+  if (legacy === 'this-month') input = { ...input, chip: 'prev-month' };  // partial-month UX dropped; redirect to prev-month
+  if (legacy === 'qtd') input = { ...input, chip: 'last-quarter' };       // partial-quarter UX dropped; redirect to last-quarter
+
   switch (input.chip) {
-    case 'this-month': {
-      const from = firstOfMonth(now);
-      return { chip: 'this-month', from: fmt(from), to: fmt(now), label: `${monthLabel(now)} (running)` };
-    }
-    case 'last-month': {
-      const lm = shiftMonths(now, -1);
-      return { chip: 'last-month', from: fmt(firstOfMonth(lm)), to: fmt(lastOfMonth(lm)), label: monthLabel(lm) };
+    case 'prev-month': {
+      const offset = typeof input.offset === 'number' && input.offset > 0 ? Math.floor(input.offset) : 1;
+      const target = shiftMonths(now, -offset);
+      return {
+        chip: 'prev-month',
+        from: fmt(firstOfMonth(target)),
+        to: fmt(lastOfMonth(target)),
+        label: monthLabel(target),
+        offset,
+      };
     }
     case 'last-3': {
       const start = firstOfMonth(shiftMonths(now, -3));
       const end = lastOfMonth(shiftMonths(now, -1));
       return { chip: 'last-3', from: fmt(start), to: fmt(end), label: `${monthLabel(start)} – ${monthLabel(end)}` };
     }
-    case 'qtd': {
-      const q = Math.floor(now.getMonth() / 3);
-      const from = new Date(now.getFullYear(), q * 3, 1);
-      return { chip: 'qtd', from: fmt(from), to: fmt(now), label: `Q${q + 1} ${now.getFullYear()} QTD` };
+    case 'last-quarter': {
+      const curQ = Math.floor(now.getMonth() / 3);                  // 0..3
+      const lastQ = curQ === 0 ? 3 : curQ - 1;                      // 0..3
+      const lastQYear = curQ === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const start = new Date(lastQYear, lastQ * 3, 1);
+      const end = lastOfMonth(new Date(lastQYear, lastQ * 3 + 2, 1));
+      return { chip: 'last-quarter', from: fmt(start), to: fmt(end), label: `Q${lastQ + 1} ${lastQYear}` };
     }
     case 'ytd': {
+      // Jan 1 of current year → end of LAST COMPLETED month (not today, since
+      // the current month is partial).
       const from = new Date(now.getFullYear(), 0, 1);
-      return { chip: 'ytd', from: fmt(from), to: fmt(now), label: `${now.getFullYear()} YTD` };
+      const lastCompleted = shiftMonths(now, -1);
+      const to = lastOfMonth(lastCompleted);
+      if (to.getTime() < from.getTime()) {
+        // January: no completed months in this year yet
+        return { chip: 'ytd', from: fmt(from), to: fmt(from), label: `${now.getFullYear()} YTD (no completed months)` };
+      }
+      return { chip: 'ytd', from: fmt(from), to: fmt(to), label: `${now.getFullYear()} YTD` };
+    }
+    case 'last-year': {
+      const ly = now.getFullYear() - 1;
+      return {
+        chip: 'last-year',
+        from: fmt(new Date(ly, 0, 1)),
+        to: fmt(new Date(ly, 11, 31)),
+        label: `${ly}`,
+      };
     }
     case 'custom': {
-      if (!input.from || !input.to) throw new Error('custom period requires from + to');
+      // Defensive: if user clicked Custom without entering dates, fall back to prev-month
+      // instead of throwing (the throw was surfacing as a generic server error in production).
+      if (!input.from || !input.to) {
+        return resolvePeriod({ chip: 'prev-month' }, now);
+      }
       return { chip: 'custom', from: input.from, to: input.to, label: `${input.from} → ${input.to}` };
     }
   }

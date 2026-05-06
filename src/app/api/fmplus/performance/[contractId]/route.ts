@@ -7,10 +7,11 @@ import { resolvePeriod } from '@/lib/fmplus/performance/period';
 import type { PeriodChip } from '@/lib/fmplus/performance/types';
 
 const QuerySchema = z.object({
-  chip: z.enum(['this-month', 'last-month', 'last-3', 'qtd', 'ytd', 'custom']).default('last-month'),
+  chip: z.enum(['prev-month', 'last-3', 'last-quarter', 'ytd', 'last-year', 'custom']).default('prev-month'),
   from: z.string().optional(),
   to: z.string().optional(),
   compare: z.enum(['0', '1']).optional(),
+  offset: z.coerce.number().int().positive().optional(),
 });
 
 export async function GET(req: Request, ctx: { params: Promise<{ contractId: string }> }) {
@@ -27,6 +28,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ contractId: str
     chip: parsed.data.chip as PeriodChip,
     from: parsed.data.from,
     to: parsed.data.to,
+    offset: parsed.data.offset,
   });
 
   const payload = await buildContractDashboard({

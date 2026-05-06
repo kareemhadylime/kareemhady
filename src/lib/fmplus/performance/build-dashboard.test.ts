@@ -118,7 +118,7 @@ describe('buildContractDashboard', () => {
   test('happy path returns all 13 sections', async () => {
     const r = await buildContractDashboard({
       contract_id: 1,
-      period: { chip: 'last-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
     });
     expect(r.meta.contract_id).toBe(1);
     expect(r.kpis).toHaveLength(5);
@@ -131,7 +131,7 @@ describe('buildContractDashboard', () => {
     // (NOT the full-year 1.1M total_actual). This proves slicing works.
     const r = await buildContractDashboard({
       contract_id: 1,
-      period: { chip: 'last-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
     });
     const hk = r.service_lines.find(s => s.service_line === 'hk');
     expect(hk).toBeDefined();
@@ -144,7 +144,7 @@ describe('buildContractDashboard', () => {
   test('compare=true returns prior block', async () => {
     const r = await buildContractDashboard({
       contract_id: 1,
-      period: { chip: 'last-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
       compare: true,
     });
     expect(r.prior).toBeDefined();

@@ -47,7 +47,7 @@ const SERVICE_LABELS: Record<ServiceLine, string> = {
  * are touched by the selected period.
  *
  * "Touched" = ANY day in the calendar month falls within [period.from, period.to].
- * For chip presets (this-month, last-month, last-3, qtd, ytd) this is always a
+ * For chip presets (prev-month, last-3, last-quarter, ytd, last-year) this is always a
  * contiguous run of whole months. For Custom ranges the user may supply partial
  * months — we include any month with any overlap.
  *

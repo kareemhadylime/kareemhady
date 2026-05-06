@@ -1,13 +1,14 @@
 // src/lib/fmplus/performance/types.ts
 import type { ServiceLine, Category } from '@/lib/fmplus/budget/types';
 
-export type PeriodChip = 'this-month' | 'last-month' | 'last-3' | 'qtd' | 'ytd' | 'custom';
+export type PeriodChip = 'prev-month' | 'last-3' | 'last-quarter' | 'ytd' | 'last-year' | 'custom';
 
 export interface PeriodRange {
   chip: PeriodChip;
   from: string;          // YYYY-MM-DD inclusive
   to: string;            // YYYY-MM-DD inclusive
   label: string;         // human "Apr 2026" / "Q2 2026" / "Custom range"
+  offset?: number;       // for chip='prev-month' — months back from now (1 = last month, 2 = month before, …)
   monthsElapsedInYear?: number;
   monthsTotalInYear?: number;
 }

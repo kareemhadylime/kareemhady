@@ -50,7 +50,7 @@ export default async function PerformanceContractPage(props: Props) {
   if (!Number.isFinite(id)) notFound();
 
   const period = resolvePeriod({
-    chip: (sp.chip as PeriodChip) ?? 'last-month',
+    chip: (sp.chip as PeriodChip) ?? 'prev-month',
     from: sp.from,
     to: sp.to,
   });

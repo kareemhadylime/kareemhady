@@ -19,7 +19,7 @@ export default async function PerformancePortfolioPage(props: Props) {
   await requireBudgetView();
   const sp = await props.searchParams;
   const period = resolvePeriod({
-    chip: (sp.chip as PeriodChip) ?? 'last-month',
+    chip: (sp.chip as PeriodChip) ?? 'prev-month',
     from: sp.from,
     to: sp.to,
   });
