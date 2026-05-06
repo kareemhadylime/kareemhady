@@ -3,8 +3,12 @@ import { ProjectContractSchema } from '../schema';
 import type { ServiceLine } from '../types';
 
 /**
- * Update contract metadata (name/customer/dates/value/VAT/year_tracking/zones/notes/customer_logo_url/customer_contacts/payment_terms/scope_summary).
+ * Update contract metadata (name/customer/dates/value/VAT/year_tracking/zones/notes/customer_logo_url/customer_contacts/payment_terms_days/scope_summary).
  * project_id and reimbursables are NOT editable via this path — they're set at create-time.
+ *
+ * payment_terms_days replaced the free-text payment_terms field in migration 0095.
+ * The text column is preserved on the row for historical reference but is no
+ * longer written by this action.
  */
 export async function updateContractMetadata(input: {
   contract_id: number;
@@ -19,7 +23,7 @@ export async function updateContractMetadata(input: {
   notes: string | null;
   customer_logo_url?: string | null;
   customer_contacts?: Array<{name: string; role: string; email: string; phone: string; primary: boolean}>;
-  payment_terms?: string | null;
+  payment_terms_days?: number | null;
   scope_summary?: string | null;
 }) {
   const sb = budgetDb();
@@ -57,7 +61,7 @@ export async function updateContractMetadata(input: {
     notes: input.notes,
     customer_logo_url: input.customer_logo_url ?? null,
     customer_contacts: input.customer_contacts ?? [],
-    payment_terms: input.payment_terms ?? null,
+    payment_terms_days: input.payment_terms_days ?? null,
     scope_summary: input.scope_summary ?? null,
   }).eq('id', input.contract_id);
   if (error) throw error;

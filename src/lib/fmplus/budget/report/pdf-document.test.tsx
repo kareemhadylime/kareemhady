@@ -35,6 +35,7 @@ const MINIMAL_DATA: ReportData = {
       zones: ['Zone A'],
       scope_summary: 'FM services for the facility.',
       payment_terms: null,
+      payment_terms_days: 60,
     },
     year: {
       id: 1,
@@ -106,6 +107,7 @@ const MINIMAL_DATA: ReportData = {
   },
   mobilization: null,
   payment_terms: null,
+  payment_terms_days: 60,
   change_vs_initial: null,
   variance_snapshot: null,
   contract_rollup: null,

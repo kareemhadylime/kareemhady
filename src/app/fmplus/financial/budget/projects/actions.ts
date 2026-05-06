@@ -11,6 +11,19 @@ function tryParseJson<T>(s: string, fallback: T): T {
   try { return JSON.parse(s) as T; } catch { return fallback; }
 }
 
+/**
+ * Parse the payment_terms_days FormData value into a non-negative integer or
+ * null. Empty/invalid input becomes null (defensive — no throw on bad UX).
+ */
+function parsePaymentTermsDays(raw: FormDataEntryValue | null): number | null {
+  if (raw === null) return null;
+  const trimmed = raw.toString().trim();
+  if (trimmed === '') return null;
+  const n = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
 export async function createContractAction(formData: FormData) {
   await requireBudgetAdmin();
 
@@ -70,7 +83,7 @@ export async function updateContractAction(formData: FormData) {
   const notes = String(formData.get('notes') ?? '').trim() || null;
   const customer_logo_url = String(formData.get('customer_logo_url') ?? '').trim() || null;
   const customer_contacts = tryParseJson(formData.get('customer_contacts')?.toString() ?? '[]', []);
-  const payment_terms = String(formData.get('payment_terms') ?? '').trim() || null;
+  const payment_terms_days = parsePaymentTermsDays(formData.get('payment_terms_days'));
   const scope_summary = String(formData.get('scope_summary') ?? '').trim() || null;
 
   if (!Number.isFinite(contract_id) || contract_id <= 0) throw new Error('Invalid contract_id');
@@ -78,7 +91,7 @@ export async function updateContractAction(formData: FormData) {
 
   await updateContractMetadata({
     contract_id, name, customer, start_date, end_date, contract_value, vat_pct, year_tracking, zones, notes,
-    customer_logo_url, customer_contacts, payment_terms, scope_summary,
+    customer_logo_url, customer_contacts, payment_terms_days, scope_summary,
   });
 
   revalidatePath('/fmplus/financial/budget/projects');

@@ -43,7 +43,9 @@ export function ProjectReportDocument({ data }: ProjectReportDocumentProps) {
   // Pre-evaluate conditional pages so we know whether to render the <Page>
   const showBudgetBreakdown = data.budget_breakdown.cells !== null;
   const showMobilization = data.mobilization !== null;
-  const showPaymentTerms = data.payment_terms !== null;
+  // Always render payment terms — when payment_terms_days is null, the section
+  // displays "Not specified" (customer-facing field).
+  const showPaymentTerms = true;
   const showChangeVsInitial = data.change_vs_initial !== null;
   const showVarianceSnapshot = data.variance_snapshot !== null;
   const showSignOff = data.signoff.lines.length > 0 || data.signoff.history.length > 0;

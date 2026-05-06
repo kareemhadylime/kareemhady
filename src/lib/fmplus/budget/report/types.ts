@@ -22,6 +22,7 @@ export interface ContractInfo {
   zones: string[];
   scope_summary: string | null;
   payment_terms: string | null;
+  payment_terms_days: number | null;
 }
 
 export interface YearInfo {
@@ -128,6 +129,7 @@ export interface ReportData {
   };
   mobilization: { detail: MobilizationLineDetail[] } | MobilizationSummary | null;
   payment_terms: string | null;
+  payment_terms_days: number | null;
   change_vs_initial: { cells: DeltaCell[]; warning: string | null } | null;
   variance_snapshot: { ytd_budget: number; ytd_actual: number; variance_pct: number } | null;
   contract_rollup: { years: RollupYearTotals[]; total_cost: number; total_revenue: number } | null;

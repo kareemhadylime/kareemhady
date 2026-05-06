@@ -121,7 +121,10 @@ export default async function ContractDetailPage(props: ContractDetailProps) {
           notes: (contract as any).notes,
           customer_logo_url: (contract as any).customer_logo_url,
           customer_contacts: Array.isArray((contract as any).customer_contacts) ? (contract as any).customer_contacts : [],
-          payment_terms: (contract as any).payment_terms,
+          payment_terms_days:
+            typeof (contract as any).payment_terms_days === 'number'
+              ? (contract as any).payment_terms_days
+              : null,
           scope_summary: (contract as any).scope_summary,
         }}
         services={services}

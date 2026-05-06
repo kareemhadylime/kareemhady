@@ -22,7 +22,7 @@ export async function loadContract(contract_id: number): Promise<ContractInfo> {
   const { data, error } = await sb
     .from('project_contracts')
     .select(
-      'id, name, customer, customer_logo_url, customer_contacts, start_date, end_date, duration_months, contract_value, vat_pct, zones, scope_summary, payment_terms',
+      'id, name, customer, customer_logo_url, customer_contacts, start_date, end_date, duration_months, contract_value, vat_pct, zones, scope_summary, payment_terms, payment_terms_days',
     )
     .eq('id', contract_id)
     .single();
@@ -41,6 +41,8 @@ export async function loadContract(contract_id: number): Promise<ContractInfo> {
     zones: ((data.zones ?? []) as string[]),
     scope_summary: data.scope_summary ?? null,
     payment_terms: data.payment_terms ?? null,
+    payment_terms_days:
+      (data as { payment_terms_days?: number | null }).payment_terms_days ?? null,
   };
 }
 
@@ -247,6 +249,7 @@ export function aggregate(input: AggregateInput): ReportData {
     budget_breakdown: { cells, category_totals, service_totals },
     mobilization,
     payment_terms: contract.payment_terms,
+    payment_terms_days: contract.payment_terms_days,
     change_vs_initial,
     variance_snapshot: null, // populated separately for snapshot mode in C39
     contract_rollup,

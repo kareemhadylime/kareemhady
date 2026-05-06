@@ -72,10 +72,11 @@ describe.skipIf(!RUN)('buildProjectReport (live TRIO)', () => {
     }
   });
 
-  test('payment_terms string when contract has it (TRIO has payment terms)', async () => {
+  test('payment_terms_days numeric or null (TRIO may or may not have it)', async () => {
     const r = await buildProjectReport({ contract_id: 5, year_id: 6, mode: 'signoff', lang: 'en' });
-    // TRIO contract may or may not have payment_terms set; just check shape
-    expect(r.payment_terms === null || typeof r.payment_terms === 'string').toBe(true);
+    expect(
+      r.payment_terms_days === null || typeof r.payment_terms_days === 'number',
+    ).toBe(true);
   });
 
   test('snapshot mode: variance_snapshot section is null in v1 (variance integration in C39)', async () => {

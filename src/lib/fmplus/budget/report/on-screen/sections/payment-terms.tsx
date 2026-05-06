@@ -1,7 +1,8 @@
 import type { ReportData } from '../../types';
 
 export function PaymentTerms({ data }: { data: ReportData }) {
-  if (!data.payment_terms) return null;
+  const days = data.payment_terms_days;
+  const label = days != null ? `Net ${days} days` : 'Not specified';
 
   const isProposed = data.meta.mode === 'pre';
 
@@ -16,8 +17,8 @@ export function PaymentTerms({ data }: { data: ReportData }) {
         )}
       </div>
       <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50">
-        <p className="text-sm text-slate-700 dark:text-slate-300 font-body whitespace-pre-line leading-relaxed">
-          {data.payment_terms}
+        <p className="text-sm text-slate-700 dark:text-slate-300 font-body tabular-nums leading-relaxed">
+          {label}
         </p>
       </div>
     </section>

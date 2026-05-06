@@ -40,6 +40,7 @@ export const ProjectContractSchema = z.object({
   customer_logo_url: z.string().nullable().optional(),
   customer_contacts: z.array(CustomerContactSchema).default([]),
   payment_terms: z.string().nullable().optional(),
+  payment_terms_days: z.number().int().nonnegative().nullable().optional(),
   scope_summary: z.string().nullable().optional(),
 });
 export type ProjectContract = z.infer<typeof ProjectContractSchema>;

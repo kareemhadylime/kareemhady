@@ -29,7 +29,7 @@ interface ContractDraft {
   notes: string | null;
   customer_logo_url: string | null;
   customer_contacts: Array<{name: string; role: string; email: string; phone: string; primary: boolean}>;
-  payment_terms: string | null;
+  payment_terms_days: number | null;
   scope_summary: string | null;
 }
 
@@ -208,18 +208,27 @@ export function EditContractForm({ contract, services, availableServices, canEdi
           />
         </label>
 
-        {/* Payment Terms — free-form text rendered in customer/sign-off reports */}
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment Terms</span>
-          <textarea
-            name="payment_terms"
-            rows={3}
-            defaultValue={contract.payment_terms ?? ''}
-            placeholder="Net 30 monthly. Mobilization 100% upfront. Final invoice payable within 14 days of contract end."
+        {/* Payment Terms (Days) — numeric, used to flag overdue AR. */}
+        <div className="space-y-1">
+          <label htmlFor="payment_terms_days" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Payment Terms (Days)
+          </label>
+          <input
+            id="payment_terms_days"
+            name="payment_terms_days"
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            placeholder="e.g. 60"
+            defaultValue={contract.payment_terms_days ?? ''}
             disabled={!canEdit || isPending}
-            className="mt-1 w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50 text-slate-900 dark:text-slate-100 resize-y"
+            className="mt-1 w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50 text-slate-900 dark:text-slate-100 tabular-nums"
           />
-        </label>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Number of days from invoice submission to payment due. Used to flag overdue AR.
+          </p>
+        </div>
 
         {/* Scope Summary — customer-visible 1-2 paragraph project description */}
         <label className="block">

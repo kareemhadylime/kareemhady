@@ -68,6 +68,7 @@ const baseFixture = (): ReportData => ({
     ],
   },
   payment_terms: 'Net 30',
+  payment_terms_days: 30,
   change_vs_initial: null,
   variance_snapshot: null,
   contract_rollup: null,
