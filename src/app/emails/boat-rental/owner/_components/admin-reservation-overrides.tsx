@@ -104,41 +104,20 @@ export function AdminReservationOverrides({ reservationId, initial }: Props) {
     }
   }
 
-  // Collapsed by default — admin only sees Edit / Delete buttons. The
-  // form expands when Edit is clicked. Delete fires the confirm flow
-  // directly from the collapsed state (no reason to open the form first).
+  // Fully collapsed — show nothing until the admin taps "Admin overrides".
+  // Clicking reveals the Edit / Delete action row; clicking Edit expands the form.
   if (!editing) {
     return (
-      <section className="mt-6 ix-card p-4 border-amber-300 bg-amber-50/40 dark:border-amber-700 dark:bg-amber-950/30">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="font-semibold text-amber-900 dark:text-amber-200 text-sm flex items-center gap-2">
-            <ShieldAlert size={14} /> Admin overrides
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              disabled={busy !== null}
-              className="ix-btn-primary inline-flex items-center gap-1 disabled:opacity-60 text-sm"
-            >
-              <Pencil size={14} /> Edit
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={busy !== null}
-              className="ix-btn-danger inline-flex items-center gap-1 disabled:opacity-60 text-sm"
-            >
-              {busy === 'delete' ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Trash2 size={14} />
-              )}
-              Delete
-            </button>
-          </div>
-        </div>
-      </section>
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          disabled={busy !== null}
+          className="text-xs text-amber-600 hover:text-amber-800 inline-flex items-center gap-1 disabled:opacity-60"
+        >
+          <ShieldAlert size={12} /> Edit Price / Admin overrides
+        </button>
+      </div>
     );
   }
 

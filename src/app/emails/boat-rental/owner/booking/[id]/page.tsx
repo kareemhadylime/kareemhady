@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, XCircle, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, XCircle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
@@ -276,23 +276,9 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
       )}
 
       {canForceCancel && (
-        <section className="mt-6 ix-card p-5 border-rose-300 bg-rose-50/40 dark:border-rose-700 dark:bg-rose-950/30">
-          <h2 className="font-semibold mb-2 text-rose-900 dark:text-rose-200 text-sm flex items-center gap-2">
-            <AlertTriangle size={14} /> Danger zone — force cancel
-          </h2>
-          <p className="text-xs text-rose-900/80 dark:text-rose-200/80 mb-3">
-            Use this when the regular flow won&apos;t work — boat damage, weather, owner
-            conflict, client no-show, or the broker is unreachable. The cancellation goes
-            through immediately; the broker is notified but cannot veto.{' '}
-            {r.status === 'paid_to_owner' && (
-              <span className="block mt-1 font-semibold">
-                Payment was already collected — this will mark the reservation as
-                <em> refund pending</em> so admin can reconcile with the broker.
-              </span>
-            )}
-          </p>
+        <div className="mt-6">
           <ForceCancelForm reservationId={r.id} status={r.status} />
-        </section>
+        </div>
       )}
 
       {isAdmin && (
