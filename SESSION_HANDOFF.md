@@ -4,7 +4,23 @@
 
 **Status: BRAINSTORMING** — kareem requested a new "Performance Dashboard" menu under FM+ showing budget vs actual side-by-side with charts, KPI tiles, and journal drilldowns. Period filter defaults to Last Month. Data axes: revenue (total + service line), expenses (total + service line + category), manning (amounts + back-derived headcount via Expense ÷ avg CTC), GP (abs + %), unmapped expenses, plus any beneficial extras. All output clickable. FM+ branding only — yellow/gold/black tokens from `src/lib/fmplus/brand.ts`. Process: plan → 95% confidence → workflow → review → 95% → code.
 
-**Where the turn stopped:** asked kareem to confirm Q1 (navigation shape) with recommendation = option A (sibling module under `/fmplus`, lands on portfolio summary at `/fmplus/performance`, drills into `/fmplus/performance/[contractId]` per contract).
+**Decisions locked:**
+- **Q1 answered: A.** Sibling module under `/fmplus`. Landing page `/fmplus/performance` shows portfolio summary; per-contract drill-in at `/fmplus/performance/[contractId]`.
+
+**Locked design rules (from research, kareem hasn't pushed back):**
+- Layout = hybrid of Pattern A (KPI strip + variance waterfall + line-item table) and Pattern D (Procore-style line-item grid). Concretely: KPI strip → primary "service-line budget vs actual" grouped-bar panel → diverging variance row centered on 0% → line-item grid → dedicated unmapped-expenses panel.
+- Charts: grouped bars (primary), diverging variance bars (overview), **dumbbell** for 3-way headcount comparison (required/budgeted/implied), waterfall as secondary GP-decomposition drill-in only.
+- KPI tile anatomy: label (12px gold uppercase) → value (28-32px) → variance pill INSIDE tile (color + directional arrow, both) → 6-month sparkline at bottom → chevron top-right. Full tile is the click target.
+- **Brand-yellow rule (critical, baked in unless kareem objects):** FM+ yellow `#FDCF00` is brand emphasis only — primary KPI value, "actual / hero" chart series, active filter chips. Status uses a separate accessible palette: green `#22C55E`, **orange `#F97316`** (pushed away from gold so it's distinguishable), red `#EF4444`. Chart "context" series (budget bars, prior-period overlays) ride a slate-500 → slate-300 ramp. White-on-yellow fails WCAG (~1.07:1) so it can never be used for status.
+- Period filter UX = chip row with quick selects + "Custom" calendar popover; resolved date range shown as subtitle.
+
+**Where this turn stopped:** Q1 answered = A. Asked Q2 — period-filter chips + period × year-axis interaction. Recommended chip set: This Month / **Last Month** (default) / Last 3 Months / QTD / YTD / Custom + optional "Compare to prior period" toggle. Recommended interaction = **option A**: period filter takes precedence, year is contextual subtitle; per-contract page has a "Year-over-year arc" strip at the bottom showing every year's headline numbers (Revenue, GP%, Variance) so longer-arc context is always visible without swapping years. Alternative B = explicit year picker before period chips (Variance-tab style).
+
+**Background research agent `a96a9d5c751ed8f0d` returned successfully** — comprehensive 1500-word reference doc with sources (Pigment, Workday Adaptive, Procore, FM:Systems, Stephen Few bullet spec, Domo divergent bars, Carbon Design status pattern, Tabular Editor KPI guidance, Linear dashboards 2025, Carbon dataviz palettes, Ramp brand-color usage). Findings already encoded in the locked design rules above.
+
+**Next turn:** await Q2 answer. Then Q3 (audience/mode — internal-only vs customer-facing? — affects whether we mirror the Report's customer-mode hide-cost behavior). Then Q4 (headcount detail granularity — service line, sub-section, role?). Then propose 2-3 layout sketches. Then write spec to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md`. Then kareem review → workflow plan via writing-plans skill.
+
+**Where the previous turn ended (now superseded):** asked kareem to confirm Q1 (navigation shape) with recommendation = option A.
 
 **Done so far this turn:**
 - Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
