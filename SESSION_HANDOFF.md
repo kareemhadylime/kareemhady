@@ -1,6 +1,66 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Admin sign-in details: SPEC + PLAN both committed, awaiting execution-mode choice
+## 🟢 Latest turn — Admin sign-in details: ALL 10 IMPLEMENTATION TASKS COMPLETE — Task 11 (QA + ship) pending user confirmation
+
+**Status:** User picked subagent-driven execution for the 11-task admin sign-in plan. All 10 implementation tasks landed cleanly via subagent dispatch + two-stage review. `npm test` 34/34 passing, `npm run build` clean. Task 11 has destructive steps (apply migration to live Supabase, deploy to prod) — paused for explicit user go-ahead.
+
+### Tasks 1–10 shipped this session
+
+| # | Task | Commit |
+|---|---|---|
+| 1 | Migration 0073 — display_name, disabled_at, disabled_by + partial index | `dea4f94` |
+| 2 | randomFriendlyPassword helper + 5 vitest tests (29 chars/no lookalikes) | `1948fe7` |
+| 3 | notifications.ts — admin_signin_details template_key + renderer + dispatch case | `8fe8f18` |
+| 4 | inviteBroker/Owner auto-send via sendWelcomeWhatsapp helper | `7efb651` |
+| 5 | sendSigninDetailsAction — rotate password + wipe sessions + WhatsApp | `10a2353` |
+| 6 | setUserDisplayName + setUserDisabled actions (refuses self-disable) | `300e89d` |
+| 7 | Login flow guard — getCurrentUser + loginWithPassword + login page error message | `09c4ccf` |
+| 8 | SendSigninButton client component (4-state machine + toast + 5s revert) | `220a77b` |
+| 9 | DisplayNameForm (server) + DisableToggle (client w/ confirm modal) | `dd99f68` |
+| 10 | users/page.tsx refactor — fetch new cols, render new components, fade disabled cards | `542d766` |
+
+### What's automatically verified ✅
+- `npm test` → 34/34 passing (5 new from Task 2 + 29 from owner-features plan)
+- `npm run build` → clean, all routes built, no TS errors
+- 10 feat commits on worktree branch `claude/inspiring-booth-3d348a`
+- Nothing pushed to main, nothing deployed
+
+### Task 11 — destructive steps awaiting user confirmation
+
+**Three paths offered to user:**
+
+**A) Ship admin sign-in details NOW alongside owner-features (Tasks 1-30 from sibling plan)**
+- Apply migration 0073 to live Supabase via MCP
+- Run 12-item QA checklist post-migration
+- Once QA passes → merge → main → `vercel --prod`
+- Both feature sets ship together
+
+**B) Apply migration only, defer deploy**
+- Apply 0073 (safe, additive)
+- Code stays on branch (won't render)
+- Decide deploy timing later
+
+**C) Pause everything**
+- Nothing applied, nothing deployed
+- Review 10 commits + SESSION_HANDOFF, decide next session
+
+User must reply **A / B / C** or specific instructions before any prod action.
+
+### Note: branch state
+
+This worktree branch `claude/inspiring-booth-3d348a` ALSO contains the 32-task owner-features plan (Tasks 1-30 complete, Task 32 deploy pending — see prior section). When the user picks A or eventually deploys, BOTH feature sets ship together since they're on the same branch.
+
+### What the next session needs to know
+
+If a fresh session takes over:
+- Don't re-implement anything; everything is committed
+- Read this section + the spec at `docs/superpowers/specs/2026-05-03-admin-signin-details-design.md` for full context
+- The 12-item QA checklist lives at the end of the plan: `docs/superpowers/plans/2026-05-03-admin-signin-details-plan.md` (Task 11 Step 3)
+- Migration 0073 SQL is at `supabase/migrations/0073_admin_user_ux_upgrades.sql`
+
+---
+
+## Previous turn — Admin sign-in details: SPEC + PLAN both committed, awaiting execution-mode choice
 
 **Status:** User approved the design summary. Spec doc → committed (`6d4427c`). User then approved the spec, which triggered the writing-plans skill to produce the implementation plan → committed (`834c567`).
 
