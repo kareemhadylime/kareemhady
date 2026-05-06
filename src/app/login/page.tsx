@@ -20,6 +20,12 @@ export default async function LoginPage({
   const next = sp.next && sp.next.startsWith('/') ? sp.next : '/';
   const err = sp.err || '';
 
+  const ERROR_MESSAGES: Record<string, string> = {
+    invalid_credentials: 'Wrong username or password.',
+    account_disabled: 'This account has been disabled. Contact your administrator.',
+  };
+  const errorMessage = err ? (ERROR_MESSAGES[err] ?? 'Login failed. Please try again.') : null;
+
   return (
     <main className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-lime-50 via-white to-emerald-50 px-4">
       <div className="w-full max-w-sm space-y-6">
@@ -40,14 +46,10 @@ export default async function LoginPage({
           action={`/api/auth/login?next=${encodeURIComponent(next)}`}
           className="ix-card p-6 space-y-4 bg-white/80 backdrop-blur"
         >
-          {err && (
+          {errorMessage && (
             <div className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              <p>
-                {err === 'invalid_credentials'
-                  ? 'Wrong username or password.'
-                  : err}
-              </p>
+              <p>{errorMessage}</p>
             </div>
           )}
 

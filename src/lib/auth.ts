@@ -111,11 +111,18 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
   const { data: user } = await sb
     .from('app_users')
-    .select('id, username, role')
+    .select('id, username, role, disabled_at')
     .eq('id', s.user_id)
     .maybeSingle();
   if (!user) return null;
-  const u = user as { id: string; username: string; role: string };
+  const u = user as { id: string; username: string; role: string; disabled_at: string | null };
+
+  // Disabled accounts have no session, even if app_sessions has stale rows.
+  if (u.disabled_at) {
+    // Best-effort: clean up the orphan session so subsequent calls are cheaper.
+    await sb.from('app_sessions').delete().eq('token', token);
+    return null;
+  }
 
   const isAdmin = (u.role || '').toLowerCase() === 'admin';
   let allowed: Domain[] = [];
@@ -171,13 +178,16 @@ export async function loginWithPassword(
   const sb = supabaseAdmin();
   const { data } = await sb
     .from('app_users')
-    .select('id, password_hash')
+    .select('id, password_hash, disabled_at')
     .eq('username', username.trim().toLowerCase())
     .maybeSingle();
   if (!data) return { ok: false, error: 'invalid_credentials' };
-  const row = data as { id: string; password_hash: string };
+  const row = data as { id: string; password_hash: string; disabled_at: string | null };
   if (!verifyPassword(password, row.password_hash)) {
     return { ok: false, error: 'invalid_credentials' };
+  }
+  if (row.disabled_at) {
+    return { ok: false, error: 'account_disabled' };
   }
   return { ok: true, userId: row.id };
 }
