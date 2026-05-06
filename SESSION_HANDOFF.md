@@ -1,5 +1,20 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 4 Batch B: Tasks 33–36 — four more analytical panels
+
+**Status: DONE** — commit `d182833` pushed to `main`
+
+**Files created (4):**
+- `src/app/beithady/analytics/performance/_components/panels/revenue-waterfall.tsx` (43 lines) — 4-bar waterfall (Gross/Fees/Tax/Net) from `payload.revenue_waterfall`. Bars sized proportionally to gross. Fees + Tax in red, Net in steel, Gross in navy. Empty state on null/gross<=0.
+- `src/app/beithady/analytics/performance/_components/panels/stly-yoy.tsx` (41 lines) — Side-by-side YoY for MTD revenue + occupancy from `payload.stly`. Null state when no year-old snapshot. Drills to `?compare=last-year`.
+- `src/app/beithady/analytics/performance/_components/panels/top-movers-ribbon.tsx` (28 lines) — Horizontal scrollable strip of up to N mover bullets from `payload.top_movers`. Empty state on null/[].
+- `src/app/beithady/analytics/performance/_components/panels/monthly-goal.tsx` (38 lines) — Progress bar + projected EOM from `payload.goal`. `aria-valuenow` on progressbar. Almost always renders "No goal set" CTA in V1 (admin goal config is V1.5).
+
+**tsc --noEmit:** only pre-existing errors (qrcode + @testing-library/react), no new errors.
+**Not wired into DashboardShell** — Phase 4 Batch C (Task 38) handles final grid wiring.
+
+---
+
 ## ✅ 2026-05-06 — Phase 4 Batch A: Tasks 29–32 — four new analytical panels
 
 **Status: DONE** — commit `0a8ee79` on branch, pushed to `main`
