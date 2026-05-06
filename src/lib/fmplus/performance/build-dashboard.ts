@@ -42,6 +42,35 @@ const SERVICE_LABELS: Record<ServiceLine, string> = {
   back_office: 'Back Office',
 };
 
+/**
+ * Return the set of month numbers (1..12) within a contract year window that
+ * are touched by the selected period.
+ *
+ * "Touched" = ANY day in the calendar month falls within [period.from, period.to].
+ * For chip presets (this-month, last-month, last-3, qtd, ytd) this is always a
+ * contiguous run of whole months. For Custom ranges the user may supply partial
+ * months — we include any month with any overlap.
+ *
+ * The contract year may run on a calendar fiscal or a contract-start year. We
+ * simply intersect the period dates with month-of-year, ignoring year boundaries.
+ * This is correct as long as the period falls entirely within the contract year
+ * the dashboard is loaded for, which is the v1 invariant. Cross-year periods are
+ * an edge case left for a follow-up.
+ */
+function periodMonthNumbers(period: { from: string; to: string }): Set<number> {
+  const months = new Set<number>();
+  const from = new Date(period.from);
+  const to = new Date(period.to);
+  // Walk month-by-month from `from`'s month-start to `to`'s month-end.
+  const cursor = new Date(from.getFullYear(), from.getMonth(), 1);
+  const end = new Date(to.getFullYear(), to.getMonth(), 1);
+  while (cursor.getTime() <= end.getTime()) {
+    months.add(cursor.getMonth() + 1); // 1..12
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return months;
+}
+
 interface BuildArgs {
   contract_id: number;
   period: PeriodRange;
@@ -95,15 +124,40 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     scenario: currentYear.scenario,
   });
 
-  // 4. Service-line rollup rows
+  // 3b. Period slicing — derive sliced budget/actual per category from cells[]
+  // (the year totals on segments/categories are FULL YEAR; period chips need
+  // only the months they cover).
+  const periodMonths = periodMonthNumbers(args.period);
+
+  function sliceCategory(
+    cat: { cells: Array<{ month: number; budget: number; actual: number }> },
+  ): { budget: number; actual: number } {
+    let budget = 0;
+    let actual = 0;
+    for (const c of cat.cells ?? []) {
+      if (!periodMonths.has(c.month)) continue;
+      budget += c.budget;
+      actual += c.actual;
+    }
+    return { budget, actual };
+  }
+
+  // 4. Service-line rollup rows (period-sliced)
   const service_lines: ServiceLineRow[] = (variance.segments ?? []).map(s => {
-    const variance_abs = s.segment_actual - s.segment_budget;
-    const variance_pct = s.segment_budget > 0 ? variance_abs / s.segment_budget : 0;
+    let segBudget = 0;
+    let segActual = 0;
+    for (const cat of s.categories ?? []) {
+      const sliced = sliceCategory(cat);
+      segBudget += sliced.budget;
+      segActual += sliced.actual;
+    }
+    const variance_abs = segActual - segBudget;
+    const variance_pct = segBudget > 0 ? variance_abs / segBudget : 0;
     return {
       service_line: s.service_line,
       service_label: SERVICE_LABELS[s.service_line] ?? String(s.service_line),
-      budget: s.segment_budget,
-      actual: s.segment_actual,
+      budget: segBudget,
+      actual: segActual,
       variance_abs,
       variance_pct,
       gp_pct: 0, // v1 stub — refined when revenue rollup wired
@@ -112,7 +166,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     };
   });
 
-  // 5. Manning panel
+  // 5. Manning panel (period-sliced)
   const manning: ManningRow[] = await Promise.all(
     (variance.segments ?? []).map(async seg => {
       const { data: manningRows } = await sb
@@ -124,8 +178,9 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       const rows = ((manningRows ?? []) as Array<{ qty: number; unit_cost: number }>);
       const avgCtc = weightedAvgCtc(rows);
       const manningCat = seg.categories.find(c => c.category === 'manning');
-      const spend_actual = manningCat?.ytd_actual ?? 0;
-      const spend_budget = manningCat?.ytd_budget ?? 0;
+      const sliced = manningCat ? sliceCategory(manningCat) : { budget: 0, actual: 0 };
+      const spend_actual = sliced.actual;
+      const spend_budget = sliced.budget;
       const hc_implied_raw = impliedHeadcount(spend_actual, avgCtc);
       const hc_required = rows.reduce((a, r) => a + Math.round(r.qty * 0.85), 0);
       const hc_budgeted = rows.reduce((a, r) => a + r.qty, 0);
@@ -143,7 +198,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     }),
   );
 
-  // 6. Category rollup (across all service lines)
+  // 6. Category rollup across all service lines (period-sliced)
   const catTotals: Record<Category, { budget: number; actual: number }> = Object.fromEntries(
     Object.keys(CATEGORY_LABELS).map(c => [c, { budget: 0, actual: 0 }]),
   ) as Record<Category, { budget: number; actual: number }>;
@@ -151,8 +206,9 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     for (const c of seg.categories) {
       const t = catTotals[c.category];
       if (!t) continue;
-      t.budget += c.ytd_budget;
-      t.actual += c.ytd_actual;
+      const sliced = sliceCategory(c);
+      t.budget += sliced.budget;
+      t.actual += sliced.actual;
     }
   }
   const categories: CategoryRow[] = (Object.keys(catTotals) as Category[]).map(cat => {
@@ -173,11 +229,12 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
   // 7. Unmapped actuals
   // variance v2 currently rolls up unmapped_actuals as a single number, not a per-line array.
   // Until a per-line surface is added (future task), expose an empty list — the panel auto-hides.
+  // NOTE: unmapped_actuals is NOT month-keyed, so it can't be period-sliced in this fix.
   const unmapped: UnmappedLine[] = [];
 
-  // 8. KPIs
-  const total_budget = variance.total_budget;
-  const total_actual = variance.total_actual;
+  // 8. KPIs (period-sliced — totals derived from sliced service_lines)
+  const total_budget = service_lines.reduce((a, s) => a + s.budget, 0);
+  const total_actual = service_lines.reduce((a, s) => a + s.actual, 0);
   const variance_pct = total_budget > 0 ? (total_actual - total_budget) / total_budget : 0;
   const revenue = service_lines.reduce((a, s) => a + s.budget * (1 + s.gp_pct), 0);
   const gp_abs = revenue - total_actual;
@@ -191,13 +248,16 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     { id: 'variance_pct', label: 'Variance %',  value: variance_pct, unit: '%',     variance_pct, variance_abs: 0,                   status: classifyVariance(variance_pct), spark: [] },
   ];
 
-  // 9. Forecast
+  // 9. Forecast — project full-year actual from the run-rate observed in the
+  // selected period. months_elapsed = number of months in the period; period_actual
+  // = sliced actual; budget_year = full-year budget (NOT sliced — we're comparing
+  // a projected full year against the full-year budget plan).
   const monthsElapsed = elapsedMonths(currentYear, args.period.to);
   const forecast = linearForecast({
     period_actual: total_actual,
-    months_elapsed: monthsElapsed,
+    months_elapsed: periodMonths.size,
     months_total: 12,
-    budget_year: total_budget,
+    budget_year: variance.total_budget,
     amber_pct: 0.05,
     red_pct: 0.15,
   });
@@ -278,18 +338,32 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       status: 'draft' | 'published';
     }>).map(async y => {
       if (y.id === currentYear.id) {
+        // YoY arc shows full-year totals per year — NOT the period-sliced values
+        // used elsewhere on the dashboard. We re-use the already-loaded variance
+        // backbone (which is full-year) for the current year.
+        const yearRevenue = (variance.segments ?? []).reduce(
+          (a, s) => a + s.segment_budget * (1 + 0),
+          0,
+        );
+        const yearExpense = variance.total_actual;
+        const yearGp = yearRevenue - yearExpense;
+        const yearGpPct = yearRevenue > 0 ? yearGp / yearRevenue : 0;
+        const yearVariancePct =
+          variance.total_budget > 0
+            ? (variance.total_actual - variance.total_budget) / variance.total_budget
+            : 0;
         return {
           year_id: y.id,
           year_index: y.year_index,
           fiscal_year: y.fiscal_year,
           scenario: y.scenario,
           status: y.status,
-          revenue,
-          expense: total_actual,
-          gp: gp_abs,
-          gp_pct,
-          variance_pct,
-          health: classifyVariance(variance_pct),
+          revenue: yearRevenue,
+          expense: yearExpense,
+          gp: yearGp,
+          gp_pct: yearGpPct,
+          variance_pct: yearVariancePct,
+          health: classifyVariance(yearVariancePct),
           drill_url: `/fmplus/performance/${args.contract_id}?year=${y.year_index}`,
         };
       }
