@@ -43,6 +43,8 @@ Every number on the page is a click away from the source journal lines. The dash
 
 **Permissions:** both routes call `requireBudgetView()` (existing wrapper for `requireDomainAccess('fmplus')`). No admin-only gating. There is no row-level multi-tenancy in the budget tables today, and we don't add one for v1.
 
+**Customer access: prohibited.** The Performance Dashboard is an internal operator surface. Unlike the Project Report module (which has a customer mode that strips cost cells), the Performance Dashboard has no customer mode and no shareable / tokenized variant. Both routes always 404 for users without the `fmplus` domain in `allowed_domains`. Do not add a public-token variant later without an explicit re-design — the dashboard surfaces raw cost, vendor, and overtime data that should never leave the internal team.
+
 ## 5. Sidebar UX (both routes share the same shell)
 
 The shell is a fixed left sidebar plus a flexible main content column. The sidebar pattern is identical on the portfolio page and the per-contract page, but the sidebar's contents differ slightly per route.
