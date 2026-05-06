@@ -138,7 +138,32 @@ Each contract's `project_id` IS the Odoo analytic account id; actuals come from 
 
 The variance loader DOES return per-cell month-keyed `cells: { month, budget, actual }[]` (see variance.ts further down). The fix is: in `build-dashboard.ts`, slice each segment/category's `cells[]` to entries where `month` falls in `[args.period.from, args.period.to]` before rolling up `segment_actual` / `ytd_actual`. Estimated ~30 min of focused work.
 
-**Asked kareem:** fix the period slicing inline now, or defer with the other followups (per-line unmapped, OT actual, GP %, RTL pass, accessibility audit)? **Awaiting his pick before continuing.**
+**Asked kareem:** fix the period slicing inline now, or defer with the other followups?
+
+**kareem: "mostly comparison between budget and actual will be monthly - quarterly. confirm" → period slicing fix shipped (`0723002`).** `build-dashboard.ts` derives `periodMonths` (Set<1..12>) from the period range; a `sliceCategory()` closure sums each category's `cells[]` filtered to those months. KPIs / service lines / variance / manning / categories / forecast all use sliced totals; YoY arc still uses full-year. 1 new period-slicing assertion.
+
+**Follow-up: bug + period chooser redesign shipped together (`17cf588`).**
+
+Bug — clicking Custom chip on the dashboard → "Performance Dashboard failed to load". Vercel runtime logs (`mcp__…__get_runtime_logs` on `prj_eA8n3hQvSyUclvJQ0o6kzfxVMUQw` = real `lime` project) showed `Error: custom period requires from + to` thrown by `resolvePeriod` when URL had `?chip=custom` without dates.
+
+Feature — kareem: *"Wire Previous Month to choose from. Previous Periods - Only Choose Full Months."* Pick any past completed month, never partial.
+
+Changes in `17cf588`:
+
+- `PeriodChip` union: dropped `this-month` + `qtd` (partial), renamed `last-month` → `prev-month` with optional `offset`, added `last-quarter` + `last-year`. `ytd` reshaped to end at last completed month (not today).
+- `period-chips.tsx`: Previous Month is now a chip with a dropdown listing the last 24 months. Custom popover uses `<input type="month">` so only whole-month boundaries are selectable.
+- `resolvePeriod` defensive: `chip='custom'` without dates → fall back to `prev-month` instead of throwing. Backward-compat shim normalizes legacy `last-month` / `this-month` / `qtd` URLs.
+- API route Zod schema's `chip` enum updated; `offset` accepted as query string.
+- 15/15 period tests passing; 43/43 across all 9 perf test files.
+
+**Where this turn stopped:** both fixes pushed to main, Vercel auto-deploy in flight.
+
+**Outstanding (deferred):**
+- T32 RTL pass.
+- T35 accessibility audit.
+- Per-line unmapped (separate query) — Unmapped panel auto-hides because variance v2 only returns a number rollup.
+- `sumOtActual` + `computeGpPct` are still 0 stubs.
+- Cross-contract-year Custom ranges over-count. v1 invariant.
 
 ---
 
