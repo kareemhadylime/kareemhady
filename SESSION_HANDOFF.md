@@ -7,6 +7,16 @@
 **Decisions locked:**
 - **Q1 answered: A.** Sibling module under `/fmplus`. Landing page `/fmplus/performance` shows portfolio summary; per-contract drill-in at `/fmplus/performance/[contractId]`.
 - **Q2 answered: A.** Period filter is the only chrome-level control; year is contextual subtitle ("Apr 2026 · Y1 of 1 · 4 of 12 months elapsed"). Chip set: This Month / **Last Month** (default) / Last 3 Months / QTD / YTD / Custom + opt-in "Compare to prior period" toggle. Per-contract page has a Year-over-Year arc strip at the bottom showing every year's headline numbers — no separate year picker.
+- **Q3 answered: Approach 1 (linear narrative scroll) with explicit graph+table pairing per section.** kareem said "I need to see easy dashboards & graphs (Clickable for data) for some data, also comparison tables where needed". So every section gets a chart on the left and a Budget|Actual|Variance|Var% comparison table on the right. Final 8-section structure:
+  1. KPI strip — 5 tiles (Revenue, Expense, GP, GP%, Variance) with sparklines, no table.
+  2. Service Lines — grouped bars + per-service table.
+  3. Variance ranking — diverging bars centred 0% + ranked list table.
+  4. Manning — dumbbell (Required/Budgeted/Implied HC) + table with ΔHC and manning spend.
+  5. Category mix — 8-cat donut + table, "Unmapped" row in red at the bottom.
+  6. Unmapped panel — full-width drillable table; renders only when there ARE unmapped lines.
+  7. YoY arc — full-width table per year.
+  8. Anomalies — bullet list of auto-detected issues.
+  Every number is clickable: KPI tile → focus, chart segment/bar/slice → drill drawer with `odoo_move_lines`, table row → variance/editor view, sparkline point → that month's drill.
 
 **Locked design rules (from research, kareem hasn't pushed back):**
 - Layout = hybrid of Pattern A (KPI strip + variance waterfall + line-item table) and Pattern D (Procore-style line-item grid). Concretely: KPI strip → primary "service-line budget vs actual" grouped-bar panel → diverging variance row centered on 0% → line-item grid → dedicated unmapped-expenses panel.
@@ -15,14 +25,19 @@
 - **Brand-yellow rule (critical, baked in unless kareem objects):** FM+ yellow `#FDCF00` is brand emphasis only — primary KPI value, "actual / hero" chart series, active filter chips. Status uses a separate accessible palette: green `#22C55E`, **orange `#F97316`** (pushed away from gold so it's distinguishable), red `#EF4444`. Chart "context" series (budget bars, prior-period overlays) ride a slate-500 → slate-300 ramp. White-on-yellow fails WCAG (~1.07:1) so it can never be used for status.
 - Period filter UX = chip row with quick selects + "Custom" calendar popover; resolved date range shown as subtitle.
 
-**Where this turn stopped:** Q2 answered = A. Asked Q3 — page-layout structure for the per-contract page. Proposed 3 approaches:
-- **Approach 1 (recommended) — Linear narrative scroll**: 6 full-width sections top-to-bottom — KPI strip → Service Lines (grouped bars + line items, click→variance drill) → Variance (diverging bars centred 0%) → Manning (dumbbell per service line: Required grey / Budgeted gold / Implied yellow) → Category Mix + Unmapped panel (2-col split inside this section) → Context strip (YoY arc + auto-anomalies). Each section full-width so charts breathe; prints to PDF as one long page; RTL clean.
-- **Approach 2 — Bento 2-column grid**: more info above fold, narrower charts, noisier.
-- **Approach 3 — Sub-tabs (Overview/Service Lines/Manning/Categories/Issues)**: hides what should be glanceable.
+**Where this turn stopped:** Q3 effectively answered (Approach 1 + chart/table pairing). Asked Q4 — which "beneficial extras" to include in v1. Six candidates with build-cost vs decision-value scoring:
+- **a. Month-end forecast / burn rate** (low cost, high value) — projects current spend pace forward to year-end; only forward-looking number on the page.
+- **b. Top 5 vendors by spend** (low cost, medium value) — uses `partner_id` already on `odoo_move_lines`.
+- **c. OT as % of manning** (medium cost, medium-high value) — manning `ctc_ot` field exists; needs OT detection on actuals.
+- d. Days-since-last-signoff (trivial cost, low-medium value) — `project_years.published_at` hygiene.
+- e. Mobilization amortization status (low cost, medium value) — `mobilization_lines` table exists but unused.
+- f. Cost per square metre / per zone (medium cost, low value) — depends on zone GFA being populated, which it isn't reliably.
+
+**Recommended: a + b + c only for v1.** d/e/f deferred to v2.
 
 **Background research agent `a96a9d5c751ed8f0d`** returned a 1500-word reference doc — Pigment, Workday Adaptive, Procore, FM:Systems, Stephen Few bullet spec, Domo divergent bars, Carbon Design status pattern, Tabular Editor KPI guidance, Linear dashboards 2025, Carbon dataviz palettes, Ramp brand-color usage. Findings already encoded in the locked design rules above.
 
-**Next turn:** await Q3 answer. Then Q4 (which "beneficial extras" beyond user's 6 — candidates: month-end forecast/burn rate, top-5 vendors, AR aging, days-since-signoff, OT-as-%-of-manning, working-capital cycle). Then propose specifics for portfolio page (`/fmplus/performance` landing). Then write spec to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md`. Then kareem review → workflow plan via writing-plans skill → kareem review → coding.
+**Next turn:** await Q4 answer. Then propose portfolio page (`/fmplus/performance` landing) — likely a top-line KPI strip + diverging variance bar of contracts + sortable table + "needs attention" cards. Then write spec to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md`. Then kareem review → workflow plan via writing-plans skill → kareem review → coding.
 
 **Done so far this turn:**
 - Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
