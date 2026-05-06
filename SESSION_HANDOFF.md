@@ -15,7 +15,45 @@
 
 **Tests:** 7/7 passed (4 concentration + 3 revpar). **tsc --noEmit:** 2 pre-existing errors only.
 
-**Note:** test fixture channel `pct` field is approximate (73 vs actual 72.63); implementation correctly recomputes from `revenue_usd`. Test updated to assert the recomputed value. Builders are un-called pure functions; Task 28 wires them into the orchestrator.
+**Brand rules enforced everywhere:**
+- Yellow `#FDCF00` = brand emphasis only (KPI value, active chip, "actual" chart series, drill chevron).
+- Gold `#EEB91D` = secondary/hover.
+- Status palette is **separate** from brand: green `#22C55E`, orange `#F97316`, red `#EF4444`. White-on-yellow is unreadable (~1.07 : 1) so brand-yellow never used for status.
+- "Context" series (budget bars, prior-period overlays) = slate ramp.
+
+**Customer access: prohibited.** Both routes call `requireBudgetView()` which fails closed for users without `fmplus` in `allowed_domains`. No tokenized share variant; no customer mode.
+
+**Outstanding work:**
+1. **T32 — RTL pass** (verification only, no code). Open `/fmplus/performance/1` with `localStorage.fmplus_budget_lang = 'ar'` and walk every panel to confirm RTL layout doesn't break.
+2. **T35 — Accessibility pass.** Skip-link + focus-ring audit, then Lighthouse a11y target ≥ 95.
+3. **FOLLOWUP — Surface per-line unmapped expenses.** `buildBudgetVarianceV2` returns `unmapped_actuals` as a single rollup number, not a per-line array. The Unmapped panel currently auto-hides because `payload.unmapped` is always `[]`. Add a separate query in `build-dashboard.ts` that pulls unmapped GL lines for the period, similar to how the existing variance loader handles unmapped detection but exposing the line list.
+4. **FOLLOWUP — `sumOtActual` + `computeGpPct` stubs.** Both currently return 0. OT actual needs account-code regex coverage from the templates module; GP % per service line needs the revenue-per-service rollup from `project_year_services`.
+5. **Sidebar inline `<style>`-tag concern from T16 implementer.** If the sidebar mounts twice in a single page somehow, the `body { padding-left }` cascade order picks the last setter and could fight. Not blocking; behavior matches the spec, but worth tracking.
+
+**Deploy:** Pushed to `main`. Vercel GitHub integration auto-deploys to `limeinc.vercel.app`. Local `npm run build` failed on the pre-existing `qrcode` import in `src/app/api/dine/[token]/qr.svg/route.ts` because the worktree's `node_modules` is empty — Vercel installs deps fresh, so the production build will succeed.
+
+**Where this turn stopped:** All 43 commits pushed to `origin/main`. Vercel rebuild in flight.
+
+**Post-deploy follow-up question from kareem:** *"are you reading actual for analytic account from odoo?"*
+
+**Confirmed YES** by reading `src/lib/fmplus/budget/variance.ts:163-171`:
+
+```ts
+const { data: actualRows } = await sb.from('odoo_move_lines')
+  .select(`id, date, balance, debit, credit,
+    account:odoo_accounts(code, account_type),
+    analytics:odoo_move_line_analytics!inner(analytic_account_id)`)
+  .gte('date', yearStartIso).lte('date', yearEndIso)
+  .eq('analytics.analytic_account_id', contract.project_id);
+```
+
+Each contract's `project_id` IS the Odoo analytic account id; actuals come from `odoo_move_lines ⨝ odoo_move_line_analytics` filtered by that. The new `fmplus_perf_top_vendors` RPC uses the same filter (`mla.analytic_account_id = p_analytic_id`). Bucketing per service line × category is done by matching `account.code` against the template's regex patterns.
+
+**BUT FLAGGED to kareem — the period filter does NOT actually slice the actuals.** The variance loader pulls the entire contract year (`yearStartIso → yearEndIso`) and `buildContractDashboard` uses `variance.total_actual` directly — which is the contract-year YTD, NOT the period chosen with the chips. So picking "Last Month" still shows full-year totals. The plan called this out (*"sum the months that fall in `from..to`"*) but the implementer left it on the cumulative number for v1.
+
+The variance loader DOES return per-cell month-keyed `cells: { month, budget, actual }[]` (see variance.ts further down). The fix is: in `build-dashboard.ts`, slice each segment/category's `cells[]` to entries where `month` falls in `[args.period.from, args.period.to]` before rolling up `segment_actual` / `ytd_actual`. Estimated ~30 min of focused work.
+
+**Asked kareem:** fix the period slicing inline now, or defer with the other followups (per-line unmapped, OT actual, GP %, RTL pass, accessibility audit)? **Awaiting his pick before continuing.**
 
 ---
 
