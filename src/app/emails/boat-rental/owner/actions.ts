@@ -633,6 +633,73 @@ export async function recordTripPaymentAction(
 
 import { getCurrentUser } from '@/lib/auth';
 
+// Owner-scoped variant of upsertPricingAction. Owner can edit pricing
+// only for boats they own. Admin gets blocked here — they should use
+// the admin pricing page (separation of concern).
+export async function upsertOwnerBoatPricingAction(formData: FormData): Promise<void> {
+  const me = await requireBoatRoleOrThrow('owner');
+  const boatId = s(formData.get('boat_id'));
+  if (!boatId) throw new Error('invalid_input');
+
+  // Verify the owner owns this boat
+  const ownerIds = await getOwnedOwnerIds(me);
+  const sb = supabaseAdmin();
+  const { data: boat } = await sb
+    .from('boat_rental_boats')
+    .select('owner_id, name')
+    .eq('id', boatId)
+    .maybeSingle();
+  if (!boat || !ownerIds.includes((boat as { owner_id: string }).owner_id)) {
+    throw new Error('forbidden');
+  }
+
+  const rows: Array<{ tier: 'weekday' | 'weekend' | 'season'; amount_egp: number }> = [];
+  for (const tier of ['weekday', 'weekend', 'season'] as const) {
+    const amt = nOrNull(formData.get(`amount_${tier}`));
+    if (amt === null || amt < 0) continue;
+    rows.push({ tier, amount_egp: amt });
+  }
+  if (!rows.length) return;
+
+  // Capture old pricing for the audit log (so we can show before→after)
+  const { data: existing } = await sb
+    .from('boat_rental_pricing')
+    .select('tier, amount_egp')
+    .eq('boat_id', boatId);
+  const oldByTier: Record<string, number> = {};
+  for (const row of (existing as Array<{ tier: string; amount_egp: string | number }> | null) ?? []) {
+    oldByTier[row.tier] = Number(row.amount_egp);
+  }
+
+  for (const row of rows) {
+    await sb
+      .from('boat_rental_pricing')
+      .upsert(
+        { boat_id: boatId, tier: row.tier, amount_egp: row.amount_egp, updated_at: new Date().toISOString() },
+        { onConflict: 'boat_id,tier' }
+      );
+  }
+
+  await logAudit({
+    actorUserId: me.id,
+    actorRole: 'owner',
+    action: 'owner_boat_pricing_updated',
+    payload: {
+      boat_id: boatId,
+      boat_name: (boat as { name: string }).name,
+      changes: rows.map(r => ({
+        tier: r.tier,
+        old: oldByTier[r.tier] ?? null,
+        new: r.amount_egp,
+      })),
+    },
+  });
+
+  revalidatePath('/emails/boat-rental/owner');
+  revalidatePath(`/emails/boat-rental/owner/inventory/${boatId}`);
+  revalidatePath('/emails/boat-rental/owner/calendar');
+}
+
 export async function overrideTripPriceAction(
   formData: FormData
 ): Promise<
