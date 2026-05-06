@@ -630,3 +630,129 @@ export async function recordTripPaymentAction(
   revalidatePath('/emails/boat-rental/owner');
   return { ok: true };
 }
+
+import { getCurrentUser } from '@/lib/auth';
+
+export async function overrideTripPriceAction(
+  formData: FormData
+): Promise<
+  | { ok: true; effective_price: number; was_clamped: boolean; auto_closed: boolean }
+  | { ok: false; error: 'reservation_not_found' | 'forbidden' | 'invalid_status' | 'invalid_amount' }
+> {
+  const me = await getCurrentUser();
+  if (!me) return { ok: false, error: 'forbidden' };
+
+  const reservationId = s(formData.get('reservation_id'));
+  const newPriceRaw = nOrNull(formData.get('new_price'));
+  const reason = sOrNull(formData.get('reason'));
+
+  if (!reservationId) return { ok: false, error: 'reservation_not_found' };
+  if (newPriceRaw === null || !Number.isFinite(newPriceRaw) || newPriceRaw <= 0) {
+    return { ok: false, error: 'invalid_amount' };
+  }
+  const newPrice = Number(newPriceRaw);
+
+  const sb = supabaseAdmin();
+
+  // Fetch reservation + total paid
+  const { data: r } = await sb
+    .from('boat_rental_reservations')
+    .select(`
+      id, boat_id, status, price_egp_snapshot, original_price_snapshot,
+      boat:boat_rental_boats ( owner_id ),
+      payments:boat_rental_payments ( amount_egp )
+    `)
+    .eq('id', reservationId)
+    .maybeSingle();
+  if (!r) return { ok: false, error: 'reservation_not_found' };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reservation = r as unknown as {
+    id: string;
+    boat_id: string;
+    status: string;
+    price_egp_snapshot: string | number;
+    original_price_snapshot: string | number | null;
+    boat: { owner_id: string };
+    payments: Array<{ amount_egp: string | number }>;
+  };
+
+  // Authorization: admin OR owner of the boat
+  const isAdmin = me.is_admin === true;
+  let isOwner = false;
+  if (!isAdmin) {
+    const ownerIds = await getOwnedOwnerIds(me);
+    isOwner = ownerIds.includes(reservation.boat.owner_id);
+  }
+  if (!isAdmin && !isOwner) return { ok: false, error: 'forbidden' };
+
+  // Status gate
+  if (!['confirmed', 'details_filled'].includes(reservation.status)) {
+    return { ok: false, error: 'invalid_status' };
+  }
+
+  // Compute total paid
+  const totalPaid = (reservation.payments ?? []).reduce(
+    (sum, p) => sum + Number(p.amount_egp),
+    0
+  );
+
+  // Clamp logic: never below total_paid
+  const wasClamped = newPrice < totalPaid;
+  const effectivePrice = wasClamped ? totalPaid : newPrice;
+
+  const oldPrice = Number(reservation.price_egp_snapshot);
+  const originalSnapshot =
+    reservation.original_price_snapshot !== null
+      ? Number(reservation.original_price_snapshot)
+      : oldPrice;
+
+  // Build update payload
+  const update: Record<string, unknown> = {
+    price_egp_snapshot: effectivePrice,
+    price_overridden_at: new Date().toISOString(),
+    price_overridden_by: me.id,
+    updated_at: new Date().toISOString(),
+  };
+  // Set original_price_snapshot ONLY on first override
+  if (reservation.original_price_snapshot === null) {
+    update.original_price_snapshot = oldPrice;
+  }
+
+  // Auto-close if effective price equals total_paid AND status not already paid_to_owner
+  let autoClosed = false;
+  if (totalPaid >= effectivePrice && reservation.status !== 'paid_to_owner') {
+    update.status = 'paid_to_owner';
+    autoClosed = true;
+  }
+
+  await sb
+    .from('boat_rental_reservations')
+    .update(update)
+    .eq('id', reservationId);
+
+  await logAudit({
+    reservationId,
+    actorUserId: me.id,
+    actorRole: isAdmin ? 'admin' : 'owner',
+    action: 'trip_price_overridden',
+    fromStatus: reservation.status,
+    toStatus: autoClosed ? 'paid_to_owner' : reservation.status,
+    payload: {
+      old_price: oldPrice,
+      new_price_requested: newPrice,
+      effective_price: effectivePrice,
+      clamped: wasClamped,
+      total_paid: totalPaid,
+      reason,
+      original_price_snapshot: originalSnapshot,
+    },
+  });
+
+  revalidatePath(`/emails/boat-rental/owner/booking/${reservationId}`);
+  revalidatePath('/emails/boat-rental/owner/calendar');
+  revalidatePath('/emails/boat-rental/owner/reservations');
+  revalidatePath('/emails/boat-rental/admin/bookings');
+
+  return { ok: true, effective_price: effectivePrice, was_clamped: wasClamped, auto_closed: autoClosed };
+}
