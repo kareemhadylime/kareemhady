@@ -27,9 +27,13 @@
 
 **Background research agent `a96a9d5c751ed8f0d`** returned a 1500-word reference doc — Pigment, Workday Adaptive, Procore, FM:Systems, Stephen Few bullet spec, Domo divergent bars, Carbon Design status pattern, Tabular Editor KPI guidance, Linear dashboards 2025, Carbon dataviz palettes, Ramp brand-color usage. Findings already encoded in the locked design rules above.
 
-**Where this turn stopped:** Q4 answered + new sidebar/toggle UX requirements added. Presented the **consolidated design** (above) for kareem's thumbs-up. If approved, next turn writes the design spec to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md`, runs the spec self-review, hands back for kareem's formal review, then invokes writing-plans for the implementation plan.
+**Where this turn stopped:** kareem replied "1" (= thumbs up). Spec written to [docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md](docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md) and committed (`48b7ede`). 376 lines covering: goal/non-goals, routes, sidebar UX (3 s hover-out + pin + mobile drawer), 13 per-contract panels (each with chart + comparison table + drill target + auto-hide-when-empty rule), portfolio page, period filter (chip set + Custom popover + compare-to-prior toggle + resolved-range subtitle), data/APIs (new `buildContractDashboard` + `buildPortfolioPerformance` + `/api/fmplus/performance/[contractId]`, reuses existing `buildBudgetVarianceV2` + `/api/fmplus/budget/variance-drill`), state persistence (5 keys), brand rules (yellow emphasis-only, separate green/orange/red status palette), accessibility, bilingual, mobile, out-of-scope, open questions, acceptance criteria.
 
-**Next turn:** await thumbs-up (or change requests). On approval → write spec → self-review → kareem review → writing-plans skill.
+**Self-review pass made two inline fixes** before commit:
+1. Added explicit "auto-hide when empty" rule at §6 panel level (Unmapped/Mobilization/Top Vendors/Anomalies all auto-hide when their data is empty for the period; ghosted in sidebar's "Visible sections" group so user knows they exist).
+2. Enumerated the v1 anomaly rules concretely in §9.2 — 5 numbered triggers with severity, message template, and action URL: (a) manning variance > `budget_settings.amber_pct`, (b) unmapped > 5 % of period spend (red if > 15 %), (c) forecast year-end variance > amber, (d) sign-off > 30 d stale, (e) top-vendor concentration > 40 %.
+
+**Next turn:** await kareem's formal spec review. Either he approves → invoke `superpowers:writing-plans` skill to produce the implementation plan; or he requests changes → revise spec, re-run self-review, ask again. **Do NOT start coding until both the spec and the implementation plan are approved.** Process is: spec ✅ → plan ❓ → kareem review of plan → coding.
 
 **Done so far this turn:**
 - Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
