@@ -1,5 +1,48 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 4 Batch A: Tasks 29–32 — four new analytical panels
+
+**Status: DONE** — commit `0a8ee79` on branch, pushed to `main`
+
+**Files created (4):**
+- `src/app/beithady/analytics/performance/_components/panels/forward-occupancy-bars.tsx` (62 lines) — Stacked 3-layer bar (d7/d30/d60) per building from `payload.forward_occupancy`. Empty state on null/[]. Uses simplified layered approach (no mixBlendMode) with navy/steel-70/steel-40 layers for d7/d30/d60 respectively. `bandForOccupancy` colors the d30 number.
+- `src/app/beithady/analytics/performance/_components/panels/cancel-risk.tsx` (54 lines) — Shows count + value-at-risk + top-3 reservations from `payload.cancel_risk`. Zero state renders emerald "0 / no flagged reservations". Drills to `/beithady/operations/cancel-risk?min=50&days=21`.
+- `src/app/beithady/analytics/performance/_components/panels/revenue-concentration.tsx` (57 lines) — Pareto stacked horizontal bar from `payload.revenue_concentration.by_building`. Top-channel ≥70% triggers amber "concentration risk" callout. Drills to `/beithady/financials?breakdown=building`.
+- `src/app/beithady/analytics/performance/_components/panels/occupancy-gap-finder.tsx` (44 lines) — Lists top-5 gap nights from `payload.occupancy_gaps`. Appends "priced above market" when current_price > market_median. Drills to `/beithady/pricing`.
+
+**Simplification note:** ForwardOccupancyBars uses layered opacity (steel/40 → steel → navy) instead of `mixBlendMode: multiply` to avoid cross-browser rendering issues. Visual layering d7 darkest on top, d60 lightest widest.
+
+**tsc --noEmit:** exit code 0, no new errors.
+**Not wired into DashboardShell** — Phase 4 Batch C (Task 38) handles final grid wiring.
+
+---
+
+
+## ✅ 2026-05-06 — Task 28: Wire 9 Phase 3 builders into orchestrator (Phase 3 COMPLETE)
+
+**Status: DONE** — commit `e6b8b8e` pushed to `main`
+
+**Files modified (1):**
+- `src/lib/beithady-daily-report/build.ts` — +72 lines, -1 line
+
+**What was done:**
+1. Added 9 builder imports (+ `BuildingCode` type import alongside existing `DailyReportPayload`).
+2. Derived `unitCounts: Record<BuildingCode, number>` from `inventories[code].total_units` for all 5 building codes (`BH-26`, `BH-73`, `BH-435`, `BH-OK`, `OTHER`). Note: spec skeleton had wrong keys (`BH-34`, `OKAT`) — corrected to actual `BuildingCode` type value `BH-OK`.
+3. Called pure sync builders inline: `buildRevpar` (uses `ctx.days_elapsed`), `buildRevenueConcentration`, `buildRevenueWaterfall`.
+4. Assembled `currentForDerived as DailyReportPayload` as the partial-payload forwarded to snapshot-reading builders.
+5. Added second `Promise.all` block for 6 IO builders: `buildCancelRisk`, `buildStly`, `buildSparklines`, `buildTopMovers`, `buildForwardOccupancy`, `buildOccupancyGaps`.
+6. Appended 9 v4 fields to final `return`: `revpar`, `revenue_concentration`, `forward_occupancy`, `occupancy_gaps`, `cancel_risk`, `revenue_waterfall`, `stly`, `top_movers`, `sparklines`.
+
+**Field names from actual code:**
+- `ctx.days_elapsed` (not `ctx.month_days_elapsed` — that's the payload field name)
+- `inventories[code].total_units` (confirmed from `units.ts` type definition)
+
+**tsc --noEmit:** 3 pre-existing `.next/dev` errors only. Zero new errors.
+**build.test.ts:** does not exist.
+**Phase 3 is now complete.** Next cron fire (09:00 Cairo or `?force=1`) will write snapshots with all v4 fields.
+
+---
+
 ## ✅ 2026-05-06 — Phase 3 Batch 3a: Tasks 19/20/22/23 — top-movers + forward-occupancy + occupancy-gaps + waterfall builders
 
 **Status: DONE** — commit `3961258` pushed to `main`
