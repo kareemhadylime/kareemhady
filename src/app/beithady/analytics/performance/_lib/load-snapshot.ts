@@ -21,12 +21,10 @@ export function parseDateParam(input: string | undefined): string | null {
 
 export type SnapshotResult =
   | { status: 'found'; date: string; payload: DailyReportPayload; generatedAt: string }
-  | { status: 'missing'; date: string }
-  | { status: 'no-anchor' };
+  | { status: 'missing'; date: string };
 
 export async function loadSnapshot(dateParam: string | undefined): Promise<SnapshotResult> {
   const date = parseDateParam(dateParam) ?? cairoYmd();
-  if (!date) return { status: 'no-anchor' };
 
   const { data, error } = await supabaseAdmin()
     .from('daily_report_snapshots')
