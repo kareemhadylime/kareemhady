@@ -3,6 +3,10 @@ import { useState } from 'react';
 import { TopBar } from './top-bar';
 import { LeftRail } from './left-rail';
 import { HeroKpi } from './panels/hero-kpi';
+import { BuildingsTable } from './panels/buildings-table';
+import { ChannelMixDonut } from './panels/channel-mix-donut';
+import { Payouts } from './panels/payouts';
+import { ReviewsBlock } from './panels/reviews-block';
 import { usePerfUrlState } from '../_hooks/use-url-state';
 import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
 import type { CompareMode } from '../_hooks/use-url-state';
@@ -86,6 +90,22 @@ export function DashboardShell({
               delta={payload.conversations ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` } : undefined}
               drillTo="/beithady/communication/unified?metric=response-time"
             />
+          </div>
+
+          {/* Buildings table (col-span-8) + Channel mix donut (col-span-4) */}
+          <div className="col-span-12 lg:col-span-8">
+            <BuildingsTable payload={payload} />
+          </div>
+          <div className="col-span-12 lg:col-span-4">
+            <ChannelMixDonut payload={payload} />
+          </div>
+
+          {/* Payouts (col-span-4) + Reviews block (col-span-8) */}
+          <div className="col-span-12 lg:col-span-4">
+            <Payouts payload={payload} />
+          </div>
+          <div className="col-span-12 lg:col-span-8">
+            <ReviewsBlock payload={payload} />
           </div>
         </main>
       </div>
