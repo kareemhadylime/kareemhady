@@ -1,5 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — P&L Comparison Report Round 1 (commits `cb10217`, `623d914`, migrations `0099` + `0100`)
+
+kareem shared a comprehensive P&L Comparison Report proposal mapped to FM+'s actual Chart of Accounts. We confirmed: **G&A is not allocated to projects** (so Project EBITDA = Gross Profit, no overhead allocation needed). Started Round 1 (8 quick wins).
+
+**Items shipped (all 8 done in 2 commits):**
+
+1. **Header metadata strip** in `<ContractHero>` — analytic account code (#33 for Trio), contract start/end dates, service scope chips (HK / MEP / Landscape / Pest Control / Back Office). Pulled from existing `project_contracts` columns + `variance.segments`.
+2. **Mix Bud + Mix Act columns** in Service Lines panel — each service's share of total budget / total actual.
+3. **Bud %Rev / Act %Rev / Δ bps** columns in Categories panel — reveals whether overruns are volume-driven (proportional) or efficiency-driven (cost ratio worsening). Δ bps colored red >+100, green <-100.
+4. **Δ GP pp** column in Service Lines — actual GP% minus budget GP% per service. Reveals margin compression vs plan.
+5. **Prev Mo** column in Service Lines + Categories — sequential trend at a glance. Null when period.from is January.
+6. **Penalties panel** (new) — RPC `fmplus_perf_penalties` (migration `0099`) sums `^5[0-9]100[12]$` accounts (Shortage / KPI penalties) per service. Orange-bordered panel, auto-hides when 0.
+7. **Variation Orders panel** (new) — RPC `fmplus_perf_variation_orders` (migration `0100`) sums `^57[0-9]+$` family per sub-category (manning / consumables / transport / other). Verified for Trio Mar 2026: 178K consumables.
+8. **Unmapped callout** (already working) — Categories table's ⚠ Unmapped row populates from earlier per-line fix.
+
+Tests: 333 passing. TS clean. Pushes: `cb10217` + `623d914`. Vercel auto-deploy in flight.
+
+**Next available:** Round 2 (medium effort) — Service × Cost-Bucket matrix (mirror Odoo Income Statement 7×9 shape), Variance bridge / waterfall chart, 12-month trend table. Or: T32 RTL / T35 accessibility validation passes (held for kareem).
+
+---
+
 ## ✅ 2026-05-06 — Performance Dashboard: actual Overtime from Odoo (commit `b5809cb`, migration `0098`)
 
 `sumOtActual` was a `const otActual = 0` stub in `build-dashboard.ts` — Overtime panel always showed 0% actual.
