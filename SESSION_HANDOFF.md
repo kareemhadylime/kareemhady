@@ -1,5 +1,47 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 3 Batch 3a: Tasks 19/20/22/23 — top-movers + forward-occupancy + occupancy-gaps + waterfall builders
+
+**Status: DONE** — commit `3961258` pushed to `main`
+
+**Files created (8):**
+- `src/lib/beithady-daily-report/build-top-movers.ts` (108 lines) — Reads `daily_report_snapshots` 7d back; compares pace/per-building-occupancy/channel-share. Returns `TopMover[]` (empty if stable, null on error). Thresholds: occ ≥ 5pp, channel ≥ 5pp, pace ≥ 10pp.
+- `src/lib/beithady-daily-report/build-top-movers.test.ts` (120 lines) — 4 tests: above-threshold movers with correct deltas/one_liner format, below-threshold excluded, empty array when prior snapshot missing, MAX_MOVERS=5 cap + sort order.
+- `src/lib/beithady-daily-report/build-forward-occupancy.ts` (88 lines) — Queries `beithady_reservation_grid_v` (confirmed+checked_in) for reservations overlapping next 60 days; clips to 7/30/60-day windows per building.
+- `src/lib/beithady-daily-report/build-forward-occupancy.test.ts` (90 lines) — 4 tests: d7/d30 pct math for BH-26, cross-building isolation, zero-units → 0%, null on DB error.
+- `src/lib/beithady-daily-report/build-occupancy-gaps.ts` (94 lines) — Scans next 14 days; emits gap rows for building-days < 50% occupied. V1: price fields null (PriceLabs deferred to V1.5). MAX_GAPS=30.
+- `src/lib/beithady-daily-report/build-occupancy-gaps.test.ts` (128 lines) — 5 tests: gap rows emitted, high-occ excluded, zero-unit buildings skipped, ascending sort, null on DB error.
+- `src/lib/beithady-daily-report/build-revenue-waterfall.ts` (40 lines) — Pure function. V1 estimation: fees=10%, taxes=14% Egypt VAT. Returns `RevenueWaterfallSection | null`.
+- `src/lib/beithady-daily-report/build-revenue-waterfall.test.ts` (50 lines) — 5 tests: gross=10000→fees=1000/taxes=1260/net=7740, missing revenue→null, negative→null, zero revenue, fees+taxes+net=gross.
+
+**Tests:** 18/18 passed (4+4+5+5). **tsc --noEmit:** no new errors.
+
+**Actual view/columns:** `beithady_reservation_grid_v` uses `check_in_date` + `check_out_date` (DATE, not `check_in`/`check_out` as in spec skeleton). Status column values: `confirmed`, `checked_in`, `checked_out`, `canceled`. Both forward-occupancy and occupancy-gaps query confirmed+checked_in only.
+
+**V1 simplifications noted in code:**
+- `build-occupancy-gaps.ts`: price fields null (V1.5 → PriceLabs)
+- `build-revenue-waterfall.ts`: fee/tax constants estimated; V1.5 → Odoo
+
+---
+
+## ✅ 2026-05-06 — Phase 3 Batch 2: Tasks 21/24/27 — cancel-risk + STLY + sparklines DB-read builders
+
+**Status: DONE** — commit `c8e163b` pushed to `main`
+
+**Files created:**
+- `src/lib/beithady-daily-report/build-cancel-risk.ts` (87 lines) — Two-step join against `beithady_reservation_grid_v` + `beithady_reservation_overrides` (same tables as `/beithady/operations/cancel-risk`). No `cancel_risk_v` view exists. Returns `CancelRiskSection | null`.
+- `src/lib/beithady-daily-report/build-cancel-risk.test.ts` (80 lines) — 3 tests: nominal 2-row case, empty grid → empty section, DB error → null.
+- `src/lib/beithady-daily-report/build-stly.ts` (46 lines) — Reads `daily_report_snapshots` 365d back; returns `StlyComparison | null`.
+- `src/lib/beithady-daily-report/build-stly.test.ts` (62 lines) — 3 tests: YoY comparison (delta_pct≈62.93, delta_pp=5), null when no snapshot, null on DB error.
+- `src/lib/beithady-daily-report/build-sparklines.ts` (52 lines) — Reads last 7 `daily_report_snapshots`; extracts 6 hero KPI series. Returns `SparklinesSection | null`.
+- `src/lib/beithady-daily-report/build-sparklines.test.ts` (68 lines) — 3 tests: chronological series shape, null on empty data, null on DB error.
+
+**Tests:** 9/9 passed (3+3+3). **tsc --noEmit:** no new errors (pre-existing routes.d.ts only).
+
+**cancel_risk_v note:** view does NOT exist. The builder uses the two-step join that the operations page uses. `value_usd` is derived as the sum of absolute values in `cancel_risk_breakdown` (as the DB has no single monetary field for risk; adapters should override this if a revenue field becomes available).
+
+---
+
 ## ✅ 2026-05-06 — Phase 3 Batch 1: Task 18 + Tasks 25/26 — v4 type extension + Pareto + RevPAR builders
 
 **Status: DONE** — commit `e818e19` on branch, pushed to `main`
