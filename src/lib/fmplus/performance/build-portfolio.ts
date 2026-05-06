@@ -12,13 +12,20 @@ const AMBER = 0.15;
 
 export interface PortfolioArgs {
   period: PeriodRange;
-  filters?: { service_line?: ServiceLine; q?: string };
+  filters?: { service_line?: ServiceLine; q?: string; contract_ids?: number[] };
 }
 
 export async function buildPortfolioPerformance(
   args: PortfolioArgs,
 ): Promise<PortfolioPerformancePayload> {
-  const contracts: PortfolioCard[] = await buildPortfolio(args.filters ?? {});
+  let contracts: PortfolioCard[] = await buildPortfolio({
+    service_line: args.filters?.service_line,
+    q: args.filters?.q,
+  });
+  if (args.filters?.contract_ids && args.filters.contract_ids.length > 0) {
+    const allowed = new Set(args.filters.contract_ids);
+    contracts = contracts.filter((c) => allowed.has(c.contract_id));
+  }
 
   const rows: PortfolioContractRow[] = await Promise.all(
     contracts.map(async (c) => {
