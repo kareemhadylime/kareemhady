@@ -5496,3 +5496,62 @@ Created:
 - `src/lib/boat-rental/recurring.test.ts` — 7 vitest tests (3 monthly, 2 quarterly, 2 yearly), all passing
 
 Next task: Task 3 of 32.
+
+## 🟢 Session — FMPLUS P&L Excel + Performance Dashboard fixes (commit `f9fe3ee`)
+
+User reported three issues on the FMPLUS Trio Compound P&L:
+1. Excel export incorrect/missing JAN data
+2. Excel sheet not formatted like the on-page P&L
+3. Performance Dashboard for Trio shows all-zero expense actuals
+
+**Root causes (after investigation):**
+
+1. **Excel export was returning entire FMPLUS, not the picked project.** Two
+   bugs combined: (a) `ExportButtons.tsx` only propagated multi-select
+   `accounts` (CSV) — the single-select `account` field was dropped before
+   reaching the server action; (b) `actions.ts` only applied plan/account
+   filters when `mode === 'accounts'`, but the page sends default
+   `mode='trend'`. Result: every export ignored the picker selection.
+2. **Excel was a plain dump.** One column per period, no Bal/%/Δ split, no
+   bold/indent/number formatting, no merged headers, no frozen panes — so it
+   looked nothing like the on-screen table.
+3. **Performance template `account_map_json` patterns were guessed wrong.**
+   They assumed each service line moved up one slot (5010=MEP, 5020=Landscape,
+   5030=Security, 5040=Pest, 5050=Waste, 5060=Back Office). Real Odoo COA per
+   `classifier.ts` is HK=50, MEP=51, Security=52, Landscape=53, Pest=54,
+   Waste=55, with G&A at 600-606. So `variance.ts` matched zero actuals for
+   every non-HK service line. Side bug: `^5006xx$` was used as the
+   "governmental" pattern but actually maps to the service-line subcontractors
+   slot in the real COA.
+4. **`variance.ts` actualRows query was unpaginated** — Supabase REST defaults
+   to a 1000-row response cap. Trio's Q1 alone has 3000+ move-lines, so
+   actuals were silently truncated even when the patterns *did* match.
+
+**Fixes shipped in commit `f9fe3ee`:**
+
+- `_components/ExportButtons.tsx` — added optional `account?: string` to
+  ExportProps and propagates it as a FormData field.
+- `financials/actions.ts` — full rewrite of the export. `readExportArgs`
+  now reads `account` (singular id), resolves plan slug → id via
+  `listFmplusPlansWithActivity` (matching page.tsx), and applies plan/account
+  filters to scope regardless of `mode`. Excel renderer now emits per-period
+  Bal/%/Δ with merged period header rows, frozen `xSplit/ySplit=2`, indented
+  hierarchy, bold sections + subtotals, hero-styled Net Profit row,
+  thousands-separator number format and `0.0%` percent format.
+- `budget/templates/{hk,mep,security,landscape,pest-ctrl,waste-mgmt,back-office}.ts`
+  — `account_map_json` rewritten against the real COA. HK keeps the `5000xx`
+  manning prefix (it was correct) but drops the `1[0-4]` suffix limit;
+  consumables and tools no longer share the same regex (was double-counting).
+  Bogus `^5006xx$` governmental pattern removed everywhere — governmental
+  category still injected post-merge in `templates/index.ts`, just no longer
+  auto-mapped to the wrong Odoo accounts.
+- `budget/variance.ts` — paginated `actualRows` (PAGE=1000, ordered by id)
+  matching the same pattern used in `lib/fmplus/financials.ts`.
+
+**Verification:** `npx tsc --noEmit` clean (the two pre-existing errors —
+missing `qrcode` and `@testing-library/react` — are unrelated). Full vitest
+suite: 326 pass, 22 skipped, 1 pre-existing module-load failure on
+`fmplus-logo.test.tsx` (also unrelated).
+
+**Deployed:** push to main → GitHub→Vercel auto-deploy + `vercel --prod --yes`
+sandbox deploy as belt-and-suspenders.
