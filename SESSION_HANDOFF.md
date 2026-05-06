@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🟣 Latest turn — Post-deploy bug surfaced: trip price locked at snapshot — need override (design proposed, awaiting Q1-Q3 answers)
+## 🟢 Latest turn — Trip price override SHIPPED to prod
+
+**Status:** Feature live. Production at `https://lime-kzjquahge-lime-investments.vercel.app` (Vercel project `lime-investments/lime`, 2m build, Ready).
+
+### What landed
+1. **Migration 0075** — adds `price_overridden_at`, `price_overridden_by`, `original_price_snapshot` to `boat_rental_reservations`. Applied to live Supabase via MCP.
+2. **Server action `overrideTripPriceAction`** — admin OR boat-owner only (broker excluded). Status gate: `confirmed` / `details_filled` only. Clamp logic: if new price < total_paid, sets price = total_paid (auto-closes trip with discount). Audit log `trip_price_overridden`.
+3. **`EditTripPriceForm` client component** — three phases: idle → editing (price + optional reason) → confirming (warning if clamped/auto-closing) → saving. Toast on result. Cancel/Back at every step.
+4. **Booking detail page** — renders the form between Payments and Danger Zone. "💱 Adjusted from EGP X" badge appears next to trip price after first override.
+
+### Locked design from user Q&A
+- Q1: Roles = Owner + Admin only (broker cannot override)
+- Q2: Reason field optional (not required)
+- Q3: When new price < total_paid → CLAMP to total_paid, auto-close trip as paid (no refund)
+
+### Commits this turn
+- `d89f507` migration 0075
+- `69981b1` overrideTripPriceAction
+- `8ccad34` EditTripPriceForm + booking detail integration
+
+Main tip: `8ccad34`.
+
+### Test in prod
+1. Open any confirmed reservation in `/emails/boat-rental/owner/booking/[id]`
+2. New "Edit trip price" button visible between Payments and Danger Zone (only on `confirmed` / `details_filled` status)
+3. Click → form expands → enter new price + optional reason → Continue
+4. Confirmation dialog shows old → new with explicit warnings if clamping or auto-closing
+5. Confirm → server action fires, page refreshes, badge appears next to trip price
+6. Payment ledger now uses the new price for "remaining" math
+7. If new < total_paid: trip auto-flips to `paid_to_owner`
+
+---
+
+## Previous turn — Post-deploy bug surfaced: trip price locked at snapshot — need override (design proposed, awaiting Q1-Q3 answers)
 
 **Status:** User QA'd the deployed build. On the booking detail page they tried to record a EGP 25,000 payment against a trip locked at EGP 15,000 — server validation blocked it with "Value must be less than or equal to 15000". User wants the ability to override the trip's snapshot price with clear confirmation.
 
