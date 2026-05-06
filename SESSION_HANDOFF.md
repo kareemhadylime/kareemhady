@@ -1,6 +1,21 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🟡 2026-05-06 — Awaiting kareem confirmation: Variance panel color/sign semantics
+## ✅ 2026-05-06 — Variance panel: cost label + EGP values + sign-aware colors (commit `05d6437`)
+
+kareem: *"Also Variance for what - Revenue or expense ??? , Also Need values not just Percentages !!"*
+
+Shipped:
+- Variance ranking panel renamed **"Cost Variance — by Service Line"** with explicit subtitle: *"Actual cost vs budgeted cost for the period · Negative = under-budget (saving) · Positive = over-budget (overrun)."*
+- Both Variance Ranking and Service Lines panels gained a **Δ column** showing the variance amount in EGP (e.g. "+0.05M" / "-0.18M") alongside the existing Var % column.
+- **Sign-aware coloring** via a local `costVarianceTextClass()` helper (duplicated in both panels with a `// TODO: move to shared module` comment): `> +15%` red, `+5..+15%` orange, anything `≤ +5%` green (on track or under-budget = saving). The diverging-bar colors in the chart use a local `costVarianceStatus()` that maps the same way (under-spend = green instead of red).
+- KPI tile relabeled **"Expense Variance %"** (was "Variance %") so it's clear it's cost variance, not revenue/GP.
+- Underlying `classifyVariance()` left untouched — other panels still use the symmetric `|pct|`-based classification.
+
+Tests: 328 passing. TS clean. Push: `a2a5e11..05d6437`. Vercel auto-deploy in flight.
+
+---
+
+## 🟡 [SUPERSEDED — fix shipped above] 2026-05-06 — Awaiting kareem confirmation: Variance panel color/sign semantics
 
 kareem screenshotted the "Variance — Biggest Gaps" panel and asked *"whats this?"* The panel showed all red bars: Back Office -100%, Pest Control -98%, Landscape -46.3%, Housekeeping -18.8%, MEP -7.3%.
 
