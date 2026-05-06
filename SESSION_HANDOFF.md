@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Performance Dashboard: Projects multi-select filter on portfolio sidebar (commit `430845d`)
+
+kareem: *"On Left Menu , Need to Choose The Project - All - Single - Multi - Dropdown with checkbox"* on the portfolio page.
+
+Shipped:
+- New `<ProjectFilter>` client component at `src/app/fmplus/performance/_components/project-filter.tsx` — chip-style button shows the selection summary ("All 4" / "TRIO COMPOUND" / "2 of 4") and opens a dropdown with an "All projects" master checkbox plus one row per contract. Click-outside closes.
+- `buildPortfolioPerformance` extended: `filters.contract_ids?: number[]`. When provided + non-empty, post-filters the contract list. Empty/missing/full = no filter.
+- `<PerformanceSidebar>` takes an optional `contracts` prop. Renders the new "Projects" section between Period and Visible Sections, **only** when `contracts.length > 1`. Per-contract page omits the prop, so it doesn't see the filter.
+- Portfolio page now fetches the contract list once (via existing `buildPortfolio({})`), decodes `?projects=1,2,3` from URL, and passes `contract_ids` to the aggregator. Empty or full set → param dropped (so links stay clean).
+- Implementer also fixed an issue from the previous turn: `offset` URL param wasn't being threaded through `resolvePeriod` from the portfolio page; now it is.
+
+Tests: 303 passing / 22 skipped. TS clean on touched files.
+Push: `200a2af..430845d HEAD -> main`. Vercel auto-deploy in flight.
+
+---
+
 ## ✅ 2026-05-06 — Phase 8 (Tasks 52–55): Mobile filter sheet + a11y/motion polish — PLAN COMPLETE
 
 **Status: DONE** — commit `b58cbbf` pushed to `main`
