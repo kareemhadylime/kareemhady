@@ -1,7 +1,7 @@
 // src/app/fmplus/performance/_components/performance-sidebar.tsx
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Pin, Calendar, List, Eye, Languages } from 'lucide-react';
+import { Pin, Calendar, List, Eye, Languages, Menu } from 'lucide-react';
 import { PeriodChips } from './period-chips';
 import { VisibleSections } from './visible-sections';
 
@@ -17,6 +17,7 @@ interface Props {
 export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAnchors }: Props) {
   const [pinned, setPinned] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -38,17 +39,31 @@ export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAncho
     if (next) setCollapsed(false);
   }
 
-  const width = collapsed && !pinned ? 56 : 240;
+  const desktopWidth = collapsed && !pinned ? 56 : 240;
 
   return (
     <>
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-14 left-2 z-40 p-2 rounded-lg bg-slate-800 text-fmplus-yellow"
+        aria-label="Open Performance navigation"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-30 bg-black/50" onClick={() => setMobileOpen(false)} />
+      )}
+
       <aside
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
         onFocus={onEnter}
         onBlur={onLeave}
-        style={{ width }}
-        className="fixed left-0 top-12 bottom-0 z-30 bg-slate-900/95 border-r border-slate-700/50 transition-[width] duration-200 ease-out overflow-hidden"
+        style={{ width: desktopWidth }}
+        className={`fixed left-0 top-12 bottom-0 z-30 bg-slate-900/95 border-r border-slate-700/50 transition-[width,transform] duration-200 ease-out overflow-hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
         aria-label="Performance Dashboard navigation"
       >
         <div className="h-full overflow-y-auto py-4 flex flex-col gap-6">
@@ -67,7 +82,11 @@ export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAncho
                   <ul className="flex flex-col">
                     {jumpAnchors.map(a => (
                       <li key={a.id}>
-                        <a href={`#${a.id}`} className="block px-3 py-1 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-fmplus-yellow">{a.label}</a>
+                        <a
+                          href={`#${a.id}`}
+                          onClick={() => setMobileOpen(false)}
+                          className="block px-3 py-1 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-fmplus-yellow"
+                        >{a.label}</a>
                       </li>
                     ))}
                   </ul>
@@ -80,7 +99,7 @@ export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAncho
               </section>
 
               <div className="mt-auto px-3 space-y-2">
-                <button onClick={togglePin} className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded transition ${pinned ? 'bg-fmplus-yellow text-fmplus-black' : 'text-slate-400 hover:text-fmplus-yellow'}`}>
+                <button onClick={togglePin} className={`hidden md:flex items-center gap-2 text-xs px-2 py-1.5 rounded transition ${pinned ? 'bg-fmplus-yellow text-fmplus-black' : 'text-slate-400 hover:text-fmplus-yellow'}`}>
                   <Pin size={14} /> {pinned ? 'Pinned' : 'Pin sidebar'}
                 </button>
               </div>
@@ -98,7 +117,7 @@ export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAncho
           )}
         </div>
       </aside>
-      <style>{`body { padding-left: ${width}px; transition: padding-left 200ms ease-out; }`}</style>
+      <style>{`@media (min-width: 768px) { body { padding-left: ${desktopWidth}px; transition: padding-left 200ms ease-out; } }`}</style>
     </>
   );
 }
