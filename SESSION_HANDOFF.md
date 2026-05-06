@@ -1,6 +1,46 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟣 Latest turn — Admin sign-in details feature: SPEC WRITTEN, awaiting user review
+## 🟢 Latest turn — Admin sign-in details: SPEC + PLAN both committed, awaiting execution-mode choice
+
+**Status:** User approved the design summary. Spec doc → committed (`6d4427c`). User then approved the spec, which triggered the writing-plans skill to produce the implementation plan → committed (`834c567`).
+
+The plan has **11 tasks** in `docs/superpowers/plans/2026-05-03-admin-signin-details-plan.md`. All tasks have full code, exact file paths, exact test commands. Self-review confirms full spec coverage and zero placeholders.
+
+### Pending: pick execution mode
+
+Asked the user to choose:
+- **Option 1: Subagent-Driven** — fresh subagent per task with two-stage review (spec → quality). ~30-35 dispatches total.
+- **Option 2: Inline Execution** — `executing-plans` skill, batched checkpoints in this session.
+
+Awaiting their reply (1 / 2 / "let me review the plan first").
+
+### Task index for the next session
+
+| # | Task | Files |
+|---|------|-------|
+| 1 | Migration 0073 — display_name + disabled_at + disabled_by | `supabase/migrations/0073_admin_user_ux_upgrades.sql` |
+| 2 | `randomFriendlyPassword` helper + tests (TDD, 5 tests) | `src/lib/random-password.ts` + `.test.ts` |
+| 3 | Extend `notifications.ts` — `admin_signin_details` template + renderer + dispatch case | `src/lib/boat-rental/notifications.ts` |
+| 4 | Modify `inviteBrokerAction` + `inviteOwnerAction` for auto-send | `src/app/emails/boat-rental/admin/users/actions.ts` |
+| 5 | New `sendSigninDetailsAction` — rotate password + WhatsApp | same file |
+| 6 | New `setUserDisplayNameAction` + `setUserDisabledAction` (refuses self-disable) | same file |
+| 7 | Login flow guard — block disabled in `getCurrentUser` + `loginWithPassword` + login page error | `src/lib/auth.ts`, `src/app/login/page.tsx` |
+| 8 | `SendSigninButton` client component (state machine + toast) | `_components/send-signin-button.tsx` |
+| 9 | `DisplayNameForm` + `DisableToggle` client components | `_components/display-name-form.tsx`, `disable-toggle.tsx` |
+| 10 | Refactor `users/page.tsx` — fetch new columns, render new components, fade disabled cards | `src/app/emails/boat-rental/admin/users/page.tsx` |
+| 11 | QA + apply migration to live Supabase + ship gate (does NOT auto-deploy) | — |
+
+### Critical guardrails for next session
+
+- ✅ Same worktree branch `claude/inspiring-booth-3d348a` (do NOT create a new branch — CLAUDE.md says "Never create a new branch")
+- ❌ Do NOT `git push origin main` until Task 11 step 7 (user approval to deploy)
+- ❌ Do NOT run `vercel --prod` until Task 11 step 7
+- ❌ Migration 0073 only applies to live Supabase at Task 11 step 2 — verify schema with `\d app_users` after
+- ⚠️ This branch ALSO has the in-flight 32-task owner-features plan (Tasks 1–30 done, Task 32 deploy pending). When the user approves either ship, BOTH ship together. Coordinate.
+
+---
+
+## Previous turn — Admin sign-in details feature: SPEC WRITTEN, awaiting user review
 
 **Status:** New side-quest separate from the 32-task owner-features plan (which is at 94% — see below). Spec for "WhatsApp sign-in details + display name + disable toggle" on the admin Users page is written, self-reviewed, and committed at `6d4427c`. User asked to "approve" the design summary and I produced the full spec doc.
 
