@@ -1,5 +1,49 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Tasks 10–13: Buildings table + Channel donut + Payouts + Reviews panels (Beithady Performance Dashboard — Phase 2)
+
+**Status: DONE** — commit `9c345b4` pushed to `main`
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_components/panels/buildings-table.tsx` (65 lines) — Per-building grid (rows: Occupancy / MTD Rev / ADR / Bookings/d; cols: All + 5 building codes). `BandCell` uses `bandForOccupancy` + `BAND_CLASSES`. `fmtMoneyK` helper.
+- `src/app/beithady/analytics/performance/_components/panels/channel-mix-donut.tsx` (63 lines) — Inline SVG donut (stroke-dasharray arcs, rotate-90 offset) + legend list. Handles empty `channel_mix` gracefully. `aria-hidden` on SVG.
+- `src/app/beithady/analytics/performance/_components/panels/payouts.tsx` (22 lines) — MTD received total (large emerald), Airbnb/Stripe breakdown, settling today + next 7d projected.
+- `src/app/beithady/analytics/performance/_components/panels/reviews-block.tsx` (49 lines) — 5-bar star distribution (navy 5★, muted 4/3/2★, red 1★) + last-24h review list (up to 6, flagged in red). Handles empty `last_24h`.
+
+**Files modified:**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+17 lines) — Added 4 imports; added 4 grid cells (buildings col-span-8, channel col-span-4, payouts col-span-4, reviews col-span-8) after hero strip.
+
+**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
+**Dev server:** Turbopack already running on 3000, clean startup.
+
+---
+
+## ✅ 2026-05-06 — Tasks 8+9: HeroKpi component + 6-up hero strip (Beithady Performance Dashboard — Phase 2)
+
+**Status: DONE** — commit `2a286ea` pushed to `main`
+
+**Files created/modified:**
+- `src/app/beithady/analytics/performance/_components/panels/hero-kpi.tsx` (62 lines) — `'use client'`; `HeroKpi` with `goldEdge` (navy left border), delta arrows with emerald/red/slate colors, inline `Sparkline` SVG with `aria-hidden="true"`.
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+38 lines) — Replaced placeholder div with 6-up responsive hero strip (2→3→6 cols); added `HeroKpi` import; `payload.conversations` properly guarded (`? ... : '—'`).
+
+**tsc --noEmit:** 2 pre-existing errors only — zero new errors.
+**Dev server:** Already running on 3000, log shows clean startup, no route-specific errors.
+
+---
+
+## ✅ 2026-05-06 — Task 7: PanelFrame chrome + color-thresholds util (Beithady Performance Dashboard — Phase 2 START)
+
+**Status: DONE** — commit `cba642d` pushed to `main`
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_lib/color-thresholds.ts` — `ColorBand` type, `bandForOccupancy()` (green ≥70 / amber 40–70 / red <40), `BAND_CLASSES` record with light-theme Tailwind classes.
+- `src/app/beithady/analytics/performance/_lib/color-thresholds.test.ts` — TDD: written first, confirmed FAIL (module missing), then PASS after impl. 4/4 tests pass.
+- `src/app/beithady/analytics/performance/_components/panel-frame.tsx` — `'use client'`; white surface, navy-tinted border, brand-locked `#003462`/`#6077a6` label; optional `drillTo` Link wrapper; optional hover-only `onHide` × button; `liveBadge` pulse; full a11y (aria-labels on hide button + drill link + live pulse, focus-visible rings on both interactive elements, `motion-reduce` guard on transition).
+
+**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
+
+---
+
 ## ✅ 2026-05-06 — Task 6: DashboardShell (Beithady Performance Dashboard — Phase 1 COMPLETE)
 
 **Status: DONE** — commit `8c882e3` pushed to `main`
