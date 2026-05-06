@@ -1,6 +1,49 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🔵 Latest turn — Verified prod URL + WhatsApp message content (no code changes)
+## 🟢 Latest turn — Three UX/branding fixes SHIPPED to prod
+
+**Status:** Live at https://app.limeinc.cc and https://limeinc.vercel.app (both alias the same production deploy).
+
+### What landed
+1. **Force-cancel + Admin overrides COLLAPSED by default** on the booking detail page (commit `4e58618`). Owner sees a small "⚠ Cancel reservation" link instead of a full danger-zone card; "🛡 Admin overrides — Edit" button instead of always-visible Edit/Delete row. Click reveals the existing UI; X button collapses back. Internal logic untouched.
+
+2. **Owner can edit boat master pricing on the fly** (commit `de00f21`). New `OwnerPricingEditForm` client component on `/emails/boat-rental/owner/inventory/[id]` (below the existing `<CatalogueDetail>`). Three-phase: idle (read-only grid showing weekday/weekend/season) → editing → confirming (shows only changed tiers before/after) → saving. New server action `upsertOwnerBoatPricingAction` verifies boat ownership via `getOwnedOwnerIds`, captures old amounts, audits via `owner_boat_pricing_updated`. Admin pricing page untouched.
+
+3. **WhatsApp account-creation URL switched to `app.limeinc.cc`** (commit `2d2458a`). Production env var `NEXT_PUBLIC_APP_URL` now `https://app.limeinc.cc`. Hardcoded fallback in `src/lib/boat-rental/notifications.ts:244` and `src/app/emails/boat-rental/admin/users/actions.ts` (2 spots) updated to match. Admin users actions now read `NEXT_PUBLIC_APP_URL` first (consistent with rest of codebase).
+
+### WhatsApp message now reads
+```
+👋 Welcome to Lime Boat Rental, {greeting}!
+
+You've been added as a {role}. Sign in details:
+
+Username: {username}
+Temporary password: {tempPassword}
+
+Sign in: https://app.limeinc.cc/login
+
+You'll be asked to change your password after first login.
+For help, reply to this message.
+```
+
+### Deploy state
+- Main tip: `2d2458a`
+- Production deploy: `lime-91ejhkovc-lime-investments.vercel.app` (Ready, 2m build)
+- Aliases: `app.limeinc.cc`, `limeinc.vercel.app`, `lime-lime-investments.vercel.app` — all auto-update on push to main (we re-aliased `app.limeinc.cc` manually post-deploy this turn since it wasn't in the auto-update list; project-domain assignment may need fixing in Vercel dashboard for fully automatic future updates)
+- All migrations applied to live Supabase: 0066-0075
+
+### Test these now
+1. Open any owner booking detail (`/emails/boat-rental/owner/booking/[id]`):
+   - Force-cancel + Admin overrides hidden by default ✅
+   - Edit Trip Price still visible (it's not a danger op)
+2. Open any owner boat detail (`/emails/boat-rental/owner/inventory/[id]`):
+   - "Boat rental pricing" card with Edit button below `<CatalogueDetail>` ✅
+3. Invite a test broker/owner with WhatsApp filled:
+   - Message URL line reads `Sign in: https://app.limeinc.cc/login` ✅
+
+---
+
+## Previous turn — Verified prod URL + WhatsApp message content (no code changes)
 
 **Status:** User asked two questions after the trip-price-override deploy:
 1. "Why not deploy on limeinc.vercel.app?"
