@@ -14,6 +14,7 @@ import { CategoriesPanel } from '../_components/panels/categories';
 import { UnmappedPanel } from '../_components/panels/unmapped';
 import { ForecastPanel } from '../_components/panels/forecast';
 import { VendorsPanel } from '../_components/panels/vendors';
+import { ArAgingPanel } from '../_components/panels/ar-aging';
 import { OvertimePanel } from '../_components/panels/overtime';
 import { MobilizationPanel } from '../_components/panels/mobilization';
 import { SignoffPanel } from '../_components/panels/signoff';
@@ -32,6 +33,7 @@ const JUMP = [
   { id: 'perf-unmapped', label: 'Unmapped' },
   { id: 'perf-forecast', label: 'Forecast' },
   { id: 'perf-vendors', label: 'Vendors' },
+  { id: 'perf-ar-aging', label: 'AR Aging' },
   { id: 'perf-overtime', label: 'Overtime' },
   { id: 'perf-mobilization', label: 'Mobilization' },
   { id: 'perf-signoff', label: 'Sign-off' },
@@ -121,6 +123,7 @@ export default async function PerformanceContractPage(props: Props) {
         <UnmappedPanel lines={data.unmapped} periodTotal={data.kpis.find(k => k.id === 'expense')?.value ?? 0} />
         <ForecastPanel block={data.forecast} />
         <VendorsPanel rows={data.vendors} />
+        <ArAgingPanel block={data.ar_aging} contractId={id} />
         <OvertimePanel block={data.overtime} />
         <MobilizationPanel rows={data.mobilization} />
         <SignoffPanel block={data.signoff} />

@@ -7,6 +7,7 @@ import { linearForecast } from './derive-forecast';
 import { computeMobAmortization } from './derive-mobilization';
 import { computeOvertimeBlock } from './derive-overtime';
 import { topVendors } from './derive-vendors';
+import { arAging } from './derive-ar-aging';
 import { deriveAnomalies } from './derive-anomalies';
 import type {
   ContractDashboardPayload,
@@ -83,7 +84,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
   // 1. Contract
   const { data: contract, error: ce } = await sb
     .from('project_contracts')
-    .select('id,name,customer,project_id,contract_value,start_date,end_date')
+    .select('id,name,customer,project_id,contract_value,start_date,end_date,payment_terms_days')
     .eq('id', args.contract_id)
     .single();
   if (ce || !contract) throw new Error(`contract ${args.contract_id} not found`);
@@ -96,6 +97,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     contract_value: number;
     start_date: string;
     end_date: string | null;
+    payment_terms_days: number | null;
   };
 
   // 2. Current year (highest year_index)
@@ -271,6 +273,12 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     period_total: total_actual,
   });
 
+  // 11b. AR Aging (parallel to vendors / overtime)
+  const ar_aging = await arAging({
+    project_id: contractRow.project_id,
+    payment_terms_days: contractRow.payment_terms_days ?? null,
+  });
+
   // 11. Overtime
   const otBudget = await sumManningOtBudget(sb, currentYear.id);
   const otActual = 0; // v1 stub — pattern-match against OT account codes is a follow-up task
@@ -399,6 +407,8 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     forecast,
     signoff_days_stale: days_stale,
     vendors,
+    ar_overdue_amount: ar_aging?.overdue_amount ?? 0,
+    ar_overdue_count: ar_aging?.overdue_count ?? 0,
     amber_pct: 0.15,
   });
 
@@ -423,6 +433,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     unmapped,
     forecast,
     vendors,
+    ar_aging,
     overtime,
     mobilization,
     signoff,

@@ -137,8 +137,40 @@ export interface YoyRow {
   drill_url: string;
 }
 
+export type ArBucket = 'within_terms' | 'overdue_1_30' | 'overdue_31_60' | 'overdue_61_90' | 'overdue_90_plus';
+
+export interface ArAgingLine {
+  move_id: number;
+  line_id: number;
+  partner_id: number | null;
+  partner_name: string;
+  invoice_ref: string | null;
+  invoice_date: string;
+  amount_residual: number;
+  currency: string | null;
+  days_outstanding: number;
+  days_overdue: number;
+  bucket: ArBucket;
+}
+
+export interface ArBucketTotal {
+  bucket: ArBucket;
+  count: number;
+  amount: number;
+}
+
+export interface ArAgingBlock {
+  payment_terms_days: number | null;     // mirrored from contract for the panel header
+  total_outstanding: number;
+  within_terms_amount: number;
+  overdue_amount: number;
+  overdue_count: number;
+  buckets: ArBucketTotal[];              // ordered: within → 90+
+  lines: ArAgingLine[];                  // sorted desc by days_outstanding
+}
+
 export interface Anomaly {
-  rule_id: 'manning_over' | 'unmapped_pct' | 'forecast_breach' | 'signoff_stale' | 'vendor_concentration';
+  rule_id: 'manning_over' | 'unmapped_pct' | 'forecast_breach' | 'signoff_stale' | 'vendor_concentration' | 'ar_overdue';
   severity: 'amber' | 'red';
   message: string;
   action_url: string;
@@ -161,6 +193,7 @@ export interface ContractDashboardPayload {
   unmapped: UnmappedLine[];                    // empty array → panel auto-hides
   forecast: ForecastBlock | null;
   vendors: VendorRow[];                        // empty → panel auto-hides
+  ar_aging: ArAgingBlock | null;               // null when contract has no AR data at all
   overtime: OvertimeBlock | null;
   mobilization: MobilizationRow[];             // empty → panel auto-hides
   signoff: SignoffBlock;

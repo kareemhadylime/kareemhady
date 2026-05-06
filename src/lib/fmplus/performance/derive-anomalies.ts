@@ -9,6 +9,8 @@ interface AnomalyInput {
   forecast: ForecastBlock | null;
   signoff_days_stale: number | null;
   vendors: VendorRow[];
+  ar_overdue_amount: number;       // 0 if no AR data
+  ar_overdue_count: number;
   amber_pct: number;             // expressed 0..1 (e.g. 0.15)
 }
 
@@ -74,6 +76,16 @@ export function deriveAnomalies(i: AnomalyInput): Anomaly[] {
       });
       break;     // one vendor concentration anomaly is enough
     }
+  }
+
+  // Rule 6 — AR overdue
+  if (i.ar_overdue_count > 0) {
+    out.push({
+      rule_id: 'ar_overdue',
+      severity: i.ar_overdue_amount > i.period_total_actual * 0.10 ? 'red' : 'amber',
+      message: `${i.ar_overdue_count} invoice${i.ar_overdue_count === 1 ? '' : 's'} overdue — ${(i.ar_overdue_amount / 1e3).toFixed(0)}K EGP outstanding past payment terms`,
+      action_url: '#perf-ar-aging',
+    });
   }
 
   return out;

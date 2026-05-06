@@ -11,6 +11,7 @@ const PANELS: { id: string; label: string }[] = [
   { id: 'unmapped', label: 'Unmapped' },
   { id: 'forecast', label: 'Forecast' },
   { id: 'vendors', label: 'Vendors' },
+  { id: 'ar_aging', label: 'AR Aging' },
   { id: 'overtime', label: 'Overtime' },
   { id: 'mobilization', label: 'Mobilization' },
   { id: 'signoff', label: 'Sign-off' },

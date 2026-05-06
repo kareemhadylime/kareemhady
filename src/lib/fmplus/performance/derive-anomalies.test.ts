@@ -10,6 +10,8 @@ const baseInput: Parameters<typeof deriveAnomalies>[0] = {
   forecast: null,
   signoff_days_stale: 5,
   vendors: [],
+  ar_overdue_amount: 0,
+  ar_overdue_count: 0,
   amber_pct: 0.15,
 };
 
@@ -60,5 +62,10 @@ describe('deriveAnomalies', () => {
       vendors: [{ partner_name: 'BigCo', pct_of_period: 0.45 } as never],
     });
     expect(a.find(x => x.rule_id === 'vendor_concentration')).toBeTruthy();
+  });
+
+  test('AR overdue triggers rule 6', () => {
+    const a = deriveAnomalies({ ...baseInput, ar_overdue_amount: 50_000, ar_overdue_count: 2 });
+    expect(a.find(x => x.rule_id === 'ar_overdue')).toBeTruthy();
   });
 });
