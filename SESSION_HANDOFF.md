@@ -1,6 +1,73 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟢 Latest turn — Admin sign-in details: ALL 10 IMPLEMENTATION TASKS COMPLETE — Task 11 (QA + ship) pending user confirmation
+## 🟣 Latest turn — User authorized full deploy + new feature: Role impersonation in Switch Portal dropdown (design locked, awaiting "approve" to build)
+
+**Status:** User gave full authorization to push, commit, deploy, and merge to main. Then added a new feature request: extend the existing top-left "Switch Portal" dropdown so admin can act as broker/owner roles without sign-out/sign-in, for testing purposes.
+
+### What's pending deploy on the branch (combined bundle)
+- **Owner-features 32-task plan** — Tasks 1–30 complete (parallel session), Task 32 deploy was pending user
+- **Admin sign-in details** — All 10 implementation tasks complete this session (commits `dea4f94` → `542d766`)
+- **Role impersonation feature** — design locked, BUILD pending user "approve"
+
+### Role impersonation design (locked from user Q1-Q4 answers)
+
+| Q | User picked | Decision |
+|---|---|---|
+| Q1 Mechanism | A | True impersonation — real test of access gates |
+| Q2 Placement | "Already there on top, just add all roles" | Extend the existing Switch Portal dropdown |
+| Q3 Visual | C | Banner across every page + amber stripe at top |
+| Q4 Revert | B | Sign-out is the revert; closing tab keeps impersonation |
+
+### Implementation summary
+
+**Migration 0074:**
+```sql
+alter table public.app_sessions
+  add column if not exists impersonating_user_id uuid references public.app_users(id);
+create index if not exists idx_app_sessions_impersonating
+  on public.app_sessions (impersonating_user_id) where impersonating_user_id is not null;
+```
+
+**Auth changes:** `getCurrentUser()` reads session, checks `impersonating_user_id`. If set, returns the impersonated user as the effective user PLUS `impersonation: { original_admin_id, original_admin_username }` so UI can show banner + portal context. Sign-out clears the whole session.
+
+**New server action `setImpersonationAction(formData)`:** Admin-only via `requireBoatAdmin`. Input `target_user_id` (or empty to revert). Sets `app_sessions.impersonating_user_id`. Audit log start/end.
+
+**UI:** Extend the existing portal-switcher component. For admin: shows Admin / Broker (auto-picks first active broker) / Owner (uses admin's own owner role if exists, else picks first active owner user). Non-admins unchanged. Banner + amber border-top stripe rendered from root layout server component.
+
+**Auto-pick policy (resolved internally):** First active broker/owner by username. Alphabetical. Simple deterministic for testing — no sub-menu needed.
+
+### Total deploy bundle (when user says "approve")
+
+1. **Build impersonation feature** (~5-6 commits across schema/auth/UI)
+2. **Apply migrations to live Supabase** in order:
+   - 0066 (skippers roster)
+   - 0067 (external brokers + reservation source)
+   - 0068 (drop payments UNIQUE)
+   - 0069 (expenses + expense_payments)
+   - 0070 (recurring templates + owner_settings)
+   - 0072 (drop legacy skipper columns)
+   - 0073 (admin user UX upgrades)
+   - 0074 (impersonation column) — NEW
+3. **Merge → main → `vercel --prod`**
+4. **Ship** — user QAs everything in prod with role-switching enabled
+
+### Pending decision
+
+User must reply **"approve"** (or call out changes) on the impersonation design before I:
+1. Write spec + plan
+2. Build
+3. Deploy entire bundle
+
+### Locked authorizations
+- ✅ Push to main authorized
+- ✅ Commit authorized
+- ✅ Vercel --prod authorized
+- ✅ Supabase changes authorized
+- ✅ Merge to main authorized
+
+---
+
+## Previous turn — Admin sign-in details: ALL 10 IMPLEMENTATION TASKS COMPLETE — Task 11 (QA + ship) pending user confirmation
 
 **Status:** User picked subagent-driven execution for the 11-task admin sign-in plan. All 10 implementation tasks landed cleanly via subagent dispatch + two-stage review. `npm test` 34/34 passing, `npm run build` clean. Task 11 has destructive steps (apply migration to live Supabase, deploy to prod) — paused for explicit user go-ahead.
 
