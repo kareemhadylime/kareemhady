@@ -20,31 +20,17 @@ import {
 } from '../actions';
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
-import type { InboxRow } from '@/lib/personal-email/inbox-query';
+import type { InboxRow, SelectedEmail } from '@/lib/personal-email/inbox-query';
 import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, isLowPriority, markerTier } from '@/lib/personal-email/email-helpers';
+
+// Re-export for back-compat with existing callers (page.tsx imports
+// `SelectedEmail` from this module).
+export type { SelectedEmail };
 
 // Master-detail drill-down: list on the left, preview on the right.
 // Selected email lives in URL as `?msg=<id>` so deep links work and
 // server can pre-render the preview. Multi-select state is local
 // (Set<string>) and powers the bulk-action bar at the top of the list.
-
-export type SelectedEmail = {
-  id: string;
-  subject: string | null;
-  from_address: string | null;
-  to_address: string | null;
-  received_at: string | null;
-  body_excerpt: string | null;
-  category: CategorySlug | null;
-  category_confidence: number | null;
-  category_method: string | null;
-  category_reason: string | null;
-  needs_review: boolean;
-  gmail_message_id: string;
-  gmail_thread_id: string | null;
-  account_display_name: string | null;
-  account_email: string | null;
-};
 
 export function DrillDownView({
   rows,
@@ -53,7 +39,11 @@ export function DrillDownView({
 }: {
   rows: InboxRow[];
   selected: SelectedEmail | null;
-  category: CategorySlug;
+  // Optional. When set, the "Move to" dropdown hides the current
+  // category (moving to the same bucket is a no-op). On surfaces like
+  // /personal/email/needs-review where rows span many categories, leave
+  // it undefined so the dropdown shows everything.
+  category?: CategorySlug;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -357,7 +347,7 @@ function BulkBar({
   moveOpen: boolean;
   setMoveOpen: (b: boolean) => void;
   onMoveTo: (slug: CategorySlug) => void;
-  currentCategory: CategorySlug;
+  currentCategory?: CategorySlug;
 }) {
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs">

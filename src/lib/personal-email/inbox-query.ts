@@ -90,3 +90,57 @@ export async function loadCategoryCounts(accountId?: string): Promise<CategoryCo
   }
   return init;
 }
+
+// Shape of a single email opened in the drill-down preview pane.
+// Lives in the query module so multiple surfaces (category drill-down,
+// needs-review) can fetch it without cross-importing each other.
+export type SelectedEmail = {
+  id: string;
+  subject: string | null;
+  from_address: string | null;
+  to_address: string | null;
+  received_at: string | null;
+  body_excerpt: string | null;
+  category: CategorySlug | null;
+  category_confidence: number | null;
+  category_method: string | null;
+  category_reason: string | null;
+  needs_review: boolean;
+  gmail_message_id: string;
+  gmail_thread_id: string | null;
+  account_display_name: string | null;
+  account_email: string | null;
+};
+
+export async function loadSelectedEmail(emailLogId: string): Promise<SelectedEmail | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from('email_logs')
+    .select(`
+      id, gmail_message_id, gmail_thread_id, subject, from_address, to_address,
+      received_at, body_excerpt, category, category_confidence, category_method,
+      category_reason, needs_review,
+      accounts(email, display_name)
+    `)
+    .eq('id', emailLogId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const acc = (data as any).accounts;
+  return {
+    id: data.id,
+    subject: data.subject,
+    from_address: data.from_address,
+    to_address: data.to_address,
+    received_at: data.received_at,
+    body_excerpt: data.body_excerpt,
+    category: data.category as CategorySlug | null,
+    category_confidence: data.category_confidence as number | null,
+    category_method: data.category_method,
+    category_reason: data.category_reason,
+    needs_review: !!data.needs_review,
+    gmail_message_id: data.gmail_message_id,
+    gmail_thread_id: data.gmail_thread_id,
+    account_display_name: acc?.display_name ?? null,
+    account_email: acc?.email ?? null,
+  };
+}

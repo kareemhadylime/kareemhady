@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Mail, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
 import { CATEGORIES, getCategoriesByTier } from '@/lib/personal-email/categories';
-import { loadInbox, loadCategoryCounts } from '@/lib/personal-email/inbox-query';
+import { loadInbox, loadCategoryCounts, loadSelectedEmail } from '@/lib/personal-email/inbox-query';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PersonalShell, PersonalHeader } from '../_components/personal-shell';
@@ -10,7 +10,7 @@ import { MailboxStatusBar } from './_components/mailbox-status-bar';
 import { TierSection } from './_components/tier-section';
 import { CategoryCard } from './_components/category-card';
 import { RefreshButton } from './_components/refresh-button';
-import { DrillDownView, type SelectedEmail } from './_components/drill-down-view';
+import { DrillDownView } from './_components/drill-down-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -230,35 +230,3 @@ async function CategoryFlatView({
   );
 }
 
-async function loadSelectedEmail(emailLogId: string): Promise<SelectedEmail | null> {
-  const sb = supabaseAdmin();
-  const { data, error } = await sb
-    .from('email_logs')
-    .select(`
-      id, gmail_message_id, gmail_thread_id, subject, from_address, to_address,
-      received_at, body_excerpt, category, category_confidence, category_method,
-      category_reason, needs_review,
-      accounts(email, display_name)
-    `)
-    .eq('id', emailLogId)
-    .maybeSingle();
-  if (error || !data) return null;
-  const acc = (data as any).accounts;
-  return {
-    id: data.id,
-    subject: data.subject,
-    from_address: data.from_address,
-    to_address: data.to_address,
-    received_at: data.received_at,
-    body_excerpt: data.body_excerpt,
-    category: data.category as CategorySlug | null,
-    category_confidence: data.category_confidence as number | null,
-    category_method: data.category_method,
-    category_reason: data.category_reason,
-    needs_review: !!data.needs_review,
-    gmail_message_id: data.gmail_message_id,
-    gmail_thread_id: data.gmail_thread_id,
-    account_display_name: acc?.display_name ?? null,
-    account_email: acc?.email ?? null,
-  };
-}
