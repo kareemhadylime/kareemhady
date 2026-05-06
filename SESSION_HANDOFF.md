@@ -1,5 +1,41 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 7 (Tasks 49–51): Snapshot scrubber + PDF export route + wire
+
+**Status: DONE** — commit `5644141` pushed to `main`
+
+**Files created (2):**
+- `src/app/beithady/analytics/performance/_components/panels/snapshot-scrubber.tsx` — `SnapshotScrubber` client component; range slider from `earliestDate` → today; on release navigates via `router.push`; graceful empty state when `totalDays === 0`; aria attrs (valuemin/max/now/text); `useTransition` pending indicator
+- `src/app/api/beithady/perf/export-pdf/route.ts` — GET handler; calls `loadSnapshot` + `renderReportPdf`; returns `application/pdf` with `Content-Disposition: attachment`; 404 JSON on missing snapshot; `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`
+
+**Files modified (5):**
+- `src/app/beithady/analytics/performance/_lib/load-snapshot.ts` — added `loadEarliestSnapshotDate()` — queries `daily_report_snapshots` order ascending limit 1, returns `report_date` or null on error
+- `src/app/beithady/analytics/performance/_lib/panel-registry.ts` — added `'snapshot-scrubber'` to `PanelId` union + PANELS array (group `decisions-alerts`, `defaultVisible: false`)
+- `src/app/beithady/analytics/performance/page.tsx` — `Promise.all([loadSnapshot, loadEarliestSnapshotDate])`; passes `earliestDate` to `DashboardShell`
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` — added `earliestDate: string | null` prop; imports + renders `SnapshotScrubber` gated by `visibility['snapshot-scrubber']`; passes `currentDate={snapshotDate}` to TopBar
+- `src/app/beithady/analytics/performance/_components/top-bar.tsx` — added `currentDate: string` prop; replaced dead `<button>` with `<a href="/api/beithady/perf/export-pdf?date=...">` link
+
+**tsc:** 0 new errors (2 pre-existing: qrcode + @testing-library/react).
+
+**Auth note (V1):** PDF route has no separate auth check — relies on Beithady module page guard; anyone who can reach the dashboard can trigger the download. Fine for V1.
+
+---
+
+## ✅ 2026-05-06 — Task 48: Left rail auto-collapse with 3s grace + icon strip + pin override (Phase 6 complete)
+
+**Status: DONE** — commit `023ae15` pushed to `main`
+
+**Files created (1):**
+- `src/app/beithady/analytics/performance/_hooks/use-rail-collapse.ts` — SSR-safe hook; `collapsed`/`pinned` state; `handleEnter` cancels timer; `handleLeave` sets 3s setTimeout (skipped when pinned); `togglePinned` reads/writes `localStorage["bh:perf-dashboard:rail-pinned:v1"]`; unmount cleanup
+
+**Files modified (2):**
+- `src/app/beithady/analytics/performance/_components/left-rail.tsx` — added `collapsed`/`pinned`/`onTogglePin` props; collapsed branch renders 44px icon strip (📅 🏢 ⇄ 📌) with aria-pressed pin button; expanded branch adds pin-toggle footer row with aria-pressed; `motion-reduce:transition-none` guard on all transitions
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` — imported `useRailCollapse`; called as `const rail = useRailCollapse()`; grid div gets `onMouseEnter`/`onMouseLeave` + `transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none`; `gridTemplateColumns` inline style toggles `44px 1fr` ↔ `200px 1fr`; LeftRail receives all rail props
+
+**tsc:** 0 new errors (2 pre-existing: qrcode + @testing-library/react).
+
+---
+
 ## ✅ 2026-05-06 — Phase 6 Batch A: Tasks 44, 45, 46, 47 — Panel registry + visibility hook + Customize drawer + wire onHide
 
 **Status: DONE** — commit `1aa8c5c` pushed to `main`
