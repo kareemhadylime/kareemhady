@@ -14,21 +14,33 @@ function writeJson(key: string, v: Record<string, boolean>) {
   localStorage.setItem(key, JSON.stringify(v));
 }
 
-export function usePanelState(id: string) {
+interface PanelStateOptions {
+  /**
+   * Initial collapsed state when the user has not explicitly toggled. Once a
+   * user explicitly expands or collapses (toggleCollapse), that choice is
+   * persisted in localStorage and overrides the default on subsequent loads.
+   */
+  defaultCollapsed?: boolean;
+}
+
+export function usePanelState(id: string, opts?: PanelStateOptions) {
+  const defaultCollapsed = opts?.defaultCollapsed ?? false;
   const [visible, setVisible] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   useEffect(() => {
     function reread() {
       const v = readJson(VISIBILITY_KEY);
       const c = readJson(COLLAPSE_KEY);
       setVisible(v[id] !== false);
-      setCollapsed(c[id] === true);
+      // Stored value (true/false) wins; if absent, fall back to the default.
+      const stored = c[id];
+      setCollapsed(typeof stored === 'boolean' ? stored : defaultCollapsed);
     }
     reread();
     window.addEventListener('fmplus_perf_panels_changed', reread);
     return () => window.removeEventListener('fmplus_perf_panels_changed', reread);
-  }, [id]);
+  }, [id, defaultCollapsed]);
 
   const hide = useCallback(() => {
     setVisible(false);

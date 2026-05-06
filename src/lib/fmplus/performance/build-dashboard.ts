@@ -434,14 +434,30 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     { id: 'variance_pct', label: 'Expense Variance %',  value: variance_pct, unit: '%',     variance_pct, variance_abs: 0,                   status: classifyVariance(variance_pct), spark: [] },
   ];
 
-  // 9. Forecast — project full-year actual from the run-rate observed in the
-  // selected period. months_elapsed = number of months in the period; period_actual
-  // = sliced actual; budget_year = full-year budget (NOT sliced — we're comparing
-  // a projected full year against the full-year budget plan).
+  // 9. Forecast — project full-year actual from year-to-date burn rate.
+  //
+  // Important: the forecast intentionally does NOT use the selected period's
+  // slice. If the user selects a single month (e.g. March alone), period
+  // slicing gives 1 month of actuals — multiplying that by 12 produces a
+  // projection that ignores Jan/Feb. Users read "X of 12 months elapsed" as
+  // calendar elapsed (March → 3 of 12), not period-span elapsed.
+  //
+  // So we sum actuals across all months <= period.to's calendar month
+  // (regardless of the selected period.from) and divide by elapsed months.
+  // budget_year stays as the full-year budget plan.
+  const periodToMonth = new Date(args.period.to).getMonth() + 1; // 1..12 calendar
+  let ytdActual = 0;
+  for (const seg of variance.segments ?? []) {
+    for (const cat of seg.categories ?? []) {
+      for (const c of cat.cells ?? []) {
+        if (c.month <= periodToMonth) ytdActual += c.actual;
+      }
+    }
+  }
   const monthsElapsed = elapsedMonths(currentYear, args.period.to);
   const forecast = linearForecast({
-    period_actual: total_actual,
-    months_elapsed: periodMonths.size,
+    period_actual: ytdActual,
+    months_elapsed: monthsElapsed,
     months_total: 12,
     budget_year: variance.total_budget,
     amber_pct: 0.05,

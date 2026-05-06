@@ -1,4 +1,22 @@
-# Kareemhady — Session Handoff (2026-05-06)
+# Kareemhady — Session Handoff (2026-05-07)
+
+## ✏️ 2026-05-07 — P&L surface polish pass (Manning rounding · cell padding · default collapses · YTD forecast)
+
+Five small UX fixes kareem flagged after a screenshot review of `/fmplus/performance/[contractId]`:
+
+1. **Manning panel — whole-number headcount.** Headcount is a person count, not a fractional FTE, so the Implied / Required / Budgeted / Δ values now display as `Math.round` integers. The chart tooltip on the Implied dot also drops `.toFixed(1)`. Stops the `BUD = 71.69999999999997` overflow from raw decimals leaking into the cell. ([manning.tsx](src/app/fmplus/performance/_components/panels/manning.tsx) + [dumbbell.tsx](src/app/fmplus/performance/_components/charts/dumbbell.tsx)).
+
+2. **Cramped table cells.** Multi-column data tables (Manning, Categories, Service Lines, Unmapped) had `<th>/<td>` with no horizontal padding, so headers like `BUDGETACTUALPREV MO` were touching. Added `px-2` across all cells. No font-size or layout-width changes.
+
+3. **Unmapped Expenses collapsed by default.** Long auditor-style line dump that's useful to scan but rarely needed open on first paint. Added `defaultCollapsed` option to `usePanelState(id, opts)` — stored localStorage value still wins when the user has explicitly toggled, so explicit-expand persists. ([panel-state.ts](src/app/fmplus/performance/_components/panel-state.ts), consumed by [unmapped.tsx](src/app/fmplus/performance/_components/panels/unmapped.tsx)).
+
+4. **Forecast — semantically correct elapsed months.** Was using `periodMonths.size` (period span) for `months_elapsed`, so picking March alone showed "1 of 12 months elapsed" and the projection multiplied March × 12 — ignoring Jan / Feb actuals. Now sums all cells where `month <= period.to.month` regardless of period.from, and uses `elapsedMonths(year, period.to)` (calendar elapsed). March now reads "3 of 12 months elapsed" and projection = (Jan + Feb + Mar) / 3 × 12. ([build-dashboard.ts](src/lib/fmplus/performance/build-dashboard.ts) lines 437-466). `linearForecast` math itself is unchanged (existing 4 unit tests still green).
+
+5. **What "IMP" means** — kareem asked. IMP = "Implied actual headcount" = period actual manning spend ÷ weighted-avg CTC. It's a back-calculated headcount derived from the cost line (since we don't have a real headcount feed yet). The panel subtitle already explains: *Required (○ grey) / Budgeted (● gold) / Implied actual (● yellow)*.
+
+Tests: forecast + build-dashboard vitest (10 tests) green. TypeScript clean on touched files (pre-existing `qrcode` and `@testing-library/react` errors unrelated).
+
+---
 
 ## 🏁 2026-05-06 — Performance Dashboard P&L surface FEATURE-COMPLETE
 

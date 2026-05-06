@@ -32,36 +32,36 @@ export function ServiceLinesPanel({ rows }: { rows: ServiceLineRow[] }) {
             <table className="w-full text-sm">
               <thead className="text-xs text-fmplus-gold uppercase">
                 <tr>
-                  <th className="text-left py-1">Service</th>
-                  <th className="text-right">Budget</th>
-                  <th className="text-right">Actual</th>
-                  <th className="text-right">Prev Mo</th>
-                  <th className="text-right">Δ</th>
-                  <th className="text-right">Var %</th>
-                  <th className="text-right">Mix Bud</th>
-                  <th className="text-right">Mix Act</th>
-                  <th className="text-right">GP %</th>
-                  <th className="text-right">Δ GP pp</th>
+                  <th className="text-left py-1 px-2">Service</th>
+                  <th className="text-right px-2">Budget</th>
+                  <th className="text-right px-2">Actual</th>
+                  <th className="text-right px-2">Prev Mo</th>
+                  <th className="text-right px-2">Δ</th>
+                  <th className="text-right px-2">Var %</th>
+                  <th className="text-right px-2">Mix Bud</th>
+                  <th className="text-right px-2">Mix Act</th>
+                  <th className="text-right px-2">GP %</th>
+                  <th className="text-right px-2">Δ GP pp</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => (
                   <tr key={r.service_line} className="border-t border-slate-700/50 hover:bg-slate-800/40">
-                    <td className="py-2 text-slate-200">{r.service_label}</td>
-                    <td className="text-right tabular-nums text-slate-400">{(r.budget / 1e6).toFixed(2)}M</td>
-                    <td className="text-right tabular-nums text-fmplus-yellow font-semibold">{(r.actual / 1e6).toFixed(2)}M</td>
-                    <td className="text-right tabular-nums text-slate-400">
+                    <td className="py-2 px-2 text-slate-200">{r.service_label}</td>
+                    <td className="text-right px-2 tabular-nums text-slate-400">{(r.budget / 1e6).toFixed(2)}M</td>
+                    <td className="text-right px-2 tabular-nums text-fmplus-yellow font-semibold">{(r.actual / 1e6).toFixed(2)}M</td>
+                    <td className="text-right px-2 tabular-nums text-slate-400">
                       {r.prior_month_actual === null ? '—' : `${(r.prior_month_actual / 1e6).toFixed(2)}M`}
                     </td>
-                    <td className={`text-right tabular-nums ${costVarianceTextClass(r.variance_pct)}`}>
+                    <td className={`text-right px-2 tabular-nums ${costVarianceTextClass(r.variance_pct)}`}>
                       {r.variance_abs >= 0 ? '+' : ''}{(r.variance_abs / 1e6).toFixed(2)}M
                     </td>
-                    <td className={`text-right tabular-nums ${costVarianceTextClass(r.variance_pct)}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
-                    <td className="text-right tabular-nums text-slate-300">{(r.mix_budget_pct * 100).toFixed(1)}%</td>
-                    <td className="text-right tabular-nums text-slate-300">{(r.mix_actual_pct * 100).toFixed(1)}%</td>
-                    <td className="text-right tabular-nums text-slate-300">{(r.gp_pct * 100).toFixed(1)}%</td>
-                    <td className={`text-right tabular-nums ${r.gp_pct - r.gp_pct_budget > 0.01 ? 'text-emerald-300' : r.gp_pct - r.gp_pct_budget < -0.01 ? 'text-red-300' : 'text-slate-300'}`}>
+                    <td className={`text-right px-2 tabular-nums ${costVarianceTextClass(r.variance_pct)}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
+                    <td className="text-right px-2 tabular-nums text-slate-300">{(r.mix_budget_pct * 100).toFixed(1)}%</td>
+                    <td className="text-right px-2 tabular-nums text-slate-300">{(r.mix_actual_pct * 100).toFixed(1)}%</td>
+                    <td className="text-right px-2 tabular-nums text-slate-300">{(r.gp_pct * 100).toFixed(1)}%</td>
+                    <td className={`text-right px-2 tabular-nums ${r.gp_pct - r.gp_pct_budget > 0.01 ? 'text-emerald-300' : r.gp_pct - r.gp_pct_budget < -0.01 ? 'text-red-300' : 'text-slate-300'}`}>
                       {r.gp_pct - r.gp_pct_budget >= 0 ? '+' : ''}{((r.gp_pct - r.gp_pct_budget) * 100).toFixed(1)}pp
                     </td>
                     <td><Link href={r.drill_url} className="text-fmplus-gold hover:text-fmplus-yellow">→</Link></td>

@@ -15,7 +15,7 @@ export function Dumbbell({ data, max }: { data: Row[]; max: number }) {
             <line x1={minX} y1={y} x2={maxX} y2={y} stroke="#475569" strokeWidth={1.5} />
             <circle cx={xs[0]} cy={y} r={5}  fill="none" stroke="#94A3B8" strokeWidth={1.5}><title>{`Required: ${r.required}`}</title></circle>
             <circle cx={xs[1]} cy={y} r={5}  fill="#EEB91D"><title>{`Budgeted: ${r.budgeted}`}</title></circle>
-            <circle cx={xs[2]} cy={y} r={6}  fill="#FDCF00"><title>{`Implied: ${r.implied.toFixed(1)}`}</title></circle>
+            <circle cx={xs[2]} cy={y} r={6}  fill="#FDCF00"><title>{`Implied: ${r.implied}`}</title></circle>
           </g>
         );
       })}
