@@ -209,6 +209,46 @@ export interface VariationOrdersBlock {
   rows: VoRow[];
 }
 
+// ─── Cost matrix (Service × Category, like Odoo Income Statement) ──────────────
+
+export interface CostMatrixCell {
+  budget: number;
+  actual: number;
+  variance_pct: number;     // (actual - budget) / budget; 0 when budget = 0
+}
+
+export interface CostMatrixServiceRow {
+  service_line: ServiceLine;
+  service_label: string;
+  cells: Partial<Record<Category, CostMatrixCell>>;
+  total_budget: number;
+  total_actual: number;
+}
+
+export interface CostMatrixBlock {
+  services: CostMatrixServiceRow[];
+  categories: Category[];                          // ordered, only categories with any data
+  total_by_category: Partial<Record<Category, { budget: number; actual: number }>>;
+  grand_total: { budget: number; actual: number };
+}
+
+// ─── 12-month trend (rows = service lines, cols = 12 months of actuals) ───────
+
+export interface MonthlyTrendRow {
+  service_line: ServiceLine;
+  service_label: string;
+  monthly_budget: number;             // uniform monthly budget for this service
+  months: { month: number; actual: number; variance_pct: number }[];   // 12 entries
+  ytd_actual: number;
+  ytd_budget: number;
+}
+
+export interface MonthlyTrendBlock {
+  rows: MonthlyTrendRow[];
+  fiscal_year: number | null;
+  year_index: number;
+}
+
 export interface Anomaly {
   rule_id: 'manning_over' | 'unmapped_pct' | 'forecast_breach' | 'signoff_stale' | 'vendor_concentration' | 'ar_overdue';
   severity: 'amber' | 'red';
@@ -241,6 +281,8 @@ export interface ContractDashboardPayload {
   ar_aging: ArAgingBlock | null;               // null when contract has no AR data at all
   penalties: PenaltiesBlock | null;
   variation_orders: VariationOrdersBlock | null;
+  cost_matrix: CostMatrixBlock | null;
+  monthly_trend: MonthlyTrendBlock | null;
   overtime: OvertimeBlock | null;
   mobilization: MobilizationRow[];             // empty → panel auto-hides
   signoff: SignoffBlock;

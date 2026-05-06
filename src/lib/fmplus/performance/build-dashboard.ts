@@ -24,8 +24,17 @@ import type {
   YoyRow,
   MobilizationRow,
   PeriodRange,
+  CostMatrixBlock,
+  CostMatrixServiceRow,
+  CostMatrixCell,
+  MonthlyTrendBlock,
+  MonthlyTrendRow,
 } from './types';
 import type { Category, ServiceLine } from '@/lib/fmplus/budget/types';
+
+const CATEGORY_ORDER: Category[] = [
+  'manning', 'consumables', 'tools', 'ppe', 'transport', 'it', 'governmental', 'other',
+];
 
 const CATEGORY_LABELS: Record<Category, string> = {
   manning: 'Manning',
@@ -639,6 +648,91 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     (a, b) => Math.abs(b.variance_pct) - Math.abs(a.variance_pct),
   );
 
+  // Cost matrix — Service × Category × {budget, actual} from full-year cell data
+  // (NOT period-sliced — this is a P&L mirror that should match Odoo year totals)
+  const matrixCategoriesSet = new Set<Category>();
+  const matrixServices: CostMatrixServiceRow[] = (variance.segments ?? []).map(seg => {
+    const cells: Partial<Record<Category, CostMatrixCell>> = {};
+    let total_budget = 0;
+    let total_actual = 0;
+    for (const c of seg.categories ?? []) {
+      const ytdBudget = c.ytd_budget ?? 0;
+      const ytdActual = c.ytd_actual ?? 0;
+      if (ytdBudget === 0 && ytdActual === 0) continue;
+      matrixCategoriesSet.add(c.category as Category);
+      cells[c.category as Category] = {
+        budget: ytdBudget,
+        actual: ytdActual,
+        variance_pct: ytdBudget > 0 ? (ytdActual - ytdBudget) / ytdBudget : 0,
+      };
+      total_budget += ytdBudget;
+      total_actual += ytdActual;
+    }
+    return {
+      service_line: seg.service_line as ServiceLine,
+      service_label: SERVICE_LABELS[seg.service_line as ServiceLine] ?? String(seg.service_line),
+      cells,
+      total_budget,
+      total_actual,
+    };
+  });
+
+  const matrixCategories = CATEGORY_ORDER.filter(c => matrixCategoriesSet.has(c));
+
+  const totalByCategory: Partial<Record<Category, { budget: number; actual: number }>> = {};
+  for (const cat of matrixCategories) {
+    let b = 0, a = 0;
+    for (const s of matrixServices) {
+      const cell = s.cells[cat];
+      if (cell) { b += cell.budget; a += cell.actual; }
+    }
+    totalByCategory[cat] = { budget: b, actual: a };
+  }
+
+  const grandTotal = matrixServices.reduce(
+    (acc, s) => ({ budget: acc.budget + s.total_budget, actual: acc.actual + s.total_actual }),
+    { budget: 0, actual: 0 },
+  );
+
+  const cost_matrix: CostMatrixBlock | null = matrixServices.length > 0
+    ? { services: matrixServices, categories: matrixCategories, total_by_category: totalByCategory, grand_total: grandTotal }
+    : null;
+
+  // Monthly trend — per service line, 12 months of actuals + uniform monthly budget
+  const trendRows: MonthlyTrendRow[] = (variance.segments ?? []).map(seg => {
+    const byMonth = new Map<number, { budget: number; actual: number }>();
+    for (let m = 1; m <= 12; m++) byMonth.set(m, { budget: 0, actual: 0 });
+    for (const c of seg.categories ?? []) {
+      for (const cell of c.cells ?? []) {
+        const slot = byMonth.get(cell.month);
+        if (slot) {
+          slot.budget += cell.budget;
+          slot.actual += cell.actual;
+        }
+      }
+    }
+    const months = Array.from(byMonth.entries()).map(([month, v]) => ({
+      month,
+      actual: v.actual,
+      variance_pct: v.budget > 0 ? (v.actual - v.budget) / v.budget : 0,
+    }));
+    const monthly_budget = byMonth.get(1)?.budget ?? 0;
+    const ytd_actual = months.reduce((a, m) => a + m.actual, 0);
+    const ytd_budget = monthly_budget * 12;
+    return {
+      service_line: seg.service_line as ServiceLine,
+      service_label: SERVICE_LABELS[seg.service_line as ServiceLine] ?? String(seg.service_line),
+      monthly_budget,
+      months,
+      ytd_actual,
+      ytd_budget,
+    };
+  });
+
+  const monthly_trend: MonthlyTrendBlock | null = trendRows.length > 0
+    ? { rows: trendRows, fiscal_year: currentYear.fiscal_year, year_index: currentYear.year_index }
+    : null;
+
   const serviceScope = (variance.segments ?? []).map(s => ({
     code: String(s.service_line),
     label: SERVICE_LABELS[s.service_line] ?? String(s.service_line),
@@ -669,6 +763,8 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     ar_aging,
     penalties,
     variation_orders,
+    cost_matrix,
+    monthly_trend,
     overtime,
     mobilization,
     signoff,

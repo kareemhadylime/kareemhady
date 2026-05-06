@@ -14,6 +14,8 @@ const PANELS: { id: string; label: string }[] = [
   { id: 'ar_aging', label: 'AR Aging' },
   { id: 'penalties', label: 'Penalties' },
   { id: 'variation_orders', label: 'Variation Orders' },
+  { id: 'cost_matrix', label: 'Cost Matrix' },
+  { id: 'monthly_trend', label: 'Monthly Trend' },
   { id: 'overtime', label: 'Overtime' },
   { id: 'mobilization', label: 'Mobilization' },
   { id: 'signoff', label: 'Sign-off' },
