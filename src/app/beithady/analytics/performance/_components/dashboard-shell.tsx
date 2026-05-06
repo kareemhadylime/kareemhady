@@ -7,6 +7,10 @@ import { BuildingsTable } from './panels/buildings-table';
 import { ChannelMixDonut } from './panels/channel-mix-donut';
 import { Payouts } from './panels/payouts';
 import { ReviewsBlock } from './panels/reviews-block';
+import { CleaningTurnovers } from './panels/cleaning-turnovers';
+import { InquirySlaBuckets } from './panels/inquiry-sla-buckets';
+import { CheckInsPayment } from './panels/check-ins-payment';
+import { Cancellations } from './panels/cancellations';
 import { usePerfUrlState } from '../_hooks/use-url-state';
 import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
 import type { CompareMode } from '../_hooks/use-url-state';
@@ -106,6 +110,18 @@ export function DashboardShell({
           </div>
           <div className="col-span-12 lg:col-span-8">
             <ReviewsBlock payload={payload} />
+          </div>
+
+          {/* Cleaning (c3) + SLA buckets (c6) + space (c3) */}
+          <div className="col-span-12 lg:col-span-3">
+            <CleaningTurnovers payload={payload} />
+          </div>
+          <div className="col-span-12 lg:col-span-6">
+            <InquirySlaBuckets payload={payload} />
+          </div>
+          <div className="col-span-12 lg:col-span-3 grid grid-rows-2 gap-3">
+            <CheckInsPayment payload={payload} />
+            <Cancellations payload={payload} />
           </div>
         </main>
       </div>
