@@ -19,6 +19,7 @@ import { OccupancyGapFinder } from './panels/occupancy-gap-finder';
 import { RevenueWaterfall } from './panels/revenue-waterfall';
 import { StlyYoy } from './panels/stly-yoy';
 import { MonthlyGoal } from './panels/monthly-goal';
+import { AIInsightsTray } from './panels/ai-insights-tray';
 import { usePerfUrlState } from '../_hooks/use-url-state';
 import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
 import type { CompareMode } from '../_hooks/use-url-state';
@@ -63,6 +64,11 @@ export function DashboardShell({
       <div className="grid" style={{ gridTemplateColumns: '200px 1fr' }}>
         <LeftRail state={state} onChange={update} />
         <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
+          {/* AI Insights tray (renders nothing when no insights) — full width */}
+          <div className="col-span-12">
+            <AIInsightsTray payload={payload} />
+          </div>
+
           {/* Hero KPI strip — wraps 2-up → 3-up → 6-up by viewport. min-w on each cell prevents crampness. */}
           <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <HeroKpi

@@ -52,6 +52,34 @@ export function ReviewsBlock({ payload, onHide }: Props) {
           {r.last_24h.length === 0 && <li className="text-[#6077a6]">No new reviews in the last 24h</li>}
         </ul>
       </div>
+      {payload.review_topics && (payload.review_topics.praised.length > 0 || payload.review_topics.complained.length > 0) && (
+        <div className="mt-3 border-t border-[#003462]/10 pt-2 text-[10px]">
+          <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[#6077a6]/80">
+            <span aria-hidden="true">✨</span>
+            <span>AI Topics</span>
+          </div>
+          {payload.review_topics.praised.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              <span className="text-[#6077a6]">Praised:</span>
+              {payload.review_topics.praised.map((t) => (
+                <span key={t.topic} className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-700" title={t.example ?? undefined}>
+                  {t.topic} · {t.count}
+                </span>
+              ))}
+            </div>
+          )}
+          {payload.review_topics.complained.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              <span className="text-[#6077a6]">Complained:</span>
+              {payload.review_topics.complained.map((t) => (
+                <span key={t.topic} className="rounded bg-red-100 px-1.5 py-0.5 text-red-700" title={t.example ?? undefined}>
+                  {t.topic} · {t.count}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </PanelFrame>
   );
 }
