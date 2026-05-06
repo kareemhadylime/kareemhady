@@ -343,7 +343,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     { id: 'expense',      label: 'Expense',     value: total_actual, unit: 'EGP-M', variance_pct, variance_abs: total_actual - total_budget, status: classifyVariance(variance_pct), spark: [] },
     { id: 'gp',           label: 'GP',          value: gp_abs,       unit: 'EGP-M', variance_pct, variance_abs: 0,                   status: classifyVariance(variance_pct), spark: [] },
     { id: 'gp_pct',       label: 'GP %',        value: gp_pct,       unit: '%',     variance_pct, variance_abs: 0,                   status: classifyVariance(variance_pct), spark: [] },
-    { id: 'variance_pct', label: 'Variance %',  value: variance_pct, unit: '%',     variance_pct, variance_abs: 0,                   status: classifyVariance(variance_pct), spark: [] },
+    { id: 'variance_pct', label: 'Expense Variance %',  value: variance_pct, unit: '%',     variance_pct, variance_abs: 0,                   status: classifyVariance(variance_pct), spark: [] },
   ];
 
   // 9. Forecast — project full-year actual from the run-rate observed in the
