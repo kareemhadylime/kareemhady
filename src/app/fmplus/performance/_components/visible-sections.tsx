@@ -16,6 +16,7 @@ const PANELS: { id: string; label: string }[] = [
   { id: 'variation_orders', label: 'Variation Orders' },
   { id: 'cost_matrix', label: 'Cost Matrix' },
   { id: 'monthly_trend', label: 'Monthly Trend' },
+  { id: 'variance_bridge', label: 'Variance Bridge' },
   { id: 'overtime', label: 'Overtime' },
   { id: 'mobilization', label: 'Mobilization' },
   { id: 'signoff', label: 'Sign-off' },

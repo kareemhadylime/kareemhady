@@ -249,6 +249,19 @@ export interface MonthlyTrendBlock {
   year_index: number;
 }
 
+export interface VarianceBridgeStep {
+  id: 'budget_gp' | 'revenue_delta' | 'manning_delta' | 'materials_delta' | 'transport_delta' | 'other_delta' | 'penalties' | 'variation_orders' | 'reconciliation' | 'actual_gp';
+  label: string;
+  amount: number;             // signed EGP impact on GP (positive = improves GP)
+  is_terminal: boolean;       // true for budget_gp (start) and actual_gp (end) — they're cumulative totals, not deltas
+}
+
+export interface VarianceBridgeBlock {
+  budget_gp: number;
+  actual_gp: number;
+  steps: VarianceBridgeStep[];     // includes start, deltas, end
+}
+
 export interface Anomaly {
   rule_id: 'manning_over' | 'unmapped_pct' | 'forecast_breach' | 'signoff_stale' | 'vendor_concentration' | 'ar_overdue';
   severity: 'amber' | 'red';
@@ -283,6 +296,7 @@ export interface ContractDashboardPayload {
   variation_orders: VariationOrdersBlock | null;
   cost_matrix: CostMatrixBlock | null;
   monthly_trend: MonthlyTrendBlock | null;
+  variance_bridge: VarianceBridgeBlock | null;
   overtime: OvertimeBlock | null;
   mobilization: MobilizationRow[];             // empty → panel auto-hides
   signoff: SignoffBlock;

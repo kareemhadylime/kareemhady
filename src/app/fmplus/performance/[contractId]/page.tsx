@@ -19,6 +19,7 @@ import { PenaltiesPanel } from '../_components/panels/penalties';
 import { VariationOrdersPanel } from '../_components/panels/variation-orders';
 import { CostMatrixPanel } from '../_components/panels/cost-matrix';
 import { MonthlyTrendPanel } from '../_components/panels/monthly-trend';
+import { VarianceBridgePanel } from '../_components/panels/variance-bridge';
 import { OvertimePanel } from '../_components/panels/overtime';
 import { MobilizationPanel } from '../_components/panels/mobilization';
 import { SignoffPanel } from '../_components/panels/signoff';
@@ -42,6 +43,7 @@ const JUMP = [
   { id: 'perf-variation-orders', label: 'Variation Orders' },
   { id: 'perf-cost-matrix', label: 'Cost Matrix' },
   { id: 'perf-monthly-trend', label: 'Monthly Trend' },
+  { id: 'perf-variance-bridge', label: 'Variance Bridge' },
   { id: 'perf-overtime', label: 'Overtime' },
   { id: 'perf-mobilization', label: 'Mobilization' },
   { id: 'perf-signoff', label: 'Sign-off' },
@@ -142,6 +144,7 @@ export default async function PerformanceContractPage(props: Props) {
         <VariationOrdersPanel block={data.variation_orders} />
         <CostMatrixPanel block={data.cost_matrix} />
         <MonthlyTrendPanel block={data.monthly_trend} />
+        <VarianceBridgePanel block={data.variance_bridge} />
         <OvertimePanel block={data.overtime} />
         <MobilizationPanel rows={data.mobilization} />
         <SignoffPanel block={data.signoff} />

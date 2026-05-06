@@ -29,6 +29,8 @@ import type {
   CostMatrixCell,
   MonthlyTrendBlock,
   MonthlyTrendRow,
+  VarianceBridgeBlock,
+  VarianceBridgeStep,
 } from './types';
 import type { Category, ServiceLine } from '@/lib/fmplus/budget/types';
 
@@ -733,6 +735,61 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     ? { rows: trendRows, fiscal_year: currentYear.fiscal_year, year_index: currentYear.year_index }
     : null;
 
+  // Variance bridge — Budget GP → Actual GP attribution
+  const periodBudgetCost = service_lines.reduce((a, s) => a + s.budget, 0);
+  const periodActualCost = service_lines.reduce((a, s) => a + s.actual, 0);
+  const budgetGp = revenue - periodBudgetCost;
+  const actualGp = revenue - periodActualCost;
+
+  // Per-category aggregated deltas (sign-flipped: under-spend on cost = positive for GP)
+  function categoryDelta(cat: Category): number {
+    const c = categories.find(cc => cc.category === cat);
+    if (!c) return 0;
+    return -(c.actual - c.budget);
+  }
+  const manningDelta = categoryDelta('manning');
+  const materialsDelta = categoryDelta('consumables') + categoryDelta('ppe') + categoryDelta('tools');
+  const transportDelta = categoryDelta('transport');
+  const otherDelta = categoryDelta('it') + categoryDelta('governmental') + categoryDelta('other');
+
+  // Revenue delta — when revenue source is 'odoo_actual' the dashboard's `revenue` is already actual,
+  // not budget. There's no separate "budget revenue" stored. So Δ Revenue = 0 in this version of the
+  // bridge (the expense-side deltas account for everything visible). When project_year_services
+  // monthly_revenue is populated, we could compute this properly. For now, set to 0 with a note.
+  const revenueDelta = 0;
+
+  // Penalties — always negative impact (they're cost on top of normal categories, but our `categories`
+  // rollup may already include them depending on account regex matching. To avoid double-counting,
+  // only attribute penalties as a SEPARATE bridge step if the penalties block is non-null. Keep them
+  // here purely for narrative — if double-counted with categories.other, the reconciliation step will
+  // absorb the difference.)
+  const penaltiesImpact = penalties ? -penalties.total_amount : 0;
+
+  // VO impact — subtract VO cost (we don't have VO revenue separately tracked)
+  const voImpact = variation_orders ? -variation_orders.total_amount : 0;
+
+  // Reconciliation step — closes the bridge so all steps sum to (actual_gp - budget_gp)
+  const sumOfAbove = revenueDelta + manningDelta + materialsDelta + transportDelta + otherDelta + penaltiesImpact + voImpact;
+  const reconciliation = (actualGp - budgetGp) - sumOfAbove;
+
+  const bridgeSteps: VarianceBridgeStep[] = [
+    { id: 'budget_gp',        label: 'Budget GP',          amount: budgetGp,        is_terminal: true },
+    { id: 'revenue_delta',    label: 'Δ Revenue',          amount: revenueDelta,    is_terminal: false },
+    { id: 'manning_delta',    label: 'Δ Manning',          amount: manningDelta,    is_terminal: false },
+    { id: 'materials_delta',  label: 'Δ Materials',        amount: materialsDelta,  is_terminal: false },
+    { id: 'transport_delta',  label: 'Δ Transport',        amount: transportDelta,  is_terminal: false },
+    { id: 'other_delta',      label: 'Δ Other Costs',      amount: otherDelta,      is_terminal: false },
+    { id: 'penalties',        label: 'Penalties',          amount: penaltiesImpact, is_terminal: false },
+    { id: 'variation_orders', label: 'Variation Orders',   amount: voImpact,        is_terminal: false },
+    { id: 'reconciliation',   label: 'Reconciliation',     amount: reconciliation,  is_terminal: false },
+    { id: 'actual_gp',        label: 'Actual GP',          amount: actualGp,        is_terminal: true },
+  ];
+
+  const variance_bridge: VarianceBridgeBlock | null =
+    service_lines.length > 0
+      ? { budget_gp: budgetGp, actual_gp: actualGp, steps: bridgeSteps }
+      : null;
+
   const serviceScope = (variance.segments ?? []).map(s => ({
     code: String(s.service_line),
     label: SERVICE_LABELS[s.service_line] ?? String(s.service_line),
@@ -765,6 +822,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     variation_orders,
     cost_matrix,
     monthly_trend,
+    variance_bridge,
     overtime,
     mobilization,
     signoff,
