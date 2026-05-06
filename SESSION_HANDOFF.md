@@ -1,6 +1,52 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🟢 Latest turn — SHIPPED TO PRODUCTION: owner-features + admin sign-in + role impersonation
+## 🟣 Latest turn — Post-deploy bug surfaced: trip price locked at snapshot — need override (design proposed, awaiting Q1-Q3 answers)
+
+**Status:** User QA'd the deployed build. On the booking detail page they tried to record a EGP 25,000 payment against a trip locked at EGP 15,000 — server validation blocked it with "Value must be less than or equal to 15000". User wants the ability to override the trip's snapshot price with clear confirmation.
+
+### Design proposed (awaiting approval)
+
+Add an "Edit trip price" inline section to the booking detail page (between Payments and Danger Zone). Owner/admin can change `price_egp_snapshot` for THAT reservation only — boat's master pricing rules unchanged.
+
+### Flow
+1. Owner clicks "Edit trip price" → expands form: current price + new price input + optional reason
+2. Click Save → confirmation dialog "Change from EGP X to EGP Y? Logged."
+3. On confirm: `price_egp_snapshot` updated, audit log `trip_price_overridden` with old/new/reason, badge appears on booking ("💱 Price adjusted by @x on date")
+4. Payment validation now uses new price → user can record the higher amount
+
+### Server-side validation
+- New price > 0
+- New price ≥ already-paid total (no retroactive overpayment)
+- Reservation status must be `confirmed` or `details_filled` (locked trips can't change)
+- Only owner of the boat OR admin can override; broker cannot
+
+### Scope
+- No migration needed — uses existing `price_egp_snapshot` column on `boat_rental_reservations`
+- 1 server action `overrideTripPriceAction`, 1 client component `EditTripPriceForm`, page edit, badge render
+- 4-5 commits, similar shape to prior small features
+
+### Three open questions to user
+
+| Q | Topic | Options |
+|---|---|---|
+| Q1 | Reason field | A=required, B=optional *(recommended)* |
+| Q2 | Roles allowed | A=Owner+Admin only *(recommended)*, B=+Broker |
+| Q3 | Already partially paid + new price < total_paid | A=block until refund *(recommended)*, B=allow with warning, C=enforce new_price ≥ total_paid |
+
+Default if user says "approve defaults": **B, A, A**.
+
+### Pending action
+Wait for user reply with letter combo (e.g. "B, A, A") or "approve defaults". Then build → ship same bundle pattern as prior (commit, push to main, auto-deploy via GitHub→Vercel hook).
+
+### Production state
+- All three feature bundles SHIPPED earlier this turn (owner-features, admin sign-in, role impersonation)
+- Production URL: https://lime-8dbhn9c77-lime-investments.vercel.app (Vercel project `lime-investments/lime`)
+- Migrations 0073 + 0074 applied to live Supabase via MCP
+- Main tip: `ee847c3 docs: SESSION_HANDOFF — all three bundles SHIPPED to prod`
+
+---
+
+## Previous turn — SHIPPED TO PRODUCTION: owner-features + admin sign-in + role impersonation
 
 **Status:** All three feature bundles deployed to prod. Production URL: `https://lime-8dbhn9c77-lime-investments.vercel.app` (Vercel project `lime-investments/lime`, build `6m`, status Ready).
 
