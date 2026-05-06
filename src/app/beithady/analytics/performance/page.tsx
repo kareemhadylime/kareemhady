@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { BeithadyShell } from '@/app/beithady/_components/beithady-shell';
-import { loadSnapshot } from './_lib/load-snapshot';
+import { loadSnapshot, loadEarliestSnapshotDate } from './_lib/load-snapshot';
 import { EmptySnapshot } from './_components/empty-snapshot';
 import { DashboardShell } from './_components/dashboard-shell';
 
@@ -16,7 +16,10 @@ export const metadata = { title: 'Performance Dashboard · Beithady' };
 
 export default async function PerformancePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
-  const result = await loadSnapshot(sp.date);
+  const [result, earliestDate] = await Promise.all([
+    loadSnapshot(sp.date),
+    loadEarliestSnapshotDate(),
+  ]);
 
   return (
     <BeithadyShell
@@ -36,6 +39,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             generatedAt={result.generatedAt}
             initialBuilding={sp.building ?? 'all'}
             initialCompare={parseCompare(sp.compare)}
+            earliestDate={earliestDate}
           />
         </Suspense>
       )}

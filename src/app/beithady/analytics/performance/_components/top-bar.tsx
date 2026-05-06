@@ -10,9 +10,10 @@ type Props = {
   hiddenCount: number;
   onCustomizeClick: () => void;
   onDateChange: (date: string) => void;
+  currentDate: string;
 };
 
-export function TopBar({ state, generatedAt, reportDate, hiddenCount, onCustomizeClick, onDateChange }: Props) {
+export function TopBar({ state, generatedAt, reportDate, hiddenCount, onCustomizeClick, onDateChange, currentDate }: Props) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const cairoTime = new Date(generatedAt).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' });
   const dateLabel = new Date(reportDate + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -37,12 +38,13 @@ export function TopBar({ state, generatedAt, reportDate, hiddenCount, onCustomiz
           </h1>
         </div>
         <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
+          <a
+            href={`/api/beithady/perf/export-pdf${currentDate ? `?date=${currentDate}` : ''}`}
             className="rounded-md border border-[#003462]/15 bg-white px-3 py-1.5 text-xs text-[#003462] hover:bg-[#eae9f3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-2"
+            aria-label="Export current snapshot as PDF"
           >
             ⤓ Export PDF
-          </button>
+          </a>
           <button
             type="button"
             onClick={onCustomizeClick}

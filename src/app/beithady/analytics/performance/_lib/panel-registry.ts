@@ -25,7 +25,8 @@ export type PanelId =
   | 'revenue-concentration'
   | 'occupancy-gap-finder'
   | 'revenue-waterfall'
-  | 'stly-yoy';
+  | 'stly-yoy'
+  | 'snapshot-scrubber';
 
 export type PanelGroupId =
   | 'hero'
@@ -79,6 +80,9 @@ export const PANELS: PanelDescriptor[] = [
   { id: 'inquiry-sla', label: '📥 Inquiry SLA buckets', group: 'operations-guests', defaultVisible: true },
   { id: 'check-ins-payment', label: '💰 Check-ins with payment', group: 'operations-guests', defaultVisible: true },
   { id: 'cancellations', label: '❌ Cancellations', group: 'operations-guests', defaultVisible: true },
+
+  // Decisions & alerts (time-travel)
+  { id: 'snapshot-scrubber', label: '⏪ Snapshot scrubber', group: 'decisions-alerts', defaultVisible: false },
 ];
 
 export const PANEL_IDS: PanelId[] = PANELS.map((p) => p.id);

@@ -21,6 +21,7 @@ import { RevenueWaterfall } from './panels/revenue-waterfall';
 import { StlyYoy } from './panels/stly-yoy';
 import { MonthlyGoal } from './panels/monthly-goal';
 import { AIInsightsTray } from './panels/ai-insights-tray';
+import { SnapshotScrubber } from './panels/snapshot-scrubber';
 import { CustomizeDrawer } from './customize-drawer';
 import { useVisibility } from '../_hooks/use-visibility';
 import { usePerfUrlState } from '../_hooks/use-url-state';
@@ -33,6 +34,7 @@ type Props = {
   generatedAt: string;
   initialBuilding: string;
   initialCompare: CompareMode;
+  earliestDate: string | null;
 };
 
 export function DashboardShell({
@@ -41,6 +43,7 @@ export function DashboardShell({
   generatedAt,
   initialBuilding: _initialBuilding,
   initialCompare: _initialCompare,
+  earliestDate,
 }: Props) {
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -65,6 +68,7 @@ export function DashboardShell({
         hiddenCount={hiddenCount}
         onCustomizeClick={() => setDrawerOpen(true)}
         onDateChange={(date) => update({ date })}
+        currentDate={snapshotDate}
       />
       <div
         className="grid transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
@@ -243,6 +247,17 @@ export function DashboardShell({
           {visibility['stly-yoy'] && (
             <div className="col-span-12 lg:col-span-6">
               <StlyYoy payload={payload} onHide={() => setPanel('stly-yoy', false)} />
+            </div>
+          )}
+
+          {/* Snapshot scrubber — full width, off by default */}
+          {visibility['snapshot-scrubber'] && (
+            <div className="col-span-12">
+              <SnapshotScrubber
+                currentDate={snapshotDate}
+                earliestDate={earliestDate}
+                onHide={() => setPanel('snapshot-scrubber', false)}
+              />
             </div>
           )}
         </main>

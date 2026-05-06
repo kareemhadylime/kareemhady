@@ -23,6 +23,26 @@ export type SnapshotResult =
   | { status: 'found'; date: string; payload: DailyReportPayload; generatedAt: string }
   | { status: 'missing'; date: string };
 
+/**
+ * Returns the earliest report_date present in `daily_report_snapshots`,
+ * or null if the table is empty / errors. Used by the snapshot scrubber.
+ */
+export async function loadEarliestSnapshotDate(): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from('daily_report_snapshots')
+      .select('report_date')
+      .order('report_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data.report_date as string;
+  } catch (err) {
+    console.warn('[load-earliest-snapshot]', err);
+    return null;
+  }
+}
+
 export async function loadSnapshot(dateParam: string | undefined): Promise<SnapshotResult> {
   const date = parseDateParam(dateParam) ?? cairoYmd();
 
