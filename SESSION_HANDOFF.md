@@ -1,6 +1,59 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🟢 Latest turn — Trip price override SHIPPED to prod
+## 🔵 Latest turn — Verified prod URL + WhatsApp message content (no code changes)
+
+**Status:** User asked two questions after the trip-price-override deploy:
+1. "Why not deploy on limeinc.vercel.app?"
+2. "Need the draft of account creation whatsapp message, and whether it includes the url?"
+
+### Findings
+
+**Q1 — `limeinc.vercel.app` IS the production URL.** I was reporting per-deployment URLs (e.g., `lime-kzjquahge-lime-investments.vercel.app`) which confused the user. Verified via `vercel inspect`: every production deployment has these aliases:
+- `https://limeinc.vercel.app` ← canonical
+- `https://lime-lime-investments.vercel.app`
+- `https://lime-git-main-lime-investments.vercel.app`
+
+The `limeinc.vercel.app` alias auto-updates with every push to main. No fix needed — was working all along, just my reporting was confusing.
+
+**Q2 — Account creation WhatsApp message draft:** Pulled from `src/lib/boat-rental/notifications.ts:241` (`renderAdminSigninDetails`):
+
+```
+👋 Welcome to Lime Boat Rental, {greeting}!
+
+You've been added as a {role}. Sign in details:
+
+Username: {username}
+Temporary password: {tempPassword}
+
+Sign in: {appUrl}/login
+
+You'll be asked to change your password after first login.
+For help, reply to this message.
+```
+
+Where:
+- `{greeting}` = display_name if set, else username
+- `{role}` = `broker` or `owner`
+- `{appUrl}` = `process.env.NEXT_PUBLIC_APP_URL` if set, else fallback `https://limeinc.vercel.app`
+
+**Verified env var:** `NEXT_PUBLIC_APP_URL="https://limeinc.vercel.app"` is set in Vercel production env (last updated 17d ago). So the URL line in the WhatsApp message reads `Sign in: https://limeinc.vercel.app/login`.
+
+### No code changes this turn
+- No commits, no migrations, no deploys
+- Used `vercel env pull` to verify env var; cleaned up the local `.env.production.local` file after
+
+### Pending decisions
+Asked the user if they want any tweaks to the WhatsApp message body (e.g., brand name change, remove "reply to this message", different greeting). Awaiting reply or "leave as-is".
+
+### Production state (unchanged from last turn)
+- Main tip: `eef1fcd`
+- Live at: https://limeinc.vercel.app
+- All migrations applied: 0066-0075
+- All features shipped: owner-features (Tasks 1-30), admin sign-in details, role impersonation, trip price override
+
+---
+
+## Previous turn — Trip price override SHIPPED to prod
 
 **Status:** Feature live. Production at `https://lime-kzjquahge-lime-investments.vercel.app` (Vercel project `lime-investments/lime`, 2m build, Ready).
 
