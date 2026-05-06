@@ -147,6 +147,24 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     return { budget, actual };
   }
 
+  // Prior month resolution — calendar month before period.from. When period.from
+  // is January, there's no prior month inside the same calendar year.
+  // For multi-month periods, "prior" is the month immediately before period.from.
+  const periodFromMonth = new Date(args.period.from).getMonth() + 1; // 1..12
+  const priorMonth: number | null = periodFromMonth === 1 ? null : periodFromMonth - 1;
+
+  function priorMonthActualForSegment(seg: {
+    categories: Array<{ cells?: Array<{ month: number; actual: number }> }>;
+  }): number | null {
+    if (priorMonth === null) return null;
+    let sum = 0;
+    for (const c of seg.categories) {
+      const cell = (c.cells ?? []).find(cc => cc.month === priorMonth);
+      if (cell) sum += cell.actual;
+    }
+    return sum;
+  }
+
   // 3c. Revenue resolution — prefer Odoo actuals, then service_revenue, then contract_value
   type RevenueSource = 'odoo_actual' | 'service_revenue' | 'contract_value_fallback' | 'none';
   let revenueSource: RevenueSource = 'none';
@@ -253,6 +271,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     const variance_pct = segBudget > 0 ? variance_abs / segBudget : 0;
     const periodRevenue = periodRevenueForService(s.service_line);
     const gp_pct = periodRevenue > 0 ? (periodRevenue - segActual) / periodRevenue : 0;
+    const gp_pct_budget = periodRevenue > 0 ? (periodRevenue - segBudget) / periodRevenue : 0;
     return {
       service_line: s.service_line,
       service_label: SERVICE_LABELS[s.service_line] ?? String(s.service_line),
@@ -261,10 +280,22 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       variance_abs,
       variance_pct,
       gp_pct,
+      gp_pct_budget,
+      mix_budget_pct: 0,    // populated in second pass below (needs cross-service totals)
+      mix_actual_pct: 0,
+      prior_month_actual: priorMonthActualForSegment(s),
       status: classifyVariance(variance_pct),
       drill_url: `/fmplus/financial/budget/variance?contract=${args.contract_id}&service=${s.service_line}&from=${args.period.from}&to=${args.period.to}`,
     };
   });
+
+  // Second pass — populate mix percentages using cross-service totals.
+  const totalBudgetAcross = service_lines.reduce((a, s) => a + s.budget, 0);
+  const totalActualAcross = service_lines.reduce((a, s) => a + s.actual, 0);
+  for (const s of service_lines) {
+    s.mix_budget_pct = totalBudgetAcross > 0 ? s.budget / totalBudgetAcross : 0;
+    s.mix_actual_pct = totalActualAcross > 0 ? s.actual / totalActualAcross : 0;
+  }
 
   // 5. Manning panel (period-sliced)
   const manning: ManningRow[] = await Promise.all(
@@ -311,10 +342,29 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       t.actual += sliced.actual;
     }
   }
+
+  // Pre-compute prior-month actuals per category (sum across services of cells[priorMonth].actual).
+  const priorByCategory: Record<Category, number> = Object.fromEntries(
+    Object.keys(CATEGORY_LABELS).map(c => [c, 0]),
+  ) as Record<Category, number>;
+  if (priorMonth !== null) {
+    for (const seg of variance.segments ?? []) {
+      for (const c of seg.categories) {
+        if (!(c.category in priorByCategory)) continue;
+        const cell = (c.cells ?? []).find(cc => cc.month === priorMonth);
+        if (cell) priorByCategory[c.category] += cell.actual;
+      }
+    }
+  }
+
+  const periodRevenue = totalPeriodRevenue;     // shared by category-mix calcs and KPIs
   const categories: CategoryRow[] = (Object.keys(catTotals) as Category[]).map(cat => {
     const t = catTotals[cat];
     const variance_abs = t.actual - t.budget;
     const variance_pct = t.budget > 0 ? variance_abs / t.budget : 0;
+    const pct_of_revenue_budget = periodRevenue > 0 ? t.budget / periodRevenue : 0;
+    const pct_of_revenue_actual = periodRevenue > 0 ? t.actual / periodRevenue : 0;
+    const delta_bps = (pct_of_revenue_actual - pct_of_revenue_budget) * 10_000;
     return {
       category: cat,
       category_label: CATEGORY_LABELS[cat],
@@ -322,6 +372,10 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       actual: t.actual,
       variance_abs,
       variance_pct,
+      pct_of_revenue_budget,
+      pct_of_revenue_actual,
+      delta_bps,
+      prior_month_actual: priorMonth === null ? null : (priorByCategory[cat] ?? 0),
       drill_url: `/fmplus/financial/budget/variance?contract=${args.contract_id}&category=${cat}&from=${args.period.from}&to=${args.period.to}`,
     };
   });
@@ -569,6 +623,11 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     (a, b) => Math.abs(b.variance_pct) - Math.abs(a.variance_pct),
   );
 
+  const serviceScope = (variance.segments ?? []).map(s => ({
+    code: String(s.service_line),
+    label: SERVICE_LABELS[s.service_line] ?? String(s.service_line),
+  }));
+
   const payload: ContractDashboardPayload = {
     meta: {
       contract_id: args.contract_id,
@@ -578,6 +637,10 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       current_year_index: currentYear.year_index,
       current_year_id: currentYear.id,
       revenue_source: revenueSource,
+      analytic_account_code: contractRow.project_id,
+      contract_start_date: contractRow.start_date ?? null,
+      contract_end_date: contractRow.end_date ?? null,
+      service_scope: serviceScope,
     },
     kpis,
     service_lines,

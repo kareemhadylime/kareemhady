@@ -34,6 +34,10 @@ export interface ServiceLineRow {
   variance_abs: number;
   variance_pct: number;
   gp_pct: number;
+  gp_pct_budget: number;             // budget GP% per service (revenue − budgeted cost) / revenue
+  mix_budget_pct: number;            // service.budget / total_budget across services
+  mix_actual_pct: number;            // service.actual / total_actual across services
+  prior_month_actual: number | null; // null when no prior month exists in current year
   status: 'good' | 'warn' | 'bad';
   drill_url: string;
 }
@@ -59,6 +63,10 @@ export interface CategoryRow {
   actual: number;
   variance_abs: number;
   variance_pct: number;
+  pct_of_revenue_budget: number;     // category.budget / period_revenue
+  pct_of_revenue_actual: number;     // category.actual / period_revenue
+  delta_bps: number;                 // (pct_actual − pct_budget) × 10000
+  prior_month_actual: number | null; // null when no prior month exists in current year
   drill_url: string;
 }
 
@@ -185,6 +193,10 @@ export interface ContractDashboardPayload {
     current_year_index: number;
     current_year_id: number;
     revenue_source: 'odoo_actual' | 'service_revenue' | 'contract_value_fallback' | 'none';
+    analytic_account_code: number;          // = project_contracts.project_id (= odoo analytic id)
+    contract_start_date: string | null;
+    contract_end_date: string | null;
+    service_scope: { code: string; label: string }[];   // service lines present in current year
   };
   kpis: KpiTile[];
   service_lines: ServiceLineRow[];

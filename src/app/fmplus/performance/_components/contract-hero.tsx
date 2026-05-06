@@ -11,6 +11,10 @@ interface Props {
   monthsTotal: number;
   contracts: { id: number; name: string; customer?: string | null }[];
   revenueSource?: 'odoo_actual' | 'service_revenue' | 'contract_value_fallback' | 'none';
+  analyticAccountCode?: number;
+  contractStartDate?: string | null;
+  contractEndDate?: string | null;
+  serviceScope?: { code: string; label: string }[];
 }
 
 export function ContractHero({
@@ -22,6 +26,10 @@ export function ContractHero({
   monthsTotal,
   contracts,
   revenueSource,
+  analyticAccountCode,
+  contractStartDate,
+  contractEndDate,
+  serviceScope,
 }: Props) {
   return (
     <header className="ix-card p-5 sm:p-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -37,6 +45,30 @@ export function ContractHero({
         {customer && (
           <p className="text-sm text-slate-400 mt-1 font-body">{customer}</p>
         )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-400">
+          {analyticAccountCode != null && (
+            <span>
+              <span className="text-fmplus-gold uppercase tracking-wide font-semibold">Analytic</span>{' '}
+              #{analyticAccountCode}
+            </span>
+          )}
+          {(contractStartDate || contractEndDate) && (
+            <span>
+              <span className="text-fmplus-gold uppercase tracking-wide font-semibold">Contract</span>{' '}
+              {contractStartDate ?? '?'} → {contractEndDate ?? 'open'}
+            </span>
+          )}
+          {serviceScope && serviceScope.length > 0 && (
+            <span className="flex items-center gap-1 flex-wrap">
+              <span className="text-fmplus-gold uppercase tracking-wide font-semibold">Scope</span>
+              {serviceScope.map(s => (
+                <span key={s.code} className="px-1.5 py-0.5 rounded bg-slate-700/40 text-slate-300">
+                  {s.label}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
         {revenueSource === 'contract_value_fallback' && (
           <p className="text-[11px] text-amber-400/80 mt-1">
             Revenue estimated from contract value · fill{' '}

@@ -35,9 +35,13 @@ export function ServiceLinesPanel({ rows }: { rows: ServiceLineRow[] }) {
                   <th className="text-left py-1">Service</th>
                   <th className="text-right">Budget</th>
                   <th className="text-right">Actual</th>
+                  <th className="text-right">Prev Mo</th>
                   <th className="text-right">Δ</th>
                   <th className="text-right">Var %</th>
+                  <th className="text-right">Mix Bud</th>
+                  <th className="text-right">Mix Act</th>
                   <th className="text-right">GP %</th>
+                  <th className="text-right">Δ GP pp</th>
                   <th />
                 </tr>
               </thead>
@@ -47,11 +51,19 @@ export function ServiceLinesPanel({ rows }: { rows: ServiceLineRow[] }) {
                     <td className="py-2 text-slate-200">{r.service_label}</td>
                     <td className="text-right tabular-nums text-slate-400">{(r.budget / 1e6).toFixed(2)}M</td>
                     <td className="text-right tabular-nums text-fmplus-yellow font-semibold">{(r.actual / 1e6).toFixed(2)}M</td>
+                    <td className="text-right tabular-nums text-slate-400">
+                      {r.prior_month_actual === null ? '—' : `${(r.prior_month_actual / 1e6).toFixed(2)}M`}
+                    </td>
                     <td className={`text-right tabular-nums ${costVarianceTextClass(r.variance_pct)}`}>
                       {r.variance_abs >= 0 ? '+' : ''}{(r.variance_abs / 1e6).toFixed(2)}M
                     </td>
                     <td className={`text-right tabular-nums ${costVarianceTextClass(r.variance_pct)}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
+                    <td className="text-right tabular-nums text-slate-300">{(r.mix_budget_pct * 100).toFixed(1)}%</td>
+                    <td className="text-right tabular-nums text-slate-300">{(r.mix_actual_pct * 100).toFixed(1)}%</td>
                     <td className="text-right tabular-nums text-slate-300">{(r.gp_pct * 100).toFixed(1)}%</td>
+                    <td className={`text-right tabular-nums ${r.gp_pct - r.gp_pct_budget > 0.01 ? 'text-emerald-300' : r.gp_pct - r.gp_pct_budget < -0.01 ? 'text-red-300' : 'text-slate-300'}`}>
+                      {r.gp_pct - r.gp_pct_budget >= 0 ? '+' : ''}{((r.gp_pct - r.gp_pct_budget) * 100).toFixed(1)}pp
+                    </td>
                     <td><Link href={r.drill_url} className="text-fmplus-gold hover:text-fmplus-yellow">→</Link></td>
                   </tr>
                 ))}
