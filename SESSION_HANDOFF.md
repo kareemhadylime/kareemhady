@@ -1,5 +1,25 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Performance Dashboard: AR Aging panel + overdue anomaly (commit `6d4d898`, migration `0096`)
+
+kareem (after `payment_terms_days` shipped): *"yes — wire the AR-aging-vs-payment-terms comparison."*
+
+Live data verified before build: TRIO COMPOUND (project_id=33, payment_terms_days=60) had 27 unreconciled AR lines / 4.63M EGP outstanding, 24 within terms, 3 overdue 1-30 d.
+
+Shipped:
+- New helper RPC `fmplus_perf_ar_aging(p_analytic_id bigint, p_payment_terms_days int)` (migration `0096_fmplus_perf_ar_aging.sql`, applied via Supabase MCP). Returns one row per unreconciled customer-invoice line whose move touches the contract's analytic, with `bucket` precomputed (`within_terms` / `overdue_1_30` / `overdue_31_60` / `overdue_61_90` / `overdue_90_plus`) and `days_overdue = GREATEST(0, days_outstanding - payment_terms_days)`.
+- `derive-ar-aging.ts` wraps the RPC and rolls up `ArAgingBlock` with totals + bucket counts + sorted line list. Returns null when the RPC has 0 rows (panel auto-hides).
+- New `<ArAgingPanel>` (id `ar_aging`, anchor `#perf-ar-aging`) — 3 KPI tiles (Total Outstanding / Within Terms / Overdue), stacked bucket bars colored by severity (emerald → amber → orange → red → dark red), and a top-10 overdue invoice table with drill-through to `/fmplus/financial/budget/variance?contract=&move=`. Renders between Vendors and Overtime panels.
+- Anomaly engine gains rule 6: `ar_overdue`. Severity = `red` when overdue amount > 10 % of period actual, else `amber`. Message: *"N invoices overdue — XK EGP outstanding past payment terms."* Action link to `#perf-ar-aging`.
+- `buildContractDashboard` now SELECTs `payment_terms_days` from `project_contracts` and threads it through `arAging()`.
+- Sidebar visible-sections + per-contract page JUMP TO list updated.
+
+Tests: 46/46 in performance suite, 319 total passing. TS clean. Push: `fe5f510..6d4d898 HEAD -> main`. Vercel auto-deploy in flight.
+
+**Note**: AR scope is "moves where ANY line carries the contract's analytic." Receivable lines (the AR side of a customer invoice) typically don't themselves carry analytic distribution — those analytics live on the revenue lines of the same move — so we filter by `move_id IN (subquery joining odoo_move_line_analytics)`.
+
+---
+
 ## ✅ 2026-05-06 — FM+ Project: Payment Terms as days (numeric) for AR aging (commit `250fc95`)
 
 Convert `project_contracts.payment_terms` (free text) → structured
