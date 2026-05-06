@@ -6,6 +6,12 @@ import { DashboardShell } from './_components/dashboard-shell';
 
 type SearchParams = Promise<{ date?: string; building?: string; compare?: string }>;
 
+const COMPARE_OPTIONS = ['yesterday', 'last-week', 'last-month', 'last-year', 'none'] as const;
+type CompareMode = typeof COMPARE_OPTIONS[number];
+function parseCompare(input: string | undefined): CompareMode {
+  return COMPARE_OPTIONS.includes(input as CompareMode) ? (input as CompareMode) : 'yesterday';
+}
+
 export const metadata = { title: 'Performance Dashboard · Beithady' };
 
 export default async function PerformancePage({ searchParams }: { searchParams: SearchParams }) {
@@ -29,7 +35,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             snapshotDate={result.date}
             generatedAt={result.generatedAt}
             initialBuilding={sp.building ?? 'all'}
-            initialCompare={(sp.compare as 'yesterday' | 'last-week' | 'last-month' | 'last-year' | 'none') ?? 'yesterday'}
+            initialCompare={parseCompare(sp.compare)}
           />
         </Suspense>
       )}
