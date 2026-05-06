@@ -19,10 +19,15 @@ export function usePanelState(id: string) {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    const v = readJson(VISIBILITY_KEY);
-    const c = readJson(COLLAPSE_KEY);
-    if (v[id] === false) setVisible(false);
-    if (c[id] === true) setCollapsed(true);
+    function reread() {
+      const v = readJson(VISIBILITY_KEY);
+      const c = readJson(COLLAPSE_KEY);
+      setVisible(v[id] !== false);
+      setCollapsed(c[id] === true);
+    }
+    reread();
+    window.addEventListener('fmplus_perf_panels_changed', reread);
+    return () => window.removeEventListener('fmplus_perf_panels_changed', reread);
   }, [id]);
 
   const hide = useCallback(() => {
