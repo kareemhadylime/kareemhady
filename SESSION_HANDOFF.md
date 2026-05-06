@@ -1,5 +1,22 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 4 Batch C: Tasks 37+38 — RevPAR/sparklines + wire 8 panels (Phase 4 COMPLETE)
+
+**Status: DONE** — commit `3feb01f` pushed to `main`
+
+**File modified (1):**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` — 50 insertions, 4 deletions:
+  - Added 8 new imports (TopMoversRibbon, ForwardOccupancyBars, CancelRisk, RevenueConcentration, OccupancyGapFinder, RevenueWaterfall, StlyYoy, MonthlyGoal)
+  - Hero strip: swapped ADR→RevPAR (reads `payload.revpar?.all`, falls back to `adr_mtd_usd` for old snapshots)
+  - Hero strip: added `spark={payload.sparklines?.<heroId>}` to all 6 KPI cards
+  - Added 3 new grid rows below existing rows: TopMoversRibbon (full-width), 3-up row (ForwardOccupancy+CancelRisk+MonthlyGoal), RevenueConcentration+OccupancyGapFinder, RevenueWaterfall+StlyYoy
+
+**tsc --noEmit:** only 2 pre-existing errors (qrcode + @testing-library/react), zero new errors.
+**Dev server:** running cleanly on port 3000 (already active).
+**Phase 4 is complete.** Phases remaining: 5 (AI), 6 (customize+rail), 7 (scrubber+export), 8 (mobile+a11y).
+
+---
+
 ## ✅ 2026-05-06 — Phase 4 Batch B: Tasks 33–36 — four more analytical panels
 
 **Status: DONE** — commit `d182833` pushed to `main`
