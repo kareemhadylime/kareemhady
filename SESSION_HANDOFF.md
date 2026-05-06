@@ -1,6 +1,47 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟡 Latest turn — Phases 3–9 COMPLETE — Tasks 1–30 of 32 (94%) — AWAITING USER ON TASK 32 (DEPLOY)
+## 🟣 Latest turn — NEW FEATURE REQUEST: WhatsApp sign-in details on admin Users page (awaiting clarification)
+
+**Status:** Separate from the 32-task owner-features plan (which is at 94% — see below). User shared screenshots of the existing `/emails/boat-rental/admin/users` page and requested a new admin feature.
+
+### What the user asked for
+
+On the admin Users page (where brokers and owners are invited):
+1. **Auto-send WhatsApp on account creation** — welcome message + username + password to the broker or owner
+2. **Add `[Send sign-in details]` button** near each existing user (so admin can re-send if needed)
+3. **Add `[Edit]` button** to modify after creation (currently only Save WhatsApp / Reset password / Upload logo / Remove broker exist)
+4. **Sending progress + success states** — visual feedback on the send action
+
+User said: "ask if not clear" — explicitly inviting clarifying questions.
+
+### Clarifying questions sent to user (awaiting answers)
+
+| Q | Topic | Options |
+|---|-------|---------|
+| Q1 | Auto vs manual send | A=auto only, B=manual only, C=both *(recommended)* |
+| Q2 | Password on re-send | X=auto-generate new temp, Y=require admin to set new pw, Z=both |
+| Q3 | What "Edit" covers | P=username, Q=re-link owner record, R=active/inactive toggle, S=display name, T=all, U=other |
+| Q4 | Welcome message language | EN, AR, Auto (per-user lang pref) |
+| Q5 | UX feedback | i=button states, ii=toast, iii=both *(recommended)* |
+
+User format: reply with one letter per question, e.g. `C, Z, R+S, EN, iii`.
+
+### Where this fits
+
+- Touches `/emails/boat-rental/admin/users` (admin role, not owner role — distinct from the 32-task plan)
+- Reuses the Green-API WhatsApp infrastructure already present in `src/lib/boat-rental/notifications.ts`
+- New `template_key` likely needed: `welcome_signin_details` (EN + AR variants)
+- May need new column on `app_users` for broker `notification_lang` — owners already have it via `boat_rental_owner_settings.notification_lang` (shipped in migration 0070)
+
+### Next session pickup
+
+If a fresh session takes over, the user has not yet answered the 5 clarifying questions. Either:
+- Wait for user answers, then plan via brainstorming skill
+- Or assume my recommended defaults (`C, Z, T, Auto, iii`) and proceed to design
+
+---
+
+## Previous turn — Phases 3–9 COMPLETE — Tasks 1–30 of 32 (94%) — AWAITING USER ON TASK 32 (DEPLOY)
 
 **Status:** All implementation complete on `claude/inspiring-booth-3d348a`. `npm test` 29/29 passing, `npm run build` clean. **NOT pushed to main yet, NOT deployed.** Task 32 requires (a) applying 6 SQL migrations to live Supabase via the dashboard SQL Editor, and (b) explicit user go-ahead to merge → push → `vercel --prod`.
 
