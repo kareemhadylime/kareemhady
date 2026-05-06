@@ -1,5 +1,25 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Task 3: Page route + EmptySnapshot fallback (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `e88cddf` (pushed to main)
+
+**Files created:**
+- `src/app/beithady/analytics/performance/page.tsx` — server component; awaits `searchParams` (Next 16 `Promise<{...}>` convention); uses `BeithadyShell` with corrected `breadcrumbs` prop (plural); conditional on `result.status === 'missing'` only (no `'no-anchor'` reference)
+- `src/app/beithady/analytics/performance/_components/empty-snapshot.tsx` — brand-correct EmptySnapshot with white card, `#003462` navy, `#6077a6` steel-blue, `var(--bh-heading)` font
+
+**Key correction applied:** Plan draft used `breadcrumb` (singular) but `BeithadyShell` accepts `breadcrumbs` (plural). Fixed in page.tsx.
+
+**tsc --noEmit:** Only 3 errors — all pre-existing or expected:
+- `qrcode` types — pre-existing
+- `dashboard-shell` not found — expected until Task 6
+- `@testing-library/react` types — pre-existing
+
+**Push:** `git push origin HEAD:main` → `6292846..e88cddf`
+
+---
+
+
 ## ✅ 2026-05-06 — Task 2: Server-side snapshot loader (Beithady Performance Dashboard)
 
 **Status: DONE** — commit `d66a901`
@@ -3403,5 +3423,25 @@ Quick code quality fix: removed the unreachable `'no-anchor'` variant from `Snap
 **Note for Task 3 implementer:** When the `EmptySnapshot` page is built, the draft plan shows `result.status === 'missing' || result.status === 'no-anchor'`. Remove the `|| result.status === 'no-anchor'` clause and simplify the conditional date expression to just `result.date` when that page is coded.
 
 **Committed:** `2f0b12a fix(beithady/perf): drop unreachable 'no-anchor' SnapshotResult variant`
+
+Pushing to main now.
+
+### 2026-05-06 (cont.) — Task 3 Code Reviewer Fixes
+
+Three fixes flagged by code reviewer:
+
+1. **EmptySnapshot dead CTA** (`src/app/beithady/analytics/performance/_components/empty-snapshot.tsx`)
+   - Replaced dead link `/api/cron/beithady-daily-report?force=1` (requires Authorization header) with informational text linking to setup panel
+   - Added `aria-hidden="true"` to 📭 emoji div for accessibility
+   - Added `import Link from 'next/link'` for the panel link
+
+2. **Validate compare param** (`src/app/beithady/analytics/performance/page.tsx`)
+   - Replaced blind type cast `(sp.compare as 'yesterday' | 'last-week' | 'last-month' | 'last-year' | 'none')` with runtime validation
+   - Added `COMPARE_OPTIONS` const array and `parseCompare()` guard function
+   - Guard defaults to 'yesterday' if compare param is invalid or missing
+
+**Tests:** TypeScript clean—only pre-existing errors (qrcode, dashboard-shell, testing-library).
+
+**Committed:** `2081d61 fix(beithady/perf): swap dead cron CTA for setup-panel link + validate compare param`
 
 Pushing to main now.
