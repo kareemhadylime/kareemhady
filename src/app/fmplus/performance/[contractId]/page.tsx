@@ -114,6 +114,7 @@ export default async function PerformanceContractPage(props: Props) {
           monthsElapsed={monthsElapsed}
           monthsTotal={monthsTotal}
           contracts={sidebarContracts}
+          revenueSource={data.meta.revenue_source}
         />
         <KpiStripPanel kpis={data.kpis} />
         <ServiceLinesPanel rows={data.service_lines} />

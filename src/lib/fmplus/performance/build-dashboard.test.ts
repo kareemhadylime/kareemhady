@@ -51,7 +51,7 @@ vi.mock('@/lib/fmplus/budget/variance', () => ({
 }));
 
 // Build a chainable supabase mock that resolves to fixtures depending on the table.
-function makeSb() {
+function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unknown[] }>> = {}) {
   const tableState: Record<string, { single?: unknown; many?: unknown[] }> = {
     project_contracts: {
       single: {
@@ -77,21 +77,27 @@ function makeSb() {
     mobilization_lines: {
       many: [],
     },
+    project_year_services: {
+      many: [],
+    },
+    ...overrides,
   };
 
   function builder(table: string) {
     const promiseShape = (data: unknown) => Promise.resolve({ data, error: null });
     const state = tableState[table] ?? {};
+    let proxy: unknown;
     const chain = {
-      select: () => chain,
-      eq: () => chain,
-      order: () => chain,
+      // Methods return the Proxy (not the raw chain object) so subsequent
+      // `.then` lookups go through the trap and `await` resolves correctly.
+      select: () => proxy,
+      eq: () => proxy,
+      order: () => proxy,
       limit: () => promiseShape(state.many ?? []),
       single: () => promiseShape(state.single ?? null),
       then: undefined,
     };
-    // Make chain itself thenable for `await sb.from(t).select().eq()` (no .order/.limit/.single).
-    return new Proxy(chain, {
+    proxy = new Proxy(chain, {
       get(target: Record<string, unknown>, prop: string) {
         if (prop === 'then') {
           // `await` on the chain resolves to many[]
@@ -100,6 +106,7 @@ function makeSb() {
         return target[prop];
       },
     });
+    return proxy;
   }
 
   return {
@@ -108,14 +115,23 @@ function makeSb() {
   };
 }
 
+// Mutable holder so individual tests can override the supabase fixture state.
+// Wrapped in vi.hoisted so the vi.mock factory below can reference it (vi.mock
+// is hoisted above all top-level statements, so a plain `let` would be TDZ at
+// factory-eval time).
+const sbState = vi.hoisted(() => ({
+  overrides: {} as Partial<Record<string, { single?: unknown; many?: unknown[] }>>,
+}));
+
 vi.mock('@/lib/supabase', () => ({
-  supabaseAdmin: () => makeSb(),
+  supabaseAdmin: () => makeSb(sbState.overrides),
 }));
 
 const { buildContractDashboard } = await import('./build-dashboard');
 
 describe('buildContractDashboard', () => {
   test('happy path returns all 13 sections', async () => {
+    sbState.overrides = {};
     const r = await buildContractDashboard({
       contract_id: 1,
       period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
@@ -124,9 +140,12 @@ describe('buildContractDashboard', () => {
     expect(r.kpis).toHaveLength(5);
     expect(r.service_lines.length).toBeGreaterThan(0);
     expect(Array.isArray(r.unmapped)).toBe(true);
+    // revenue_source is one of the three valid string flags
+    expect(['service_revenue', 'contract_value_fallback', 'none']).toContain(r.meta.revenue_source);
   });
 
   test('period filter slices actuals to only the selected months', async () => {
+    sbState.overrides = {};
     // Period = March only. Mock has manning Mar=850K + ppe Mar=90K → 940K total
     // (NOT the full-year 1.1M total_actual). This proves slicing works.
     const r = await buildContractDashboard({
@@ -142,6 +161,7 @@ describe('buildContractDashboard', () => {
   });
 
   test('compare=true returns prior block', async () => {
+    sbState.overrides = {};
     const r = await buildContractDashboard({
       contract_id: 1,
       period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
@@ -149,5 +169,37 @@ describe('buildContractDashboard', () => {
     });
     expect(r.prior).toBeDefined();
     expect(r.prior!.kpis).toHaveLength(5);
+  });
+
+  test('revenue uses project_year_services.monthly_revenue when populated', async () => {
+    // Single segment "hk" in the variance mock. Set monthly_revenue=2M.
+    // Period is March (1 month) → period revenue = 2M; period actual = 940K → gp_pct ~ 0.53.
+    sbState.overrides = {
+      project_year_services: {
+        many: [{ service_line: 'hk', monthly_revenue: 2_000_000 }],
+      },
+    };
+    const r = await buildContractDashboard({
+      contract_id: 1,
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+    });
+    expect(r.meta.revenue_source).toBe('service_revenue');
+    const revenueKpi = r.kpis.find(k => k.id === 'revenue');
+    expect(revenueKpi!.value).toBe(2_000_000);
+    const hk = r.service_lines.find(s => s.service_line === 'hk');
+    expect(hk!.gp_pct).toBeGreaterThan(0); // (2M - 940K) / 2M ≈ 0.53
+    expect(hk!.gp_pct).toBeCloseTo((2_000_000 - 940_000) / 2_000_000, 5);
+  });
+
+  test('revenue falls back to contract_value when monthly_revenue rows are absent', async () => {
+    // Default mock: project_year_services empty + contract_value = 14.4M → fallback path.
+    sbState.overrides = {};
+    const r = await buildContractDashboard({
+      contract_id: 1,
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+    });
+    expect(r.meta.revenue_source).toBe('contract_value_fallback');
+    const revenueKpi = r.kpis.find(k => k.id === 'revenue');
+    expect(revenueKpi!.value).toBeGreaterThan(0);
   });
 });

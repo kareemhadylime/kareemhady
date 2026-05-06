@@ -144,6 +144,76 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     return { budget, actual };
   }
 
+  // 3c. Revenue per service (monthly ex-VAT)
+  type RevenueSource = 'service_revenue' | 'contract_value_fallback' | 'none';
+  const { data: revRows } = await sb
+    .from('project_year_services')
+    .select('service_line,monthly_revenue')
+    .eq('year_id', currentYear.id);
+
+  const monthlyRevenuePerService: Partial<Record<ServiceLine, number>> = {};
+  let revenueSource: RevenueSource = 'none';
+  for (const r of (revRows ?? []) as Array<{ service_line: ServiceLine; monthly_revenue: number | string | null }>) {
+    monthlyRevenuePerService[r.service_line] = Number(r.monthly_revenue ?? 0) || 0;
+  }
+  const sumServiceMonthlyRevenue = Object.values(monthlyRevenuePerService).reduce(
+    (a, v) => a + (v ?? 0),
+    0,
+  );
+
+  // Per-service monthly BUDGET map — used for fallback distribution.
+  // cells[].budget on a category is per-month; sum of category-monthly-budget across
+  // categories within a segment = service-line monthly budget.
+  const monthlyBudgetPerService: Partial<Record<ServiceLine, number>> = {};
+  for (const seg of variance.segments ?? []) {
+    let monthlyForSvc = 0;
+    for (const cat of seg.categories ?? []) {
+      // Take any month with a non-zero budget as a representative monthly budget per
+      // category (templates use a uniform monthly value, so this is stable). If all
+      // months are 0, contributes 0.
+      const sample = (cat.cells ?? []).find(c => (c.budget ?? 0) > 0)?.budget ?? 0;
+      monthlyForSvc += sample;
+    }
+    monthlyBudgetPerService[seg.service_line] = monthlyForSvc;
+  }
+  const totalMonthlyBudget = Object.values(monthlyBudgetPerService).reduce(
+    (a, v) => a + (v ?? 0),
+    0,
+  );
+
+  // Decide source + fill fallback
+  const annualContractValue = Number(contractRow.contract_value ?? 0);
+  if (sumServiceMonthlyRevenue > 0) {
+    revenueSource = 'service_revenue';
+    // monthlyRevenuePerService already populated
+  } else if (annualContractValue > 0) {
+    revenueSource = 'contract_value_fallback';
+    const totalMonthly = annualContractValue / 12;
+    if (totalMonthlyBudget > 0) {
+      for (const seg of variance.segments ?? []) {
+        const svc = seg.service_line;
+        const svcMonthlyBudget = monthlyBudgetPerService[svc] ?? 0;
+        monthlyRevenuePerService[svc] = totalMonthly * (svcMonthlyBudget / totalMonthlyBudget);
+      }
+    } else {
+      // Distribute equally across services that have any presence in variance.
+      const svcs = (variance.segments ?? []).map(s => s.service_line);
+      if (svcs.length > 0) {
+        const each = totalMonthly / svcs.length;
+        for (const svc of svcs) monthlyRevenuePerService[svc] = each;
+      }
+    }
+  } else {
+    // No revenue, no fallback. Leave map empty.
+    revenueSource = 'none';
+  }
+
+  const monthsInPeriod = periodMonths.size;
+  function periodRevenueForService(svc: ServiceLine): number {
+    const monthly = monthlyRevenuePerService[svc] ?? 0;
+    return monthly * monthsInPeriod;
+  }
+
   // 4. Service-line rollup rows (period-sliced)
   const service_lines: ServiceLineRow[] = (variance.segments ?? []).map(s => {
     let segBudget = 0;
@@ -155,6 +225,8 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     }
     const variance_abs = segActual - segBudget;
     const variance_pct = segBudget > 0 ? variance_abs / segBudget : 0;
+    const periodRevenue = periodRevenueForService(s.service_line);
+    const gp_pct = periodRevenue > 0 ? (periodRevenue - segActual) / periodRevenue : 0;
     return {
       service_line: s.service_line,
       service_label: SERVICE_LABELS[s.service_line] ?? String(s.service_line),
@@ -162,7 +234,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       actual: segActual,
       variance_abs,
       variance_pct,
-      gp_pct: 0, // v1 stub — refined when revenue rollup wired
+      gp_pct,
       status: classifyVariance(variance_pct),
       drill_url: `/fmplus/financial/budget/variance?contract=${args.contract_id}&service=${s.service_line}&from=${args.period.from}&to=${args.period.to}`,
     };
@@ -238,7 +310,10 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
   const total_budget = service_lines.reduce((a, s) => a + s.budget, 0);
   const total_actual = service_lines.reduce((a, s) => a + s.actual, 0);
   const variance_pct = total_budget > 0 ? (total_actual - total_budget) / total_budget : 0;
-  const revenue = service_lines.reduce((a, s) => a + s.budget * (1 + s.gp_pct), 0);
+  const revenue = (variance.segments ?? []).reduce(
+    (a, s) => a + periodRevenueForService(s.service_line),
+    0,
+  );
   const gp_abs = revenue - total_actual;
   const gp_pct = revenue > 0 ? gp_abs / revenue : 0;
 
@@ -349,10 +424,12 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
         // YoY arc shows full-year totals per year — NOT the period-sliced values
         // used elsewhere on the dashboard. We re-use the already-loaded variance
         // backbone (which is full-year) for the current year.
-        const yearRevenue = (variance.segments ?? []).reduce(
-          (a, s) => a + s.segment_budget * (1 + 0),
-          0,
-        );
+        const yearRevenue =
+          sumServiceMonthlyRevenue > 0
+            ? sumServiceMonthlyRevenue * 12
+            : revenueSource === 'contract_value_fallback'
+              ? annualContractValue
+              : 0;
         const yearExpense = variance.total_actual;
         const yearGp = yearRevenue - yearExpense;
         const yearGpPct = yearRevenue > 0 ? yearGp / yearRevenue : 0;
@@ -380,6 +457,16 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
         yearIndex: y.year_index,
         scenario: y.scenario,
       });
+      const { data: yRevRows } = await sb
+        .from('project_year_services')
+        .select('monthly_revenue')
+        .eq('year_id', y.id);
+      const yMonthlyRev = ((yRevRows ?? []) as Array<{ monthly_revenue: number | string | null }>)
+        .reduce((a, r) => a + (Number(r.monthly_revenue ?? 0) || 0), 0);
+      const yRevenue = yMonthlyRev > 0 ? yMonthlyRev * 12 : annualContractValue;
+      const yExpense = v.total_actual;
+      const yGp = yRevenue - yExpense;
+      const yGpPct = yRevenue > 0 ? yGp / yRevenue : 0;
       const v_pct = v.total_budget > 0 ? (v.total_actual - v.total_budget) / v.total_budget : 0;
       return {
         year_id: y.id,
@@ -387,10 +474,10 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
         fiscal_year: y.fiscal_year,
         scenario: y.scenario,
         status: y.status,
-        revenue: 0,
-        expense: v.total_actual,
-        gp: 0,
-        gp_pct: 0,
+        revenue: yRevenue,
+        expense: yExpense,
+        gp: yGp,
+        gp_pct: yGpPct,
         variance_pct: v_pct,
         health: classifyVariance(v_pct),
         drill_url: `/fmplus/performance/${args.contract_id}?year=${y.year_index}`,
@@ -424,6 +511,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
       period: args.period,
       current_year_index: currentYear.year_index,
       current_year_id: currentYear.id,
+      revenue_source: revenueSource,
     },
     kpis,
     service_lines,

@@ -10,6 +10,7 @@ interface Props {
   monthsElapsed: number;
   monthsTotal: number;
   contracts: { id: number; name: string; customer?: string | null }[];
+  revenueSource?: 'service_revenue' | 'contract_value_fallback' | 'none';
 }
 
 export function ContractHero({
@@ -20,6 +21,7 @@ export function ContractHero({
   monthsElapsed,
   monthsTotal,
   contracts,
+  revenueSource,
 }: Props) {
   return (
     <header className="ix-card p-5 sm:p-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -34,6 +36,18 @@ export function ContractHero({
         />
         {customer && (
           <p className="text-sm text-slate-400 mt-1 font-body">{customer}</p>
+        )}
+        {revenueSource === 'contract_value_fallback' && (
+          <p className="text-[11px] text-amber-400/80 mt-1">
+            Revenue estimated from contract value · fill{' '}
+            <a
+              href={`/fmplus/financial/budget/edit?contract=${contractId}&service=__revenue`}
+              className="underline"
+            >
+              monthly revenue per service
+            </a>{' '}
+            to refine
+          </p>
         )}
       </div>
 
