@@ -1,5 +1,25 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 8 (Tasks 52–55): Mobile filter sheet + a11y/motion polish — PLAN COMPLETE
+
+**Status: DONE** — commit `b58cbbf` pushed to `main`
+
+**Files created (1):**
+- `src/app/beithady/analytics/performance/_components/mobile-filter-sheet.tsx` — bottom-sheet dialog (`role="dialog"`, `aria-modal`, ESC key handler, body-scroll-lock, click-outside dismiss); renders `LeftRail` + Done button; `md:hidden` so only visible on mobile
+
+**Files modified (4):**
+- `top-bar.tsx` — added `onFilterClick?: () => void` prop; inserted `md:hidden` "☰ Filters" button before Export PDF link
+- `dashboard-shell.tsx` — added `isMobile` state via `matchMedia('(max-width: 767px)')`; rail column collapses to `0px` on mobile; hover handlers disabled on mobile; `LeftRail` wrapped in `hidden` div; `MobileFilterSheet` rendered conditionally
+- `customize-drawer.tsx` — fixed 2 missing `motion-reduce:transition-none` on toggle switch `transition-colors` + `transition-transform`
+- `use-visibility.test.ts` — updated hidden count expectation from 4 → 5 to match 3 off-by-default panels (revenue-waterfall, stly-yoy, snapshot-scrubber)
+
+**A11y/motion gaps fixed:** 2 transitions in customize-drawer.tsx lacked `motion-reduce:transition-none`. All other components confirmed already guarded.
+
+**tsc:** 0 new errors (2 pre-existing: qrcode + @testing-library/react missing packages).
+**Tests:** 316/316 pass; fmplus-logo.test.tsx skipped (missing jsdom — pre-existing).
+
+---
+
 ## ✅ 2026-05-06 — Phase 7 (Tasks 49–51): Snapshot scrubber + PDF export route + wire
 
 **Status: DONE** — commit `5644141` pushed to `main`
