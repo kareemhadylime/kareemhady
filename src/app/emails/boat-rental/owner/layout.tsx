@@ -7,6 +7,7 @@ import { OwnerBottomNav } from '../_components/bottom-nav';
 import { OfflineFlushOnOnline } from '../_components/offline-sync';
 import { PortalSwitcher } from '../_components/portal-switcher';
 import { ActingAsBanner } from '../_components/acting-as-banner';
+import { ImpersonationBanner } from '@/app/_components/impersonation-banner';
 
 export default async function BoatRentalOwnerLayout({
   children,
@@ -20,8 +21,23 @@ export default async function BoatRentalOwnerLayout({
       <TopNav>
         <Link href="/emails/boat-rental" className="ix-link">Boat Rental</Link>
         <ChevronRight size={14} className="text-slate-400" />
-        <PortalSwitcher current="owner" available={portals} />
+        <PortalSwitcher
+          current="owner"
+          available={portals}
+          currentlyImpersonating={
+            me?.impersonation
+              ? { username: me.username, redirect_to: '/emails/boat-rental/owner' }
+              : null
+          }
+        />
       </TopNav>
+      {me?.impersonation && (
+        <ImpersonationBanner
+          impersonatedUsername={me.username}
+          originalAdminUsername={me.impersonation.original_admin_username}
+          redirectTo="/emails/boat-rental/admin"
+        />
+      )}
       <ActingAsBanner viewer={me} />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 pb-safe-bottom-nav md:pb-8">
         {children}

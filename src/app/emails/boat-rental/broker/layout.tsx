@@ -6,6 +6,7 @@ import { TopNav } from '@/app/_components/brand';
 import { BrokerBottomNav } from '../_components/bottom-nav';
 import { OfflineFlushOnOnline } from '../_components/offline-sync';
 import { PortalSwitcher } from '../_components/portal-switcher';
+import { ImpersonationBanner } from '@/app/_components/impersonation-banner';
 
 export default async function BoatRentalBrokerLayout({
   children,
@@ -19,8 +20,23 @@ export default async function BoatRentalBrokerLayout({
       <TopNav>
         <Link href="/emails/boat-rental" className="ix-link">Boat Rental</Link>
         <ChevronRight size={14} className="text-slate-400" />
-        <PortalSwitcher current="broker" available={portals} />
+        <PortalSwitcher
+          current="broker"
+          available={portals}
+          currentlyImpersonating={
+            me?.impersonation
+              ? { username: me.username, redirect_to: '/emails/boat-rental/broker' }
+              : null
+          }
+        />
       </TopNav>
+      {me?.impersonation && (
+        <ImpersonationBanner
+          impersonatedUsername={me.username}
+          originalAdminUsername={me.impersonation.original_admin_username}
+          redirectTo="/emails/boat-rental/admin"
+        />
+      )}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 pb-safe-bottom-nav md:pb-8">
         {children}
       </main>

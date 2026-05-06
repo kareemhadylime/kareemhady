@@ -79,3 +79,53 @@ export async function getActingAsOwnerName(user: SessionUser): Promise<string | 
     .maybeSingle();
   return (data as { name: string } | null)?.name || null;
 }
+
+// For an admin user, find the first active broker user and the first
+// active owner-linked user to use as default impersonation targets.
+// Returns null for a key if no suitable user exists.
+export type ImpersonationTargets = {
+  broker: { user_id: string; username: string } | null;
+  owner: { user_id: string; username: string; owner_name: string | null } | null;
+};
+
+export async function getImpersonationTargetsForAdmin(): Promise<ImpersonationTargets> {
+  const { supabaseAdmin } = await import('../supabase');
+  const sb = supabaseAdmin();
+  const { data: rows } = await sb
+    .from('boat_rental_user_roles')
+    .select(`
+      user_id,
+      role,
+      owner_id,
+      user:app_users!boat_rental_user_roles_user_id_fkey ( id, username, disabled_at )
+    `);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const roleRows = ((rows as any[]) || []).filter(r => r.user && !r.user.disabled_at);
+
+  // Pick the first broker (by username) and first owner (by username).
+  const brokers = roleRows
+    .filter(r => r.role === 'broker')
+    .sort((a, b) => String(a.user.username).localeCompare(b.user.username));
+  const owners = roleRows
+    .filter(r => r.role === 'owner')
+    .sort((a, b) => String(a.user.username).localeCompare(b.user.username));
+
+  let ownerName: string | null = null;
+  if (owners[0]?.owner_id) {
+    const { data } = await sb
+      .from('boat_rental_owners')
+      .select('name')
+      .eq('id', owners[0].owner_id)
+      .maybeSingle();
+    ownerName = (data as { name: string } | null)?.name || null;
+  }
+
+  return {
+    broker: brokers[0]
+      ? { user_id: brokers[0].user.id, username: brokers[0].user.username }
+      : null,
+    owner: owners[0]
+      ? { user_id: owners[0].user.id, username: owners[0].user.username, owner_name: ownerName }
+      : null,
+  };
+}
