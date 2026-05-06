@@ -12,15 +12,29 @@ import {
   uploadUserLogoAction,
   removeUserLogoAction,
 } from './actions';
+import { getCurrentUser } from '@/lib/auth';
+import { SendSigninButton } from './_components/send-signin-button';
+import { DisplayNameForm } from './_components/display-name-form';
+import { DisableToggle } from './_components/disable-toggle';
 
 export const dynamic = 'force-dynamic';
 
 type RoleRow = { user_id: string; role: 'admin' | 'broker' | 'owner'; owner_id: string | null };
-type UserRow = { id: string; username: string; last_login_at: string | null; whatsapp: string | null; logo_path: string | null };
+type UserRow = {
+  id: string;
+  username: string;
+  display_name: string | null;
+  last_login_at: string | null;
+  whatsapp: string | null;
+  logo_path: string | null;
+  disabled_at: string | null;
+};
 type OwnerLite = { id: string; name: string };
 
 export default async function UsersAdmin() {
   const sb = supabaseAdmin();
+  const me = await getCurrentUser();
+  const currentAdminId = me?.id || null;
   const [rolesRes, ownersRes] = await Promise.all([
     sb.from('boat_rental_user_roles').select('user_id, role, owner_id'),
     sb.from('boat_rental_owners').select('id, name').eq('status', 'active').order('name'),
@@ -30,7 +44,7 @@ export default async function UsersAdmin() {
 
   const userIds = [...new Set(roles.map(r => r.user_id))];
   const usersRes = userIds.length
-    ? await sb.from('app_users').select('id, username, last_login_at, whatsapp, logo_path').in('id', userIds)
+    ? await sb.from('app_users').select('id, username, display_name, last_login_at, whatsapp, logo_path, disabled_at').in('id', userIds)
     : { data: [] };
   const users = ((usersRes.data as unknown) as UserRow[] | null) || [];
   const userMap = new Map(users.map(u => [u.id, u]));
@@ -90,6 +104,9 @@ export default async function UsersAdmin() {
               <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block">
                 Required for broker to receive trip-detail WhatsApp confirmations.
               </span>
+              <span className="text-[11px] text-cyan-700 dark:text-cyan-400 mt-1 block">
+                💬 If provided, sign-in details are auto-sent to this WhatsApp on create.
+              </span>
             </label>
             <button type="submit" className="ix-btn-primary"><UserPlus size={14} /> Create broker</button>
           </form>
@@ -137,6 +154,9 @@ export default async function UsersAdmin() {
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block">
                   Personal WhatsApp for the user (separate from the owner record&apos;s contact number).
                 </span>
+                <span className="text-[11px] text-cyan-700 dark:text-cyan-400 mt-1 block">
+                  💬 If provided, sign-in details are auto-sent to this WhatsApp on create.
+                </span>
               </label>
               <button type="submit" className="ix-btn-primary"><UserPlus size={14} /> Create owner</button>
             </form>
@@ -154,10 +174,23 @@ export default async function UsersAdmin() {
               const u = userMap.get(uid);
               if (!u) return null;
               return (
-                <div key={uid} className="ix-card p-5">
+                <div
+                  key={uid}
+                  className={`ix-card p-5 ${u.disabled_at ? 'opacity-60' : ''}`}
+                >
                   <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                     <div>
-                      <div className="font-semibold">{u.username}</div>
+                      <div className="font-semibold flex items-center gap-2">
+                        <span>{u.display_name || u.username}</span>
+                        {u.disabled_at && (
+                          <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      {u.display_name && (
+                        <div className="text-xs text-slate-500">@{u.username}</div>
+                      )}
                       <div className="text-xs text-slate-500">
                         {u.last_login_at ? `Last login ${new Date(u.last_login_at).toLocaleString()}` : 'Never logged in'}
                       </div>
@@ -220,6 +253,33 @@ export default async function UsersAdmin() {
                       </button>
                     </form>
                   </div>
+                  {/* Display name */}
+                  <div className="mb-2">
+                    <DisplayNameForm userId={uid} current={u.display_name} />
+                  </div>
+
+                  {/* Send sign-in details */}
+                  <div className="mb-2 flex items-center gap-2 flex-wrap">
+                    <SendSigninButton
+                      userId={uid}
+                      hasWhatsapp={!!u.whatsapp}
+                      disabled={!!u.disabled_at}
+                    />
+                    <span className="text-[11px] text-slate-500">
+                      Generates a fresh temp password and WhatsApps the user.
+                    </span>
+                  </div>
+
+                  {/* Disable / re-enable */}
+                  <div className="mb-2">
+                    <DisableToggle
+                      userId={uid}
+                      currentlyDisabled={!!u.disabled_at}
+                      username={u.username}
+                      isSelf={uid === currentAdminId}
+                    />
+                  </div>
+
                   {userRoles.some(r => r.role === 'broker') && (
                     <div className="mt-2 mb-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/30 p-3">
                       <div className="text-[11px] uppercase tracking-wide font-semibold text-violet-700 dark:text-violet-300 mb-2 inline-flex items-center gap-1">
