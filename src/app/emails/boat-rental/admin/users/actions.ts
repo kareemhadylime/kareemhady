@@ -374,3 +374,56 @@ export async function sendSigninDetailsAction(
   revalidatePath('/emails/boat-rental/admin/users');
   return { ok: true, sent_at: new Date().toISOString() };
 }
+
+// Set or clear display_name on an existing user. Empty string clears.
+// 80-char cap; longer input is truncated rather than rejected so admins
+// don't lose work.
+export async function setUserDisplayNameAction(formData: FormData): Promise<void> {
+  await requireBoatAdmin();
+  const userId = s(formData.get('user_id'));
+  if (!userId) return;
+  const raw = s(formData.get('display_name')).trim();
+  const display_name = raw === '' ? null : raw.slice(0, 80);
+  const sb = supabaseAdmin();
+  await sb.from('app_users').update({ display_name }).eq('id', userId);
+  revalidatePath('/emails/boat-rental/admin/users');
+}
+
+// Soft-disable / re-enable an account. Disable wipes existing sessions
+// and refuses to disable the calling admin.
+export async function setUserDisabledAction(formData: FormData): Promise<void> {
+  const me = await requireBoatAdmin();
+  const userId = s(formData.get('user_id'));
+  const disabled = s(formData.get('disabled')) === 'true';
+  if (!userId) return;
+  if (disabled && userId === me.id) {
+    throw new Error('cannot_disable_self');
+  }
+  const sb = supabaseAdmin();
+  if (disabled) {
+    await sb
+      .from('app_users')
+      .update({ disabled_at: new Date().toISOString(), disabled_by: me.id })
+      .eq('id', userId);
+    // Force logout
+    await sb.from('app_sessions').delete().eq('user_id', userId);
+    await logAudit({
+      actorUserId: me.id,
+      actorRole: 'admin',
+      action: 'admin_user_disabled',
+      payload: { user_id: userId },
+    });
+  } else {
+    await sb
+      .from('app_users')
+      .update({ disabled_at: null, disabled_by: null })
+      .eq('id', userId);
+    await logAudit({
+      actorUserId: me.id,
+      actorRole: 'admin',
+      action: 'admin_user_reenabled',
+      payload: { user_id: userId },
+    });
+  }
+  revalidatePath('/emails/boat-rental/admin/users');
+}
