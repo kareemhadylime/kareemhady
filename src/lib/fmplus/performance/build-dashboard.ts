@@ -9,6 +9,7 @@ import { computeOvertimeBlock } from './derive-overtime';
 import { topVendors } from './derive-vendors';
 import { arAging } from './derive-ar-aging';
 import { actualRevenue } from './derive-actual-revenue';
+import { actualOt } from './derive-actual-ot';
 import { deriveAnomalies } from './derive-anomalies';
 import { unmappedLines } from './derive-unmapped';
 import type {
@@ -397,7 +398,11 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
 
   // 11. Overtime
   const otBudget = await sumManningOtBudget(sb, currentYear.id);
-  const otActual = 0; // v1 stub — pattern-match against OT account codes is a follow-up task
+  const otActual = await actualOt({
+    project_id: contractRow.project_id,
+    from: args.period.from,
+    to: args.period.to,
+  });
   const totalManningBudget = manning.reduce((a, m) => a + m.spend_budget, 0);
   const totalManningActual = manning.reduce((a, m) => a + m.spend_actual, 0);
   const overtime = computeOvertimeBlock({

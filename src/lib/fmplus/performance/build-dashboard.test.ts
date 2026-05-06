@@ -117,6 +117,9 @@ function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unk
       if (fnName === 'fmplus_perf_actual_revenue') {
         return Promise.resolve({ data: sbState.odooRevenue, error: null });
       }
+      if (fnName === 'fmplus_perf_actual_ot') {
+        return Promise.resolve({ data: sbState.odooOt, error: null });
+      }
       return Promise.resolve({ data: [], error: null });
     },
   };
@@ -129,6 +132,7 @@ function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unk
 const sbState = vi.hoisted(() => ({
   overrides: {} as Partial<Record<string, { single?: unknown; many?: unknown[] }>>,
   odooRevenue: 0 as number,
+  odooOt: 0 as number,
 }));
 
 vi.mock('@/lib/supabase', () => ({
