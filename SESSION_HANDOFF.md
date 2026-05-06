@@ -1,5 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Task 2: Server-side snapshot loader (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `d66a901`
+
+TDD cycle followed strictly:
+1. Test file written first, run, confirmed FAIL (`Cannot find module './load-snapshot'`)
+2. Implementation created matching spec exactly
+3. Tests re-run, all 3 passed
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_lib/load-snapshot.test.ts`
+- `src/app/beithady/analytics/performance/_lib/load-snapshot.ts`
+
+**Exports:** `parseDateParam(input: string | undefined): string | null`, `loadSnapshot(dateParam: string | undefined): Promise<SnapshotResult>`, `SnapshotResult` union type.
+
+**Verification:** `tsc --noEmit` — only pre-existing errors (`qrcode` types, `@testing-library/react` types). Zero new errors. Vitest: 3/3 passed.
+
+**Push:** GitHub connectivity unavailable from worktree at commit time — commit is on branch `claude/flamboyant-agnesi-f34a8d`, push pending.
+
+---
+
 ## ✅ 2026-05-06 — Task 1: Add Performance Dashboard tile to Analytics hub
 
 **Status: DONE** — commit `51854ec`
@@ -3366,3 +3387,21 @@ Quick fix from code reviewer: added keyboard focus-visible state + aria-hidden t
 **Commit:** `558c212 fix(beithady): add focus-visible state + aria-hidden to dashboard tile`
 
 Worktree clean.
+
+### 2026-05-06 (cont.) — Drop unreachable 'no-anchor' SnapshotResult variant
+
+Quick code quality fix: removed the unreachable `'no-anchor'` variant from `SnapshotResult` type union in `src/app/beithady/analytics/performance/_lib/load-snapshot.ts`.
+
+**Root cause:** `cairoYmd()` always returns a string, so the `if (!date)` check never fires.
+
+**Changes:**
+- Removed `| { status: 'no-anchor' }` from type union (line 25)
+- Removed unreachable `if (!date) return { status: 'no-anchor' };` branch (line 29)
+
+**Tests:** 3/3 pass. TypeScript clean (no load-snapshot errors).
+
+**Note for Task 3 implementer:** When the `EmptySnapshot` page is built, the draft plan shows `result.status === 'missing' || result.status === 'no-anchor'`. Remove the `|| result.status === 'no-anchor'` clause and simplify the conditional date expression to just `result.date` when that page is coded.
+
+**Committed:** `2f0b12a fix(beithady/perf): drop unreachable 'no-anchor' SnapshotResult variant`
+
+Pushing to main now.
