@@ -1,5 +1,53 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — P&L Round 2: Variance Bridge panel (commit `462d050`)
+
+Closes Round 2 alongside Cost Matrix + Monthly Trend. Decomposes Budget GP → Actual GP into signed EGP impacts: Δ Revenue, Δ Manning, Δ Materials (consumables + ppe + tools), Δ Transport, Δ Other (it + governmental + other), Penalties, Variation Orders, and a Reconciliation residual that closes the bridge.
+
+Each row is a horizontal magnitude bar (green improves GP, red hurts it) with a running cumulative total on the right. Terminal Budget GP and Actual GP rows in fmplus-yellow with slate background; intermediate deltas tinted green/red by sign.
+
+Pure aggregation of existing payload blocks (service_lines, categories, penalties, variation_orders) — no new data. Δ Revenue is 0 in v1 because "budget revenue" isn't separately stored when revenue_source = 'odoo_actual'; the Reconciliation row absorbs the difference. When `project_year_services.monthly_revenue` is populated per-service, Δ Revenue can be computed properly.
+
+333 passing. TS clean. Pushed: `c2a2563..462d050`. Vercel auto-deploy in flight.
+
+**Round 2 totals**: 3 panels (Cost Matrix, Monthly Trend, Variance Bridge), 0 migrations, 0 new RPCs — all reuse existing variance.segments + categories + penalties + VO data.
+
+**Outstanding (deferred):**
+- T32 RTL pass (held — kareem-driven verification)
+- T35 accessibility audit (held — kareem-driven verification)
+- Round 3 candidates (decision-gated): Net Project P&L view (depends on whether to allocate G&A)
+
+---
+
+## ✅ 2026-05-06 — P&L Round 2: Cost Matrix + Monthly Trend panels (commit `c2a2563`)
+
+Two new Performance Dashboard panels, both derived from existing
+`variance.segments[].categories[].cells[]` data — no new RPCs / migrations.
+
+**Cost Matrix** (`#perf-cost-matrix`): Service rows × Category columns
+× {Actual / Budget / Variance %} cells. Mirrors the Odoo Income
+Statement 7×N shape so monthly accounting reconciliation is one-to-one.
+Sticky-left service column; sticky-bottom Total row for wide grids.
+Auto-hides when no segments.
+
+**Monthly Trend** (`#perf-monthly-trend`): Service rows × 12 month
+columns of actual cost + a 'Monthly Bud' reference column + a
+'YTD Act / YTD Bud' summary. Cells colored by variance vs the uniform
+monthly budget (red >+15%, orange >+5%, green otherwise; slate when no
+actual posted). Replicates the horizontal-analysis report shape kareem
+already uses in Excel. Auto-hides when no segments.
+
+Wired into payload, sidebar visible-sections, JUMP TO list, and the
+per-contract page render between Variation Orders and Overtime.
+
+Tests: 333 passing. TS clean (only 2 preexisting unrelated errors —
+`qrcode`, `@testing-library/react`). Push: `c2a2563`. Vercel
+auto-deploy in flight.
+
+**Round 2 still open:** Variance bridge / waterfall chart.
+
+---
+
 ## ✅ 2026-05-06 — P&L Comparison Report Round 1 (commits `cb10217`, `623d914`, migrations `0099` + `0100`)
 
 kareem shared a comprehensive P&L Comparison Report proposal mapped to FM+'s actual Chart of Accounts. We confirmed: **G&A is not allocated to projects** (so Project EBITDA = Gross Profit, no overhead allocation needed). Started Round 1 (8 quick wins).
