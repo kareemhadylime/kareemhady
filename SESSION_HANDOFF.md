@@ -1,5 +1,36 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Performance Dashboard: actual Overtime from Odoo (commit `b5809cb`, migration `0098`)
+
+`sumOtActual` was a `const otActual = 0` stub in `build-dashboard.ts` — Overtime panel always showed 0% actual.
+
+Probed Odoo: OT lives in account-name-matched accounts (`'%over time%' OR '%overtime%'` ILIKE). Pattern covers per-service OT (`5x0004` family) plus odd ones like 502115 "Overtime COGS" and 604010 "Office&Store Overtime". Verified live for Trio: Mar 2026 OT = 195,162, Feb = 126,028.
+
+New RPC `fmplus_perf_actual_ot(p_analytic_id, p_from, p_to) RETURNS numeric` (migration `0098`, applied via Supabase MCP). New `derive-actual-ot.ts` wraps the RPC. `build-dashboard.ts` now calls `await actualOt(...)` instead of hardcoding 0. Test mock dispatches the new RPC name.
+
+**With this commit, all three 0-stubs / placeholders flagged earlier are now real data:**
+- `actualRevenue` ← `fmplus_perf_actual_revenue` (revenue from out_invoice credits on income accounts)
+- `unmappedLines` ← per-line query with template regex matching
+- `actualOt` ← `fmplus_perf_actual_ot` (OT from name-matched expense accounts)
+
+Tests: 331 passing. TS clean. Push: `7df6859..b5809cb`. Vercel auto-deploy in flight.
+
+**Remaining deferred:** T32 RTL verification + T35 accessibility audit. Both are validation passes, not code work — held for kareem to drive when convenient.
+
+---
+
+## ✅ 2026-05-06 — Performance Dashboard: per-line Unmapped Expenses (commit `7df6859`)
+
+The Unmapped panel was auto-hiding because `buildBudgetVarianceV2` returns `unmapped_actuals` as a number rollup, not a per-line array. New `derive-unmapped.ts` queries posted move lines on the contract's analytic in the period range, applies the union of all service-template code_patterns regexes (loaded from `account_map_json[]`, NOT `categories[]` — implementer corrected the spec), and returns top-200 expense-type lines that match NONE.
+
+`template_version` lives on `project_services` (per-contract), not `project_year_services` — implementer adapted.
+
+Filters: `account_type LIKE 'expense%'`, non-zero `debit-credit`, no regex match. Sorted by amount desc, capped 200. Anomaly rule 2 (unmapped_pct) keeps working since it sums the now-populated array.
+
+Tests: 330 passing (12 perf files / 52 perf tests). TS clean. Push: `11b85ee..7df6859`.
+
+---
+
 ## ✅ 2026-05-06 — Variance panel: cost label + EGP values + sign-aware colors (commit `05d6437`)
 
 kareem: *"Also Variance for what - Revenue or expense ??? , Also Need values not just Percentages !!"*
