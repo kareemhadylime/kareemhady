@@ -7,16 +7,16 @@
 **Decisions locked:**
 - **Q1 answered: A.** Sibling module under `/fmplus`. Landing page `/fmplus/performance` shows portfolio summary; per-contract drill-in at `/fmplus/performance/[contractId]`.
 - **Q2 answered: A.** Period filter is the only chrome-level control; year is contextual subtitle ("Apr 2026 · Y1 of 1 · 4 of 12 months elapsed"). Chip set: This Month / **Last Month** (default) / Last 3 Months / QTD / YTD / Custom + opt-in "Compare to prior period" toggle. Per-contract page has a Year-over-Year arc strip at the bottom showing every year's headline numbers — no separate year picker.
-- **Q3 answered: Approach 1 (linear narrative scroll) with explicit graph+table pairing per section.** kareem said "I need to see easy dashboards & graphs (Clickable for data) for some data, also comparison tables where needed". So every section gets a chart on the left and a Budget|Actual|Variance|Var% comparison table on the right. Final 8-section structure:
-  1. KPI strip — 5 tiles (Revenue, Expense, GP, GP%, Variance) with sparklines, no table.
-  2. Service Lines — grouped bars + per-service table.
-  3. Variance ranking — diverging bars centred 0% + ranked list table.
-  4. Manning — dumbbell (Required/Budgeted/Implied HC) + table with ΔHC and manning spend.
-  5. Category mix — 8-cat donut + table, "Unmapped" row in red at the bottom.
-  6. Unmapped panel — full-width drillable table; renders only when there ARE unmapped lines.
-  7. YoY arc — full-width table per year.
-  8. Anomalies — bullet list of auto-detected issues.
-  Every number is clickable: KPI tile → focus, chart segment/bar/slice → drill drawer with `odoo_move_lines`, table row → variance/editor view, sparkline point → that month's drill.
+- **Q3 answered: Approach 1 (linear narrative scroll) with explicit graph+table pairing per section.** kareem said "I need to see easy dashboards & graphs (Clickable for data) for some data, also comparison tables where needed". So every section gets a chart on the left and a Budget|Actual|Variance|Var% comparison table on the right.
+- **Q4 answered: include ALL extras (a-e), defer only f (cost/m²).** kareem said "include ADD all possible data — with a small on/off toggle on tabs or data boxes, resize page on change so i choose what i need". So a (forecast/burn rate), b (top-5 vendors), c (OT-as-% of manning), d (days-since-signoff), e (mob amortization) all in v1; f (cost/m²) deferred until zone GFA is reliable.
+- **NEW UX requirement (added by kareem this turn): collapsible left sidebar + per-panel toggles.**
+  - **Sidebar:** 240 px expanded, 56 px icon rail collapsed. Auto-collapses 3 s after mouse leaves the sidebar; re-expands on hover. 📌 Pin button locks it expanded (`localStorage['fmplus_perf_sidebar_pinned']`). Main content `padding-left` bound to sidebar width with 200 ms ease transition. Mobile = slide-over drawer.
+  - **Sidebar contents (top-to-bottom):** logo + page title, Period section (chip group + Custom popover + "Compare to prior period"), Jump-to (anchor links to each panel), Visible Sections (checkbox grid for bulk show/hide), Pin button, EN/ع toggle.
+  - **Per-panel toggles:** every panel has a header `Title · [chevron-collapse] · [× hide-from-page]`. Hidden panels reflow the column. State persisted at `localStorage['fmplus_perf_panels']` per user.
+- **Final per-contract panel set (13 panels, all on by default):** 1) KPIs (5 tiles + sparklines), 2) Service Lines (grouped bars + table), 3) Variance ranking (diverging bars centred 0% + table), 4) Manning (dumbbell Req/Bud/Implied + table), 5) Categories (donut + table with red "Unmapped" row), 6) Unmapped expenses (drillable table; only renders when non-empty), 7) Forecast / burn rate (extra a), 8) Top 5 vendors (extra b), 9) Overtime (extra c), 10) Mobilization amortization (extra e), 11) Days since sign-off (extra d), 12) YoY arc (table per year), 13) Anomalies (bullet list).
+- **Portfolio page (`/fmplus/performance`):** same sidebar pattern; main = top KPI strip (4 tiles), diverging bar of every contract sorted by variance, "Needs attention" cards, sortable table with click-through to per-contract page.
+- **All numbers clickable:** chart bar/slice → drill drawer with `odoo_move_lines` (reuse `/api/fmplus/budget/variance-drill`), table row → variance/editor view, KPI tile → smooth-scroll to its section, sparkline point → that month's drill.
+- **Tech delta:** new pages `src/app/fmplus/performance/page.tsx` + `[contractId]/page.tsx`, new layout with sidebar, new client components (`<PerformanceSidebar>`, `<PanelToggle>`, `<PeriodChips>`, panel cards), new aggregation `src/lib/fmplus/performance/build-dashboard.ts` wrapping `buildBudgetVarianceV2` + adding forecast/vendors/OT/implied-HC/mob, new API route `/api/fmplus/performance/[contractId]`. Recharts already in deps.
 
 **Locked design rules (from research, kareem hasn't pushed back):**
 - Layout = hybrid of Pattern A (KPI strip + variance waterfall + line-item table) and Pattern D (Procore-style line-item grid). Concretely: KPI strip → primary "service-line budget vs actual" grouped-bar panel → diverging variance row centered on 0% → line-item grid → dedicated unmapped-expenses panel.
@@ -25,19 +25,11 @@
 - **Brand-yellow rule (critical, baked in unless kareem objects):** FM+ yellow `#FDCF00` is brand emphasis only — primary KPI value, "actual / hero" chart series, active filter chips. Status uses a separate accessible palette: green `#22C55E`, **orange `#F97316`** (pushed away from gold so it's distinguishable), red `#EF4444`. Chart "context" series (budget bars, prior-period overlays) ride a slate-500 → slate-300 ramp. White-on-yellow fails WCAG (~1.07:1) so it can never be used for status.
 - Period filter UX = chip row with quick selects + "Custom" calendar popover; resolved date range shown as subtitle.
 
-**Where this turn stopped:** Q3 effectively answered (Approach 1 + chart/table pairing). Asked Q4 — which "beneficial extras" to include in v1. Six candidates with build-cost vs decision-value scoring:
-- **a. Month-end forecast / burn rate** (low cost, high value) — projects current spend pace forward to year-end; only forward-looking number on the page.
-- **b. Top 5 vendors by spend** (low cost, medium value) — uses `partner_id` already on `odoo_move_lines`.
-- **c. OT as % of manning** (medium cost, medium-high value) — manning `ctc_ot` field exists; needs OT detection on actuals.
-- d. Days-since-last-signoff (trivial cost, low-medium value) — `project_years.published_at` hygiene.
-- e. Mobilization amortization status (low cost, medium value) — `mobilization_lines` table exists but unused.
-- f. Cost per square metre / per zone (medium cost, low value) — depends on zone GFA being populated, which it isn't reliably.
-
-**Recommended: a + b + c only for v1.** d/e/f deferred to v2.
-
 **Background research agent `a96a9d5c751ed8f0d`** returned a 1500-word reference doc — Pigment, Workday Adaptive, Procore, FM:Systems, Stephen Few bullet spec, Domo divergent bars, Carbon Design status pattern, Tabular Editor KPI guidance, Linear dashboards 2025, Carbon dataviz palettes, Ramp brand-color usage. Findings already encoded in the locked design rules above.
 
-**Next turn:** await Q4 answer. Then propose portfolio page (`/fmplus/performance` landing) — likely a top-line KPI strip + diverging variance bar of contracts + sortable table + "needs attention" cards. Then write spec to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md`. Then kareem review → workflow plan via writing-plans skill → kareem review → coding.
+**Where this turn stopped:** Q4 answered + new sidebar/toggle UX requirements added. Presented the **consolidated design** (above) for kareem's thumbs-up. If approved, next turn writes the design spec to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md`, runs the spec self-review, hands back for kareem's formal review, then invokes writing-plans for the implementation plan.
+
+**Next turn:** await thumbs-up (or change requests). On approval → write spec → self-review → kareem review → writing-plans skill.
 
 **Done so far this turn:**
 - Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
