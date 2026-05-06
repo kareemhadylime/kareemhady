@@ -1,43 +1,53 @@
 # Kareemhady — Session Handoff (2026-05-03)
 
-## 🟣 Latest turn — NEW FEATURE REQUEST: WhatsApp sign-in details on admin Users page (awaiting clarification)
+## 🟣 Latest turn — Admin sign-in details feature: SPEC WRITTEN, awaiting user review
 
-**Status:** Separate from the 32-task owner-features plan (which is at 94% — see below). User shared screenshots of the existing `/emails/boat-rental/admin/users` page and requested a new admin feature.
+**Status:** New side-quest separate from the 32-task owner-features plan (which is at 94% — see below). Spec for "WhatsApp sign-in details + display name + disable toggle" on the admin Users page is written, self-reviewed, and committed at `6d4427c`. User asked to "approve" the design summary and I produced the full spec doc.
 
-### What the user asked for
+### Locked decisions (from clarifying questions Q1–Q5)
+- **Q1 = C** — Both auto-send on create + manual `[Send sign-in details]` button
+- **Q2 = X** — Auto-generate fresh 12-char temp password on re-send (rotates atomically)
+- **Q3 = R + S** — Active/inactive toggle (`disabled_at` timestamp) + display name (separate from username)
+- **Q4 = EN** — English-only welcome message
+- **Q5 = iii** — Both inline button states (idle/sending/sent/error) AND toast notifications
 
-On the admin Users page (where brokers and owners are invited):
-1. **Auto-send WhatsApp on account creation** — welcome message + username + password to the broker or owner
-2. **Add `[Send sign-in details]` button** near each existing user (so admin can re-send if needed)
-3. **Add `[Edit]` button** to modify after creation (currently only Save WhatsApp / Reset password / Upload logo / Remove broker exist)
-4. **Sending progress + success states** — visual feedback on the send action
+### Spec doc
+Path: `docs/superpowers/specs/2026-05-03-admin-signin-details-design.md` (~660 lines, 15 sections).
 
-User said: "ask if not clear" — explicitly inviting clarifying questions.
+Self-review fixes applied:
+- Removed 2 TBDs (branch decision locked to `claude/inspiring-booth-3d348a`; disabled-user Send behavior locked to "reject + UI hides")
+- Resolved §6.2 vs §8.4 contradiction — disabled users get `user_disabled` error AND UI hides the button (defense in depth)
 
-### Clarifying questions sent to user (awaiting answers)
+### Schema changes (one migration)
+`0073_admin_user_ux_upgrades.sql` — additive, three new columns on `app_users`:
+- `display_name text` — optional friendly name
+- `disabled_at timestamptz` — null = active, set = disabled
+- `disabled_by uuid` — FK to admin who disabled (nullable)
+- Partial index `idx_app_users_disabled` on `(disabled_at) where disabled_at is not null`
 
-| Q | Topic | Options |
-|---|-------|---------|
-| Q1 | Auto vs manual send | A=auto only, B=manual only, C=both *(recommended)* |
-| Q2 | Password on re-send | X=auto-generate new temp, Y=require admin to set new pw, Z=both |
-| Q3 | What "Edit" covers | P=username, Q=re-link owner record, R=active/inactive toggle, S=display name, T=all, U=other |
-| Q4 | Welcome message language | EN, AR, Auto (per-user lang pref) |
-| Q5 | UX feedback | i=button states, ii=toast, iii=both *(recommended)* |
+### Server actions (new + modified)
+- MODIFY `inviteBrokerAction` + `inviteOwnerAction` — auto-enqueue welcome WhatsApp after create if `whatsapp` is provided
+- NEW `sendSigninDetailsAction(user_id)` — generates fresh 12-char password (drops lookalikes 0/O/1/l/i), updates `password_hash`, wipes sessions, enqueues WhatsApp; returns `{ ok: true, sent_at } | { ok: false, error }`
+- NEW `setUserDisplayNameAction(user_id, display_name)` — upsert/clear with 80-char cap
+- NEW `setUserDisabledAction(user_id, disabled)` — sets/clears `disabled_at`, refuses self-disable, wipes sessions on disable
+- MODIFY login flow — reject login if `disabled_at IS NOT NULL` with friendly "Account disabled" message
 
-User format: reply with one letter per question, e.g. `C, Z, R+S, EN, iii`.
+### UI (per-user card additions)
+- Display name as PRIMARY heading (falls back to username); username shown as `@username` secondary
+- INACTIVE badge + `opacity-60` on disabled cards
+- Display name form (server action, no client state)
+- `[📩 Send sign-in details]` button — client component with state machine + toast (5s auto-revert)
+- `[⊘ Disable account]` / `[↻ Re-enable account]` toggle with confirm modal on disable
+- Invite forms get a hint: "If provided, sign-in details are auto-sent to this WhatsApp on create."
 
-### Where this fits
+### Next step (gate)
+Awaiting user response to the spec. Three valid replies:
+- **"approve"** → I invoke `superpowers:writing-plans` to draft the implementation plan
+- **"change X"** → I revise inline and re-review
+- Questions → I answer
 
-- Touches `/emails/boat-rental/admin/users` (admin role, not owner role — distinct from the 32-task plan)
-- Reuses the Green-API WhatsApp infrastructure already present in `src/lib/boat-rental/notifications.ts`
-- New `template_key` likely needed: `welcome_signin_details` (EN + AR variants)
-- May need new column on `app_users` for broker `notification_lang` — owners already have it via `boat_rental_owner_settings.notification_lang` (shipped in migration 0070)
-
-### Next session pickup
-
-If a fresh session takes over, the user has not yet answered the 5 clarifying questions. Either:
-- Wait for user answers, then plan via brainstorming skill
-- Or assume my recommended defaults (`C, Z, T, Auto, iii`) and proceed to design
+### Why a fresh session shouldn't barrel forward
+The user's methodology is Plan → Workflow → Coding with explicit approval gates. Spec is currently between "Plan" and "Workflow" — needs the user's go-ahead before writing-plans runs.
 
 ---
 
