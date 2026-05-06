@@ -1,5 +1,28 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## 🟡 2026-05-06 — Awaiting kareem confirmation: Variance panel color/sign semantics
+
+kareem screenshotted the "Variance — Biggest Gaps" panel and asked *"whats this?"* The panel showed all red bars: Back Office -100%, Pest Control -98%, Landscape -46.3%, Housekeeping -18.8%, MEP -7.3%.
+
+Diagnosed two real issues with this panel:
+
+1. **Color encoding is wrong for cost variance.** Current `classifyVariance(pct)` treats `|pct| > 15%` as bad (red). For *cost* variance, only OVER-spend is bad — under-spend is potentially good (savings) or neutral (timing). All those red bars are showing under-budget services that look alarming but aren't necessarily problems. Proposed: `> +15%` → red, `+5..+15%` → orange, `-15..+5%` → green, `< -25%` → blue/info ("review — possibly under-delivered").
+
+2. **Panel doesn't explain the sign convention.** Hard to tell from the panel whether "-100%" means "way over" or "way under." Proposed: subtitle *"Negative = under-budget (cost saving). Positive = over-budget (overrun)."*
+
+Asked kareem: *"Want me to ship those two fixes, or hold?"* **Awaiting his answer.**
+
+No code shipped this turn — just diagnosis.
+
+**Next-turn action:** if kareem says yes, dispatch a subagent to:
+- Update `classifyVariance()` in `src/lib/fmplus/performance/build-dashboard.ts` to be sign-aware for cost variances.
+- Update the `<VarianceRankingPanel>` subtitle in `src/app/fmplus/performance/_components/panels/variance-ranking.tsx`.
+- Consider whether the same fix applies to the variance-pct color in `<ServiceLinesPanel>` row table cells too.
+
+If he says hold, move to the next deferred followup (per-line unmapped or OT actual).
+
+---
+
 ## ✅ 2026-05-06 — Performance Dashboard: actual revenue from Odoo + offset URL fix (commits `f61ffa7`, `61e5c89`, migration `0097`)
 
 kareem reported two bugs:
