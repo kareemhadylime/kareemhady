@@ -4,8 +4,9 @@ import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword } from '@/lib/auth';
-import { requireBoatAdmin, s, sOrNull } from '@/lib/boat-rental/server-helpers';
+import { requireBoatAdmin, s, sOrNull, logAudit } from '@/lib/boat-rental/server-helpers';
 import { enqueueNotification, flushPendingNonReservation } from '@/lib/boat-rental/notifications';
+import { randomFriendlyPassword } from '@/lib/random-password';
 
 // Username is stored lowercase throughout the codebase (see existing
 // /admin/users create flow). Passwords are set by admin directly; users
@@ -286,4 +287,90 @@ export async function removeBoatRoleAction(formData: FormData) {
       .eq('domain', 'boat-rental');
   }
   revalidatePath('/emails/boat-rental/admin/users');
+}
+
+// Re-send sign-in details: generate a fresh temp password, rotate it on
+// the user, wipe their sessions, and WhatsApp them username + new password.
+// Returns a discriminated result so the client can show toast + button state.
+export async function sendSigninDetailsAction(
+  formData: FormData
+): Promise<
+  | { ok: true; sent_at: string }
+  | { ok: false; error: 'no_whatsapp' | 'not_found' | 'forbidden' | 'user_disabled' | 'enqueue_failed' }
+> {
+  const me = await requireBoatAdmin();
+  const userId = s(formData.get('user_id'));
+  if (!userId) return { ok: false, error: 'not_found' };
+
+  const sb = supabaseAdmin();
+  const { data: userRow } = await sb
+    .from('app_users')
+    .select('id, username, display_name, whatsapp, disabled_at')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!userRow) return { ok: false, error: 'not_found' };
+  const u = userRow as {
+    id: string;
+    username: string;
+    display_name: string | null;
+    whatsapp: string | null;
+    disabled_at: string | null;
+  };
+  if (u.disabled_at) return { ok: false, error: 'user_disabled' };
+  if (!u.whatsapp) return { ok: false, error: 'no_whatsapp' };
+
+  // Determine sign-in role: broker > owner > admin
+  const { data: roleRows } = await sb
+    .from('boat_rental_user_roles')
+    .select('role')
+    .eq('user_id', userId);
+  const roles = ((roleRows as Array<{ role: string }> | null) || []).map(r => r.role);
+  const signinRole: 'broker' | 'owner' | 'admin' =
+    roles.includes('broker') ? 'broker' :
+    roles.includes('owner')  ? 'owner'  :
+    'admin';
+
+  // Rotate the password
+  const newPassword = randomFriendlyPassword(12);
+  await sb
+    .from('app_users')
+    .update({ password_hash: hashPassword(newPassword) })
+    .eq('id', userId);
+
+  // Wipe existing sessions (force re-auth)
+  await sb.from('app_sessions').delete().eq('user_id', userId);
+
+  // Enqueue + flush WhatsApp
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_HOST || 'https://limeinc.vercel.app';
+    await enqueueNotification({
+      reservationId: null,
+      to: { userId: u.id, phone: u.whatsapp, role: signinRole },
+      templateKey: 'admin_signin_details',
+      language: 'en',
+      context: {
+        boatName: '',
+        bookingDate: '',
+        shortRef: '',
+        username: u.username,
+        tempPassword: newPassword,
+        signinRole,
+        appUrl,
+        displayName: u.display_name,
+      },
+    });
+    await flushPendingNonReservation();
+  } catch {
+    return { ok: false, error: 'enqueue_failed' };
+  }
+
+  await logAudit({
+    actorUserId: me.id,
+    actorRole: 'admin',
+    action: 'admin_signin_details_sent',
+    payload: { user_id: userId, rotated_password: true, role: signinRole },
+  });
+
+  revalidatePath('/emails/boat-rental/admin/users');
+  return { ok: true, sent_at: new Date().toISOString() };
 }
