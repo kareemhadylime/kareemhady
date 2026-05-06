@@ -8,6 +8,7 @@ import {
   type OdooAnalyticPlan,
 } from './odoo';
 import { cutoffDate } from './run-odoo-sync';
+import { discoverFmplusCompanyId } from './fmplus/discover-company';
 
 // Scope for financial reporting. Covers Beithady ecosystem (Phase 7) +
 // Kika (Phase 10 — garments + Shopify sales + B2B uniforms).
@@ -15,7 +16,22 @@ import { cutoffDate } from './run-odoo-sync';
 //   5  = Beithady Hospitality - (EGYPT)
 //   6  = X Label for Tailoring Kika (3 segments: IN&OUT / X-label / Kika)
 //   10 = Beithady Hospitality FZCO - (Dubai)
-export const FINANCIALS_COMPANY_IDS = [4, 5, 6, 10];
+// Beithady ecosystem (4, 5, 10) + Kika (6). FMPLUS company id is resolved
+// lazily on first sync because it varies by tenant install. See
+// src/lib/fmplus/discover-company.ts.
+export const FINANCIALS_COMPANY_IDS_STATIC = [4, 5, 6, 10] as const;
+
+let _cachedScope: number[] | null = null;
+export async function getFinancialsCompanyIds(): Promise<number[]> {
+  if (_cachedScope) return _cachedScope;
+  const fmplusId = await discoverFmplusCompanyId();
+  _cachedScope = [...FINANCIALS_COMPANY_IDS_STATIC, fmplusId];
+  return _cachedScope;
+}
+
+// Back-compat re-export — synchronous callers that don't need FMPLUS in scope
+// can import this. New code should call getFinancialsCompanyIds().
+export const FINANCIALS_COMPANY_IDS = FINANCIALS_COMPANY_IDS_STATIC;
 
 // "Home Owner Cut" detection. The tenant's CoA does NOT use 504xxx codes
 // as the Feb 2026 xlsx suggested — the account is named "Home Owner Cut"
@@ -34,7 +50,8 @@ export async function syncOdooAccounts() {
     number,
     OdooAccount & { _companies: Set<number> }
   >();
-  for (const companyId of FINANCIALS_COMPANY_IDS) {
+  const companyIds = await getFinancialsCompanyIds();
+  for (const companyId of companyIds) {
     const ctx = { allowed_company_ids: [companyId] };
     let offset = 0;
     while (true) {
@@ -87,7 +104,8 @@ export async function syncOdooPartners() {
     number,
     OdooPartner & { _isEmployee: boolean }
   >();
-  for (const companyId of FINANCIALS_COMPANY_IDS) {
+  const companyIds = await getFinancialsCompanyIds();
+  for (const companyId of companyIds) {
     const ctx = { allowed_company_ids: [companyId] };
     let offset = 0;
     while (true) {
@@ -149,7 +167,7 @@ export async function syncOdooPartners() {
       {
         fields: ['work_contact_id', 'user_partner_id'],
         limit: 2000,
-        context: { allowed_company_ids: FINANCIALS_COMPANY_IDS },
+        context: { allowed_company_ids: companyIds },
       }
     );
     for (const e of employees) {
@@ -192,23 +210,39 @@ export async function syncOdooMoveLines(
   companyId: number,
   options: { resume?: boolean; timeBudgetMs?: number } = {}
 ) {
-  if (!FINANCIALS_COMPANY_IDS.includes(companyId)) {
+  const companyIds = await getFinancialsCompanyIds();
+  if (!companyIds.includes(companyId)) {
     return { ok: false, error: `company ${companyId} is out of Financials scope` };
   }
   const sb = supabaseAdmin();
   const started = Date.now();
-  // Vercel caps functions at 300s. Leave ~30s headroom to flush last batch
-  // + return cleanly. Callers can override via timeBudgetMs.
   const budgetMs = options.timeBudgetMs ?? 260_000;
   const ctx = { allowed_company_ids: [companyId] };
   const today = new Date().toISOString().slice(0, 10);
 
-  // Resume-from-last-synced-id: if resume is true, start from the max id
-  // already in Supabase for this company. This lets callers invoke the
-  // endpoint repeatedly until complete=true without re-fetching rows
-  // that already landed. Odoo IDs are strictly ascending on account.move.line,
-  // so this is safe for backfill (updates to old rows require a separate
-  // refresh pass — Phase 7.4 concern).
+  // Pre-load known FK reference IDs so we can NULL stale references before
+  // upsert. Move-lines from Odoo can reference accounts or partners that
+  // haven't been mirrored to Supabase (rank-0 partners, multi-company shared
+  // accounts not in this company's scope, etc.). Without this guard, a single
+  // missing FK aborts the whole 500-row batch silently — that was the bug
+  // that made FMPLUS sync claim move_lines_synced: 73420 while writing zero
+  // rows. Both FK columns are nullable with ON DELETE SET NULL, so NULL is
+  // semantically safe.
+  const knownAccounts = new Set<number>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await sb.from('odoo_accounts').select('id').range(from, from + 999);
+    if (!data || data.length === 0) break;
+    for (const r of data) knownAccounts.add(Number(r.id));
+    if (data.length < 1000) break;
+  }
+  const knownPartners = new Set<number>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await sb.from('odoo_partners').select('id').range(from, from + 999);
+    if (!data || data.length === 0) break;
+    for (const r of data) knownPartners.add(Number(r.id));
+    if (data.length < 1000) break;
+  }
+
   let startAfterId = 0;
   if (options.resume) {
     const { data: maxRow } = await sb
@@ -233,7 +267,11 @@ export async function syncOdooMoveLines(
 
   const PAGE = 500;
   let offset = 0;
-  let synced = 0;
+  let fetched = 0;
+  let written = 0;
+  let fkAccountNulled = 0;
+  let fkPartnerNulled = 0;
+  const errors: string[] = [];
   let lastId = startAfterId;
   let hitTimeBudget = false;
 
@@ -275,40 +313,77 @@ export async function syncOdooMoveLines(
 
     const rows = batch
       .filter(m => Array.isArray(m.move_id))
-      .map(m => ({
-        id: m.id,
-        move_id: Array.isArray(m.move_id) ? m.move_id[0] : 0,
-        company_id: companyId,
-        account_id: Array.isArray(m.account_id) ? m.account_id[0] : null,
-        partner_id: Array.isArray(m.partner_id) ? m.partner_id[0] : null,
-        date: typeof m.date === 'string' ? m.date : null,
-        name: typeof m.name === 'string' ? m.name : null,
-        debit: Number(m.debit) || 0,
-        credit: Number(m.credit) || 0,
-        balance: Number(m.balance) || 0,
-        amount_residual: Number(m.amount_residual) || 0,
-        currency: Array.isArray(m.currency_id) ? m.currency_id[1] : null,
-        amount_currency:
-          typeof m.amount_currency === 'number' ? m.amount_currency : null,
-        analytic_distribution:
-          m.analytic_distribution && typeof m.analytic_distribution === 'object'
-            ? m.analytic_distribution
-            : null,
-        parent_state: m.parent_state || null,
-        move_type: m.move_type || null,
-        reconciled: !!m.reconciled,
-        synced_at: new Date().toISOString(),
-      }));
+      .map(m => {
+        let accountId = Array.isArray(m.account_id) ? m.account_id[0] : null;
+        if (accountId !== null && !knownAccounts.has(accountId)) {
+          accountId = null;
+          fkAccountNulled++;
+        }
+        let partnerId = Array.isArray(m.partner_id) ? m.partner_id[0] : null;
+        if (partnerId !== null && !knownPartners.has(partnerId)) {
+          partnerId = null;
+          fkPartnerNulled++;
+        }
+        return {
+          id: m.id,
+          move_id: Array.isArray(m.move_id) ? m.move_id[0] : 0,
+          company_id: companyId,
+          account_id: accountId,
+          partner_id: partnerId,
+          date: typeof m.date === 'string' ? m.date : null,
+          name: typeof m.name === 'string' ? m.name : null,
+          debit: Number(m.debit) || 0,
+          credit: Number(m.credit) || 0,
+          balance: Number(m.balance) || 0,
+          amount_residual: Number(m.amount_residual) || 0,
+          currency: Array.isArray(m.currency_id) ? m.currency_id[1] : null,
+          amount_currency:
+            typeof m.amount_currency === 'number' ? m.amount_currency : null,
+          analytic_distribution:
+            m.analytic_distribution && typeof m.analytic_distribution === 'object'
+              ? m.analytic_distribution
+              : null,
+          parent_state: m.parent_state || null,
+          move_type: m.move_type || null,
+          reconciled: !!m.reconciled,
+          synced_at: new Date().toISOString(),
+        };
+      });
 
     if (rows.length > 0) {
       for (let i = 0; i < rows.length; i += 500) {
-        await sb
+        const slice = rows.slice(i, i + 500);
+        const { error, data } = await sb
           .from('odoo_move_lines')
-          .upsert(rows.slice(i, i + 500), { onConflict: 'id' });
+          .upsert(slice, { onConflict: 'id' })
+          .select('id');
+        if (error) {
+          // Batch failed entirely. Fall back to per-row so one bad row
+          // doesn't kill 499 good ones, and we get visibility into which
+          // row(s) are the offenders.
+          if (errors.length < 5) {
+            errors.push(`batch err: ${error.code ?? '?'} ${error.message}`);
+          }
+          for (const row of slice) {
+            const { error: rowErr, data: rowData } = await sb
+              .from('odoo_move_lines')
+              .upsert(row, { onConflict: 'id' })
+              .select('id');
+            if (rowErr) {
+              if (errors.length < 5) {
+                errors.push(`row id=${row.id}: ${rowErr.code ?? '?'} ${rowErr.message}`);
+              }
+            } else if (rowData && rowData.length > 0) {
+              written++;
+            }
+          }
+        } else if (data) {
+          written += data.length;
+        }
       }
       lastId = rows[rows.length - 1].id;
     }
-    synced += batch.length;
+    fetched += batch.length;
 
     if (batch.length < PAGE) break;
     offset += PAGE;
@@ -318,7 +393,11 @@ export async function syncOdooMoveLines(
   return {
     ok: true,
     company_id: companyId,
-    move_lines_synced: synced,
+    move_lines_synced: fetched,
+    move_lines_written: written,
+    fk_account_nulled: fkAccountNulled,
+    fk_partner_nulled: fkPartnerNulled,
+    errors,
     last_id: lastId,
     complete,
     resume_hint: complete
@@ -380,7 +459,8 @@ export async function syncOdooAnalyticPlans() {
     number,
     OdooAnalyticPlan & { _companies: Set<number> }
   >();
-  for (const companyId of FINANCIALS_COMPANY_IDS) {
+  const companyIds = await getFinancialsCompanyIds();
+  for (const companyId of companyIds) {
     const ctx = { allowed_company_ids: [companyId] };
     let offset = 0;
     while (true) {
@@ -441,7 +521,8 @@ export async function syncOdooAnalyticAccounts() {
     number,
     OdooAnalyticAccount & { _companies: Set<number> }
   >();
-  for (const companyId of FINANCIALS_COMPANY_IDS) {
+  const companyIds = await getFinancialsCompanyIds();
+  for (const companyId of companyIds) {
     const ctx = { allowed_company_ids: [companyId] };
     let offset = 0;
     while (true) {

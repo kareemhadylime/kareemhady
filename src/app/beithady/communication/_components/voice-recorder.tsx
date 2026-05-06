@@ -12,7 +12,7 @@ import { Mic, Square, Trash2, Send, Loader2 } from 'lucide-react';
 
 export type VoiceRecorderProps = {
   disabled?: boolean;
-  onSend: (input: { blob: Blob; mime: string; durationSec: number }) => void;
+  onSend: (input: { blob: Blob; mime: string; durationSec: number }) => void | Promise<void>;
 };
 
 function pickMimeType(): { mime: string; ext: string } {
@@ -109,22 +109,48 @@ export function VoiceRecorder({ disabled, onSend }: VoiceRecorderProps) {
   async function send() {
     if (!blob) return;
     setState('sending');
-    onSend({ blob, mime, durationSec: duration });
-    // Parent resets the composer; we just clear local preview.
+    // Audit fix H-E6: pre-fix immediately called discard() after onSend,
+    // wiping the audio preview before parent confirmed delivery. If the
+    // parent's send failed, the operator had nothing to retry — they
+    // had to re-record from scratch. Now we keep the preview alive
+    // and let the parent's success/error path drive the unmount via
+    // the new key={header.id} fix in PR1 (parent remounts on conv
+    // switch / on `?sent=1`). Operator can still click Discard
+    // manually if they want to scrap the recording.
+    try {
+      await onSend({ blob, mime, durationSec: duration });
+    } catch {
+      // Parent should surface the error; we revert state so the
+      // operator can hit Send again or Discard.
+      setState('preview');
+      return;
+    }
+    // Successful send — clear local preview.
     discard();
   }
 
   if (state === 'idle') {
+    // Audit fix H-E5: render error in idle state too. Pre-fix the
+    // mic-permission-denied error string lived only in the
+    // recording/preview branches, so the operator who denied
+    // permission saw a non-functional mic button with no explanation.
     return (
-      <button
-        type="button"
-        onClick={start}
-        disabled={disabled}
-        title="Record voice note"
-        className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-50"
-      >
-        <Mic size={16} />
-      </button>
+      <div className="inline-flex items-center gap-2">
+        <button
+          type="button"
+          onClick={start}
+          disabled={disabled}
+          title="Record voice note"
+          className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:opacity-50"
+        >
+          <Mic size={16} />
+        </button>
+        {error && (
+          <span className="text-[11px] text-rose-600 dark:text-rose-300 max-w-[200px] truncate" title={error}>
+            Mic: {error}
+          </span>
+        )}
+      </div>
     );
   }
 

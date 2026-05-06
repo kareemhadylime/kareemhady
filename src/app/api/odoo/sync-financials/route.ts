@@ -7,7 +7,7 @@ import {
   syncOdooAnalyticAccounts,
   rebuildAnalyticLinks,
   finalizeOwnerFlag,
-  FINANCIALS_COMPANY_IDS,
+  getFinancialsCompanyIds,
 } from '@/lib/run-odoo-financial-sync';
 
 // Phased financial sync. Each phase is bounded so it stays under Vercel's
@@ -67,7 +67,8 @@ async function handle(req: NextRequest) {
         const acc = await syncOdooAccounts();
         const par = await syncOdooPartners();
         const ml: Record<string, unknown> = {};
-        for (const cid of FINANCIALS_COMPANY_IDS) {
+        const companyIds = await getFinancialsCompanyIds();
+        for (const cid of companyIds) {
           ml[`company_${cid}`] = await syncOdooMoveLines(cid);
         }
         const fin = await finalizeOwnerFlag();
@@ -84,7 +85,7 @@ async function handle(req: NextRequest) {
           ok: false,
           error: 'unknown phase',
           hint: 'use ?phase=accounts | partners | move-lines&company=N | finalize | all',
-          financials_company_ids: FINANCIALS_COMPANY_IDS,
+          financials_company_ids: await getFinancialsCompanyIds(),
         });
     }
   } catch (e) {

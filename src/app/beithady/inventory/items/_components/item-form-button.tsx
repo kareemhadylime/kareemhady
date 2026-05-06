@@ -43,6 +43,8 @@ export function ItemFormButton({
         is_asset: existing.is_asset,
         amazon_eg_url: existing.amazon_eg_url,
         photo_url: existing.photo_url,
+        pack_volume_value: existing.pack_volume_value,
+        pack_volume_uom: existing.pack_volume_uom,
       }
     : {
         sku: '',
@@ -65,12 +67,26 @@ export function ItemFormButton({
         is_asset: false,
         amazon_eg_url: null,
         photo_url: null,
+        pack_volume_value: null,
+        pack_volume_uom: null,
       };
 
   const [form, setForm] = useState<ItemFormInput>(initial);
 
   function update<K extends keyof ItemFormInput>(k: K, v: ItemFormInput[K]) {
     setForm(f => ({ ...f, [k]: v }));
+  }
+
+  // useState(initial) only captures props on the FIRST mount. If
+  // `existing` is updated server-side (e.g. AI SKU rename after Amazon
+  // fetch promotes CLN-DISH-SPONGE → CLN-KITCHEN-SPONGE-3PK) and the
+  // page re-renders, the modal would still display the stale SKU/cost/
+  // name. Re-syncing on open guarantees the modal reflects current row
+  // data and discards any unsaved edits from a previous open-then-cancel.
+  function openModal() {
+    setForm(initial);
+    setError(null);
+    setOpen(true);
   }
 
   // When category changes, auto-apply category defaults for batch/expiry
@@ -118,7 +134,7 @@ export function ItemFormButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={triggerClass}>
+      <button type="button" onClick={openModal} className={triggerClass}>
         {triggerLabel}
       </button>
       {open && (
@@ -132,78 +148,133 @@ export function ItemFormButton({
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="SKU" required>
-                  <input type="text" value={form.sku} onChange={e => update('sku', e.target.value)} required minLength={2} className="ix-input w-full font-mono" placeholder="CON-TR-FINE12" />
-                </Field>
-                <Field label="Brand">
-                  <input type="text" value={form.brand || ''} onChange={e => update('brand', e.target.value || null)} className="ix-input w-full" placeholder="Fine" />
-                </Field>
-              </div>
+              {/* M.17 — Procurement-first 4-block layout. The Item form
+                  now reflects how the procurement team buys + stocks the
+                  item; sub-component / partial-use math (e.g., "100 mL of
+                  cleaner per check-in from a 4 L bottle") lives in the
+                  Housekeeping Matrix consumption rules + auto-issue cron. */}
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Name (EN)" required>
-                  <input type="text" value={form.name_en} onChange={e => update('name_en', e.target.value)} required className="ix-input w-full" />
+              <Block label="Identification">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="SKU" required>
+                    <input type="text" value={form.sku} onChange={e => update('sku', e.target.value)} required minLength={2} className="ix-input w-full font-mono" placeholder="CON-TR-FINE12" />
+                  </Field>
+                  <Field label="Brand">
+                    <input type="text" value={form.brand || ''} onChange={e => update('brand', e.target.value || null)} className="ix-input w-full" placeholder="Fine" />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Name (EN)" required>
+                    <input type="text" value={form.name_en} onChange={e => update('name_en', e.target.value)} required className="ix-input w-full" />
+                  </Field>
+                  <Field label="الاسم (عربي)" required>
+                    <input type="text" value={form.name_ar} onChange={e => update('name_ar', e.target.value)} required dir="rtl" className="ix-input w-full" />
+                  </Field>
+                </div>
+                <Field label="Barcode">
+                  <input type="text" value={form.barcode || ''} onChange={e => update('barcode', e.target.value || null)} className="ix-input w-full font-mono" />
                 </Field>
-                <Field label="الاسم (عربي)" required>
-                  <input type="text" value={form.name_ar} onChange={e => update('name_ar', e.target.value)} required dir="rtl" className="ix-input w-full" />
-                </Field>
-              </div>
+              </Block>
 
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Category" required>
-                  <select value={form.category_id} onChange={e => pickCategory(e.target.value)} required className="ix-input w-full">
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name_en}</option>)}
-                  </select>
+              <Block label="Procurement (how it's bought)">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Category" required>
+                    <select value={form.category_id} onChange={e => pickCategory(e.target.value)} required className="ix-input w-full">
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name_en}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="UoM (how it's sold)" required>
+                    <select value={form.uom} onChange={e => update('uom', e.target.value)} required className="ix-input w-full">
+                      {uoms.map(u => <option key={u.code} value={u.code}>{u.code} — {u.name_en}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                {/* Pack contents — combined value+UoM field. Procurement
+                    framing: "what's inside the pack you buy". Optional. */}
+                <Field label="Pack contents" hint="For items sold by volume, weight, or as a multi-pack. Examples: 4 L cleaner bottle, 3 sponges per pack, 250 g detergent box. Leave both blank for unitary items (towels, single sponges).">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.pack_volume_value ?? ''}
+                      onChange={e =>
+                        update(
+                          'pack_volume_value',
+                          e.target.value ? parseFloat(e.target.value) : null,
+                        )
+                      }
+                      placeholder="e.g. 4 for a 4 L bottle"
+                      className="ix-input w-40"
+                    />
+                    <select
+                      value={form.pack_volume_uom ?? ''}
+                      onChange={e => update('pack_volume_uom', e.target.value || null)}
+                      className="ix-input flex-1"
+                    >
+                      <option value="">— select UoM —</option>
+                      <optgroup label="Mass">
+                        <option value="kg">kg (Kilogram)</option>
+                        <option value="g">g (Gram)</option>
+                      </optgroup>
+                      <optgroup label="Volume">
+                        <option value="L">L (Liter)</option>
+                        <option value="ml">ml (Milliliter)</option>
+                      </optgroup>
+                      <optgroup label="Count">
+                        {uoms
+                          .filter(u => u.measure_kind === 'count')
+                          .map(u => (
+                            <option key={u.code} value={u.code}>
+                              {u.code} ({u.name_en})
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                  </div>
                 </Field>
-                <Field label="UoM" required>
-                  <select value={form.uom} onChange={e => update('uom', e.target.value)} required className="ix-input w-full">
-                    {uoms.map(u => <option key={u.code} value={u.code}>{u.code} — {u.name_en}</option>)}
-                  </select>
-                </Field>
-                <Field label="Currency">
-                  <select value={form.currency} onChange={e => update('currency', e.target.value as 'EGP' | 'USD')} className="ix-input w-full">
-                    <option value="EGP">EGP</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-4 gap-3">
-                <Field label="Min qty">
-                  <input type="number" min="0" step="0.01" value={form.min_qty} onChange={e => update('min_qty', parseFloat(e.target.value) || 0)} className="ix-input w-full" />
-                </Field>
-                <Field label="Max qty">
-                  <input type="number" min="0" step="0.01" value={form.max_qty ?? ''} onChange={e => update('max_qty', e.target.value ? parseFloat(e.target.value) : null)} className="ix-input w-full" />
-                </Field>
-                <Field label="Reorder qty">
-                  <input type="number" min="0" step="0.01" value={form.reorder_qty ?? ''} onChange={e => update('reorder_qty', e.target.value ? parseFloat(e.target.value) : null)} className="ix-input w-full" />
-                </Field>
-                <Field label={`Cost (${form.currency})`}>
+                {/* Audit fix C5: Currency selector dropped — every item is
+                    EGP. Was a USD option but no read site converted, so a
+                    USD-flagged value silently lived in default_cost_egp and
+                    caused ~50× under-pricing in totals. */}
+                <Field label="Cost / pack (EGP)">
                   <input type="number" min="0" step="0.01" value={form.default_cost_egp} onChange={e => update('default_cost_egp', parseFloat(e.target.value) || 0)} className="ix-input w-full" />
                 </Field>
-              </div>
+              </Block>
 
-              <Field label="Barcode">
-                <input type="text" value={form.barcode || ''} onChange={e => update('barcode', e.target.value || null)} className="ix-input w-full font-mono" />
-              </Field>
+              <Block label="Stock control">
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Min qty (packs)">
+                    <input type="number" min="0" step="0.01" value={form.min_qty} onChange={e => update('min_qty', parseFloat(e.target.value) || 0)} className="ix-input w-full" />
+                  </Field>
+                  <Field label="Max qty (packs)">
+                    <input type="number" min="0" step="0.01" value={form.max_qty ?? ''} onChange={e => update('max_qty', e.target.value ? parseFloat(e.target.value) : null)} className="ix-input w-full" />
+                  </Field>
+                  <Field label="Reorder qty (packs)">
+                    <input type="number" min="0" step="0.01" value={form.reorder_qty ?? ''} onChange={e => update('reorder_qty', e.target.value ? parseFloat(e.target.value) : null)} className="ix-input w-full" />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Toggle label="Batch tracked" value={form.batch_tracked} onChange={v => update('batch_tracked', v)} />
+                  <Toggle label="Expiry tracked" value={form.expiry_tracked} onChange={v => update('expiry_tracked', v)} />
+                </div>
+              </Block>
+
+              <Block label="Classification">
+                <div className="grid grid-cols-2 gap-2">
+                  <Toggle label="Owner billable" value={form.owner_billable} onChange={v => update('owner_billable', v)} />
+                  <Toggle label="Asset (V2)" value={form.is_asset} onChange={v => update('is_asset', v)} />
+                </div>
+                <Field label="Description">
+                  <textarea value={form.description || ''} onChange={e => update('description', e.target.value || null)} rows={2} className="ix-input w-full" />
+                </Field>
+              </Block>
 
               {/*
                 Amazon EG URL is intentionally NOT editable here — managed in
                 the Source column on the items list (per-row Accept / Change),
                 so a single source of truth drives unit-config budget rollups.
               */}
-
-              <Field label="Description">
-                <textarea value={form.description || ''} onChange={e => update('description', e.target.value || null)} rows={2} className="ix-input w-full" />
-              </Field>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100">
-                <Toggle label="Batch tracked" value={form.batch_tracked} onChange={v => update('batch_tracked', v)} />
-                <Toggle label="Expiry tracked" value={form.expiry_tracked} onChange={v => update('expiry_tracked', v)} />
-                <Toggle label="Owner billable" value={form.owner_billable} onChange={v => update('owner_billable', v)} />
-                <Toggle label="Asset (V2)" value={form.is_asset} onChange={v => update('is_asset', v)} />
-              </div>
 
               {error && (
                 <div className="text-rose-700 bg-rose-50 border border-rose-200 rounded p-2 text-[11px]">{error}</div>
@@ -217,7 +288,7 @@ export function ItemFormButton({
                   </button>
                 )}
                 <div className="flex items-center gap-2 ml-auto">
-                  <button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 text-[11px] text-slate-500 hover:text-slate-700">Cancel</button>
+                  <button type="button" onClick={() => setOpen(false)} className="px-3 py-1.5 text-[11px] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Cancel</button>
                   <button type="submit" disabled={pending} className="px-3 py-1.5 text-[11px] font-medium bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50">
                     {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create item'}
                   </button>
@@ -231,13 +302,14 @@ export function ItemFormButton({
   );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-1">
+      <span className="block text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-300 font-semibold mb-1">
         {label}{required && <span className="text-rose-500"> *</span>}
       </span>
       {children}
+      {hint && <span className="block mt-1 text-[10px] text-slate-500 dark:text-slate-400">{hint}</span>}
     </label>
   );
 }
@@ -246,7 +318,18 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
   return (
     <label className="flex items-center gap-2 text-[11px] cursor-pointer">
       <input type="checkbox" checked={value} onChange={e => onChange(e.target.checked)} className="rounded" />
-      <span className="text-slate-700">{label}</span>
+      <span className="text-slate-700 dark:text-slate-200">{label}</span>
     </label>
+  );
+}
+
+function Block({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-3">
+      <div className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold">
+        {label}
+      </div>
+      {children}
+    </div>
   );
 }

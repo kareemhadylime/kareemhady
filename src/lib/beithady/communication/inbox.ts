@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { SlaBucket } from './sla';
+import { looksTranslatable, translateMessagesBatch } from '@/lib/beithady/ai/translate';
 
 // Server-side queries powering the Communication tabs. Reads from
 // beithady_conversations + beithady_messages exclusively — those are
@@ -87,6 +88,15 @@ export type InboxRow = {
   // Phase R archive bookkeeping — populated when archived
   archived_at: string | null;
   archived_reason: string | null;
+  // Phase C.5 follow-up — reservation summary for the sidebar.
+  // Populated via the bh_conversations_with_booking_status view (joined
+  // to guesty_reservations on conversation.reservation_id). Lets the
+  // sidebar disambiguate two threads from the same guest on the same
+  // listing — Airbnb threads are per-reservation, not per-guest.
+  reservation_check_in_date: string | null;   // YYYY-MM-DD wall date
+  reservation_check_out_date: string | null;
+  reservation_nights: number | null;
+  reservation_status: string | null;          // raw Guesty status
 };
 
 export type InboxResult = {
@@ -106,17 +116,15 @@ export async function listInbox(opts: {
   const pageSize = Math.max(10, Math.min(200, opts.pageSize ?? 50));
   const f = opts.filter ?? {};
 
-  // When bookingStatus filter is active, query through the view
-  // (migration 0064) which exposes a computed booking_status_variant
-  // column. Otherwise hit the base table directly to skip the join.
-  const sourceTable = f.bookingStatus
-    ? 'bh_conversations_with_booking_status'
-    : 'beithady_conversations';
-
+  // Always read from the view (migration 0066): the LEFT JOIN to
+  // guesty_reservations is cheap (~1.5k open rows × ~7k reservations
+  // hash-joins in single-digit ms) and gives us the booking_status
+  // filter + reservation stay dates the sidebar uses to disambiguate
+  // multi-stay-same-guest cases like Airbnb's per-reservation threads.
   let q = sb
-    .from(sourceTable)
+    .from('bh_conversations_with_booking_status')
     .select(
-      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, is_unanswered, archived_at, archived_reason',
+      'id, channel, external_id, guest_id, guest_full_name, guest_email, guest_phone, listing_nickname, building_code, source, state, unread_count, tags, last_inbound_at, last_outbound_at, sla_age_seconds, sla_bucket, sla_breach, modified_at_external, is_unanswered, archived_at, archived_reason, reservation_check_in_date, reservation_check_out_date, reservation_nights, reservation_status',
       { count: 'exact' }
     );
 
@@ -146,9 +154,26 @@ export async function listInbox(opts: {
   if (f.channel) q = q.eq('channel', f.channel);
   if (f.search && f.search.trim()) {
     const s = f.search.trim();
-    q = q.or(
-      `guest_full_name.ilike.%${s}%,guest_email.ilike.%${s}%,guest_phone.ilike.%${s.replace(/[^0-9+]/g, '')}%,listing_nickname.ilike.%${s}%`
-    );
+    // Build the OR clauses dynamically so we don't accidentally match
+    // every row. The pre-fix bug: searching "hady family" stripped to ''
+    // for the phone clause → `guest_phone.ilike.%%` matched all 873
+    // conversations with a phone, drowning the actual "Hady Family"
+    // guest_full_name match at rank 68 (page 2 of 50). Now the phone
+    // clause is only added when the digits-stripped string is non-empty,
+    // and we also search building_code + tags-as-text so common labels
+    // ("Hady Family", "BH-26", etc.) work too.
+    const phoneDigits = s.replace(/[^0-9+]/g, '');
+    const orClauses = [
+      `guest_full_name.ilike.%${s}%`,
+      `guest_email.ilike.%${s}%`,
+      `listing_nickname.ilike.%${s}%`,
+      `building_code.ilike.%${s}%`,
+    ];
+    if (phoneDigits.length >= 3) {
+      // Min 3 digits to avoid `%5%` matching every phone with a 5 in it.
+      orClauses.push(`guest_phone.ilike.%${phoneDigits}%`);
+    }
+    q = q.or(orClauses.join(','));
   }
   if (f.building) q = q.eq('building_code', f.building);
   if (f.source) q = q.eq('source', f.source);
@@ -197,10 +222,20 @@ export async function listInbox(opts: {
       // is_unanswered=true (guest replied last) at the top, then by
       // recent activity within each group. Generated column added in
       // migration 0059; partial index backs the open + active scope.
+      //
+      // Audit fix H-C4: was sorting unanswered branch by
+      // `modified_at_external desc` first — but Guesty's sync re-bumps
+      // modified_at_external on ANY conversation update (rename,
+      // re-sync, reservation status flip), so freshly-bumped
+      // older-inbound conversations rose above truly-fresh
+      // newer-inbound ones inside the same `is_unanswered=true` group.
+      // Switched the tiebreaker to `last_inbound_at desc` which is the
+      // signal the operator actually cares about — recent guest
+      // activity surfaces first.
       q = q
         .order('is_unanswered', { ascending: false, nullsFirst: false })
-        .order('modified_at_external', { ascending: false, nullsFirst: false })
-        .order('last_inbound_at', { ascending: false, nullsFirst: false });
+        .order('last_inbound_at', { ascending: false, nullsFirst: false })
+        .order('modified_at_external', { ascending: false, nullsFirst: false });
   }
   q = q.range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -230,6 +265,17 @@ export type ThreadMessage = {
   ai_used_for_auto_send: boolean;
   sent_at: string | null;
   created_at: string;
+  // Audit fix H-C7 (mig 0075) — guest-side edit/delete propagation.
+  edited_at: string | null;
+  deleted_at: string | null;
+  // Audit fix M-14 (mig 0076) — reply-to threading.
+  reply_to_message_id: string | null;
+  // 2026-05 (mig 0079) — cached English translation of the body for
+  // non-EN/AR inbound messages. Auto-filled by loadThread() when the
+  // thread is opened; null = either not translated yet, English, or
+  // Arabic. translation_lang holds the detected ISO 639-1 source code.
+  translation_en: string | null;
+  translation_lang: string | null;
 };
 
 export type ThreadHeader = InboxRow & {
@@ -314,7 +360,11 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
     sb
       .from('beithady_messages')
       .select(
-        'id, channel, external_id, direction, module_type, module_subject, body, is_automatic, from_full_name, from_type, template_name, attachments, ai_classification, ai_used_for_auto_send, sent_at, created_at'
+        // Audit fix H-C7 + M-14: also load edited_at, deleted_at,
+        // edit_history, reply_to_message_id so the thread renderer
+        // can show the "edited" tag, "[deleted]" placeholder, and
+        // future "↳ replying to" snippet.
+        'id, channel, external_id, direction, module_type, module_subject, body, is_automatic, from_full_name, from_type, template_name, attachments, ai_classification, ai_used_for_auto_send, sent_at, created_at, edited_at, deleted_at, reply_to_message_id, translation_en, translation_lang'
       )
       .eq('conversation_id', conversationId)
       .order('sent_at', { ascending: true, nullsFirst: false })
@@ -343,6 +393,42 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
       .limit(50),
   ]);
 
+  // 2026-05 (mig 0079) — auto-translate any inbound non-EN/AR messages
+  // that don't have a cached translation yet. Runs in the same render
+  // pass so the agent sees English text on first load. Capped at 8
+  // parallel Haiku calls per chunk; ~$0.001/message. We re-read the
+  // affected rows below so the freshly-cached translation_en surfaces
+  // without an extra revalidate.
+  const messagesPre = (msgsRes.data as ThreadMessage[] | null) || [];
+  const pendingIds = messagesPre
+    .filter(m =>
+      m.direction === 'inbound' &&
+      !m.translation_en &&
+      looksTranslatable(m.body),
+    )
+    .map(m => m.id);
+  let messages = messagesPre;
+  if (pendingIds.length > 0) {
+    try {
+      await translateMessagesBatch(pendingIds);
+      const { data: refreshed } = await sb
+        .from('beithady_messages')
+        .select('id, translation_en, translation_lang')
+        .in('id', pendingIds);
+      const tMap = new Map(
+        ((refreshed as Array<{ id: string; translation_en: string | null; translation_lang: string | null }> | null) || [])
+          .map(r => [r.id, r]),
+      );
+      messages = messagesPre.map(m => {
+        const t = tMap.get(m.id);
+        return t ? { ...m, translation_en: t.translation_en, translation_lang: t.translation_lang } : m;
+      });
+    } catch {
+      // Translation failures shouldn't break the thread render; user
+      // sees the original message, can still send a reply.
+    }
+  }
+
   type NoteRow = {
     id: string;
     author_user_id: string;
@@ -364,7 +450,7 @@ export async function loadThread(conversationId: string): Promise<ThreadBundle |
 
   return {
     header,
-    messages: (msgsRes.data as ThreadMessage[] | null) || [],
+    messages,
     reservation: (resRes.data as ThreadReservation | null) || null,
     guestStats: (guestRes.data as ThreadGuestStats | null) || null,
     notes,

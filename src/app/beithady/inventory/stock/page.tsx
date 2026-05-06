@@ -46,7 +46,9 @@ export default async function InventoryStockPage({
         const itemTotal = balances
           .filter(b => b.item_id === r.item_id)
           .reduce((s, b) => s + b.qty_on_hand, 0);
-        if (itemTotal < r.item_min_qty && itemTotal > 0) acc.push(r.item_id);
+        // Audit fix H6: was `<`. "Low stock but not stockout" — item at
+        // min_qty counts as low; the `> 0` keeps stockouts in their own KPI.
+        if (itemTotal <= r.item_min_qty && itemTotal > 0) acc.push(r.item_id);
         return acc;
       }, [] as string[]),
   ).size;
@@ -187,7 +189,7 @@ export default async function InventoryStockPage({
                       <td className="px-3 py-2 text-right tabular-nums">
                         <span className={
                           b.qty_on_hand === 0 ? 'text-slate-400' :
-                          b.qty_on_hand < b.item_min_qty ? 'text-amber-700 font-semibold' : ''
+                          b.qty_on_hand <= b.item_min_qty ? 'text-amber-700 font-semibold' : ''
                         }>
                           {b.qty_on_hand.toLocaleString('en-US', { maximumFractionDigits: 1 })} {b.item_uom}
                         </span>

@@ -6,6 +6,7 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { supabaseAdmin } from '@/lib/supabase';
 import { listConsumptionRules } from '@/lib/beithady/inventory/rules';
+import { resolveUnitCostEgp } from '@/lib/beithady/inventory/unit-cost';
 import { CostCalculatorWidget } from './_components/cost-calculator-widget';
 
 export const dynamic = 'force-dynamic';
@@ -25,18 +26,28 @@ export default async function InventoryDashboardPage() {
     itemTotals.set(r.item_id, (itemTotals.get(r.item_id) || 0) + Number(r.qty_on_hand || 0));
   }
 
+  // Loads all four cost fields so resolveUnitCostEgp can apply the
+  // canonical preference (amazon → avg → last → default) for the reorder
+  // valuation column below.
   const { data: items } = await sb
     .from('beithady_inventory_items')
-    .select('id, sku, name_en, min_qty, reorder_qty, uom, default_cost_egp')
+    .select('id, sku, name_en, min_qty, reorder_qty, uom, default_cost_egp, avg_cost_egp, last_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size')
     .eq('active', true);
   const allItems = (items as Array<{
     id: string; sku: string; name_en: string; min_qty: number; reorder_qty: number | null;
-    uom: string; default_cost_egp: number;
+    uom: string;
+    default_cost_egp: number;
+    avg_cost_egp: number;
+    last_cost_egp: number | null;
+    amazon_eg_price_egp: number | null;
+    amazon_eg_pack_size: number | null;
   }> | null) || [];
 
+  // Audit fix H6: was `<`. Items exactly at min_qty are operationally at
+  // the reorder floor and should appear in the alerts list.
   const lowStockItems = allItems
     .map(it => ({ ...it, on_hand: itemTotals.get(it.id) || 0 }))
-    .filter(it => it.on_hand < Number(it.min_qty || 0))
+    .filter(it => it.on_hand <= Number(it.min_qty || 0))
     .sort((a, b) => a.on_hand - b.on_hand);
   const stockoutCount = lowStockItems.filter(it => it.on_hand === 0).length;
 
@@ -144,7 +155,9 @@ export default async function InventoryDashboardPage() {
               <tbody>
                 {lowStockItems.slice(0, 30).map(it => {
                   const reorderQty = it.reorder_qty || (Number(it.min_qty) - it.on_hand);
-                  const cost = reorderQty * Number(it.default_cost_egp);
+                  // Audit fix C9: was raw `default_cost_egp`. Now uses the
+                  // canonical preference order (amazon → avg → last → default).
+                  const cost = reorderQty * resolveUnitCostEgp(it).unitCostEgp;
                   return (
                     <tr key={it.id} className={`border-t border-slate-100 ${it.on_hand === 0 ? 'bg-rose-50/30' : ''}`}>
                       <td className="px-3 py-2">

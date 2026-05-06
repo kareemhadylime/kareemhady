@@ -39,12 +39,20 @@ export type ConsumptionRule = {
   notes: string | null;
   created_by_user: string | null;
   created_at: string;
+  // M.16 — base-unit semantics. When set together with item.pack_volume_*,
+  // estimator computes units-per-trigger via UoM conversion. Null = legacy.
+  consumes_volume_value: number | null;
+  consumes_volume_uom: string | null;
 };
 
 export type ConsumptionRuleListRow = ConsumptionRule & {
   item_sku: string;
   item_name_en: string;
   item_uom: string;
+  /** Item's pack_volume_value — surfaced on the rule list for context. */
+  item_pack_volume_value: number | null;
+  /** Item's pack_volume_uom — surfaced on the rule list for context. */
+  item_pack_volume_uom: string | null;
 };
 
 export type CostSample = {

@@ -31,7 +31,19 @@ export type BuildingBucket = {
   check_outs_today: number;
   turnovers_today: number;         // same-unit checkout + checkin same day
   // ---- MTD performance ----
-  revenue_mtd_usd: number;         // sum host_payout for reservations touching this month
+  // Two revenue lines, per user request 2026-05-05:
+  //   revenue_mtd_usd       = host_payout for reservations whose CHECK-IN
+  //                           is in this calendar month (Guesty Homepage
+  //                           parity / "money earned via stays starting
+  //                           this month")
+  //   revenue_created_mtd_usd = host_payout for reservations CREATED in
+  //                           this calendar month (Guesty Analytics →
+  //                           General Overview default filter / "how
+  //                           much we booked this month")
+  // Both shown side-by-side in the report so the methodology of each
+  // is explicit and the user can sanity-check against Guesty UI.
+  revenue_mtd_usd: number;
+  revenue_created_mtd_usd: number;
   forward_occupancy_pct: number;   // today → end of month, on-the-books
   backward_occupancy_pct: number;  // start-of-month → today, classic %
   backward_avg_units_per_day: number; // user's literal formula: nights/days_elapsed
@@ -254,6 +266,22 @@ export type DailyReportPayload = {
 
   /** v3 — Pricing intelligence (PriceLabs comp-set comparison). null if endpoint absent. */
   pricing_intelligence?: PricingIntelligenceSectionV3 | null;
+
+  /** v4 — Performance Dashboard derivatives (Phase 3 of dashboard plan). */
+  revpar?: RevparBucket | null;
+  revenue_concentration?: RevenueConcentrationSection | null;
+  forward_occupancy?: ForwardOccupancyRow[] | null;
+  occupancy_gaps?: OccupancyGapNight[] | null;
+  cancel_risk?: CancelRiskSection | null;
+  revenue_waterfall?: RevenueWaterfallSection | null;
+  stly?: StlyComparison;
+  top_movers?: TopMover[] | null;
+  sparklines?: SparklinesSection | null;
+  goal?: GoalSection;
+
+  /** v5 — AI-derived (Phase 5). */
+  insights?: AIInsight[] | null;
+  review_topics?: ReviewTopicsSection | null;
 };
 
 export type PricingIntelligenceRowV3 = {
@@ -285,4 +313,118 @@ export type PricingIntelligenceSectionV3 = {
     insufficient_groups: number;
     daily_revenue_gap_usd: number;
   };
+};
+
+// ============================================================================
+// v4 — Performance Dashboard derivatives (Phase 3 of Performance Dashboard plan)
+// All optional. Builders that fail return null/empty so the dashboard can render
+// graceful fallbacks. AI-derived fields land in v5 (Phase 5).
+// ============================================================================
+
+export type RevparBucket = {
+  all: number;
+  by_building: Record<BuildingCode, number>;
+};
+
+export type ConcentrationRow = {
+  key: string;          // building code or channel name
+  revenue_usd: number;
+  pct_of_total: number; // 0..100
+};
+
+export type RevenueConcentrationSection = {
+  by_building: ConcentrationRow[];   // sorted DESC by revenue
+  by_channel: ConcentrationRow[];    // sorted DESC by revenue
+  top3_building_pct: number;         // sum of top 3 buildings' pct
+  top1_channel_pct: number;          // largest channel's pct (concentration risk)
+};
+
+export type ForwardOccupancyRow = {
+  building: BuildingCode;
+  d7_pct: number;
+  d30_pct: number;
+  d60_pct: number;
+};
+
+export type OccupancyGapNight = {
+  date: string;             // YYYY-MM-DD
+  building: BuildingCode;
+  unit: string | null;
+  occupancy_pct: number;    // 0..100 — only emitted when <50
+  current_price_usd: number | null;
+  market_median_usd: number | null;
+};
+
+export type CancelRiskSection = {
+  count: number;
+  value_at_risk_usd: number;
+  reservations: Array<{
+    code: string | null;
+    unit: string;
+    guest: string | null;
+    check_in: string | null;
+    score: number;
+    value_usd: number;
+  }>;
+};
+
+export type RevenueWaterfallSection = {
+  gross_usd: number;
+  channel_fees_usd: number;
+  taxes_usd: number;
+  net_usd: number;
+};
+
+export type StlyComparison = {
+  current_mtd_revenue_usd: number;
+  prior_mtd_revenue_usd: number;
+  delta_pct: number;
+  current_mtd_occupancy_pct: number;
+  prior_mtd_occupancy_pct: number;
+  delta_pp: number;
+} | null;
+
+export type TopMover = {
+  scope: 'building' | 'channel' | 'pace';
+  key: string;                   // e.g. 'BH-26' or 'Airbnb' or 'overall'
+  metric: string;                // 'occupancy_pct' | 'adr' | 'revenue' | 'pickup'
+  delta: number;                 // raw delta in metric's natural unit
+  delta_unit: '%' | 'pp' | '$' | 'pct'; // pp = percentage points, % = percent change
+  prior_value: number;
+  current_value: number;
+  one_liner: string;             // human-readable single line for ribbon display
+};
+
+export type HeroKpiId = 'occupancy' | 'mtd_revenue' | 'revpar' | 'pace' | 'reviews_avg' | 'response_time';
+export type SparklinesSection = Record<HeroKpiId, number[]>;
+
+export type GoalSection = {
+  monthly_revenue_target_usd: number;
+  current_mtd_usd: number;
+  pct_of_target: number;
+  days_remaining: number;
+  projected_eom_usd: number;
+} | null;
+
+// ============================================================================
+// v5 — AI-derived (Phase 5 of Performance Dashboard plan). Optional. Builders
+// fail soft when ANTHROPIC_API_KEY is missing or the API errors.
+// ============================================================================
+
+export type AIInsight = {
+  /** Severity tier — used by the panel to color-code bullets. */
+  tone: 'positive' | 'neutral' | 'warning';
+  /** Concise narrative bullet (under 30 words). */
+  text: string;
+};
+
+export type ReviewTopicCount = {
+  topic: string;     // e.g. "cleanliness" / "staff" / "noise"
+  count: number;
+  example: string | null;
+};
+
+export type ReviewTopicsSection = {
+  praised: ReviewTopicCount[];
+  complained: ReviewTopicCount[];
 };

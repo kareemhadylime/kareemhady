@@ -1,12 +1,15 @@
 import Link from 'next/link';
-import { BedDouble, Image as ImageIcon, Video, FileText, Megaphone } from 'lucide-react';
+import { BedDouble, Image as ImageIcon, Video, FileText, Megaphone, Layers } from 'lucide-react';
 import type { UnitFolder } from '@/lib/beithady/gallery/gallery-list';
 
 // Visual unit folder card — used on the building page. Cover thumbnail
-// (most-recent photo) + nickname + counts breakdown.
+// (most-recent photo) + nickname + counts breakdown. When the folder
+// represents a unit template, shows a "shared across N units" badge.
 
 export function UnitFolderCard({ folder, baseHref }: { folder: UnitFolder; baseHref: string }) {
   const empty = folder.total === 0;
+  const isTemplate = !!folder.unit_template_id && folder.member_listing_ids.length > 1;
+  const memberCount = folder.member_listing_ids.length;
   return (
     <Link
       href={`${baseHref}/${folder.listing_id}`}
@@ -29,6 +32,11 @@ export function UnitFolderCard({ folder, baseHref }: { folder: UnitFolder; baseH
         {empty && (
           <span className="absolute top-2 right-2 text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">
             Empty
+          </span>
+        )}
+        {isTemplate && (
+          <span className="absolute bottom-2 left-2 text-[9px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 inline-flex items-center gap-1">
+            <Layers size={9} /> shared · {memberCount} units
           </span>
         )}
         {folder.ad_eligible > 0 && (

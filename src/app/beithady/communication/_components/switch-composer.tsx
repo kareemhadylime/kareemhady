@@ -69,8 +69,17 @@ export function SwitchComposer({
   // attachments + media. We don't see attachments here yet (the
   // template picker isn't wired into the cross-channel composer),
   // but warn when channel doesn't support them and body looks like
-  // a copy-paste template (heuristic: ends with `]` or contains `{`).
-  const templateLike = body.includes('{') || body.includes('}}') || body.includes('[[');
+  // a placeholder-substituted template.
+  //
+  // Audit fix H-A14: previously matched on plain `{` / `}}` / `[[`
+  // characters anywhere in the body — false-positive on guests asking
+  // about JSON syntax, code snippets, schedule notations like
+  // "{building}", etc. Tightened to require BOTH an opening AND a
+  // closing token of the same kind, implying a real placeholder pair.
+  const hasCurly = /\{[a-z_][\w.-]*\}/i.test(body);
+  const hasMustache = /\{\{[\s\S]+?\}\}/.test(body);
+  const hasSquare = /\[\[[\s\S]+?\]\]/.test(body);
+  const templateLike = hasCurly || hasMustache || hasSquare;
   const showAttachmentDropWarning = templateLike && !hasAttachmentSupport;
 
   return (

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Wallet, AlertTriangle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { computeBalance } from '@/lib/boat-rental/payment-balance';
 import { cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
@@ -45,13 +45,16 @@ function daysBetween(fromIso: string, toIso: string): number {
 export default async function OwnerBillsPage() {
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
 
   const today = cairoTodayStr();
 
-  const boatsRes = ownerIds.length
-    ? await sb.from('boat_rental_boats').select('id').in('owner_id', ownerIds)
-    : { data: [] as Array<{ id: string }> };
+  const boatsRes = isAdmin
+    ? await sb.from('boat_rental_boats').select('id')
+    : ownerIds.length
+      ? await sb.from('boat_rental_boats').select('id').in('owner_id', ownerIds)
+      : { data: [] as Array<{ id: string }> };
   const boatIds = ((boatsRes.data as Array<{ id: string }> | null) || []).map((b) => b.id);
 
   let rows: BillRow[] = [];

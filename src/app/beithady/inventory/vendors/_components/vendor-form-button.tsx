@@ -75,6 +75,17 @@ export function VendorFormButton({
     setForm(f => ({ ...f, [k]: v }));
   }
 
+  // useState(initial) only captures props on the FIRST mount. Re-sync on
+  // open so the modal always reflects the latest `existing` row data
+  // (e.g. after vendor-actions-dropdown's approveVendorAction or
+  // suspendVendorAction mutated the row from another tab/session).
+  // Mirrors the fix in item-form-button.tsx.
+  function openModal() {
+    setForm(initial);
+    setError(null);
+    setOpen(true);
+  }
+
   function toggleCategory(code: string) {
     setForm(f => ({
       ...f,
@@ -98,7 +109,7 @@ export function VendorFormButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={triggerClass}>
+      <button type="button" onClick={openModal} className={triggerClass}>
         {triggerLabel}
       </button>
       {open && (

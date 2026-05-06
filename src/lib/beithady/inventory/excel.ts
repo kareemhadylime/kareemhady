@@ -121,7 +121,9 @@ export type ParsedItemRow = {
     max_qty: number | null;
     reorder_qty: number | null;
     default_cost_egp: number;
-    currency: 'EGP' | 'USD';
+    // Audit fix C5: USD removed; see inventory/items/actions.ts and
+    // INVENTORY_AUDIT_2026_05_02.md.
+    currency: 'EGP';
     batch_tracked: boolean;
     expiry_tracked: boolean;
     owner_billable: boolean;
@@ -217,8 +219,12 @@ export async function parseItemTemplate(
     const default_cost_egp = parseNumOrNull(raw.default_cost_egp) ?? 0;
     if (default_cost_egp < 0) errors.push('Cost cannot be negative');
 
+    // Audit fix C5: only EGP accepted now. Coerces blank → EGP for
+    // backwards compat with old templates; USD rows now error out
+    // (previously they round-tripped silently and were treated as EGP
+    // everywhere downstream, ~50× under-pricing).
     const currency = String(raw.currency || 'EGP').trim().toUpperCase();
-    if (currency !== 'EGP' && currency !== 'USD') errors.push(`Currency must be EGP or USD (got ${currency})`);
+    if (currency !== 'EGP') errors.push(`Currency must be EGP (got ${currency}) — USD support removed`);
 
     const min_qty = parseNumOrNull(raw.min_qty) ?? 0;
     const max_qty = parseNumOrNull(raw.max_qty);
@@ -239,7 +245,7 @@ export async function parseItemTemplate(
           max_qty,
           reorder_qty,
           default_cost_egp,
-          currency: currency as 'EGP' | 'USD',
+          currency: 'EGP' as const,
           batch_tracked: parseBool(raw.batch_tracked),
           expiry_tracked: parseBool(raw.expiry_tracked),
           owner_billable: parseBool(raw.owner_billable),

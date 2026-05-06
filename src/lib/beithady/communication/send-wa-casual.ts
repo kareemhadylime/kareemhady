@@ -19,6 +19,13 @@ export type SendWaCasualArgs = {
   // Phase C.5 follow-up — 'manual' (default) gates on the manual kill
   // switch; 'automatic' bypasses (caller gates via isAutomationPaused).
   mode?: 'manual' | 'automatic';
+  // Audit fix H-C3: cross-channel switch metadata. See send-guesty.ts.
+  wasChannelSwitched?: boolean;
+  originalThreadChannel?: string | null;
+  // Audit fix M-14: reply-to anchor for thread render. Stored in
+  // our row; provider-side threading via Green-API quotedMessageId
+  // lands when the UI surfaces per-message reply.
+  replyToMessageId?: string | null;
 };
 
 export type SendWaCasualResult =
@@ -56,6 +63,22 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
   if (c.channel !== 'wa_casual') return { ok: false, status: 400, error: 'wrong_channel' };
 
   const phone = c.external_id.replace(/[^0-9]/g, '');
+
+  // Audit fix H-D8: re-check kill switch immediately before the
+  // network call (parity with send-guesty.ts). Pre-fix the gap
+  // between the entry-time check and the actual provider POST let
+  // in-flight messages through after the switch was flipped.
+  if (mode === 'manual' && (await isManualOutboundPaused())) {
+    await recordAudit({
+      actor_user_id: args.agentUserId,
+      module: 'communication',
+      action: 'send_wa_casual_blocked_killswitch_late',
+      target_type: 'conversation',
+      target_id: c.id,
+      metadata: { reason: 'killswitch_flipped_during_send', body_length: args.body.length },
+    });
+    return { ok: false, status: 503, error: 'manual_outbound_paused' };
+  }
 
   let providerResult;
   if (args.fileUrl) {
@@ -100,9 +123,17 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
       mimeType: args.fileMime,
     });
   }
-  const { data: ins } = await sb
+  // Audit fix H-D7: was discarding `error` from the destructure, so a
+  // Green-API success + local insert failure (RLS, schema drift,
+  // network hiccup) returned `messageId: ''` to the caller — operator
+  // saw "send failed" UI and clicked retry, guest got two messages.
+  // Now: capture + log + audit so the caller can decide.
+  // Also switched to upsert on (channel, external_id) so a webhook
+  // echo arriving first doesn't 23505 the local insert (parity with
+  // send-guesty fix C-D5).
+  const { data: ins, error: insErr } = await sb
     .from('beithady_messages')
-    .insert({
+    .upsert({
       channel: 'wa_casual',
       external_id: providerResult.providerMessageId,
       conversation_id: c.id,
@@ -120,9 +151,18 @@ export async function sendWaCasualMessage(args: SendWaCasualArgs): Promise<SendW
       delivery_status: 'sent',
       raw: { providerMessageId: providerResult.providerMessageId, fileUrl: args.fileUrl, fileName: args.fileName },
       sent_at: sentAtIso,
-    })
+      // Audit fix H-C3: write atomically.
+      was_channel_switched: !!args.wasChannelSwitched,
+      original_thread_channel: args.originalThreadChannel ?? null,
+      // Audit fix M-14.
+      reply_to_message_id: args.replyToMessageId ?? null,
+    }, { onConflict: 'channel,external_id', ignoreDuplicates: false })
     .select('id')
     .single();
+  if (insErr) {
+    // eslint-disable-next-line no-console
+    console.warn('[send-wa-casual] beithady_messages upsert failed:', insErr.message);
+  }
 
   await sb
     .from('beithady_conversations')

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Loader2, Upload } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Loader2, Upload, CheckSquare, Square } from 'lucide-react';
 
 // Phase Q.3 — listing library picker. 2-step modal:
 //   1. Pick building (4 cards)
@@ -11,7 +11,13 @@ import { ChevronLeft, ChevronRight, X, Image as ImageIcon, Loader2, Upload } fro
 export type LibraryAttachment = { url: string; name: string; mime: string };
 
 type Listing = { listing_id: string; nickname: string | null; asset_count: number };
-type Asset = { id: string; public_url: string; caption: string | null; mime_type: string | null };
+type Asset = {
+  id: string;
+  public_url: string;        // full-res signed URL — used in send payload
+  thumbnail_url?: string;    // 400px transformed signed URL — used in picker grid
+  caption: string | null;
+  mime_type: string | null;
+};
 
 const STEPS = ['building', 'listing', 'photos'] as const;
 type Step = typeof STEPS[number];
@@ -69,6 +75,15 @@ export function LibraryPicker({
       .finally(() => setLoading(false));
   }, [step, listingId]);
 
+  // Audit fix H-A15 / H-E4: reset `selected` when the listing changes.
+  // Pre-fix, picking photos in listing A then forward-navigating to
+  // listing B preserved the listing-A IDs in the Set — which silently
+  // disappeared from the count because the new `assets` query returned
+  // a different ID set. Operator's selection vanished.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [listingId]);
+
   const selectedAssets = useMemo(
     () => assets.filter(a => selected.has(a.id)),
     [assets, selected],
@@ -79,6 +94,24 @@ export function LibraryPicker({
     if (next.has(id)) next.delete(id);
     else if (next.size < maxToAdd) next.add(id);
     setSelected(next);
+  };
+
+  // "Select all" toggle. The selection is considered "full" when we've
+  // hit either the cap (maxToAdd) or every visible asset, whichever is
+  // smaller — when the album has 42 photos and the cap is 30, picking
+  // 30 is "full" even though 12 unpicked items remain. Pre-fix the
+  // toggle used `every(asset.id in selected)` which only flipped to
+  // "deselect" when all 42 were selected (impossible with the 30-cap),
+  // so the button was effectively select-only.
+  const selectionIsFull =
+    selected.size > 0 && selected.size >= Math.min(assets.length, maxToAdd);
+  const selectAll = () => {
+    if (selectionIsFull) {
+      setSelected(new Set());
+    } else {
+      const visibleIds = assets.map(a => a.id);
+      setSelected(new Set(visibleIds.slice(0, maxToAdd)));
+    }
   };
 
   const confirm = () => {
@@ -93,8 +126,8 @@ export function LibraryPicker({
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm">
+        <div className="border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm flex-wrap">
             {step !== 'building' && (
               <button
                 type="button"
@@ -103,23 +136,71 @@ export function LibraryPicker({
                   else setStep('building');
                   setSelected(new Set());
                 }}
-                className="text-slate-500 hover:text-slate-700"
+                className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
+                title={step === 'photos' ? 'Back to units' : 'Back to buildings'}
               >
                 <ChevronLeft size={16} />
               </button>
             )}
             <span className="font-semibold">Listing Library</span>
             <span className="text-slate-400">·</span>
-            <span className="text-slate-500 text-xs">
-              {step === 'building' && 'Choose a building'}
-              {step === 'listing' && building}
-              {step === 'photos' && `${building} · ${listings.find(l => l.listing_id === listingId)?.nickname || ''}`}
-            </span>
+            {step === 'building' && (
+              <span className="text-slate-500 text-xs">Choose a building</span>
+            )}
+            {step === 'listing' && (
+              // Building name as a link → go back to building picker.
+              <button
+                type="button"
+                onClick={() => { setStep('building'); setSelected(new Set()); }}
+                className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                title="Switch to another building"
+              >
+                {building}
+              </button>
+            )}
+            {step === 'photos' && (
+              // Both segments clickable: building → step 1, unit → step 2.
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setStep('building'); setSelected(new Set()); }}
+                  className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                  title="Switch to another building"
+                >
+                  {building}
+                </button>
+                <span className="text-slate-400 text-xs">·</span>
+                <button
+                  type="button"
+                  onClick={() => { setStep('listing'); setSelected(new Set()); }}
+                  className="text-xs font-medium text-violet-700 dark:text-violet-300 hover:underline"
+                  title="Switch to another unit"
+                >
+                  {listings.find(l => l.listing_id === listingId)?.nickname || ''}
+                </button>
+              </>
+            )}
           </div>
-          <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-600 shrink-0">
             <X size={16} />
           </button>
         </div>
+
+        {/* Hint — when the picker opened defaulted to the reservation's
+            building. Lets the agent know they can switch if they need
+            photos of another building (e.g. up-selling a different unit). */}
+        {step !== 'building' && buildingCode && (
+          <div className="px-3 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between gap-2">
+            <span>Defaulted to <strong>{buildingCode}</strong> from this guest&rsquo;s reservation.</span>
+            <button
+              type="button"
+              onClick={() => { setStep('building'); setSelected(new Set()); }}
+              className="text-violet-700 dark:text-violet-300 hover:underline font-medium shrink-0"
+            >
+              Change building →
+            </button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-3">
           {loading && (
@@ -178,7 +259,28 @@ export function LibraryPicker({
             assets.length === 0 ? (
               <EmptyHint message="No photos uploaded for this unit yet." />
             ) : (
-              <div className="grid grid-cols-3 gap-2">
+              <>
+                {/* Select-all toolbar — one click picks the whole album
+                    up to maxToAdd, or clears the selection if it's at
+                    the cap (or all assets are already picked, whichever
+                    is smaller). */}
+                <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950 px-2 py-1 rounded transition"
+                  >
+                    {selectionIsFull ? (
+                      <><Square size={12} /> Deselect all ({selected.size})</>
+                    ) : (
+                      <><CheckSquare size={12} /> Select all{assets.length > maxToAdd ? ` (${maxToAdd} max)` : ` (${assets.length})`}</>
+                    )}
+                  </button>
+                  <span className="text-[11px] text-slate-500">
+                    {assets.length} photo{assets.length === 1 ? '' : 's'} in this album
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
                 {assets.map(a => {
                   const isImg = (a.mime_type || '').startsWith('image/');
                   const sel = selected.has(a.id);
@@ -194,7 +296,12 @@ export function LibraryPicker({
                     >
                       {isImg ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={a.public_url} alt={a.caption || 'asset'} className="w-full h-full object-cover" />
+                        <img
+                          src={a.thumbnail_url || a.public_url}
+                          alt={a.caption || 'asset'}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                       ) : (
                         <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs text-slate-500">
                           {a.mime_type || 'file'}
@@ -208,7 +315,8 @@ export function LibraryPicker({
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )
           )}
         </div>

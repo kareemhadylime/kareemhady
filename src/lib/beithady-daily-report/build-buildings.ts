@@ -1,7 +1,7 @@
 import 'server-only';
 import { addDays, dayDiff, type MonthRange } from './cairo-dates';
 import { nightsInRange, type ReservationRow } from './reservations';
-import type { AllInventories } from './units';
+import { isExcludedFromReport, type AllInventories } from './units';
 import {
   BUILDING_CODES,
   type AllBucket,
@@ -27,6 +27,7 @@ function emptyBucket(total_units: number): BuildingBucket {
     check_outs_today: 0,
     turnovers_today: 0,
     revenue_mtd_usd: 0,
+    revenue_created_mtd_usd: 0,
     forward_occupancy_pct: 0,
     backward_occupancy_pct: 0,
     backward_avg_units_per_day: 0,
@@ -48,7 +49,8 @@ type Accumulator = {
   checkin_listings: Set<string>;
   checkout_listings: Set<string>;
   // MTD
-  revenue_usd: number;
+  revenue_usd: number;                      // host_payout, check-in attribution (Guesty Homepage)
+  revenue_created_mtd_usd: number;          // host_payout for reservations CREATED in month (Guesty Analytics parity)
   nights_mtd: number;                       // nights between [start, today]
   forward_nights_booked: number;            // nights between (today, end]
   backward_nights_started_in_month: number; // user's literal-formula numerator
@@ -70,6 +72,7 @@ function emptyAcc(): Accumulator {
     checkin_listings: new Set(),
     checkout_listings: new Set(),
     revenue_usd: 0,
+    revenue_created_mtd_usd: 0,
     nights_mtd: 0,
     forward_nights_booked: 0,
     backward_nights_started_in_month: 0,
@@ -129,7 +132,15 @@ export function buildBuildingsTable(
 
   const prior = priorMonthWindow(today);
 
+  // Per user's standing rule (2026-04-30 / 2026-05-04): UAE units (BH-DXB)
+  // are EXCLUDED from every report aggregation. Build a set of physical
+  // listing IDs to allow-list reservations against — anything not in
+  // this set (= UAE) is skipped entirely.
+  const allowedListingIds = new Set(inventories.physical_listing_ids_all);
+
   for (const r of active) {
+    // Drop UAE / non-physical reservations before they touch any acc.
+    if (r.listing_id && !allowedListingIds.has(r.listing_id)) continue;
     const acc = accs.get(r.building) || emptyAcc();
 
     // ---- Today ----
@@ -159,16 +170,23 @@ export function buildBuildingsTable(
       }
     }
 
-    // ---- MTD revenue + nights ----
+    // ---- Month revenue (check-in attribution, Guesty parity) ----
+    //
+    // FIXED 2026-05-04 per user: previously this allocated revenue
+    // proportionally to nights-in-month (an accrual view). That gave
+    // $22,934 for May while Guesty's "This Month" tile showed $16,340
+    // because Guesty credits the FULL reservation revenue to the month
+    // its check-in date falls in. Switched to that methodology so the
+    // daily-report's revenue line matches the Guesty UI exactly.
+    //
+    // A reservation whose check-in is in this calendar month → full
+    // host_payout counts here. Otherwise → 0 contribution to this
+    // month's revenue. Reservations spanning month boundaries: their
+    // revenue lands in the check-in month only.
     const usd = r.host_payout_usd || 0;
     const totalNights = r.nights || 0;
     const nightsThisMonth = nightsInRange(r, monthStart, monthEnd);
-    if (nightsThisMonth > 0 && totalNights > 0) {
-      // Revenue allocated proportionally to the month-overlap nights.
-      const allocated = (usd * nightsThisMonth) / totalNights;
-      acc.revenue_usd += allocated;
-      accAll.revenue_usd += allocated;
-    } else if (nightsThisMonth > 0 && totalNights === 0) {
+    if (r.check_in_date && r.check_in_date >= monthStart && r.check_in_date <= monthEnd) {
       acc.revenue_usd += usd;
       accAll.revenue_usd += usd;
     }
@@ -194,6 +212,13 @@ export function buildBuildingsTable(
     if (isInIsoRange(r.created_at_iso, monthStart, today)) {
       acc.bookings_created_mtd += 1;
       accAll.bookings_created_mtd += 1;
+      // Revenue (Guesty Analytics parity): host_payout for reservations
+      // CREATED this month, not check-in this month. Matches the
+      // "Date (Reservation Created): This Month" filter that Guesty
+      // Analytics → General Overview applies by default. User asked
+      // for both methodologies side-by-side (2026-05-05).
+      acc.revenue_created_mtd_usd += usd;
+      accAll.revenue_created_mtd_usd += usd;
       // Lead time: created → check-in
       if (r.created_at_iso && r.check_in_date) {
         const leadDays = Math.max(0, dayDiff(r.created_at_iso.slice(0, 10), r.check_in_date));
@@ -251,6 +276,7 @@ export function buildBuildingsTable(
       check_outs_today: acc.check_outs,
       turnovers_today: turnovers,
       revenue_mtd_usd: round2(acc.revenue_usd),
+      revenue_created_mtd_usd: round2(acc.revenue_created_mtd_usd),
       forward_occupancy_pct: pct(acc.forward_nights_booked, fwd_avail),
       backward_occupancy_pct: pct(acc.nights_mtd, ctx.days_elapsed * units),
       backward_avg_units_per_day:
@@ -317,6 +343,7 @@ export function buildBuildingsTable(
     check_outs_today: accAll.check_outs,
     turnovers_today: turnoversAll,
     revenue_mtd_usd: round2(accAll.revenue_usd),
+    revenue_created_mtd_usd: round2(accAll.revenue_created_mtd_usd),
     forward_occupancy_pct: pct(accAll.forward_nights_booked, fwd_avail_all),
     backward_occupancy_pct: pct(accAll.nights_mtd, ctx.days_elapsed * totalUnits),
     backward_avg_units_per_day:

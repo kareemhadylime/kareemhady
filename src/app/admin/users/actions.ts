@@ -1,9 +1,11 @@
 'use server';
 
+import crypto from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { hashPassword, getCurrentUser } from '@/lib/auth';
 import { DOMAINS } from '@/lib/rules/presets';
+import { sendWhatsApp, isGreenApiPhoneValid } from '@/lib/whatsapp/green-api';
 
 async function requireAdmin() {
   const me = await getCurrentUser();
@@ -123,4 +125,169 @@ export async function setDomainRolesAction(formData: FormData) {
     );
   }
   revalidatePath('/admin/users');
+}
+
+// ---- State-returning variants ----
+// React 19's `useActionState` requires actions of shape
+// `(prev, formData) => result`. The void-returning variants above work for
+// plain `<form action={...}>` but give the user no in-page feedback. The
+// edit panel uses these wrappers so it can render "Saved" inline + auto-
+// collapse after success without a roundtrip-and-redirect dance.
+export type SaveResult =
+  | { ok: true; saved: 'profile' | 'role' | 'domains' | 'wa-creds' }
+  | { ok: false; saved: 'profile' | 'role' | 'domains' | 'wa-creds'; error: string };
+
+function errMsg(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 200);
+}
+
+export async function updateUserProfileStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await updateUserProfileAction(formData);
+    return { ok: true, saved: 'profile' };
+  } catch (e) {
+    return { ok: false, saved: 'profile', error: errMsg(e) };
+  }
+}
+
+export async function updateUserRoleStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await updateUserAction(formData);
+    return { ok: true, saved: 'role' };
+  } catch (e) {
+    return { ok: false, saved: 'role', error: errMsg(e) };
+  }
+}
+
+export async function setDomainRolesStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await setDomainRolesAction(formData);
+    return { ok: true, saved: 'domains' };
+  } catch (e) {
+    return { ok: false, saved: 'domains', error: errMsg(e) };
+  }
+}
+
+// ---- Send credentials via WhatsApp ----
+// Passwords are stored as one-way scrypt hashes — we cannot read the
+// current password back. So this action generates a fresh temporary
+// password, attempts to deliver it via Green-API FIRST, and only persists
+// the new hash if the WhatsApp send succeeds. Order matters: a failed
+// send must not change the user's existing credentials.
+
+// Avoids 0/O/1/l/I to reduce ambiguity when typed from a phone screen.
+const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+const PASSWORD_LENGTH = 12;
+
+function generateTempPassword(): string {
+  const bytes = crypto.randomBytes(PASSWORD_LENGTH);
+  let out = '';
+  for (let i = 0; i < PASSWORD_LENGTH; i++) {
+    out += PASSWORD_ALPHABET[bytes[i] % PASSWORD_ALPHABET.length];
+  }
+  return out;
+}
+
+function buildCredentialsMessage(opts: {
+  username: string;
+  password: string;
+  appUrl: string;
+}): string {
+  return [
+    '🌿 Welcome to Lime Investments Cockpit',
+    '',
+    "You've been invited to access the Lime Investments operations cockpit.",
+    '',
+    `🔗 App URL: ${opts.appUrl}`,
+    `👤 Username: ${opts.username}`,
+    `🔑 Password: ${opts.password}`,
+    '',
+    'Please sign in and change your password from the account settings.',
+    '',
+    '⚠️ The app is still in Beta — your review and feedback are invited.',
+    '',
+    '— Lime Investments',
+  ].join('\n');
+}
+
+export async function sendCredentialsViaWhatsAppStateAction(
+  _prev: SaveResult | null,
+  formData: FormData
+): Promise<SaveResult> {
+  try {
+    await requireAdmin();
+    const id = String(formData.get('id') || '');
+    if (!id) return { ok: false, saved: 'wa-creds', error: 'missing user id' };
+
+    const sb = supabaseAdmin();
+    const { data: userRow, error: userErr } = await sb
+      .from('app_users')
+      .select('id, username, mobile_number')
+      .eq('id', id)
+      .single();
+    if (userErr || !userRow) {
+      return { ok: false, saved: 'wa-creds', error: 'user not found' };
+    }
+    const mobile = (userRow as { mobile_number: string | null }).mobile_number;
+    const username = (userRow as { username: string }).username;
+    if (!mobile) {
+      return {
+        ok: false,
+        saved: 'wa-creds',
+        error: 'no mobile number on file — add one in the Edit panel first',
+      };
+    }
+    if (!isGreenApiPhoneValid(mobile)) {
+      return {
+        ok: false,
+        saved: 'wa-creds',
+        error: 'mobile number is not a valid international format',
+      };
+    }
+
+    const newPassword = generateTempPassword();
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
+    const message = buildCredentialsMessage({
+      username,
+      password: newPassword,
+      appUrl,
+    });
+
+    // Send via WhatsApp first. Only update the DB if delivery succeeded —
+    // a failure here must leave the user's existing password intact so
+    // they don't get locked out.
+    const sendRes = await sendWhatsApp({ to: mobile, message });
+    if (!sendRes.ok) {
+      const reason = sendRes.disabled
+        ? 'WhatsApp (Green-API) is disabled or not configured'
+        : sendRes.error || 'WhatsApp send failed';
+      return { ok: false, saved: 'wa-creds', error: reason };
+    }
+
+    const { error: updateErr } = await sb
+      .from('app_users')
+      .update({ password_hash: hashPassword(newPassword) })
+      .eq('id', id);
+    if (updateErr) {
+      return {
+        ok: false,
+        saved: 'wa-creds',
+        error: `WhatsApp sent but DB update failed: ${updateErr.message}`,
+      };
+    }
+    revalidatePath('/admin/users');
+    return { ok: true, saved: 'wa-creds' };
+  } catch (e) {
+    return { ok: false, saved: 'wa-creds', error: errMsg(e) };
+  }
 }

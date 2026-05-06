@@ -33,6 +33,11 @@ export type GrnLine = {
   expiry_date: string | null;
   qc_photo_url: string | null;
   note: string | null;
+  // M.16 (Q6=a) — operator-restated actual delivered pack volume.
+  // Null = SKU's stored pack_volume is correct as-is. Set when the
+  // vendor sent differently-packaged goods than the catalog expected.
+  received_pack_volume_value: number | null;
+  received_pack_volume_uom: string | null;
 };
 
 export type GrnListRow = GrnRow & {
@@ -115,6 +120,7 @@ export async function getGrn(id: string): Promise<GrnDetail | null> {
       lines:beithady_inventory_grn_lines(
         id, line_no, item_id, qty_received, qty_rejected, unit_cost_egp,
         batch_no, expiry_date, qc_photo_url, note,
+        received_pack_volume_value, received_pack_volume_uom,
         item:beithady_inventory_items!inner(sku, name_en, name_ar, uom, batch_tracked, expiry_tracked)
       )
     `)

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'rea
 import { AlertCircle, Check, ChevronDown, ChevronRight, Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { Category, ItemListRow, Uom } from '@/lib/beithady/inventory/catalog';
+import { resolveUnitCostEgp } from '@/lib/beithady/inventory/unit-cost';
 import { ItemFormButton } from './item-form-button';
 import { SourceCell } from './source-cell';
 import { AiInfoCard } from './ai-info-card';
@@ -386,7 +387,7 @@ function ItemRow({
           className={
             it.total_on_hand === 0
               ? 'text-rose-600 font-semibold'
-              : it.total_on_hand < it.min_qty
+              : it.total_on_hand <= it.min_qty
                 ? 'text-amber-700 font-semibold'
                 : ''
           }
@@ -436,6 +437,10 @@ function ItemRow({
         itemSku: it.sku,
         itemName: it.name_en,
         amazonName: it.amazon_eg_product_name_en,
+        itemPackVolumeValue: it.pack_volume_value,
+        itemPackVolumeUom: it.pack_volume_uom,
+        amazonPackVolumeValue: it.amazon_eg_pack_volume_value,
+        amazonPackVolumeUom: it.amazon_eg_pack_volume_uom,
       });
       if (kind === 'none') return null;
       return (
@@ -479,16 +484,10 @@ function ItemRow({
 }
 
 function CostCell({ item }: { item: ItemListRow }) {
-  // Live price = amazon_eg_price_egp / pack_size  (matches estimator.ts)
-  // Estimate    = default_cost_egp (the seeded placeholder)
-  const livePrice = (() => {
-    if (item.amazon_eg_price_egp == null) return null;
-    const ps = item.amazon_eg_pack_size && item.amazon_eg_pack_size > 0 ? item.amazon_eg_pack_size : 1;
-    return item.amazon_eg_price_egp / ps;
-  })();
-  const isEstimate = livePrice == null;
-  const displayValue = livePrice ?? Number(item.default_cost_egp);
-  const formatted = displayValue.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  // Centralised cost-source preference — see lib/beithady/inventory/unit-cost.ts.
+  // Order: live amazon (price/pack_size) → avg → last → default.
+  const { unitCostEgp, source, isEstimate } = resolveUnitCostEgp(item);
+  const formatted = unitCostEgp.toLocaleString('en-US', { maximumFractionDigits: 2 });
   const lastChecked = item.amazon_eg_last_checked_at
     ? new Date(item.amazon_eg_last_checked_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
     : null;
@@ -498,13 +497,15 @@ function CostCell({ item }: { item: ItemListRow }) {
   // see on the live Amazon page.
   const fetchBlocked =
     !!item.amazon_eg_url &&
-    livePrice == null &&
+    source !== 'amazon' &&
     (item.amazon_eg_last_status === 'rate_limited' || item.amazon_eg_last_status === '404');
 
   if (isEstimate) {
     const tooltip = fetchBlocked
       ? `Amazon ${item.amazon_eg_last_status === 'rate_limited' ? 'blocked the auto-fetch' : 'returned 404'}. Click "Manual price" to type the price you see on the live page.`
-      : 'Estimate — seeded placeholder. Set an Amazon EG URL to fetch live price (or enter manually if blocked).';
+      : source === 'amazon'
+        ? 'Amazon price — pack size unknown so per-unit cost is approximate.'
+        : 'Estimate — seeded placeholder. Set an Amazon EG URL to fetch live price (or enter manually if blocked).';
     return (
       <div className="flex items-center justify-end gap-1.5">
         <span className="text-amber-700 dark:text-amber-300" title={tooltip}>
@@ -525,11 +526,14 @@ function CostCell({ item }: { item: ItemListRow }) {
       </div>
     );
   }
+  const tooltip =
+    source === 'amazon'
+      ? lastChecked ? `Live Amazon EG price · checked ${lastChecked}` : 'Live Amazon EG price'
+      : source === 'avg'
+        ? 'Moving-average cost from posted GRNs'
+        : 'Last GRN cost'; // source === 'last'
   return (
-    <span
-      className="text-slate-700 dark:text-slate-100"
-      title={lastChecked ? `Live Amazon EG price · checked ${lastChecked}` : 'Live Amazon EG price'}
-    >
+    <span className="text-slate-700 dark:text-slate-100" title={tooltip}>
       {formatted}
     </span>
   );

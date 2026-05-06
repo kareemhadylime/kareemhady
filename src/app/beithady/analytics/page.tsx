@@ -1,4 +1,5 @@
-import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart } from 'lucide-react';
+import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart, Target } from 'lucide-react';
+import Link from 'next/link';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { BeithadyLauncher, type LauncherTile } from '../_components/beithady-launcher';
@@ -62,6 +63,23 @@ export default async function BeithadyAnalyticsPage() {
       />
 
       <BeithadyLauncher tiles={tiles} columns={3} />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <Link
+          href="/beithady/analytics/performance"
+          className="group relative overflow-hidden rounded-xl border border-[#003462]/10 bg-white p-6 transition hover:border-[#003462]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-2"
+        >
+          <div className="absolute right-5 top-5 text-[#003462]/30 transition group-hover:translate-x-0.5 group-hover:text-[#003462]" aria-hidden="true">→</div>
+          <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[#eae9f3] text-[#003462]">
+            <Target className="h-5 w-5" />
+          </div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-[#003462]">Performance Dashboard</h3>
+            <span className="rounded border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Live</span>
+          </div>
+          <p className="mt-1 text-sm text-[#6077a6]">Today · MTD · pace · drill-down. Daily report data, clickable.</p>
+        </Link>
+      </div>
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { sendWaCasualMessage } from '@/lib/beithady/communication/send-wa-casual';
 import { recordAudit } from '@/lib/beithady/audit';
 import { isAutomationPaused } from '@/lib/beithady/automations';
+import { sendMenuLinkToGuest } from '@/lib/beithady/fnb/send-menu-link';
 import { getUpcomingArrivals, matchBeithadyGuest, mintToken, templateRender } from './reservation-helpers';
 
 const PUBLIC_BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://limeinc.vercel.app';
@@ -113,6 +114,22 @@ export async function runBoardingPassDispatch(): Promise<{
 
     if (result.ok) sent++;
     else errors.push({ reservation_id: r.id, error: result.error });
+
+    // F&B: best-effort menu-link send. Boarding passes go out 18-30h before
+    // check-in, so the guest is usually still 'reserved' status here and
+    // sendMenuLinkToGuest will reject with reservation_not_checked_in. That
+    // 's fine — the cron at /api/cron/fnb-send-menu-link picks them up
+    // every 10 min once they flip to checked_in. We still call it here so
+    // any guest who *is* already checked in (rebooking, late add) gets the
+    // menu link without waiting for the next cron tick.
+    if (result.ok && r.building_code) {
+      try {
+        await sendMenuLinkToGuest(token);
+      } catch (e) {
+        // Swallow — this is best-effort. Audit row written by the helper.
+        console.warn('[boarding-pass] menu-link side-effect failed:', e);
+      }
+    }
   }
 
   await recordAudit({

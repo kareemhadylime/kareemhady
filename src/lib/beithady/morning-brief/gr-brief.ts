@@ -9,6 +9,10 @@ import {
   EGYPT_BUCKETS,
   type BriefBucket,
 } from './country';
+import {
+  getCurrentlyStaying,
+  CANONICAL_BOOKED_STATUSES,
+} from '@/lib/beithady/guesty-metrics';
 import type { Brief, BriefSection } from './types';
 
 // Guest Relations brief — what GR agents need to act on at 8am Cairo.
@@ -23,7 +27,11 @@ import type { Brief, BriefSection } from './types';
 //   for Guesty parity.
 
 const SLA_FRESHNESS_SEC = 48 * 3600;
-const ACTIVE_STATUSES = ['confirmed', 'reserved', 'awaiting_payment'] as const;
+
+// CANONICAL alignment (2026-05-03): use guesty-metrics canonical statuses.
+// Was: ['confirmed', 'reserved', 'awaiting_payment'] — caused mismatches with
+// Daily Performance Report. All briefs now use the same triplet for parity.
+const ACTIVE_STATUSES = CANONICAL_BOOKED_STATUSES;
 
 export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> {
   const sb = supabaseAdmin();
@@ -35,6 +43,12 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
 
   const yesterdayStartUtc = cairoStartOfDayUtc(yesterday);
   const todayStartUtc = cairoStartOfDayUtc(today);
+
+  // Canonical "Manual Block Unpaid" feed — owner stays + manual blocks
+  // currently staying. Per Q2 (2026-05-03), these are excluded from main
+  // arrivals/departures/staying counts but listed separately for visibility.
+  const stayingCanonical = await getCurrentlyStaying(today);
+  const manualBlocksToday = stayingCanonical.manual_block_unpaid;
 
   const [
     { data: arrivals },
@@ -225,13 +239,18 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
       empty_message: 'No arrivals today.',
     },
     {
-      title: `Currently staying (${stayEgypt})`,
+      title: `Currently staying (${stayEgypt})${stayingCanonical.already_arrived ? ` — ${stayingCanonical.already_arrived.length} in-house · ${stayingCanonical.arriving_today?.length || 0} arriving today` : ''}`,
       emoji: '🏨',
       items: [
         ...(stayEgypt > 0 ? [{
           primary: `${bucketBreakdownLine(stayCount)} · ${totalGuestsEgypt} guests`,
           secondary: 'Egypt-side in-house reservations.',
           tag: { label: 'In-house', tone: 'green' as const },
+        }] : []),
+        ...((stayingCanonical.arriving_today?.length || 0) > 0 ? [{
+          primary: `${stayingCanonical.arriving_today!.length} arriving today (counted in stay total)`,
+          secondary: 'These appear in both Arrivals and Currently staying — Guesty UI may count them only after physical check-in.',
+          tag: { label: 'Pending arrival', tone: 'amber' as const },
         }] : []),
         ...(stayCount['BH-DXB'] > 0 ? [{
           primary: `BH-DXB: ${stayCount['BH-DXB']} reservation${stayCount['BH-DXB'] === 1 ? '' : 's'} · ${dxbStayingGuests} guests (excluded from totals)`,
@@ -240,6 +259,20 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
         }] : []),
       ],
       empty_message: 'No active stays today.',
+    },
+    // Manual blocks / owner stays — listed separately so GR has visibility
+    // on units off-market (Q2 ratification).
+    {
+      title: `Manual Block Unpaid (${manualBlocksToday.length})`,
+      emoji: '🛠',
+      items: manualBlocksToday.length > 0
+        ? manualBlocksToday.slice(0, 8).map(r => ({
+            primary: `${r.listing_nickname || r.listing_id || '—'} · ${r.guest_name || 'Owner / block'}`,
+            secondary: `${r.building} · ${r.source || 'manual'} · ${r.check_in_date} → ${r.check_out_date}`,
+            tag: { label: 'Off-market', tone: 'amber' as const },
+          }))
+        : [],
+      empty_message: 'No manual blocks or owner stays today.',
     },
     {
       title: `VIP arrivals today → 3 days (${vipEgypt})`,

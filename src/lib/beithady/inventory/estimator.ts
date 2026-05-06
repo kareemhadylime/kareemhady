@@ -1,4 +1,5 @@
 import 'server-only';
+import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
   formulaMultiplier,
@@ -10,6 +11,42 @@ import {
   type EstimatorCategoryGroup,
   type RuleScope,
 } from './estimator-shared';
+import { unitsConsumedPerTrigger } from './volumetric';
+import { resolveUnitCostEgp } from './unit-cost';
+
+async function resolveMonthlyBookings(
+  config: UnitConfiguration,
+): Promise<{ value: number; source: 'manual_override' | 'guesty_90d_avg' | 'default_constant' }> {
+  if (config.est_monthly_bookings != null && config.est_monthly_bookings >= 0) {
+    return { value: Number(config.est_monthly_bookings), source: 'manual_override' };
+  }
+  const guesty = await guestyAvgFor(config.id);
+  if (guesty != null) return { value: guesty, source: 'guesty_90d_avg' };
+  return { value: 4, source: 'default_constant' };
+}
+
+const guestyAvgFor = unstable_cache(
+  async (unitConfigId: string): Promise<number | null> => {
+    const sb = supabaseAdmin();
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { data } = await sb
+      .from('beithady_inventory_listing_unit_config')
+      .select('listing_id')
+      .eq('unit_config_id', unitConfigId);
+    const listingIds = (data || []).map(r => (r as { listing_id: string }).listing_id);
+    if (listingIds.length === 0) return null;
+    const { count } = await sb
+      .from('guesty_reservations')
+      .select('id', { count: 'exact', head: true })
+      .in('listing_id', listingIds)
+      .in('status', ['confirmed', 'checked_in', 'checked_out'])
+      .gte('check_in_date', cutoff);
+    if (count == null) return null;
+    return count / 3;
+  },
+  ['inventory-estimator-monthly-bookings'],
+  { revalidate: 3600, tags: ['inventory-estimator-monthly-bookings'] },
+);
 
 // Server-side queries powering the Housekeeping Estimator (Phase M.15).
 // Pure data fetch + cost computation — no UI here.
@@ -78,6 +115,8 @@ type RawItem = {
   amazon_eg_image_url: string | null;
   amazon_eg_last_status: string | null;
   ai_info: { summary_en?: string | null } | null;
+  pack_volume_value: number | string | null;
+  pack_volume_uom: string | null;
   active: boolean;
 };
 
@@ -95,6 +134,8 @@ type RawRule = {
   qty: number | string;
   loss_factor_pct: number | string;
   active: boolean;
+  consumes_volume_value: number | string | null;
+  consumes_volume_uom: string | null;
 };
 
 type RawOverride = {
@@ -118,16 +159,17 @@ export async function computeEstimatorOutput(
   const config = await getUnitConfiguration(unitConfigId);
   if (!config) return null;
 
-  // 2. All active items + their categories
-  const [itemsRes, catsRes, rulesRes] = await Promise.all([
+  // 2. All active items + their categories + monthly-bookings resolution (parallel)
+  const [itemsRes, catsRes, rulesRes, monthlyBookings] = await Promise.all([
     sb.from('beithady_inventory_items')
-      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, active')
+      .select('id, sku, name_en, name_ar, category_id, uom, default_cost_egp, avg_cost_egp, last_cost_egp, amazon_eg_price_egp, amazon_eg_pack_size, amazon_eg_url, amazon_eg_image_url, amazon_eg_last_status, ai_info, pack_volume_value, pack_volume_uom, active')
       .eq('active', true),
     sb.from('beithady_inventory_categories')
       .select('id, code'),
     sb.from('beithady_inventory_consumption_rules')
-      .select('id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct, active')
+      .select('id, scope, scope_value, item_id, formula_kind, qty, loss_factor_pct, active, consumes_volume_value, consumes_volume_uom')
       .eq('active', true),
+    resolveMonthlyBookings(config),
   ]);
 
   const items = (itemsRes.data as RawItem[] | null) || [];
@@ -173,13 +215,37 @@ export async function computeEstimatorOutput(
     });
     if (!rulePicked) continue;
 
-    const baseQty = Number(rulePicked.qty);
     const lossFactor = Number(rulePicked.loss_factor_pct) / 100;
     const multiplier = formulaMultiplier(rulePicked.formula_kind, {
       bedrooms: config.bedrooms,
       bathrooms: config.bathrooms,
       guest_capacity: config.guest_capacity,
     });
+
+    // M.16 — volumetric path: when the rule specifies consumes_volume_value
+    // (e.g. "100 ml per check-in per bathroom") AND the item has a stored
+    // pack_volume_value (e.g. "4 kg pack"), compute units consumed per
+    // trigger via UoM conversion. Falls back to legacy raw-qty math when
+    // either side is missing or UoMs are incompatible. baseQty becomes the
+    // units-per-trigger derived from volumetric math.
+    let baseQty = Number(rulePicked.qty);
+    const ruleConsumesValue = rulePicked.consumes_volume_value != null
+      ? Number(rulePicked.consumes_volume_value) : null;
+    const ruleConsumesUom = rulePicked.consumes_volume_uom;
+    const itemPackValue = it.pack_volume_value != null ? Number(it.pack_volume_value) : null;
+    const itemPackUom = it.pack_volume_uom;
+    if (ruleConsumesValue != null && ruleConsumesUom && itemPackValue != null && itemPackUom) {
+      const unitsPer = unitsConsumedPerTrigger({
+        consumesValue: ruleConsumesValue,
+        consumesUom: ruleConsumesUom,
+        packVolumeValue: itemPackValue,
+        packVolumeUom: itemPackUom,
+      });
+      if (unitsPer != null) baseQty = unitsPer;
+      // If incompatible UoMs (e.g. rule says ml but pack is kg), keep the
+      // legacy raw qty — operator should fix the mismatch via the items
+      // page banner.
+    }
 
     const computedQty = baseQty * multiplier;
 
@@ -188,17 +254,12 @@ export async function computeEstimatorOutput(
     const finalQty = override ? Number(override.qty_override) : computedQty;
     const effectiveQty = finalQty * (1 + lossFactor);
 
-    // Unit cost: prefer Amazon-sourced price-per-pack-unit, fall back to default_cost_egp.
-    // Track whether we used the fallback so the UI can flag estimates.
-    let unitCost = Number(it.default_cost_egp || 0);
-    let unitCostIsEstimate = true;
-    if (it.amazon_eg_price_egp != null && it.amazon_eg_pack_size && it.amazon_eg_pack_size > 0) {
-      unitCost = Number(it.amazon_eg_price_egp) / it.amazon_eg_pack_size;
-      unitCostIsEstimate = false;
-    } else if (it.amazon_eg_price_egp != null) {
-      unitCost = Number(it.amazon_eg_price_egp);
-      unitCostIsEstimate = false;
-    }
+    // Unit cost: centralised in resolveUnitCostEgp — preference order is
+    // amazon (price/pack_size) → avg → last → default. See unit-cost.ts.
+    const { unitCostEgp: unitCost, isEstimate: unitCostIsEstimate } = resolveUnitCostEgp(it);
+
+    // M.17 — Procurement Need: whole packs to buy monthly. Round up.
+    const monthlyNeedPacks = Math.ceil(effectiveQty * monthlyBookings.value);
 
     lines.push({
       item_id: it.id,
@@ -222,6 +283,9 @@ export async function computeEstimatorOutput(
       has_listing_override: !!override,
       ai_info_summary_en: it.ai_info?.summary_en ?? null,
       unit_cost_is_estimate: unitCostIsEstimate,
+      monthly_need_packs: monthlyNeedPacks,
+      consumes_volume_value: rulePicked.consumes_volume_value != null ? Number(rulePicked.consumes_volume_value) : null,
+      consumes_volume_uom: rulePicked.consumes_volume_uom,
     });
   }
 
@@ -241,6 +305,8 @@ export async function computeEstimatorOutput(
     total += l.line_total_egp;
   }
 
+  const monthlyNeedTotalPacks = lines.reduce((acc, l) => acc + l.monthly_need_packs, 0);
+
   return {
     unit_config: config,
     listing_id: listingId || null,
@@ -249,6 +315,9 @@ export async function computeEstimatorOutput(
     total_per_checkin_egp: total,
     total_per_guest_egp: config.guest_capacity > 0 ? total / config.guest_capacity : 0,
     computed_at: new Date().toISOString(),
+    monthly_need_total_packs: monthlyNeedTotalPacks,
+    est_monthly_bookings_used: monthlyBookings.value,
+    est_monthly_bookings_source: monthlyBookings.source,
   };
 }
 
@@ -262,22 +331,30 @@ export type UnitConfigSummary = {
   total_per_checkin_egp: number;
   line_count: number;
   listing_count: number;
+  monthly_need_total_packs: number;
+  est_monthly_bookings_source: 'manual_override' | 'guesty_90d_avg' | 'default_constant';
 };
 
 export async function listUnitConfigSummaries(): Promise<UnitConfigSummary[]> {
-  const configs = await listUnitConfigurations();
-  const counts = await countListingsPerConfig();
-  const out: UnitConfigSummary[] = [];
-  for (const c of configs) {
-    const o = await computeEstimatorOutput(c.id);
-    out.push({
+  const [configs, counts] = await Promise.all([
+    listUnitConfigurations(),
+    countListingsPerConfig(),
+  ]);
+  // Compute per-config outputs in parallel — each call hits Supabase + the
+  // monthly-bookings cache; running them serially in a for-of loop made the
+  // matrix landing page do N × (5+ queries) round-trips on cold cache.
+  const outputs = await Promise.all(configs.map(c => computeEstimatorOutput(c.id)));
+  return configs.map((c, i) => {
+    const o = outputs[i];
+    return {
       config: c,
       total_per_checkin_egp: o?.total_per_checkin_egp || 0,
       line_count: o?.lines.length || 0,
       listing_count: counts[c.id] || 0,
-    });
-  }
-  return out;
+      monthly_need_total_packs: o?.monthly_need_total_packs || 0,
+      est_monthly_bookings_source: o?.est_monthly_bookings_source || 'default_constant',
+    };
+  });
 }
 
 // ---------------------------------------------------------------

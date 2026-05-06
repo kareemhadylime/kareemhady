@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, XCircle } from 'lucide-react';
+import { ChevronLeft, XCircle, AlertTriangle } from 'lucide-react';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
-import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
+import { getOwnedOwnerIds, hasBoatRole } from '@/lib/boat-rental/auth';
 import { signedImageUrl } from '@/lib/boat-rental/storage';
 import { isWithinCancellationWindow, cairoTodayStr } from '@/lib/boat-rental/pricing';
 import { computeBalance } from '@/lib/boat-rental/payment-balance';
@@ -11,6 +11,9 @@ import { getDefaultSkipper } from '@/lib/boat-rental/skipper-resolver';
 import { TabNav, OWNER_TABS } from '../../../_components/tabs';
 import { ClickToContact } from '../../../_components/click-to-contact';
 import { RecordPaymentForm } from '../../_components/record-payment-form';
+import { ForceCancelForm } from '../../_components/force-cancel-form';
+import { AdminReservationOverrides } from '../../_components/admin-reservation-overrides';
+import { AdminPaymentRowActions } from '../../_components/admin-payment-row-actions';
 import { cancelReservationOwnerAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +35,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
   const { id } = await params;
   const me = await getCurrentUser();
   const ownerIds = me ? await getOwnedOwnerIds(me) : [];
+  const isAdmin = me ? await hasBoatRole(me, 'admin') : false;
   const sb = supabaseAdmin();
   const { data } = await sb
     .from('boat_rental_reservations')
@@ -51,7 +55,8 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
     .maybeSingle();
   const r = data as Res | null;
   if (!r) notFound();
-  if (!ownerIds.includes(r.boat.owner_id)) notFound();
+  // Admins can view any booking via owner pages; owners only their own.
+  if (!isAdmin && !ownerIds.includes(r.boat.owner_id)) notFound();
 
   const defaultSkipper = await getDefaultSkipper(r.boat.id as string);
 
@@ -66,6 +71,10 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
   const receiptUrl = latestReceiptPath ? await signedImageUrl(latestReceiptPath) : null;
 
   const canCancel = ['held', 'confirmed'].includes(r.status) && isWithinCancellationWindow(r.booking_date);
+  // Force-cancel covers everything regular cancel can't: inside-72h reservations,
+  // details_filled, and paid_to_owner (sets refund_pending so admin reconciles).
+  const canForceCancel =
+    !canCancel && ['held', 'confirmed', 'details_filled', 'paid_to_owner'].includes(r.status);
   const canRecordPayment = ['confirmed', 'details_filled'].includes(r.status) && remaining > 0;
 
   return (
@@ -187,9 +196,20 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
                     </div>
                     {p.note && <div className="text-xs text-slate-500 mt-0.5">{p.note}</div>}
                   </div>
-                  <span className="tabular-nums font-medium">
-                    EGP {Number(p.amount_egp).toLocaleString()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="tabular-nums font-medium">
+                      EGP {Number(p.amount_egp).toLocaleString()}
+                    </span>
+                    {isAdmin && (
+                      <AdminPaymentRowActions
+                        paymentId={p.id}
+                        amountEgp={Number(p.amount_egp)}
+                        paidDate={p.paid_at.slice(0, 10)}
+                        method={p.method}
+                        note={p.note}
+                      />
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -232,6 +252,38 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
             </button>
           </form>
         </section>
+      )}
+
+      {canForceCancel && (
+        <section className="mt-6 ix-card p-5 border-rose-300 bg-rose-50/40 dark:border-rose-700 dark:bg-rose-950/30">
+          <h2 className="font-semibold mb-2 text-rose-900 dark:text-rose-200 text-sm flex items-center gap-2">
+            <AlertTriangle size={14} /> Danger zone — force cancel
+          </h2>
+          <p className="text-xs text-rose-900/80 dark:text-rose-200/80 mb-3">
+            Use this when the regular flow won&apos;t work — boat damage, weather, owner
+            conflict, client no-show, or the broker is unreachable. The cancellation goes
+            through immediately; the broker is notified but cannot veto.{' '}
+            {r.status === 'paid_to_owner' && (
+              <span className="block mt-1 font-semibold">
+                Payment was already collected — this will mark the reservation as
+                <em> refund pending</em> so admin can reconcile with the broker.
+              </span>
+            )}
+          </p>
+          <ForceCancelForm reservationId={r.id} status={r.status} />
+        </section>
+      )}
+
+      {isAdmin && (
+        <AdminReservationOverrides
+          reservationId={r.id}
+          initial={{
+            price_egp: price,
+            booking_date: r.booking_date,
+            source: r.source ?? 'registered_broker',
+            notes: r.notes ?? null,
+          }}
+        />
       )}
     </>
   );

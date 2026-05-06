@@ -38,7 +38,13 @@ function extFromMimeBrowser(mime: string): string {
 // before send. Clicking Send fires the appropriate multi-attach server
 // action with up to 5 files in one form submission.
 
-const MAX_FILES = 5;
+// Per-send cap. Bumped from 5 → 30 in 2026-05 — N>1 attachments are
+// now bundled into a single shareable /g/<token> gallery URL inlined
+// in the message body, so a "full album" send produces ONE message
+// regardless of count. 30 keeps the gallery viewer comfortable to
+// scroll without overwhelming the carousel UI. Server-side
+// MAX_FILES_PER_SEND in attach-actions.ts is kept in lock-step.
+const MAX_FILES = 30;
 
 export type PendingItem =
   | { kind: 'file'; file: File; previewUrl: string | null }
@@ -143,10 +149,17 @@ export function AttachmentMenu({
     if (items.length === 0 || isPending) return;
     setErrorMsg(null);
     startTransition(async () => {
+      // Audit fix C-E1: track storage paths the CLIENT uploaded so we
+      // can clean them up on partial-failure send. Pre-fix, every file
+      // we uploaded stayed in beithady-wa-media forever even if the
+      // send failed before reaching the recipient — orphan blobs in
+      // perpetuity. Library items (kind==='lib') are pre-existing
+      // assets and are NOT cleaned up.
+      const uploadedPathsForCleanup: string[] = [];
       try {
         // Step 1 — upload every file item directly to Supabase Storage.
         // Library items already have URLs and are passed through.
-        type Resolved = { url: string; name: string; mime: string };
+        type Resolved = { url: string; name: string; mime: string; clientUploadedPath?: string };
         const resolved: Resolved[] = [];
         const sb = supabaseBrowser();
         for (const it of items) {
@@ -159,6 +172,10 @@ export function AttachmentMenu({
           const signed = await createMediaSignedUploadUrl(ext);
           if (!signed.ok) {
             setErrorMsg(`signed_url_failed: ${signed.error}`);
+            // Cleanup any prior uploads from this batch.
+            if (uploadedPathsForCleanup.length > 0) {
+              await sb.storage.from('beithady-wa-media').remove(uploadedPathsForCleanup).catch(() => {});
+            }
             return;
           }
           const { error: upErr } = await sb.storage
@@ -169,9 +186,13 @@ export function AttachmentMenu({
             });
           if (upErr) {
             setErrorMsg(`storage_upload_failed: ${upErr.message}`);
+            if (uploadedPathsForCleanup.length > 0) {
+              await sb.storage.from('beithady-wa-media').remove(uploadedPathsForCleanup).catch(() => {});
+            }
             return;
           }
-          resolved.push({ url: signed.publicUrl, name: it.file.name || 'file', mime });
+          uploadedPathsForCleanup.push(signed.path);
+          resolved.push({ url: signed.publicUrl, name: it.file.name || 'file', mime, clientUploadedPath: signed.path });
         }
 
         // Step 2 — call the multi-attach action with all entries as
@@ -185,6 +206,11 @@ export function AttachmentMenu({
           fd.append(`library_url_${i}`, r.url);
           fd.append(`library_name_${i}`, r.name);
           fd.append(`library_mime_${i}`, r.mime);
+          // Pass the cleanup path so the server can delete unsent
+          // uploads if the multi-send loop breaks partway.
+          if (r.clientUploadedPath) {
+            fd.append(`cleanup_path_${i}`, r.clientUploadedPath);
+          }
         });
         const result = await action(fd);
 
@@ -198,11 +224,20 @@ export function AttachmentMenu({
           if (result.redirectTo) router.push(result.redirectTo);
           else router.refresh();
         } else {
+          // Server already cleaned up unsent uploads (audit fix C-E1).
+          // Just surface the error.
           setErrorMsg((result.error || 'unknown_error').slice(0, 240));
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setErrorMsg(msg.slice(0, 240));
+        // Best-effort: try to clean up anything we uploaded before the throw.
+        if (uploadedPathsForCleanup.length > 0) {
+          try {
+            const sb = supabaseBrowser();
+            await sb.storage.from('beithady-wa-media').remove(uploadedPathsForCleanup);
+          } catch { /* ignore */ }
+        }
       }
     });
   };
@@ -362,15 +397,11 @@ export function AttachmentMenu({
             </div>
           )}
 
-          {errorMsg && !isPending && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950 dark:border-rose-800 p-2 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2">
-              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <div className="font-semibold">Send failed.</div>
-                <div className="text-[10px] opacity-90 break-all">{errorMsg}</div>
-              </div>
-            </div>
-          )}
+          {/* Audit fix H-E7: error block moved out of the items.length
+              wrapper below + dismissable X. Pre-fix the operator could
+              remove all items and the error banner would disappear
+              along with the wrapper, leaving no record of the failed
+              send. (See bottom of component for the new placement.) */}
 
           {stalled && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 p-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
@@ -384,6 +415,27 @@ export function AttachmentMenu({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Audit fix H-E7: error block lives outside the items.length
+          wrapper so it persists even after the operator removes all
+          attachments. Includes a dismiss X. */}
+      {errorMsg && !isPending && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950 dark:border-rose-800 p-2 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2 mt-2">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1 min-w-0">
+            <div className="font-semibold">Send failed.</div>
+            <div className="text-[10px] opacity-90 break-all">{errorMsg}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            title="Dismiss"
+            className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900"
+          >
+            <X size={11} />
+          </button>
         </div>
       )}
     </>

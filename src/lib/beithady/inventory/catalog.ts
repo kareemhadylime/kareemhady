@@ -56,7 +56,10 @@ export type ItemRow = {
   reorder_qty: number | null;
   default_cost_egp: number;
   default_cost_usd: number | null;
-  currency: 'EGP' | 'USD';
+  // Audit fix C5: USD option removed from the form (no read site
+  // converts). Type narrowed to 'EGP'; new schema CHECK constraint in
+  // migration 0068 enforces this at the DB layer too.
+  currency: 'EGP';
   avg_cost_egp: number;
   last_cost_egp: number | null;
   batch_tracked: boolean;
@@ -75,6 +78,10 @@ export type ItemRow = {
   amazon_eg_product_name_en: string | null;
   amazon_eg_product_name_ar: string | null;
   amazon_eg_brand: string | null;
+  amazon_eg_pack_volume_value: number | null;
+  amazon_eg_pack_volume_uom: string | null;
+  pack_volume_value: number | null;
+  pack_volume_uom: string | null;
   ai_info: AiItemInfoPayload | null;
   ai_info_generated_at: string | null;
   ai_info_source: 'amazon_eg_fetch' | 'general_knowledge' | null;
@@ -205,6 +212,10 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
       amazon_eg_product_name_en: r.amazon_eg_product_name_en,
       amazon_eg_product_name_ar: r.amazon_eg_product_name_ar,
       amazon_eg_brand: r.amazon_eg_brand,
+      amazon_eg_pack_volume_value: r.amazon_eg_pack_volume_value != null ? Number(r.amazon_eg_pack_volume_value) : null,
+      amazon_eg_pack_volume_uom: r.amazon_eg_pack_volume_uom,
+      pack_volume_value: r.pack_volume_value != null ? Number(r.pack_volume_value) : null,
+      pack_volume_uom: r.pack_volume_uom,
       ai_info: r.ai_info,
       ai_info_generated_at: r.ai_info_generated_at,
       ai_info_source: r.ai_info_source,
@@ -224,7 +235,9 @@ export async function listItems(filters: ItemFilters = {}): Promise<ItemListRow[
   });
 
   if (filters.lowStock) {
-    return mapped.filter(it => it.total_on_hand < it.min_qty);
+    // Audit fix H6: was `<`. Items exactly at min_qty are at the reorder
+    // floor and should appear in the low-stock filter.
+    return mapped.filter(it => it.total_on_hand <= it.min_qty);
   }
   return mapped;
 }

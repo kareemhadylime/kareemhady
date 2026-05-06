@@ -20,6 +20,23 @@ import { recordAudit } from '@/lib/beithady/audit';
 // AI kill-switch toggle. Phase C.3 adds Green-API send + voice + file;
 // Phase E hooks AI auto-reply gating into the same send pipeline.
 
+// Audit fix H-D9: prefix the multi-channel backup body with a short
+// explanatory tag so the guest sees "Email backup of WhatsApp message"
+// instead of two unannotated copies. Returns null if both channels
+// resolve to the same friendly label (no useful prefix to show).
+function backupChannelLabel(backup: ChannelTarget, primary: ChannelTarget): string | null {
+  const friendly = (t: ChannelTarget): string => {
+    if (t === 'guesty_email') return 'Email';
+    if (t === 'guesty_sms') return 'SMS';
+    if (t === 'guesty_whatsapp' || t === 'wa_cloud' || t === 'wa_casual') return 'WhatsApp';
+    return t;
+  };
+  const a = friendly(backup);
+  const b = friendly(primary);
+  if (a === b) return null;
+  return `(${a} backup of our ${b} message — same content)`;
+}
+
 export async function sendGuestyMessageAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
   if (!user) throw new Error('not_authenticated');
@@ -150,6 +167,20 @@ export async function sendWaCasualVoiceAction(formData: FormData): Promise<void>
   revalidatePath('/beithady/communication/unified');
 
   if (!result.ok) {
+    // Audit fix H-E9: clean up the just-uploaded blob if the send
+    // failed. Pre-fix, an aborted send (kill switch flipped, Green-API
+    // down, network blip) left the audio/file in beithady-wa-media
+    // forever with no message row referencing it. Cleanup is best-
+    // effort; we still surface the original error.
+    if (uploaded.path) {
+      try {
+        const sb = supabaseAdmin();
+        await sb.storage.from('beithady-wa-media').remove([uploaded.path]);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[sendWaCasualVoiceAction] orphan blob cleanup failed:', e);
+      }
+    }
     const params = new URLSearchParams();
     params.set('c', conversationId);
     params.set('send_error', result.error.slice(0, 200));
@@ -271,27 +302,20 @@ export async function sendMessageWithSwitchAction(formData: FormData): Promise<v
     redirect(`${returnPath}?${params.toString()}`);
   }
 
-  // F2: dispatch primary send
+  // F2: dispatch primary send.
+  // Audit fix H-C3: cross-channel flags now passed atomically into the
+  // send path so they're written in the original INSERT — pre-fix did
+  // a post-insert UPDATE which left a race window where webhook ingest
+  // / realtime saw the row with the column defaults.
+  const isCross = targetIsCrossChannel(target, c.channel);
   const result = await sendViaChannel(target, {
     beithadyConversationId: c.id,
     body,
     agentUserId: user.id,
     agentDisplayName: user.username,
+    wasChannelSwitched: isCross,
+    originalThreadChannel: isCross ? c.channel : null,
   });
-
-  // Mark cross-channel rows on beithady_messages so the thread bubble
-  // can render the "via X" badge. The send-* libs already wrote the row
-  // with channel matching the actual transport — we only need to add
-  // the audit columns when the transport differs from home.
-  if (result.ok && result.messageId && targetIsCrossChannel(target, c.channel)) {
-    await sb
-      .from('beithady_messages')
-      .update({
-        was_channel_switched: true,
-        original_thread_channel: c.channel,
-      })
-      .eq('id', result.messageId);
-  }
 
   // Persist preferred channel if "Remember" was checked (Q3-c).
   if (remember && result.ok) {
@@ -315,21 +339,23 @@ export async function sendMessageWithSwitchAction(formData: FormData): Promise<v
       backup,
     );
     if (backupResolved.ok) {
+      // Audit fix H-D9: prefix the backup body with a soft de-dup tag
+      // so the guest sees "Email backup of WhatsApp message" / "WA
+      // backup of email message" instead of two identical
+      // unannotated copies. Pre-fix transactional templates (booking
+      // confirmation with payment link) could be paid twice if the
+      // guest got two unannotated copies.
+      const backupPrefix = backupChannelLabel(backup, target);
+      const backupBody = backupPrefix ? `${backupPrefix}\n\n${body}` : body;
+      const isCrossBackup = targetIsCrossChannel(backup, c.channel);
       const backupResult = await sendViaChannel(backup, {
         beithadyConversationId: c.id,
-        body,
+        body: backupBody,
         agentUserId: user.id,
         agentDisplayName: user.username,
+        wasChannelSwitched: isCrossBackup,
+        originalThreadChannel: isCrossBackup ? c.channel : null,
       });
-      if (backupResult.ok && backupResult.messageId && targetIsCrossChannel(backup, c.channel)) {
-        await sb
-          .from('beithady_messages')
-          .update({
-            was_channel_switched: true,
-            original_thread_channel: c.channel,
-          })
-          .eq('id', backupResult.messageId);
-      }
       await recordAudit({
         actor_user_id: user.id,
         module: 'communication',

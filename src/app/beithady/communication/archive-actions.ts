@@ -145,22 +145,39 @@ export async function bulkRestoreConversationsAction(formData: FormData): Promis
     redirect(returnTo);
   }
 
+  // Audit fix H-C2: was an unguarded `update().in('id', ids)` — a
+  // craft-formed POST with arbitrary conversation UUIDs would null out
+  // archived_at on ANY row in the table the service-role can write to,
+  // including conversations the user never saw. Single-row archive
+  // already guards with `.is('archived_at', null)`; bulk restore was the
+  // asymmetric one. Now `.not('archived_at', 'is', null)` ensures we
+  // only ever flip rows that ARE currently archived. We also capture
+  // the actually-restored ids in the audit log so a partial action
+  // (some ids invalid) is still traceable.
   const sb = supabaseAdmin();
-  await sb
+  const { data: restored } = await sb
     .from('beithady_conversations')
     .update({
       archived_at: null,
       archived_by_user_id: null,
       archived_reason: null,
     })
-    .in('id', ids);
+    .in('id', ids)
+    .not('archived_at', 'is', null)
+    .select('id');
+  const restoredIds = ((restored as Array<{ id: string }> | null) || []).map(r => r.id);
 
   await recordAudit({
     actor_user_id: user.id,
     module: 'communication',
     action: 'restore_bulk',
     target_type: 'conversation',
-    metadata: { restored_count: ids.length, ids },
+    metadata: {
+      requested_count: ids.length,
+      restored_count: restoredIds.length,
+      restored_ids: restoredIds,
+      skipped_ids: ids.filter(id => !restoredIds.includes(id)),
+    },
   });
 
   revalidateInbox();

@@ -10,6 +10,7 @@ import {
   EGYPT_BUCKETS,
   type BriefBucket,
 } from './country';
+import { CANONICAL_BOOKED_STATUSES, getCurrentlyStaying } from '@/lib/beithady/guesty-metrics';
 import type { Brief, BriefSection } from './types';
 
 // Operations & Housekeeping brief — what crew + ops manager need at 8am.
@@ -22,7 +23,9 @@ import type { Brief, BriefSection } from './types';
 //   counted in headlines.
 // * Status filter IN ('confirmed','reserved','awaiting_payment').
 
-const ACTIVE_STATUSES = ['confirmed', 'reserved', 'awaiting_payment'] as const;
+// CANONICAL alignment (2026-05-03): all briefs use the same triplet so
+// arrivals/departures/staying counts match across briefs + Daily Report.
+const ACTIVE_STATUSES = CANONICAL_BOOKED_STATUSES;
 
 async function buildStockoutSection(sb: SupabaseClient): Promise<BriefSection> {
   const { data: stockRows } = await sb
@@ -95,6 +98,10 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
   const taskWindowCeil = addDaysCairo(dateIso, TASK_FRESHNESS_DAYS);
   const taskWindowFloorTs = `${taskWindowFloor}T00:00:00Z`;
   const taskWindowCeilTs = `${taskWindowCeil}T23:59:59Z`;
+
+  // Canonical "Manual Block Unpaid" feed for ops (Q2 ratification 2026-05-03).
+  const stayingCanonical = await getCurrentlyStaying(dateIso);
+  const manualBlocksToday = stayingCanonical.manual_block_unpaid;
 
   const [
     { data: checkouts },
@@ -230,13 +237,18 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
       empty_message: 'لا توجد عمليات تنظيف بين نزلاء بنفس اليوم. يمكن للطاقم التنظيم بشكل طبيعي.',
     },
     {
-      title: `النزلاء الحاليون داخل الوحدات (${stayEgypt})`,
+      title: `النزلاء الحاليون داخل الوحدات (${stayEgypt})${stayingCanonical.already_arrived ? ` — ${stayingCanonical.already_arrived.length} داخل الوحدات · ${stayingCanonical.arriving_today?.length || 0} يصل اليوم` : ''}`,
       emoji: '🏨',
       items: [
         ...(stayEgypt > 0 ? [{
           primary: `${bucketBreakdownAr(stayCount)} · إجمالي الضيوف ${totalGuestsEgypt}`,
           secondary: 'وحدات مصر المأهولة.',
           tag: { label: 'مأهولة', tone: 'green' as const },
+        }] : []),
+        ...((stayingCanonical.arriving_today?.length || 0) > 0 ? [{
+          primary: `${stayingCanonical.arriving_today!.length} حجز يصل اليوم (محسوب في إجمالي الإقامة)`,
+          secondary: 'يظهر في قائمة الوصولات أيضًا — Guesty قد يعرضهم بعد تسجيل الدخول الفعلي فقط.',
+          tag: { label: 'بانتظار الوصول', tone: 'amber' as const },
         }] : []),
         ...(stayCount['BH-DXB'] > 0 ? [{
           primary: `BH-DXB: ${stayCount['BH-DXB']} وحدة (مستثناة من الإجمالي)`,
@@ -245,6 +257,19 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
         }] : []),
       ],
       empty_message: 'لا توجد إقامات نشطة اليوم.',
+    },
+    // حجوزات يدوية / إقامات مالك — مدرجة منفصلة (Q2 2026-05-03)
+    {
+      title: `حجز يدوي بدون دفع (${manualBlocksToday.length})`,
+      emoji: '🛠',
+      items: manualBlocksToday.length > 0
+        ? manualBlocksToday.slice(0, 8).map(r => ({
+            primary: `${r.listing_nickname || r.listing_id || '—'} · ${r.guest_name || 'مالك / حجز إداري'}`,
+            secondary: `${r.building} · ${r.source || 'manual'} · ${r.check_in_date} → ${r.check_out_date}`,
+            tag: { label: 'خارج السوق', tone: 'amber' as const },
+          }))
+        : [],
+      empty_message: 'لا توجد حجوزات يدوية أو إقامات مالك اليوم.',
     },
     {
       title: `المغادرات اليوم (${coEgypt})`,

@@ -54,7 +54,9 @@ export type IssueLine = {
   issue_id: string;
   line_no: number;
   item_id: string;
-  qty: number;
+  qty: number;                         // packs deducted from stock (procurement grain)
+  consumed_qty: number | null;         // M.17 — Q5C audit grain (mL, g, pcs); null on legacy/manual issues
+  consumed_uom: string | null;         // M.17 — UoM of consumed_qty; null when consumed_qty is null
   batch_no_picked: string;
   unit_cost_egp: number;
   note: string | null;

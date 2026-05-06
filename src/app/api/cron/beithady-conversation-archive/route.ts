@@ -53,9 +53,20 @@ export async function GET(req: NextRequest) {
 
   // Build the predicate. Two branches:
   //   1) state='closed' AND modified_at_external < cutoff
-  //   2) state='open' AND (last_inbound_at IS NULL OR last_inbound_at < cutoff)
-  // We can't easily express the OR in a single supabase chain, so we
-  // collect candidate ids in two passes then UPDATE by id.
+  //   2) state='open' AND last_inbound_at < cutoff AND answered
+  //
+  // Audit fix C-B1: pre-fix the open branch was
+  //   `last_inbound_at.is.null,last_inbound_at.lt.${cutoff}`
+  // which archived an open conversation regardless of whether the
+  // operator had answered. The WORST scenario — guest message 91 days
+  // old, never answered — is the MOST important conversation to
+  // surface, yet it would get archived and disappear from the inbox.
+  //
+  // Now we additionally require `last_outbound_at >= last_inbound_at`
+  // (operator answered after the last inbound) so unanswered threads
+  // stay visible. Combined with the auto-restore trigger from PR2, an
+  // unanswered conv that DOES get answered will start the 90-day
+  // clock from that point and archive normally.
   const [closedRes, openRes] = await Promise.all([
     sb
       .from('beithady_conversations')
@@ -64,18 +75,34 @@ export async function GET(req: NextRequest) {
       .eq('state', 'closed')
       .lt('modified_at_external', cutoff)
       .limit(maxPerRun),
+    // Open + answered + stale-since-answered. Express via two filters
+    // since supabase-js can't directly compare two columns; we read
+    // both timestamps and filter in JS.
     sb
       .from('beithady_conversations')
-      .select('id, last_inbound_at')
+      .select('id, last_inbound_at, last_outbound_at')
       .is('archived_at', null)
       .eq('state', 'open')
-      .or(`last_inbound_at.is.null,last_inbound_at.lt.${cutoff}`)
+      .not('last_inbound_at', 'is', null)
+      .lt('last_inbound_at', cutoff)
       .limit(maxPerRun),
   ]);
 
+  // Apply the answered-only filter to the open branch (audit fix C-B1):
+  // operator must have replied AT OR AFTER the last inbound.
+  const openRows = (openRes.data as Array<{
+    id: string;
+    last_inbound_at: string | null;
+    last_outbound_at: string | null;
+  }> | null) || [];
+  const openAnswered = openRows.filter(r => {
+    if (!r.last_inbound_at) return true; // no inbound = no guest waiting
+    if (!r.last_outbound_at) return false; // never answered = guest waiting
+    return r.last_outbound_at >= r.last_inbound_at;
+  });
   const ids = [
     ...((closedRes.data as Array<{ id: string }> | null) || []),
-    ...((openRes.data as Array<{ id: string }> | null) || []),
+    ...openAnswered,
   ].map(r => r.id).slice(0, maxPerRun);
 
   if (dryRun) {

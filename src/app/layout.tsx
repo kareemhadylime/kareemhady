@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Noto_Sans_Arabic, Lalezar, DM_Serif_Display, Lato } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider, THEME_INIT_SCRIPT } from './_components/theme-provider';
 import { ToastProvider } from './_components/toast';
@@ -15,6 +15,34 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+});
+
+const notoSansArabic = Noto_Sans_Arabic({
+  variable: '--font-noto-arabic',
+  subsets: ['arabic'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+});
+
+const lalezar = Lalezar({
+  subsets: ['latin', 'arabic'],
+  weight: '400',
+  variable: '--font-lalezar',
+  display: 'swap',
+});
+
+const dmSerif = DM_Serif_Display({
+  subsets: ['latin'],
+  weight: '400',
+  variable: '--font-dm-serif',
+  display: 'swap',
+});
+
+const lato = Lato({
+  subsets: ['latin'],
+  weight: ['400', '700', '900'],
+  variable: '--font-lato',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -55,7 +83,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${notoSansArabic.variable} ${lalezar.variable} ${dmSerif.variable} ${lato.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

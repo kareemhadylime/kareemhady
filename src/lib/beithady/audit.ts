@@ -13,7 +13,8 @@ export type AuditModule =
   | 'gallery'
   | 'settings'
   | 'operations'
-  | 'inventory';
+  | 'inventory'
+  | 'fnb';
 
 export type AuditEntry = {
   actor_user_id?: string | null;

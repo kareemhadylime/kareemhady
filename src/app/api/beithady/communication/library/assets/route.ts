@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     assets: assets.map(a => ({
       id: a.id,
       public_url: a.public_url,
+      thumbnail_url: a.thumbnail_url,
       caption: a.caption,
       mime_type: a.mime_type,
     })),

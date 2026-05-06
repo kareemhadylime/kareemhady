@@ -213,7 +213,7 @@ function ThreadHeader({ bundle }: { bundle: ThreadBundle }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-semibold truncate">{h.guest_full_name || h.guest_email || h.guest_phone || 'Unknown guest'}</h2>
-            <SlaPill bucket={h.sla_bucket} ageSeconds={h.sla_age_seconds} />
+            <SlaPill bucket={h.sla_bucket} ageSeconds={h.sla_age_seconds} lastInboundAt={h.last_inbound_at} />
             {h.source && (
               <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 {h.source.replace('2', '')}
@@ -404,7 +404,15 @@ function Bubble({
           </div>
         )}
         <Attachments attachments={m.attachments} inbound={inbound} />
-        {looksLikeMedia ? (
+        {/* Audit fix H-C7: render the message body based on
+            edited/deleted state. Pre-fix the operator saw stale text
+            after a guest revoked or edited the original message. */}
+        {m.deleted_at ? (
+          <div className={`text-sm italic ${inbound ? 'text-slate-400' : 'text-slate-300'}`}>
+            <Ban size={11} className="inline mr-1" />
+            [message deleted{m.from_type === 'guest' ? ' by guest' : ''}]
+          </div>
+        ) : looksLikeMedia ? (
           <MediaPlaceholder
             conversationId={guestyExternalId}
             sentAt={m.sent_at || m.created_at}
@@ -412,9 +420,29 @@ function Bubble({
             moduleKey={moduleKey}
           />
         ) : (
-          <div className="whitespace-pre-wrap text-sm">
-            {m.body || <em className="opacity-60">(empty)</em>}
-          </div>
+          <>
+            <div className="whitespace-pre-wrap text-sm">
+              {m.body || <em className="opacity-60">(empty)</em>}
+            </div>
+            {/* 2026-05 (mig 0079) — inline English translation for
+                non-EN/AR inbound messages. Auto-filled by loadThread()
+                via Claude Haiku ($0.001/msg) and cached on the row, so
+                this only renders when there's something useful to show.
+                Visually offset so the agent can tell at a glance which
+                text is theirs to act on. */}
+            {m.translation_en && (
+              <div className={`mt-1.5 pt-1.5 border-t text-sm whitespace-pre-wrap italic ${
+                inbound
+                  ? 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+                  : 'border-white/20 text-white/85'
+              }`}>
+                <span className="text-[10px] not-italic uppercase tracking-wider opacity-70 mr-1">
+                  EN{m.translation_lang ? ` ← ${m.translation_lang}` : ''}
+                </span>
+                {m.translation_en}
+              </div>
+            )}
+          </>
         )}
         <div className={`text-[10px] mt-1 ${
           inbound ? 'text-slate-400'
@@ -422,6 +450,14 @@ function Bubble({
             : 'text-slate-300'
         }`}>
           {fmtCairoDateTime(m.sent_at || m.created_at)}
+          {m.edited_at && !m.deleted_at && (
+            <span
+              className="ml-1.5 italic opacity-80"
+              title={`Edited ${fmtCairoDateTime(m.edited_at)}`}
+            >
+              · edited
+            </span>
+          )}
         </div>
       </div>
     </div>

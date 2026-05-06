@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Wifi, MessageCircle, MapPin, Clock, Phone, BedDouble, ArrowRight } from 'lucide-react';
 import { loadBoardingByToken } from '@/lib/beithady/engagement/boarding-pass';
 import { supabaseAdmin } from '@/lib/supabase';
+import { validateDineToken } from '@/lib/beithady/fnb/token-validate';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -26,6 +27,8 @@ export default async function BoardingPassPage({ params }: { params: Promise<{ t
   }
 
   const waLink = `https://wa.me/${bundle.host_phone_e164.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi Beit Hady — about my stay at ${bundle.listing_nickname || 'the apartment'} (${bundle.reservation_id})`)}`;
+
+  const fnb = await validateDineToken(token);
 
   return (
     <div style={{ backgroundColor: '#F5F1E8', minHeight: '100vh' }}>
@@ -91,6 +94,35 @@ export default async function BoardingPassPage({ params }: { params: Promise<{ t
             <span className="text-[11px] text-slate-500">{bundle.host_phone_e164}</span>
           </a>
         </section>
+
+        {/* F&B — Order Food CTA (only shown when building has F&B enabled and guest is checked in) */}
+        {fnb.ok && (
+          <a
+            href={`/dine/${token}`}
+            className="block mt-4 mx-6 text-center rounded-full py-4 font-semibold"
+            style={{ background: '#0F3F58', color: '#FAF8F4' }}
+          >
+            🍽️ Order Food
+          </a>
+        )}
+
+        {/* F&B — Printable QR code for ops to stick on the apartment fridge */}
+        {fnb.ok && (
+          <section className="mt-6 mx-6 print:mx-0 print:mt-12">
+            <h3 className="text-sm uppercase tracking-wide font-semibold text-center mb-2" style={{ color: 'var(--bh-navy, #1E2D4A)' }}>
+              In-Room Dining QR
+            </h3>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/dine/${token}/qr.svg`}
+              alt="Scan to order food"
+              className="w-48 h-48 mx-auto"
+            />
+            <p className="text-xs text-center mt-2 text-slate-500">
+              Print and place in the apartment for guests to scan.
+            </p>
+          </section>
+        )}
 
         {/* Gallery */}
         {galleryUrls.length > 0 && (

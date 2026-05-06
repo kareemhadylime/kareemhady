@@ -1,7 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '../supabase';
 import { toUsd } from './fx';
-import { bucketFromGuestyListing } from './units';
+import { bucketFromGuestyListing, isExcludedFromReport } from './units';
 import type { BuildingCode } from './types';
 
 // Shared reservation loader. Pulls all reservations whose date range
@@ -141,6 +141,11 @@ export async function loadReservationCorpus(
     seen.add(id);
 
     const listing = (r.listing as { building_code: string | null } | null) || null;
+    // BH-DXB exclusion (2026-05-04): drop UAE reservations at the
+    // ingest layer so all downstream builders (channel mix, payouts,
+    // cleaning, payment, no-show, weekly digest) automatically agree
+    // with the morning-brief Egypt-only treatment.
+    if (isExcludedFromReport(listing?.building_code || null)) continue;
     const building = bucketFromGuestyListing({
       building_code: listing?.building_code || null,
       id: (r.listing_id as string | null) || undefined,

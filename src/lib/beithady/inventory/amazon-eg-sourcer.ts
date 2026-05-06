@@ -2,6 +2,7 @@ import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCredential } from '@/lib/credentials';
+import { parseVolumeFromText } from './volumetric';
 
 // Phase M.16 / M.15.4 — Amazon EG product sourcer.
 //
@@ -282,6 +283,7 @@ Rules:
   Only the main product's buy-box price counts. If the page has multiple sponsored ads but no main product, THEN return null.
 - pack_size: 1 for single units; >=2 for multi-packs ("Pack of N", "N-pack"). Default 1 if unclear.
 - product_name_en: the canonical product H1 in English (NOT a sponsored item title at the top).
+- product_name_ar: the canonical product H1 in Arabic. Many Amazon EG pages have only English titles — if no Arabic title is on the page, GENERATE a faithful Arabic translation of product_name_en yourself (don't return null). Use Modern Standard Arabic, keep brand names latinized, preserve numeric pack sizes ("4 kg" → "4 كجم"). Example: "Clorel liquid multi purpose cleaner 4 in 1 with lavender scent, 4 kg" → "كلوريل سائل تنظيف متعدد الاستخدامات 4 في 1 برائحة اللافندر، 4 كجم".
 - in_stock: true if "In Stock" / "Add to Cart" is shown for the canonical product.
 - status:
     • "ok"  → product page with a buyable price (in_stock=true AND price_egp set)
@@ -370,13 +372,22 @@ export async function probeAmazonProduct(input: {
 export async function persistProbeResult(
   itemId: string,
   result: AmazonProbeResult,
-): Promise<{ priceChanged: boolean }> {
+  /**
+   * Audit fix C7 — race-condition guard. The URL the probe was run
+   * against. Writes are gated by `.eq('amazon_eg_url', expectedUrl)`
+   * so a slow probe of URL A cannot overwrite freshly-fetched data for
+   * URL B if the operator changed the URL between probe-start and
+   * probe-finish. If this argument is omitted (legacy callers), the
+   * gate is skipped — pass it from new code.
+   */
+  expectedUrl?: string | null,
+): Promise<{ priceChanged: boolean; staleUrlSkipped?: boolean }> {
   const sb = supabaseAdmin();
   const nowIso = new Date().toISOString();
 
   if (!result.ok) {
     // Failed probe — record the status, don't overwrite price.
-    await sb
+    let q = sb
       .from('beithady_inventory_items')
       .update({
         amazon_eg_last_status: result.status === 'parse_error' ? 'unchecked' : result.status,
@@ -384,6 +395,11 @@ export async function persistProbeResult(
         updated_at: nowIso,
       })
       .eq('id', itemId);
+    if (expectedUrl !== undefined) q = q.eq('amazon_eg_url', expectedUrl as string);
+    const { data: updated } = await q.select('id');
+    if (expectedUrl !== undefined && (!updated || updated.length === 0)) {
+      return { priceChanged: false, staleUrlSkipped: true };
+    }
     return { priceChanged: false };
   }
 
@@ -416,12 +432,20 @@ export async function persistProbeResult(
   //     accept the new product details — no silent data corruption.
   //   • The estimator + cost cells keep using amazon_eg_price_egp /
   //     pack_size unchanged.
-  await sb
+  // Parse pack volume from the Amazon product name (e.g. "4 kg" → 4 kg,
+  // "300 ML" → 300 ml, "1 L" → 1 L). Stored in shadow columns —
+  // mismatch banner compares to SKU's pack_volume_value/uom and offers
+  // the "Create new SKU" workflow (Q3=C) when they differ.
+  const parsedVolume = parseVolumeFromText(result.product_name_en);
+
+  let writeQ = sb
     .from('beithady_inventory_items')
     .update({
       amazon_eg_product_name_en: result.product_name_en,
       amazon_eg_product_name_ar: result.product_name_ar,
       amazon_eg_brand: result.brand,
+      amazon_eg_pack_volume_value: parsedVolume?.value ?? null,
+      amazon_eg_pack_volume_uom: parsedVolume?.uom ?? null,
       amazon_eg_price_egp: newPrice,
       amazon_eg_pack_size: result.pack_size,
       amazon_eg_image_url: result.image_url,
@@ -433,6 +457,13 @@ export async function persistProbeResult(
       updated_at: nowIso,
     })
     .eq('id', itemId);
+  if (expectedUrl !== undefined) writeQ = writeQ.eq('amazon_eg_url', expectedUrl as string);
+  const { data: writeUpdated } = await writeQ.select('id');
+  if (expectedUrl !== undefined && (!writeUpdated || writeUpdated.length === 0)) {
+    // Audit fix C7: URL changed under us — drop the result rather than
+    // overwrite the now-current URL's freshly-fetched data.
+    return { priceChanged: false, staleUrlSkipped: true };
+  }
 
   // Append snapshot — UNIQUE (item_id, snapshot_date) so re-runs same day
   // overwrite with the latest probe.
@@ -479,7 +510,10 @@ export async function syncOneItemPrice(
     itemUom: row.uom,
     url: row.amazon_eg_url,
   });
-  const persist = await persistProbeResult(itemId, probe);
+  // Audit fix C7: pass the URL the probe was run against so
+  // persistProbeResult can drop the write if the row's URL has changed
+  // out from under us (concurrent operator edit, fork, etc).
+  const persist = await persistProbeResult(itemId, probe, row.amazon_eg_url);
   if (!probe.ok) return { ok: true, status: probe.status, price_egp: null, price_changed: false };
   return { ok: true, status: probe.status, price_egp: probe.price_egp, price_changed: persist.priceChanged };
 }

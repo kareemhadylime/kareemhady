@@ -170,6 +170,92 @@ export async function cancelReservationOwnerAction(formData: FormData): Promise<
   revalidatePath('/emails/boat-rental/owner/calendar');
 }
 
+// Owner-side force cancel — works inside the 72h window AND on manual reservations
+// that have already flipped to `paid_to_owner`. Unlike the regular cancel, this is
+// a fait accompli — broker is notified but cannot veto. Used for emergencies (boat
+// damage, weather, owner conflict, client no-show) that the regular flow can't handle.
+//
+// Refund handling: any status that has confirmed payment exposure
+// (confirmed/details_filled/paid_to_owner) sets refund_pending=true so admin can
+// settle with the broker manually.
+//
+// Returns a result object so the calling client form can show a toast and refresh
+// the page on success. Use {ok: false, error} instead of throwing for known cases —
+// throws only on programmer errors (auth missing, unexpected DB shape).
+export async function forceCancelReservationOwnerAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await requireBoatRoleOrThrow('owner');
+  const id = s(formData.get('id'));
+  const reason = sOrNull(formData.get('reason'));
+  if (!id) return { ok: false, error: 'Missing reservation id' };
+  if (!reason || reason.length < 5) {
+    return { ok: false, error: 'Reason is required (at least 5 characters)' };
+  }
+
+  const r = await assertOwnerCanAct(id, me.id);
+  if (!r) return { ok: false, error: 'You don’t own this reservation' };
+  if (!['held', 'confirmed', 'details_filled', 'paid_to_owner'].includes(r.status)) {
+    return {
+      ok: false,
+      error: `Reservation is in ${r.status} status — nothing to cancel`,
+    };
+  }
+
+  const sb = supabaseAdmin();
+  const hasPaymentExposure = ['confirmed', 'details_filled', 'paid_to_owner'].includes(r.status);
+
+  await sb
+    .from('boat_rental_reservations')
+    .update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: me.id,
+      cancelled_by_role: 'owner',
+      cancel_reason: reason,
+      refund_pending: hasPaymentExposure,
+      held_until: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  await logAudit({
+    reservationId: id,
+    actorUserId: me.id,
+    actorRole: 'owner',
+    action: 'owner_force_cancel',
+    fromStatus: r.status,
+    toStatus: 'cancelled',
+    payload: { reason, refund_pending: hasPaymentExposure },
+  });
+
+  // Notify the registered broker (if any). External brokers don't have app
+  // accounts so the owner is expected to phone them directly.
+  if (r.broker?.id) {
+    await enqueueNotification({
+      reservationId: id,
+      to: { userId: r.broker.id, phone: '', role: 'broker' },
+      templateKey: 'cancelled',
+      language: 'en',
+      context: {
+        boatName: r.boat.name,
+        bookingDate: r.booking_date,
+        shortRef: shortRef(id),
+        cancelledByRole: 'owner',
+        cancelledByName: me.username,
+        cancelReason: reason,
+      },
+    });
+    await flushPendingForReservation(id);
+  }
+
+  revalidatePath(`/emails/boat-rental/owner/booking/${id}`);
+  revalidatePath('/emails/boat-rental/owner');
+  revalidatePath('/emails/boat-rental/owner/calendar');
+  revalidatePath('/emails/boat-rental/owner/reservations');
+  return { ok: true };
+}
+
 // ----- Owner blocks -----
 //
 // Owner reserves dates on a boat for personal use (or admin reserves for

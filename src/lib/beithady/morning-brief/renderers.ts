@@ -65,6 +65,15 @@ export function renderMarkdown(brief: Brief, baseUrl?: string): string {
     lines.push(`${t.view_full}: ${url}`);
   }
 
+  // Canonical-metric transparency footer — every brief discloses its filter
+  // semantics so the team can sanity-check at a glance against Guesty UI.
+  lines.push('');
+  lines.push(
+    brief.language === 'ar'
+      ? '_المصدر: guesty-metrics · status=confirmed/checked\\_in/checked\\_out · stay = check\\_in≤today<check\\_out · الحجوزات اليدوية مدرجة منفصلة_'
+      : '_Source: guesty-metrics · status=confirmed/checked_in/checked_out · stay = check_in≤today<check_out · owner+manual blocks listed separately_'
+  );
+
   return lines.join('\n');
 }
 
@@ -121,6 +130,11 @@ export function renderHtml(brief: Brief, baseUrl?: string): string {
     ${url ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;">
       <a href="${url}" style="color:#1e2d4a;text-decoration:none;font-size:12px;">${escapeHtml(t.view_web)}</a>
     </div>` : ''}
+    <div style="margin-top:12px;padding-top:8px;border-top:1px dashed #e2e8f0;text-align:center;color:#94a3b8;font-size:10px;font-style:italic;">
+      ${isRtl
+        ? 'المصدر: guesty-metrics · status=confirmed/checked_in/checked_out · stay = check_in≤today&lt;check_out · الحجوزات اليدوية مدرجة منفصلة'
+        : 'Source: guesty-metrics · status=confirmed/checked_in/checked_out · stay = check_in≤today&lt;check_out · owner+manual blocks listed separately'}
+    </div>
   </div>
 </body></html>
   `.trim();
