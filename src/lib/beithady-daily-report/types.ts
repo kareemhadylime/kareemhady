@@ -278,6 +278,10 @@ export type DailyReportPayload = {
   top_movers?: TopMover[] | null;
   sparklines?: SparklinesSection | null;
   goal?: GoalSection;
+
+  /** v5 — AI-derived (Phase 5). */
+  insights?: AIInsight[] | null;
+  review_topics?: ReviewTopicsSection | null;
 };
 
 export type PricingIntelligenceRowV3 = {
@@ -401,3 +405,26 @@ export type GoalSection = {
   days_remaining: number;
   projected_eom_usd: number;
 } | null;
+
+// ============================================================================
+// v5 — AI-derived (Phase 5 of Performance Dashboard plan). Optional. Builders
+// fail soft when ANTHROPIC_API_KEY is missing or the API errors.
+// ============================================================================
+
+export type AIInsight = {
+  /** Severity tier — used by the panel to color-code bullets. */
+  tone: 'positive' | 'neutral' | 'warning';
+  /** Concise narrative bullet (under 30 words). */
+  text: string;
+};
+
+export type ReviewTopicCount = {
+  topic: string;     // e.g. "cleanliness" / "staff" / "noise"
+  count: number;
+  example: string | null;
+};
+
+export type ReviewTopicsSection = {
+  praised: ReviewTopicCount[];
+  complained: ReviewTopicCount[];
+};

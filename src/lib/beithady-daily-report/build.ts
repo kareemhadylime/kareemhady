@@ -37,6 +37,8 @@ import { buildTopMovers } from './build-top-movers';
 import { buildForwardOccupancy } from './build-forward-occupancy';
 import { buildOccupancyGaps } from './build-occupancy-gaps';
 import { buildRevenueWaterfall } from './build-revenue-waterfall';
+import { buildAIInsights } from './build-insights';
+import { buildReviewTopics } from './build-review-topics';
 import type { DailyReportPayload, BuildingCode } from './types';
 
 // Orchestrator. Single entry point: returns a fully-built DailyReportPayload
@@ -153,6 +155,21 @@ export async function buildDailyReport(
     buildOccupancyGaps(today, unitCounts),
   ]);
 
+  // ── Phase 5 v5 AI builders ────────────────────────────────────────────────
+  // Run after all Phase 3 builders have populated currentForDerived.
+  // Fail-soft: both return null if ANTHROPIC_API_KEY is absent or API errors.
+  const currentWithReviews = {
+    ...currentForDerived,
+    cancel_risk: cancelRisk,
+    goal: null,
+    inquiry_triage: triageResult.triage,
+  } as DailyReportPayload;
+
+  const [aiInsights, reviewTopics] = await Promise.all([
+    buildAIInsights(currentWithReviews),
+    buildReviewTopics(reviewsResult.section.last_24h),
+  ]);
+
   const warnings = [
     ...payoutsResult.warnings,
     ...reviewsResult.warnings,
@@ -237,6 +254,9 @@ export async function buildDailyReport(
     stly: stly,
     top_movers: topMovers,
     sparklines: sparklines,
+    // v5 AI-derived
+    insights: aiInsights,
+    review_topics: reviewTopics,
   };
 }
 
