@@ -1,5 +1,22 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Per-contract page: contract hero strip + contract switcher (commit `1b75ef5`)
+
+kareem (after seeing the portfolio Projects filter): *"Yes [add same filter to per-contract page]. Also on the second screen: Project Name / Need Chosen Period / on top of screen."*
+
+Shipped:
+- New `<ContractHero>` at the top of `/fmplus/performance/[contractId]` — above the KPIs panel. Shows: "FMPLUS · PERFORMANCE" eyebrow, project name (clickable dropdown), customer, and on the right: chosen period label, current year index, "{N} of 12 mo elapsed".
+- New `<ContractSwitcher>` with two variants:
+  - `hero`: project name itself is the trigger; click → dropdown lists all contracts, click one → navigates to its dashboard preserving period/offset/from/to/compare URL params. When `contracts.length === 1`, falls back to a plain `<h1>` with the name (no chevron).
+  - `sidebar`: chip-style dropdown that mirrors the portfolio's project filter visually but does single-select navigation.
+- `<PerformanceSidebar>` now takes optional `currentContractId`. When BOTH `contracts` and `currentContractId` are provided (= per-contract page), the Projects section renders `<ContractSwitcher variant="sidebar">` under heading "Switch Contract". When `currentContractId` is undefined (= portfolio page), the existing multi-select `<ProjectFilter>` stays.
+- Per-contract page now fetches `buildPortfolio({})` in parallel with `buildContractDashboard` and threads the contracts list to both the hero and the sidebar.
+- `monthsElapsed` for the hero is computed inline via a `countMonthsInRange(from, to)` helper mirroring `periodMonthNumbers`. This shows the **period span** (e.g. "1 of 12 mo" for Previous Month, "3 of 12" for Last Quarter) — v1 simplification, can refine later to show contract-year-elapsed.
+
+Tests: 316 passing. TS clean on touched files. Push: `fc61a08..1b75ef5 HEAD -> main`. Vercel auto-deploy in flight.
+
+---
+
 ## ✅ 2026-05-06 — Performance Dashboard: Projects multi-select filter on portfolio sidebar (commit `430845d`)
 
 kareem: *"On Left Menu , Need to Choose The Project - All - Single - Multi - Dropdown with checkbox"* on the portfolio page.
