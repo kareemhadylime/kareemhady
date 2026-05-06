@@ -55,6 +55,11 @@ export type SessionUser = {
   role: 'admin' | 'editor' | 'viewer';
   allowed_domains: Domain[];  // empty = all (admin implies all)
   is_admin: boolean;
+  // Present only when an admin is impersonating another user.
+  impersonation?: {
+    original_admin_id: string;
+    original_admin_username: string;
+  };
 };
 
 function newToken(): string {
@@ -93,11 +98,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const sb = supabaseAdmin();
   const { data: session } = await sb
     .from('app_sessions')
-    .select('user_id, expires_at')
+    .select('user_id, expires_at, impersonating_user_id')
     .eq('token', token)
     .maybeSingle();
   if (!session) return null;
-  const s = session as { user_id: string; expires_at: string };
+  const s = session as { user_id: string; expires_at: string; impersonating_user_id: string | null };
   if (new Date(s.expires_at).getTime() < Date.now()) {
     // Expired — clean up and deny.
     await sb.from('app_sessions').delete().eq('token', token);
@@ -134,6 +139,49 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     allowed = ((dr as Array<{ domain: string }> | null) || [])
       .map(r => r.domain)
       .filter((d): d is Domain => (DOMAINS as readonly string[]).includes(d));
+  }
+
+  // If admin is impersonating someone, swap the effective user.
+  if (s.impersonating_user_id) {
+    // Sanity check: only admins may have an active impersonation.
+    if (!isAdmin) {
+      return null;
+    }
+
+    // Fetch the impersonated user.
+    const { data: impUser } = await sb
+      .from('app_users')
+      .select('id, username, role, disabled_at')
+      .eq('id', s.impersonating_user_id)
+      .maybeSingle();
+    if (!impUser) return null;
+    const iu = impUser as { id: string; username: string; role: string; disabled_at: string | null };
+    if (iu.disabled_at) return null;
+
+    // Resolve the impersonated user's domains.
+    const impIsAdmin = (iu.role || '').toLowerCase() === 'admin';
+    let impAllowed: Domain[] = [];
+    if (!impIsAdmin) {
+      const { data: dr } = await sb
+        .from('app_user_domain_roles')
+        .select('domain')
+        .eq('user_id', iu.id);
+      impAllowed = ((dr as Array<{ domain: string }> | null) || [])
+        .map(r => r.domain)
+        .filter((d): d is Domain => (DOMAINS as readonly string[]).includes(d));
+    }
+
+    return {
+      id: iu.id,
+      username: iu.username,
+      role: (iu.role as SessionUser['role']) || 'viewer',
+      allowed_domains: impAllowed,
+      is_admin: impIsAdmin,
+      impersonation: {
+        original_admin_id: u.id,
+        original_admin_username: u.username,
+      },
+    };
   }
 
   return {
