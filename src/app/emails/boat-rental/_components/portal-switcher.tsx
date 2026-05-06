@@ -155,15 +155,16 @@ function Dropdown({
                 : 'text-slate-700 dark:text-slate-200 hover:bg-cyan-50 dark:hover:bg-cyan-950/40 hover:text-cyan-700 dark:hover:text-cyan-300');
 
             if (p.impersonate) {
+              // NOTE: do NOT add onClick={() => setOpen(false)} here.
+              // Closing the dropdown triggers a re-render that unmounts the
+              // form before the server action submission completes — so the
+              // action never fires. The successful redirect from the action
+              // will change the page anyway, which removes the dropdown.
               return (
                 <form key={p.key} action={setImpersonationAction} className="block">
                   <input type="hidden" name="target_user_id" value={p.impersonate.target_user_id} />
                   <input type="hidden" name="redirect_to" value={p.href} />
-                  <button
-                    type="submit"
-                    className={baseButtonClass}
-                    onClick={() => setOpen(false)}
-                  >
+                  <button type="submit" className={baseButtonClass}>
                     <Icon size={14} className={ACCENT_FOR[p.key]} />
                     <span className="flex-1 text-left">
                       {p.label}
