@@ -1,116 +1,180 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## ✅ 2026-05-06 — FM+ Performance Dashboard — v1 SHIPPED (43 commits, 33 tasks of 35)
+## ✅ 2026-05-06 — Phase 3 Batch 1: Task 18 + Tasks 25/26 — v4 type extension + Pareto + RevPAR builders
 
-**Status: SHIPPED to `main`.** Subagent-driven execution of the plan. 43 commits ahead of `origin/main` at push time. The two unfinished tasks are validation passes that can run post-deploy (T32 RTL verification, T35 accessibility audit). One follow-up item flagged for v1.1.
+**Status: DONE** — commit `e818e19` on branch, pushed to `main`
 
-**Routes shipped:**
-- `/fmplus` — has new "Performance Dashboard" card linking to the module.
-- `/fmplus/performance` — portfolio page: top KPIs, "Needs Attention" cards, diverging variance bar across all contracts, sortable contract table.
-- `/fmplus/performance/[contractId]` — per-contract dashboard with all 13 panels (KPIs, Service Lines, Variance ranking, Manning dumbbell, Categories donut, Unmapped, Forecast gauge, Top 5 Vendors, Overtime, Mobilization, Sign-off, YoY arc, Anomalies).
-- `GET /api/fmplus/performance/[contractId]?chip=&from=&to=&compare=1` — JSON payload for the per-contract dashboard.
-- Both pages share a collapsible left sidebar (3 s hover-out auto-collapse, pin to lock open, 56 px icon rail when collapsed) with period chips, jump-to anchors, and per-panel visibility toggles. Mobile gets a slide-over drawer triggered by a hamburger.
+**Files modified:**
+- `src/lib/beithady-daily-report/types.ts` (+95 lines) — Added 12 new exported types (RevparBucket, ConcentrationRow, RevenueConcentrationSection, ForwardOccupancyRow, OccupancyGapNight, CancelRiskSection, RevenueWaterfallSection, StlyComparison, TopMover, HeroKpiId, SparklinesSection, GoalSection) and 10 new optional `v4` fields on `DailyReportPayload`. Additive only — existing types untouched.
 
-**Data layer (`src/lib/fmplus/performance/`):**
-- `types.ts` — payload types (`ContractDashboardPayload`, `PortfolioPerformancePayload`, all panel row types).
-- `period.ts` — chip → date range resolver with `resolvePriorPeriod` for compare mode. 8 tests passing. **The plan's "shift-by-days" prior-period algorithm did not match calendar-month semantics for unequal-length months; the implementer extended it with a calendar-aligned branch and TZ-safe date formatter.**
-- `derive-implied-hc.ts` — weighted avg CTC + implied HC = actual_manning ÷ avg_ctc. 6 tests.
-- `derive-forecast.ts` — linear year-end projection. 4 tests. **Status thresholds switched to strict `<` per implementer's spec-vs-test reconciliation (boundary value 0.05 must land in the next bucket).**
-- `derive-mobilization.ts` — straight-line / flat amortization. 3 tests.
-- `derive-anomalies.ts` — 5-rule engine: manning over amber, unmapped > 5/15 %, forecast breach, sign-off > 30 d stale, vendor concentration > 40 %. 7 tests.
-- `derive-vendors.ts` — top-5 vendors via new RPC `fmplus_perf_top_vendors` (migration `0084_fmplus_perf_top_vendors.sql` already applied via Supabase MCP). 1 test.
-- `derive-overtime.ts` — OT % of manning + status. 3 tests. **Same boundary-semantic adjustment as forecast.**
-- `build-dashboard.ts` — main aggregator that composes 13 sections. 2 tests. **Adapted to the actual `buildBudgetVarianceV2` signature (object opts, not positional; `segment_budget`/`segment_actual` field names; `unmapped_actuals` is a number rollup, not an array).**
-- `build-portfolio.ts` — portfolio aggregator. 1 test. **Used the real `PortfolioCard` shape, including the existing `current_year_revenue` field.**
+**Files created:**
+- `src/lib/beithady-daily-report/build-revenue-concentration.ts` (50 lines) — Pure function: builds Pareto concentration rows for buildings and channels from existing builder output. No IO.
+- `src/lib/beithady-daily-report/build-revenue-concentration.test.ts` (45 lines) — 4 test cases: sort order, top3_building_pct, top1_channel_pct (recomputed from revenue_usd = 72.63%), zero-revenue guard.
+- `src/lib/beithady-daily-report/build-revpar.ts` (30 lines) — Pure function: computes RevPAR per building and aggregate from MTD revenue / (units × days_elapsed). Zero-guards for both.
+- `src/lib/beithady-daily-report/build-revpar.test.ts` (35 lines) — 3 test cases: nominal computation (BH-26=58.18, all=49.09), zero days, zero units.
 
-**Total tests added in this work:** 35 unit tests, all passing.
+**Tests:** 7/7 passed (4 concentration + 3 revpar). **tsc --noEmit:** 2 pre-existing errors only.
 
-**Brand rules enforced everywhere:**
-- Yellow `#FDCF00` = brand emphasis only (KPI value, active chip, "actual" chart series, drill chevron).
-- Gold `#EEB91D` = secondary/hover.
-- Status palette is **separate** from brand: green `#22C55E`, orange `#F97316`, red `#EF4444`. White-on-yellow is unreadable (~1.07 : 1) so brand-yellow never used for status.
-- "Context" series (budget bars, prior-period overlays) = slate ramp.
-
-**Customer access: prohibited.** Both routes call `requireBudgetView()` which fails closed for users without `fmplus` in `allowed_domains`. No tokenized share variant; no customer mode.
-
-**Outstanding work:**
-1. **T32 — RTL pass** (verification only, no code). Open `/fmplus/performance/1` with `localStorage.fmplus_budget_lang = 'ar'` and walk every panel to confirm RTL layout doesn't break.
-2. **T35 — Accessibility pass.** Skip-link + focus-ring audit, then Lighthouse a11y target ≥ 95.
-3. **FOLLOWUP — Surface per-line unmapped expenses.** `buildBudgetVarianceV2` returns `unmapped_actuals` as a single rollup number, not a per-line array. The Unmapped panel currently auto-hides because `payload.unmapped` is always `[]`. Add a separate query in `build-dashboard.ts` that pulls unmapped GL lines for the period, similar to how the existing variance loader handles unmapped detection but exposing the line list.
-4. **FOLLOWUP — `sumOtActual` + `computeGpPct` stubs.** Both currently return 0. OT actual needs account-code regex coverage from the templates module; GP % per service line needs the revenue-per-service rollup from `project_year_services`.
-5. **Sidebar inline `<style>`-tag concern from T16 implementer.** If the sidebar mounts twice in a single page somehow, the `body { padding-left }` cascade order picks the last setter and could fight. Not blocking; behavior matches the spec, but worth tracking.
-
-**Deploy:** Pushed to `main`. Vercel GitHub integration auto-deploys to `limeinc.vercel.app`. Local `npm run build` failed on the pre-existing `qrcode` import in `src/app/api/dine/[token]/qr.svg/route.ts` because the worktree's `node_modules` is empty — Vercel installs deps fresh, so the production build will succeed.
-
-**Where this turn stopped:** All 43 commits pushed to `origin/main`. Vercel rebuild in flight. Awaiting kareem's verification on the live site, plus a decision on whether to pursue the followups inline (T32, T35, unmapped query) or defer to a follow-up branch.
+**Note:** test fixture channel `pct` field is approximate (73 vs actual 72.63); implementation correctly recomputes from `revenue_usd`. Test updated to assert the recomputed value. Builders are un-called pure functions; Task 28 wires them into the orchestrator.
 
 ---
 
-## 🟡 2026-05-06 — IN-PROGRESS: FM+ Performance Dashboard — brainstorming phase
+## ✅ 2026-05-06 — Tasks 14–17: Cleaning + SLA + Check-ins + Cancellations panels + DashboardShell wire (Beithady Performance Dashboard — Phase 2 COMPLETE)
 
-**Status: BRAINSTORMING** — kareem requested a new "Performance Dashboard" menu under FM+ showing budget vs actual side-by-side with charts, KPI tiles, and journal drilldowns. Period filter defaults to Last Month. Data axes: revenue (total + service line), expenses (total + service line + category), manning (amounts + back-derived headcount via Expense ÷ avg CTC), GP (abs + %), unmapped expenses, plus any beneficial extras. All output clickable. FM+ branding only — yellow/gold/black tokens from `src/lib/fmplus/brand.ts`. Process: plan → 95% confidence → workflow → review → 95% → code.
+**Status: DONE** — commit `029281f` pushed to `main`
 
-**Decisions locked:**
-- **Q1 answered: A.** Sibling module under `/fmplus`. Landing page `/fmplus/performance` shows portfolio summary; per-contract drill-in at `/fmplus/performance/[contractId]`.
-- **Q2 answered: A.** Period filter is the only chrome-level control; year is contextual subtitle ("Apr 2026 · Y1 of 1 · 4 of 12 months elapsed"). Chip set: This Month / **Last Month** (default) / Last 3 Months / QTD / YTD / Custom + opt-in "Compare to prior period" toggle. Per-contract page has a Year-over-Year arc strip at the bottom showing every year's headline numbers — no separate year picker.
-- **Q3 answered: Approach 1 (linear narrative scroll) with explicit graph+table pairing per section.** kareem said "I need to see easy dashboards & graphs (Clickable for data) for some data, also comparison tables where needed". So every section gets a chart on the left and a Budget|Actual|Variance|Var% comparison table on the right.
-- **Q4 answered: include ALL extras (a-e), defer only f (cost/m²).** kareem said "include ADD all possible data — with a small on/off toggle on tabs or data boxes, resize page on change so i choose what i need". So a (forecast/burn rate), b (top-5 vendors), c (OT-as-% of manning), d (days-since-signoff), e (mob amortization) all in v1; f (cost/m²) deferred until zone GFA is reliable.
-- **NEW UX requirement (added by kareem this turn): collapsible left sidebar + per-panel toggles.**
-  - **Sidebar:** 240 px expanded, 56 px icon rail collapsed. Auto-collapses 3 s after mouse leaves the sidebar; re-expands on hover. 📌 Pin button locks it expanded (`localStorage['fmplus_perf_sidebar_pinned']`). Main content `padding-left` bound to sidebar width with 200 ms ease transition. Mobile = slide-over drawer.
-  - **Sidebar contents (top-to-bottom):** logo + page title, Period section (chip group + Custom popover + "Compare to prior period"), Jump-to (anchor links to each panel), Visible Sections (checkbox grid for bulk show/hide), Pin button, EN/ع toggle.
-  - **Per-panel toggles:** every panel has a header `Title · [chevron-collapse] · [× hide-from-page]`. Hidden panels reflow the column. State persisted at `localStorage['fmplus_perf_panels']` per user.
-- **Final per-contract panel set (13 panels, all on by default):** 1) KPIs (5 tiles + sparklines), 2) Service Lines (grouped bars + table), 3) Variance ranking (diverging bars centred 0% + table), 4) Manning (dumbbell Req/Bud/Implied + table), 5) Categories (donut + table with red "Unmapped" row), 6) Unmapped expenses (drillable table; only renders when non-empty), 7) Forecast / burn rate (extra a), 8) Top 5 vendors (extra b), 9) Overtime (extra c), 10) Mobilization amortization (extra e), 11) Days since sign-off (extra d), 12) YoY arc (table per year), 13) Anomalies (bullet list).
-- **Portfolio page (`/fmplus/performance`):** same sidebar pattern; main = top KPI strip (4 tiles), diverging bar of every contract sorted by variance, "Needs attention" cards, sortable table with click-through to per-contract page.
-- **All numbers clickable:** chart bar/slice → drill drawer with `odoo_move_lines` (reuse `/api/fmplus/budget/variance-drill`), table row → variance/editor view, KPI tile → smooth-scroll to its section, sparkline point → that month's drill.
-- **Tech delta:** new pages `src/app/fmplus/performance/page.tsx` + `[contractId]/page.tsx`, new layout with sidebar, new client components (`<PerformanceSidebar>`, `<PanelToggle>`, `<PeriodChips>`, panel cards), new aggregation `src/lib/fmplus/performance/build-dashboard.ts` wrapping `buildBudgetVarianceV2` + adding forecast/vendors/OT/implied-HC/mob, new API route `/api/fmplus/performance/[contractId]`. Recharts already in deps.
+**Files created:**
+- `src/app/beithady/analytics/performance/_components/panels/cleaning-turnovers.tsx` (31 lines) — Bulleted list of today's turnovers from `payload.cleaning_ops_today`; empty-state fallback; `PanelFrame` drills to `/beithady/operations`.
+- `src/app/beithady/analytics/performance/_components/panels/inquiry-sla-buckets.tsx` (53 lines) — Stacked bar (role="img", aria-label) of `<1h/1-4h/4-24h/>24h` buckets; emerald/steel/amber/red segment colors; MTD avg + worst-2-agents footnote; fully guarded for optional `payload.conversations`.
+- `src/app/beithady/analytics/performance/_components/panels/check-ins-payment.tsx` (32 lines) — Yesterday + MTD check-ins-with-payment ratio; guarded for optional `payload.checkin_payment`.
+- `src/app/beithady/analytics/performance/_components/panels/cancellations.tsx` (21 lines) — Today count (red when >0) + MTD count + MTD value from required `payload.cancellations`.
 
-**Locked design rules (from research, kareem hasn't pushed back):**
-- Layout = hybrid of Pattern A (KPI strip + variance waterfall + line-item table) and Pattern D (Procore-style line-item grid). Concretely: KPI strip → primary "service-line budget vs actual" grouped-bar panel → diverging variance row centered on 0% → line-item grid → dedicated unmapped-expenses panel.
-- Charts: grouped bars (primary), diverging variance bars (overview), **dumbbell** for 3-way headcount comparison (required/budgeted/implied), waterfall as secondary GP-decomposition drill-in only.
-- KPI tile anatomy: label (12px gold uppercase) → value (28-32px) → variance pill INSIDE tile (color + directional arrow, both) → 6-month sparkline at bottom → chevron top-right. Full tile is the click target.
-- **Brand-yellow rule (critical, baked in unless kareem objects):** FM+ yellow `#FDCF00` is brand emphasis only — primary KPI value, "actual / hero" chart series, active filter chips. Status uses a separate accessible palette: green `#22C55E`, **orange `#F97316`** (pushed away from gold so it's distinguishable), red `#EF4444`. Chart "context" series (budget bars, prior-period overlays) ride a slate-500 → slate-300 ramp. White-on-yellow fails WCAG (~1.07:1) so it can never be used for status.
-- Period filter UX = chip row with quick selects + "Custom" calendar popover; resolved date range shown as subtitle.
+**Files modified:**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+14 lines) — Added 4 imports; added bottom row: CleaningTurnovers (col-3) + InquirySlaBuckets (col-6) + stacked CheckInsPayment/Cancellations (col-3, grid-rows-2).
 
-**Background research agent `a96a9d5c751ed8f0d`** returned a 1500-word reference doc — Pigment, Workday Adaptive, Procore, FM:Systems, Stephen Few bullet spec, Domo divergent bars, Carbon Design status pattern, Tabular Editor KPI guidance, Linear dashboards 2025, Carbon dataviz palettes, Ramp brand-color usage. Findings already encoded in the locked design rules above.
+**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
+**Phase 2 baseline panels:** all 10 panels complete and wired.
 
-**Spec finalised** — kareem confirmed the design ("1") then asked to tighten "no customer access" rule. Added an explicit §4 paragraph: both routes always 404 for users without `fmplus` in `allowed_domains`; no customer mode, no shareable / tokenized variant, no public-token variant without an explicit re-design (commit `7696ca9`). Spec at [docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md](docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md).
+---
 
-**Implementation plan written** ([docs/superpowers/plans/2026-05-06-fmplus-performance-dashboard.md](docs/superpowers/plans/2026-05-06-fmplus-performance-dashboard.md), commit `fbc99da`, 3,748 lines, 35 tasks across 8 phases):
+## ✅ 2026-05-06 — Tasks 10–13: Buildings table + Channel donut + Payouts + Reviews panels (Beithady Performance Dashboard — Phase 2)
 
-1. **Phase 1 — Scaffolding** (T1-T4): types, period resolver, `/fmplus` card, route stubs.
-2. **Phase 2 — Data layer** (T5-T13): 5 `derive-*` modules with TDD, `build-dashboard`, `build-portfolio`, API route, plus migration `0084_fmplus_perf_top_vendors.sql` (the only schema change — a helper RPC).
-3. **Phase 3 — Sidebar + period chrome** (T14-T16): `usePanelState` hook, panel header, period chips with Custom popover + Compare toggle, collapsible sidebar with 3 s hover-out + pin.
-4. **Phase 4 — Charts library** (T17-T18): sparkline, donut, progress bar (Recharts), then grouped bars, diverging bars, dumbbell (custom SVG), gauge.
-5. **Phase 5 — Core panels 1-6** (T19-T24): KPIs, Service Lines, Variance ranking, Manning, Categories, Unmapped.
-6. **Phase 6 — Extras panels 7-13** (T25-T28): Forecast, Vendors, Overtime, Mobilization, Sign-off, YoY arc, Anomalies + wire-up of all 13 into per-contract page.
-7. **Phase 7 — Portfolio page** (T29-T30): 4 portfolio panels + wire-up.
-8. **Phase 8 — Polish** (T31-T35): live re-render on Visible-Sections toggle, RTL verification pass, mobile slide-over drawer, loading + error states, accessibility skip-link + focus-rings + Lighthouse target ≥ 95.
+**Status: DONE** — commit `9c345b4` pushed to `main`
 
-**Reuses existing infra**: `buildBudgetVarianceV2`, `buildPortfolio`, `/api/fmplus/budget/variance-drill`, `requireBudgetView`, `BilingualToggle` (`localStorage['fmplus_budget_lang']`), `.ix-card`, FM+ tokens. Only 1 new RPC.
+**Files created:**
+- `src/app/beithady/analytics/performance/_components/panels/buildings-table.tsx` (65 lines) — Per-building grid (rows: Occupancy / MTD Rev / ADR / Bookings/d; cols: All + 5 building codes). `BandCell` uses `bandForOccupancy` + `BAND_CLASSES`. `fmtMoneyK` helper.
+- `src/app/beithady/analytics/performance/_components/panels/channel-mix-donut.tsx` (63 lines) — Inline SVG donut (stroke-dasharray arcs, rotate-90 offset) + legend list. Handles empty `channel_mix` gracefully. `aria-hidden` on SVG.
+- `src/app/beithady/analytics/performance/_components/panels/payouts.tsx` (22 lines) — MTD received total (large emerald), Airbnb/Stripe breakdown, settling today + next 7d projected.
+- `src/app/beithady/analytics/performance/_components/panels/reviews-block.tsx` (49 lines) — 5-bar star distribution (navy 5★, muted 4/3/2★, red 1★) + last-24h review list (up to 6, flagged in red). Handles empty `last_24h`.
 
-**TDD coverage**: every `derive-*` module + `build-dashboard` + `build-portfolio` + `period` resolver has unit tests with mocked Supabase. UI panels are smoke-only (jsdom is brittle for Recharts; trade-off documented).
+**Files modified:**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+17 lines) — Added 4 imports; added 4 grid cells (buildings col-span-8, channel col-span-4, payouts col-span-4, reviews col-span-8) after hero strip.
 
-**Self-review pass at end of plan**: spec-coverage matrix maps every spec section to its task(s); placeholder scan found one acceptable stub (`sumOtActual` returns 0 in T11 with a comment that it's refined in a follow-up); type consistency confirmed (`ContractDashboardPayload` defined once in T1, consumed unchanged everywhere).
+**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
+**Dev server:** Turbopack already running on 3000, clean startup.
 
-**Where this turn stopped:** offered execution choice — (1) Subagent-Driven (recommended, fresh subagent per task with review between) or (2) Inline Execution. Awaiting kareem's pick.
+---
 
-**Next turn:** kareem picks 1 or 2. If (1) → invoke `superpowers:subagent-driven-development` skill, dispatch one subagent per task, review/commit between. If (2) → invoke `superpowers:executing-plans` skill, batch execute with checkpoints. **Do not start any task until kareem confirms the choice.**
+## ✅ 2026-05-06 — Tasks 8+9: HeroKpi component + 6-up hero strip (Beithady Performance Dashboard — Phase 2)
 
-**Done so far this turn:**
-- Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
-  - Budget tables: `project_contracts` → `project_years` (by scenario) → `project_year_services` (revenue, `monthly_revenue` × 12) + `budget_lines` (the cell grid; manning rows carry CTC in `unit_cost`; sub-section is *derived* from `line_code` substring at `build-report.ts:281-286`).
-  - Categories enum: `manning|ppe|tools|consumables|transport|it|governmental|other` (`src/lib/fmplus/budget/types.ts:9-10`). Service lines: 7, hk only is fully populated; rest are stubs → actuals for stub services land in `unmapped_actuals`.
-  - Actuals path: daily Odoo sync (`src/lib/run-odoo-financial-sync.ts`, ~04:30 UTC) populates `odoo_move_lines` + `odoo_move_line_analytics`. A move line belongs to a contract iff `odoo_move_line_analytics.analytic_account_id == project_contracts.project_id`.
-  - Cell-level journal drilldown is **already wired** at `src/app/fmplus/financial/budget/variance/_components/drill-drawer.tsx` → `/api/fmplus/budget/variance-drill`. Reuse for the new dashboard, don't rebuild.
-  - Variance loader returns `unmapped_actuals` already (`variance.ts:293-313`) — directly useful for the "expenses not in budget" panel kareem asked for.
-  - `hc_required` is currently `ROUND(qty × 0.85)` (`build-report.ts:288-291`) — there's no explicit required-HC column. Implied actual HC = monthly manning expense ÷ weighted avg CTC per service line; CTC is `unit_cost` on `category='manning'` rows.
-  - Recharts already in active use (`src/app/fmplus/financials/_components/DashboardCharts.tsx`).
-  - FM+ tokens at `src/lib/fmplus/brand.ts`; Tailwind v4 mirror in `src/app/globals.css` `@theme` block. Existing patterns to follow: `.ix-card`, `KpiTile` (`hero-block.tsx:19-34`), `BudgetTabStrip`, `BilingualToggle` (localStorage `fmplus_budget_lang`), `FmplusHero`.
-  - Permissions: `requireBudgetView` = `requireDomainAccess('fmplus')`. No row-level multi-tenancy. Admin/viewer split only.
-  - Gotchas: `mob_amortized` is null-stubbed in the variance loader; 6 of 7 service-line templates have empty `categories: []` so their actuals always land in unmapped.
-- Dispatched a background research agent (id `a96a9d5c751ed8f0d`) for 2025-2026 finance-dashboard design references — pattern sweep, side-by-side budget/actual visualizations, KPI tile design, headcount viz, "unmapped expenses" surfacing, period-filter UX, and brand-yellow vs status-color rules. Should land before the next turn — bake findings into the design proposal.
+**Status: DONE** — commit `2a286ea` pushed to `main`
 
-**Next turn:** await kareem's answer on Q1 (nav shape). Then ask Q2 (period-filter granularity beyond Last Month default), Q3 (single-year vs multi-year on the per-contract page), Q4 (customer-facing or internal-only). Pull research findings, propose 2-3 layout approaches, then full design → save to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md` → kareem review → workflow plan.
+**Files created/modified:**
+- `src/app/beithady/analytics/performance/_components/panels/hero-kpi.tsx` (62 lines) — `'use client'`; `HeroKpi` with `goldEdge` (navy left border), delta arrows with emerald/red/slate colors, inline `Sparkline` SVG with `aria-hidden="true"`.
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+38 lines) — Replaced placeholder div with 6-up responsive hero strip (2→3→6 cols); added `HeroKpi` import; `payload.conversations` properly guarded (`? ... : '—'`).
+
+**tsc --noEmit:** 2 pre-existing errors only — zero new errors.
+**Dev server:** Already running on 3000, log shows clean startup, no route-specific errors.
+
+---
+
+## ✅ 2026-05-06 — Task 7: PanelFrame chrome + color-thresholds util (Beithady Performance Dashboard — Phase 2 START)
+
+**Status: DONE** — commit `cba642d` pushed to `main`
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_lib/color-thresholds.ts` — `ColorBand` type, `bandForOccupancy()` (green ≥70 / amber 40–70 / red <40), `BAND_CLASSES` record with light-theme Tailwind classes.
+- `src/app/beithady/analytics/performance/_lib/color-thresholds.test.ts` — TDD: written first, confirmed FAIL (module missing), then PASS after impl. 4/4 tests pass.
+- `src/app/beithady/analytics/performance/_components/panel-frame.tsx` — `'use client'`; white surface, navy-tinted border, brand-locked `#003462`/`#6077a6` label; optional `drillTo` Link wrapper; optional hover-only `onHide` × button; `liveBadge` pulse; full a11y (aria-labels on hide button + drill link + live pulse, focus-visible rings on both interactive elements, `motion-reduce` guard on transition).
+
+**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
+
+---
+
+## ✅ 2026-05-06 — Task 6: DashboardShell (Beithady Performance Dashboard — Phase 1 COMPLETE)
+
+**Status: DONE** — commit `8c882e3` pushed to `main`
+
+**File created:**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (81 lines) — `'use client'`; wires `TopBar` + `LeftRail` via `usePerfUrlState`; pattern-bg lavender wrapper; placeholder main area with Phase 2 note; stub Customize drawer with `role="dialog" aria-modal="true"`, click-outside-to-close, Close button with focus rings.
+
+**tsc --noEmit:** Only 2 pre-existing errors (qrcode, @testing-library/react) — the previous `dashboard-shell` error is now resolved.
+
+**Dev server:** Started cleanly in 856ms, no route-specific errors.
+
+---
+
+## ✅ 2026-05-06 — Task 5: TopBar + LeftRail (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `b53aa31` (branch `claude/flamboyant-agnesi-f34a8d`)
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_components/top-bar.tsx` (70 lines) — `'use client'`; breadcrumb label, wordmark `<Image priority width=120 height=48>`, h1, Export PDF + Customize buttons, date row with toggle date-picker; full `focus-visible:` rings; `aria-label` on date toggle + input.
+- `src/app/beithady/analytics/performance/_components/left-rail.tsx` (107 lines) — `'use client'`; Period/Building/Compare pill sections; `role="region" aria-label="Filters"`; `aria-pressed` on every `<Pill>`; `PerfUrlState` via `../_hooks/use-url-state`.
+
+**tsc --noEmit:** Only 3 pre-existing errors (qrcode, dashboard-shell, @testing-library/react) — no new errors.
+
+---
+
+## ✅ 2026-05-06 — Task 4: URL state hook (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `9d1ad76` (branch `claude/flamboyant-agnesi-f34a8d`)
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_hooks/use-url-state.test.ts` — 3 tests for `buildPerfUrl` (pure function)
+- `src/app/beithady/analytics/performance/_hooks/use-url-state.ts` — `buildPerfUrl` + `usePerfUrlState` hook; `'use client'` directive; `router.push(..., { scroll: false })`
+
+**TDD cycle:** test written first → FAIL (module not found) → implementation → 3/3 PASS
+
+**tsc --noEmit:** Only 3 pre-existing errors (qrcode, dashboard-shell, @testing-library/react) — no new errors.
+
+---
+
+## ✅ 2026-05-06 — Task 3: Page route + EmptySnapshot fallback (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `e88cddf` (pushed to main)
+
+**Files created:**
+- `src/app/beithady/analytics/performance/page.tsx` — server component; awaits `searchParams` (Next 16 `Promise<{...}>` convention); uses `BeithadyShell` with corrected `breadcrumbs` prop (plural); conditional on `result.status === 'missing'` only (no `'no-anchor'` reference)
+- `src/app/beithady/analytics/performance/_components/empty-snapshot.tsx` — brand-correct EmptySnapshot with white card, `#003462` navy, `#6077a6` steel-blue, `var(--bh-heading)` font
+
+**Key correction applied:** Plan draft used `breadcrumb` (singular) but `BeithadyShell` accepts `breadcrumbs` (plural). Fixed in page.tsx.
+
+**tsc --noEmit:** Only 3 errors — all pre-existing or expected:
+- `qrcode` types — pre-existing
+- `dashboard-shell` not found — expected until Task 6
+- `@testing-library/react` types — pre-existing
+
+**Push:** `git push origin HEAD:main` → `6292846..e88cddf`
+
+---
+
+
+## ✅ 2026-05-06 — Task 2: Server-side snapshot loader (Beithady Performance Dashboard)
+
+**Status: DONE** — commit `d66a901`
+
+TDD cycle followed strictly:
+1. Test file written first, run, confirmed FAIL (`Cannot find module './load-snapshot'`)
+2. Implementation created matching spec exactly
+3. Tests re-run, all 3 passed
+
+**Files created:**
+- `src/app/beithady/analytics/performance/_lib/load-snapshot.test.ts`
+- `src/app/beithady/analytics/performance/_lib/load-snapshot.ts`
+
+**Exports:** `parseDateParam(input: string | undefined): string | null`, `loadSnapshot(dateParam: string | undefined): Promise<SnapshotResult>`, `SnapshotResult` union type.
+
+**Verification:** `tsc --noEmit` — only pre-existing errors (`qrcode` types, `@testing-library/react` types). Zero new errors. Vitest: 3/3 passed.
+
+**Push:** GitHub connectivity unavailable from worktree at commit time — commit is on branch `claude/flamboyant-agnesi-f34a8d`, push pending.
+
+---
+
+## ✅ 2026-05-06 — Task 1: Add Performance Dashboard tile to Analytics hub
+
+**Status: DONE** — commit `51854ec`
+
+Added a 6th tile to `src/app/beithady/analytics/page.tsx` for the new Performance Dashboard. Because the existing 5 tiles are rendered via `BeithadyLauncher` (which only accepts `LauncherTile[]` with no custom children slot), the new tile is placed as a sibling `<div class="grid ...">` immediately after the launcher, using matching `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5` classes so it flows in the same column rhythm.
+
+The tile uses the brand-correct light theme (white card, `#003462` navy text, `#eae9f3` lavender icon bg) per the plan's brand-correction callout — intentionally visually distinct from the existing dark-theme launcher tiles.
+
+**Files modified:**
+- `src/app/beithady/analytics/page.tsx` (lines 1–2 imports, lines 67–82 new tile)
+
+**Added imports:** `Target` from lucide-react, `Link` from next/link.
+
+**Verification:** `tsc --noEmit` — only pre-existing errors (`qrcode` types, `@testing-library/react` types). Zero new errors.
 
 ---
 
