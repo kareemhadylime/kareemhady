@@ -1,6 +1,28 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🟢 Latest turn — Impersonation click bug FIXED + shipped
+## ✅ 2026-05-06 — Performance Dashboard: actual revenue from Odoo + offset URL fix (commits `f61ffa7`, `61e5c89`, migration `0097`)
+
+kareem reported two bugs:
+1. *"When I Try Choose February - Nothing Happens and it stays on April 2026 on the Right Label"*
+2. *"Still Expenses not Correct, all Numbers are still not populating"* (with a spreadsheet screenshot showing Mar 2026 actual revenue = 1,972,172 EGP and cost = 2,167,970 EGP).
+
+**Bug 1 — period offset ignored on per-contract page (`f61ffa7`):**
+- `searchParams` Promise type didn't include `offset`, and `resolvePeriod` was called without the offset param. Now `?chip=prev-month&offset=3` correctly resolves to Feb 2026.
+
+**Bug 2 — revenue was target/budget, not actuals (`61e5c89`):**
+- Live probe showed actual revenue lives in `odoo_move_lines` as credit balances on `account_type IN ('income','income_other')` for posted moves whose lines touch the contract analytic. Verified Mar 2026 = 1,972,172 EGP (matches accounting spreadsheet exactly).
+- New RPC `fmplus_perf_actual_revenue(p_analytic_id, p_from, p_to) RETURNS numeric` — migration `0097`, applied via Supabase MCP.
+- `derive-actual-revenue.ts` wraps the RPC.
+- `build-dashboard.ts` revenue chain: **`'odoo_actual'`** (top priority, new) → `'service_revenue'` → `'contract_value_fallback'` → `'none'`.
+- Per-service split: `service_revenue` if populated; else distribute total proportional to budget share.
+- YoY arc current + prior years also try Odoo actuals first.
+- `<ContractHero>`: amber hint only when `revenue_source === 'contract_value_fallback'`; muted hint for `'service_revenue'`; no hint for `'odoo_actual'`.
+
+Tests: 328 passing (2 new). TS clean. Result: Trio Compound for Mar 2026 will now show Revenue ≈ 1.97M (matches accounting) instead of 2.88M fallback. Vercel auto-deploy in flight.
+
+---
+
+## 🟢 Earlier turn — Impersonation click bug FIXED + shipped
 
 **Symptom:** clicking "Broker — act as @outoftheblue" in the Switch Portal dropdown did nothing. User stayed as Admin.
 
