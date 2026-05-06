@@ -52,6 +52,13 @@
   --bh-blue:  #5F7397;
   --bh-cream: #F5F1E8;
   --bh-gold:  #D4A93A;
+
+  /* Beithady brand — Pantone-locked from the official brand book */
+  --bh-ink:        #003462;  /* Deep Navy · P 108-16 U · primary text + accent */
+  --bh-steel:      #6077a6;  /* Steel Blue · P 105-13 U · the "lighter blue" */
+  --bh-lavender:   #eae9f3;  /* Pale Lavender · P 99-9 U · page bg */
+  --bh-mute:       #b3bbcb;  /* Steel Blue at ~50% lightness, for inactive UI */
+
   /* Text-role tokens that flip in dark mode. Use these (NOT --bh-navy)
      for any inline `style={{ color: ... }}` on titles, headings, list
      row labels, etc. --bh-navy stays fixed because it's also a brand
