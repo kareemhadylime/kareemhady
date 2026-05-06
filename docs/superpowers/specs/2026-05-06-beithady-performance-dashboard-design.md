@@ -56,24 +56,39 @@ All three are bookmarkable and shareable. Server component reads them and querie
 
 ## 4. Visual + brand
 
-### Locked palette (from `brand-theme.ts` + existing Analytics page)
-- **Background:** `#0a1628` (deep navy)
-- **Card surface:** linear-gradient `rgba(255,255,255,0.025)` → `rgba(255,255,255,0.01)`
-- **Border:** `rgba(255,255,255,0.07)`
-- **Primary text:** `#ffffff`
-- **Secondary text:** `rgba(180,200,235,0.55)`
-- **Accent (gold):** `#D4A93A` (Beithady gold)
-- **Soft blue:** `#5f7397` (Beithady wordmark)
-- **Cream:** `#F5F1E8` (used in PDF; sparingly here for callouts)
-- **Status colors:** green `#4ade80` / amber `#fbbf24` / red `#f87171` / blue `#60a5fa` / purple `#c084fc`
+### Locked palette (Pantone-verified from official brand book at `Beit Hady Open Files 2/Branding File/Colors/Colors.pdf`)
 
-### Brand assets
-- Beithady wordmark in BeithadyShell breadcrumb (existing component, no change)
-- Logo files at `public/brand/beithady/{wordmark,mark,monogram,logo-stacked}.jpg` — referenced by existing components, dashboard inherits.
+The dashboard is a **light theme** anchored to the three official Pantone-locked Beithady colors. No invented colors — every fill, text, border, and accent traces back to one of these.
+
+| Role | Hex | Pantone | RGB | Use |
+|---|---|---|---|---|
+| **Deep Navy** | `#003462` | P 108-16 U | 0,52,98 | Primary text, headlines, dark accent buttons, AI-tray inverted block, navy-edge gold-substitute on important hero KPI |
+| **Steel Blue** ("the lighter blue") | `#6077a6` | P 105-13 U | 96,119,166 | Secondary text, panel labels, chart secondary fills, hover states, rail pill borders, dominant accent |
+| **Pale Lavender** | `#eae9f3` | P 99-9 U | 234,233,243 | Page background, subtle card-tint variant, low-contrast row backgrounds |
+| White | `#ffffff` | — | 255,255,255 | Primary card surface |
+| Status: green | `#16a34a` | — | (Tailwind green-600) | Occupancy ≥70%, positive deltas, "ahead of pace" |
+| Status: amber | `#d97706` | — | (Tailwind amber-600) | Occupancy 40–70%, mild warnings |
+| Status: red | `#dc2626` | — | (Tailwind red-600) | Occupancy <40%, flagged 1★ reviews, alerts |
+
+**Forbidden** in this dashboard: gold/amber as a *brand* accent (only as semantic warning), any cream/beige (not in the brand), any dark-navy as a *full-page background*. The existing render-html.tsx and render-pdf.tsx in `src/lib/beithady-daily-report/` use off-brand colors (cream + gold) — this dashboard does not inherit from them. Bringing those renderers into brand alignment is out of V1 scope.
+
+### Brand assets (pulled from official brand book)
+
+Copy these to `public/brand/beithady/` before coding:
+
+| File | Source | Use |
+|---|---|---|
+| `Wordmark-03.png` | `Beit Hady Open Files 2/Branding File/Logo/Wordmark/PNG/Wordmark-03.png` | Top-bar wordmark next to "Performance Dashboard" title (steel blue on lavender) |
+| `Icon-03.png` | `Beit Hady Open Files 2/Branding File/Logo/Icon/PNG/Icon-03.png` | Analytics-tile icon, favicon (HD/بـ monogram in oval frame, steel-blue strokes on lavender) |
+| `pattern-bg.png` | Extracted from `Pattern.pdf` page 5 via pypdfium2 | Subtle background watermark on the dashboard page wrapper, applied at ~8% opacity |
+
+`BeithadyShell` renders the existing breadcrumb wordmark unchanged — no edits to that component. The dashboard top bar adds its OWN wordmark badge using `Wordmark-03.png` for visual anchoring (the Cormorant title alone reads light at the page top).
 
 ### Typography
-- Headings inherit the Beithady serif fallback (`--bh-heading` CSS var → Cormorant Garamond / Playfair Display).
-- Body inherits global `--font-sans`.
+
+- **Titles (numbers, headlines):** `Cormorant Garamond` web fallback for the official `Kepler Std Light Condensed Display` — already mapped via `--bh-heading` CSS variable in the existing `globals.css`.
+- **Body / labels:** existing global `--font-sans` (system stack).
+- **Arabic (if displayed):** `AM Thulth Regular` — load via `@font-face` in `globals.css`, source the `.ttf` file from `Beit Hady Open Files 2/Branding File/Typography/Arabic Font/AM_Thulth_Regular_0.1.ttf` and copy to `public/fonts/AM-Thulth-Regular.ttf`. (Only needed if we render the Arabic wordmark inline as text — if we use the PNG wordmark, Arabic font is not required.)
 
 ### Color thresholds (used in occupancy and pace cells)
 - Green ≥ 70%
@@ -81,6 +96,18 @@ All three are bookmarkable and shareable. Server component reads them and querie
 - Red < 40%
 
 (Same thresholds as the PDF — kept consistent so PDF readers and dashboard readers see the same color signals.)
+
+### Density + responsive rules (added 2026-05-06 after viewport-cramping review)
+
+The dashboard must remain readable at 1024px (a 13" laptop with the rail expanded — ~824px usable for the main grid). To prevent crampness:
+
+- **Hero KPI strip:** wraps. **6-up at ≥1280px → 3-up at 1024–1280px → 2-up at <1024px.** Each cell has `min-width: 160px`. KPI number font: `text-xl md:text-2xl lg:text-3xl`.
+- **Top bar:** title row stacks vertically below ~900px effective width. Wordmark badge + "Performance Dashboard" title share row 1; action buttons (Export · Customize) drop to a new row when row 1 would crowd. Filter chips + alert chips always wrap freely.
+- **Panel padding:** `p-4 sm:p-5` (was `p-3.5`). Panel-label margin-bottom `mb-2` (was `mb-1.5`).
+- **Buildings table:** at <1280px, drop the "Other" column to keep cell width readable. At <900px, show as a stacked card list instead of a 12-col grid (one card per building with the 4 metric rows inside).
+- **Channel mix donut:** legend stacks below donut at <800px instead of beside it.
+- **Inquiry SLA buckets:** segments under 8% width drop their inline label and show count only on hover (`title=`).
+- **Reviews block:** at <900px, the star-distribution bars and the last-24h list stack vertically (currently side-by-side).
 
 ---
 

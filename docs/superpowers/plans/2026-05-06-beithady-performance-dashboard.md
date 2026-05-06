@@ -8,7 +8,58 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript strict, Tailwind v4, recharts v2.15.4, Anthropic SDK, Supabase JSONB, vitest. Snapshot pre-build (one Anthropic call per day for insights + one for review topics) — zero live API calls in the request path.
 
-**Spec reference:** [docs/superpowers/specs/2026-05-06-beithady-performance-dashboard-design.md](../specs/2026-05-06-beithady-performance-dashboard-design.md) (committed `a287c3e`).
+**Spec reference:** [docs/superpowers/specs/2026-05-06-beithady-performance-dashboard-design.md](../specs/2026-05-06-beithady-performance-dashboard-design.md) (committed `a287c3e`, brand-corrected 2026-05-06).
+
+---
+
+## ⚠️ Brand correction callout — read before any code
+
+The first draft of this plan was written assuming a **dark navy + gold** theme. After reviewing the actual brand book at `Beit Hady Open Files 2/Branding File/`, that theme is **off-brand**. The dashboard is a **light theme** anchored to three Pantone-locked colors. **Apply these substitutions to every code block in this plan** before copying it:
+
+| Old (off-brand) | → | New (brand-correct) | Where it appears |
+|---|---|---|---|
+| `bg-[#0a1628]` | → | `bg-[#eae9f3]` | Page wrapper, drawer bg |
+| `bg-gradient-to-b from-white/[0.025] to-white/[0.005]` | → | `bg-white` | Card surface |
+| `bg-white/[0.015]` | → | `bg-white` | Left rail |
+| `border-white/[0.06]` / `border-white/[0.07]` / `border-white/[0.08]` / `border-white/10` | → | `border-[#003462]/10` | All card + chrome borders |
+| `text-white` | → | `text-[#003462]` | Primary text, headlines, KPI numbers |
+| `text-slate-300` | → | `text-[#003462]` | Body text, list items |
+| `text-slate-400` | → | `text-[#6077a6]` | Secondary text, deltas, metadata |
+| `text-slate-500` | → | `text-[#6077a6]/70` | Tertiary text, footnotes |
+| `text-white/25` / `text-white/30` | → | `text-[#003462]/30` | Hover-X close icon |
+| `text-amber-400` | → | `text-[#003462]` (primary action) or `text-[#6077a6]` (accent) | Buttons, active pills |
+| `bg-amber-500/15` | → | `bg-[#003462]` (primary) or `bg-[#eae9f3]` (subtle) | Button bg |
+| `border-amber-500/40` / `border-amber-500/50` | → | `border-[#003462]` (primary) or `border-[#6077a6]/40` (subtle) | Button border |
+| `from-amber-500/[0.04]` (gradients) | → | remove gradient, use solid `bg-white` | Top-bar gradient |
+| `bg-gradient-to-r from-amber-500 to-amber-300` (progress fill) | → | `bg-gradient-to-r from-[#003462] to-[#6077a6]` | Monthly goal bar |
+| Status `bg-emerald-500/12 text-emerald-400` | → | `bg-emerald-100 text-emerald-700` | Green band |
+| Status `bg-amber-500/15 text-amber-400` (occupancy threshold, not button) | → | `bg-amber-100 text-amber-700` | Amber band |
+| Status `bg-red-500/15 text-red-400` | → | `bg-red-100 text-red-700` | Red band |
+| `text-emerald-400` (positive delta) | → | `text-emerald-600` | Up arrow + "+X%" |
+| `text-red-400` (negative delta) | → | `text-red-600` | Down arrow |
+| `text-amber-400` (warn delta on number) | → | `text-amber-600` | Warning numbers |
+| Donut chart fills `#60a5fa` / `#4ade80` / `#fbbf24` / `#c084fc` / `#f87171` | → | `#003462` / `#6077a6` / `#b3bbcb` / `#16a34a` / `#dc2626` (in priority order) | Channel mix donut |
+| Sparkline stroke `#D4A93A` | → | `#6077a6` | Hero KPI sparklines |
+| AI tray bg `purple-500/[0.08]` + `blue-500/[0.06]` + `purple-500/20` border + `bg-purple-500/20 text-purple-300` tag | → | `bg-[#003462]` + `border-[#003462]` + `bg-white/20 text-white` tag | AI Insights tray (inverted navy block) |
+| AI Topics row `text-purple-300` / `text-emerald-400` / `text-red-400` | → | `text-[#6077a6]` / `text-emerald-700` / `text-red-700` | Reviews AI topics |
+| `goldEdge ? 'border-l-2 border-l-amber-500'` | → | `goldEdge ? 'border-l-[3px] border-l-[#003462]'` | Hero MTD-Revenue navy edge |
+| `goldEdge ? 'text-amber-400'` | → | `goldEdge ? 'text-[#003462]'` | KPI value when gold-edged |
+| Star bar colors `bg-emerald-400` / `bg-slate-400` / `bg-amber-400` / `bg-red-400` | → | `bg-[#003462]` / `bg-[#b3bbcb]` / `bg-amber-500` / `bg-red-500` | Reviews star distribution (5★ uses navy not green so the brand owns the win-state) |
+
+**Hex tokens at a glance:**
+- `#003462` — Deep Navy (primary)
+- `#6077a6` — Steel Blue (secondary accent — the "lighter blue")
+- `#eae9f3` — Pale Lavender (page bg)
+- `#ffffff` — Card surface
+- `#b3bbcb` — Inactive / muted (a desaturated steel-blue tint)
+- Universal status: emerald-600/700, amber-500/600, red-500/600/700 (Tailwind defaults — light backgrounds use the `*-100` shades).
+
+**Density rules added 2026-05-06 after viewport-cramping review:**
+- Hero KPI strip wraps: 6-up at ≥1280px → 3-up at 1024–1280px → 2-up at <1024px. `min-width: 160px` per cell.
+- Top bar: action buttons drop to a third row below 900px effective width.
+- Panel padding: `p-4 sm:p-5` (was `p-3.5`).
+- KPI number font: `text-xl md:text-2xl lg:text-3xl`.
+- Buildings table: drop "Other" column at <1280px; stack as cards at <900px.
 
 ---
 
@@ -91,10 +142,11 @@ Total: **~38 new files, 3 modified files.**
 
 ## Phasing
 
-The plan is split into 8 phases. **Each phase ends with `git push origin HEAD:main`, which auto-deploys via GitHub→Vercel.** No phase leaves the dashboard broken — you can stop after any phase and the deployed state is consistent.
+The plan is split into 9 phases (Phase 0 is brand setup). **Each phase ends with `git push origin HEAD:main`, which auto-deploys via GitHub→Vercel.** No phase leaves the dashboard broken — you can stop after any phase and the deployed state is consistent.
 
 | Phase | What ships | Tasks |
 |---|---|---|
+| 0 | Brand assets + light-theme CSS tokens | 0a–0c |
 | 1 | Empty shell at `/beithady/analytics/performance` | 1–6 |
 | 2 | Baseline panels (PDF parity, existing payload) | 7–17 |
 | 3 | Extended payload + 7 derived builders | 18–28 |
@@ -103,6 +155,125 @@ The plan is split into 8 phases. **Each phase ends with `git push origin HEAD:ma
 | 6 | Customize drawer + rail collapse + visibility | 44–48 |
 | 7 | Snapshot scrubber + PDF export | 49–51 |
 | 8 | Mobile responsive + a11y + reduced motion + empty state | 52–55 |
+
+---
+
+## Phase 0 · Brand setup (one-time, before any UI code)
+
+End-state: Beithady wordmark + icon + pattern are in `public/brand/beithady/`, brand color tokens are exposed as CSS variables in `globals.css`, Cormorant Garamond is loaded for headings.
+
+### Task 0a: Copy brand assets into `public/`
+
+**Files:**
+- Create: `public/brand/beithady/Wordmark-03.png`
+- Create: `public/brand/beithady/Icon-03.png`
+- Create: `public/brand/beithady/pattern-bg.png`
+
+- [ ] **Step 0a.1: Copy wordmark**
+
+```bash
+mkdir -p public/brand/beithady
+cp "C:/kareemhady/.claude/Beithady Domain/BeitHady Branding/Beithady Marketting/Beit Hady Open Files 2/Branding File/Logo/Wordmark/PNG/Wordmark-03.png" public/brand/beithady/Wordmark-03.png
+cp "C:/kareemhady/.claude/Beithady Domain/BeitHady Branding/Beithady Marketting/Beit Hady Open Files 2/Branding File/Logo/Icon/PNG/Icon-03.png" public/brand/beithady/Icon-03.png
+```
+
+- [ ] **Step 0a.2: Extract pattern PNG from PDF**
+
+```bash
+python -c "
+import pypdfium2 as pdfium, os
+pdf = pdfium.PdfDocument(r'C:\kareemhady\.claude\Beithady Domain\BeitHady Branding\Beithady Marketting\Beit Hady Open Files 2\Branding File\Pattern\PDF\Pattern.pdf')
+# Page index 4 = Pattern.pdf page 5 — steel-blue monogram on white
+page = pdf[4]
+bitmap = page.render(scale=2.0)
+bitmap.to_pil().save('public/brand/beithady/pattern-bg.png')
+print('saved')
+"
+```
+
+If `pypdfium2` isn't available, use any PDF→PNG tool to export Pattern.pdf page 5 at 2x scale into `public/brand/beithady/pattern-bg.png`.
+
+- [ ] **Step 0a.3: Verify file sizes**
+
+```bash
+ls -la public/brand/beithady/
+```
+
+Expect three new PNG files, each in the 50–500 KB range.
+
+- [ ] **Step 0a.4: Commit**
+
+```bash
+git add public/brand/beithady/
+git commit -m "feat(beithady): add official brand assets (Wordmark-03, Icon-03, pattern-bg)"
+```
+
+---
+
+### Task 0b: Brand color tokens in globals.css
+
+**Files:**
+- Modify: `src/app/globals.css`
+
+- [ ] **Step 0b.1: Add CSS custom properties**
+
+Open `src/app/globals.css`, find the `:root { ... }` block (or the `@theme` block in Tailwind v4 — same idea), and add:
+
+```css
+:root {
+  /* Beithady brand — Pantone-locked from the official brand book */
+  --bh-ink:        #003462;  /* Deep Navy · P 108-16 U · primary text + accent */
+  --bh-steel:      #6077a6;  /* Steel Blue · P 105-13 U · the "lighter blue" */
+  --bh-lavender:   #eae9f3;  /* Pale Lavender · P 99-9 U · page bg */
+  --bh-mute:       #b3bbcb;  /* Steel Blue at ~50% lightness, for inactive UI */
+
+  /* Heading font already mapped — leaving as-is */
+  /* --bh-heading: 'Cormorant Garamond', 'Playfair Display', Georgia, serif; */
+}
+```
+
+- [ ] **Step 0b.2: Optional Arabic font face (skip if you decide to use the PNG wordmark only)**
+
+```css
+@font-face {
+  font-family: 'AM Thulth';
+  src: url('/fonts/AM-Thulth-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+.font-arabic { font-family: 'AM Thulth', 'Arial', sans-serif; }
+```
+
+If you go this route, also copy:
+
+```bash
+mkdir -p public/fonts
+cp "C:/kareemhady/.claude/Beithady Domain/BeitHady Branding/Beithady Marketting/Beit Hady Open Files 2/Branding File/Typography/Arabic Font/AM_Thulth_Regular_0.1.ttf" public/fonts/AM-Thulth-Regular.ttf
+git add public/fonts/AM-Thulth-Regular.ttf
+```
+
+If you skip this (using `Wordmark-03.png` for all wordmark renders), leave both the font face and the file untouched.
+
+- [ ] **Step 0b.3: Commit**
+
+```bash
+git add src/app/globals.css
+git commit -m "feat(beithady): add brand color CSS variables (ink/steel/lavender/mute)"
+```
+
+---
+
+### Task 0c: Phase 0 push
+
+- [ ] **Step 0c.1: Push**
+
+```bash
+git fetch origin main && git rebase origin/main
+git push origin HEAD:main
+```
+
+Phase 0 ships. Brand assets and tokens are now available to every component built in subsequent phases.
+
+---
 
 ---
 
@@ -126,19 +297,21 @@ Add this Link directly after the existing "Generate Report" tile, matching the l
 ```tsx
 <Link
   href="/beithady/analytics/performance"
-  className="group relative overflow-hidden rounded-xl border border-white/[0.07] bg-gradient-to-b from-white/[0.025] to-white/[0.005] p-6 transition hover:border-amber-500/40"
+  className="group relative overflow-hidden rounded-xl border border-[#003462]/10 bg-white p-6 transition hover:border-[#003462]/40"
 >
-  <div className="absolute right-5 top-5 text-white/30 transition group-hover:translate-x-0.5 group-hover:text-amber-400">→</div>
-  <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400">
+  <div className="absolute right-5 top-5 text-[#003462]/30 transition group-hover:translate-x-0.5 group-hover:text-[#003462]">→</div>
+  <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[#eae9f3] text-[#003462]">
     <Target className="h-5 w-5" />
   </div>
   <div className="flex items-center gap-2">
-    <h3 className="text-lg font-semibold text-white">Performance Dashboard</h3>
-    <span className="rounded border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">Live</span>
+    <h3 className="text-lg font-semibold text-[#003462]">Performance Dashboard</h3>
+    <span className="rounded border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Live</span>
   </div>
-  <p className="mt-1 text-sm text-slate-400">Today · MTD · pace · drill-down. Daily report data, clickable.</p>
+  <p className="mt-1 text-sm text-[#6077a6]">Today · MTD · pace · drill-down. Daily report data, clickable.</p>
 </Link>
 ```
+
+**Note:** the existing `/beithady/analytics` hub page is currently rendered in dark navy (off-brand). This new tile will look bright against that dark background. That's acceptable for V1 — it visually flags "this is the new brand-correct page." Bringing the parent hub into brand alignment is a separate spec.
 
 Add `import { Target } from 'lucide-react';` to the top of the file if not already imported.
 
@@ -277,15 +450,15 @@ git commit -m "feat(beithady/perf): add server snapshot loader with date param p
 type Props = { date: string };
 export function EmptySnapshot({ date }: Props) {
   return (
-    <div className="mx-auto max-w-md rounded-xl border border-white/[0.07] bg-gradient-to-b from-white/[0.025] to-white/[0.005] p-8 text-center">
+    <div className="mx-auto max-w-md rounded-xl border border-[#003462]/10 bg-white p-8 text-center">
       <div className="mb-3 text-3xl">📭</div>
-      <h2 className="text-xl font-semibold text-white">No snapshot for {date}</h2>
-      <p className="mt-2 text-sm text-slate-400">
+      <h2 className="text-xl font-semibold text-[#003462]" style={{ fontFamily: 'var(--bh-heading)' }}>No snapshot for {date}</h2>
+      <p className="mt-2 text-sm text-[#6077a6]">
         The daily report cron hasn't produced a payload for this date yet. The next run is at 09:00 Cairo.
       </p>
       <a
         href="/api/cron/beithady-daily-report?force=1"
-        className="mt-4 inline-block rounded-md border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/25"
+        className="mt-4 inline-block rounded-md border border-[#003462] bg-[#003462] px-4 py-2 text-sm font-medium text-white hover:bg-[#003462]/90"
       >
         Run now manually →
       </a>
@@ -460,6 +633,7 @@ git commit -m "feat(beithady/perf): add URL state hook for date/building/compare
 // top-bar.tsx
 'use client';
 import { useState } from 'react';
+import Image from 'next/image';
 import type { PerfUrlState } from '../_hooks/use-url-state';
 
 type Props = {
@@ -477,32 +651,46 @@ export function TopBar({ state, generatedAt, reportDate, hiddenCount, onCustomiz
   const dateLabel = new Date(reportDate + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
-    <div className="border-b border-white/[0.06] bg-gradient-to-b from-amber-500/[0.04] to-transparent px-6 py-5">
-      <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-slate-500">BEIT HADY · ANALYTICS · PERFORMANCE</div>
-      <div className="mt-1 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-white">Performance Dashboard</h1>
-        <div className="flex gap-2">
+    <div className="border-b border-[#003462]/10 bg-white px-6 py-5">
+      <div className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#6077a6]/70">BEIT HADY · ANALYTICS · PERFORMANCE</div>
+      {/* Title row: wordmark + heading; below 900px the actions wrap to a 3rd row via flex-wrap */}
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-y-3">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/brand/beithady/Wordmark-03.png"
+            alt="Beit Hady"
+            width={120}
+            height={48}
+            className="h-9 w-auto"
+            priority
+          />
+          <span className="text-[#6077a6]/40">·</span>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#003462]" style={{ fontFamily: 'var(--bh-heading)' }}>
+            Performance Dashboard
+          </h1>
+        </div>
+        <div className="flex shrink-0 gap-2">
           <button
             type="button"
-            className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/10"
+            className="rounded-md border border-[#003462]/15 bg-white px-3 py-1.5 text-xs text-[#003462] hover:bg-[#eae9f3]"
           >
             ⤓ Export PDF
           </button>
           <button
             type="button"
             onClick={onCustomizeClick}
-            className="rounded-md border border-amber-500/50 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/25"
+            className="rounded-md border border-[#003462] bg-[#003462] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#003462]/90"
           >
             ⚙ Customize{hiddenCount > 0 ? ` (${hiddenCount} hidden)` : ''}
           </button>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[#6077a6]">
         <span>{dateLabel} · Data as of {cairoTime} Cairo</span>
         <button
           type="button"
           onClick={() => setShowDatePicker((v) => !v)}
-          className="rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-amber-400"
+          className="rounded-full border border-[#003462] bg-[#003462] px-3 py-1 text-white"
         >
           📅 {state.date ?? 'today'}
         </button>
@@ -511,7 +699,7 @@ export function TopBar({ state, generatedAt, reportDate, hiddenCount, onCustomiz
             type="date"
             defaultValue={state.date ?? reportDate}
             onChange={(e) => { onDateChange(e.target.value); setShowDatePicker(false); }}
-            className="rounded border border-white/10 bg-slate-900 px-2 py-1 text-white"
+            className="rounded border border-[#003462]/20 bg-white px-2 py-1 text-[#003462]"
           />
         )}
       </div>
@@ -552,7 +740,7 @@ export function LeftRail({ state, onChange }: Props) {
     <aside
       role="region"
       aria-label="Filters"
-      className="flex flex-col gap-4 border-r border-white/[0.06] bg-white/[0.015] px-4 py-5"
+      className="flex flex-col gap-4 border-r border-[#003462]/10 bg-white px-4 py-5"
     >
       <Section title="Period">
         {PERIODS.map((p) => (
@@ -583,7 +771,7 @@ export function LeftRail({ state, onChange }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em] text-slate-500">{title}</h4>
+      <h4 className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em] text-[#6077a6]/70">{title}</h4>
       <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
@@ -595,10 +783,10 @@ function Pill({ active, children, onClick }: { active?: boolean; children: React
       type="button"
       onClick={onClick}
       className={
-        'rounded-md border px-2.5 py-1.5 text-left text-[11px] transition ' +
+        'rounded-md border px-2.5 py-1.5 text-left text-[11px] transition motion-reduce:transition-none ' +
         (active
-          ? 'border-amber-500/40 bg-amber-500/15 text-amber-400'
-          : 'border-white/[0.07] bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]')
+          ? 'border-[#003462] bg-[#003462] text-white'
+          : 'border-[#003462]/10 bg-white text-[#003462] hover:bg-[#eae9f3]')
       }
     >
       {children}
@@ -645,7 +833,16 @@ export function DashboardShell({ payload, snapshotDate, generatedAt }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0a1628] text-white">
+    <div
+      className="overflow-hidden rounded-xl border border-[#003462]/10 text-[#003462]"
+      style={{
+        backgroundColor: '#eae9f3',
+        backgroundImage: "url('/brand/beithady/pattern-bg.png')",
+        backgroundSize: '280px auto',
+        backgroundRepeat: 'repeat',
+        backgroundBlendMode: 'soft-light',
+      }}
+    >
       <TopBar
         state={state}
         generatedAt={generatedAt}
@@ -656,17 +853,17 @@ export function DashboardShell({ payload, snapshotDate, generatedAt }: Props) {
       />
       <div className="grid" style={{ gridTemplateColumns: '200px 1fr' }}>
         <LeftRail state={state} onChange={update} />
-        <main className="grid grid-cols-12 gap-3 p-4">
+        <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
           {/* Phase 2 fills this in */}
-          <div className="col-span-12 rounded-lg border border-dashed border-white/10 p-12 text-center text-sm text-slate-500">
+          <div className="col-span-12 rounded-lg border border-dashed border-[#003462]/15 bg-white/50 p-12 text-center text-sm text-[#6077a6]">
             Panels arrive in Phase 2 · payload loaded for {payload.report_date}
           </div>
         </main>
       </div>
       {drawerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setDrawerOpen(false)}>
-          <div className="absolute right-0 top-0 h-full w-96 bg-[#0a1628] p-6">
-            <p className="text-sm text-slate-400">Customize drawer arrives in Phase 6.</p>
+        <div className="fixed inset-0 z-50 bg-[#003462]/40" onClick={() => setDrawerOpen(false)}>
+          <div className="absolute right-0 top-0 h-full w-96 bg-white p-6">
+            <p className="text-sm text-[#6077a6]">Customize drawer arrives in Phase 6.</p>
           </div>
         </div>
       )}
@@ -769,9 +966,9 @@ export function occupancyColor(pct: number): ColorBand {
 }
 
 export const BAND_CLASSES: Record<ColorBand, string> = {
-  green: 'bg-emerald-500/12 text-emerald-400',
-  amber: 'bg-amber-500/15 text-amber-400',
-  red: 'bg-red-500/15 text-red-400',
+  green: 'bg-emerald-100 text-emerald-700',
+  amber: 'bg-amber-100 text-amber-700',
+  red: 'bg-red-100 text-red-700',
 };
 ```
 
@@ -879,20 +1076,20 @@ type Props = {
 
 export function PanelFrame({ label, drillTo, liveBadge, className = '', children, onHide }: Props) {
   const inner = (
-    <div className={`group relative rounded-lg border border-white/[0.07] bg-gradient-to-b from-white/[0.025] to-white/[0.005] p-3.5 ${className}`}>
+    <div className={`group relative rounded-lg border border-[#003462]/10 bg-white p-4 sm:p-5 shadow-sm ${className}`}>
       {onHide && (
         <button
           type="button"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onHide(); }}
-          className="absolute right-2 top-2 text-[11px] text-white/25 opacity-0 transition group-hover:opacity-100 hover:text-white/70"
+          className="absolute right-2 top-2 text-[11px] text-[#003462]/30 opacity-0 transition motion-reduce:transition-none group-hover:opacity-100 hover:text-[#003462]/80"
           aria-label={`Hide ${label}`}
         >
           ×
         </button>
       )}
-      <div className="mb-1.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">
+      <div className="mb-2 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[#6077a6]/80">
         <span>{label}</span>
-        {liveBadge && <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+        {liveBadge && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
       </div>
       {children}
     </div>
@@ -933,11 +1130,23 @@ type Props = {
 };
 
 export function HeroKpi({ label, value, delta, spark, drillTo, goldEdge, onHide }: Props) {
+  // `goldEdge` keeps the prop name from the original API but the brand has no gold:
+  // it now applies a deep-navy left edge to flag the most important hero KPI.
   return (
-    <PanelFrame label={label} drillTo={drillTo} onHide={onHide} className={goldEdge ? 'border-l-2 border-l-amber-500' : ''}>
-      <div className={`text-2xl font-bold leading-tight ${goldEdge ? 'text-amber-400' : 'text-white'}`}>{value}</div>
+    <PanelFrame
+      label={label}
+      drillTo={drillTo}
+      onHide={onHide}
+      className={`min-w-[160px] ${goldEdge ? 'border-l-[3px] border-l-[#003462]' : ''}`}
+    >
+      <div
+        className={`text-xl md:text-2xl lg:text-3xl font-semibold leading-tight ${goldEdge ? 'text-[#003462]' : 'text-[#003462]'}`}
+        style={{ fontFamily: 'var(--bh-heading)' }}
+      >
+        {value}
+      </div>
       {delta && (
-        <div className={`mt-1 text-[10px] ${delta.direction === 'up' ? 'text-emerald-400' : delta.direction === 'down' ? 'text-red-400' : 'text-slate-400'}`}>
+        <div className={`mt-1 text-[10px] ${delta.direction === 'up' ? 'text-emerald-600' : delta.direction === 'down' ? 'text-red-600' : 'text-[#6077a6]'}`}>
           {delta.direction === 'up' ? '▲ ' : delta.direction === 'down' ? '▼ ' : ''}
           {delta.text}
         </div>
@@ -960,7 +1169,7 @@ function Sparkline({ values }: { values: number[] }) {
   }).join(' ');
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="mt-2 h-4 w-full" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke="#D4A93A" strokeWidth="1.5" />
+      <polyline points={points} fill="none" stroke="#6077a6" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -985,9 +1194,9 @@ git commit -m "feat(beithady/perf): add generic HeroKpi component"
 Replace the placeholder div in `<main>` with this block. Keep the existing imports + state, just swap the contents:
 
 ```tsx
-// inside <main className="grid grid-cols-12 gap-3 p-4">
-{/* Hero KPI strip — 6 × col-span-2 */}
-<div className="col-span-12 grid grid-cols-6 gap-3">
+// inside <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
+{/* Hero KPI strip — wraps 2-up → 3-up → 6-up by viewport. min-w on each cell prevents crampness. */}
+<div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
   <HeroKpi
     label="Occupancy"
     value={`${payload.all.occupancy_today_pct.toFixed(1)}%`}
@@ -3582,9 +3791,9 @@ export function CustomizeDrawer({ open, visibility, onSave, onReset, onClose }: 
 
   return (
     <div className="fixed inset-0 z-50" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-[#003462]/40" />
       <aside
-        className="absolute right-0 top-0 h-full w-96 overflow-y-auto bg-[#0a1628] p-6 text-white"
+        className="absolute right-0 top-0 h-full w-96 overflow-y-auto bg-white p-6 text-[#003462]"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Customize Performance Dashboard"
@@ -4187,7 +4396,16 @@ import { useIsDesktop } from '../_hooks/use-is-desktop';
 const isDesktop = useIsDesktop();
 
 return (
-  <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0a1628] text-white">
+  <div
+    className="overflow-hidden rounded-xl border border-[#003462]/10 text-[#003462]"
+    style={{
+      backgroundColor: '#eae9f3',
+      backgroundImage: "url('/brand/beithady/pattern-bg.png')",
+      backgroundSize: '280px auto',
+      backgroundRepeat: 'repeat',
+      backgroundBlendMode: 'soft-light',
+    }}
+  >
     <TopBar ... onFilterClick={() => setMobileFilterOpen(true)} />
     {isDesktop ? (
       <div className="grid transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
@@ -4224,7 +4442,7 @@ type Props = {
 
 export function MobileFilterSheet({ state, onChange, onClose }: Props) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-white/[0.08] bg-[#0a1628] p-5 text-white">
+    <div className="fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t border-[#003462]/15 bg-white p-5 text-[#003462] shadow-2xl">
       <button onClick={onClose} className="absolute right-4 top-3 text-slate-400">✕</button>
       <h3 className="mb-3 text-sm font-semibold">Filters</h3>
       <div className="mb-3">
