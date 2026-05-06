@@ -43,7 +43,7 @@ const JUMP = [
 
 interface Props {
   params: Promise<{ contractId: string }>;
-  searchParams: Promise<{ chip?: string; from?: string; to?: string; compare?: string }>;
+  searchParams: Promise<{ chip?: string; from?: string; to?: string; compare?: string; offset?: string }>;
 }
 
 /**
@@ -75,6 +75,7 @@ export default async function PerformanceContractPage(props: Props) {
     chip: (sp.chip as PeriodChip) ?? 'prev-month',
     from: sp.from,
     to: sp.to,
+    offset: sp.offset ? Number(sp.offset) : undefined,
   });
 
   const [data, allContracts] = await Promise.all([
