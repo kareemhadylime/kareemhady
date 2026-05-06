@@ -10,6 +10,7 @@ import { topVendors } from './derive-vendors';
 import { arAging } from './derive-ar-aging';
 import { actualRevenue } from './derive-actual-revenue';
 import { deriveAnomalies } from './derive-anomalies';
+import { unmappedLines } from './derive-unmapped';
 import type {
   ContractDashboardPayload,
   KpiTile,
@@ -324,11 +325,30 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     };
   });
 
-  // 7. Unmapped actuals
-  // variance v2 currently rolls up unmapped_actuals as a single number, not a per-line array.
-  // Until a per-line surface is added (future task), expose an empty list — the panel auto-hides.
-  // NOTE: unmapped_actuals is NOT month-keyed, so it can't be period-sliced in this fix.
-  const unmapped: UnmappedLine[] = [];
+  // 7. Unmapped actuals — per-line list of GL move lines that hit the
+  // contract's analytic in the period but didn't match any service template's
+  // code_patterns. variance v2 only exposes the rollup number, so we re-query
+  // here for the drillable list. Loads template_version from project_services
+  // (per-contract) to make sure the right pattern set is used.
+  const { data: svcRows } = await sb
+    .from('project_services')
+    .select('service_line,template_version')
+    .eq('contract_id', args.contract_id);
+  const tplVersionByService = new Map<ServiceLine, number>();
+  for (const r of (svcRows ?? []) as Array<{ service_line: ServiceLine; template_version: number | null }>) {
+    if (r.template_version != null) tplVersionByService.set(r.service_line, r.template_version);
+  }
+  const servicesForUnmap = (variance.segments ?? []).map(s => ({
+    service_line: s.service_line as ServiceLine,
+    template_version: tplVersionByService.get(s.service_line as ServiceLine) ?? 1,
+  }));
+  const unmapped: UnmappedLine[] = await unmappedLines({
+    contract_id: args.contract_id,
+    project_id: contractRow.project_id,
+    period_from: args.period.from,
+    period_to: args.period.to,
+    services: servicesForUnmap,
+  });
 
   // 8. KPIs (period-sliced — totals derived from sliced service_lines)
   const total_budget = service_lines.reduce((a, s) => a + s.budget, 0);

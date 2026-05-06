@@ -92,6 +92,8 @@ function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unk
       // `.then` lookups go through the trap and `await` resolves correctly.
       select: () => proxy,
       eq: () => proxy,
+      gte: () => proxy,
+      lte: () => proxy,
       order: () => proxy,
       limit: () => promiseShape(state.many ?? []),
       single: () => promiseShape(state.single ?? null),
