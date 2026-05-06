@@ -23,7 +23,8 @@ export type TemplateKey =
   | 'manual_reservation_created'  // owner created a reservation directly (no broker hold flow)
   | 'trip_payment_complete'       // trip payment ledger fully settled (auto-flip → paid_to_owner)
   | 'recurring_expense_generated' // recurring template auto-generated a new expense bill
-  | 'trip_reminder_24h';          // T-24h Arabic reminder to skipper before trip
+  | 'trip_reminder_24h'            // T-24h Arabic reminder to skipper before trip
+  | 'admin_signin_details';
 export type Recipient = { userId?: string | null; phone: string; role: 'admin' | 'broker' | 'owner' | 'skipper' };
 
 // Context used to render any template. Fields that don't apply to a
@@ -59,6 +60,12 @@ export type NotifContext = {
   shortUrl?: string;
   // trip_reminder_24h
   destinationName?: string | null;
+  // admin_signin_details
+  username?: string;
+  tempPassword?: string;
+  signinRole?: string;        // 'broker' | 'owner' | 'admin'
+  appUrl?: string;
+  displayName?: string | null;
 };
 
 function fmtEgp(n?: number): string {
@@ -231,6 +238,25 @@ function renderRecurringExpenseGenerated(ctx: NotifContext): string {
   return lines.join('\n');
 }
 
+function renderAdminSigninDetails(ctx: NotifContext): string {
+  const greeting = (ctx.displayName || ctx.username) ?? '';
+  const role = ctx.signinRole || 'user';
+  const appUrl = ctx.appUrl || 'https://limeinc.vercel.app';
+  return [
+    `👋 Welcome to Lime Boat Rental, ${greeting}!`,
+    '',
+    `You've been added as a ${role}. Sign in details:`,
+    '',
+    `Username: ${ctx.username || '—'}`,
+    `Temporary password: ${ctx.tempPassword || '—'}`,
+    '',
+    `Sign in: ${appUrl}/login`,
+    '',
+    `You'll be asked to change your password after first login.`,
+    `For help, reply to this message.`,
+  ].join('\n');
+}
+
 function renderTripReminder24hAr(ctx: NotifContext): string {
   const lines: string[] = [
     '🚤 تذكير: رحلة غدًا',
@@ -266,6 +292,7 @@ export function renderTemplate(
   if (key === 'trip_payment_complete') return renderTripPaymentComplete(ctx);
   if (key === 'recurring_expense_generated') return renderRecurringExpenseGenerated(ctx);
   if (key === 'trip_reminder_24h') return renderTripReminder24hAr(ctx);
+  if (key === 'admin_signin_details') return renderAdminSigninDetails(ctx);
   return '';
 }
 
