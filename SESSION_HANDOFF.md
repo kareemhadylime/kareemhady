@@ -1,5 +1,25 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 5 Batch A: AI Insights + Review Topics builders + orchestrator wiring
+
+**Status: DONE** — commit `98f3f4e` pushed to `main`
+
+**Files modified (1):**
+- `src/lib/beithady-daily-report/types.ts` — added v5 block (AIInsight, ReviewTopicCount, ReviewTopicsSection types) + `insights?` and `review_topics?` fields on DailyReportPayload
+
+**Files created (4):**
+- `src/lib/beithady-daily-report/build-insights.ts` — buildAIInsights(): curates compact snapshot JSON → Haiku → parses {insights:[{tone,text}]} → returns AIInsight[] | null; fail-soft on missing key or API error
+- `src/lib/beithady-daily-report/build-insights.test.ts` — 3 tests (missing key → null, valid JSON → 2 bullets, malformed → null)
+- `src/lib/beithady-daily-report/build-review-topics.ts` — buildReviewTopics(): slices last_24h reviews → Haiku → parses {praised, complained} topic counts; fail-soft
+- `src/lib/beithady-daily-report/build-review-topics.test.ts` — 3 tests (missing key → null, empty input → {praised:[],complained:[]}, valid → parses topics)
+
+**Orchestrator wiring** (`build.ts`): imports added, new Promise.all block runs both AI builders after Phase 3 results are assembled, `insights` + `review_topics` added to return object. `reviewsResult.section.last_24h` confirmed as the correct var path.
+
+**Tests:** 6/6 pass. **tsc --noEmit:** only 2 pre-existing errors (qrcode + @testing-library/react), zero new errors.
+
+---
+
+
 ## ✅ 2026-05-06 — Phase 4 Batch C: Tasks 37+38 — RevPAR/sparklines + wire 8 panels (Phase 4 COMPLETE)
 
 **Status: DONE** — commit `3feb01f` pushed to `main`
