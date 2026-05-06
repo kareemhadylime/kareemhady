@@ -1,5 +1,37 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Phase 6 Batch A: Tasks 44, 45, 46, 47 — Panel registry + visibility hook + Customize drawer + wire onHide
+
+**Status: DONE** — commit `1aa8c5c` pushed to `main`
+
+**Files created (4):**
+- `src/app/beithady/analytics/performance/_lib/panel-registry.ts` — 23-panel registry with 4 groups (hero, decisions-alerts, revenue-financials, operations-guests); `defaultVisibility()` helper; `PANEL_IDS`, `PANELS`, `PANEL_GROUPS` exports
+- `src/app/beithady/analytics/performance/_hooks/use-visibility.ts` — SSR-safe hook (`useState` defaults on server, `useEffect` syncs from localStorage); storage key `bh:perf-dashboard:visibility:v1`; `setPanel`, `setMany`, `reset`, `hiddenCount`; exports `_readFromStorage` + `_writeToStorage` for testing
+- `src/app/beithady/analytics/performance/_hooks/use-visibility.test.ts` — 7 tests for storage helpers using a localStorage shim (node env, no window); all passing
+- `src/app/beithady/analytics/performance/_components/customize-drawer.tsx` — full drawer: 4 grouped sections, toggle rows (`<label>` + `<input type="checkbox">`), ESC closes, body scroll lock, Reset to default + Done footer buttons, backdrop click closes
+
+**Files modified (1):**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` — imported `useVisibility` + `CustomizeDrawer`; all 23 panels gated by `visibility[id]`; each panel receives `onHide={() => setPanel(id, false)}`; hero KPI strip wraps individual HeroKpi in visibility checks; `hiddenCount` wired into TopBar
+
+**Tests:** 7/7 passing. **tsc:** 0 new errors (2 pre-existing: qrcode + @testing-library/react in fmplus).
+
+---
+
+## ✅ 2026-05-06 — Phase 5 Batch B: Tasks 42+43 — AI Insights tray + Reviews AI Topics row (Phase 5 COMPLETE)
+
+**Status: DONE** — commit `d9e8c90` pushed to `main`
+
+**Files created (1):**
+- `src/app/beithady/analytics/performance/_components/panels/ai-insights-tray.tsx` — AIInsightsTray component: inverted navy gradient hero callout, 3-5 bullet insights from `payload.insights`, tone dots (emerald/neutral/amber), returns null when no insights (no empty placeholder)
+
+**Files modified (2):**
+- `src/app/beithady/analytics/performance/_components/panels/reviews-block.tsx` — added AI Topics footer row inside PanelFrame: praised chips (emerald-tinted) + complained chips (red-tinted) from `payload.review_topics`; renders nothing when field absent
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` — imported AIInsightsTray, inserted as first col-span-12 item in main grid (above hero KPI strip)
+
+**tsc --noEmit:** 2 pre-existing errors only (qrcode + @testing-library/react), zero new errors.
+
+---
+
 ## ✅ 2026-05-06 — Phase 5 Batch A: AI Insights + Review Topics builders + orchestrator wiring
 
 **Status: DONE** — commit `98f3f4e` pushed to `main`
