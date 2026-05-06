@@ -1,5 +1,45 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## 🏁 2026-05-06 — Performance Dashboard P&L surface FEATURE-COMPLETE
+
+kareem confirmed: *"no need for round 3"* — Net Project P&L view (which would have layered G&A allocation on top) is officially out of scope. G&A is not allocated to projects today and there's no plan to change that.
+
+**Final surface state for `/fmplus/performance/[contractId]`** — 18 panels, all auto-hide when their data is empty, all toggleable from the sidebar's Visible Sections, all anchored in JUMP TO:
+
+1. KPI strip (5 tiles: Revenue · Expense · GP · GP% · Expense Variance%)
+2. Service Lines (with new columns: Prev Mo · Mix Bud · Mix Act · Δ GP pp)
+3. Cost Variance — by Service Line (signed-aware diverging bars)
+4. Manning (dumbbell + table with implied HC)
+5. Categories (with new columns: Prev Mo · Bud %Rev · Act %Rev · Δ bps)
+6. Unmapped Expenses (per-line surface)
+7. Forecast / Burn Rate
+8. Top 5 Vendors
+9. AR Aging
+10. Penalties (Shortage + KPI penalties per service)
+11. Variation Orders (sub-category breakdown)
+12. **Cost Matrix** (Service × Category × {Actual / Budget / Var %} — Odoo P&L mirror)
+13. **Monthly Trend** (Service × 12 months × actual, colored by variance vs uniform monthly budget)
+14. **Variance Bridge** (Budget GP → Actual GP attribution: Revenue / Manning / Materials / Transport / Other / Penalties / VOs / Reconciliation)
+15. Overtime
+16. Mobilization
+17. Sign-off
+18. Year-over-Year arc
+19. Anomalies & Suggestions
+
+ContractHero shows Project Name (clickable dropdown to switch contract), Customer, Analytic # · Contract dates · Service scope chips, Period summary on the right.
+
+Sidebar: collapsible with 3s hover-out + pin, period chips (Previous Month w/ 24-month dropdown, Last 3 Months, Last Quarter, YTD, Last Year, Custom whole-month-only), Compare-to-prior-period toggle, Switch Contract dropdown, Visible Sections checkboxes, Pin button.
+
+**Outstanding (verification-only, kareem-driven):**
+- T32 — RTL pass with `localStorage.fmplus_budget_lang = 'ar'` to confirm Arabic layout doesn't break on any panel.
+- T35 — Lighthouse accessibility audit, target ≥ 95.
+
+Both are best done on the live site after Vercel deploys settle.
+
+**Migrations applied this arc**: `0095` payment_terms_days · `0096` AR aging RPC · `0097` actual_revenue RPC · `0098` actual_ot RPC · `0099` penalties RPC · `0100` variation_orders RPC.
+
+---
+
 ## ✅ 2026-05-06 — P&L Round 2: Variance Bridge panel (commit `462d050`)
 
 Closes Round 2 alongside Cost Matrix + Monthly Trend. Decomposes Budget GP → Actual GP into signed EGP impacts: Δ Revenue, Δ Manning, Δ Materials (consumables + ppe + tools), Δ Transport, Δ Other (it + governmental + other), Penalties, Variation Orders, and a Reconciliation residual that closes the bridge.
