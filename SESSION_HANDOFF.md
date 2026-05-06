@@ -27,13 +27,28 @@
 
 **Background research agent `a96a9d5c751ed8f0d`** returned a 1500-word reference doc — Pigment, Workday Adaptive, Procore, FM:Systems, Stephen Few bullet spec, Domo divergent bars, Carbon Design status pattern, Tabular Editor KPI guidance, Linear dashboards 2025, Carbon dataviz palettes, Ramp brand-color usage. Findings already encoded in the locked design rules above.
 
-**Where this turn stopped:** kareem replied "1" (= thumbs up). Spec written to [docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md](docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md) and committed (`48b7ede`). 376 lines covering: goal/non-goals, routes, sidebar UX (3 s hover-out + pin + mobile drawer), 13 per-contract panels (each with chart + comparison table + drill target + auto-hide-when-empty rule), portfolio page, period filter (chip set + Custom popover + compare-to-prior toggle + resolved-range subtitle), data/APIs (new `buildContractDashboard` + `buildPortfolioPerformance` + `/api/fmplus/performance/[contractId]`, reuses existing `buildBudgetVarianceV2` + `/api/fmplus/budget/variance-drill`), state persistence (5 keys), brand rules (yellow emphasis-only, separate green/orange/red status palette), accessibility, bilingual, mobile, out-of-scope, open questions, acceptance criteria.
+**Spec finalised** — kareem confirmed the design ("1") then asked to tighten "no customer access" rule. Added an explicit §4 paragraph: both routes always 404 for users without `fmplus` in `allowed_domains`; no customer mode, no shareable / tokenized variant, no public-token variant without an explicit re-design (commit `7696ca9`). Spec at [docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md](docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md).
 
-**Self-review pass made two inline fixes** before commit:
-1. Added explicit "auto-hide when empty" rule at §6 panel level (Unmapped/Mobilization/Top Vendors/Anomalies all auto-hide when their data is empty for the period; ghosted in sidebar's "Visible sections" group so user knows they exist).
-2. Enumerated the v1 anomaly rules concretely in §9.2 — 5 numbered triggers with severity, message template, and action URL: (a) manning variance > `budget_settings.amber_pct`, (b) unmapped > 5 % of period spend (red if > 15 %), (c) forecast year-end variance > amber, (d) sign-off > 30 d stale, (e) top-vendor concentration > 40 %.
+**Implementation plan written** ([docs/superpowers/plans/2026-05-06-fmplus-performance-dashboard.md](docs/superpowers/plans/2026-05-06-fmplus-performance-dashboard.md), commit `fbc99da`, 3,748 lines, 35 tasks across 8 phases):
 
-**Next turn:** await kareem's formal spec review. Either he approves → invoke `superpowers:writing-plans` skill to produce the implementation plan; or he requests changes → revise spec, re-run self-review, ask again. **Do NOT start coding until both the spec and the implementation plan are approved.** Process is: spec ✅ → plan ❓ → kareem review of plan → coding.
+1. **Phase 1 — Scaffolding** (T1-T4): types, period resolver, `/fmplus` card, route stubs.
+2. **Phase 2 — Data layer** (T5-T13): 5 `derive-*` modules with TDD, `build-dashboard`, `build-portfolio`, API route, plus migration `0084_fmplus_perf_top_vendors.sql` (the only schema change — a helper RPC).
+3. **Phase 3 — Sidebar + period chrome** (T14-T16): `usePanelState` hook, panel header, period chips with Custom popover + Compare toggle, collapsible sidebar with 3 s hover-out + pin.
+4. **Phase 4 — Charts library** (T17-T18): sparkline, donut, progress bar (Recharts), then grouped bars, diverging bars, dumbbell (custom SVG), gauge.
+5. **Phase 5 — Core panels 1-6** (T19-T24): KPIs, Service Lines, Variance ranking, Manning, Categories, Unmapped.
+6. **Phase 6 — Extras panels 7-13** (T25-T28): Forecast, Vendors, Overtime, Mobilization, Sign-off, YoY arc, Anomalies + wire-up of all 13 into per-contract page.
+7. **Phase 7 — Portfolio page** (T29-T30): 4 portfolio panels + wire-up.
+8. **Phase 8 — Polish** (T31-T35): live re-render on Visible-Sections toggle, RTL verification pass, mobile slide-over drawer, loading + error states, accessibility skip-link + focus-rings + Lighthouse target ≥ 95.
+
+**Reuses existing infra**: `buildBudgetVarianceV2`, `buildPortfolio`, `/api/fmplus/budget/variance-drill`, `requireBudgetView`, `BilingualToggle` (`localStorage['fmplus_budget_lang']`), `.ix-card`, FM+ tokens. Only 1 new RPC.
+
+**TDD coverage**: every `derive-*` module + `build-dashboard` + `build-portfolio` + `period` resolver has unit tests with mocked Supabase. UI panels are smoke-only (jsdom is brittle for Recharts; trade-off documented).
+
+**Self-review pass at end of plan**: spec-coverage matrix maps every spec section to its task(s); placeholder scan found one acceptable stub (`sumOtActual` returns 0 in T11 with a comment that it's refined in a follow-up); type consistency confirmed (`ContractDashboardPayload` defined once in T1, consumed unchanged everywhere).
+
+**Where this turn stopped:** offered execution choice — (1) Subagent-Driven (recommended, fresh subagent per task with review between) or (2) Inline Execution. Awaiting kareem's pick.
+
+**Next turn:** kareem picks 1 or 2. If (1) → invoke `superpowers:subagent-driven-development` skill, dispatch one subagent per task, review/commit between. If (2) → invoke `superpowers:executing-plans` skill, batch execute with checkpoints. **Do not start any task until kareem confirms the choice.**
 
 **Done so far this turn:**
 - Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
