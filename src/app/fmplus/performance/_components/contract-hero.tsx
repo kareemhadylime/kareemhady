@@ -10,7 +10,7 @@ interface Props {
   monthsElapsed: number;
   monthsTotal: number;
   contracts: { id: number; name: string; customer?: string | null }[];
-  revenueSource?: 'service_revenue' | 'contract_value_fallback' | 'none';
+  revenueSource?: 'odoo_actual' | 'service_revenue' | 'contract_value_fallback' | 'none';
 }
 
 export function ContractHero({
@@ -47,6 +47,11 @@ export function ContractHero({
               monthly revenue per service
             </a>{' '}
             to refine
+          </p>
+        )}
+        {revenueSource === 'service_revenue' && (
+          <p className="text-[11px] text-slate-400 mt-1">
+            Revenue from budget targets · refine with Odoo actuals once invoices post
           </p>
         )}
       </div>

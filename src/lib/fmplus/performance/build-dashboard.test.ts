@@ -111,7 +111,12 @@ function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unk
 
   return {
     from: builder,
-    rpc: () => Promise.resolve({ data: [], error: null }),
+    rpc: (fnName: string) => {
+      if (fnName === 'fmplus_perf_actual_revenue') {
+        return Promise.resolve({ data: sbState.odooRevenue, error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
   };
 }
 
@@ -121,6 +126,7 @@ function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unk
 // factory-eval time).
 const sbState = vi.hoisted(() => ({
   overrides: {} as Partial<Record<string, { single?: unknown; many?: unknown[] }>>,
+  odooRevenue: 0 as number,
 }));
 
 vi.mock('@/lib/supabase', () => ({
@@ -132,6 +138,7 @@ const { buildContractDashboard } = await import('./build-dashboard');
 describe('buildContractDashboard', () => {
   test('happy path returns all 13 sections', async () => {
     sbState.overrides = {};
+    sbState.odooRevenue = 0;
     const r = await buildContractDashboard({
       contract_id: 1,
       period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
@@ -140,12 +147,13 @@ describe('buildContractDashboard', () => {
     expect(r.kpis).toHaveLength(5);
     expect(r.service_lines.length).toBeGreaterThan(0);
     expect(Array.isArray(r.unmapped)).toBe(true);
-    // revenue_source is one of the three valid string flags
-    expect(['service_revenue', 'contract_value_fallback', 'none']).toContain(r.meta.revenue_source);
+    // revenue_source is one of the four valid string flags
+    expect(['odoo_actual', 'service_revenue', 'contract_value_fallback', 'none']).toContain(r.meta.revenue_source);
   });
 
   test('period filter slices actuals to only the selected months', async () => {
     sbState.overrides = {};
+    sbState.odooRevenue = 0;
     // Period = March only. Mock has manning Mar=850K + ppe Mar=90K → 940K total
     // (NOT the full-year 1.1M total_actual). This proves slicing works.
     const r = await buildContractDashboard({
@@ -162,6 +170,7 @@ describe('buildContractDashboard', () => {
 
   test('compare=true returns prior block', async () => {
     sbState.overrides = {};
+    sbState.odooRevenue = 0;
     const r = await buildContractDashboard({
       contract_id: 1,
       period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
@@ -179,6 +188,7 @@ describe('buildContractDashboard', () => {
         many: [{ service_line: 'hk', monthly_revenue: 2_000_000 }],
       },
     };
+    sbState.odooRevenue = 0;
     const r = await buildContractDashboard({
       contract_id: 1,
       period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
@@ -194,6 +204,7 @@ describe('buildContractDashboard', () => {
   test('revenue falls back to contract_value when monthly_revenue rows are absent', async () => {
     // Default mock: project_year_services empty + contract_value = 14.4M → fallback path.
     sbState.overrides = {};
+    sbState.odooRevenue = 0;
     const r = await buildContractDashboard({
       contract_id: 1,
       period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
@@ -201,5 +212,18 @@ describe('buildContractDashboard', () => {
     expect(r.meta.revenue_source).toBe('contract_value_fallback');
     const revenueKpi = r.kpis.find(k => k.id === 'revenue');
     expect(revenueKpi!.value).toBeGreaterThan(0);
+  });
+
+  test('uses Odoo actual revenue when present', async () => {
+    sbState.overrides = {};
+    sbState.odooRevenue = 1_500_000;
+    const r = await buildContractDashboard({
+      contract_id: 1,
+      period: { chip: 'prev-month', from: '2026-03-01', to: '2026-03-31', label: 'Mar 2026' },
+    });
+    expect(r.meta.revenue_source).toBe('odoo_actual');
+    // Revenue KPI should reflect the mocked Odoo value
+    const revenueKpi = r.kpis.find(k => k.id === 'revenue');
+    expect(revenueKpi?.value).toBe(1_500_000);
   });
 });

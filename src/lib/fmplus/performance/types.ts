@@ -184,7 +184,7 @@ export interface ContractDashboardPayload {
     period: PeriodRange;
     current_year_index: number;
     current_year_id: number;
-    revenue_source: 'service_revenue' | 'contract_value_fallback' | 'none';
+    revenue_source: 'odoo_actual' | 'service_revenue' | 'contract_value_fallback' | 'none';
   };
   kpis: KpiTile[];
   service_lines: ServiceLineRow[];

@@ -8,6 +8,7 @@ import { computeMobAmortization } from './derive-mobilization';
 import { computeOvertimeBlock } from './derive-overtime';
 import { topVendors } from './derive-vendors';
 import { arAging } from './derive-ar-aging';
+import { actualRevenue } from './derive-actual-revenue';
 import { deriveAnomalies } from './derive-anomalies';
 import type {
   ContractDashboardPayload,
@@ -144,15 +145,28 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     return { budget, actual };
   }
 
-  // 3c. Revenue per service (monthly ex-VAT)
-  type RevenueSource = 'service_revenue' | 'contract_value_fallback' | 'none';
+  // 3c. Revenue resolution — prefer Odoo actuals, then service_revenue, then contract_value
+  type RevenueSource = 'odoo_actual' | 'service_revenue' | 'contract_value_fallback' | 'none';
+  let revenueSource: RevenueSource = 'none';
+  let totalPeriodRevenue = 0;
+
+  // Tier 1: Odoo actual revenue for the period
+  const odooRev = await actualRevenue({
+    project_id: contractRow.project_id,
+    from: args.period.from,
+    to: args.period.to,
+  });
+  if (odooRev > 0) {
+    totalPeriodRevenue = odooRev;
+    revenueSource = 'odoo_actual';
+  }
+
+  // Tier 2: project_year_services.monthly_revenue (also load for per-service split)
   const { data: revRows } = await sb
     .from('project_year_services')
     .select('service_line,monthly_revenue')
     .eq('year_id', currentYear.id);
-
   const monthlyRevenuePerService: Partial<Record<ServiceLine, number>> = {};
-  let revenueSource: RevenueSource = 'none';
   for (const r of (revRows ?? []) as Array<{ service_line: ServiceLine; monthly_revenue: number | string | null }>) {
     monthlyRevenuePerService[r.service_line] = Number(r.monthly_revenue ?? 0) || 0;
   }
@@ -181,37 +195,47 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     0,
   );
 
-  // Decide source + fill fallback
   const annualContractValue = Number(contractRow.contract_value ?? 0);
-  if (sumServiceMonthlyRevenue > 0) {
-    revenueSource = 'service_revenue';
-    // monthlyRevenuePerService already populated
-  } else if (annualContractValue > 0) {
-    revenueSource = 'contract_value_fallback';
-    const totalMonthly = annualContractValue / 12;
-    if (totalMonthlyBudget > 0) {
-      for (const seg of variance.segments ?? []) {
-        const svc = seg.service_line;
-        const svcMonthlyBudget = monthlyBudgetPerService[svc] ?? 0;
-        monthlyRevenuePerService[svc] = totalMonthly * (svcMonthlyBudget / totalMonthlyBudget);
-      }
+  const monthsInPeriod = periodMonths.size;
+
+  // If Odoo actuals didn't cover, fall through to lower tiers.
+  if (revenueSource !== 'odoo_actual') {
+    if (sumServiceMonthlyRevenue > 0) {
+      revenueSource = 'service_revenue';
+      totalPeriodRevenue = sumServiceMonthlyRevenue * monthsInPeriod;
+    } else if (annualContractValue > 0) {
+      revenueSource = 'contract_value_fallback';
+      totalPeriodRevenue = (annualContractValue / 12) * monthsInPeriod;
     } else {
-      // Distribute equally across services that have any presence in variance.
-      const svcs = (variance.segments ?? []).map(s => s.service_line);
-      if (svcs.length > 0) {
-        const each = totalMonthly / svcs.length;
-        for (const svc of svcs) monthlyRevenuePerService[svc] = each;
-      }
+      revenueSource = 'none';
+      totalPeriodRevenue = 0;
     }
-  } else {
-    // No revenue, no fallback. Leave map empty.
-    revenueSource = 'none';
   }
 
-  const monthsInPeriod = periodMonths.size;
+  // Per-service revenue distribution (used for per-service GP%).
+  // - When service_revenue exists, use the per-service breakdown × months.
+  // - Otherwise distribute totalPeriodRevenue by budget share (or equally).
+  const periodRevenuePerService: Partial<Record<ServiceLine, number>> = {};
+  if (sumServiceMonthlyRevenue > 0 && revenueSource !== 'odoo_actual') {
+    for (const [svc, monthly] of Object.entries(monthlyRevenuePerService) as Array<[ServiceLine, number]>) {
+      periodRevenuePerService[svc] = (monthly ?? 0) * monthsInPeriod;
+    }
+  } else if (totalMonthlyBudget > 0) {
+    for (const seg of variance.segments ?? []) {
+      const svc = seg.service_line;
+      const svcMonthlyBudget = monthlyBudgetPerService[svc] ?? 0;
+      periodRevenuePerService[svc] = totalPeriodRevenue * (svcMonthlyBudget / totalMonthlyBudget);
+    }
+  } else {
+    const svcs = (variance.segments ?? []).map(s => s.service_line);
+    if (svcs.length > 0) {
+      const each = totalPeriodRevenue / svcs.length;
+      for (const svc of svcs) periodRevenuePerService[svc] = each;
+    }
+  }
+
   function periodRevenueForService(svc: ServiceLine): number {
-    const monthly = monthlyRevenuePerService[svc] ?? 0;
-    return monthly * monthsInPeriod;
+    return periodRevenuePerService[svc] ?? 0;
   }
 
   // 4. Service-line rollup rows (period-sliced)
@@ -310,10 +334,7 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
   const total_budget = service_lines.reduce((a, s) => a + s.budget, 0);
   const total_actual = service_lines.reduce((a, s) => a + s.actual, 0);
   const variance_pct = total_budget > 0 ? (total_actual - total_budget) / total_budget : 0;
-  const revenue = (variance.segments ?? []).reduce(
-    (a, s) => a + periodRevenueForService(s.service_line),
-    0,
-  );
+  const revenue = totalPeriodRevenue;
   const gp_abs = revenue - total_actual;
   const gp_pct = revenue > 0 ? gp_abs / revenue : 0;
 
@@ -424,12 +445,20 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
         // YoY arc shows full-year totals per year — NOT the period-sliced values
         // used elsewhere on the dashboard. We re-use the already-loaded variance
         // backbone (which is full-year) for the current year.
+        const fyYear = y.fiscal_year ?? new Date().getFullYear();
+        const yearOdooRev = await actualRevenue({
+          project_id: contractRow.project_id,
+          from: `${fyYear}-01-01`,
+          to: `${fyYear}-12-31`,
+        });
         const yearRevenue =
-          sumServiceMonthlyRevenue > 0
-            ? sumServiceMonthlyRevenue * 12
-            : revenueSource === 'contract_value_fallback'
-              ? annualContractValue
-              : 0;
+          yearOdooRev > 0
+            ? yearOdooRev
+            : sumServiceMonthlyRevenue > 0
+              ? sumServiceMonthlyRevenue * 12
+              : annualContractValue > 0
+                ? annualContractValue
+                : 0;
         const yearExpense = variance.total_actual;
         const yearGp = yearRevenue - yearExpense;
         const yearGpPct = yearRevenue > 0 ? yearGp / yearRevenue : 0;
@@ -463,7 +492,19 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
         .eq('year_id', y.id);
       const yMonthlyRev = ((yRevRows ?? []) as Array<{ monthly_revenue: number | string | null }>)
         .reduce((a, r) => a + (Number(r.monthly_revenue ?? 0) || 0), 0);
-      const yRevenue = yMonthlyRev > 0 ? yMonthlyRev * 12 : annualContractValue;
+      // Tier 1 for prior years: Odoo actuals if we know the fiscal year.
+      const yOdooRev = y.fiscal_year != null
+        ? await actualRevenue({
+            project_id: contractRow.project_id,
+            from: `${y.fiscal_year}-01-01`,
+            to: `${y.fiscal_year}-12-31`,
+          })
+        : 0;
+      const yRevenue = yOdooRev > 0
+        ? yOdooRev
+        : yMonthlyRev > 0
+          ? yMonthlyRev * 12
+          : annualContractValue;
       const yExpense = v.total_actual;
       const yGp = yRevenue - yExpense;
       const yGpPct = yRevenue > 0 ? yGp / yRevenue : 0;
