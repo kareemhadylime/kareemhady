@@ -95,7 +95,7 @@ async function sendWelcomeWhatsapp(args: {
   displayName: string | null;
 }): Promise<void> {
   if (!args.whatsapp) return;
-  const appUrl = process.env.NEXT_PUBLIC_APP_HOST || 'https://limeinc.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_HOST || 'https://app.limeinc.cc';
   await enqueueNotification({
     reservationId: null,
     to: { userId: args.userId, phone: args.whatsapp, role: args.role },
@@ -342,7 +342,7 @@ export async function sendSigninDetailsAction(
 
   // Enqueue + flush WhatsApp
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_HOST || 'https://limeinc.vercel.app';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_HOST || 'https://app.limeinc.cc';
     await enqueueNotification({
       reservationId: null,
       to: { userId: u.id, phone: u.whatsapp, role: signinRole },

@@ -241,7 +241,7 @@ function renderRecurringExpenseGenerated(ctx: NotifContext): string {
 function renderAdminSigninDetails(ctx: NotifContext): string {
   const greeting = (ctx.displayName || ctx.username) ?? '';
   const role = ctx.signinRole || 'user';
-  const appUrl = ctx.appUrl || 'https://limeinc.vercel.app';
+  const appUrl = ctx.appUrl || 'https://app.limeinc.cc';
   return [
     `👋 Welcome to Lime Boat Rental, ${greeting}!`,
     '',
