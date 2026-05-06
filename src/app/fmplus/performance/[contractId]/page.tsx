@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { requireBudgetView } from '@/lib/fmplus/budget/permissions';
 import { buildContractDashboard } from '@/lib/fmplus/performance/build-dashboard';
 import { resolvePeriod } from '@/lib/fmplus/performance/period';
+import { buildPortfolio } from '@/lib/fmplus/budget/portfolio';
 import { PerformanceSidebar } from '../_components/performance-sidebar';
+import { ContractHero } from '../_components/contract-hero';
 import { KpiStripPanel } from '../_components/panels/kpi-strip';
 import { ServiceLinesPanel } from '../_components/panels/service-lines';
 import { VarianceRankingPanel } from '../_components/panels/variance-ranking';
@@ -42,6 +44,24 @@ interface Props {
   searchParams: Promise<{ chip?: string; from?: string; to?: string; compare?: string }>;
 }
 
+/**
+ * Count whole calendar months touched by [from, to]. Mirrors the
+ * `periodMonthNumbers` semantics used inside build-dashboard for slicing
+ * (any month with any overlap counts).
+ */
+function countMonthsInRange(fromIso: string, toIso: string): number {
+  const from = new Date(fromIso);
+  const to = new Date(toIso);
+  const cursor = new Date(from.getFullYear(), from.getMonth(), 1);
+  const end = new Date(to.getFullYear(), to.getMonth(), 1);
+  let n = 0;
+  while (cursor.getTime() <= end.getTime()) {
+    n += 1;
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return n;
+}
+
 export default async function PerformanceContractPage(props: Props) {
   await requireBudgetView();
   const { contractId } = await props.params;
@@ -55,11 +75,23 @@ export default async function PerformanceContractPage(props: Props) {
     to: sp.to,
   });
 
-  const data = await buildContractDashboard({
-    contract_id: id,
-    period,
-    compare: sp.compare === '1',
-  });
+  const [data, allContracts] = await Promise.all([
+    buildContractDashboard({
+      contract_id: id,
+      period,
+      compare: sp.compare === '1',
+    }),
+    buildPortfolio({}),
+  ]);
+
+  const sidebarContracts = allContracts.map(c => ({
+    id: c.contract_id,
+    name: c.project_name,
+    customer: c.customer,
+  }));
+
+  const monthsElapsed = countMonthsInRange(period.from, period.to);
+  const monthsTotal = 12;
 
   return (
     <>
@@ -67,8 +99,20 @@ export default async function PerformanceContractPage(props: Props) {
         resolvedPeriodLabel={`${period.label} · Y${data.meta.current_year_index}`}
         contextLine={`${data.meta.contract_name}${data.meta.customer ? ` · ${data.meta.customer}` : ''}`}
         jumpAnchors={JUMP}
+        contracts={sidebarContracts}
+        currentContractId={id}
       />
       <div className="flex-1 px-6 py-6 space-y-4 max-w-6xl mx-auto">
+        <ContractHero
+          contractId={id}
+          contractName={data.meta.contract_name}
+          customer={data.meta.customer}
+          periodLabel={period.label}
+          currentYearIndex={data.meta.current_year_index}
+          monthsElapsed={monthsElapsed}
+          monthsTotal={monthsTotal}
+          contracts={sidebarContracts}
+        />
         <KpiStripPanel kpis={data.kpis} />
         <ServiceLinesPanel rows={data.service_lines} />
         <VarianceRankingPanel rows={data.variance_ranked} />

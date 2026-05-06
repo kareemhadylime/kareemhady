@@ -5,6 +5,7 @@ import { Pin, Calendar, List, Eye, Languages, Menu } from 'lucide-react';
 import { PeriodChips } from './period-chips';
 import { VisibleSections } from './visible-sections';
 import { ProjectFilter } from './project-filter';
+import { ContractSwitcher } from './contract-switcher';
 
 const COLLAPSE_DELAY_MS = 3000;
 const PIN_KEY = 'fmplus_perf_sidebar_pinned';
@@ -14,9 +15,10 @@ interface Props {
   contextLine?: string;
   jumpAnchors?: { id: string; label: string }[];
   contracts?: { id: number; name: string; customer?: string | null }[];
+  currentContractId?: number;
 }
 
-export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAnchors, contracts }: Props) {
+export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAnchors, contracts, currentContractId }: Props) {
   const [pinned, setPinned] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -80,8 +82,13 @@ export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAncho
 
               {contracts && contracts.length > 1 && (
                 <section>
-                  <h4 className="text-[10px] uppercase tracking-wide text-fmplus-gold font-semibold px-3 mb-2">Projects</h4>
-                  <ProjectFilter contracts={contracts} />
+                  <h4 className="text-[10px] uppercase tracking-wide text-fmplus-gold font-semibold px-3 mb-2">
+                    {currentContractId ? 'Switch Contract' : 'Projects'}
+                  </h4>
+                  {currentContractId
+                    ? <ContractSwitcher contracts={contracts} currentContractId={currentContractId} variant="sidebar" />
+                    : <ProjectFilter contracts={contracts} />
+                  }
                 </section>
               )}
 
