@@ -1,143 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## ✅ 2026-05-06 — Tasks 10–13: Buildings table + Channel donut + Payouts + Reviews panels (Beithady Performance Dashboard — Phase 2)
+## 🟡 2026-05-06 — IN-PROGRESS: FM+ Performance Dashboard — brainstorming phase
 
-**Status: DONE** — commit `9c345b4` pushed to `main`
+**Status: BRAINSTORMING** — kareem requested a new "Performance Dashboard" menu under FM+ showing budget vs actual side-by-side with charts, KPI tiles, and journal drilldowns. Period filter defaults to Last Month. Data axes: revenue (total + service line), expenses (total + service line + category), manning (amounts + back-derived headcount via Expense ÷ avg CTC), GP (abs + %), unmapped expenses, plus any beneficial extras. All output clickable. FM+ branding only — yellow/gold/black tokens from `src/lib/fmplus/brand.ts`. Process: plan → 95% confidence → workflow → review → 95% → code.
 
-**Files created:**
-- `src/app/beithady/analytics/performance/_components/panels/buildings-table.tsx` (65 lines) — Per-building grid (rows: Occupancy / MTD Rev / ADR / Bookings/d; cols: All + 5 building codes). `BandCell` uses `bandForOccupancy` + `BAND_CLASSES`. `fmtMoneyK` helper.
-- `src/app/beithady/analytics/performance/_components/panels/channel-mix-donut.tsx` (63 lines) — Inline SVG donut (stroke-dasharray arcs, rotate-90 offset) + legend list. Handles empty `channel_mix` gracefully. `aria-hidden` on SVG.
-- `src/app/beithady/analytics/performance/_components/panels/payouts.tsx` (22 lines) — MTD received total (large emerald), Airbnb/Stripe breakdown, settling today + next 7d projected.
-- `src/app/beithady/analytics/performance/_components/panels/reviews-block.tsx` (49 lines) — 5-bar star distribution (navy 5★, muted 4/3/2★, red 1★) + last-24h review list (up to 6, flagged in red). Handles empty `last_24h`.
+**Where the turn stopped:** asked kareem to confirm Q1 (navigation shape) with recommendation = option A (sibling module under `/fmplus`, lands on portfolio summary at `/fmplus/performance`, drills into `/fmplus/performance/[contractId]` per contract).
 
-**Files modified:**
-- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+17 lines) — Added 4 imports; added 4 grid cells (buildings col-span-8, channel col-span-4, payouts col-span-4, reviews col-span-8) after hero strip.
+**Done so far this turn:**
+- Dispatched a deep-map agent to walk the FM+ data model + UI surface area. Key findings (worth keeping for the design write-up):
+  - Budget tables: `project_contracts` → `project_years` (by scenario) → `project_year_services` (revenue, `monthly_revenue` × 12) + `budget_lines` (the cell grid; manning rows carry CTC in `unit_cost`; sub-section is *derived* from `line_code` substring at `build-report.ts:281-286`).
+  - Categories enum: `manning|ppe|tools|consumables|transport|it|governmental|other` (`src/lib/fmplus/budget/types.ts:9-10`). Service lines: 7, hk only is fully populated; rest are stubs → actuals for stub services land in `unmapped_actuals`.
+  - Actuals path: daily Odoo sync (`src/lib/run-odoo-financial-sync.ts`, ~04:30 UTC) populates `odoo_move_lines` + `odoo_move_line_analytics`. A move line belongs to a contract iff `odoo_move_line_analytics.analytic_account_id == project_contracts.project_id`.
+  - Cell-level journal drilldown is **already wired** at `src/app/fmplus/financial/budget/variance/_components/drill-drawer.tsx` → `/api/fmplus/budget/variance-drill`. Reuse for the new dashboard, don't rebuild.
+  - Variance loader returns `unmapped_actuals` already (`variance.ts:293-313`) — directly useful for the "expenses not in budget" panel kareem asked for.
+  - `hc_required` is currently `ROUND(qty × 0.85)` (`build-report.ts:288-291`) — there's no explicit required-HC column. Implied actual HC = monthly manning expense ÷ weighted avg CTC per service line; CTC is `unit_cost` on `category='manning'` rows.
+  - Recharts already in active use (`src/app/fmplus/financials/_components/DashboardCharts.tsx`).
+  - FM+ tokens at `src/lib/fmplus/brand.ts`; Tailwind v4 mirror in `src/app/globals.css` `@theme` block. Existing patterns to follow: `.ix-card`, `KpiTile` (`hero-block.tsx:19-34`), `BudgetTabStrip`, `BilingualToggle` (localStorage `fmplus_budget_lang`), `FmplusHero`.
+  - Permissions: `requireBudgetView` = `requireDomainAccess('fmplus')`. No row-level multi-tenancy. Admin/viewer split only.
+  - Gotchas: `mob_amortized` is null-stubbed in the variance loader; 6 of 7 service-line templates have empty `categories: []` so their actuals always land in unmapped.
+- Dispatched a background research agent (id `a96a9d5c751ed8f0d`) for 2025-2026 finance-dashboard design references — pattern sweep, side-by-side budget/actual visualizations, KPI tile design, headcount viz, "unmapped expenses" surfacing, period-filter UX, and brand-yellow vs status-color rules. Should land before the next turn — bake findings into the design proposal.
 
-**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
-**Dev server:** Turbopack already running on 3000, clean startup.
-
----
-
-## ✅ 2026-05-06 — Tasks 8+9: HeroKpi component + 6-up hero strip (Beithady Performance Dashboard — Phase 2)
-
-**Status: DONE** — commit `2a286ea` pushed to `main`
-
-**Files created/modified:**
-- `src/app/beithady/analytics/performance/_components/panels/hero-kpi.tsx` (62 lines) — `'use client'`; `HeroKpi` with `goldEdge` (navy left border), delta arrows with emerald/red/slate colors, inline `Sparkline` SVG with `aria-hidden="true"`.
-- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (+38 lines) — Replaced placeholder div with 6-up responsive hero strip (2→3→6 cols); added `HeroKpi` import; `payload.conversations` properly guarded (`? ... : '—'`).
-
-**tsc --noEmit:** 2 pre-existing errors only — zero new errors.
-**Dev server:** Already running on 3000, log shows clean startup, no route-specific errors.
-
----
-
-## ✅ 2026-05-06 — Task 7: PanelFrame chrome + color-thresholds util (Beithady Performance Dashboard — Phase 2 START)
-
-**Status: DONE** — commit `cba642d` pushed to `main`
-
-**Files created:**
-- `src/app/beithady/analytics/performance/_lib/color-thresholds.ts` — `ColorBand` type, `bandForOccupancy()` (green ≥70 / amber 40–70 / red <40), `BAND_CLASSES` record with light-theme Tailwind classes.
-- `src/app/beithady/analytics/performance/_lib/color-thresholds.test.ts` — TDD: written first, confirmed FAIL (module missing), then PASS after impl. 4/4 tests pass.
-- `src/app/beithady/analytics/performance/_components/panel-frame.tsx` — `'use client'`; white surface, navy-tinted border, brand-locked `#003462`/`#6077a6` label; optional `drillTo` Link wrapper; optional hover-only `onHide` × button; `liveBadge` pulse; full a11y (aria-labels on hide button + drill link + live pulse, focus-visible rings on both interactive elements, `motion-reduce` guard on transition).
-
-**tsc --noEmit:** 2 pre-existing errors only (qrcode, @testing-library/react) — zero new errors.
-
----
-
-## ✅ 2026-05-06 — Task 6: DashboardShell (Beithady Performance Dashboard — Phase 1 COMPLETE)
-
-**Status: DONE** — commit `8c882e3` pushed to `main`
-
-**File created:**
-- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (81 lines) — `'use client'`; wires `TopBar` + `LeftRail` via `usePerfUrlState`; pattern-bg lavender wrapper; placeholder main area with Phase 2 note; stub Customize drawer with `role="dialog" aria-modal="true"`, click-outside-to-close, Close button with focus rings.
-
-**tsc --noEmit:** Only 2 pre-existing errors (qrcode, @testing-library/react) — the previous `dashboard-shell` error is now resolved.
-
-**Dev server:** Started cleanly in 856ms, no route-specific errors.
-
----
-
-## ✅ 2026-05-06 — Task 5: TopBar + LeftRail (Beithady Performance Dashboard)
-
-**Status: DONE** — commit `b53aa31` (branch `claude/flamboyant-agnesi-f34a8d`)
-
-**Files created:**
-- `src/app/beithady/analytics/performance/_components/top-bar.tsx` (70 lines) — `'use client'`; breadcrumb label, wordmark `<Image priority width=120 height=48>`, h1, Export PDF + Customize buttons, date row with toggle date-picker; full `focus-visible:` rings; `aria-label` on date toggle + input.
-- `src/app/beithady/analytics/performance/_components/left-rail.tsx` (107 lines) — `'use client'`; Period/Building/Compare pill sections; `role="region" aria-label="Filters"`; `aria-pressed` on every `<Pill>`; `PerfUrlState` via `../_hooks/use-url-state`.
-
-**tsc --noEmit:** Only 3 pre-existing errors (qrcode, dashboard-shell, @testing-library/react) — no new errors.
-
----
-
-## ✅ 2026-05-06 — Task 4: URL state hook (Beithady Performance Dashboard)
-
-**Status: DONE** — commit `9d1ad76` (branch `claude/flamboyant-agnesi-f34a8d`)
-
-**Files created:**
-- `src/app/beithady/analytics/performance/_hooks/use-url-state.test.ts` — 3 tests for `buildPerfUrl` (pure function)
-- `src/app/beithady/analytics/performance/_hooks/use-url-state.ts` — `buildPerfUrl` + `usePerfUrlState` hook; `'use client'` directive; `router.push(..., { scroll: false })`
-
-**TDD cycle:** test written first → FAIL (module not found) → implementation → 3/3 PASS
-
-**tsc --noEmit:** Only 3 pre-existing errors (qrcode, dashboard-shell, @testing-library/react) — no new errors.
-
----
-
-## ✅ 2026-05-06 — Task 3: Page route + EmptySnapshot fallback (Beithady Performance Dashboard)
-
-**Status: DONE** — commit `e88cddf` (pushed to main)
-
-**Files created:**
-- `src/app/beithady/analytics/performance/page.tsx` — server component; awaits `searchParams` (Next 16 `Promise<{...}>` convention); uses `BeithadyShell` with corrected `breadcrumbs` prop (plural); conditional on `result.status === 'missing'` only (no `'no-anchor'` reference)
-- `src/app/beithady/analytics/performance/_components/empty-snapshot.tsx` — brand-correct EmptySnapshot with white card, `#003462` navy, `#6077a6` steel-blue, `var(--bh-heading)` font
-
-**Key correction applied:** Plan draft used `breadcrumb` (singular) but `BeithadyShell` accepts `breadcrumbs` (plural). Fixed in page.tsx.
-
-**tsc --noEmit:** Only 3 errors — all pre-existing or expected:
-- `qrcode` types — pre-existing
-- `dashboard-shell` not found — expected until Task 6
-- `@testing-library/react` types — pre-existing
-
-**Push:** `git push origin HEAD:main` → `6292846..e88cddf`
-
----
-
-
-## ✅ 2026-05-06 — Task 2: Server-side snapshot loader (Beithady Performance Dashboard)
-
-**Status: DONE** — commit `d66a901`
-
-TDD cycle followed strictly:
-1. Test file written first, run, confirmed FAIL (`Cannot find module './load-snapshot'`)
-2. Implementation created matching spec exactly
-3. Tests re-run, all 3 passed
-
-**Files created:**
-- `src/app/beithady/analytics/performance/_lib/load-snapshot.test.ts`
-- `src/app/beithady/analytics/performance/_lib/load-snapshot.ts`
-
-**Exports:** `parseDateParam(input: string | undefined): string | null`, `loadSnapshot(dateParam: string | undefined): Promise<SnapshotResult>`, `SnapshotResult` union type.
-
-**Verification:** `tsc --noEmit` — only pre-existing errors (`qrcode` types, `@testing-library/react` types). Zero new errors. Vitest: 3/3 passed.
-
-**Push:** GitHub connectivity unavailable from worktree at commit time — commit is on branch `claude/flamboyant-agnesi-f34a8d`, push pending.
-
----
-
-## ✅ 2026-05-06 — Task 1: Add Performance Dashboard tile to Analytics hub
-
-**Status: DONE** — commit `51854ec`
-
-Added a 6th tile to `src/app/beithady/analytics/page.tsx` for the new Performance Dashboard. Because the existing 5 tiles are rendered via `BeithadyLauncher` (which only accepts `LauncherTile[]` with no custom children slot), the new tile is placed as a sibling `<div class="grid ...">` immediately after the launcher, using matching `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5` classes so it flows in the same column rhythm.
-
-The tile uses the brand-correct light theme (white card, `#003462` navy text, `#eae9f3` lavender icon bg) per the plan's brand-correction callout — intentionally visually distinct from the existing dark-theme launcher tiles.
-
-**Files modified:**
-- `src/app/beithady/analytics/page.tsx` (lines 1–2 imports, lines 67–82 new tile)
-
-**Added imports:** `Target` from lucide-react, `Link` from next/link.
-
-**Verification:** `tsc --noEmit` — only pre-existing errors (`qrcode` types, `@testing-library/react` types). Zero new errors.
+**Next turn:** await kareem's answer on Q1 (nav shape). Then ask Q2 (period-filter granularity beyond Last Month default), Q3 (single-year vs multi-year on the per-contract page), Q4 (customer-facing or internal-only). Pull research findings, propose 2-3 layout approaches, then full design → save to `docs/superpowers/specs/2026-05-06-fmplus-performance-dashboard-design.md` → kareem review → workflow plan.
 
 ---
 
