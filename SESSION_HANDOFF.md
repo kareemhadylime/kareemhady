@@ -1,6 +1,67 @@
-# Kareemhady — Session Handoff (2026-05-03)
+# Kareemhady — Session Handoff (2026-05-06)
 
-## 🟣 Latest turn — User authorized full deploy + new feature: Role impersonation in Switch Portal dropdown (design locked, awaiting "approve" to build)
+## 🟢 Latest turn — SHIPPED TO PRODUCTION: owner-features + admin sign-in + role impersonation
+
+**Status:** All three feature bundles deployed to prod. Production URL: `https://lime-8dbhn9c77-lime-investments.vercel.app` (Vercel project `lime-investments/lime`, build `6m`, status Ready).
+
+### What landed in this deploy
+
+**1. Boat Rental owner-features 32-task plan (Tasks 1-30 + cleanup)**
+- Multi-skipper roster (replaces single skipper columns)
+- Manual reservation flow with calendar context menu + dedicated page
+- Multi-payment trip ledger (replaces single-payment, drops UNIQUE)
+- Universal expense payable model + 10 categories
+- Recurring expense templates with daily cron auto-generation
+- 24h pre-trip Arabic WhatsApp reminder cron
+- Money tab (Fleet P&L, Expenses, Bills, Recurring sub-routes)
+- Owner Settings (default fuel price, vendor, lang prefs)
+- Migrations 0066-0070, 0072 (applied prior to this session by parallel work)
+
+**2. Admin sign-in details (Tasks 1-11)**
+- Auto-send WhatsApp welcome (username + temp password) on broker/owner create
+- Manual `[Send sign-in details]` button per user — auto-rotates to fresh 12-char password
+- Display name field (separate from immutable username)
+- Soft-disable account toggle (sticky `disabled_at` timestamp + auto-logout + "Account disabled" login error)
+- 12-item QA checklist embedded in plan
+- Migration 0073 — applied to live Supabase this session
+- Notification template `admin_signin_details` (English)
+- 5 unit tests for `randomFriendlyPassword` helper (no lookalikes 0/O/1/l/i)
+
+**3. Role impersonation (Tasks A-E)**
+- Migration 0074 — applied to live Supabase this session — adds `app_sessions.impersonating_user_id`
+- `getCurrentUser()` returns impersonated user as effective; `SessionUser.impersonation` exposes original admin id+username
+- Server action `setImpersonationAction` (admin-only via real-session-user check, not effective-user)
+- Switch Portal dropdown now shows "Broker — act as @{user}" / "Owner — act as @{user}" entries for admin
+- Amber stripe (top of viewport) + banner ("🎭 Acting as @x — you are @y") on every boat-rental page when impersonating
+- "Stop acting as" entry at top of dropdown when active
+
+### Deploy timeline
+1. Local build green: 34/34 vitest tests, `npm run build` clean
+2. Branch merged origin/main → claude/inspiring-booth-3d348a (1 conflict on SESSION_HANDOFF.md, took ours)
+3. `npm install` for new deps merged in (qrcode for F&B QR codes from beithady's parallel work)
+4. Push origin HEAD:main — went through cleanly (`1871151..26db778`)
+5. Migrations 0073 + 0074 applied via Supabase MCP — verified columns exist
+6. GitHub auto-deploy triggered → Vercel built + deployed to prod alias
+
+### Current main branch tip
+`26db778 Merge remote-tracking branch 'origin/main' into claude/inspiring-booth-3d348a`
+
+### Known notes
+- Live Supabase has 159 tables with RLS disabled — pre-existing pattern (codebase uses service-role admin client + app-layer auth). Not in scope to fix in this PR.
+- Migration 0073 + 0074 applied DIRECTLY (not via local migration files) since 0066-0072 were already in live state from parallel work — no need to re-apply additive migrations.
+
+### What to verify next session (post-deploy QA)
+- Login as kareemhady (admin)
+- Switch Portal dropdown should now show: Admin / Owner / Broker (act as @outoftheblue or whichever broker is first)
+- Click "Broker" → page reloads to `/emails/boat-rental/broker`, banner appears
+- Click "Stop acting as @outoftheblue" → returns to admin
+- Admin Users page → Send sign-in details button on a test user → confirm WhatsApp arrives
+- Display name "Hisham" set on user → reflected in WhatsApp greeting
+- Disable account toggle works (test user can't sign in, "Account disabled" message)
+
+---
+
+## Previous turn — User authorized full deploy + new feature: Role impersonation in Switch Portal dropdown (design locked, awaiting "approve" to build)
 
 **Status:** User gave full authorization to push, commit, deploy, and merge to main. Then added a new feature request: extend the existing top-left "Switch Portal" dropdown so admin can act as broker/owner roles without sign-out/sign-in, for testing purposes.
 
