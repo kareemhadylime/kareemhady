@@ -41,10 +41,10 @@ export function CategoriesPanel({ rows, unmapped }: { rows: CategoryRow[]; unmap
                 ))}
                 {unmappedTotal > 0 && (
                   <tr className="border-t border-red-500/40 bg-red-500/5">
-                    <td className="py-2 text-red-400 font-semibold">⚠ Unmapped</td>
+                    <td className="py-2 text-red-300 font-semibold">⚠ Unmapped</td>
                     <td className="text-right tabular-nums text-slate-500">—</td>
-                    <td className="text-right tabular-nums text-red-400 font-semibold">{(unmappedTotal / 1e3).toFixed(0)}K</td>
-                    <td colSpan={2}><Link href="#perf-unmapped" className="text-red-400 hover:text-red-300">review →</Link></td>
+                    <td className="text-right tabular-nums text-red-300 font-semibold">{(unmappedTotal / 1e3).toFixed(0)}K</td>
+                    <td colSpan={2}><Link href="#perf-unmapped" className="text-red-300 hover:text-red-200">review →</Link></td>
                   </tr>
                 )}
               </tbody>

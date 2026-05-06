@@ -15,7 +15,7 @@ export function AnomaliesPanel({ rows }: { rows: Anomaly[] }) {
         <ul className="space-y-2">
           {rows.map((a, i) => {
             const Icon = a.severity === 'red' ? AlertOctagon : AlertTriangle;
-            const color = a.severity === 'red' ? 'text-red-400' : 'text-orange-400';
+            const color = a.severity === 'red' ? 'text-red-300' : 'text-orange-300';
             return (
               <li key={i} className="flex items-start gap-3 p-2 rounded hover:bg-slate-800/40">
                 <Icon size={16} className={`${color} shrink-0 mt-0.5`} />

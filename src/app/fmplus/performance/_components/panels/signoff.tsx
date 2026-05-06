@@ -10,7 +10,7 @@ export function SignoffPanel({ block }: { block: SignoffBlock }) {
   const isPublished = block.current_year_status === 'published';
   const isStale = (block.days_stale ?? 0) > 30;
   const Icon = isPublished && !isStale ? CheckCircle2 : AlertCircle;
-  const color = isPublished && !isStale ? 'text-emerald-400' : isStale ? 'text-orange-400' : 'text-slate-400';
+  const color = isPublished && !isStale ? 'text-emerald-300' : isStale ? 'text-orange-300' : 'text-slate-400';
   return (
     <section id="perf-signoff" className="ix-card p-4 scroll-mt-20">
       <PanelHeader title="Sign-off Status" collapsed={collapsed} onToggleCollapse={toggleCollapse} onHide={hide} />

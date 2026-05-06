@@ -35,7 +35,7 @@ export function ServiceLinesPanel({ rows }: { rows: ServiceLineRow[] }) {
                     <td className="py-2 text-slate-200">{r.service_label}</td>
                     <td className="text-right tabular-nums text-slate-400">{(r.budget / 1e6).toFixed(2)}M</td>
                     <td className="text-right tabular-nums text-fmplus-yellow font-semibold">{(r.actual / 1e6).toFixed(2)}M</td>
-                    <td className={`text-right tabular-nums ${r.status === 'bad' ? 'text-red-400' : r.status === 'warn' ? 'text-orange-400' : 'text-emerald-400'}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
+                    <td className={`text-right tabular-nums ${r.status === 'bad' ? 'text-red-300' : r.status === 'warn' ? 'text-orange-300' : 'text-emerald-300'}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
                     <td className="text-right tabular-nums text-slate-300">{(r.gp_pct * 100).toFixed(1)}%</td>
                     <td><Link href={r.drill_url} className="text-fmplus-gold hover:text-fmplus-yellow">→</Link></td>
                   </tr>

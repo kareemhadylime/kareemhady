@@ -139,7 +139,7 @@ export function PeriodChips({ resolvedLabel }: { resolvedLabel: string }) {
         <input type="checkbox" checked={compare} onChange={toggleCompare} className="accent-fmplus-yellow" />
         Compare to prior period
       </label>
-      <p className="text-[11px] text-slate-400 px-3 mt-1">{resolvedLabel}</p>
+      <p className="text-[11px] text-slate-300 px-3 mt-1">{resolvedLabel}</p>
 
       {showCustom && <CustomRange onApply={applyCustom} />}
     </div>

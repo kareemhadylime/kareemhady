@@ -6,9 +6,9 @@ import { PanelHeader } from '../panel-header';
 import type { KpiTile } from '@/lib/fmplus/performance/types';
 
 const STATUS_BG: Record<KpiTile['status'], string> = {
-  good: 'bg-emerald-500/15 text-emerald-400',
-  warn: 'bg-orange-500/15 text-orange-400',
-  bad:  'bg-red-500/15 text-red-400',
+  good: 'bg-emerald-500/20 text-emerald-300',
+  warn: 'bg-orange-500/20 text-orange-300',
+  bad:  'bg-red-500/20 text-red-300',
 };
 
 function fmt(v: number, unit: KpiTile['unit']) {

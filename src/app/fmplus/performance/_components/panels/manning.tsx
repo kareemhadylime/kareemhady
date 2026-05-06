@@ -37,8 +37,8 @@ export function ManningPanel({ rows }: { rows: ManningRow[] }) {
                       <td className="text-right tabular-nums text-slate-400">{r.hc_required}</td>
                       <td className="text-right tabular-nums text-slate-400">{r.hc_budgeted}</td>
                       <td className="text-right tabular-nums text-fmplus-yellow font-semibold">{r.hc_implied.toFixed(1)}</td>
-                      <td className={`text-right tabular-nums ${delta > 0.5 ? 'text-orange-400' : delta < -0.5 ? 'text-emerald-400' : 'text-slate-400'}`}>{delta > 0 ? '+' : ''}{delta.toFixed(1)}</td>
-                      <td className={`text-right tabular-nums ${Math.abs(r.spend_variance_pct) > 0.15 ? 'text-red-400' : Math.abs(r.spend_variance_pct) > 0.05 ? 'text-orange-400' : 'text-emerald-400'}`}>{(r.spend_variance_pct * 100).toFixed(1)}%</td>
+                      <td className={`text-right tabular-nums ${delta > 0.5 ? 'text-orange-300' : delta < -0.5 ? 'text-emerald-300' : 'text-slate-400'}`}>{delta > 0 ? '+' : ''}{delta.toFixed(1)}</td>
+                      <td className={`text-right tabular-nums ${Math.abs(r.spend_variance_pct) > 0.15 ? 'text-red-300' : Math.abs(r.spend_variance_pct) > 0.05 ? 'text-orange-300' : 'text-emerald-300'}`}>{(r.spend_variance_pct * 100).toFixed(1)}%</td>
                       <td><Link href={r.drill_url} className="text-fmplus-gold hover:text-fmplus-yellow">→</Link></td>
                     </tr>
                   );

@@ -73,7 +73,7 @@ export function PerformanceSidebar({ resolvedPeriodLabel, contextLine, jumpAncho
         <div className="h-full overflow-y-auto py-4 flex flex-col gap-6">
           {!collapsed && (
             <>
-              {contextLine && <p className="text-xs text-slate-400 px-3">{contextLine}</p>}
+              {contextLine && <p className="text-xs text-slate-300 px-3">{contextLine}</p>}
 
               <section>
                 <h4 className="text-[10px] uppercase tracking-wide text-fmplus-gold font-semibold px-3 mb-2">Period</h4>

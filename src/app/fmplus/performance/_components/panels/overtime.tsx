@@ -4,7 +4,7 @@ import { PanelHeader } from '../panel-header';
 import { usePanelState } from '../panel-state';
 import type { OvertimeBlock } from '@/lib/fmplus/performance/types';
 
-const STATUS: Record<OvertimeBlock['status'], string> = { good: 'text-emerald-400', warn: 'text-orange-400', bad: 'text-red-400' };
+const STATUS: Record<OvertimeBlock['status'], string> = { good: 'text-emerald-300', warn: 'text-orange-300', bad: 'text-red-300' };
 
 export function OvertimePanel({ block }: { block: OvertimeBlock | null }) {
   const { visible, collapsed, hide, toggleCollapse } = usePanelState('overtime');

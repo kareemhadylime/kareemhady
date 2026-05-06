@@ -53,11 +53,11 @@ export function ArAgingPanel({ block, contractId }: { block: ArAgingBlock | null
             </div>
             <div className="bg-slate-900/60 rounded-lg p-3">
               <p className="text-[10px] uppercase tracking-wide text-fmplus-gold font-semibold">Within Terms</p>
-              <p className="text-2xl font-bold tabular-nums mt-1 text-emerald-400 font-serif">{fmtEgp(block.within_terms_amount)}</p>
+              <p className="text-2xl font-bold tabular-nums mt-1 text-emerald-300 font-serif">{fmtEgp(block.within_terms_amount)}</p>
             </div>
             <div className="bg-slate-900/60 rounded-lg p-3">
               <p className="text-[10px] uppercase tracking-wide text-fmplus-gold font-semibold">Overdue</p>
-              <p className={`text-2xl font-bold tabular-nums mt-1 font-serif ${overdueCount > 0 ? 'text-red-400' : 'text-slate-400'}`}>{fmtEgp(block.overdue_amount)}</p>
+              <p className={`text-2xl font-bold tabular-nums mt-1 font-serif ${overdueCount > 0 ? 'text-red-300' : 'text-slate-400'}`}>{fmtEgp(block.overdue_amount)}</p>
               <p className="text-xs text-slate-400 mt-1">{overdueCount} invoice{overdueCount === 1 ? '' : 's'}</p>
             </div>
           </div>
@@ -100,7 +100,7 @@ export function ArAgingPanel({ block, contractId }: { block: ArAgingBlock | null
                         <td className="py-2 text-slate-300">{l.invoice_ref ?? '—'}</td>
                         <td className="text-slate-300">{l.partner_name}</td>
                         <td className="text-right tabular-nums text-slate-400">{l.invoice_date}</td>
-                        <td className={`text-right tabular-nums font-semibold ${l.days_overdue > 60 ? 'text-red-400' : l.days_overdue > 30 ? 'text-orange-400' : 'text-amber-400'}`}>{l.days_overdue}</td>
+                        <td className={`text-right tabular-nums font-semibold ${l.days_overdue > 60 ? 'text-red-300' : l.days_overdue > 30 ? 'text-orange-300' : 'text-amber-300'}`}>{l.days_overdue}</td>
                         <td className="text-right tabular-nums text-fmplus-yellow font-semibold">{fmtEgp(l.amount_residual)}</td>
                         <td>
                           <Link

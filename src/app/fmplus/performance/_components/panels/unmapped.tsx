@@ -13,7 +13,7 @@ export function UnmappedPanel({ lines, periodTotal }: { lines: UnmappedLine[]; p
   return (
     <section id="perf-unmapped" className="ix-card p-6 scroll-mt-20 border border-red-500/30">
       <PanelHeader
-        title={<span className="flex items-center gap-2 text-red-400"><AlertTriangle size={16} /> Unmapped Expenses</span>}
+        title={<span className="flex items-center gap-2 text-red-300"><AlertTriangle size={16} /> Unmapped Expenses</span>}
         subtitle={`${(total / 1e3).toFixed(0)}K (${pct.toFixed(1)}% of period spend) · ${lines.length} lines hit the contract analytic but had no budget category`}
         collapsed={collapsed} onToggleCollapse={toggleCollapse} onHide={hide}
       />

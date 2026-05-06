@@ -24,11 +24,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioContractRow[] }) {
           {rows.map(r => (
             <tr key={r.contract_id} className="border-t border-slate-700/50 hover:bg-slate-800/40">
               <td className="py-2 text-slate-200 font-semibold">{r.contract_name}</td>
-              <td className="text-slate-400">{r.customer ?? '—'}</td>
-              <td className="text-right tabular-nums text-slate-400">Y{r.current_year_index}</td>
+              <td className={r.customer ? 'text-slate-300' : 'text-slate-400'}>{r.customer ?? '—'}</td>
+              <td className="text-right tabular-nums text-slate-300">Y{r.current_year_index}</td>
               <td className="text-right tabular-nums text-fmplus-yellow font-semibold">{(r.expense / 1e6).toFixed(2)}M</td>
               <td className="text-right tabular-nums text-slate-300">{(r.gp_pct * 100).toFixed(1)}%</td>
-              <td className={`text-right tabular-nums ${r.health === 'bad' ? 'text-red-400' : r.health === 'warn' ? 'text-orange-400' : 'text-emerald-400'}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
+              <td className={`text-right tabular-nums ${r.health === 'bad' ? 'text-red-300' : r.health === 'warn' ? 'text-orange-300' : 'text-emerald-300'}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
               <td><span className={`inline-block w-2 h-2 rounded-full ${HEALTH[r.health]}`} /></td>
               <td><Link href={r.drill_url} className="text-fmplus-gold hover:text-fmplus-yellow">→</Link></td>
             </tr>

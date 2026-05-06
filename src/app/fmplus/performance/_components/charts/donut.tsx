@@ -20,8 +20,10 @@ export function Donut({ data, onSliceClick }: {
           {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} className="cursor-pointer" />)}
         </Pie>
         <Tooltip
-          formatter={(v: number) => v.toLocaleString('en-EG')}
+          formatter={(v: number, name: string) => [v.toLocaleString('en-EG'), name]}
           contentStyle={{ background: '#0F172A', border: '1px solid #334155', color: 'white' }}
+          labelStyle={{ color: '#FDCF00', fontWeight: 600 }}
+          itemStyle={{ color: 'white' }}
         />
       </PieChart>
     </ResponsiveContainer>

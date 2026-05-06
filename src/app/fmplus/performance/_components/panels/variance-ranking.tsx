@@ -32,7 +32,7 @@ export function VarianceRankingPanel({ rows }: { rows: ServiceLineRow[] }) {
                   <tr key={r.service_line} className="border-t border-slate-700/50 hover:bg-slate-800/40">
                     <td className="py-2 text-slate-500">{i + 1}</td>
                     <td className="text-slate-200">{r.service_label}</td>
-                    <td className={`text-right tabular-nums ${r.status === 'bad' ? 'text-red-400' : r.status === 'warn' ? 'text-orange-400' : 'text-emerald-400'}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
+                    <td className={`text-right tabular-nums ${r.status === 'bad' ? 'text-red-300' : r.status === 'warn' ? 'text-orange-300' : 'text-emerald-300'}`}>{(r.variance_pct * 100).toFixed(1)}%</td>
                     <td><Link href={r.drill_url} className="text-fmplus-gold hover:text-fmplus-yellow">→</Link></td>
                   </tr>
                 ))}
