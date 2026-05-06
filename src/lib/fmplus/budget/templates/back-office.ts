@@ -41,10 +41,14 @@ export const backOfficeTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA: General-Expense codes are 3-digit-prefixed (600-606), distinct
+  // from the 50-57 service-line scheme. Back-Office maps to 600 (salaries),
+  // 601 (rent/utilities), 602 (transport G&A), 603 (marketing/tender),
+  // 604 (legal/financial), 605/606 (other G&A) — see classifier.ts.
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5060[0-9]{2}$'] },
-    { category: 'it',           code_patterns: ['^5063[0-9]{2}$'] },
-    { category: 'tools',        code_patterns: ['^5061[0-9]{2}$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    { category: 'manning', code_patterns: ['^600[0-9]{3}$'] },
+    { category: 'other',   code_patterns: ['^601[0-9]{3}$'] },
+    { category: 'transport', code_patterns: ['^602[0-9]{3}$'] },
+    { category: 'other',   code_patterns: ['^603[0-9]{3}$', '^604[0-9]{3}$', '^605[0-9]{3}$', '^606[0-9]{3}$'] },
   ],
 };

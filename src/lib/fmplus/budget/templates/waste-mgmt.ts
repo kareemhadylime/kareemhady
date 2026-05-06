@@ -47,11 +47,12 @@ export const wasteMgmtTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA: service prefix '55' = Waste Management.
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5050[0-9]{2}$'] },
-    { category: 'transport',    code_patterns: ['^5052[0-9]{2}$'] },
-    { category: 'tools',        code_patterns: ['^5051[0-9]{2}$'] },
-    { category: 'consumables',  code_patterns: ['^5051[0-9]{2}$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    { category: 'manning',      code_patterns: ['^5500[0-9]{2}$'] },
+    { category: 'consumables',  code_patterns: ['^5501[0-9]{2}$'] },
+    { category: 'tools',        code_patterns: ['^5502[0-9]{2}$'] },
+    { category: 'it',           code_patterns: ['^5503[0-9]{2}$'] },
+    { category: 'transport',    code_patterns: ['^5505[0-9]{2}$'] },
   ],
 };

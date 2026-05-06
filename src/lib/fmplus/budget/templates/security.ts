@@ -50,11 +50,12 @@ export const securityTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA: service prefix '52' = Security.
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5030[0-9]{2}$'] },
-    { category: 'ppe',          code_patterns: ['^5031[0-9]{2}$'] },
-    { category: 'tools',        code_patterns: ['^5031[0-9]{2}$'] },
-    { category: 'it',           code_patterns: ['^5033[0-9]{2}$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    { category: 'manning',      code_patterns: ['^5200[0-9]{2}$'] },
+    { category: 'consumables',  code_patterns: ['^5201[0-9]{2}$'] },
+    { category: 'tools',        code_patterns: ['^5202[0-9]{2}$'] },
+    { category: 'it',           code_patterns: ['^5203[0-9]{2}$'] },
+    { category: 'transport',    code_patterns: ['^5205[0-9]{2}$'] },
   ],
 };

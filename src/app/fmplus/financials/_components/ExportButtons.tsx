@@ -13,7 +13,11 @@ export type ExportProps = {
   withDep: boolean;
   includeDrafts: boolean;
   plans?: string;
+  /** Service-line slug (e.g. 'mix', 'hk') from the analytic picker. */
   plan?: string;
+  /** Single selected project (analytic_account.id), single-select mode. */
+  account?: string;
+  /** Multi-select project ids (CSV). */
   accounts?: string;
 };
 
@@ -32,6 +36,7 @@ export function ExportButtons(props: ExportProps) {
       fd.set('include_drafts', props.includeDrafts ? '1' : '0');
       if (props.plans) fd.set('plans', props.plans);
       if (props.plan) fd.set('plan', props.plan);
+      if (props.account) fd.set('account', props.account);
       if (props.accounts) fd.set('accounts', props.accounts);
       const fn = props.view === 'pnl' ? exportPnlToExcel : exportBsToExcel;
       const res = await fn(fd);

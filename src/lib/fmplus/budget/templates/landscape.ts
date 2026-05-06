@@ -56,12 +56,12 @@ export const landscapeTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA: service prefix '53' = Landscape.
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5020[0-9]{2}$'] },
-    { category: 'tools',        code_patterns: ['^5021[0-9]{2}$'] },
-    { category: 'consumables',  code_patterns: ['^5021[0-9]{2}$'] },
-    { category: 'transport',    code_patterns: ['^5022[0-9]{2}$'] },
-    { category: 'it',           code_patterns: ['^5023[0-9]{2}$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    { category: 'manning',      code_patterns: ['^5300[0-9]{2}$'] },
+    { category: 'consumables',  code_patterns: ['^5301[0-9]{2}$'] },
+    { category: 'tools',        code_patterns: ['^5302[0-9]{2}$'] },
+    { category: 'it',           code_patterns: ['^5303[0-9]{2}$'] },
+    { category: 'transport',    code_patterns: ['^5305[0-9]{2}$'] },
   ],
 };

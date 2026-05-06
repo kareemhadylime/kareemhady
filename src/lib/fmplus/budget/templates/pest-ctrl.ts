@@ -48,11 +48,12 @@ export const pestCtrlTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA: service prefix '54' = Pest Control.
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5040[0-9]{2}$'] },
-    { category: 'tools',        code_patterns: ['^5041[0-9]{2}$'] },
-    { category: 'consumables',  code_patterns: ['^5041[0-9]{2}$'] },
-    { category: 'transport',    code_patterns: ['^5042[0-9]{2}$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    { category: 'manning',      code_patterns: ['^5400[0-9]{2}$'] },
+    { category: 'consumables',  code_patterns: ['^5401[0-9]{2}$'] },
+    { category: 'tools',        code_patterns: ['^5402[0-9]{2}$'] },
+    { category: 'it',           code_patterns: ['^5403[0-9]{2}$'] },
+    { category: 'transport',    code_patterns: ['^5405[0-9]{2}$'] },
   ],
 };

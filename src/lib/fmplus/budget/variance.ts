@@ -160,15 +160,35 @@ export async function buildBudgetVarianceV2(opts: BuildVarianceOpts): Promise<Bu
   const yearEndDate = new Date(yearStartYearNum, yearStartMonth - 1 + 12, 0); // last day of month-12
   const yearEndIso = `${yearEndDate.getFullYear()}-${String(yearEndDate.getMonth()+1).padStart(2,'0')}-${String(yearEndDate.getDate()).padStart(2,'0')}`;
 
-  const { data: actualRows } = await sb.from('odoo_move_lines')
-    .select(`
-      id, date, balance, debit, credit,
-      account:odoo_accounts(code, account_type),
-      analytics:odoo_move_line_analytics!inner(analytic_account_id)
-    `)
-    .gte('date', yearStartIso)
-    .lte('date', yearEndIso)
-    .eq('analytics.analytic_account_id', contract.project_id);
+  // Paginate — Supabase REST defaults to a 1000-row response cap. Real Trio-
+  // class projects easily blow past that for a full year (~3-5k rows), which
+  // silently truncates actuals and makes the variance look near-zero. The
+  // financials module already paginates (see src/lib/fmplus/financials.ts);
+  // we mirror that pattern here.
+  const PAGE = 1000;
+  let aOffset = 0;
+  const actualRowsRaw: Array<unknown> = [];
+  while (true) {
+    const { data, error } = await (sb.from('odoo_move_lines')
+      .select(`
+        id, date, balance, debit, credit,
+        account:odoo_accounts(code, account_type),
+        analytics:odoo_move_line_analytics!inner(analytic_account_id)
+      `)
+      .gte('date', yearStartIso)
+      .lte('date', yearEndIso)
+      .eq('analytics.analytic_account_id', contract.project_id)
+      .order('id', { ascending: true }) as unknown as {
+        range: (a: number, b: number) => Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+      }).range(aOffset, aOffset + PAGE - 1);
+    if (error) throw new Error(`buildBudgetVarianceV2 (actuals): ${error.message}`);
+    const page = (data || []) as unknown[];
+    if (page.length === 0) break;
+    actualRowsRaw.push(...page);
+    if (page.length < PAGE) break;
+    aOffset += PAGE;
+  }
+  const actualRows = actualRowsRaw;
 
   // 7. For each service segment, compute variance per category × month
   const segments: ServiceSegment[] = [];

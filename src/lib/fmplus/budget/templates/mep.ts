@@ -58,12 +58,13 @@ export const mepTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA: service prefix '51' = MEP. See classifier.ts for the slot scheme
+  // (00=manning, 01=consumables, 02=tools, 03=ICT, 05=transport, 06=subcontractors).
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5010[0-9]{2}$'] },
-    { category: 'tools',        code_patterns: ['^5011[0-9]{2}$'] },
-    { category: 'consumables',  code_patterns: ['^5011[0-9]{2}$'] },
-    { category: 'transport',    code_patterns: ['^5012[0-9]{2}$'] },
-    { category: 'it',           code_patterns: ['^5013[0-9]{2}$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    { category: 'manning',      code_patterns: ['^5100[0-9]{2}$'] },
+    { category: 'consumables',  code_patterns: ['^5101[0-9]{2}$'] },
+    { category: 'tools',        code_patterns: ['^5102[0-9]{2}$'] },
+    { category: 'it',           code_patterns: ['^5103[0-9]{2}$'] },
+    { category: 'transport',    code_patterns: ['^5105[0-9]{2}$'] },
   ],
 };

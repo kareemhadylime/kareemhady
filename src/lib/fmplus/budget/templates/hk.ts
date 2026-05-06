@@ -69,13 +69,22 @@ export const hkTemplate: Template = {
     },
     // governmental category injected post-merge in templates/index.ts (Task 11)
   ],
+  // Odoo COA scheme (see src/lib/fmplus/classifier.ts):
+  //   service prefix '50' = HK
+  //   2nd-level slot 00=manning · 01=consumables · 02=tools/equipment ·
+  //                  03=ICT · 04=staff_accom · 05=transport · 06=subcontractors
+  // Penalties (5010xx) and Indirect (5011xx) slots aren't tracked as a budget
+  // category here — they roll up to manning + tools respectively only when the
+  // user has specific budget lines.
   account_map_json: [
-    { category: 'manning',      code_patterns: ['^5000(0[1-9]|1[0-4])$'] },
-    { category: 'ppe',          code_patterns: ['^500011$'] },
-    { category: 'tools',        code_patterns: ['^5002(0[1-9]|1[0-9])$', '^5001(0[1-9]|1[0-9])$'] },
-    { category: 'consumables',  code_patterns: ['^5001(0[1-9]|1[0-9])$'] },
+    { category: 'manning',      code_patterns: ['^5000[0-9]{2}$'] },
+    { category: 'consumables',  code_patterns: ['^5001[0-9]{2}$'] },
+    { category: 'tools',        code_patterns: ['^5002[0-9]{2}$'] },
+    { category: 'it',           code_patterns: ['^5003[0-9]{2}$'] },
     { category: 'transport',    code_patterns: ['^5005[0-9]{2}$'] },
-    { category: 'it',           code_patterns: ['^5003(0[1-9]|1[0-9])$'] },
-    { category: 'governmental', code_patterns: ['^5006[0-9]{2}$'] },
+    // PPE in Odoo lives inside the manning slot (e.g. 500011 Uniform Dep) —
+    // anchor on the specific known code so the budget-side category still
+    // resolves cleanly without double-counting against manning.
+    { category: 'ppe',          code_patterns: ['^500011$'] },
   ],
 };
