@@ -1,5 +1,22 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — Performance Dashboard: real revenue + GP% rollup (commit `8f5666c`)
+
+Was: `service_lines[i].gp_pct` was hardcoded `0`, so top-level `revenue` collapsed to `sum(budget × (1 + 0)) = total budget`. The GP KPI was mathematically `-variance %`. Live evidence: dashboard showed Revenue 2.26M = Budget total, GP% 99.3% = -Variance%.
+
+Fix:
+- Query `project_year_services.monthly_revenue` for the current year.
+- When all values are 0 (data hygiene gap — Trio's rows are all zero today), fall back to `project_contracts.contract_value / 12` distributed across services by budget share (or equally if total budget is 0).
+- New flag `meta.revenue_source: 'service_revenue' | 'contract_value_fallback' | 'none'`.
+- `service_lines[i].gp_pct` now `(period_revenue - period_actual) / period_revenue`.
+- Top-level KPIs (Revenue / GP / GP%) read real period revenue.
+- YoY arc both current-year row and prior-year rows now compute real revenue/GP (prior-year rows were zeroed before; now they fetch their own `project_year_services`).
+- `<ContractHero>` shows an amber hint *"Revenue estimated from contract value · fill monthly revenue per service to refine"* with a link to the edit page when fallback is active.
+
+Tests: 321/321 passing across the suite (5/5 in `build-dashboard.test.ts` — 2 new regression tests for the `service_revenue` and `contract_value_fallback` branches). TS clean. Push: `6704752..8f5666c HEAD -> main`. Vercel auto-deploy in flight.
+
+---
+
 ## ✅ 2026-05-06 — Performance Dashboard: AR Aging panel + overdue anomaly (commit `6d4d898`, migration `0096`)
 
 kareem (after `payment_terms_days` shipped): *"yes — wire the AR-aging-vs-payment-terms comparison."*
