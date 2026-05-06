@@ -15,6 +15,7 @@ import { ForceCancelForm } from '../../_components/force-cancel-form';
 import { AdminReservationOverrides } from '../../_components/admin-reservation-overrides';
 import { AdminPaymentRowActions } from '../../_components/admin-payment-row-actions';
 import { cancelReservationOwnerAction } from '../../actions';
+import { EditTripPriceForm } from '../../_components/edit-trip-price-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,7 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
       id, booking_date, status, price_egp_snapshot, pricing_tier_snapshot, notes,
       cancelled_at, cancelled_by_role, cancel_reason, refund_pending,
       source, external_broker_id,
+      price_overridden_at, price_overridden_by, original_price_snapshot,
       boat:boat_rental_boats ( id, name, owner_id ),
       broker:app_users!boat_rental_reservations_broker_id_fkey ( id, username ),
       external_broker:boat_rental_external_brokers ( id, name, phone ),
@@ -171,7 +173,14 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
           <div className="text-sm grid grid-cols-3 gap-3 mb-3">
             <div>
               <div className="text-xs text-slate-500">Trip price</div>
-              <div className="font-medium tabular-nums">EGP {price.toLocaleString()}</div>
+              <div className="font-medium tabular-nums">
+                EGP {price.toLocaleString()}
+                {r.price_overridden_at && r.original_price_snapshot && (
+                  <span className="ml-2 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                    💱 Adjusted from EGP {Number(r.original_price_snapshot).toLocaleString()}
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Total received</div>
@@ -234,6 +243,18 @@ export default async function OwnerBookingDetail({ params }: { params: Promise<{
             />
           )}
         </section>
+
+        {['confirmed', 'details_filled'].includes(r.status) && (
+          <section className="mt-6">
+            <EditTripPriceForm
+              reservationId={r.id}
+              currentPrice={price}
+              totalPaid={totalPaid}
+              bookingLabel={`${r.boat.name} · ${r.booking_date}`}
+              status={r.status}
+            />
+          </section>
+        )}
       </section>
 
       {canCancel && (
