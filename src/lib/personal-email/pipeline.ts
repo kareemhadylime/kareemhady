@@ -75,9 +75,12 @@ export async function classifyOneEmail(
 
   if (overCap) {
     // No rule, or rule said action_required/personal but we can't afford AI.
+    // Fall back to `unassigned` (rather than `notifications`) when no rule
+    // fired — that's the explicit "couldn't sort this" bucket the user
+    // wants for catch-all triage.
     return finalize({
       input,
-      category: ruleHit?.target_category ?? 'notifications',
+      category: ruleHit?.target_category ?? 'unassigned',
       method: 'rule',
       reason: 'ai_budget_exhausted',
       confidence: null,

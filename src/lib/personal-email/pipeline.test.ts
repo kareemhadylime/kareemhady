@@ -85,7 +85,10 @@ describe('classifyOneEmail', () => {
     await classifyOneEmail({ ...baseInput, currentDailyCostUsd: 0.5 });
     expect(classifyAi).not.toHaveBeenCalled();
     expect(persist).toHaveBeenCalledWith(expect.objectContaining({
-      category: 'notifications', needs_review: true, reason: 'ai_budget_exhausted',
+      // Fallback bucket switched from `notifications` to `unassigned`
+      // so the catch-all triage view actually surfaces what the
+      // pipeline couldn't sort. (Migration 0094 seeded the slug.)
+      category: 'unassigned', needs_review: true, reason: 'ai_budget_exhausted',
     }));
   });
 

@@ -16,6 +16,9 @@ import {
   Landmark,
   Wrench,
   Cpu,
+  Building2,
+  Zap,
+  HelpCircle,
   Mail,
   type LucideIcon,
 } from 'lucide-react';
@@ -41,6 +44,9 @@ const ICONS: Record<string, LucideIcon> = {
   Landmark,
   Wrench,
   Cpu,
+  Building2,
+  Zap,
+  HelpCircle,
 };
 
 // Pre-rendered Tailwind class lookups so dynamic accents work in
@@ -134,6 +140,18 @@ const ACCENTS: Record<string, {
     hoverBorder: 'group-hover:border-cyan-400', arrow: 'group-hover:text-cyan-600',
     countBg: 'bg-cyan-50 dark:bg-cyan-950', countText: 'text-cyan-700 dark:text-cyan-300',
     gradFrom: 'from-cyan-400', gradTo: 'to-cyan-600',
+  },
+  lime: {
+    iconBg: 'bg-lime-50 dark:bg-lime-950', iconText: 'text-lime-700 dark:text-lime-300',
+    hoverBorder: 'group-hover:border-lime-400', arrow: 'group-hover:text-lime-600',
+    countBg: 'bg-lime-50 dark:bg-lime-950', countText: 'text-lime-700 dark:text-lime-300',
+    gradFrom: 'from-lime-400', gradTo: 'to-lime-600',
+  },
+  yellow: {
+    iconBg: 'bg-yellow-50 dark:bg-yellow-950', iconText: 'text-yellow-700 dark:text-yellow-300',
+    hoverBorder: 'group-hover:border-yellow-400', arrow: 'group-hover:text-yellow-600',
+    countBg: 'bg-yellow-50 dark:bg-yellow-950', countText: 'text-yellow-700 dark:text-yellow-300',
+    gradFrom: 'from-yellow-400', gradTo: 'to-yellow-600',
   },
 };
 

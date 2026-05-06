@@ -7,6 +7,7 @@ import { syncLabelChange } from '@/lib/personal-email/label-sync';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import { ingestPersonalEmails } from '@/lib/personal-email/ingest';
 import { markMessagesAsRead } from '@/lib/gmail';
+import { parseFromDomain } from '@/lib/personal-email/feature-extractor';
 
 async function requireAdmin() {
   const u = await getCurrentUser();
@@ -22,7 +23,7 @@ export async function moveEmail(
 
   const { data: row, error: rErr } = await sb
     .from('email_logs')
-    .select('id, account_id, gmail_message_id, category, accounts(id, oauth_refresh_token_encrypted, email, display_name, domain)')
+    .select('id, account_id, gmail_message_id, category, from_address, accounts(id, oauth_refresh_token_encrypted, email, display_name, domain)')
     .eq('id', emailLogId)
     .single();
   if (rErr || !row) throw new Error('email_not_found');
@@ -60,7 +61,82 @@ export async function moveEmail(
     }
   }
 
+  // 4. Auto-rule: future emails from this sender should go to the same
+  //    category. Skipped when the category didn't actually change, when
+  //    the from-domain can't be parsed, or when an equivalent rule
+  //    already exists. Stored as a global (account_id IS NULL) rule at
+  //    priority 50 so it sits between user-customized rules and the
+  //    catch-all priority-98 owner rule.
+  if (oldCategory !== newCategory) {
+    await ensureAutoRuleFromMove(row.from_address as string | null, newCategory);
+  }
+
   revalidatePath('/personal/email');
+}
+
+// Looks at the moved email's from_address, pulls the apex+subdomain,
+// and inserts a from_domain rule routing future mail to the same
+// category. Idempotent — won't insert when an equivalent rule exists.
+// Failure here is non-fatal so the move itself still succeeds.
+async function ensureAutoRuleFromMove(
+  fromHeader: string | null,
+  targetCategory: CategorySlug,
+): Promise<void> {
+  if (!fromHeader) return;
+  const fromDomain = parseFromDomain(fromHeader);
+  if (!fromDomain) return;
+
+  // Skip super-broad domains the user almost never wants a global rule
+  // on — gmail.com / yahoo.com / outlook.com would over-route every
+  // human contact into one bucket.
+  const FREE_PROVIDER_DOMAINS = new Set([
+    'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
+    'live.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me',
+    'protonmail.com',
+  ]);
+  if (FREE_PROVIDER_DOMAINS.has(fromDomain)) return;
+
+  const sb = supabaseAdmin();
+  const { data: existing, error: existErr } = await sb
+    .from('personal_email_rules')
+    .select('id, target_category')
+    .eq('match_type', 'from_domain')
+    .eq('match_value', fromDomain)
+    .is('account_id', null)
+    .maybeSingle();
+  if (existErr) {
+    console.error('[moveEmail] auto-rule lookup failed', existErr);
+    return;
+  }
+
+  // If an equivalent rule already exists and points at the same target,
+  // nothing to do. If the existing rule points elsewhere, update it
+  // (latest move wins) so a manual re-route actually re-routes future
+  // mail too. Either way, no duplicate row created.
+  if (existing) {
+    if (existing.target_category !== targetCategory) {
+      await sb
+        .from('personal_email_rules')
+        .update({
+          target_category: targetCategory,
+          name: `Auto: ${fromDomain} → ${targetCategory} (from move)`,
+          enabled: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id);
+    }
+    return;
+  }
+
+  const { error: insErr } = await sb.from('personal_email_rules').insert({
+    priority: 50,
+    name: `Auto: ${fromDomain} → ${targetCategory} (from move)`,
+    match_type: 'from_domain',
+    match_value: fromDomain,
+    target_category: targetCategory,
+    enabled: true,
+  });
+  if (insErr) console.error('[moveEmail] auto-rule insert failed', insErr);
 }
 
 export async function archiveInGmail(emailLogIds: string[]): Promise<void> {
