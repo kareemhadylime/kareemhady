@@ -120,6 +120,12 @@ function makeSb(overrides: Partial<Record<string, { single?: unknown; many?: unk
       if (fnName === 'fmplus_perf_actual_ot') {
         return Promise.resolve({ data: sbState.odooOt, error: null });
       }
+      if (fnName === 'fmplus_perf_penalties') {
+        return Promise.resolve({ data: [], error: null });
+      }
+      if (fnName === 'fmplus_perf_variation_orders') {
+        return Promise.resolve({ data: [], error: null });
+      }
       return Promise.resolve({ data: [], error: null });
     },
   };

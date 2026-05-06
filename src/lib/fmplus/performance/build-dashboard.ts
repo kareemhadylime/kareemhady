@@ -8,6 +8,8 @@ import { computeMobAmortization } from './derive-mobilization';
 import { computeOvertimeBlock } from './derive-overtime';
 import { topVendors } from './derive-vendors';
 import { arAging } from './derive-ar-aging';
+import { penaltiesBlock } from './derive-penalties';
+import { variationOrdersBlock } from './derive-variation-orders';
 import { actualRevenue } from './derive-actual-revenue';
 import { actualOt } from './derive-actual-ot';
 import { deriveAnomalies } from './derive-anomalies';
@@ -450,6 +452,20 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     payment_terms_days: contractRow.payment_terms_days ?? null,
   });
 
+  // 11c. Penalties + Variation Orders (parallel)
+  const [penalties, variation_orders] = await Promise.all([
+    penaltiesBlock({
+      project_id: contractRow.project_id,
+      from: args.period.from,
+      to: args.period.to,
+    }),
+    variationOrdersBlock({
+      project_id: contractRow.project_id,
+      from: args.period.from,
+      to: args.period.to,
+    }),
+  ]);
+
   // 11. Overtime
   const otBudget = await sumManningOtBudget(sb, currentYear.id);
   const otActual = await actualOt({
@@ -651,6 +667,8 @@ export async function buildContractDashboard(args: BuildArgs): Promise<ContractD
     forecast,
     vendors,
     ar_aging,
+    penalties,
+    variation_orders,
     overtime,
     mobilization,
     signoff,

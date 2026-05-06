@@ -177,6 +177,38 @@ export interface ArAgingBlock {
   lines: ArAgingLine[];                  // sorted desc by days_outstanding
 }
 
+export type PenaltyService = 'hk' | 'mep' | 'landscape' | 'security' | 'pest_ctrl' | 'waste_mgmt' | 'other';
+export type PenaltyType = 'shortage' | 'kpi' | 'other';
+
+export interface PenaltyRow {
+  service_code: PenaltyService;
+  service_label: string;
+  penalty_type: PenaltyType;
+  amount: number;
+  lines: number;
+}
+
+export interface PenaltiesBlock {
+  total_amount: number;
+  total_lines: number;
+  rows: PenaltyRow[];
+}
+
+export type VoCategory = 'manning' | 'consumables' | 'transport' | 'other';
+
+export interface VoRow {
+  category: VoCategory;
+  category_label: string;
+  amount: number;
+  lines: number;
+}
+
+export interface VariationOrdersBlock {
+  total_amount: number;
+  total_lines: number;
+  rows: VoRow[];
+}
+
 export interface Anomaly {
   rule_id: 'manning_over' | 'unmapped_pct' | 'forecast_breach' | 'signoff_stale' | 'vendor_concentration' | 'ar_overdue';
   severity: 'amber' | 'red';
@@ -207,6 +239,8 @@ export interface ContractDashboardPayload {
   forecast: ForecastBlock | null;
   vendors: VendorRow[];                        // empty → panel auto-hides
   ar_aging: ArAgingBlock | null;               // null when contract has no AR data at all
+  penalties: PenaltiesBlock | null;
+  variation_orders: VariationOrdersBlock | null;
   overtime: OvertimeBlock | null;
   mobilization: MobilizationRow[];             // empty → panel auto-hides
   signoff: SignoffBlock;
