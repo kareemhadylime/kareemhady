@@ -28,7 +28,16 @@ import { buildNoShowSection } from './build-no-show';
 import { buildWeeklyDigest } from './build-weekly-digest';
 import { buildPairedChannelMix } from './build-channels-paired';
 import { buildPricingIntelligenceSection } from './build-pricing-intelligence';
-import type { DailyReportPayload } from './types';
+import { buildRevenueConcentration } from './build-revenue-concentration';
+import { buildRevpar } from './build-revpar';
+import { buildCancelRisk } from './build-cancel-risk';
+import { buildStly } from './build-stly';
+import { buildSparklines } from './build-sparklines';
+import { buildTopMovers } from './build-top-movers';
+import { buildForwardOccupancy } from './build-forward-occupancy';
+import { buildOccupancyGaps } from './build-occupancy-gaps';
+import { buildRevenueWaterfall } from './build-revenue-waterfall';
+import type { DailyReportPayload, BuildingCode } from './types';
 
 // Orchestrator. Single entry point: returns a fully-built DailyReportPayload
 // for a given Cairo wall date. Throws on unrecoverable build errors so the
@@ -90,6 +99,58 @@ export async function buildDailyReport(
     buildConversationsSection(period),
     buildBlocksSection(inventories, period),
     buildPricingIntelligenceSection(),
+  ]);
+
+  // ── Phase 3 v4 builders ───────────────────────────────────────────────────
+
+  // unitCounts: Record<BuildingCode, number> — derived from inventories
+  const unitCounts: Record<BuildingCode, number> = {
+    'BH-26':  inventories['BH-26']?.total_units  ?? 0,
+    'BH-73':  inventories['BH-73']?.total_units  ?? 0,
+    'BH-435': inventories['BH-435']?.total_units ?? 0,
+    'BH-OK':  inventories['BH-OK']?.total_units  ?? 0,
+    'OTHER':  inventories['OTHER']?.total_units  ?? 0,
+  };
+
+  // Pure sync builders
+  const revparResult = buildRevpar({
+    all: buildings.all,
+    perBuilding: buildings.per_building,
+    daysElapsed: ctx.days_elapsed,
+  });
+
+  const revenueConcentration = buildRevenueConcentration(
+    buildings.per_building,
+    channel_mix
+  );
+
+  // Partial payload forwarded to builders that look up prior snapshots
+  const currentForDerived = {
+    all: buildings.all,
+    per_building: buildings.per_building,
+    reviews: reviewsResult.section,
+    conversations: conversationsResult.section,
+    paired_channel_mix: paired_channel_mix,
+    channel_mix: channel_mix,
+  } as DailyReportPayload;
+
+  const revenueWaterfall = buildRevenueWaterfall(currentForDerived);
+
+  // IO builders — run in parallel
+  const [
+    cancelRisk,
+    stly,
+    sparklines,
+    topMovers,
+    forwardOccupancy,
+    occupancyGaps,
+  ] = await Promise.all([
+    buildCancelRisk(today),
+    buildStly(today, currentForDerived),
+    buildSparklines(today),
+    buildTopMovers(today, currentForDerived),
+    buildForwardOccupancy(today, unitCounts),
+    buildOccupancyGaps(today, unitCounts),
   ]);
 
   const warnings = [
@@ -166,6 +227,16 @@ export async function buildDailyReport(
     pricing_intelligence: pricingIntelResult.section.available
       ? pricingIntelResult.section
       : null,
+    // v4 Phase 3 fields
+    revpar: revparResult,
+    revenue_concentration: revenueConcentration,
+    forward_occupancy: forwardOccupancy,
+    occupancy_gaps: occupancyGaps,
+    cancel_risk: cancelRisk,
+    revenue_waterfall: revenueWaterfall,
+    stly: stly,
+    top_movers: topMovers,
+    sparklines: sparklines,
   };
 }
 
