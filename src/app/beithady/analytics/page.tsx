@@ -67,9 +67,9 @@ export default async function BeithadyAnalyticsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <Link
           href="/beithady/analytics/performance"
-          className="group relative overflow-hidden rounded-xl border border-[#003462]/10 bg-white p-6 transition hover:border-[#003462]/40"
+          className="group relative overflow-hidden rounded-xl border border-[#003462]/10 bg-white p-6 transition hover:border-[#003462]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-2"
         >
-          <div className="absolute right-5 top-5 text-[#003462]/30 transition group-hover:translate-x-0.5 group-hover:text-[#003462]">→</div>
+          <div className="absolute right-5 top-5 text-[#003462]/30 transition group-hover:translate-x-0.5 group-hover:text-[#003462]" aria-hidden="true">→</div>
           <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-[#eae9f3] text-[#003462]">
             <Target className="h-5 w-5" />
           </div>
