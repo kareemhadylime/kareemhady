@@ -1,6 +1,20 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
-## 🟢 Latest turn — Three UX/branding fixes SHIPPED to prod
+## 🟢 Latest turn — Impersonation click bug FIXED + shipped
+
+**Symptom:** clicking "Broker — act as @outoftheblue" in the Switch Portal dropdown did nothing. User stayed as Admin.
+
+**Root cause:** the submit button had `onClick={() => setOpen(false)}` which triggered a React re-render that **unmounted the form** before the server action's network call completed. Confirmed via DB: zero rows in `boat_rental_audit_log` for `admin_impersonation_start` despite multiple attempts.
+
+**Fix:** removed the onClick. The successful `redirect()` from `setImpersonationAction` navigates the page anyway, which inherently removes the dropdown — no need to close it manually first.
+
+**Shipped:** commit `15074b5` (rebased to `b7bcb68` on main). Deploy `lime-ke87uvu61` Ready. Re-aliased `app.limeinc.cc` to latest.
+
+**Test now:** https://app.limeinc.cc → Switch Portal dropdown → "Broker — act as @outoftheblue" → should navigate to `/emails/boat-rental/broker` and the breadcrumb should show "Broker" with an amber impersonation banner across pages.
+
+---
+
+## Previous turn — Three UX/branding fixes SHIPPED to prod
 
 **Status:** Live at https://app.limeinc.cc and https://limeinc.vercel.app (both alias the same production deploy).
 
