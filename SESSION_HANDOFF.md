@@ -1,5 +1,44 @@
 # Kareemhady — Session Handoff (2026-05-06)
 
+## ✅ 2026-05-06 — FM+ Project: Payment Terms as days (numeric) for AR aging (commit `250fc95`)
+
+Convert `project_contracts.payment_terms` (free text) → structured
+`payment_terms_days int` so future code can compare AR aging vs payment terms
+to flag overdue invoices.
+
+Shipped:
+- Migration `0095_fmplus_payment_terms_days.sql` — adds nullable `payment_terms_days int`,
+  backfills via `regexp_match(payment_terms, '(\d+)')` (e.g. "Net 60 Days From Invoice
+  Submission" → 60). Old text column kept for historical reference (non-destructive).
+  Applied via Supabase MCP.
+- `ProjectContractSchema` — `payment_terms_days: z.number().int().nonnegative().nullable().optional()`.
+  `payment_terms` left in place for back-compat with anything still consuming it.
+- `ContractInfo` + `ReportData.payment_terms_days: number | null` added; renderers
+  (`pdf-pages/payment-terms.tsx` + `on-screen/sections/payment-terms.tsx`) now show
+  `Net {N} days` or `Not specified` when null.
+- `pdf-document.tsx` — payment terms page is now always rendered (was conditional
+  on text-not-null). Customer-mode visibility unchanged — payment terms stays visible.
+- `updateContractMetadata` persists `payment_terms_days`, no longer writes the
+  text field. `updateContractAction` parses numeric input from FormData with a
+  defensive `parsePaymentTermsDays` (invalid → null).
+- Edit form: textarea replaced with numeric input (min=0, step=1, `inputMode="numeric"`),
+  helper text "Number of days from invoice submission to payment due. Used to flag
+  overdue AR." `ContractDraft` interface updated.
+- Tests: `pdf-document.test.tsx`, `visibility.test.ts` fixtures get `payment_terms_days`;
+  `build-report.test.ts` integration assertion updated to check `payment_terms_days`
+  shape.
+
+Tests: 316 passing (1 pre-existing unrelated jsdom error on fmplus-logo.test.tsx).
+TS-clean on touched files (only 2 pre-existing errors elsewhere: missing `qrcode`
++ `@testing-library/react`). Push: `40ef0d0..250fc95 HEAD -> main`. Vercel auto-deploy
+in flight.
+
+Note: instructions specified migration `0085`, but `0085` was already taken by
+two other migrations (fnb_item_recipe_lines, personal_email_demote_unsubscribe_rule)
+— filed as `0095` to keep numbering append-only.
+
+---
+
 ## ✅ 2026-05-06 — Per-contract page: contract hero strip + contract switcher (commit `1b75ef5`)
 
 kareem (after seeing the portfolio Projects filter): *"Yes [add same filter to per-contract page]. Also on the second screen: Project Name / Need Chosen Period / on top of screen."*
