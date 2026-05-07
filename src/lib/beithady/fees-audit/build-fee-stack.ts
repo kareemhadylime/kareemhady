@@ -15,7 +15,8 @@ import type {
   ListingMeta,
   DailyCell,
 } from './types';
-import { quoteStay, mapChannelKey } from './quote-calculator';
+import { quoteStayInMemory } from './quote-calculator';
+import { getChannelFee } from './channel-fees';
 import { detectAnomalies } from './anomaly-detector';
 
 const DEFAULT_CHANNELS: ChannelBucket[] = [
@@ -153,20 +154,42 @@ export async function buildFeeStack(
     };
   });
 
-  // ---- Daily cells with per-channel breakdowns ---------------------------
+  // ---- Pre-load channel fee configs (4 records) so we don't hit DB per cell.
+  // Was the perf bottleneck: quoteStay() did 2 DB round-trips per call ×
+  // ~9,480 calls = function timeout. Now O(1) DB hits per request.
+  type ChannelCfg = Awaited<ReturnType<typeof getChannelFee>>;
+  const channelCfgMap = new Map<ChannelBucket, ChannelCfg>();
+  await Promise.all(
+    channels.map(async ch => {
+      channelCfgMap.set(ch, await getChannelFee(ch));
+    })
+  );
+
+  // Pre-build per-listing terms map (already have termsMap above) and
+  // per-listing daily map (have dailyByListing above). Now the per-cell
+  // computation is fully synchronous.
+  type InMemTerms = Parameters<typeof quoteStayInMemory>[0]['terms'];
   const dailyCells: DailyCell[] = [];
   for (const lst of listingMetas) {
     const days = dailyByListing.get(lst.id) || [];
+    const lstTermsRaw = termsMap.get(lst.id);
+    const lstTerms = (lstTermsRaw as unknown) as InMemTerms;
     for (const d of days) {
       const perCh: DailyCell['per_channel'] = [];
       for (const ch of channels) {
+        const channelCfg = channelCfgMap.get(ch);
+        if (!channelCfg) {
+          perCh.push({ channel: ch, guest_gross_usd: null, host_net_usd: null, breakdown: emptyBreakdown() });
+          continue;
+        }
         try {
-          const breakdown = await quoteStay({
-            listingId: lst.id,
+          const breakdown = quoteStayInMemory({
             channel: ch,
-            dateIso: d.date,
             nights: 1,
             guests: lst.capacity || 2,
+            days: [d as unknown as Parameters<typeof quoteStayInMemory>[0]['days'][number]],
+            terms: lstTerms,
+            channelCfg,
           });
           perCh.push({
             channel: ch,

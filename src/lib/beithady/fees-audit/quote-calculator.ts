@@ -40,6 +40,108 @@ export type QuoteInput = {
   petCount?: number;
 };
 
+export type ChannelFeeConfig = {
+  host_commission_pct: number;
+  guest_service_pct: number;
+  guest_service_min?: number | null;
+  guest_service_max?: number | null;
+};
+
+/**
+ * Synchronous quote calculator — takes pre-loaded data instead of doing 2
+ * DB round-trips per call. Used by `buildFeeStack` to compute per-listing ×
+ * per-day × per-channel breakdowns without N+1 queries.
+ *
+ * The async `quoteStay()` below remains for the live `/api/.../quote`
+ * endpoint where the operator types one stay at a time.
+ */
+export function quoteStayInMemory(input: {
+  channel: ChannelBucket;
+  nights: number;
+  guests: number;
+  petCount?: number;
+  days: DailyRow[];                          // already filtered to stay window
+  terms: TermsRow | null;
+  channelCfg: ChannelFeeConfig;
+}): FeeBreakdown {
+  const { channel, nights, guests, petCount, days, terms: termsIn, channelCfg } = input;
+  const channelKey = mapChannelKey(channel);
+  const terms = termsIn || {
+    cleaning_fee: null, pet_fee: null, extra_guest_fee: null, extra_guest_threshold: null,
+    security_deposit: null, taxes: null, min_nights_default: null, min_nights_per_channel: null,
+  };
+
+  let baseTotal = 0;
+  for (const d of days) {
+    const override = d.channel_overrides?.[channelKey];
+    const rate = override ?? d.base_price ?? 0;
+    baseTotal += rate;
+  }
+
+  let discountedBase = baseTotal;
+  if (nights >= 7) {
+    const wkPct = days[0]?.weekly_discount_pct;
+    if (wkPct) discountedBase *= 1 - wkPct / 100;
+  }
+  if (nights >= 28) {
+    const moPct = days[0]?.monthly_discount_pct;
+    if (moPct) discountedBase *= 1 - moPct / 100;
+  }
+
+  const cleaning = Number(terms.cleaning_fee || 0);
+  const pet = Number(terms.pet_fee || 0) * (petCount || 0);
+  const extraGuest =
+    terms.extra_guest_threshold != null && guests > terms.extra_guest_threshold
+      ? Number(terms.extra_guest_fee || 0) *
+        (guests - terms.extra_guest_threshold) *
+        nights
+      : 0;
+  const securityDeposit = Number(terms.security_deposit || 0);
+
+  const taxesApplied = applyTaxes(terms.taxes || [], {
+    accommodation_usd: discountedBase,
+    cleaning_usd: cleaning,
+  });
+
+  const commissionableBase = discountedBase + cleaning;
+  const channelCommission =
+    (commissionableBase * channelCfg.host_commission_pct) / 100;
+
+  let guestService = (commissionableBase * channelCfg.guest_service_pct) / 100;
+  if (channelCfg.guest_service_min != null && guestService < channelCfg.guest_service_min) {
+    guestService = channelCfg.guest_service_min;
+  }
+  if (channelCfg.guest_service_max != null && guestService > channelCfg.guest_service_max) {
+    guestService = channelCfg.guest_service_max;
+  }
+
+  const totalGuestPays =
+    discountedBase + cleaning + pet + extraGuest + taxesApplied.total_usd + guestService;
+  const totalHostReceives =
+    discountedBase + cleaning + pet + extraGuest - channelCommission;
+
+  const minNights =
+    (terms.min_nights_per_channel && terms.min_nights_per_channel[channelKey]) ??
+    terms.min_nights_default ??
+    null;
+
+  return {
+    base_rate_total_usd: discountedBase,
+    weekend_uplift_usd: 0,
+    cleaning_usd: cleaning,
+    pet_usd: pet,
+    extra_guest_usd: extraGuest,
+    taxes_usd: taxesApplied.total_usd,
+    taxes_breakdown: taxesApplied.breakdown,
+    channel_commission_usd: channelCommission,
+    guest_service_fee_usd: guestService,
+    security_deposit_usd: securityDeposit,
+    total_guest_pays_usd: totalGuestPays,
+    total_host_receives_usd: totalHostReceives,
+    min_nights_required: minNights,
+  };
+}
+
 export async function quoteStay(input: QuoteInput): Promise<FeeBreakdown> {
   const sb = supabaseAdmin();
 
