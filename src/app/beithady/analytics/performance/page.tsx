@@ -1,6 +1,12 @@
 import { Suspense } from 'react';
 import { BeithadyShell, BeithadyHeader } from '@/app/beithady/_components/beithady-shell';
-import { computePriorDate, loadSnapshot, loadEarliestSnapshotDate, loadLatestSnapshotDate } from './_lib/load-snapshot';
+import {
+  computePriorDate,
+  loadSnapshot,
+  loadEarliestSnapshotDate,
+  loadLatestSnapshotDate,
+  loadNearestSnapshot,
+} from './_lib/load-snapshot';
 import { EmptySnapshot } from './_components/empty-snapshot';
 import { DashboardShell } from './_components/dashboard-shell';
 
@@ -27,15 +33,20 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
     loadLatestSnapshotDate(),
   ]);
 
-  // Load the prior snapshot in parallel with rendering decisions when a
-  // compare mode is set and we have an anchor date.
-  const priorDate =
+  // Load the prior snapshot when a compare mode is set and we have an anchor
+  // date. Tolerant lookup: if the exact target date has a NULL or malformed
+  // payload (a known cron-gap pattern), pick the nearest well-formed neighbor
+  // within ±3 days. We surface the actual date used + the offset to the UI.
+  const priorTargetDate =
     result.status === 'found' && compareMode !== 'none'
       ? computePriorDate(result.date, compareMode)
       : null;
-  const priorResult = priorDate ? await loadSnapshot(priorDate) : null;
+  const priorResult = priorTargetDate ? await loadNearestSnapshot(priorTargetDate, 3) : null;
   const priorPayload =
     priorResult && priorResult.status === 'found' ? priorResult.payload : null;
+  const priorDate = priorResult && priorResult.status === 'found' ? priorResult.date : null;
+  const priorOffsetDays =
+    priorResult && priorResult.status === 'found' ? priorResult.offsetDays : 0;
 
   return (
     <BeithadyShell
@@ -65,6 +76,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             latestDate={latestDate}
             priorPayload={priorPayload}
             priorDate={priorDate}
+            priorTargetDate={priorTargetDate}
+            priorOffsetDays={priorOffsetDays}
           />
         </Suspense>
       )}

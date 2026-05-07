@@ -168,6 +168,128 @@ export async function loadSnapshot(dateParam: string | undefined): Promise<Snaps
 }
 
 /**
+ * Adds N days to a YYYY-MM-DD string in UTC. Returns the result as YMD.
+ */
+function shiftYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Signed day delta between two YMD strings. Positive = a is later than b.
+ */
+function daysBetween(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const da = Date.UTC(ay, (am ?? 1) - 1, ad ?? 1);
+  const db = Date.UTC(by, (bm ?? 1) - 1, bd ?? 1);
+  return Math.round((da - db) / 86_400_000);
+}
+
+export type NearestSnapshotResult =
+  | {
+      status: 'found';
+      /** Actual report_date returned (may differ from the target). */
+      date: string;
+      payload: DailyReportPayload;
+      generatedAt: string;
+      /** Target − actual, in days. 0 means exact match. Negative = actual is BEFORE target. */
+      offsetDays: number;
+      /** The original target date the caller asked for. */
+      targetDate: string;
+    }
+  | { status: 'missing'; targetDate: string; windowDays: number };
+
+/**
+ * Find the nearest well-formed snapshot within ±windowDays of the target
+ * date. Used by the Compare feature so a target date with a NULL/malformed
+ * payload (a known cron-gap pattern) still surfaces a useful comparison
+ * anchor — we just shift to the closest valid neighbor and tell the user.
+ *
+ * Tie-break: prefer EARLIER neighbors over later ones, because the user's
+ * intent for "vs last week" is a comparison anchor approximately a week
+ * ago — a slightly older fallback is more on-target than a slightly newer
+ * one.
+ */
+export async function loadNearestSnapshot(
+  targetDate: string,
+  windowDays = 3,
+): Promise<NearestSnapshotResult> {
+  const target = parseDateParam(targetDate);
+  if (!target) return { status: 'missing', targetDate, windowDays };
+  const lower = shiftYmd(target, -windowDays);
+  const upper = shiftYmd(target, +windowDays);
+
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from('daily_report_snapshots')
+      .select('report_date, payload, generated_at')
+      .eq('report_kind', 'beithady_daily')
+      .gte('report_date', lower)
+      .lte('report_date', upper)
+      .order('report_date', { ascending: true })
+      .order('generated_at', { ascending: false });
+
+    if (error) {
+      console.warn('[load-nearest-snapshot] supabase error', error.message);
+      return { status: 'missing', targetDate: target, windowDays };
+    }
+    if (!data || data.length === 0) {
+      return { status: 'missing', targetDate: target, windowDays };
+    }
+
+    // Per date, keep only the most recently-generated WELL-FORMED row.
+    const byDate = new Map<string, { payload: DailyReportPayload; generatedAt: string }>();
+    for (const row of data) {
+      const date = row.report_date as string;
+      if (byDate.has(date)) continue; // already have the most-recent for this date
+      if (!isPayloadWellFormed(row.payload)) continue;
+      byDate.set(date, {
+        payload: row.payload,
+        generatedAt: row.generated_at as string,
+      });
+    }
+    if (byDate.size === 0) {
+      return { status: 'missing', targetDate: target, windowDays };
+    }
+
+    // Pick the nearest by abs day delta. Tie-break: prefer earlier (delta < 0).
+    let best:
+      | { date: string; offsetDays: number; payload: DailyReportPayload; generatedAt: string }
+      | null = null;
+    for (const [date, row] of byDate) {
+      const offsetDays = daysBetween(target, date); // target − date
+      const abs = Math.abs(offsetDays);
+      if (
+        !best ||
+        abs < Math.abs(best.offsetDays) ||
+        (abs === Math.abs(best.offsetDays) && offsetDays > best.offsetDays)
+        // offsetDays > best.offsetDays means `date` is EARLIER than the
+        // current best (target−date is bigger when date is older). Prefer
+        // earlier on ties.
+      ) {
+        best = { date, offsetDays, ...row };
+      }
+    }
+    if (!best) return { status: 'missing', targetDate: target, windowDays };
+
+    return {
+      status: 'found',
+      date: best.date,
+      payload: best.payload,
+      generatedAt: best.generatedAt,
+      offsetDays: best.offsetDays,
+      targetDate: target,
+    };
+  } catch (err) {
+    console.warn('[load-nearest-snapshot] exception', err);
+    return { status: 'missing', targetDate: target, windowDays };
+  }
+}
+
+/**
  * Returns the most recent well-formed snapshot of any date. Used as the
  * default landing experience so the dashboard never hits "No snapshot for
  * <today>" when the daily cron hasn't fired yet.

@@ -47,10 +47,14 @@ type Props = {
   earliestDate: string | null;
   /** Latest report_date in the snapshot table (upper bound for the date stepper). */
   latestDate: string | null;
-  /** Snapshot to compare against (null when compare='none' or no prior snapshot exists). */
+  /** Snapshot to compare against (null when compare='none' or no prior snapshot exists in the ±3-day window). */
   priorPayload: DailyReportPayload | null;
-  /** Resolved prior date used for compare (null when compare='none' or unresolvable). */
+  /** Actual date used for compare — may differ from priorTargetDate when the exact target had a NULL payload. */
   priorDate: string | null;
+  /** Date the user's compare mode literally points at (e.g. 2026-04-30 for "vs last week" from 2026-05-07). */
+  priorTargetDate: string | null;
+  /** Signed days between target and actual (target − actual). Negative = actual is BEFORE target. 0 = exact match. */
+  priorOffsetDays: number;
 };
 
 const COMPARE_LABEL: Record<CompareMode, string> = {
@@ -71,6 +75,8 @@ export function DashboardShell({
   latestDate,
   priorPayload,
   priorDate,
+  priorTargetDate,
+  priorOffsetDays,
 }: Props) {
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -217,7 +223,14 @@ export function DashboardShell({
               }}
               role="status"
             >
-              Comparing <strong>{snapshotDate}</strong> {compareLabel} (<strong>{priorDate}</strong>) — Hero KPIs show ▲/▼ deltas.{' '}
+              Comparing <strong>{snapshotDate}</strong> {compareLabel} (<strong>{priorDate}</strong>
+              {priorOffsetDays !== 0 && priorTargetDate && (
+                <span style={{ color: 'var(--bh-steel)' }}>
+                  {' '}— nearest available, {Math.abs(priorOffsetDays)} day{Math.abs(priorOffsetDays) === 1 ? '' : 's'}{' '}
+                  {priorOffsetDays > 0 ? 'before' : 'after'} target {priorTargetDate}
+                </span>
+              )}
+              ) — Hero KPIs show ▲/▼ deltas.{' '}
               <button
                 type="button"
                 onClick={() => update({ compare: 'none' })}
@@ -228,7 +241,7 @@ export function DashboardShell({
               </button>
             </div>
           )}
-          {state.compare !== 'none' && !priorPayload && priorDate && (
+          {state.compare !== 'none' && !priorPayload && priorTargetDate && (
             <div
               className="col-span-12 rounded-md px-3 py-2 text-[11px]"
               style={{
@@ -238,7 +251,8 @@ export function DashboardShell({
               }}
               role="status"
             >
-              Compare {COMPARE_LABEL[state.compare]}: no snapshot available for <strong>{priorDate}</strong> — deltas hidden.{' '}
+              Compare {COMPARE_LABEL[state.compare]}: no well-formed snapshot in the ±3-day window around{' '}
+              <strong>{priorTargetDate}</strong> — deltas hidden.{' '}
               <button
                 type="button"
                 onClick={() => update({ compare: 'none' })}

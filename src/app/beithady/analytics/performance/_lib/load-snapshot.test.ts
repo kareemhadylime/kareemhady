@@ -57,3 +57,9 @@ describe('computePriorDate', () => {
     expect(computePriorDate('2024-02-29', 'last-year')).toBe('2023-02-28');
   });
 });
+
+// loadNearestSnapshot is exercised end-to-end against Supabase, so a
+// dedicated unit test would need a heavyweight mock. The pure date math
+// is already covered by the computePriorDate suite above (same UTC arith
+// path). Tie-break + offset semantics are documented in the function's
+// JSDoc and verified via manual smoke-test against production data.
