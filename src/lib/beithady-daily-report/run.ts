@@ -65,10 +65,23 @@ function isPayloadWellFormed(payload: unknown): payload is DailyReportPayload {
 }
 
 export async function runDailyReport(opts: {
-  trigger?: 'cron' | 'manual_test' | 'force';
+  trigger?: 'cron' | 'manual_test' | 'force' | 'backfill';
   forceTimeGate?: boolean;
   forceRebuild?: boolean;
   restrictToRecipientIds?: string[] | null;
+  /**
+   * Override "today" with a specific YYYY-MM-DD. Used for backfilling
+   * historical NULL-payload rows. Must pass a valid YYYY-MM-DD; invalid
+   * input is rejected with `phase: 'gate'`.
+   */
+  dateOverride?: string;
+  /**
+   * Skip the distribute phase. Set automatically when `dateOverride` is
+   * for a past date (we don't want to email a stale historical report
+   * to recipients). Can also be set explicitly for non-distribution
+   * rebuilds (e.g. previewing a payload).
+   */
+  skipDistribution?: boolean;
 } = {}): Promise<RunResult> {
   const trigger = opts.trigger || 'cron';
   const sb = supabaseAdmin();
@@ -78,7 +91,20 @@ export async function runDailyReport(opts: {
     return { ok: true, status: 'skipped_pre_9am' };
   }
 
-  const today = cairoYmd();
+  // --- Resolve target date (today by default; admin can override for backfills) ---
+  let today = cairoYmd();
+  if (opts.dateOverride) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(opts.dateOverride)) {
+      return { ok: false, error: `invalid_date_override: ${opts.dateOverride}`, phase: 'gate' };
+    }
+    today = opts.dateOverride;
+  }
+  // Distribute defaults to true for "today" runs and false for any
+  // historical override — admins backfilling old dates almost certainly
+  // don't want to email a stale report. Caller can still force it via
+  // skipDistribution: false.
+  const skipDistribution =
+    opts.skipDistribution ?? (opts.dateOverride && opts.dateOverride !== cairoYmd());
 
   type SnapshotRow = {
     id: string;
@@ -222,14 +248,16 @@ export async function runDailyReport(opts: {
     return { ok: false, error: 'invariant_no_pdf_after_render', phase: 'pdf' };
   }
 
-  // --- Distribute ---
-  const delivery = await distributeReport({
-    snapshot_id: snap.id,
-    token: snap.token,
-    payload,
-    pdf_bytes: pdfBytes,
-    restrict_to_recipient_ids: opts.restrictToRecipientIds || null,
-  });
+  // --- Distribute (skipped for historical backfills) ---
+  const delivery: DistributeResult = skipDistribution
+    ? { attempted: 0, sent: 0, failed: 0, skipped: 0, errors: [], delivery_complete: false }
+    : await distributeReport({
+        snapshot_id: snap.id,
+        token: snap.token,
+        payload,
+        pdf_bytes: pdfBytes,
+        restrict_to_recipient_ids: opts.restrictToRecipientIds || null,
+      });
 
   if (delivery.delivery_complete) {
     await sb

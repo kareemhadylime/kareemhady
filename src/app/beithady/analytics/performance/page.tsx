@@ -20,6 +20,12 @@ function parseCompare(input: string | undefined): CompareMode {
 
 export const metadata = { title: 'Performance Dashboard · Beithady' };
 
+// Server actions invoked from this route inherit its function timeout. The
+// `rebuildSnapshotAction` (used by EmptySnapshot's "Rebuild snapshot"
+// button) calls `runDailyReport` which can take 60-180s for a fresh build.
+// Match the cron route's cap so Vercel doesn't kill the rebuild mid-flight.
+export const maxDuration = 180;
+
 export default async function PerformancePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const compareMode = parseCompare(sp.compare);

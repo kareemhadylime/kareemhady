@@ -211,6 +211,54 @@ export async function sendTestNowAction(): Promise<SendTestResult> {
   };
 }
 
+export type RebuildSnapshotResult =
+  | { ok: true; date: string; built_now: boolean }
+  | { ok: false; error: string };
+
+/**
+ * Admin-only: rebuild the daily report snapshot for a given date. Used by
+ * the EmptySnapshot screen on the Performance Dashboard to backfill
+ * historical NULL-payload rows (the cron-gap pattern from before the
+ * build-then-write fix landed).
+ *
+ * Distribution is intentionally skipped — we don't want to email a stale
+ * historical report. The action requires admin auth and a valid YMD
+ * input. Forces a rebuild even if the row is `delivery_complete` so a
+ * re-run replaces stale data.
+ */
+export async function rebuildSnapshotAction(
+  dateYmd: string,
+): Promise<RebuildSnapshotResult> {
+  await requireAdmin();
+  if (typeof dateYmd !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) {
+    return { ok: false, error: 'invalid_date' };
+  }
+  // Sanity-check date is plausible — `runDailyReport` will also re-validate.
+  const [y, m, d] = dateYmd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) {
+    return { ok: false, error: 'invalid_date' };
+  }
+
+  const result = await runDailyReport({
+    trigger: 'backfill',
+    forceTimeGate: true,
+    forceRebuild: true,
+    skipDistribution: true,
+    dateOverride: dateYmd,
+  });
+  if (!result.ok) {
+    return { ok: false, error: `${result.phase}: ${result.error}` };
+  }
+  if (result.status === 'skipped_pre_9am') {
+    return { ok: false, error: 'skipped_pre_9am' };
+  }
+  if (result.status === 'already_complete') {
+    return { ok: true, date: dateYmd, built_now: false };
+  }
+  return { ok: true, date: result.report_date, built_now: result.built_now };
+}
+
 // ---- Void-returning wrappers for use in <form action={...}>. ----
 // Server actions consumed by `<form action>` must return void (per React
 // 19 / Next.js 16). The data-returning variants above are kept exported

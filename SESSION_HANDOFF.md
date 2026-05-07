@@ -1,6 +1,35 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Daily-report PDF + HTML: brand palette alignment with dashboard tokens (v1.5 #2)
+## Latest turn — Daily-report backfill: admin "Rebuild snapshot" button on EmptySnapshot (v1.5 #3)
+
+User asked for v1.5 follow-up #3. The 10 legacy NULL-payload rows from before the cron-resilience fix can now be repaired in-place by an admin from the dashboard.
+
+- **`src/lib/beithady-daily-report/run.ts`** — `runDailyReport` extended with two new options:
+  - `dateOverride?: string` — replaces `cairoYmd()` for the build target. Validated against `^\d{4}-\d{2}-\d{2}$`; invalid input returns `phase: 'gate'` cleanly. Allowed trigger value `'backfill'` added to the `trigger` union.
+  - `skipDistribution?: boolean` — bypasses the `distributeReport` call. Defaults to true automatically when `dateOverride` is set to a past date (we don't want to email a stale historical report). When skipped, the function returns a synthetic empty `DistributeResult { attempted:0, sent:0, failed:0, skipped:0, errors:[], delivery_complete:false }` so the existing return shape is unchanged.
+- **`src/app/beithady/setup/actions.ts`** — new admin server action `rebuildSnapshotAction(dateYmd: string)`:
+  - Requires admin (existing `requireAdmin()` gate).
+  - Validates YMD format + plausibility (no Feb 30 etc.).
+  - Calls `runDailyReport({ trigger: 'backfill', forceTimeGate: true, forceRebuild: true, skipDistribution: true, dateOverride: dateYmd })`.
+  - Returns `{ ok, date, built_now }` on success or `{ ok: false, error }`. The `built_now: false` case fires when the row was somehow already complete; a re-run still succeeds harmlessly thanks to `forceRebuild`.
+- **`src/app/beithady/analytics/performance/_components/manual-rebuild-button.tsx`** (new) — small client component using `useTransition` to call the action. Disables during the 60–180s build, reloads the page on success, surfaces inline errors (special-cases `'forbidden'` → "Admin access required"). Brand-aligned styling: ink button, cream text, red sub-banner on error.
+- **`src/app/beithady/analytics/performance/_components/empty-snapshot.tsx`** — added the rebuild button. Body copy updated to set expectations: "or the row is incomplete (admin-only rebuild reconstructs it from current Supabase / Stripe / Anthropic data)" — honest about the fact that a backfilled snapshot is a best-effort reconstruction, not a true historical record (FX rates, reservation cancellations, AI insights are all evaluated against today's data).
+- **`src/app/beithady/analytics/performance/page.tsx`** — added `export const maxDuration = 180`. Server actions invoked from a route inherit its function timeout, so without this the action would hit Vercel's default ~60s and die mid-build.
+
+`tsc --noEmit` clean.
+
+**How the user backfills**: navigate to `/beithady/analytics/performance?date=2026-04-26` (or any of the other 9 NULL-payload dates), click the **Rebuild snapshot for 2026-04-26** button on the EmptySnapshot screen, wait 1–3 minutes for the build to finish, page auto-reloads with the dashboard fully populated. Repeat for each of: 2026-04-26, -27, -28, -29, -30, 2026-05-01, -02, -03, -04, -05.
+
+**v1.5 status — all three follow-ups now landed:**
+- ✅ Cron resilience (build-then-write order) → no new NULL rows possible
+- ✅ Renderer brand alignment (PDF + HTML email match dashboard tokens)
+- ✅ Backfill UX for legacy NULL rows ← this turn
+
+Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+---
+
+## Earlier turn — Daily-report PDF + HTML: brand palette alignment with dashboard tokens (v1.5 #2)
 
 User asked for v1.5 follow-up #2. The daily report PDF + HTML email renderers were still on the v1 cream-and-warm-gold palette while the dashboard moved to the Fees-Audit theme weeks ago. Brought them into lockstep with the canonical Pantone-anchored brand tokens.
 
