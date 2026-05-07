@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — UAE filter bug fix (DXB → BH-DXB normalization) + dead code cleanup (commit `6d7e999`)
+## 🟢 Latest turn — Bootstrapped fee data + N+1 perf fix (commits `b971d88`, `194935d`)
+
+Autonomous loop work after the previous DXB-normalization fix:
+
+**1. Bootstrapped real fee data via SQL** so the dashboard has numbers to render even before tomorrow's first auto-sync:
+- `beithady_listing_terms` populated with 79 rows: cleaning_fee from existing `pricelabs_listings.cleaning_fees`, min_nights_default = 25th-percentile of historical reservation LOS (≥3-reservations sample), bathrooms from rough bedrooms-rule fallback
+- `beithady_pricelabs_daily_rates` populated with 1,680 rows (56 listings × 30 days): base_price = avg `host_payout / nights` from past 9 months of confirmed reservations; min_price = base × 0.7, max_price = base × 1.5; weekend flag from EG calendar (Fri/Sat)
+- Limited to listings with PriceLabs FK (others fall through to OTHER bucket — they'll get real rates when PL syncs them)
+
+**2. Diagnosed live perf bottleneck.** Loading the dashboard with the bootstrapped data made the API call hang for 60+s and timeout. Root cause: `quoteStay()` does 2 DB SELECTs per call, and `buildFeeStack` calls it inside a 3-level nested loop (79 listings × 30 days × 4 channels = ~9,480 calls × 2 queries = ~18,960 sequential DB round-trips). Vercel function maxDuration=90s wasn't enough.
+
+**3. Fix shipped (commit `194935d`):** split quote-calculator.ts:
+- `quoteStay()` stays for the live `/api/.../quote` single-stay endpoint (operator types one stay, fine to do 2 DB queries)
+- `quoteStayInMemory()` new pure function — takes pre-loaded daily rows + terms + channelCfg as inputs, fully sync
+- `buildFeeStack` now pre-loads channel configs (4, parallel) once, then calls in-memory variant per cell. **DB query count: O(1) instead of O(listings × days × channels).** Expected runtime: 60s+ → 1-2s.
+
+Auto-wakeup scheduled to verify the fix in browser after Vercel deploy lands.
+
+---
+
+## 🟢 Earlier this turn — UAE filter bug fix (DXB → BH-DXB normalization) + dead code cleanup (commit `6d7e999`)
 
 Live browser verification caught a real bug. Sequence:
 
