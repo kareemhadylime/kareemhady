@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Filters moved to sidebar + dynamic-filter TitleBar (commit `336971d`)
+## 🟢 Latest turn — UAE filter bug fix (DXB → BH-DXB normalization) + dead code cleanup (commit `6d7e999`)
+
+Live browser verification caught a real bug. Sequence:
+
+1. Tested 🇪🇬 Egypt filter → worked perfectly: TitleBar updated to "Egypt only (EGP economy)", subtitle "5 buildings", "79 units in scope", banner appeared, cross-ref showed only Egypt listings.
+2. Clicked 🇦🇪 UAE filter → TitleBar updated correctly but showed **"0 units in scope"** despite Dubai listings existing.
+3. Root cause: DB had 2 listings with `building_code = 'DXB'` (legacy, no prefix) while my filter sent `['BH-DXB']`. Mismatch → 0 hits.
+
+Three-layer fix in commit `6d7e999`:
+
+- **DB:** `UPDATE guesty_listings SET building_code = 'BH-DXB' WHERE building_code = 'DXB'` — 2 rows updated.
+- **`bucketBuilding()`** in `guesty-metrics.ts` now recognizes `'DXB'` / `'BH_DXB'` / case-insensitive `'DXB'` as canonical `'BH-DXB'`. Future syncs landing loose codes get auto-bucketed without another DB pass.
+- **`bookable-listings.ts`** normalizeBuilding() helper applied to both the building filter and the by_building rollup. Caller-side defense.
+
+Also cleanup: deleted dead `FilterBar.tsx` (superseded by Sidebar+TitleBar in commit `336971d`, no longer imported anywhere).
+
+**Verification:** tsc clean, build clean (27.5s). Pushed `6d7e999` to main. Live UAE filter will now show "2 units in scope" once Vercel deploys (auto-wakeup scheduled to verify).
+
+---
+
+## 🟢 Earlier this turn — Filters moved to sidebar + dynamic-filter TitleBar (commit `336971d`)
 
 User: "Now Move the Top Filters to the The Left Collapsible Menu" + "On Top Of Report Make a Title with the Filters Chosen". Plus: "Make a Distinction Based on Country And Analytic on the left hand Collapsable Menu". Plus: brand audit ("Did you use the BH Brand Guidelines?"). All addressed in commits `75818da`, `0390a9f`, `336971d`.
 
