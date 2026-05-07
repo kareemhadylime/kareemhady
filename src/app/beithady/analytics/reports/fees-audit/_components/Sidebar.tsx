@@ -1,9 +1,33 @@
 'use client';
 
-import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeft,
+  Calendar,
+  Building2,
+  Filter as FilterIcon,
+  ToggleLeft,
+  Calculator,
+  Download,
+} from 'lucide-react';
 import { useState } from 'react';
-import type { FeeCategory } from '@/lib/beithady/fees-audit/types';
+import type {
+  FeeAuditConfig,
+  FeeCategory,
+  BuildingCode,
+} from '@/lib/beithady/fees-audit/types';
+import type { ChannelBucket } from '@/lib/beithady/guesty-metrics';
 import { FEE_CATEGORY_LABEL } from '@/lib/beithady/fees-audit/types';
+
+const ALL_BUILDINGS: BuildingCode[] = ['BH-26', 'BH-73', 'BH-435', 'BH-OK', 'BH-DXB', 'OTHER'];
+const ALL_CHANNELS: { key: ChannelBucket; label: string }[] = [
+  { key: 'airbnb', label: 'Airbnb' },
+  { key: 'booking_com', label: 'Booking' },
+  { key: 'other_ota', label: 'Other OTA' },
+  { key: 'manual', label: 'Manual' },
+];
 
 const GROUPS: Array<{ label: string; items: FeeCategory[]; icon: string }> = [
   { label: 'Nightly Rate', icon: '🛏', items: ['daily_rate', 'weekend_uplift', 'holiday_rate'] },
@@ -26,18 +50,28 @@ export function Sidebar({
   onToggle,
   selected,
   onSelect,
+  config,
+  onConfigChange,
+  onOpenTaxTester,
+  onOpenVendorExport,
 }: {
   open: boolean;
   onToggle: () => void;
   selected: FeeCategory;
   onSelect: (cat: FeeCategory) => void;
+  config: FeeAuditConfig;
+  onConfigChange: (c: FeeAuditConfig) => void;
+  onOpenTaxTester: () => void;
+  onOpenVendorExport: () => void;
 }) {
   // Default-collapse Country and Analytic so the sidebar isn't overwhelming
-  // on first paint. Operator can expand on demand.
+  // on first paint. Operator can expand on demand. Filters group is open
+  // by default since it's the primary scope control.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     Country: true,
     Analytic: true,
     Comparisons: true,
+    Discounts: true,
   });
 
   if (!open) {
@@ -89,6 +123,200 @@ export function Sidebar({
         >
           <PanelLeftClose size={16} />
         </button>
+      </div>
+
+      {/* FILTERS BLOCK — moved here from the top filter bar (2026-05-07).
+          Keeps the report area uncluttered and lets all scope controls
+          live alongside the fee-category picker. */}
+      <div
+        className="px-3 py-3 border-b space-y-3"
+        style={{ borderColor: 'var(--bh-mute)' }}
+      >
+        {/* Date + window */}
+        <div>
+          <div
+            className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
+          >
+            <Calendar size={11} /> Date · Window
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={config.startDate}
+              onChange={e => onConfigChange({ ...config, startDate: e.target.value })}
+              className="flex-1 rounded border px-2 py-1 text-xs"
+              style={{
+                background: 'white',
+                borderColor: 'var(--bh-mute)',
+                color: 'var(--bh-ink)',
+              }}
+            />
+            <select
+              value={config.windowDays}
+              onChange={e =>
+                onConfigChange({
+                  ...config,
+                  windowDays: Number(e.target.value) as 7 | 14 | 30,
+                })
+              }
+              className="rounded border px-2 py-1 text-xs"
+              style={{
+                background: 'white',
+                borderColor: 'var(--bh-mute)',
+                color: 'var(--bh-ink)',
+              }}
+            >
+              <option value={7}>7d</option>
+              <option value={14}>14d</option>
+              <option value={30}>30d</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Buildings */}
+        <div>
+          <div
+            className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
+          >
+            <Building2 size={11} /> Buildings
+            {config.buildings.length > 0 && (
+              <button
+                onClick={() => onConfigChange({ ...config, buildings: [] })}
+                className="ml-auto text-[10px] hover:underline"
+                style={{ color: 'var(--bh-gold)' }}
+              >
+                clear
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {ALL_BUILDINGS.map(b => {
+              const active = config.buildings.includes(b);
+              return (
+                <button
+                  key={b}
+                  onClick={() =>
+                    onConfigChange({
+                      ...config,
+                      buildings: active
+                        ? config.buildings.filter(x => x !== b)
+                        : [...config.buildings, b],
+                    })
+                  }
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold transition"
+                  style={{
+                    background: active ? 'var(--bh-ink)' : 'white',
+                    color: active ? 'var(--bh-cream)' : 'var(--bh-ink)',
+                    border: active ? '1px solid var(--bh-ink)' : '1px solid var(--bh-mute)',
+                  }}
+                >
+                  {b}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Channels */}
+        <div>
+          <div
+            className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
+          >
+            <FilterIcon size={11} /> Channels
+            {config.channels.length > 0 && (
+              <button
+                onClick={() => onConfigChange({ ...config, channels: [] })}
+                className="ml-auto text-[10px] hover:underline"
+                style={{ color: 'var(--bh-gold)' }}
+              >
+                clear
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {ALL_CHANNELS.map(c => {
+              const active = config.channels.includes(c.key);
+              return (
+                <button
+                  key={c.key}
+                  onClick={() =>
+                    onConfigChange({
+                      ...config,
+                      channels: active
+                        ? config.channels.filter(x => x !== c.key)
+                        : [...config.channels, c.key],
+                    })
+                  }
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold transition"
+                  style={{
+                    background: active ? 'var(--bh-gold)' : 'white',
+                    color: active ? 'var(--bh-ink)' : 'var(--bh-ink)',
+                    border: '1px solid ' + (active ? 'var(--bh-gold)' : 'var(--bh-mute)'),
+                  }}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Price mode */}
+        <div>
+          <div
+            className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider mb-1.5"
+            style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
+          >
+            <ToggleLeft size={11} /> Price Mode
+          </div>
+          <div className="flex gap-1">
+            {(['host_net', 'guest_gross', 'both'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => onConfigChange({ ...config, priceMode: m })}
+                className="flex-1 px-2 py-0.5 rounded text-[10px] font-semibold transition"
+                style={{
+                  background: config.priceMode === m ? '#15803d' : 'white',
+                  color: config.priceMode === m ? 'white' : 'var(--bh-ink)',
+                  border: '1px solid ' + (config.priceMode === m ? '#15803d' : 'var(--bh-mute)'),
+                }}
+              >
+                {m === 'host_net' ? 'Host' : m === 'guest_gross' ? 'Guest' : 'Both'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tools */}
+        <div className="flex gap-1.5 pt-1">
+          <button
+            onClick={onOpenTaxTester}
+            className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] px-2 py-1.5 rounded transition"
+            style={{
+              background: '#5b3b8a',
+              color: 'white',
+              border: '1px solid #5b3b8a',
+            }}
+            title="Tax Stack Tester"
+          >
+            <Calculator size={11} /> Tax Tester
+          </button>
+          <button
+            onClick={onOpenVendorExport}
+            className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] px-2 py-1.5 rounded transition"
+            style={{
+              background: 'white',
+              color: 'var(--bh-ink)',
+              border: '1px solid var(--bh-mute)',
+            }}
+            title="Vendor CSV Export"
+          >
+            <Download size={11} /> Vendor CSV
+          </button>
+        </div>
       </div>
 
       <nav className="py-2">

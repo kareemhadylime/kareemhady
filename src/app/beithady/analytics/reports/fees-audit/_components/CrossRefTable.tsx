@@ -1,21 +1,45 @@
 'use client';
 
 import { Swords, FileX } from 'lucide-react';
-import type { FeeAuditData } from '@/lib/beithady/fees-audit/types';
+import type { FeeAuditData, FeeCategory } from '@/lib/beithady/fees-audit/types';
 
 const fmtUsd = (v: number | null): string =>
   v == null ? '—' : `$${Math.round(v).toLocaleString('en-US')}`;
 
+// Pivot mode: when an Analytic category is selected in the sidebar, the
+// cross-ref table sorts listings by the analytic dimension instead of the
+// default building → bedrooms grouping. Lets the operator slice the same
+// data set different ways without changing the underlying query.
+type PivotMode = FeeCategory | null;
+
 export function CrossRefTable({
   data,
   priceMode,
+  pivotMode,
   onCompareChannels,
 }: {
   data: FeeAuditData;
   priceMode: 'host_net' | 'guest_gross' | 'both';
+  pivotMode?: PivotMode;
   onCompareChannels: (listingId: string) => void;
 }) {
   const listings = data.listings.slice().sort((a, b) => {
+    // Analytic pivots — primary sort key changes based on selection.
+    if (pivotMode === 'analytic_bedroom_class') {
+      if (a.bedrooms !== b.bedrooms) return a.bedrooms - b.bedrooms;
+      if (a.building !== b.building) return a.building.localeCompare(b.building);
+      return a.nickname.localeCompare(b.nickname);
+    }
+    if (pivotMode === 'analytic_capacity') {
+      if (a.capacity !== b.capacity) return a.capacity - b.capacity;
+      return a.nickname.localeCompare(b.nickname);
+    }
+    if (pivotMode === 'analytic_channel_mix') {
+      // Sort by which channel collects more revenue would require a deeper
+      // query; for now fall back to default sort. Future: hook into the
+      // /compare endpoint to derive a primary-channel field.
+    }
+    // Default + analytic_building: building → bedrooms → name
     if (a.building !== b.building) return a.building.localeCompare(b.building);
     if (a.bedrooms !== b.bedrooms) return a.bedrooms - b.bedrooms;
     return a.nickname.localeCompare(b.nickname);
