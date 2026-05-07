@@ -10,6 +10,8 @@ import {
   FileText,
   Calendar,
   Download,
+  Receipt,
+  Sparkles,
 } from 'lucide-react';
 import { requireBeithadyPermission, hasBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
@@ -75,6 +77,51 @@ export default async function ReportsLandingPage() {
           ) : null
         }
       />
+
+      {/* Featured tile — Booking-Channel Fee Audit (1st position per Q10). */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+          Featured · operator-self-serve audit
+        </h2>
+        <Link
+          href="/beithady/analytics/reports/fees-audit"
+          className="block ix-card p-6 hover:shadow-lg transition group"
+          style={{
+            background: 'linear-gradient(135deg, #1e3a5f 0%, #2c4d7a 100%)',
+          }}
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-xl bg-amber-400 text-[#1e3a5f] flex items-center justify-center group-hover:bg-amber-300 transition">
+              <Receipt size={28} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-white">
+                  Booking-Channel Fee Audit
+                </h3>
+                <span className="text-[10px] uppercase tracking-wide bg-amber-400 text-[#1e3a5f] px-2 py-0.5 rounded font-bold">
+                  <Sparkles size={10} className="inline -mt-0.5 mr-0.5" /> New
+                </span>
+              </div>
+              <p className="text-sm text-amber-100/90 mt-1 leading-snug">
+                Forward 7/14/30 day audit of every fee, tax, and stay-rule charged
+                to guests across Airbnb · Booking · Other OTA · Manual.
+                Cross-reference to bedrooms × bathrooms · live quote calculator ·
+                channel parity check · vendor CSV export.
+              </p>
+              <div className="flex items-center gap-3 mt-3 text-xs text-amber-200">
+                <span>📊 Heatmap</span>
+                <span>·</span>
+                <span>🧮 Live Calculator</span>
+                <span>·</span>
+                <span>🔎 Anomaly Inspector</span>
+                <span>·</span>
+                <span>📥 Vendor Export</span>
+              </div>
+            </div>
+          </div>
+        </Link>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
