@@ -114,7 +114,10 @@ export async function processReviewReplyQueue(maxNew = 20): Promise<{
     .select(
       'id, raw, channel_id, listing_id, reservation_id, overall_rating, public_review, created_at_source, created_at_guesty, synced_at',
     )
-    .order('synced_at', { ascending: false })
+    // Newest reviews drafted first (Guesty sees the review almost immediately
+    // — created_at_guesty is the tightest "when did the guest leave it" signal).
+    .order('created_at_guesty', { ascending: false, nullsFirst: false })
+    .order('synced_at', { ascending: false, nullsFirst: false })
     .limit(200);
   if (reviewsErr) {
     console.warn('[review-reply-queue] supabase error', reviewsErr.message);
@@ -225,9 +228,12 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
     .select(
       'id, channel_id, listing_id, overall_rating, public_review, created_at_source, created_at_guesty, synced_at',
     )
-    // synced_at is always populated; created_at_source is preferred for the
-    // user-facing date but isn't always present on legacy rows. Order by
-    // synced_at so newly-pulled rows surface at the top regardless.
+    // Sort by when the guest actually left the review, newest first.
+    // `created_at_guesty` is populated for all 868 prod rows; `created_at_source`
+    // only for ~66 legacy rows (which is why we don't lead with it). `synced_at`
+    // is the final tiebreaker for any row missing both — should never happen
+    // in practice but keeps ordering total.
+    .order('created_at_guesty', { ascending: false, nullsFirst: false })
     .order('synced_at', { ascending: false, nullsFirst: false })
     .limit(limit);
   if (reviewsErr) {
@@ -282,10 +288,11 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
   return rows.map(r => {
     const reply = replyMap.get(r.id);
     const listing = r.listing_id ? listingMap.get(r.listing_id) : null;
-    // Prefer the OTA-source timestamp (when the guest actually left the
-    // review), fall back to Guesty's createdAt, then to our sync time.
+    // Display date matches the sort field — `created_at_guesty` is populated
+    // for all rows. Falls back to `created_at_source` (legacy) then
+    // `synced_at` for total robustness.
     const effectiveCreatedAt =
-      r.created_at_source || r.created_at_guesty || r.synced_at || new Date().toISOString();
+      r.created_at_guesty || r.created_at_source || r.synced_at || new Date().toISOString();
     return {
       review_id: r.id,
       rating: r.overall_rating != null ? Math.round(r.overall_rating) : null,
