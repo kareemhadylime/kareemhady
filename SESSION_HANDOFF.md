@@ -1,6 +1,36 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Beithady landing: at-a-glance "Today's pulse" between header and module grid
+## Latest turn — Review responses page was 0/0/0/0 — column-name mismatch (`raw_review` → `raw`)
+
+User reported `/beithady/analytics/reviews` showing all stats at 0 and "No reviews synced yet. Run the Guesty sync first." — despite the Performance Dashboard showing 20 reviews · 4.8★ for the same period. Investigated via Supabase MCP:
+
+- `guesty_reviews` has **868 rows**, latest synced 2026-05-07 04:41 UTC. Real data.
+- `beithady_review_replies` has **0 rows** (no AI drafts).
+- The reviews-replies pipeline ([src/lib/beithady/pipeline/review-replies.ts](src/lib/beithady/pipeline/review-replies.ts)) was selecting columns that **don't exist on the table**:
+  - `raw_review` → schema has `raw` (jsonb)
+  - `created_at` → schema has `created_at_source` / `created_at_guesty` / `synced_at`
+  - `raw_review.public_review` / `raw_review.overall_rating` → those are top-level columns now (`public_review` / `overall_rating`)
+- supabase-js silently swallowed the error (the original code didn't capture `error`), the page rendered an empty array, and the empty-state copy fired. The cron job that drafts AI replies has been failing silently for the same reason — explains why `beithady_review_replies` is at 0 rows even though 868 reviews were waiting to be processed.
+
+**Fixes (3 files, schema-correct):**
+
+- **`src/lib/beithady/pipeline/review-replies.ts`** — both `processReviewReplyQueue` (cron path) and `listReviewsWithReplies` (page path) rewritten:
+  - `select` swapped to `id, raw, channel_id, listing_id, [reservation_id,] overall_rating, public_review, created_at_source, created_at_guesty, synced_at`.
+  - `order` changed from `created_at` (doesn't exist) to `synced_at DESC nullsFirst:false` (always populated, sorts newly-pulled rows first).
+  - `text` and `rating` accessors now read directly from the top-level columns instead of `raw.public_review` / `raw.overall_rating`.
+  - `raw` jsonb still consulted for the optional `reservation_confirmation_code` (unchanged use).
+  - Both functions now capture and log the supabase error (`reviewsErr`) instead of silently returning `[]` — would have caught this immediately.
+  - Effective `created_at` for the page is `created_at_source ?? created_at_guesty ?? synced_at` so the user sees the OTA-source timestamp when present, falling back gracefully on legacy rows.
+
+- **`src/app/beithady/analytics/reviews/actions.ts`** — `generateReplyAction` (the per-row "Generate" button) had the same `raw_review` accessor pattern. Rewritten to use top-level columns and the `raw` jsonb for the optional reservation code.
+
+`tsc --noEmit` clean. Once deployed, the page should render all 868 reviews; the daily review-reply cron will start drafting (20 per run, $0.001 ea via Claude Haiku 4.5) until the backlog catches up.
+
+**Implication for Performance Dashboard reviews data**: that path is unaffected — the `buildReviewsSection` builder (in `src/lib/beithady-daily-report/build-reviews.ts`) presumably reads from the correct columns, which is why the dashboard's 4.8★ / 20 reviews number is correct. The bug was scoped to the AI-reply pipeline only.
+
+---
+
+## Earlier turn — Beithady landing: at-a-glance "Today's pulse" between header and module grid
 
 User asked for the dashboard's Daily Activity + Hero KPI strip on the Beit Hady landing (the dark Subsidiary Cockpit page at `/beithady`). They explicitly said "Choose the perfect visual impression location" — picked the slot between the BeithadyHeader (eyebrow + title + subtitle) and the module-tile grid. Rationale: it's the first thing the eye lands on after the title, gives the operator the day's pulse before they decide which tile to dive into, and the cream/ink data console floating on the dark cockpit creates strong visual contrast.
 

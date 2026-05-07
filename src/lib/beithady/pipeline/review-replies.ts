@@ -94,6 +94,14 @@ function parseJsonish(text: string): { language?: string; draft?: string } | nul
 
 // Pull guesty_reviews + lazily-generate a draft for any review without
 // a beithady_review_replies row. Cron-friendly batch processor.
+//
+// Schema note: the guesty_reviews table promotes `public_review` and
+// `overall_rating` to top-level columns (not nested under a `raw_review`
+// jsonb field — that's the legacy v1 shape). The full Guesty payload
+// stays available on the `raw` jsonb column for fields we don't promote
+// (e.g. `reservation_confirmation_code`). Time semantics: `synced_at`
+// is always populated; `created_at_source` is when the guest left the
+// review on the OTA (preferred for ordering when present).
 export async function processReviewReplyQueue(maxNew = 20): Promise<{
   considered: number;
   drafted: number;
@@ -101,17 +109,28 @@ export async function processReviewReplyQueue(maxNew = 20): Promise<{
 }> {
   const sb = supabaseAdmin();
   // Fetch the most recent reviews without a draft yet
-  const { data: reviews } = await sb
+  const { data: reviews, error: reviewsErr } = await sb
     .from('guesty_reviews')
-    .select('id, raw_review, channel_id, listing_id, reservation_id, created_at')
-    .order('created_at', { ascending: false })
+    .select(
+      'id, raw, channel_id, listing_id, reservation_id, overall_rating, public_review, created_at_source, created_at_guesty, synced_at',
+    )
+    .order('synced_at', { ascending: false })
     .limit(200);
+  if (reviewsErr) {
+    console.warn('[review-reply-queue] supabase error', reviewsErr.message);
+    return { considered: 0, drafted: 0, errors: [] };
+  }
   const all = (reviews as Array<{
     id: string;
-    raw_review: Record<string, unknown> | null;
+    raw: Record<string, unknown> | null;
     channel_id: string | null;
     listing_id: string | null;
     reservation_id: string | null;
+    overall_rating: number | null;
+    public_review: string | null;
+    created_at_source: string | null;
+    created_at_guesty: string | null;
+    synced_at: string | null;
   }> | null) || [];
   if (!all.length) return { considered: 0, drafted: 0, errors: [] };
 
@@ -140,10 +159,10 @@ export async function processReviewReplyQueue(maxNew = 20): Promise<{
   let drafted = 0;
   const errors: Array<{ review_id: string; error: string }> = [];
   for (const r of todo) {
-    const raw = r.raw_review || {};
-    const text = (raw.public_review as string | undefined) || '';
+    const text = r.public_review || '';
     if (!text || text.trim().length < 10) continue;
-    const rating = (raw.overall_rating as number | undefined) ?? null;
+    const rating = r.overall_rating;
+    const raw = r.raw || {};
     const listing = r.listing_id ? listingMap.get(r.listing_id) : null;
     try {
       const result = await generateReviewReplyDraft({
@@ -201,17 +220,29 @@ export type ReviewWithReply = {
 
 export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithReply[]> {
   const sb = supabaseAdmin();
-  const { data: reviews } = await sb
+  const { data: reviews, error: reviewsErr } = await sb
     .from('guesty_reviews')
-    .select('id, raw_review, channel_id, listing_id, created_at')
-    .order('created_at', { ascending: false })
+    .select(
+      'id, channel_id, listing_id, overall_rating, public_review, created_at_source, created_at_guesty, synced_at',
+    )
+    // synced_at is always populated; created_at_source is preferred for the
+    // user-facing date but isn't always present on legacy rows. Order by
+    // synced_at so newly-pulled rows surface at the top regardless.
+    .order('synced_at', { ascending: false, nullsFirst: false })
     .limit(limit);
+  if (reviewsErr) {
+    console.warn('[list-reviews-with-replies] supabase error', reviewsErr.message);
+    return [];
+  }
   const rows = (reviews as Array<{
     id: string;
-    raw_review: Record<string, unknown> | null;
     channel_id: string | null;
     listing_id: string | null;
-    created_at: string;
+    overall_rating: number | null;
+    public_review: string | null;
+    created_at_source: string | null;
+    created_at_guesty: string | null;
+    synced_at: string | null;
   }> | null) || [];
   if (!rows.length) return [];
 
@@ -249,18 +280,21 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
   }
 
   return rows.map(r => {
-    const raw = r.raw_review || {};
     const reply = replyMap.get(r.id);
     const listing = r.listing_id ? listingMap.get(r.listing_id) : null;
+    // Prefer the OTA-source timestamp (when the guest actually left the
+    // review), fall back to Guesty's createdAt, then to our sync time.
+    const effectiveCreatedAt =
+      r.created_at_source || r.created_at_guesty || r.synced_at || new Date().toISOString();
     return {
       review_id: r.id,
-      rating: typeof raw.overall_rating === 'number' ? Math.round(raw.overall_rating) : null,
-      text: (raw.public_review as string | undefined) || '',
+      rating: r.overall_rating != null ? Math.round(r.overall_rating) : null,
+      text: r.public_review || '',
       reviewer_name: reply?.reviewer_name || null,
       channel: r.channel_id,
       listing_nickname: listing?.nickname || null,
       building_code: listing?.building || null,
-      created_at: r.created_at,
+      created_at: effectiveCreatedAt,
       reply_id: reply?.id || null,
       reply_language: reply?.language || null,
       reply_status: reply?.status || null,

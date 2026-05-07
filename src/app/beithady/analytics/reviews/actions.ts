@@ -22,17 +22,28 @@ export async function generateReplyAction(formData: FormData): Promise<void> {
   if (!reviewId) throw new Error('missing_review_id');
 
   const sb = supabaseAdmin();
+  // Schema: public_review + overall_rating are top-level columns; the
+  // full Guesty payload lives on `raw` (jsonb) for fields we don't
+  // promote (e.g. reservation_confirmation_code).
   const { data: review } = await sb
     .from('guesty_reviews')
-    .select('id, raw_review, channel_id, listing_id')
+    .select('id, raw, channel_id, listing_id, overall_rating, public_review')
     .eq('id', reviewId)
     .maybeSingle();
   if (!review) throw new Error('review_not_found');
-  const r = review as { id: string; raw_review: Record<string, unknown> | null; channel_id: string | null; listing_id: string | null };
+  const r = review as {
+    id: string;
+    raw: Record<string, unknown> | null;
+    channel_id: string | null;
+    listing_id: string | null;
+    overall_rating: number | null;
+    public_review: string | null;
+  };
 
-  const raw = r.raw_review || {};
-  const text = (raw.public_review as string | undefined) || '';
+  const text = r.public_review || '';
   if (!text.trim()) throw new Error('empty_review');
+  const rating = r.overall_rating;
+  const raw = r.raw || {};
 
   let listingNickname: string | null = null;
   let buildingCode: string | null = null;
@@ -46,7 +57,7 @@ export async function generateReplyAction(formData: FormData): Promise<void> {
 
   const result = await generateReviewReplyDraft({
     id: r.id,
-    rating: typeof raw.overall_rating === 'number' ? Math.round(raw.overall_rating) : null,
+    rating: rating != null ? Math.round(rating) : null,
     text,
     reviewer_name: null,
     language_hint: null,
@@ -60,7 +71,7 @@ export async function generateReplyAction(formData: FormData): Promise<void> {
     {
       guesty_review_id: r.id,
       language: result.language,
-      rating: typeof raw.overall_rating === 'number' ? Math.round(raw.overall_rating) : null,
+      rating: rating != null ? Math.round(rating) : null,
       ai_draft: result.draft,
       raw: result.raw as object,
       status: 'draft',
