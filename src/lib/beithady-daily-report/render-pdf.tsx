@@ -21,19 +21,27 @@ import {
 // A4 PDF render via @react-pdf/renderer. Server-side (Node), no Chromium
 // needed. Mirrors the HTML report structure but uses @react-pdf primitives.
 
-// BeitHady brand palette (matches render-html.tsx — deep navy + warm gold).
+// Beithady brand palette — Pantone-anchored deep navy / steel / cream / gold,
+// kept in lockstep with the dashboard tokens in src/app/globals.css:
+//   --bh-ink    #003462   Deep Navy   · headings, accents
+//   --bh-steel  #6077a6   Steel Blue  · secondary text
+//   --bh-mute   #b3bbcb   muted UI    · borders, dividers
+//   --bh-cream  #F5F1E8   page bg     · "All" column highlight, callout cards
+//   --bh-gold   #D4A93A   accent      · digest box border, eyebrow text
+// Variable names are unchanged from v1 for minimal callsite churn — only
+// the hex values shift to brand-canonical.
 const PALETTE = {
-  ink: '#1a2c47',
-  ink2: '#374b6b',
-  muted: '#7a8aa3',
-  line: '#e6dfce',
-  brand: '#1e3a5f',
-  brandBg: '#f0e9d9',
+  ink: '#003462',     // bh-ink  · primary navy (was #1a2c47)
+  ink2: '#2c4d7a',    // mid-navy used in the dashboard TitleBar gradient (was #374b6b)
+  muted: '#6077a6',   // bh-steel · captions, footers (was #7a8aa3)
+  line: '#b3bbcb',    // bh-mute · table dividers + card borders (was warm cream #e6dfce)
+  brand: '#003462',   // bh-ink · accent (was #1e3a5f, the old "primary navy")
+  brandBg: '#F5F1E8', // bh-cream · "All" column highlight + digest bg (was warm cream #f0e9d9)
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
-  gold: '#c9a96e',
-  cardBg: '#faf8f3',
+  gold: '#D4A93A',    // bh-gold · accent (was warm cream-gold #c9a96e)
+  cardBg: '#F5F1E8',  // bh-cream · star-cell bg (was #faf8f3)
 };
 
 // Load logo bytes once per cold start. The file lives in `public/` so it
@@ -74,7 +82,9 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: PALETTE.brandBg,
     borderWidth: 1,
-    borderColor: '#67e8f9',
+    borderColor: PALETTE.gold,
+    borderLeftWidth: 4,
+    borderLeftColor: PALETTE.gold,
     borderRadius: 3,
     fontSize: 9,
     marginBottom: 8,

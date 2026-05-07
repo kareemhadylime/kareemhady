@@ -18,22 +18,29 @@ import {
 //
 // Pure presentation — never queries data. Takes a fully-built payload.
 
-// Beithady brand palette (extracted from /BeitHady Logos/* — deep navy
-// monogram on cream background, with gold accents from the FM+ lockup).
+// Beithady brand palette — Pantone-anchored deep navy / steel / cream / gold,
+// kept in lockstep with the dashboard tokens in src/app/globals.css:
+//   --bh-ink    #003462   Deep Navy   · headings, accents
+//   --bh-steel  #6077a6   Steel Blue  · secondary text
+//   --bh-mute   #b3bbcb   muted UI    · borders, dividers
+//   --bh-cream  #F5F1E8   page bg     · cards, "All" column highlight
+//   --bh-gold   #D4A93A   accent      · digest border, eyebrow text
+// Variable names unchanged from v1 for minimal callsite churn — only the
+// hex values shift to brand-canonical.
 const C = {
-  ink: '#1a2c47',       // deep navy (headings)
-  ink2: '#374b6b',      // softer navy (body)
-  muted: '#7a8aa3',
-  line: '#e6dfce',      // warm cream border
+  ink: '#003462',       // bh-ink   · headings, primary text (was #1a2c47)
+  ink2: '#2c4d7a',      // mid-navy from the dashboard TitleBar gradient (was #374b6b)
+  muted: '#6077a6',     // bh-steel · captions, footers, neutral text (was #7a8aa3)
+  line: '#b3bbcb',      // bh-mute  · table + card borders (was warm cream #e6dfce)
   bg: '#ffffff',
-  card: '#faf8f3',      // light cream card bg
-  brand: '#1e3a5f',     // primary navy
-  brandBg: '#f0e9d9',   // warm cream digest box
+  card: '#F5F1E8',      // bh-cream · panel surfaces (was #faf8f3)
+  brand: '#003462',     // bh-ink   · accent (was #1e3a5f)
+  brandBg: '#F5F1E8',   // bh-cream · digest + "All" column highlight (was #f0e9d9)
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
   emerald: '#10b981',
-  gold: '#c9a96e',      // BeitHady warm gold
+  gold: '#D4A93A',      // bh-gold  · accent (was warm cream-gold #c9a96e)
 };
 
 const fmtUsd = (n: number): string => {
@@ -221,7 +228,7 @@ function BuildingsTable({ payload }: { payload: DailyReportPayload }) {
                 textAlign: 'right',
                 fontWeight: 700,
                 color: c.key === 'all' ? C.brand : C.ink,
-                background: c.key === 'all' ? '#ecfeff' : 'transparent',
+                background: c.key === 'all' ? C.brandBg : 'transparent',
               }}
             >
               {c.label}
@@ -263,7 +270,7 @@ function BuildingsTable({ payload }: { payload: DailyReportPayload }) {
                     fontSize: 10,
                     color: C.ink,
                     textAlign: 'right',
-                    background: c.key === 'all' ? '#ecfeff' : 'transparent',
+                    background: c.key === 'all' ? C.brandBg : 'transparent',
                     fontVariantNumeric: 'tabular-nums',
                   }}
                 >
@@ -727,10 +734,11 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
           style={{
             marginTop: 8,
             padding: 8,
-            background: '#1e3a5f',
-            color: 'white',
+            background: C.ink,
+            color: '#ffffff',
             fontSize: 10.5,
             borderRadius: 4,
+            borderLeft: `4px solid ${C.gold}`,
           }}
         >
           📅 <strong>{payload.weekly_digest.oneliner}</strong>

@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Cron resilience: build BEFORE writing the row (root-cause fix for NULL payloads)
+## Latest turn — Daily-report PDF + HTML: brand palette alignment with dashboard tokens (v1.5 #2)
+
+User asked for v1.5 follow-up #2. The daily report PDF + HTML email renderers were still on the v1 cream-and-warm-gold palette while the dashboard moved to the Fees-Audit theme weeks ago. Brought them into lockstep with the canonical Pantone-anchored brand tokens.
+
+- **`src/lib/beithady-daily-report/render-pdf.tsx`** — `PALETTE` constant fully rewritten (variable names preserved so no callsite changes needed):
+  - `ink`     `#1a2c47` → `#003462` (bh-ink)
+  - `ink2`    `#374b6b` → `#2c4d7a` (mid-navy from the dashboard TitleBar gradient endpoint)
+  - `muted`   `#7a8aa3` → `#6077a6` (bh-steel)
+  - `line`    `#e6dfce` (warm cream) → `#b3bbcb` (bh-mute)
+  - `brand`   `#1e3a5f` (old primary navy) → `#003462` (bh-ink)
+  - `brandBg` `#f0e9d9` (warm cream) → `#F5F1E8` (bh-cream)
+  - `gold`    `#c9a96e` (cream-gold) → `#D4A93A` (bh-gold)
+  - `cardBg`  `#faf8f3` → `#F5F1E8` (bh-cream)
+  - Semantic green/amber/red unchanged.
+  - `digestBox` cyan border `#67e8f9` swapped for `PALETTE.gold` and gained a 4px gold left-edge to match the dashboard `panel-frame` chrome.
+
+- **`src/lib/beithady-daily-report/render-html.tsx`** — `C` constant updated to the same palette. Two inline cleanups:
+  - Buildings-table "All" column highlight: `#ecfeff` (cyan) → `C.brandBg` (cream) — both header `<th>` and body `<td>`.
+  - Weekly-digest banner background: `#1e3a5f` → `C.ink`. Added a 4px gold left-edge for visual consistency with the rest of the brand.
+  - Tailwind-semantic warning colors (`#fef2f2` red-50, `#fffbeb` yellow-50) intentionally preserved — they're status colors, not brand.
+  - Print-mode/preview chrome at the bottom of the page (`no-print` div with `#0f172a` slate-900 + `#0e7490` cyan-700 — visible only to devs viewing the HTML in the browser, never in the email or PDF) intentionally left alone.
+
+`tsc --noEmit` clean. Two files changed. The PDF and HTML email renderers now share the dashboard's deep-navy / steel / cream / gold palette top to bottom — same `var(--bh-*)` tokens, just baked as hex (the renderers run server-side, no CSS variables available).
+
+**v1.5 status:**
+- ✅ Cron resilience (build-then-write order)
+- ✅ render-html / render-pdf brand alignment ← this turn
+- ⏳ Backfill the legacy NULL-payload rows (still owed; would need the cron route to accept `?date=YYYY-MM-DD`)
+
+Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+---
+
+## Earlier turn — Cron resilience: build BEFORE writing the row (root-cause fix for NULL payloads)
 
 User asked to take v1.5 follow-up #1 — root-cause fix for the NULL-payload rows the cron has been writing for 10+ consecutive days. Investigated [src/lib/beithady-daily-report/run.ts](src/lib/beithady-daily-report/run.ts) and confirmed the bug:
 
