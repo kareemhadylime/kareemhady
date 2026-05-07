@@ -7,8 +7,20 @@ type Props = {
   snapshotDate: string;
   /** 'all' or a BuildingCode — when set to a building, headline numbers show that bucket only and the per-building chip row hides. */
   buildingFilter?: BuildingCode | 'all';
+  /** Latest report_date in the snapshot table — used as the upper bound of the date stepper. */
+  latestDate?: string | null;
+  /** Called by the < / > stepper. Parent decides whether to set ?date= or clear it. */
+  onDateChange?: (date: string) => void;
   onHide?: () => void;
 };
+
+/** Step a YYYY-MM-DD by N days (UTC math, no DST drift). */
+function shiftYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return dt.toISOString().slice(0, 10);
+}
 
 const BUILDING_SHORT: Record<BuildingCode, string> = {
   'BH-26': 'BH-26',
@@ -30,7 +42,14 @@ const ACCENT_COLOR: Record<Accent, string> = {
 
 type Sub = { text: string; tone: 'red' | 'amber' | 'info' };
 
-export function DailyActivity({ payload, snapshotDate, buildingFilter = 'all', onHide }: Props) {
+export function DailyActivity({
+  payload,
+  snapshotDate,
+  buildingFilter = 'all',
+  latestDate,
+  onDateChange,
+  onHide,
+}: Props) {
   const isFiltered = buildingFilter !== 'all';
   const all = isFiltered ? payload.per_building[buildingFilter as BuildingCode] : payload.all;
   // Exception sub-counts are only computed at the portfolio level today,
@@ -80,6 +99,20 @@ export function DailyActivity({ payload, snapshotDate, buildingFilter = 'all', o
   // chip echoing the headline. Suppress in that case.
   const showBreakdown = !isFiltered;
 
+  // Date stepper bounds: 3 days back from latest, capped at latest going forward.
+  const upper = latestDate ?? snapshotDate;
+  const lower = shiftYmd(upper, -3);
+  const canStepBack = !!onDateChange && snapshotDate > lower;
+  const canStepForward = !!onDateChange && snapshotDate < upper;
+  const stepBack = () => {
+    if (!canStepBack || !onDateChange) return;
+    onDateChange(shiftYmd(snapshotDate, -1));
+  };
+  const stepForward = () => {
+    if (!canStepForward || !onDateChange) return;
+    onDateChange(shiftYmd(snapshotDate, 1));
+  };
+
   return (
     <section
       className="rounded-lg p-4 sm:p-5 shadow-sm"
@@ -96,13 +129,36 @@ export function DailyActivity({ payload, snapshotDate, buildingFilter = 'all', o
         >
           📅 Daily activity{isFiltered ? ` · ${BUILDING_SHORT[buildingFilter as BuildingCode]}` : ''}
         </div>
-        <div className="flex items-center gap-3">
-          <span
-            className="text-[10px]"
-            style={{ color: 'var(--bh-steel)', fontFamily: 'var(--bh-heading)' }}
-          >
-            {humanDate}
-          </span>
+        <div className="flex items-center gap-2">
+          {onDateChange ? (
+            <div className="flex items-center gap-1" role="group" aria-label="Step snapshot date">
+              <StepperButton
+                direction="prev"
+                disabled={!canStepBack}
+                onClick={stepBack}
+                ariaLabel={`Previous day (${shiftYmd(snapshotDate, -1)})`}
+              />
+              <span
+                className="min-w-[112px] text-center text-[12px] tabular-nums"
+                style={{ color: 'var(--bh-ink)', fontFamily: 'var(--bh-heading)', fontWeight: 600 }}
+              >
+                {humanDate}
+              </span>
+              <StepperButton
+                direction="next"
+                disabled={!canStepForward}
+                onClick={stepForward}
+                ariaLabel={`Next day (${shiftYmd(snapshotDate, 1)})`}
+              />
+            </div>
+          ) : (
+            <span
+              className="text-[10px]"
+              style={{ color: 'var(--bh-steel)', fontFamily: 'var(--bh-heading)' }}
+            >
+              {humanDate}
+            </span>
+          )}
           {onHide && (
             <button
               type="button"
@@ -272,4 +328,38 @@ function subTone(tone: Sub['tone']): React.CSSProperties {
     default:
       return { background: '#eef3fb', color: 'var(--bh-ink)' };
   }
+}
+
+function StepperButton({
+  direction,
+  disabled,
+  onClick,
+  ariaLabel,
+}: {
+  direction: 'prev' | 'next';
+  disabled: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className="flex h-6 w-6 items-center justify-center rounded-md border text-[12px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed"
+      style={{
+        background: disabled ? 'transparent' : 'var(--bh-cream)',
+        color: disabled ? 'var(--bh-mute)' : 'var(--bh-ink)',
+        borderColor: 'var(--bh-mute)',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {direction === 'prev' ? '‹' : '›'}
+    </button>
+  );
 }

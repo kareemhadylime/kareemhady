@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { BeithadyShell, BeithadyHeader } from '@/app/beithady/_components/beithady-shell';
-import { computePriorDate, loadSnapshot, loadEarliestSnapshotDate } from './_lib/load-snapshot';
+import { computePriorDate, loadSnapshot, loadEarliestSnapshotDate, loadLatestSnapshotDate } from './_lib/load-snapshot';
 import { EmptySnapshot } from './_components/empty-snapshot';
 import { DashboardShell } from './_components/dashboard-shell';
 
@@ -21,9 +21,10 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   // Resolve the primary snapshot first so we know the actual date the prior
   // comparison should anchor against (`?date=` may be invalid or absent, in
   // which case loadSnapshot falls back to the latest available snapshot).
-  const [result, earliestDate] = await Promise.all([
+  const [result, earliestDate, latestDate] = await Promise.all([
     loadSnapshot(sp.date),
     loadEarliestSnapshotDate(),
+    loadLatestSnapshotDate(),
   ]);
 
   // Load the prior snapshot in parallel with rendering decisions when a
@@ -61,6 +62,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             initialBuilding={sp.building ?? 'all'}
             initialCompare={compareMode}
             earliestDate={earliestDate}
+            latestDate={latestDate}
             priorPayload={priorPayload}
             priorDate={priorDate}
           />

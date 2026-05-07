@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Compare pills now compute deltas + Today defaults to latest snapshot (no more pre-09:00 empty state)
+## Latest turn — Daily activity panel: quick date stepper (‹ May 7, 2026 ›), bounded to 3 days back from latest
+
+User shared a reference screenshot of a clean stepper UI ("‹ May 7, 2026 ›") and asked to add it to the dashboard with ±3 days range from today. Wired into the Daily activity panel header.
+
+- **`_lib/load-snapshot.ts`** — new `loadLatestSnapshotDate()` (lightweight: `select report_date order desc limit 1`, mirrors the existing `loadEarliestSnapshotDate`).
+- **`page.tsx`** — `Promise.all` now also pulls `latestDate`, passed through to DashboardShell as a new prop.
+- **`_components/dashboard-shell.tsx`** — accepts `latestDate`. When rendering DailyActivity, passes `latestDate` and an `onDateChange` callback that maps to URL state: when user steps to `latestDate`, we clear `?date=` (URL absence is canonical "latest" — keeps the latest-fallback path active). Otherwise sets `?date=YYYY-MM-DD`.
+- **`_components/panels/daily-activity.tsx`** — new optional props `latestDate` + `onDateChange`. New helper `shiftYmd(ymd, deltaDays)` (UTC math, DST-safe). Bounds:
+  - upper = `latestDate ?? snapshotDate`
+  - lower = `upper − 3 days`
+  - prev disabled when `snapshotDate <= lower`
+  - next disabled when `snapshotDate >= upper`
+  - `onDateChange` undefined → falls back to the static date span (preserves backward compatibility for any caller that doesn't want a stepper).
+- **New `StepperButton`** sub-component — 24×24 rounded square with the brand's cream bg + mute border, ‹ / › chevrons (HTML entity for crisp typography). 50% opacity + `cursor-not-allowed` when disabled. Stops propagation so click doesn't bubble to the panel-level drill link.
+- Header layout: stepper sits in the right slot where the static date used to live, with a 112px min-width on the date label so chevrons don't reflow as labels change length ("May 7" vs "May 12"). Aria-label on the group: "Step snapshot date".
+
+`tsc --noEmit` clean. Visibility / compare / building filter all preserved. Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+---
+
+## Earlier turn — Compare pills now compute deltas + Today defaults to latest snapshot (no more pre-09:00 empty state)
 
 User reported two visible bugs after the earlier filter fix:
 1. **Compare** pills (vs Yesterday / vs Last Week / vs Last Month / vs Last Year / None) still did nothing.

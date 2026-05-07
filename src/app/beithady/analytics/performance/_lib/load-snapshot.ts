@@ -90,6 +90,27 @@ export async function loadEarliestSnapshotDate(): Promise<string | null> {
 }
 
 /**
+ * Returns the latest report_date present in `daily_report_snapshots`,
+ * or null if the table is empty / errors. Used to bound the date stepper.
+ */
+export async function loadLatestSnapshotDate(): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from('daily_report_snapshots')
+      .select('report_date')
+      .eq('report_kind', 'beithady_daily')
+      .order('report_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data.report_date as string;
+  } catch (err) {
+    console.warn('[load-latest-snapshot-date]', err);
+    return null;
+  }
+}
+
+/**
  * A payload is considered well-formed enough to render the dashboard if it has
  * its `all` bucket. Some cron retries write malformed rows where most top-level
  * fields are null; the dashboard previously crashed on these. We now skip them.

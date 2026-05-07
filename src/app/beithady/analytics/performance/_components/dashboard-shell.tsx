@@ -45,6 +45,8 @@ type Props = {
   initialBuilding: string;
   initialCompare: CompareMode;
   earliestDate: string | null;
+  /** Latest report_date in the snapshot table (upper bound for the date stepper). */
+  latestDate: string | null;
   /** Snapshot to compare against (null when compare='none' or no prior snapshot exists). */
   priorPayload: DailyReportPayload | null;
   /** Resolved prior date used for compare (null when compare='none' or unresolvable). */
@@ -66,6 +68,7 @@ export function DashboardShell({
   initialBuilding: _initialBuilding,
   initialCompare: _initialCompare,
   earliestDate,
+  latestDate,
   priorPayload,
   priorDate,
 }: Props) {
@@ -261,6 +264,12 @@ export function DashboardShell({
                 payload={payload}
                 snapshotDate={snapshotDate}
                 buildingFilter={buildingFilter}
+                latestDate={latestDate}
+                onDateChange={(d) =>
+                  // Clearing back to "latest" uses URL absence rather than an
+                  // explicit ?date= so the latest-fallback path stays canonical.
+                  update({ date: latestDate && d === latestDate ? undefined : d })
+                }
                 onHide={() => setPanel('daily-activity', false)}
               />
             </div>
