@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { BeithadyShell, BeithadyHeader } from '@/app/beithady/_components/beithady-shell';
-import { loadSnapshot, loadEarliestSnapshotDate } from './_lib/load-snapshot';
+import { computePriorDate, loadSnapshot, loadEarliestSnapshotDate } from './_lib/load-snapshot';
 import { EmptySnapshot } from './_components/empty-snapshot';
 import { DashboardShell } from './_components/dashboard-shell';
 
@@ -16,10 +16,25 @@ export const metadata = { title: 'Performance Dashboard · Beithady' };
 
 export default async function PerformancePage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
+  const compareMode = parseCompare(sp.compare);
+
+  // Resolve the primary snapshot first so we know the actual date the prior
+  // comparison should anchor against (`?date=` may be invalid or absent, in
+  // which case loadSnapshot falls back to the latest available snapshot).
   const [result, earliestDate] = await Promise.all([
     loadSnapshot(sp.date),
     loadEarliestSnapshotDate(),
   ]);
+
+  // Load the prior snapshot in parallel with rendering decisions when a
+  // compare mode is set and we have an anchor date.
+  const priorDate =
+    result.status === 'found' && compareMode !== 'none'
+      ? computePriorDate(result.date, compareMode)
+      : null;
+  const priorResult = priorDate ? await loadSnapshot(priorDate) : null;
+  const priorPayload =
+    priorResult && priorResult.status === 'found' ? priorResult.payload : null;
 
   return (
     <BeithadyShell
@@ -44,8 +59,10 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             snapshotDate={result.date}
             generatedAt={result.generatedAt}
             initialBuilding={sp.building ?? 'all'}
-            initialCompare={parseCompare(sp.compare)}
+            initialCompare={compareMode}
             earliestDate={earliestDate}
+            priorPayload={priorPayload}
+            priorDate={priorDate}
           />
         </Suspense>
       )}

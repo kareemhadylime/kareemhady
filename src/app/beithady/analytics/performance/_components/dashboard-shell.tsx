@@ -45,6 +45,18 @@ type Props = {
   initialBuilding: string;
   initialCompare: CompareMode;
   earliestDate: string | null;
+  /** Snapshot to compare against (null when compare='none' or no prior snapshot exists). */
+  priorPayload: DailyReportPayload | null;
+  /** Resolved prior date used for compare (null when compare='none' or unresolvable). */
+  priorDate: string | null;
+};
+
+const COMPARE_LABEL: Record<CompareMode, string> = {
+  yesterday: 'vs yesterday',
+  'last-week': 'vs last week',
+  'last-month': 'vs last month',
+  'last-year': 'vs last year',
+  none: '',
 };
 
 export function DashboardShell({
@@ -54,6 +66,8 @@ export function DashboardShell({
   initialBuilding: _initialBuilding,
   initialCompare: _initialCompare,
   earliestDate,
+  priorPayload,
+  priorDate,
 }: Props) {
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -86,6 +100,54 @@ export function DashboardShell({
     isFiltered && payload.revpar?.by_building
       ? payload.revpar.by_building[buildingFilter as BuildingCode] ?? null
       : payload.revpar?.all ?? null;
+
+  // Compare bucket — same building filter, but on the prior snapshot.
+  const priorBucket =
+    priorPayload && (buildingFilter === 'all' ? priorPayload.all : priorPayload.per_building[buildingFilter]);
+  const priorRevpar = priorPayload?.revpar
+    ? isFiltered && priorPayload.revpar.by_building
+      ? priorPayload.revpar.by_building[buildingFilter as BuildingCode] ?? null
+      : priorPayload.revpar.all ?? null
+    : null;
+  const compareLabel = COMPARE_LABEL[state.compare];
+  const compareActive = state.compare !== 'none' && !!priorBucket;
+
+  // Delta builders — produce HeroKpi `delta` shapes.
+  // Convention: percentage points for occupancy, % change for revenue/RevPAR.
+  function ppDelta(current: number, prior: number, fallback: string) {
+    if (!compareActive || prior === undefined || prior === null) {
+      return { direction: 'flat' as const, text: fallback };
+    }
+    const d = current - prior;
+    const sign = d > 0.05 ? '+' : '';
+    return {
+      direction: d > 0.05 ? ('up' as const) : d < -0.05 ? ('down' as const) : ('flat' as const),
+      text: `${sign}${d.toFixed(1)}pp ${compareLabel}`,
+    };
+  }
+  function pctDelta(current: number, prior: number, fallback: string) {
+    if (!compareActive || !prior) {
+      return { direction: 'flat' as const, text: fallback };
+    }
+    const pct = ((current - prior) / Math.abs(prior)) * 100;
+    const sign = pct > 0.1 ? '+' : '';
+    return {
+      direction: pct > 0.1 ? ('up' as const) : pct < -0.1 ? ('down' as const) : ('flat' as const),
+      text: `${sign}${pct.toFixed(1)}% ${compareLabel}`,
+    };
+  }
+  function absDelta(current: number, prior: number, unit: string, fallback: string, invert = false) {
+    if (!compareActive || prior === undefined || prior === null) {
+      return { direction: 'flat' as const, text: fallback };
+    }
+    const d = current - prior;
+    const sign = d > 0 ? '+' : '';
+    const dir = d === 0 ? 'flat' : invert ? (d > 0 ? 'down' : 'up') : (d > 0 ? 'up' : 'down');
+    return {
+      direction: dir as 'up' | 'down' | 'flat',
+      text: `${sign}${d.toFixed(unit === '★' ? 1 : 0)}${unit} ${compareLabel}`,
+    };
+  }
 
   return (
     <>
@@ -142,6 +204,49 @@ export function DashboardShell({
             </div>
           )}
 
+          {compareActive && priorDate && (
+            <div
+              className="col-span-12 rounded-md px-3 py-2 text-[11px]"
+              style={{
+                background: '#eef3fb',
+                color: 'var(--bh-ink)',
+                border: '1px solid var(--bh-mute)',
+              }}
+              role="status"
+            >
+              Comparing <strong>{snapshotDate}</strong> {compareLabel} (<strong>{priorDate}</strong>) — Hero KPIs show ▲/▼ deltas.{' '}
+              <button
+                type="button"
+                onClick={() => update({ compare: 'none' })}
+                className="underline hover:opacity-80"
+                style={{ color: 'var(--bh-ink)' }}
+              >
+                Clear compare
+              </button>
+            </div>
+          )}
+          {state.compare !== 'none' && !priorPayload && priorDate && (
+            <div
+              className="col-span-12 rounded-md px-3 py-2 text-[11px]"
+              style={{
+                background: '#fdecec',
+                color: '#9a2828',
+                border: '1px solid #f1bcbc',
+              }}
+              role="status"
+            >
+              Compare {COMPARE_LABEL[state.compare]}: no snapshot available for <strong>{priorDate}</strong> — deltas hidden.{' '}
+              <button
+                type="button"
+                onClick={() => update({ compare: 'none' })}
+                className="underline hover:opacity-80"
+                style={{ color: '#9a2828' }}
+              >
+                Clear compare
+              </button>
+            </div>
+          )}
+
           {/* AI Insights tray (renders nothing when no insights) — full width */}
           {visibility['ai-insights'] && (
             <div className="col-span-12">
@@ -167,7 +272,7 @@ export function DashboardShell({
               <HeroKpi
                 label={`Occupancy${filterSuffix}`}
                 value={`${bucket.occupancy_today_pct.toFixed(1)}%`}
-                delta={{ direction: 'flat', text: 'today' }}
+                delta={ppDelta(bucket.occupancy_today_pct, priorBucket?.occupancy_today_pct ?? 0, 'today')}
                 spark={isFiltered ? undefined : payload.sparklines?.occupancy}
                 drillTo="/beithady/analytics/performance"
                 accent="ink"
@@ -178,7 +283,11 @@ export function DashboardShell({
               <HeroKpi
                 label={`MTD Revenue${filterSuffix}`}
                 value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
-                delta={{ direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: `${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}% vs LM` }}
+                delta={
+                  compareActive && priorBucket
+                    ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'vs LM')
+                    : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: `${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}% vs LM` }
+                }
                 spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
                 drillTo="/beithady/financials?period=mtd"
                 accent="gold"
@@ -189,7 +298,13 @@ export function DashboardShell({
               <HeroKpi
                 label={`RevPAR${filterSuffix}`}
                 value={revparValue != null ? `$${revparValue.toFixed(2)}` : `$${bucket.adr_mtd_usd.toFixed(0)}`}
-                delta={revparValue != null ? { direction: 'flat', text: 'rev / available night' } : { direction: 'flat', text: 'ADR (RevPAR pending)' }}
+                delta={
+                  compareActive && revparValue != null && priorRevpar != null
+                    ? pctDelta(revparValue, priorRevpar, 'rev / available night')
+                    : revparValue != null
+                      ? { direction: 'flat', text: 'rev / available night' }
+                      : { direction: 'flat', text: 'ADR (RevPAR pending)' }
+                }
                 spark={isFiltered ? undefined : payload.sparklines?.revpar}
                 drillTo="/beithady/financials?metric=revpar"
                 accent="steel"
@@ -200,7 +315,11 @@ export function DashboardShell({
               <HeroKpi
                 label={`Pace${filterSuffix}`}
                 value={`${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}%`}
-                delta={{ direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
+                delta={
+                  compareActive && priorBucket
+                    ? ppDelta(bucket.pickup_vs_prior_month_pct, priorBucket.pickup_vs_prior_month_pct, 'vs prior month')
+                    : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }
+                }
                 spark={isFiltered ? undefined : payload.sparklines?.pace}
                 drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
                 accent={paceAccent as 'green' | 'red'}
@@ -211,7 +330,16 @@ export function DashboardShell({
               <HeroKpi
                 label="Reviews avg"
                 value={`${payload.reviews.avg_rating_mtd.toFixed(1)}★`}
-                delta={{ direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }}
+                delta={
+                  compareActive && priorPayload
+                    ? absDelta(
+                        payload.reviews.avg_rating_mtd,
+                        priorPayload.reviews.avg_rating_mtd,
+                        '★',
+                        `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`,
+                      )
+                    : { direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }
+                }
                 spark={payload.sparklines?.reviews_avg}
                 drillTo="/beithady/analytics/reviews?period=mtd"
                 accent="amber"
@@ -222,7 +350,19 @@ export function DashboardShell({
               <HeroKpi
                 label="Response time"
                 value={payload.conversations ? `${payload.conversations.yesterday.avg_response_minutes.toFixed(0)}m` : '—'}
-                delta={payload.conversations ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` } : undefined}
+                delta={
+                  compareActive && payload.conversations && priorPayload?.conversations
+                    ? absDelta(
+                        payload.conversations.yesterday.avg_response_minutes,
+                        priorPayload.conversations.yesterday.avg_response_minutes,
+                        'm',
+                        `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m`,
+                        true, // invert: lower is better, so positive delta = down
+                      )
+                    : payload.conversations
+                      ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` }
+                      : undefined
+                }
                 spark={payload.sparklines?.response_time}
                 drillTo="/beithady/communication/unified?metric=response-time"
                 accent="steel"

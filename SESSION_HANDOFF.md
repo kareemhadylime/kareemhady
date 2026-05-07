@@ -1,6 +1,43 @@
-# Kareemhady — Session Handoff (2026-05-07)
+# Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Perf Dashboard left-rail filters were no-ops (Period stub + Building/Compare wrote URL state nobody read)
+## Latest turn — Compare pills now compute deltas + Today defaults to latest snapshot (no more pre-09:00 empty state)
+
+User reported two visible bugs after the earlier filter fix:
+1. **Compare** pills (vs Yesterday / vs Last Week / vs Last Month / vs Last Year / None) still did nothing.
+2. Visiting the dashboard before today's cron fires (today is 2026-05-08, cron runs 09:00 Cairo) showed the EmptySnapshot screen "No snapshot for 2026-05-08" because `loadSnapshot(undefined)` defaulted to `cairoYmd()`.
+
+**Fixes (4 files, 298 insertions, 10 deletions):**
+
+- **`_lib/load-snapshot.ts`** — split into two paths:
+  - `loadSnapshot(dateParam)` honors a valid `?date=` strictly (snapshot scrubber path), and falls back to `loadLatestSnapshot()` when no/invalid date.
+  - New `loadLatestSnapshot()` — fetches the 10 most-recent rows ordered by `(report_date DESC, generated_at DESC)`, returns the first WELL-FORMED one. So visiting before 09:00 Cairo lands on yesterday's snapshot automatically.
+  - New `computePriorDate(date, compare)` — date math for Compare:
+    - `yesterday` → date - 1 day
+    - `last-week` → date - 7 days
+    - `last-month` → same calendar day previous month, clamped to prior-month length (Mar 31 → Feb 28)
+    - `last-year` → same calendar day previous year (with Feb-29 leap-year fallback)
+    - `none` / unknown → null
+
+- **`_lib/load-snapshot.test.ts`** — 9 new tests on `computePriorDate`: valid input + invalid + month-end clamp + January roll-back + leap-year fallback. **All 12 tests pass.**
+
+- **`page.tsx`** — parses compare mode, computes prior date, calls `loadSnapshot(priorDate)` in a second pass when compare is active, passes `priorPayload` + `priorDate` props down. (Sequential after primary load, since prior date depends on the resolved `result.date` from the latest-fallback path.)
+
+- **`_components/dashboard-shell.tsx`** — accepts `priorPayload` + `priorDate` props. Three delta builders:
+  - `ppDelta(curr, prior, fallback)` — percentage points (Occupancy, Pace)
+  - `pctDelta(curr, prior, fallback)` — % change (MTD Revenue, RevPAR)
+  - `absDelta(curr, prior, unit, fallback, invert)` — absolute (Reviews avg in ★, Response time in m; invert=true for response time so lower = up arrow)
+
+  All builders fall back to the existing neutral text when compare is inactive or the prior bucket is missing. Pace card now shows pp delta vs prior period instead of always showing the literal `pickup_vs_prior_month_pct` field.
+
+  Two new banners at the top of the main column:
+  - Info banner (steel + cream) when compare is active and prior snapshot loaded — shows "Comparing 2026-05-07 vs yesterday (2026-05-06)" with a Clear compare link.
+  - Red banner when compare is active but no prior snapshot exists for the computed date — explains and offers Clear compare.
+
+`tsc --noEmit` clean. `npx vitest run load-snapshot.test.ts` → 12/12 pass. Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+---
+
+## Earlier turn — Perf Dashboard left-rail filters were no-ops (Period stub + Building/Compare wrote URL state nobody read)
 
 User reported: "when I change anything on the left menu, nothing happens." Screenshot: BH-73 selected in the rail, but the dashboard still shows portfolio totals (9 / 7 / 4 / 36 — same as the All bucket). Confirmed three bugs:
 
