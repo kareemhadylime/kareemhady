@@ -114,9 +114,16 @@ export type ScopeOpts = {
 // ---------------------------------------------------------------------------
 export function bucketBuilding(code: string | null | undefined): BuildingBucket {
   if (!code) return 'OTHER';
+  // Canonical codes (already in BuildingBucket union)
   if (code === 'BH-26' || code === 'BH-73' || code === 'BH-435' || code === 'BH-OK' || code === 'BH-DXB') {
     return code as BuildingBucket;
   }
+  // Legacy / loose codes from older sync runs — guesty_listings may
+  // store the building_code as 'DXB' (no prefix) for the Dubai listings.
+  // Normalize to the canonical BH-DXB so the UAE filter actually
+  // matches them. Verified 2026-05-07: DB query returned 2 rows with
+  // building_code='DXB' that belong to the Dubai portfolio.
+  if (code === 'DXB' || code === 'BH_DXB' || code.toUpperCase() === 'DXB') return 'BH-DXB';
   return 'OTHER';
 }
 

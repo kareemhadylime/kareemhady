@@ -102,15 +102,25 @@ export async function getBookableListings(opts: {
     });
   }
 
+  // Normalize building codes to the canonical BH-DXB / OTHER buckets so
+  // the building filter matches even when the DB stores legacy codes
+  // (e.g. 'DXB' without prefix for Dubai listings).
+  function normalizeBuilding(code: string | null | undefined): string {
+    if (!code) return 'OTHER';
+    if (code === 'BH-26' || code === 'BH-73' || code === 'BH-435' || code === 'BH-OK' || code === 'BH-DXB') return code;
+    if (code === 'DXB' || code === 'BH_DXB' || code.toUpperCase() === 'DXB') return 'BH-DXB';
+    return 'OTHER';
+  }
+
   let filtered = out;
   if (opts.buildings && opts.buildings.length) {
     const allowed = new Set(opts.buildings);
-    filtered = filtered.filter(l => allowed.has(l.building_code || 'OTHER'));
+    filtered = filtered.filter(l => allowed.has(normalizeBuilding(l.building_code)));
   }
 
   const byBuilding: Record<string, number> = {};
   for (const l of filtered) {
-    const k = l.building_code || 'OTHER';
+    const k = normalizeBuilding(l.building_code);
     byBuilding[k] = (byBuilding[k] || 0) + 1;
   }
 
