@@ -11,6 +11,11 @@ export type ChannelFeeConfig = {
   guest_service_pct: number;
   guest_service_min: number | null;
   guest_service_max: number | null;
+  /**
+   * VAT applied to the commission amount itself (Airbnb Egypt = 14, others
+   * usually 0). Effective host fee = host_commission_pct × (1 + vat_on_commission_pct/100).
+   */
+  vat_on_commission_pct: number;
   notes: string | null;
 };
 
@@ -45,6 +50,7 @@ export async function getChannelFee(
       guest_service_pct: 0,
       guest_service_min: null,
       guest_service_max: null,
+      vat_on_commission_pct: 0,
       notes: 'fallback',
     }
   );

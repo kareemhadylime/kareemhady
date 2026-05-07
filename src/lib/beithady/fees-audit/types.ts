@@ -41,7 +41,7 @@ export const FEE_CATEGORY_LABEL: Record<FeeCategory, string> = {
   occupancy_tax: 'Occupancy / Tourism Tax',
   service_charge: 'Service Charge',
   total_tax_burden: 'Total Tax Burden %',
-  channel_commission: 'Channel Commission',
+  channel_commission: 'Host Service Fee',
   guest_service_fee: 'Guest Service Fee',
   min_stay: 'Min Stay (nights)',
   max_stay: 'Max Stay (nights)',
@@ -112,7 +112,15 @@ export type FeeBreakdown = {
   extra_guest_usd: number;
   taxes_usd: number;
   taxes_breakdown: Array<{ type: string; amount_usd: number }>;
+  /** Total host-paid OTA fee = base commission + VAT on commission (Airbnb Egypt). */
   channel_commission_usd: number;
+  /**
+   * Human-readable label for the commission line, e.g. "15.5% + 14% VAT" for
+   * Airbnb or "15%" for Booking. Optional — falls back to "Host service fee"
+   * with no annotation when absent. Populated by the calculator from the
+   * live channel config.
+   */
+  channel_commission_label?: string;
   guest_service_fee_usd: number;
   security_deposit_usd: number;       // refundable; not part of payment
   total_guest_pays_usd: number;       // what guest sees on channel page

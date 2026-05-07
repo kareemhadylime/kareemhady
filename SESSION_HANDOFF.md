@@ -1,6 +1,38 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Pricing model correction: Guesty prices are all-inclusive (no tax stacking, no commission for manual)
+## 🟢 Latest turn — Real OTA fee model: Airbnb host-only (15.5% + 14% VAT), Booking/Other 15%, Guest service fee = 0
+
+User shared real Airbnb invoice (HMZZCAASQN) and Booking confirmation (PC029090). Two corrections vs. the previous model assumptions:
+
+1. **Beithady's Airbnb account is on the host-only fee plan**, not the split plan. Guest pays Base + Cleaning only — there's no separate "Guest service fee" line. Host pays "Host service fee (15.5% + VAT)" where VAT is Egypt's 14% applied to the commission itself: $20.68 / $117 = 17.67% effective.
+2. **Booking and other OTAs** likewise charge a flat ~15% commission on (Base + Cleaning), no guest service fee. Host receives Base + Cleaning − commission.
+
+Fix scope:
+- **DB migration `channel_fees_vat_on_commission`**: added `vat_on_commission_pct numeric NOT NULL DEFAULT 0` column on `beithady_channel_fees_config`.
+- **DB UPDATE**:
+  - `airbnb`: 15.5% commission + 14% VAT-on-commission, guest_service = 0
+  - `booking_com`: 15%, no VAT, guest_service = 0
+  - `vrbo` / `expedia` / `hotels_com`: 15%, no VAT, guest_service = 0
+  - `manual`: 0% across the board
+- **`channel-fees.ts` ChannelFeeConfig type**: `vat_on_commission_pct: number` added (required).
+- **`quote-calculator.ts`**:
+  - New `computeHostServiceFee(cfg, commissionableBase, isDirectBooking)` helper returns `{ total_usd, label }`. Total = baseCommission + VAT-on-commission. Label = `"15.5% + 14% VAT"` or `"15%"` etc. — matches the format Airbnb uses on real invoices.
+  - Both `quoteStayInMemory` and `quoteStay` switched to the helper and emit `channel_commission_label` on the FeeBreakdown.
+  - Local `ChannelFeeConfig` type extended with `vat_on_commission_pct: number`.
+- **`types.ts`**: optional `channel_commission_label?: string` added to FeeBreakdown. Sidebar label `channel_commission: 'Channel Commission'` → `'Host Service Fee'`.
+- **`CellDrillThroughModal.tsx` + live `QuoteCalculator.tsx`**: row label is now `"Host service fee (15.5% + 14% VAT)"` / `"Host service fee (15%)"` / `"Host service fee"` depending on the channel's emitted label. Row still hidden when amount is 0 (Manual).
+- **`api/cron/beithady-fees-audit-sync/route.ts`**: disabled the `refreshHistoricalCommissionAverages()` call — it would derive the effective 17.67% from real reservations and clobber the 15.5%-with-VAT split. The function stays in `channel-fees.ts` as dormant code.
+
+Numeric verification (matches invoices to the penny):
+- Airbnb on $117 → $20.67 (invoice: $20.68, penny rounding)
+- Booking on $145 → $21.75 (invoice: $21.75 exact)
+- Manual on any base → $0
+
+`tsc --noEmit` clean across the whole repo.
+
+---
+
+## 🟢 Earlier turn — Pricing model correction: Guesty prices are all-inclusive (no tax stacking, no commission for manual)
 
 User caught a fundamental bug in the fees-audit calculator. The earlier tax-stack bootstrap (VAT 14% + Tourism 12% + Service 12% for Egypt) was being **added on top** of Guesty's base + cleaning, but Guesty prices are already all-inclusive — taxes are baked into the listed rate. Result: Guest Pays / Host Receives totals were inflated by ~38% across the whole portfolio.
 

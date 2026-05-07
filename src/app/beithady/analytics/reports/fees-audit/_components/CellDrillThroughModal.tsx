@@ -89,7 +89,11 @@ export function CellDrillThroughModal({
                       ))}
                       {ch.breakdown.channel_commission_usd > 0 && (
                         <Row
-                          label="Channel commission"
+                          label={
+                            ch.breakdown.channel_commission_label
+                              ? `Host service fee (${ch.breakdown.channel_commission_label})`
+                              : 'Host service fee'
+                          }
                           value={`(${fmt(ch.breakdown.channel_commission_usd)})`}
                         />
                       )}

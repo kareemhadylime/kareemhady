@@ -5,7 +5,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncPricelabsDailyRates } from '@/lib/beithady/fees-audit/sync-pricelabs-daily';
 import { syncGuestyListingTerms } from '@/lib/beithady/fees-audit/sync-guesty-terms';
-import { refreshHistoricalCommissionAverages } from '@/lib/beithady/fees-audit/channel-fees';
+// Note: refreshHistoricalCommissionAverages is intentionally NOT imported.
+// Per real OTA invoice review (2026-05-07), commission rates are now manually
+// curated in beithady_channel_fees_config (15.5% + VAT on Airbnb, 15% on
+// Booking/Other) and the historical-average derivation would clobber the
+// Airbnb VAT split with a single effective rate (~17.67%). The function
+// remains in channel-fees.ts as dormant code in case the model changes.
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -36,12 +41,9 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     results.guesty_terms = { error: e instanceof Error ? e.message : String(e) };
   }
-  // Refresh historical commission averages weekly (runs every day, but cheap)
-  try {
-    results.commission_avg = await refreshHistoricalCommissionAverages();
-  } catch (e) {
-    results.commission_avg = { error: e instanceof Error ? e.message : String(e) };
-  }
+  // Historical commission-average refresh disabled (2026-05-07): rates are
+  // now manually curated to match real OTA invoices. See import comment.
+  results.commission_avg = { skipped: 'manually_curated' };
 
   return NextResponse.json({ ok: true, ...results });
 }

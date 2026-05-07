@@ -48,6 +48,11 @@ export type ChannelFeeConfig = {
   guest_service_pct: number;
   guest_service_min?: number | null;
   guest_service_max?: number | null;
+  /**
+   * VAT applied to the commission itself (Airbnb Egypt = 14, others 0).
+   * Effective host fee = host_commission_pct × (1 + vat_on_commission_pct/100).
+   */
+  vat_on_commission_pct: number;
 };
 
 /**
@@ -115,9 +120,8 @@ export function quoteStayInMemory(input: {
   const isDirectBooking = channel === 'manual';
 
   const commissionableBase = discountedBase + cleaning;
-  const channelCommission = isDirectBooking
-    ? 0
-    : (commissionableBase * channelCfg.host_commission_pct) / 100;
+  const fee = computeHostServiceFee(channelCfg, commissionableBase, isDirectBooking);
+  const channelCommission = fee.total_usd;
 
   let guestService = isDirectBooking
     ? 0
@@ -150,6 +154,7 @@ export function quoteStayInMemory(input: {
     taxes_usd: taxesApplied.total_usd,
     taxes_breakdown: taxesApplied.breakdown,
     channel_commission_usd: channelCommission,
+    channel_commission_label: fee.label,
     guest_service_fee_usd: guestService,
     security_deposit_usd: securityDeposit,
     total_guest_pays_usd: totalGuestPays,
@@ -237,9 +242,8 @@ export async function quoteStay(input: QuoteInput): Promise<FeeBreakdown> {
   const channelCfg = await getChannelFee(input.channel);
   const isDirectBooking = input.channel === 'manual';
   const commissionableBase = discountedBase + cleaning;
-  const channelCommission = isDirectBooking
-    ? 0
-    : (commissionableBase * channelCfg.host_commission_pct) / 100;
+  const fee = computeHostServiceFee(channelCfg, commissionableBase, isDirectBooking);
+  const channelCommission = fee.total_usd;
 
   // Guest service fee (channel adds on top, what guest sees)
   let guestService = isDirectBooking
@@ -273,12 +277,52 @@ export async function quoteStay(input: QuoteInput): Promise<FeeBreakdown> {
     taxes_usd: taxesApplied.total_usd,
     taxes_breakdown: taxesApplied.breakdown,
     channel_commission_usd: channelCommission,
+    channel_commission_label: fee.label,
     guest_service_fee_usd: guestService,
     security_deposit_usd: securityDeposit,
     total_guest_pays_usd: totalGuestPays,
     total_host_receives_usd: totalHostReceives,
     min_nights_required: minNights,
   };
+}
+
+/**
+ * Compute the host's effective OTA fee = base commission + VAT-on-commission.
+ *
+ * Per real OTA invoices reviewed 2026-05-07:
+ *   - Airbnb (Egypt): 15.5% commission + 14% VAT applied to that commission.
+ *     Guest pays Base + Cleaning only — no separate guest service fee.
+ *   - Booking.com / VRBO / Expedia / Hotels.com: ~15% commission, no VAT
+ *     on commission, no guest service fee.
+ *   - Manual / direct-website: 0%, host receives full Base + Cleaning.
+ *
+ * Returns the dollar amount and a human-readable label like
+ * "15.5% + 14% VAT" so the UI can match the real invoice format.
+ */
+function computeHostServiceFee(
+  cfg: ChannelFeeConfig,
+  commissionableBase: number,
+  isDirectBooking: boolean
+): { total_usd: number; label: string } {
+  if (isDirectBooking || cfg.host_commission_pct <= 0) {
+    return { total_usd: 0, label: '' };
+  }
+  const baseCommission = (commissionableBase * cfg.host_commission_pct) / 100;
+  const vatOnCommission =
+    cfg.vat_on_commission_pct > 0
+      ? (baseCommission * cfg.vat_on_commission_pct) / 100
+      : 0;
+  const total = baseCommission + vatOnCommission;
+  const label =
+    cfg.vat_on_commission_pct > 0
+      ? `${trimPct(cfg.host_commission_pct)}% + ${trimPct(cfg.vat_on_commission_pct)}% VAT`
+      : `${trimPct(cfg.host_commission_pct)}%`;
+  return { total_usd: total, label };
+}
+
+function trimPct(n: number): string {
+  // 15 → "15", 15.5 → "15.5", 14 → "14"
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, '');
 }
 
 function addDays(iso: string, n: number): string {

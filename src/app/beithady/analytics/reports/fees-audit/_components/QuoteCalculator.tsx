@@ -129,7 +129,11 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 ))}
                 {breakdown.channel_commission_usd > 0 && (
                   <Row
-                    label="Channel commission (host pays)"
+                    label={
+                      breakdown.channel_commission_label
+                        ? `Host service fee (${breakdown.channel_commission_label})`
+                        : 'Host service fee'
+                    }
                     value={`(${fmt(breakdown.channel_commission_usd)})`}
                   />
                 )}
