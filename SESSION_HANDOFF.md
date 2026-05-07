@@ -1,6 +1,28 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Fresh redeploy, no code drift
+## 🟢 Latest turn — Pricing model correction: Guesty prices are all-inclusive (no tax stacking, no commission for manual)
+
+User caught a fundamental bug in the fees-audit calculator. The earlier tax-stack bootstrap (VAT 14% + Tourism 12% + Service 12% for Egypt) was being **added on top** of Guesty's base + cleaning, but Guesty prices are already all-inclusive — taxes are baked into the listed rate. Result: Guest Pays / Host Receives totals were inflated by ~38% across the whole portfolio.
+
+User also clarified: **Manual + direct-website bookings have NO channel commission and NO guest service fee** — guest pays the host the listed price directly.
+
+Fixes (single commit, all in `src/lib/beithady/fees-audit/` + drill-through UI):
+- **`quote-calculator.ts`** (both `quoteStayInMemory` and async `quoteStay`):
+  - Removed `applyTaxes()` call entirely; `taxesApplied` is hardcoded `{ total_usd: 0, breakdown: [] }` so taxes never stack on top
+  - Added `isDirectBooking = channel === 'manual'` guard that forces `channelCommission = 0` and `guestService = 0` for manual
+  - `totalGuestPays` formula no longer includes `taxesApplied.total_usd`
+- **`CellDrillThroughModal.tsx`**: hides the "Channel commission" row when amount is 0 (so Manual is clean)
+- **`QuoteCalculator.tsx`** (live calc on dashboard): same — hides commission row when 0
+- **`anomaly-detector.ts`**: removed the `missing_tax_config` check — emitting a warning for "no tax config" is meaningless when prices are all-inclusive. Type union + label kept for forward compat / historical records.
+- `applyTaxes` import removed from quote-calculator (intentionally — left a code comment so future devs know `tax-applier.ts` is dormant, not deleted)
+
+What it changes for the operator: the per-channel breakdown now shows only Base + Cleaning + (commission if OTA) + (guest service fee if Airbnb). The `taxes_breakdown` array on every breakdown is empty by design. Heatmap "VAT / Tourism Tax / Service Charge / Total Tax Burden" categories will read empty cells (acceptable — they're honest about the new model).
+
+`tsc --noEmit` exits 0 across the whole repo. No tests existed under `src/lib/beithady/fees-audit/`.
+
+---
+
+## 🟢 Earlier turn — Fresh redeploy, no code drift
 
 User asked for a fresh commit + deploy with the most recent development. Verified state before commit:
 - Worktree branch `claude/flamboyant-chandrasekhar-4473e5` was at `origin/main` exactly (no ahead/behind), working tree clean.

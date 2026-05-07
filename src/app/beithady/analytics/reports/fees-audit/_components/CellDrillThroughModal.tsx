@@ -81,10 +81,18 @@ export function CellDrillThroughModal({
                     <tbody>
                       <Row label="Base" value={fmt(ch.breakdown.base_rate_total_usd)} />
                       <Row label="Cleaning" value={fmt(ch.breakdown.cleaning_usd)} />
+                      {/* Guesty prices are all-inclusive — taxes_breakdown is
+                          empty by design now. Kept the .map for forward
+                          compatibility with any future per-channel surcharge. */}
                       {ch.breakdown.taxes_breakdown.map(t => (
                         <Row key={t.type} label={t.type} value={fmt(t.amount_usd)} />
                       ))}
-                      <Row label="Channel commission" value={`(${fmt(ch.breakdown.channel_commission_usd)})`} />
+                      {ch.breakdown.channel_commission_usd > 0 && (
+                        <Row
+                          label="Channel commission"
+                          value={`(${fmt(ch.breakdown.channel_commission_usd)})`}
+                        />
+                      )}
                       {ch.breakdown.guest_service_fee_usd > 0 && (
                         <Row label="Guest service fee" value={fmt(ch.breakdown.guest_service_fee_usd)} />
                       )}

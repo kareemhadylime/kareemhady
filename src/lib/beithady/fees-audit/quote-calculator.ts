@@ -7,7 +7,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import type { ChannelBucket } from '@/lib/beithady/guesty-metrics';
 import type { FeeBreakdown, ListingTax } from './types';
 import { getChannelFee } from './channel-fees';
-import { applyTaxes } from './tax-applier';
+// applyTaxes() intentionally NOT imported — Guesty prices are all-inclusive
+// per Q (2026-05-07), so we don't stack VAT/tourism/service on top. The
+// tax-applier module remains for any future reporting flow that needs the
+// embedded tax breakdown.
 
 type DailyRow = {
   listing_id: string;
@@ -98,25 +101,38 @@ export function quoteStayInMemory(input: {
       : 0;
   const securityDeposit = Number(terms.security_deposit || 0);
 
-  const taxesApplied = applyTaxes(terms.taxes || [], {
-    accommodation_usd: discountedBase,
-    cleaning_usd: cleaning,
-  });
+  // Per Q (2026-05-07): Guesty prices are ALL-INCLUSIVE — VAT, tourism tax,
+  // and service charge are baked into the base + cleaning rates configured in
+  // Guesty. We do NOT compute or stack additional taxes on top.
+  const taxesApplied: { total_usd: number; breakdown: Array<{ type: string; amount_usd: number }> } = {
+    total_usd: 0,
+    breakdown: [],
+  };
+
+  // Manual / direct-website bookings carry no channel commission and no
+  // channel-side guest service fee — the guest pays the listed price directly
+  // to the host.
+  const isDirectBooking = channel === 'manual';
 
   const commissionableBase = discountedBase + cleaning;
-  const channelCommission =
-    (commissionableBase * channelCfg.host_commission_pct) / 100;
+  const channelCommission = isDirectBooking
+    ? 0
+    : (commissionableBase * channelCfg.host_commission_pct) / 100;
 
-  let guestService = (commissionableBase * channelCfg.guest_service_pct) / 100;
-  if (channelCfg.guest_service_min != null && guestService < channelCfg.guest_service_min) {
-    guestService = channelCfg.guest_service_min;
-  }
-  if (channelCfg.guest_service_max != null && guestService > channelCfg.guest_service_max) {
-    guestService = channelCfg.guest_service_max;
+  let guestService = isDirectBooking
+    ? 0
+    : (commissionableBase * channelCfg.guest_service_pct) / 100;
+  if (!isDirectBooking) {
+    if (channelCfg.guest_service_min != null && guestService < channelCfg.guest_service_min) {
+      guestService = channelCfg.guest_service_min;
+    }
+    if (channelCfg.guest_service_max != null && guestService > channelCfg.guest_service_max) {
+      guestService = channelCfg.guest_service_max;
+    }
   }
 
   const totalGuestPays =
-    discountedBase + cleaning + pet + extraGuest + taxesApplied.total_usd + guestService;
+    discountedBase + cleaning + pet + extraGuest + guestService;
   const totalHostReceives =
     discountedBase + cleaning + pet + extraGuest - channelCommission;
 
@@ -207,29 +223,39 @@ export async function quoteStay(input: QuoteInput): Promise<FeeBreakdown> {
       : 0;
   const securityDeposit = Number(terms.security_deposit || 0);
 
-  const taxesApplied = applyTaxes(terms.taxes || [], {
-    accommodation_usd: discountedBase,
-    cleaning_usd: cleaning,
-  });
+  // Per Q (2026-05-07): Guesty prices are ALL-INCLUSIVE — VAT, tourism tax,
+  // and service charge are baked into the base + cleaning rates configured in
+  // Guesty. We do NOT compute or stack additional taxes on top.
+  const taxesApplied: { total_usd: number; breakdown: Array<{ type: string; amount_usd: number }> } = {
+    total_usd: 0,
+    breakdown: [],
+  };
 
-  // Channel commission (host pays out of fareAccommodation+cleaning)
+  // Channel commission (host pays out of fareAccommodation+cleaning).
+  // Manual / direct-website bookings carry no channel commission and no
+  // channel-side guest service fee — guest pays the listed price directly.
   const channelCfg = await getChannelFee(input.channel);
+  const isDirectBooking = input.channel === 'manual';
   const commissionableBase = discountedBase + cleaning;
-  const channelCommission =
-    (commissionableBase * channelCfg.host_commission_pct) / 100;
+  const channelCommission = isDirectBooking
+    ? 0
+    : (commissionableBase * channelCfg.host_commission_pct) / 100;
 
   // Guest service fee (channel adds on top, what guest sees)
-  let guestService =
-    (commissionableBase * channelCfg.guest_service_pct) / 100;
-  if (channelCfg.guest_service_min != null && guestService < channelCfg.guest_service_min) {
-    guestService = channelCfg.guest_service_min;
-  }
-  if (channelCfg.guest_service_max != null && guestService > channelCfg.guest_service_max) {
-    guestService = channelCfg.guest_service_max;
+  let guestService = isDirectBooking
+    ? 0
+    : (commissionableBase * channelCfg.guest_service_pct) / 100;
+  if (!isDirectBooking) {
+    if (channelCfg.guest_service_min != null && guestService < channelCfg.guest_service_min) {
+      guestService = channelCfg.guest_service_min;
+    }
+    if (channelCfg.guest_service_max != null && guestService > channelCfg.guest_service_max) {
+      guestService = channelCfg.guest_service_max;
+    }
   }
 
   const totalGuestPays =
-    discountedBase + cleaning + pet + extraGuest + taxesApplied.total_usd + guestService;
+    discountedBase + cleaning + pet + extraGuest + guestService;
   const totalHostReceives =
     discountedBase + cleaning + pet + extraGuest - channelCommission;
 

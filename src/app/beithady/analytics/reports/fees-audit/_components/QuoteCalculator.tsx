@@ -121,10 +121,18 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 <Row label="Cleaning fee" value={fmt(breakdown.cleaning_usd)} />
                 {breakdown.pet_usd > 0 && <Row label="Pet fee" value={fmt(breakdown.pet_usd)} />}
                 {breakdown.extra_guest_usd > 0 && <Row label="Extra guest" value={fmt(breakdown.extra_guest_usd)} />}
+                {/* Guesty prices are all-inclusive — taxes_breakdown is empty
+                    by design. Kept the .map so any future per-channel
+                    surcharge surfaces here without a code change. */}
                 {breakdown.taxes_breakdown.map(t => (
                   <Row key={t.type} label={t.type} value={fmt(t.amount_usd)} />
                 ))}
-                <Row label="Channel commission (host pays)" value={`(${fmt(breakdown.channel_commission_usd)})`} />
+                {breakdown.channel_commission_usd > 0 && (
+                  <Row
+                    label="Channel commission (host pays)"
+                    value={`(${fmt(breakdown.channel_commission_usd)})`}
+                  />
+                )}
                 {breakdown.guest_service_fee_usd > 0 && (
                   <Row label="Guest service fee (channel adds)" value={fmt(breakdown.guest_service_fee_usd)} />
                 )}

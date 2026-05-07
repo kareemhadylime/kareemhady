@@ -15,7 +15,10 @@ export function detectAnomalies(
 ): Anomaly[] {
   const out: Anomaly[] = [];
 
-  // A: zero/missing — cleaning fee == 0 or null, missing tax config, missing forward calendar
+  // A: zero/missing — cleaning fee == 0 or null, missing forward calendar.
+  // Per Q (2026-05-07): Guesty prices are all-inclusive (taxes baked in), so
+  // a missing per-listing tax config is no longer an anomaly — there's
+  // nothing to add on top in the first place.
   for (const l of listings) {
     if (l.cleaning_fee == null || l.cleaning_fee === 0) {
       out.push({
@@ -25,16 +28,6 @@ export function detectAnomalies(
         listing_nickname: l.nickname,
         message: `${l.nickname} has zero / missing cleaning fee`,
         details: { current: l.cleaning_fee },
-      });
-    }
-    if (!l.taxes.length) {
-      out.push({
-        severity: 'warning',
-        kind: 'missing_tax_config',
-        listing_id: l.id,
-        listing_nickname: l.nickname,
-        message: `${l.nickname} has no tax configuration`,
-        details: {},
       });
     }
     for (const reason of l.missing_data_reasons) {
