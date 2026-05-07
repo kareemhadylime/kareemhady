@@ -1,8 +1,16 @@
 'use client';
 import { PanelFrame } from '../panel-frame';
-import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
+import { BUILDING_CODES, type BuildingCode, type DailyReportPayload } from '@/lib/beithady-daily-report/types';
 
 type Props = { payload: DailyReportPayload; snapshotDate: string; onHide?: () => void };
+
+const BUILDING_SHORT: Record<BuildingCode, string> = {
+  'BH-26': 'BH-26',
+  'BH-73': 'BH-73',
+  'BH-435': 'BH-435',
+  'BH-OK': 'BH-OK',
+  'OTHER': 'Other',
+};
 
 type Accent = 'ink' | 'gold' | 'steel' | 'green' | 'amber' | 'red';
 const ACCENT_COLOR: Record<Accent, string> = {
@@ -105,6 +113,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="green"
           drillTo="/beithady/operations?view=arrivals"
           subs={checkInSubs}
+          buildingBreakdown={perBuilding(payload, (b) => b.check_ins_today)}
         />
         <Tile
           icon="🛫"
@@ -113,6 +122,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="amber"
           drillTo="/beithady/operations?view=departures"
           subs={checkOutSubs}
+          buildingBreakdown={perBuilding(payload, (b) => b.check_outs_today)}
         />
         <Tile
           icon="🔁"
@@ -121,6 +131,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="gold"
           drillTo="/beithady/operations?view=turnovers"
           subs={turnoverSubs}
+          buildingBreakdown={perBuilding(payload, (b) => b.turnovers_today)}
         />
         <Tile
           icon="🏠"
@@ -129,10 +140,22 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="ink"
           drillTo="/beithady/operations?view=in-house"
           subs={stayingSubs}
+          buildingBreakdown={perBuilding(payload, (b) => b.occupied_today)}
         />
       </div>
     </section>
   );
+}
+
+type BuildingChip = { code: BuildingCode; value: number };
+
+function perBuilding(
+  payload: DailyReportPayload,
+  pick: (b: DailyReportPayload['per_building'][BuildingCode]) => number,
+): BuildingChip[] {
+  return BUILDING_CODES
+    .map((code) => ({ code, value: pick(payload.per_building[code]) }))
+    .filter((c) => c.value > 0);
 }
 
 function Tile({
@@ -142,6 +165,7 @@ function Tile({
   accent,
   drillTo,
   subs,
+  buildingBreakdown,
 }: {
   icon: string;
   label: string;
@@ -149,6 +173,7 @@ function Tile({
   accent: Accent;
   drillTo: string;
   subs: Sub[];
+  buildingBreakdown: BuildingChip[];
 }) {
   return (
     <a
@@ -191,6 +216,28 @@ function Tile({
                 style={subTone(s.tone)}
               >
                 {s.text}
+              </li>
+            ))}
+          </ul>
+        )}
+        {buildingBreakdown.length > 0 && (
+          <ul
+            className="mt-3 flex flex-wrap gap-1 border-t pt-2 text-[10px]"
+            style={{ borderColor: 'var(--bh-mute)' }}
+            aria-label={`${label} per building`}
+          >
+            {buildingBreakdown.map((chip) => (
+              <li
+                key={chip.code}
+                className="rounded px-1.5 py-0.5 tabular-nums"
+                style={{
+                  background: '#f5f3ec',
+                  color: 'var(--bh-ink)',
+                  border: '1px solid var(--bh-mute)',
+                }}
+              >
+                <span style={{ color: 'var(--bh-steel)' }}>{BUILDING_SHORT[chip.code]}</span>{' '}
+                <span className="font-semibold">{chip.value}</span>
               </li>
             ))}
           </ul>

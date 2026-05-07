@@ -1,6 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## Latest turn — Beithady Perf Dashboard: add "Daily activity" strip (check-ins / outs / turnovers / staying)
+## Latest turn — Daily activity panel: surface per-building breakdown (no payload changes)
+
+User shared the existing Daily Performance Report HTML render and asked "It's already computed here at the report, can you use the information?" — pointing out that `payload.per_building` already carries the per-building Today numbers (Total units / Occupied / Check-ins / Check-outs / Turnovers) the report shows in its main table. So instead of extending the cron payload (I'd just started adding `guests` to `ReservationRow` for "guests in total" / "shortest turnover" / "early checkouts" — none of which the report actually computes either), I reverted that work and surfaced the existing per-building data on the Daily Activity panel.
+
+- **Reverted** `src/lib/beithady-daily-report/reservations.ts` (3 edits adding `guests` to ReservationRow + the SELECT clauses) via `git checkout --`. No payload schema change.
+- **`_components/panels/daily-activity.tsx`** — each of the 4 tiles now renders a wrap-friendly chip row at the bottom showing the per-building split, sourced from `payload.per_building[code]` for each `BUILDING_CODES`. New helper `perBuilding(payload, pick)` projects a numeric field across all 5 buckets and filters out zeros so empty buildings don't clutter the chip row. Chip styling: `#f5f3ec` background, `var(--bh-mute)` border, building code in steel + count in ink semi-bold, all tabular-nums for crisp alignment. Top-border separator (`var(--bh-mute)` 1px) keeps the chips visually distinct from the existing exception sub-badges (cleaning queue, flagged check-ins, cancellations, no-shows).
+- Mapping: Check-ins ← `b.check_ins_today`, Check-outs ← `b.check_outs_today`, Turnovers ← `b.turnovers_today`, Currently staying ← `b.occupied_today`. All four come from `BuildingBucket`, no new fields needed.
+
+`tsc --noEmit` clean. One file changed (49 insertions, 1 deletion). Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+---
+
+## Earlier turn — Beithady Perf Dashboard: add "Daily activity" strip (check-ins / outs / turnovers / staying)
 
 User shared two screenshots: a 4-card "Daily activity" strip from a competing surface (Check-ins, Check-outs, Turnovers, Currently staying — each with pastel sub-badges for cleaning queue, payment flags, etc.) and the current Performance Dashboard hero. Asked to add the strip.
 
