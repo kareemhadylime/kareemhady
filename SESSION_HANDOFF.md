@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Backfill UX upgrade: per-row "Rebuild" buttons on /beithady/setup
+## Latest turn — Beithady landing: at-a-glance "Today's pulse" between header and module grid
+
+User asked for the dashboard's Daily Activity + Hero KPI strip on the Beit Hady landing (the dark Subsidiary Cockpit page at `/beithady`). They explicitly said "Choose the perfect visual impression location" — picked the slot between the BeithadyHeader (eyebrow + title + subtitle) and the module-tile grid. Rationale: it's the first thing the eye lands on after the title, gives the operator the day's pulse before they decide which tile to dive into, and the cream/ink data console floating on the dark cockpit creates strong visual contrast.
+
+- **`src/app/beithady/_components/landing-pulse.tsx`** (new) — server component:
+  - Calls `loadSnapshot(undefined)` (latest fallback) + `loadLatestSnapshotDate()` in parallel.
+  - Composes the existing `DailyActivity` panel (no date stepper, no building filter — static read-only) and a 6-up `HeroKpi` strip (Occupancy, MTD Revenue, RevPAR, Pace, Reviews avg, Response time) inside one cream-bordered card.
+  - Header: navy mono eyebrow "✨ Today's pulse · 2026-05-07 (latest)" on the left, ink "Open full dashboard →" button on the right linking to `/beithady/analytics/performance?date=<snapshot>`. The "(latest)" suffix appears when the snapshot date doesn't match `latestDate` — protects against stale render in edge cases (cron pre-09:00).
+  - Each Hero KPI tile drills to its respective deep-link (financials/period=mtd, analytics/reviews, communication/unified, etc.) — same destinations as the Performance Dashboard tiles.
+  - Quiet failure: when no snapshot exists, renders a small slate hint "Today's pulse data is pending — rebuild from setup or wait for the 09:00 Cairo cron" with a link to `/beithady/setup`. Never renders a broken card.
+- **`src/app/beithady/page.tsx`** — wraps `<LandingPulse />` in a `<Suspense fallback={null}>` between BeithadyHeader and the BeithadyLauncher tiles. Suspense ensures the snapshot fetch doesn't block the launcher render — the pulse pops in once data resolves; the rest of the cockpit is always interactive.
+
+Visual result: dark cockpit page → BEIT HADY wordmark + title block → cream-and-ink pulse panel (Daily Activity 4-tile strip + 6 Hero KPIs in a row) with a navy "Open full dashboard →" CTA → module tile grid. The cream surface lifts the day's numbers off the dark page like a screen on an aviation dashboard.
+
+`tsc --noEmit` clean. No payload changes; all data already on the daily snapshot.
+
+---
+
+## Earlier turn — Backfill UX upgrade: per-row "Rebuild" buttons on /beithady/setup
 
 User reaction to the EmptySnapshot-only rebuild: "where to choose the date and rebuild." Right — the EmptySnapshot button only fires when you happen to navigate to a NULL date, and the user had to type 10 URLs by hand. Surfaced the rebuild controls in one discoverable place: the existing "Recent reports" table on `/beithady/setup`.
 

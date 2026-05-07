@@ -1,0 +1,168 @@
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
+import { loadSnapshot, loadLatestSnapshotDate } from '@/app/beithady/analytics/performance/_lib/load-snapshot';
+import { DailyActivity } from '@/app/beithady/analytics/performance/_components/panels/daily-activity';
+import { HeroKpi } from '@/app/beithady/analytics/performance/_components/panels/hero-kpi';
+
+// Server component that surfaces a condensed snapshot of yesterday's
+// performance on the Beit Hady landing. Same data as the Performance
+// Dashboard's hero strip + Daily Activity panel — just static (no compare,
+// no building filter, no customize, no date stepper). Acts as the cockpit's
+// at-a-glance pulse: the user sees the day's numbers before deciding which
+// module tile to dive into.
+//
+// Read-only and silent on missing data. If the snapshot table is empty or
+// the latest row is malformed, this whole block disappears so it can't
+// noise up the launcher.
+
+export async function LandingPulse() {
+  // No `?date=` to honor → falls back to the latest well-formed snapshot.
+  const [result, latestDate] = await Promise.all([
+    loadSnapshot(undefined),
+    loadLatestSnapshotDate(),
+  ]);
+  if (result.status !== 'found') {
+    return (
+      <section className="rounded-xl border border-slate-200/60 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/40 px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
+        Today&apos;s pulse data is pending —{' '}
+        <Link
+          href="/beithady/setup"
+          className="font-medium underline underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200"
+        >
+          rebuild from setup
+        </Link>{' '}
+        or wait for the 09:00 Cairo cron.
+      </section>
+    );
+  }
+
+  const { payload, date: snapshotDate } = result;
+  const all = payload.all;
+  const paceAccent: 'green' | 'red' = all.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
+  const isStale = latestDate && snapshotDate !== latestDate;
+
+  return (
+    <section
+      aria-label="Today's pulse"
+      className="rounded-xl shadow-sm"
+      style={{
+        background: 'var(--bh-cream)',
+        border: '1px solid var(--bh-mute)',
+      }}
+    >
+      <header className="flex items-center justify-between px-5 pt-4 pb-3">
+        <div className="flex items-baseline gap-2">
+          <p
+            className="font-mono text-[9px] uppercase tracking-[0.18em]"
+            style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
+          >
+            ✨ Today&apos;s pulse
+          </p>
+          <span
+            className="text-[10px]"
+            style={{ color: 'var(--bh-steel)' }}
+          >
+            · {snapshotDate}
+            {isStale && latestDate && <span> (latest)</span>}
+          </span>
+        </div>
+        <Link
+          href={`/beithady/analytics/performance?date=${snapshotDate}`}
+          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+          style={{
+            background: 'var(--bh-ink)',
+            color: 'var(--bh-cream)',
+          }}
+        >
+          Open full dashboard <ArrowRight size={12} />
+        </Link>
+      </header>
+
+      <div className="px-3 pb-3">
+        <DailyActivity payload={payload} snapshotDate={snapshotDate} />
+      </div>
+
+      <div
+        className="grid grid-cols-2 gap-3 px-3 pb-4 sm:grid-cols-3 xl:grid-cols-6"
+        aria-label="Hero KPIs"
+      >
+        <HeroKpi
+          label="Occupancy"
+          value={`${all.occupancy_today_pct.toFixed(1)}%`}
+          delta={{ direction: 'flat', text: 'today' }}
+          spark={payload.sparklines?.occupancy}
+          drillTo="/beithady/analytics/performance"
+          accent="ink"
+        />
+        <HeroKpi
+          label="MTD Revenue"
+          value={`$${(all.revenue_mtd_usd / 1000).toFixed(1)}k`}
+          delta={{
+            direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
+            text: `${all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${all.pickup_vs_prior_month_pct.toFixed(1)}% vs LM`,
+          }}
+          spark={payload.sparklines?.mtd_revenue}
+          drillTo="/beithady/financials?period=mtd"
+          accent="gold"
+        />
+        <HeroKpi
+          label="RevPAR"
+          value={
+            payload.revpar?.all != null
+              ? `$${payload.revpar.all.toFixed(2)}`
+              : `$${all.adr_mtd_usd.toFixed(0)}`
+          }
+          delta={
+            payload.revpar?.all != null
+              ? { direction: 'flat', text: 'rev / available night' }
+              : { direction: 'flat', text: 'ADR (RevPAR pending)' }
+          }
+          spark={payload.sparklines?.revpar}
+          drillTo="/beithady/financials?metric=revpar"
+          accent="steel"
+        />
+        <HeroKpi
+          label="Pace"
+          value={`${all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${all.pickup_vs_prior_month_pct.toFixed(1)}%`}
+          delta={{
+            direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
+            text: 'vs prior month',
+          }}
+          spark={payload.sparklines?.pace}
+          drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
+          accent={paceAccent}
+        />
+        <HeroKpi
+          label="Reviews avg"
+          value={`${payload.reviews.avg_rating_mtd.toFixed(1)}★`}
+          delta={{
+            direction: 'flat',
+            text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`,
+          }}
+          spark={payload.sparklines?.reviews_avg}
+          drillTo="/beithady/analytics/reviews?period=mtd"
+          accent="amber"
+        />
+        <HeroKpi
+          label="Response time"
+          value={
+            payload.conversations
+              ? `${payload.conversations.yesterday.avg_response_minutes.toFixed(0)}m`
+              : '—'
+          }
+          delta={
+            payload.conversations
+              ? {
+                  direction: 'flat',
+                  text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m`,
+                }
+              : undefined
+          }
+          spark={payload.sparklines?.response_time}
+          drillTo="/beithady/communication/unified?metric=response-time"
+          accent="steel"
+        />
+      </div>
+    </section>
+  );
+}

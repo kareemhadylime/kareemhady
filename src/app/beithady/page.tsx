@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { getEffectiveBeithadyRoles, visibleCategoriesFor, type BeithadyCategory } from '@/lib/beithady/auth';
+import { Suspense } from 'react';
 import { BeithadyShell, BeithadyHeader } from './_components/beithady-shell';
 import { BeithadyLauncher, type LauncherTile } from './_components/beithady-launcher';
+import { LandingPulse } from './_components/landing-pulse';
 
 export const dynamic = 'force-dynamic';
 
@@ -153,6 +155,14 @@ export default async function BeithadyHome() {
         subtitle="Serviced apartments — Egypt + Dubai. 91 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-34."
         showWordmark
       />
+
+      {/* At-a-glance pulse — same data the Performance Dashboard hero strip
+          shows, condensed and read-only. Sits above the module grid so the
+          user sees today's numbers before deciding which tile to dive into.
+          Renders nothing when no snapshot is available. */}
+      <Suspense fallback={null}>
+        <LandingPulse />
+      </Suspense>
 
       {tiles.length === 0 ? (
         <div className="ix-card p-10 text-center max-w-xl mx-auto">
