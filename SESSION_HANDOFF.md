@@ -1,6 +1,46 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Review responses page was 0/0/0/0 — column-name mismatch (`raw_review` → `raw`)
+## Latest turn — Backfill rebuilds were silently no-ops on rows where delivery_complete=true (legacy artifact)
+
+User: "These fail on rebuild." Screenshot showed 4 rows stuck at NULL · needs rebuild (2026-05-05, 05-04, 04-27, 04-26) — every click on Rebuild reloaded the page with the row unchanged.
+
+Other NULL dates from the original list (04-28 → 05-03) had already been rebuilt successfully — the user got those across, and they now show `Built · Retrying` (delivery never completed because they're past dates with skipDistribution).
+
+**Diagnosis**: confirmed via Supabase that all 4 stuck rows have `delivery_complete = true` AND `payload IS NULL` AND `last_build_error = null`. Classic Vercel-timeout artifact from before the cron-resilience fix landed: the legacy cron flow flagged `delivery_complete=true` before the build had finished writing payload, then Vercel killed the function. Row was left in a contradictory state.
+
+The stuck rows then hit a buggy short-circuit in `runDailyReport`:
+
+```ts
+if (snap?.delivery_complete && !opts.restrictToRecipientIds) {
+  return { ok: true, status: 'already_complete', snapshot_id: snap.id };
+}
+```
+
+This fires regardless of `forceRebuild` or payload state. So:
+1. User clicks Rebuild → action runs `runDailyReport({ forceRebuild: true, dateOverride: ..., skipDistribution: true })`
+2. SELECT finds the stuck row (delivery_complete=true, payload=null)
+3. Short-circuits → returns `already_complete` with `built_now: false`
+4. `rebuildSnapshotAction` happily returned `ok: true, built_now: false`
+5. Button reloaded the page → row STILL NULL → user saw no change → "fails"
+
+Successful rebuilds on the other dates worked because those rows had `delivery_complete = false` (the original delivery cron failed too) — short-circuit didn't fire.
+
+**Fix:**
+
+- **`src/lib/beithady-daily-report/run.ts`** — short-circuit now requires THREE more conditions in addition to `delivery_complete`:
+  1. `existingPayloadOk` — payload must be well-formed. Closes the legacy-artifact loophole.
+  2. `!opts.forceRebuild` — explicit force-rebuild always skips the short-circuit.
+  3. `!opts.restrictToRecipientIds` — preserved (existing test-send semantics).
+
+  Moved the `existingPayloadOk = isPayloadWellFormed(snap?.payload)` computation up to before the short-circuit so all four conditions can be checked together. Cron's normal idempotency is preserved (well-formed + delivered rows still short-circuit cleanly).
+
+- **`src/app/beithady/setup/actions.ts`** — `rebuildSnapshotAction` no longer treats `already_complete` as success. With the run.ts fix it should be unreachable under `forceRebuild=true`; if it ever does fire, the action now returns `{ ok: false, error: 'already_complete (no rebuild attempted — short-circuit fired despite forceRebuild)' }` so the bug surfaces in the button's inline error label instead of silently reloading the page.
+
+`tsc --noEmit` clean. Verified the 4 stuck rows do match the diagnosis (`delivery_complete=true, payload=null, last_build_error=null`). Once deployed, clicking Rebuild on each will actually fire `buildDailyReport(date)` for the first time and write the payload atomically.
+
+---
+
+## Earlier turn — Review responses page was 0/0/0/0 — column-name mismatch (`raw_review` → `raw`)
 
 User reported `/beithady/analytics/reviews` showing all stats at 0 and "No reviews synced yet. Run the Guesty sync first." — despite the Performance Dashboard showing 20 reviews · 4.8★ for the same period. Investigated via Supabase MCP:
 

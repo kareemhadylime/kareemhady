@@ -254,7 +254,11 @@ export async function rebuildSnapshotAction(
     return { ok: false, error: 'skipped_pre_9am' };
   }
   if (result.status === 'already_complete') {
-    return { ok: true, date: dateYmd, built_now: false };
+    // With forceRebuild=true this branch should be unreachable. If it
+    // fires, the runDailyReport short-circuit logic regressed; treat as
+    // an error so the UI shows it instead of silently "succeeding" with
+    // an unchanged row.
+    return { ok: false, error: 'already_complete (no rebuild attempted — short-circuit fired despite forceRebuild)' };
   }
   return { ok: true, date: result.report_date, built_now: result.built_now };
 }

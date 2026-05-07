@@ -129,9 +129,22 @@ export async function runDailyReport(opts: {
     .maybeSingle();
 
   let snap = existing as SnapshotRow | null;
+  const existingPayloadOk = isPayloadWellFormed(snap?.payload);
 
-  // --- Short-circuit if already delivered (no build needed) ---
-  if (snap?.delivery_complete && !opts.restrictToRecipientIds) {
+  // --- Short-circuit if already delivered AND the payload is intact AND
+  // the caller didn't ask for a forced rebuild. The payload-intact check
+  // matters for legacy rows from before the cron-resilience fix: those
+  // rows have `delivery_complete=true` (the cron flagged delivery before
+  // the build completed writing payload) but `payload IS NULL`. Without
+  // this guard, the admin's "Rebuild" button on /beithady/setup would
+  // short-circuit to `already_complete` and never actually rebuild —
+  // exactly the bug the user hit. ---
+  if (
+    snap?.delivery_complete &&
+    existingPayloadOk &&
+    !opts.forceRebuild &&
+    !opts.restrictToRecipientIds
+  ) {
     return { ok: true, status: 'already_complete', snapshot_id: snap.id };
   }
 
@@ -139,7 +152,6 @@ export async function runDailyReport(opts: {
   // Existing rows with NULL payload OR missing core sections (the cron-gap
   // pattern from before this fix landed) are treated as if they had no
   // payload — we rebuild and overwrite.
-  const existingPayloadOk = isPayloadWellFormed(snap?.payload);
   const needsBuild = !snap || !existingPayloadOk || !!opts.forceRebuild;
 
   let payload: DailyReportPayload | null = existingPayloadOk
