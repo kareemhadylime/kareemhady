@@ -36,9 +36,12 @@ export async function buildFeeStack(
   const endDate = addDays(startDate, config.windowDays - 1);
 
   // ---- Listings -----------------------------------------------------------
+  // Pull all (incl. inactive + MTL parents) so we can compute exclusion stats,
+  // then dedupe via the canonical bookable-listings logic. MTL parents share
+  // calendar + fees with their SLT children — auditing both = double-count.
   const { data: listingsRaw } = await sb
     .from('guesty_listings')
-    .select('id, nickname, building_code, bedrooms, accommodates, active');
+    .select('id, nickname, building_code, bedrooms, accommodates, active, master_listing_id');
 
   type LRow = {
     id: string;
@@ -47,8 +50,25 @@ export async function buildFeeStack(
     bedrooms: number | null;
     accommodates: number | null;
     active: boolean | null;
+    master_listing_id: string | null;
   };
-  let listings = ((listingsRaw as LRow[] | null) || []).filter(l => l.active);
+  const allRaw = (listingsRaw as LRow[] | null) || [];
+  const totalActive = allRaw.filter(l => l.active === true).length;
+
+  // Build the parent-id set — listings that ARE master_listing_ids of others.
+  const parentIds = new Set<string>();
+  for (const l of allRaw) {
+    if (l.master_listing_id) parentIds.add(l.master_listing_id);
+  }
+  let mtlParentsExcluded = 0;
+  let listings = allRaw.filter(l => {
+    if (l.active !== true) return false;
+    if (parentIds.has(l.id)) {
+      mtlParentsExcluded += 1;
+      return false;
+    }
+    return true;
+  });
 
   if (config.buildings.length) {
     const set = new Set(config.buildings);
@@ -60,6 +80,7 @@ export async function buildFeeStack(
   }
 
   const listingIds = listings.map(l => l.id);
+  const physicalUnits = listings.length;
 
   // ---- Listing terms ------------------------------------------------------
   const { data: termsRaw } = await sb
@@ -217,6 +238,9 @@ export async function buildFeeStack(
       avg_min_nights: avg(validMinNights),
       listings_with_missing_data: listingMetas.filter(l => !l.has_full_data).length,
       anomaly_count_by_severity: sevCount,
+      physical_units: physicalUnits,
+      total_active_listings: totalActive,
+      mtl_parents_excluded: mtlParentsExcluded,
     },
     warnings: warnings.length ? warnings : undefined,
   };

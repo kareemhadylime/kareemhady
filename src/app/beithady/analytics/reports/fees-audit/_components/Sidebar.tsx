@@ -12,6 +12,12 @@ const GROUPS: Array<{ label: string; items: FeeCategory[]; icon: string }> = [
   { label: 'Channel Cuts', icon: '💳', items: ['channel_commission', 'guest_service_fee'] },
   { label: 'Stay Rules', icon: '📐', items: ['min_stay', 'max_stay', 'lead_time', 'prep_time'] },
   { label: 'Discounts', icon: '🏷', items: ['weekly_discount', 'monthly_discount', 'last_minute_discount'] },
+  // Country segmentation — explicit per Q (2026-05-07): EG vs UAE economies
+  // are reported separately because Egypt charges in USD via OTAs while
+  // UAE collects AED, and the tax/commission stacks differ materially.
+  { label: 'Country', icon: '🌐', items: ['country_egypt', 'country_uae', 'country_split'] },
+  // Analytic dimensions — orthogonal cross-cuts of the same fee data.
+  { label: 'Analytic', icon: '📊', items: ['analytic_bedroom_class', 'analytic_building', 'analytic_channel_mix', 'analytic_capacity'] },
   { label: 'Comparisons', icon: '🔎', items: ['vs_market', 'vs_self', 'vs_peer'] },
 ];
 
@@ -26,14 +32,25 @@ export function Sidebar({
   selected: FeeCategory;
   onSelect: (cat: FeeCategory) => void;
 }) {
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Default-collapse Country and Analytic so the sidebar isn't overwhelming
+  // on first paint. Operator can expand on demand.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    Country: true,
+    Analytic: true,
+    Comparisons: true,
+  });
 
   if (!open) {
     return (
       <button
         onClick={onToggle}
-        className="ix-card p-2 self-start rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 sticky top-4"
+        className="ix-card p-2 self-start rounded-lg sticky top-4 transition"
         title="Open sidebar"
+        style={{
+          background: 'var(--bh-cream)',
+          color: 'var(--bh-ink)',
+          border: '1px solid var(--bh-mute)',
+        }}
       >
         <PanelLeft size={18} />
       </button>
@@ -41,14 +58,33 @@ export function Sidebar({
   }
 
   return (
-    <aside className="ix-card w-72 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
-        <span className="text-xs font-bold uppercase tracking-wide text-[#1e3a5f] dark:text-amber-100">
+    <aside
+      className="w-72 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl shadow-sm"
+      style={{
+        background: 'var(--bh-cream)',
+        color: 'var(--bh-ink)',
+        border: '1px solid var(--bh-mute)',
+      }}
+    >
+      <div
+        className="flex items-center justify-between px-3 py-2.5 border-b"
+        style={{ borderColor: 'var(--bh-mute)' }}
+      >
+        <span
+          className="text-xs font-bold uppercase tracking-wider"
+          style={{
+            color: 'var(--bh-ink)',
+            fontFamily: 'Cormorant Garamond, Playfair Display, Georgia, serif',
+            fontSize: 14,
+            letterSpacing: '0.08em',
+          }}
+        >
           Fee Categories
         </span>
         <button
           onClick={onToggle}
-          className="text-slate-400 hover:text-slate-700"
+          className="opacity-60 hover:opacity-100 transition"
+          style={{ color: 'var(--bh-ink)' }}
           title="Collapse sidebar"
         >
           <PanelLeftClose size={16} />
@@ -59,33 +95,50 @@ export function Sidebar({
         {GROUPS.map(g => {
           const isCollapsed = collapsed[g.label];
           return (
-            <div key={g.label} className="mb-1">
+            <div key={g.label} className="mb-0.5">
               <button
                 onClick={() => setCollapsed(s => ({ ...s, [g.label]: !s[g.label] }))}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider transition hover:bg-white/40"
+                style={{ color: 'var(--bh-steel)' }}
               >
                 {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                 <span className="flex-1 text-left">
-                  <span className="mr-1">{g.icon}</span>
+                  <span className="mr-1.5">{g.icon}</span>
                   {g.label}
                 </span>
               </button>
               {!isCollapsed && (
                 <ul className="mt-0.5">
-                  {g.items.map(cat => (
-                    <li key={cat}>
-                      <button
-                        onClick={() => onSelect(cat)}
-                        className={`w-full flex items-center gap-2 px-6 py-1.5 text-xs transition ${
-                          selected === cat
-                            ? 'bg-[#1e3a5f] text-white font-semibold'
-                            : 'text-slate-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        {FEE_CATEGORY_LABEL[cat]}
-                      </button>
-                    </li>
-                  ))}
+                  {g.items.map(cat => {
+                    const isSelected = selected === cat;
+                    return (
+                      <li key={cat}>
+                        <button
+                          onClick={() => onSelect(cat)}
+                          className="w-full text-left flex items-center gap-2 pl-7 pr-3 py-1.5 text-xs transition"
+                          style={{
+                            background: isSelected ? 'var(--bh-ink)' : 'transparent',
+                            color: isSelected ? 'var(--bh-cream)' : 'var(--bh-ink)',
+                            fontWeight: isSelected ? 600 : 400,
+                            borderLeft: isSelected
+                              ? '3px solid var(--bh-gold)'
+                              : '3px solid transparent',
+                          }}
+                          onMouseEnter={e => {
+                            if (!isSelected)
+                              (e.currentTarget as HTMLElement).style.background =
+                                'rgba(212, 169, 58, 0.12)';
+                          }}
+                          onMouseLeave={e => {
+                            if (!isSelected)
+                              (e.currentTarget as HTMLElement).style.background = 'transparent';
+                          }}
+                        >
+                          {FEE_CATEGORY_LABEL[cat]}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

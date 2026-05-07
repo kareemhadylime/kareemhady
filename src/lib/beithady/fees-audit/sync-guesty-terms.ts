@@ -5,6 +5,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { listGuestyListings } from '@/lib/guesty';
+import { getBookableListingIds } from '@/lib/beithady/bookable-listings';
 
 const TERMS_FIELDS = [
   '_id',
@@ -80,9 +81,17 @@ function readTaxes(raw: RawListing): unknown[] {
 export async function syncGuestyListingTerms(): Promise<{
   listings: number;
   errors: string[];
+  skipped_inactive: number;
+  skipped_mtl_parents: number;
 }> {
   const sb = supabaseAdmin();
   const errors: string[] = [];
+
+  // Bookable physical units = active + dedupe MTL parents. Anything outside
+  // this set we don't waste API budget on (and don't write rows for).
+  const bookableIds = new Set(await getBookableListingIds());
+  let skippedInactive = 0;
+  let skippedMtlParents = 0;
 
   // Fetch all listings with the wide field projection
   let allListings: RawListing[] = [];
@@ -114,6 +123,13 @@ export async function syncGuestyListingTerms(): Promise<{
   for (const raw of allListings) {
     const id = str(raw._id);
     if (!id) continue;
+    // Skip listings that are inactive OR MTL parents (we sync the children
+    // instead — they share calendar + share fees and are the bookable inventory).
+    if (!bookableIds.has(id)) {
+      if (raw.active === false) skippedInactive += 1;
+      else skippedMtlParents += 1;
+      continue;
+    }
     const prices = readPrices(raw);
     const terms = readTerms(raw);
     const taxes = readTaxes(raw);
@@ -146,5 +162,10 @@ export async function syncGuestyListingTerms(): Promise<{
     else upsertedCount += 1;
   }
 
-  return { listings: upsertedCount, errors };
+  return {
+    listings: upsertedCount,
+    errors,
+    skipped_inactive: skippedInactive,
+    skipped_mtl_parents: skippedMtlParents,
+  };
 }

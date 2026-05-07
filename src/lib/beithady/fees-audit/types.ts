@@ -21,6 +21,10 @@ export type FeeCategory =
   | 'min_stay' | 'max_stay' | 'lead_time' | 'prep_time'
   // Discounts
   | 'weekly_discount' | 'monthly_discount' | 'last_minute_discount'
+  // Country segmentation (Egypt EGP economy vs UAE AED)
+  | 'country_egypt' | 'country_uae' | 'country_split'
+  // Analytic dimensions (cross-cuts)
+  | 'analytic_bedroom_class' | 'analytic_building' | 'analytic_channel_mix' | 'analytic_capacity'
   // Comparisons
   | 'vs_market' | 'vs_self' | 'vs_peer';
 
@@ -46,6 +50,13 @@ export const FEE_CATEGORY_LABEL: Record<FeeCategory, string> = {
   weekly_discount: 'Weekly Discount %',
   monthly_discount: 'Monthly Discount %',
   last_minute_discount: 'Last-Minute Discount %',
+  country_egypt: '🇪🇬 Egypt only (EGP economy)',
+  country_uae: '🇦🇪 UAE only (AED economy)',
+  country_split: '🌍 Egypt vs UAE side-by-side',
+  analytic_bedroom_class: 'By bedroom class',
+  analytic_building: 'By building',
+  analytic_channel_mix: 'By channel mix',
+  analytic_capacity: 'By capacity (accommodates)',
   vs_market: 'vs Market (PriceLabs)',
   vs_self: 'vs Self (across channels)',
   vs_peer: 'vs Peer (same bedrooms)',
@@ -164,6 +175,14 @@ export type FeeAuditData = {
     avg_min_nights: number | null;
     listings_with_missing_data: number;
     anomaly_count_by_severity: Record<AnomalySeverity, number>;
+    /** Bookable physical units in scope = active listings minus MTL parents
+     *  (which are virtual umbrellas sharing calendar with their SLT children).
+     *  This is the operator-facing count and matches the "77 units" reality. */
+    physical_units: number;
+    /** Raw `active = true` count from guesty_listings, including MTL parents.
+     *  Difference between this and physical_units = mtl_parents_excluded. */
+    total_active_listings: number;
+    mtl_parents_excluded: number;
   };
   warnings?: string[];
 };
