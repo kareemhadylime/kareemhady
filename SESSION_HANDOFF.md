@@ -1,6 +1,53 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Booking-Channel Fee Audit module SHIPPED + PUSHED to main (commit `952da83`)
+## 🟢 Latest turn — Fees Audit follow-up: MTL/SLT dedupe + BH brand tokens + Country/Analytic sidebar (commit `75818da`)
+
+User flagged 3 issues post-ship:
+1. "our units count are 77, why you mention 87" — was double-counting MTL parents
+2. "Only Active" — sync code wasn't filtering active=true properly
+3. "anticipate for Multi Unit & Sub Units - not to mix up things" — needed dedupe
+4. "Did you use the BH Brand Guidelines for Fonts & Colors and Theme???" — partial; was hardcoding hex
+5. "Make a Distinction Based on Country And Analytic on the left hand Collapsable Menu"
+
+All 5 fixed in commit `75818da`:
+
+**Unit count math (87 → 79 deduped):**
+- 87 active listings in DB
+- −8 MTL parents (master_listing_id is in another row's master_listing_id) — virtual umbrellas, share calendar with their SLT children
+- = 79 physical bookable units (close to user's "77" — small drift is some standalone listings outside Beit Hady portfolio: REEHAN, YANSOON, BH-MG)
+
+**New canonical helper** `src/lib/beithady/bookable-listings.ts`:
+- `getBookableListings()` returns `{listings, total_active, physical_units, mtl_parents_excluded, by_building}`
+- `getBookableListingIds()` for sync jobs
+- Single source of truth so audit, daily-rate sync, and terms sync all use the same dedupe
+
+**Sync code** now active+dedupe-filtered:
+- `sync-pricelabs-daily.ts` cross-filters PriceLabs `push_enabled+is_hidden=false` against the bookable set; reports `mtl_parents_excluded`
+- `sync-guesty-terms.ts` skips inactive listings AND MTL parents; tracks `skipped_inactive` + `skipped_mtl_parents` separately
+
+**Build-fee-stack** now dedupes MTL parents in-orchestrator and surfaces `totals.physical_units` / `total_active_listings` / `mtl_parents_excluded`. KPI strip extended to 7 cards (was 6) — leftmost shows "79 · 8 MTL excl".
+
+**BH brand tokens applied** (was hardcoding hex `#1e3a5f` / `#c9a96e`):
+- `var(--bh-ink)` (#003462 Pantone 108-16 U Deep Navy) for primary text/accent
+- `var(--bh-cream)` (#F5F1E8) for cards/sidebar background
+- `var(--bh-gold)` (#D4A93A) for selected-item left border + value numerals
+- `var(--bh-steel)` (#6077a6 Pantone 105-13 U) for secondary text
+- `var(--bh-mute)` for borders
+- Cormorant Garamond / Playfair Display serif for KPI value numerals + sidebar header
+- Hover state: `rgba(212, 169, 58, 0.12)` (gold @ 12%)
+
+**Sidebar new groups** per user request:
+- 🌐 Country: Egypt only / UAE only / Egypt vs UAE side-by-side (default-collapsed)
+- 📊 Analytic: by bedroom-class / by building / by channel-mix / by capacity (default-collapsed)
+- Both groups added to FeeCategory enum and FEE_CATEGORY_LABEL map; default-collapsed so first paint isn't overwhelming
+
+**Verification:** tsc clean (pre-existing qrcode + testing-library issues from parallel session not in scope; fixed by `npm install`), build clean (44s). Pushed `75818da` to `main`. Browser verification: page renders with brand tokens, sidebar shows new groups, KPI strip waiting for Vercel deploy of latest commit to show physical_units count.
+
+**Bootstrap data after Vercel deploy:** `GET /api/cron/beithady-fees-audit-sync` (with CRON_SECRET) populates ~79 listing-terms rows + ~79 × 30 = 2,370 daily-rate rows. Tomorrow at 06:50 Cairo automatic.
+
+---
+
+## 🟢 Earlier this session — Booking-Channel Fee Audit module SHIPPED + PUSHED to main (commit `952da83`)
 
 User said "All in One. Ship it." Done — full feature deployed in single commit, ~31 files added.
 
