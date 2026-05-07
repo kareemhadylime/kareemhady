@@ -1,6 +1,25 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Backfill rebuilds were silently no-ops on rows where delivery_complete=true (legacy artifact)
+## Latest turn — Reviews list: sort newest first by `created_at_guesty`
+
+User: "sort newest to last." Screenshot showed reviews listed with 6/2025 and 7/2025 dates at the top while we know data goes up to 2026-05-05. Diagnosis via Supabase MCP:
+
+- 868 total reviews. `synced_at` populated for all (used for previous sort), but it reflects when WE pulled the row — Guesty's bulk re-sync surfaced legacy 2025 rows at the top.
+- `created_at_guesty` populated for all 868 (max 2026-05-05) — best "when did the guest leave it" signal.
+- `created_at_source` populated for only 66 legacy rows (max 2026-04-14) — explains why 2025 dates bubbled up under the previous "prefer source" display logic.
+
+**Fix (one file):**
+
+- **`src/lib/beithady/pipeline/review-replies.ts`** — both `listReviewsWithReplies` (page) and `processReviewReplyQueue` (cron) reorder:
+  - Primary: `created_at_guesty DESC nullsFirst:false`
+  - Tiebreaker: `synced_at DESC nullsFirst:false`
+- Display preference flipped: `created_at_guesty || created_at_source || synced_at` (was source-first). Sort and display field now agree, so the user no longer sees a 2025 date at the top of a list ordered by 2026 timestamps.
+
+`tsc --noEmit` clean. Once deployed, the Review responses page should show the most recent (early May 2026) reviews at the top, and the daily AI-draft cron will catch up on the freshest reviews first instead of revisiting old legacy rows.
+
+---
+
+## Earlier turn — Backfill rebuilds were silently no-ops on rows where delivery_complete=true (legacy artifact)
 
 User: "These fail on rebuild." Screenshot showed 4 rows stuck at NULL · needs rebuild (2026-05-05, 05-04, 04-27, 04-26) — every click on Rebuild reloaded the page with the row unchanged.
 
