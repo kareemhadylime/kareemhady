@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Fees Audit follow-up: MTL/SLT dedupe + BH brand tokens + Country/Analytic sidebar (commit `75818da`)
+## 🟢 Latest turn — Filters moved to sidebar + dynamic-filter TitleBar (commit `336971d`)
+
+User: "Now Move the Top Filters to the The Left Collapsible Menu" + "On Top Of Report Make a Title with the Filters Chosen". Plus: "Make a Distinction Based on Country And Analytic on the left hand Collapsable Menu". Plus: brand audit ("Did you use the BH Brand Guidelines?"). All addressed in commits `75818da`, `0390a9f`, `336971d`.
+
+**Sidebar restructure:**
+- Sidebar now hosts the full filter block at the top: Date + window selector, Buildings chip multi-select, Channels chip multi-select, Price Mode 3-toggle (Host/Guest/Both), Tax Tester + Vendor CSV buttons
+- Below filters: Fee Categories nav with 9 collapsible groups
+- All BH brand tokens (cream bg, ink text, gold accent on active, steel for section labels)
+
+**Dynamic TitleBar component (new):**
+- Replaces old top FilterBar
+- Navy-gradient hero with Cormorant Garamond serif headline: "{N}-day forward · {selected category}"
+- Subtitle is the live filter summary: "07 May → 13 May · BH-26 · BH-73 · BH-435 · Airbnb + Booking · Both"
+- Right side: gold-serif "{units}" with "in scope" caption
+- Loading spinner overlay during refetch
+
+**Country categories now FUNCTIONAL:**
+- 🇪🇬 Egypt only → buildings = [BH-26, BH-73, BH-435, BH-OK, OTHER]
+- 🇦🇪 UAE only → buildings = [BH-DXB]
+- 🌍 Split → buildings = [] (all, with future side-by-side display)
+- Dashboard auto-refetches on selection
+
+**Analytic categories now FUNCTIONAL:**
+- 📊 By bedroom class / building / channel mix / capacity
+- Pivot mode passed to CrossRefTable, which re-sorts rows by the chosen dimension
+- Banner under TitleBar explains the active pivot
+
+**Files (commits 75818da → 336971d):**
+- New: `bookable-listings.ts`, `TitleBar.tsx`
+- Edited: `Sidebar.tsx` (absorbed FilterBar), `FeeAuditDashboard.tsx`, `KpiStrip.tsx`, `CrossRefTable.tsx`, `types.ts`, `build-fee-stack.ts`, `sync-pricelabs-daily.ts`, `sync-guesty-terms.ts`
+- Dead code: `FilterBar.tsx` no longer imported (kept on disk; will remove next pass)
+
+**Verification:** tsc clean, build clean (38.9s). Pushed `336971d` to main.
+
+---
+
+## 🟢 Earlier this turn — Fees Audit follow-up: MTL/SLT dedupe + BH brand tokens + Country/Analytic sidebar (commit `75818da`)
 
 User flagged 3 issues post-ship:
 1. "our units count are 77, why you mention 87" — was double-counting MTL parents
