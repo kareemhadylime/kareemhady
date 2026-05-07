@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Fee Audit dashboard UX polish (sidebar auto-collapse, sortable cross-ref, labeled quote inputs, dark-mode audit)
+## 🟢 Latest turn — node_modules auto-resync hook (Edit/Write on package.json → `npm install`)
+
+Follow-up to the npm-install-out-of-sync diagnosis. Wired a PostToolUse hook in `.claude/settings.json` so this never recurs:
+
+- `.claude/settings.json` — added a PostToolUse entry with matcher `Write|Edit|MultiEdit`, command `bash .claude/hooks/npm-install-on-deps-change.sh`, timeout 300, statusMessage "Resyncing node_modules…". Stop hook is preserved.
+- `.claude/hooks/npm-install-on-deps-change.sh` — new sidecar (no `jq` dep — Git Bash on Windows doesn't ship one):
+  - Reads tool-call JSON from stdin
+  - Cheap grep prefilter: bails immediately unless `file_path` ends in `package.json` / `package-lock.json` (so the hook's idle cost is near zero on every other Edit/Write)
+  - Otherwise extracts the path with sed, `cd` into its dirname, runs `npm install --no-audit --no-fund`
+  - Pipe-tested all 5 branches (pkg.json hit / pkg-lock hit / non-pkg / nested-worktree path / empty input)
+
+Mid-session sentinel proof showed the hook didn't fire — the harness watcher doesn't pick up newly-added hooks until `/hooks` is opened or the session restarts (documented behavior). The hook is wired correctly; user just needs to reload once after pulling.
+
+Files committed via this worktree branch (cleaner than the main-repo edits I'd done first, which got reverted).
+
+---
+
+## 🟢 Earlier this turn — Repo-wide tsc cleanup (no commit needed — local env issue)
+
+After the UX-polish commit (`1556940`) shipped, user asked what to do about the two pre-existing tsc errors I'd flagged:
+- `src/app/api/dine/[token]/qr.svg/route.ts`: `Cannot find module 'qrcode'`
+- `src/app/fmplus/_components/fmplus-logo.test.tsx`: `Cannot find module '@testing-library/react'`
+
+**Diagnosis** — `qrcode` (^1.5.4), `@types/qrcode` (^1.5.6), and `@testing-library/react` (^16.3.2) were already declared in `package.json` and present in `package-lock.json`, but `npm install` had never been re-run after they were added. So my local `/c/kareemhady/node_modules` was missing them. Prod / Vercel was unaffected (re-installs from lockfile on every deploy).
+
+**Fix** — single `npm install` in `/c/kareemhady` (added 76 packages in 2 s). `npx tsc --noEmit` now exits 0 across the whole repo.
+
+**Nothing committed or pushed** — `package.json` + lockfile were already correct on main; only the local `node_modules` (gitignored) was stale.
+
+Suggested follow-up if user wants this to never recur: add a hook that runs `npm install` whenever `package.json` / `package-lock.json` change. Awaiting word.
+
+---
+
+## 🟢 Earlier this turn — Fee Audit dashboard UX polish (sidebar auto-collapse, sortable cross-ref, labeled quote inputs, dark-mode audit)
 
 User-reported issues from screenshots of `/beithady/analytics/reports/fees-audit`:
 1. Left sidebar didn't auto-collapse on hover-out
