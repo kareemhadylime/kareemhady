@@ -208,6 +208,8 @@ export async function processReviewReplyQueue(maxNew = 20): Promise<{
 export type ReviewWithReply = {
   review_id: string;
   rating: number | null;
+  /** Rating normalized to 1-5 (Airbnb is 1-5 native, Guesty is 1-10). */
+  stars: 1 | 2 | 3 | 4 | 5 | null;
   text: string;
   reviewer_name: string | null;
   channel: string | null;
@@ -221,9 +223,52 @@ export type ReviewWithReply = {
   agent_final: string | null;
 };
 
-export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithReply[]> {
+/** Bucket for the "Replied status" filter. `no_draft` covers reviews
+ *  that haven't been processed by the AI cron yet. */
+export type ReviewStatusFilter =
+  | 'all'
+  | 'no_draft'
+  | 'draft'
+  | 'approved'
+  | 'sent'
+  | 'dismissed'
+  | 'failed';
+
+export type ReviewBuildingFilter = 'all' | 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'OTHER';
+
+export type ReviewFilters = {
+  /** 1-5 stars (post-normalization). 0 / undefined = no filter. */
+  stars?: 1 | 2 | 3 | 4 | 5;
+  status?: ReviewStatusFilter;
+  building?: ReviewBuildingFilter;
+};
+
+/** Map a raw rating (1-5 from Airbnb, 1-10 from Guesty) to a 1-5 star bucket. */
+function normalizeStars(rating: number | null): 1 | 2 | 3 | 4 | 5 | null {
+  if (rating == null || !Number.isFinite(rating)) return null;
+  const n = rating > 5 ? Math.round(rating / 2) : Math.round(rating);
+  if (n <= 1) return 1;
+  if (n >= 5) return 5;
+  return n as 2 | 3 | 4;
+}
+
+export async function listReviewsWithReplies(
+  limit = 100,
+  filters: ReviewFilters = {},
+): Promise<ReviewWithReply[]> {
   const sb = supabaseAdmin();
-  const { data: reviews, error: reviewsErr } = await sb
+
+  // Star filter applies as a SQL `gte/lte` range on `overall_rating`. Done
+  // SQL-side because rating is on this table directly and cuts the result
+  // set early. Status + building filter need the joined tables, so apply
+  // them in JS post-fetch. To compensate, fetch a generous pool when those
+  // post-filters are active so users don't see a 5-row page.
+  const hasPostFilter =
+    (filters.status && filters.status !== 'all') ||
+    (filters.building && filters.building !== 'all');
+  const fetchLimit = hasPostFilter ? Math.max(limit * 4, 400) : limit;
+
+  let q = sb
     .from('guesty_reviews')
     .select(
       'id, channel_id, listing_id, overall_rating, public_review, created_at_source, created_at_guesty, synced_at',
@@ -234,8 +279,25 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
     // is the final tiebreaker for any row missing both — should never happen
     // in practice but keeps ordering total.
     .order('created_at_guesty', { ascending: false, nullsFirst: false })
-    .order('synced_at', { ascending: false, nullsFirst: false })
-    .limit(limit);
+    .order('synced_at', { ascending: false, nullsFirst: false });
+
+  if (filters.stars) {
+    // Map the 1-5 star bucket to the inclusive rating range that matches
+    // both the Airbnb (1-5) and Guesty (1-10) scales.
+    //   5★ → 5 OR ≥ 9   |   4★ → 4 OR 7-8.5   |   3★ → 3 OR 5.5-6.5
+    //   2★ → 2 OR 3.5-5 |   1★ → 1 OR ≤ 3
+    const rangeByStars: Record<1 | 2 | 3 | 4 | 5, [number, number]> = {
+      5: [5, 10],
+      4: [4, 8],
+      3: [3, 6],
+      2: [2, 5],
+      1: [1, 3],
+    };
+    const [lo, hi] = rangeByStars[filters.stars];
+    q = q.gte('overall_rating', lo).lte('overall_rating', hi);
+  }
+
+  const { data: reviews, error: reviewsErr } = await q.limit(fetchLimit);
   if (reviewsErr) {
     console.warn('[list-reviews-with-replies] supabase error', reviewsErr.message);
     return [];
@@ -285,7 +347,7 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
     }
   }
 
-  return rows.map(r => {
+  const projected = rows.map(r => {
     const reply = replyMap.get(r.id);
     const listing = r.listing_id ? listingMap.get(r.listing_id) : null;
     // Display date matches the sort field — `created_at_guesty` is populated
@@ -296,6 +358,7 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
     return {
       review_id: r.id,
       rating: r.overall_rating != null ? Math.round(r.overall_rating) : null,
+      stars: normalizeStars(r.overall_rating),
       text: r.public_review || '',
       reviewer_name: reply?.reviewer_name || null,
       channel: r.channel_id,
@@ -309,4 +372,19 @@ export async function listReviewsWithReplies(limit = 50): Promise<ReviewWithRepl
       agent_final: reply?.agent_final || null,
     };
   });
+
+  // Apply the cross-table filters (status + building) post-fetch, then
+  // re-slice to the caller's requested limit. Order is preserved (the
+  // SQL fetch was already ordered DESC by created_at_guesty).
+  let filtered = projected;
+  if (filters.status && filters.status !== 'all') {
+    filtered = filtered.filter(r => {
+      if (filters.status === 'no_draft') return !r.reply_id;
+      return r.reply_status === filters.status;
+    });
+  }
+  if (filters.building && filters.building !== 'all') {
+    filtered = filtered.filter(r => r.building_code === filters.building);
+  }
+  return filtered.slice(0, limit);
 }

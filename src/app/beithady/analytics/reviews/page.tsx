@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { Star, Sparkles, Send, RefreshCw, Check, X, ChevronLeft, AlertTriangle, ExternalLink } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listReviewsWithReplies } from '@/lib/beithady/pipeline/review-replies';
+import {
+  listReviewsWithReplies,
+  type ReviewBuildingFilter,
+  type ReviewFilters,
+  type ReviewStatusFilter,
+} from '@/lib/beithady/pipeline/review-replies';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { generateReplyAction, sendReplyAction, dismissReplyAction, regenerateReplyAction } from './actions';
@@ -16,9 +21,73 @@ const CHANNEL_BADGE: Record<string, string> = {
   vrbo: 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-200',
 };
 
-export default async function ReviewsPage() {
+const STATUS_OPTIONS: Array<{ value: ReviewStatusFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'no_draft', label: 'Need draft' },
+  { value: 'draft', label: 'Draft pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'dismissed', label: 'Dismissed' },
+];
+
+const BUILDING_OPTIONS: Array<{ value: ReviewBuildingFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'BH-26', label: 'BH-26' },
+  { value: 'BH-73', label: 'BH-73' },
+  { value: 'BH-435', label: 'BH-435' },
+  { value: 'BH-OK', label: 'BH-OK' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+const STATUS_VALUES = new Set<ReviewStatusFilter>(STATUS_OPTIONS.map((o) => o.value));
+const BUILDING_VALUES = new Set<ReviewBuildingFilter>(BUILDING_OPTIONS.map((o) => o.value));
+
+function parseFilters(sp: { rating?: string; status?: string; building?: string }): ReviewFilters {
+  const out: ReviewFilters = {};
+  const ratingNum = sp.rating ? Number(sp.rating) : NaN;
+  if ([1, 2, 3, 4, 5].includes(ratingNum)) {
+    out.stars = ratingNum as 1 | 2 | 3 | 4 | 5;
+  }
+  if (sp.status && STATUS_VALUES.has(sp.status as ReviewStatusFilter) && sp.status !== 'all') {
+    out.status = sp.status as ReviewStatusFilter;
+  }
+  if (
+    sp.building &&
+    BUILDING_VALUES.has(sp.building as ReviewBuildingFilter) &&
+    sp.building !== 'all'
+  ) {
+    out.building = sp.building as ReviewBuildingFilter;
+  }
+  return out;
+}
+
+/** Build a `/beithady/analytics/reviews?...` URL preserving the other
+ *  filter params and toggling the named one to `value`. Passing the
+ *  current value clears it. */
+function filterHref(
+  current: { rating?: string; status?: string; building?: string },
+  patch: { rating?: string; status?: string; building?: string },
+): string {
+  const next = { ...current, ...patch };
+  // Clearing semantics: 'all' / undefined / empty → drop the param.
+  const params = new URLSearchParams();
+  if (next.rating && next.rating !== 'all') params.set('rating', next.rating);
+  if (next.status && next.status !== 'all') params.set('status', next.status);
+  if (next.building && next.building !== 'all') params.set('building', next.building);
+  const qs = params.toString();
+  return qs ? `/beithady/analytics/reviews?${qs}` : '/beithady/analytics/reviews';
+}
+
+type SearchParams = Promise<{ rating?: string; status?: string; building?: string }>;
+
+export default async function ReviewsPage({ searchParams }: { searchParams?: SearchParams }) {
   await requireBeithadyPermission('analytics', 'read');
-  const reviews = await listReviewsWithReplies(50);
+  const sp = (await searchParams) || {};
+  const filters = parseFilters(sp);
+  const reviews = await listReviewsWithReplies(50, filters);
+  const filtered =
+    !!filters.stars || !!filters.status || !!filters.building;
 
   const drafted = reviews.filter(r => r.reply_status === 'draft').length;
   const sent = reviews.filter(r => r.reply_status === 'sent').length;
@@ -40,8 +109,10 @@ export default async function ReviewsPage() {
         }
       />
 
+      <FilterBar sp={sp} />
+
       <section className="grid grid-cols-3 sm:grid-cols-4 gap-3 text-xs">
-        <Stat label="Reviews" value={reviews.length} />
+        <Stat label={filtered ? 'Filtered' : 'Reviews'} value={reviews.length} />
         <Stat label="Drafts pending" value={drafted} accent="amber" />
         <Stat label="Sent" value={sent} accent="emerald" />
         <Stat label="Need draft" value={ungenerated} accent="cyan" />
@@ -57,7 +128,19 @@ export default async function ReviewsPage() {
       <div className="ix-card overflow-hidden">
         {reviews.length === 0 ? (
           <div className="p-10 text-center text-sm text-slate-500">
-            No reviews synced yet. Run the Guesty sync first.
+            {filtered ? (
+              <>
+                No reviews match the current filters.{' '}
+                <Link
+                  href="/beithady/analytics/reviews"
+                  className="font-medium text-cyan-700 dark:text-cyan-400 hover:underline"
+                >
+                  Clear filters
+                </Link>
+              </>
+            ) : (
+              'No reviews synced yet. Run the Guesty sync first.'
+            )}
           </div>
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -237,5 +320,102 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
       <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
       <div className={`text-lg font-bold tabular-nums ${cls}`}>{value.toLocaleString()}</div>
     </div>
+  );
+}
+
+function FilterBar({
+  sp,
+}: {
+  sp: { rating?: string; status?: string; building?: string };
+}) {
+  const activeRating = sp.rating && /^[1-5]$/.test(sp.rating) ? sp.rating : 'all';
+  const activeStatus = sp.status && STATUS_VALUES.has(sp.status as ReviewStatusFilter) ? sp.status : 'all';
+  const activeBuilding = sp.building && BUILDING_VALUES.has(sp.building as ReviewBuildingFilter) ? sp.building : 'all';
+  const anyActive = activeRating !== 'all' || activeStatus !== 'all' || activeBuilding !== 'all';
+
+  return (
+    <section className="ix-card p-3 space-y-2.5">
+      <FilterGroup label="Rating">
+        <PillLink href={filterHref(sp, { rating: undefined })} active={activeRating === 'all'}>
+          All
+        </PillLink>
+        {[5, 4, 3, 2, 1].map((n) => (
+          <PillLink
+            key={n}
+            href={filterHref(sp, { rating: String(n) })}
+            active={activeRating === String(n)}
+          >
+            <Star size={11} className="inline mr-0.5" fill="currentColor" />
+            {n}★
+          </PillLink>
+        ))}
+      </FilterGroup>
+      <FilterGroup label="Replied status">
+        {STATUS_OPTIONS.map((opt) => (
+          <PillLink
+            key={opt.value}
+            href={filterHref(sp, { status: opt.value })}
+            active={activeStatus === opt.value}
+          >
+            {opt.label}
+          </PillLink>
+        ))}
+      </FilterGroup>
+      <FilterGroup label="Building">
+        {BUILDING_OPTIONS.map((opt) => (
+          <PillLink
+            key={opt.value}
+            href={filterHref(sp, { building: opt.value })}
+            active={activeBuilding === opt.value}
+          >
+            {opt.label}
+          </PillLink>
+        ))}
+      </FilterGroup>
+      {anyActive && (
+        <div className="flex justify-end">
+          <Link
+            href="/beithady/analytics/reviews"
+            className="text-[11px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline underline-offset-2"
+          >
+            Clear all filters
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400 min-w-[7rem]">
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5 flex-wrap">{children}</div>
+    </div>
+  );
+}
+
+function PillLink({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  const cls = active
+    ? 'bg-cyan-700 text-white border-cyan-700 dark:bg-cyan-600 dark:border-cyan-600'
+    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800';
+  return (
+    <Link
+      href={href}
+      aria-pressed={active}
+      className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-medium transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${cls}`}
+    >
+      {children}
+    </Link>
   );
 }

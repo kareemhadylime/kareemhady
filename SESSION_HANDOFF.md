@@ -1,6 +1,35 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Reviews list: sort newest first by `created_at_guesty`
+## Latest turn — Review responses: filters by Star rating + Replied status + Building
+
+User: "Need Filter by Star Rating, Replied Status, Building." Added all three as URL-state filters with a deep-linkable filter bar above the stats grid.
+
+- **`src/lib/beithady/pipeline/review-replies.ts`**:
+  - New types: `ReviewStatusFilter` (`'all' | 'no_draft' | 'draft' | 'approved' | 'sent' | 'dismissed' | 'failed'`), `ReviewBuildingFilter` (`'all' | 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'OTHER'`), `ReviewFilters` ({ stars 1-5, status, building }).
+  - New `normalizeStars(rating)` helper — maps Airbnb 1-5 + Guesty 1-10 to a single 1-5 bucket.
+  - `ReviewWithReply` now includes a derived `stars` field so the page can use the same normalization for display + filter consistency.
+  - `listReviewsWithReplies(limit, filters)` extended:
+    - Star filter applied SQL-side via `gte/lte` ranges on `overall_rating` (cuts the result set early; range maps cover both rating scales — e.g. 5★ = 5 OR ≥9).
+    - Status + building applied JS-side post-fetch (cross-table joins).
+    - When a JS-side filter is active, the SQL `limit` is bumped to `max(limit*4, 400)` so users don't see a 5-row page from a sparsely-distributed match. Final result re-sliced to the requested limit.
+    - Default page limit bumped from 50 → 100 to give the filters more to work with.
+
+- **`src/app/beithady/analytics/reviews/page.tsx`**:
+  - Page now accepts `searchParams: Promise<{ rating?, status?, building? }>` (Next 16 async-search-params shape) and parses into a validated `ReviewFilters`.
+  - New `FilterBar` server component renders 3 horizontal pill rows (Rating · Replied status · Building) above the stats grid. Each pill is a `<Link>` with the toggled URL — server-rendered, deep-linkable, no client state.
+  - New `filterHref(current, patch)` helper preserves the other params when toggling one. `value === 'all'` clears the param entirely so URLs stay clean.
+  - "Clear all filters" link appears when any filter is active.
+  - Empty state copy: "No reviews match the current filters · Clear filters" (deep-link to bare URL) when filters are set, otherwise the original "No reviews synced yet" copy.
+  - First Stat tile labeled "Filtered" instead of "Reviews" when any filter is active so the count semantics are clear.
+
+`tsc --noEmit` clean. URL examples:
+- `?rating=5&building=BH-26` → 5★ reviews at BH-26
+- `?status=no_draft` → reviews waiting for an AI draft (the cron-backlog view)
+- `?status=sent&rating=3` → low-rating sent replies (post-incident audit lens)
+
+---
+
+## Earlier turn — Reviews list: sort newest first by `created_at_guesty`
 
 User: "sort newest to last." Screenshot showed reviews listed with 6/2025 and 7/2025 dates at the top while we know data goes up to 2026-05-05. Diagnosis via Supabase MCP:
 
