@@ -1,6 +1,54 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Real OTA fee model: Airbnb host-only (15.5% + 14% VAT), Booking/Other 15%, Guest service fee = 0
+## Latest turn — Beithady Perf Dashboard: Fees Audit theme refactor + full-width
+
+**Commit `b40ef52`** — 10 files changed (270 insertions, 77 deletions).
+
+Replaced the white-card + lavender (`#eae9f3`) theme on the Performance Dashboard with the canonical Fees Audit visual language:
+
+- **`title-bar.tsx`** (new) — navy gradient hero (`linear-gradient(135deg, var(--bh-ink) 0%, #2c4d7a 100%)`), gold eyebrow, Cormorant Garamond title, gold chip row for date/building/compare, gold "Customize" button. Replaces `top-bar.tsx` (kept but unimported).
+- **`panel-frame.tsx`** — cream bg (`var(--bh-cream)`), 1px mute border, 4px colored left edge via new `accent` prop (ink/gold/steel/green/amber/red).
+- **`panels/hero-kpi.tsx`** — Cormorant Garamond value in accent color, steel sparkline. Drops `goldEdge` workaround.
+- **`dashboard-shell.tsx`** — drops outer rounded-xl wrapper + lavender bg + pattern watermark. TitleBar replaces TopBar. Hero KPIs assigned accents: occupancy=ink, mtd-revenue=gold, revpar=steel, pace=green/red, reviews=amber, response-time=steel.
+- **`left-rail.tsx`** — cream bg + mute border + ink/cream pill states (all via `style={{}}`).
+- **`customize-drawer.tsx`**, **`mobile-filter-sheet.tsx`**, **`empty-snapshot.tsx`** — cream bg, mute borders, ink text.
+- **`panels/ai-insights-tray.tsx`** — gradient harmonized to TitleBar (`#2c4d7a` endpoint, was `#1e3a5f`).
+- **`page.tsx`** — `containerClass="max-w-[1900px]"` (was default `max-w-6xl` ~1152px). Added `<BeithadyHeader>` for eyebrow + title above dashboard.
+
+tsc: clean (0 errors). Dev server: compiled in 475ms, no module errors.
+
+---
+
+## 🟢 Latest turn — P0 fix: Beithady Performance Dashboard route was 500'ing on Kika row collision
+
+**Production was down** at `app.limeinc.cc/beithady/analytics/performance` with Chrome's "This page couldn't load" (HTTP 500). Investigated via Vercel runtime logs + direct Supabase query.
+
+**Root cause:** `daily_report_snapshots` table is shared across multiple report kinds (`beithady_daily`, `kika_daily`, ...). The Kika cron writes its row 5 seconds after Beithady's on the same `report_date`. My `loadSnapshot` (`src/app/beithady/analytics/performance/_lib/load-snapshot.ts`) ordered by `generated_at DESC` and didn't filter by `report_kind` — so it returned the Kika payload (no Beithady-shaped `all`/`reviews`/`per_building`), which crashed the React Server Component on `payload.all.occupancy_today_pct.toFixed(1)`.
+
+Verified directly via Supabase MCP:
+
+| `report_date` | `generated_at` | `report_kind` | `payload.all` |
+|---|---|---|---|
+| 2026-05-07 | 06:00:36 | **kika_daily** | NULL (from Beithady's perspective) |
+| 2026-05-07 | 06:00:31 | beithady_daily | $24.9k MTD, 46.8% occ ✓ |
+
+**Two fixes pushed to main (auto-deploy via GitHub→Vercel):**
+
+- **`79452c2`** — defensive: fetch 5 most-recent rows, return the first WELL-FORMED one (`all && reviews && per_building`). Wrap Supabase errors in try/catch instead of throwing — transient DB blips now surface as `{ status: 'missing' }` and render `EmptySnapshot` instead of a 500. Also addresses a separate pre-existing P1 (raw `PostgrestError` reaching the RSC) that a code review flagged during Phase 1.
+- **`5cb1073`** — root cause: added `.eq('report_kind', 'beithady_daily')` to both `loadSnapshot` and `loadEarliestSnapshotDate`. Kika rows are now invisible to the dashboard. Reordered chain so `.eq` filters come after `.select` (idiomatic supabase-js).
+
+Scheduled a wakeup at 22:28 to verify the production deploy lands the fix and runtime logs go clean.
+
+**Plan completion context:** the broader Beithady Performance Dashboard plan (58 tasks, 9 phases) shipped in this same session via subagent-driven-development — full PDF parity + analytical extensions + AI insights + customize drawer + collapsible rail + snapshot scrubber + PDF export + mobile sheet + a11y polish, all on main as commits `5a417fe..200a2af`. Brand was course-corrected mid-flight from invented gold/cream/dark-navy to the official Pantone palette (`#003462` Deep Navy, `#6077a6` Steel Blue, `#eae9f3` Pale Lavender) — assets at `public/brand/beithady/Wordmark-03.png`, `Icon-03.png`, `pattern-bg.png`.
+
+**V1.5 follow-ups noted:**
+- Dig into why the Beithady cron occasionally writes its OWN row with `payload.all = null` (e.g. 2026-05-05 had a beithady_daily row with `missing_all: true, last_build_error: null` — probably a Vercel function timeout mid-build, not a real error). The well-formed guard handles this gracefully now, but the cron should be made more resilient.
+- Existing `render-html.tsx` + `render-pdf.tsx` use off-brand cream/gold colors; the dashboard does not inherit but those renderers should be brought into brand alignment.
+- The other concurrent worktree on `flamboyant-chandrasekhar-4473e5` shipped fees-audit + P&L work (`1fb5639`, etc.) on top of my dashboard commits via repeated rebases. All co-resident on `main`.
+
+---
+
+## 🟢 Earlier turn — Real OTA fee model: Airbnb host-only (15.5% + 14% VAT), Booking/Other 15%, Guest service fee = 0
 
 User shared real Airbnb invoice (HMZZCAASQN) and Booking confirmation (PC029090). Two corrections vs. the previous model assumptions:
 
