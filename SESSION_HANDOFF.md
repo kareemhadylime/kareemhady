@@ -1,6 +1,37 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## Latest turn — Daily activity panel: surface per-building breakdown (no payload changes)
+## Latest turn — Perf Dashboard left-rail filters were no-ops (Period stub + Building/Compare wrote URL state nobody read)
+
+User reported: "when I change anything on the left menu, nothing happens." Screenshot: BH-73 selected in the rail, but the dashboard still shows portfolio totals (9 / 7 / 4 / 36 — same as the All bucket). Confirmed three bugs:
+
+1. **Period pills were display-only stubs** — `left-rail.tsx:74` had a comment "Period pills are display-only stubs" and the `<Pill>` usage had no `onClick` at all. Today/Yesterday/This week didn't even update URL state.
+2. **Building pills did update `?building=` in the URL** (and the TitleBar eyebrow showed the chosen building) but no panel ever read `state.building` — Hero KPIs and Daily Activity always sourced from `payload.all`.
+3. **Compare pills** updated `?compare=` similarly with no consumer (acceptable for now — comparison data isn't rendered anywhere yet, defer).
+
+**Fixes (4 files, 149 insertions, 46 deletions):**
+
+- **`dashboard-shell.tsx`** — derive `buildingFilter: BuildingCode | 'all'` from `state.building`, validate against `BUILDING_CODE_SET`, swap `payload.all` for `payload.per_building[code]` in the Hero KPIs (Occupancy, MTD Revenue, RevPAR, Pace) when filtered. RevPAR pulls from `payload.revpar.by_building[code]`. Hero KPI labels get a ` · BH-26` suffix when filtered. Sparklines hidden when filtered (they're portfolio-only). Pace accent computed from the active bucket. Added an amber filter banner at the top of the main column when filtered, with a "Clear filter" link, that explains which panels filter and which still show portfolio data (channel mix, payouts, reviews, etc.).
+- **`panels/daily-activity.tsx`** — accepts `buildingFilter?: BuildingCode | 'all'`. Headline numbers + sub-badges now source from `payload.per_building[code]` when filtered. Per-building chip row hides when filtered (would just echo the headline). Header gets ` · BH-26` suffix. Exception sub-counts (cleaning queue, flagged check-ins, cancellations, no-shows) hidden when filtered to avoid showing portfolio-wide counts next to a single-building tile.
+- **`left-rail.tsx`** — Period pills now real buttons:
+  - Today (active when `!state.date`) → `onChange({ date: undefined })`
+  - Yesterday (active when `state.date === ymdMinusOne(snapshotDate)`) → sets `date` to yesterday's snapshot YMD
+  - This week — disabled with `· soon` suffix and a tooltip explaining weekly aggregate isn't supported (snapshot scrubber is the historical path)
+  - Plus an extra "active arbitrary date" pill that surfaces when the snapshot scrubber has set `?date=` to something other than today/yesterday — clicking it returns to latest
+  - `Pill` component extended with `disabled` + `title` props (60% opacity + steel border + `cursor-not-allowed` when disabled).
+  - New `ymdMinusOne(ymd)` helper for date math (UTC).
+  - Now requires a `snapshotDate` prop.
+- **`mobile-filter-sheet.tsx`** — added `snapshotDate` prop, forwarded to `LeftRail`.
+
+`tsc --noEmit` clean. Visibility persistence intact. Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+**Known acceptable gaps:**
+- Channel mix, payouts, reviews, conversations, top-movers, cancel-risk, monthly-goal, etc. don't have per-building variants on the payload — they remain portfolio-only when filtered. The amber banner sets that expectation explicitly.
+- Compare pills still no-op functionally — kept as URL state sinks (and the TitleBar reflects the chosen mode). Wire-up belongs with the comparison data builder, not now.
+- "This week" period is intentionally disabled until weekly aggregation is built.
+
+---
+
+## Earlier turn — Daily activity panel: surface per-building breakdown (no payload changes)
 
 User shared the existing Daily Performance Report HTML render and asked "It's already computed here at the report, can you use the information?" — pointing out that `payload.per_building` already carries the per-building Today numbers (Total units / Occupied / Check-ins / Check-outs / Turnovers) the report shows in its main table. So instead of extending the cron payload (I'd just started adding `guests` to `ReservationRow` for "guests in total" / "shortest turnover" / "early checkouts" — none of which the report actually computes either), I reverted that work and surfaced the existing per-building data on the Daily Activity panel.
 

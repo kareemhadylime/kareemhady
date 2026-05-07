@@ -27,8 +27,16 @@ import { CustomizeDrawer } from './customize-drawer';
 import { MobileFilterSheet } from './mobile-filter-sheet';
 import { useVisibility } from '../_hooks/use-visibility';
 import { usePerfUrlState } from '../_hooks/use-url-state';
-import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
+import type { BuildingCode, DailyReportPayload } from '@/lib/beithady-daily-report/types';
 import type { CompareMode } from '../_hooks/use-url-state';
+
+const BUILDING_CODE_SET: ReadonlySet<string> = new Set([
+  'BH-26',
+  'BH-73',
+  'BH-435',
+  'BH-OK',
+  'OTHER',
+]);
 
 type Props = {
   payload: DailyReportPayload;
@@ -64,7 +72,20 @@ export function DashboardShell({
   }, []);
 
   const railColWidth = isMobile ? 0 : (rail.collapsed ? 44 : 200);
-  const paceAccent = payload.all.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
+
+  // Active bucket: when the user picks a building from the rail, swap the
+  // headline numbers (Hero KPIs + Daily activity) from portfolio totals to
+  // that building's bucket. Falls back to portfolio when 'all' or unknown.
+  const buildingFilter: BuildingCode | 'all' =
+    BUILDING_CODE_SET.has(state.building) ? (state.building as BuildingCode) : 'all';
+  const bucket = buildingFilter === 'all' ? payload.all : payload.per_building[buildingFilter];
+  const isFiltered = buildingFilter !== 'all';
+  const filterSuffix = isFiltered ? ` · ${buildingFilter}` : '';
+  const paceAccent = bucket.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
+  const revparValue =
+    isFiltered && payload.revpar?.by_building
+      ? payload.revpar.by_building[buildingFilter as BuildingCode] ?? null
+      : payload.revpar?.all ?? null;
 
   return (
     <>
@@ -91,12 +112,36 @@ export function DashboardShell({
           <LeftRail
             state={state}
             onChange={update}
+            snapshotDate={snapshotDate}
             collapsed={rail.collapsed}
             pinned={rail.pinned}
             onTogglePin={rail.togglePinned}
           />
         </div>
         <main className="grid grid-cols-12 gap-3 sm:gap-4">
+          {isFiltered && (
+            <div
+              className="col-span-12 rounded-md px-3 py-2 text-[11px]"
+              style={{
+                background: '#fdf3da',
+                color: '#7a5300',
+                border: '1px solid #f1d889',
+              }}
+              role="status"
+            >
+              Filtered to <strong>{buildingFilter}</strong> — Hero KPIs and Daily activity show {buildingFilter} only.
+              Channel mix, payouts, reviews, and other portfolio panels show all-portfolio data.{' '}
+              <button
+                type="button"
+                onClick={() => update({ building: 'all' })}
+                className="underline hover:opacity-80"
+                style={{ color: '#7a5300' }}
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+
           {/* AI Insights tray (renders nothing when no insights) — full width */}
           {visibility['ai-insights'] && (
             <div className="col-span-12">
@@ -110,6 +155,7 @@ export function DashboardShell({
               <DailyActivity
                 payload={payload}
                 snapshotDate={snapshotDate}
+                buildingFilter={buildingFilter}
                 onHide={() => setPanel('daily-activity', false)}
               />
             </div>
@@ -119,10 +165,10 @@ export function DashboardShell({
           <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {visibility['hero-occupancy'] && (
               <HeroKpi
-                label="Occupancy"
-                value={`${payload.all.occupancy_today_pct.toFixed(1)}%`}
+                label={`Occupancy${filterSuffix}`}
+                value={`${bucket.occupancy_today_pct.toFixed(1)}%`}
                 delta={{ direction: 'flat', text: 'today' }}
-                spark={payload.sparklines?.occupancy}
+                spark={isFiltered ? undefined : payload.sparklines?.occupancy}
                 drillTo="/beithady/analytics/performance"
                 accent="ink"
                 onHide={() => setPanel('hero-occupancy', false)}
@@ -130,10 +176,10 @@ export function DashboardShell({
             )}
             {visibility['hero-mtd-revenue'] && (
               <HeroKpi
-                label="MTD Revenue"
-                value={`$${(payload.all.revenue_mtd_usd / 1000).toFixed(1)}k`}
-                delta={{ direction: payload.all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: `${payload.all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${payload.all.pickup_vs_prior_month_pct.toFixed(1)}% vs LM` }}
-                spark={payload.sparklines?.mtd_revenue}
+                label={`MTD Revenue${filterSuffix}`}
+                value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
+                delta={{ direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: `${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}% vs LM` }}
+                spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
                 drillTo="/beithady/financials?period=mtd"
                 accent="gold"
                 onHide={() => setPanel('hero-mtd-revenue', false)}
@@ -141,10 +187,10 @@ export function DashboardShell({
             )}
             {visibility['hero-revpar'] && (
               <HeroKpi
-                label="RevPAR"
-                value={payload.revpar?.all != null ? `$${payload.revpar.all.toFixed(2)}` : `$${payload.all.adr_mtd_usd.toFixed(0)}`}
-                delta={payload.revpar?.all != null ? { direction: 'flat', text: 'rev / available night' } : { direction: 'flat', text: 'ADR (RevPAR pending)' }}
-                spark={payload.sparklines?.revpar}
+                label={`RevPAR${filterSuffix}`}
+                value={revparValue != null ? `$${revparValue.toFixed(2)}` : `$${bucket.adr_mtd_usd.toFixed(0)}`}
+                delta={revparValue != null ? { direction: 'flat', text: 'rev / available night' } : { direction: 'flat', text: 'ADR (RevPAR pending)' }}
+                spark={isFiltered ? undefined : payload.sparklines?.revpar}
                 drillTo="/beithady/financials?metric=revpar"
                 accent="steel"
                 onHide={() => setPanel('hero-revpar', false)}
@@ -152,10 +198,10 @@ export function DashboardShell({
             )}
             {visibility['hero-pace'] && (
               <HeroKpi
-                label="Pace"
-                value={`${payload.all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${payload.all.pickup_vs_prior_month_pct.toFixed(1)}%`}
-                delta={{ direction: payload.all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
-                spark={payload.sparklines?.pace}
+                label={`Pace${filterSuffix}`}
+                value={`${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}%`}
+                delta={{ direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
+                spark={isFiltered ? undefined : payload.sparklines?.pace}
                 drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
                 accent={paceAccent as 'green' | 'red'}
                 onHide={() => setPanel('hero-pace', false)}
@@ -303,6 +349,7 @@ export function DashboardShell({
         onClose={() => setMobileFilterOpen(false)}
         state={state}
         onChange={update}
+        snapshotDate={snapshotDate}
       />
     </>
   );

@@ -2,7 +2,13 @@
 import { PanelFrame } from '../panel-frame';
 import { BUILDING_CODES, type BuildingCode, type DailyReportPayload } from '@/lib/beithady-daily-report/types';
 
-type Props = { payload: DailyReportPayload; snapshotDate: string; onHide?: () => void };
+type Props = {
+  payload: DailyReportPayload;
+  snapshotDate: string;
+  /** 'all' or a BuildingCode — when set to a building, headline numbers show that bucket only and the per-building chip row hides. */
+  buildingFilter?: BuildingCode | 'all';
+  onHide?: () => void;
+};
 
 const BUILDING_SHORT: Record<BuildingCode, string> = {
   'BH-26': 'BH-26',
@@ -24,12 +30,16 @@ const ACCENT_COLOR: Record<Accent, string> = {
 
 type Sub = { text: string; tone: 'red' | 'amber' | 'info' };
 
-export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
-  const all = payload.all;
-  const cleaningCount = payload.cleaning_ops_today?.length ?? 0;
-  const flaggedCheckins = payload.checkin_payment?.flagged?.length ?? 0;
-  const cancellationsToday = payload.cancellations?.count_today ?? 0;
-  const noShowsToday = payload.no_show?.no_shows?.length ?? 0;
+export function DailyActivity({ payload, snapshotDate, buildingFilter = 'all', onHide }: Props) {
+  const isFiltered = buildingFilter !== 'all';
+  const all = isFiltered ? payload.per_building[buildingFilter as BuildingCode] : payload.all;
+  // Exception sub-counts are only computed at the portfolio level today,
+  // so we hide them when filtered to a single building (avoid showing a
+  // misleading portfolio-wide count next to a building-specific tile).
+  const cleaningCount = isFiltered ? 0 : (payload.cleaning_ops_today?.length ?? 0);
+  const flaggedCheckins = isFiltered ? 0 : (payload.checkin_payment?.flagged?.length ?? 0);
+  const cancellationsToday = isFiltered ? 0 : (payload.cancellations?.count_today ?? 0);
+  const noShowsToday = isFiltered ? 0 : (payload.no_show?.no_shows?.length ?? 0);
 
   // Pretty date — fall back to raw string if Intl can't parse
   let humanDate = snapshotDate;
@@ -65,6 +75,11 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
     stayingSubs.push({ text: `${all.total_units - all.occupied_today} unit${all.total_units - all.occupied_today === 1 ? '' : 's'} vacant`, tone: 'info' });
   }
 
+  // Per-building chip row only makes sense at the portfolio level — when the
+  // user has filtered to a single building, the chip row is just a single
+  // chip echoing the headline. Suppress in that case.
+  const showBreakdown = !isFiltered;
+
   return (
     <section
       className="rounded-lg p-4 sm:p-5 shadow-sm"
@@ -79,7 +94,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           className="font-mono text-[9px] uppercase tracking-[0.12em]"
           style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
         >
-          📅 Daily activity
+          📅 Daily activity{isFiltered ? ` · ${BUILDING_SHORT[buildingFilter as BuildingCode]}` : ''}
         </div>
         <div className="flex items-center gap-3">
           <span
@@ -113,7 +128,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="green"
           drillTo="/beithady/operations?view=arrivals"
           subs={checkInSubs}
-          buildingBreakdown={perBuilding(payload, (b) => b.check_ins_today)}
+          buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.check_ins_today) : []}
         />
         <Tile
           icon="🛫"
@@ -122,7 +137,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="amber"
           drillTo="/beithady/operations?view=departures"
           subs={checkOutSubs}
-          buildingBreakdown={perBuilding(payload, (b) => b.check_outs_today)}
+          buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.check_outs_today) : []}
         />
         <Tile
           icon="🔁"
@@ -131,7 +146,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="gold"
           drillTo="/beithady/operations?view=turnovers"
           subs={turnoverSubs}
-          buildingBreakdown={perBuilding(payload, (b) => b.turnovers_today)}
+          buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.turnovers_today) : []}
         />
         <Tile
           icon="🏠"
@@ -140,7 +155,7 @@ export function DailyActivity({ payload, snapshotDate, onHide }: Props) {
           accent="ink"
           drillTo="/beithady/operations?view=in-house"
           subs={stayingSubs}
-          buildingBreakdown={perBuilding(payload, (b) => b.occupied_today)}
+          buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.occupied_today) : []}
         />
       </div>
     </section>

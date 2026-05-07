@@ -4,16 +4,19 @@ import type { PerfUrlState } from '../_hooks/use-url-state';
 type Props = {
   state: PerfUrlState;
   onChange: (patch: Partial<PerfUrlState>) => void;
+  /** Latest snapshot date in 'YYYY-MM-DD' (Cairo) — used to compute Yesterday. */
+  snapshotDate: string;
   collapsed?: boolean;
   pinned?: boolean;
   onTogglePin?: () => void;
 };
 
-const PERIODS = [
-  { value: undefined, label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: 'this-week', label: 'This week' },
-] as const;
+function ymdMinusOne(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
 
 const BUILDINGS = [
   { value: 'all', label: 'All' },
@@ -23,6 +26,9 @@ const BUILDINGS = [
   { value: 'BH-OK', label: 'BH-OK' },
   { value: 'OTHER', label: 'Other' },
 ] as const;
+// `PERIODS` constant inlined into the Period section now that the pills
+// have real onClick handlers (Today / Yesterday / This week + an active
+// indicator for arbitrary `?date=` dates set via the snapshot scrubber).
 
 const COMPARES = [
   { value: 'yesterday', label: 'vs Yesterday' },
@@ -32,7 +38,14 @@ const COMPARES = [
   { value: 'none', label: 'None' },
 ] as const;
 
-export function LeftRail({ state, onChange, collapsed = false, pinned = false, onTogglePin }: Props) {
+export function LeftRail({ state, onChange, snapshotDate, collapsed = false, pinned = false, onTogglePin }: Props) {
+  // Compute Today vs Yesterday based on the URL date param.
+  // Today  = no ?date= (latest snapshot)
+  // Yesterday = ?date=<latest - 1 day>
+  const yesterdayYmd = ymdMinusOne(snapshotDate);
+  const isYesterday = state.date === yesterdayYmd;
+  const isToday = !state.date && !isYesterday;
+  const isOtherDate = !!state.date && !isYesterday;
   if (collapsed) {
     return (
       <aside
@@ -69,10 +82,20 @@ export function LeftRail({ state, onChange, collapsed = false, pinned = false, o
       style={{ background: 'var(--bh-cream)', borderRight: '1px solid var(--bh-mute)' }}
     >
       <Section title="Period">
-        {/* Period pills are display-only stubs — real period semantics arrive in later phases. */}
-        {PERIODS.map((p) => (
-          <Pill key={p.label} active={p.label === 'Today'}>{p.label}</Pill>
-        ))}
+        <Pill active={isToday} onClick={() => onChange({ date: undefined })}>
+          Today
+        </Pill>
+        <Pill active={isYesterday} onClick={() => onChange({ date: yesterdayYmd })}>
+          Yesterday
+        </Pill>
+        <Pill disabled title="Weekly aggregate not yet supported — use the snapshot scrubber for historical days.">
+          This week <span style={{ opacity: 0.7 }}>· soon</span>
+        </Pill>
+        {isOtherDate && (
+          <Pill active onClick={() => onChange({ date: undefined })} title="Click to return to latest">
+            {state.date}
+          </Pill>
+        )}
       </Section>
       <Section title="Building">
         {BUILDINGS.map((b) => (
@@ -137,17 +160,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Pill({ active, children, onClick }: { active?: boolean; children: React.ReactNode; onClick?: () => void }) {
+function Pill({
+  active,
+  children,
+  onClick,
+  disabled,
+  title,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       aria-pressed={active}
-      className="rounded-md border px-2.5 py-1.5 text-left text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+      aria-disabled={disabled}
+      className="rounded-md border px-2.5 py-1.5 text-left text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed"
       style={
-        active
-          ? { background: 'var(--bh-ink)', color: 'var(--bh-cream)', borderColor: 'var(--bh-ink)' }
-          : { background: 'transparent', color: 'var(--bh-ink)', borderColor: 'var(--bh-mute)' }
+        disabled
+          ? { background: 'transparent', color: 'var(--bh-steel)', borderColor: 'var(--bh-mute)', opacity: 0.6 }
+          : active
+            ? { background: 'var(--bh-ink)', color: 'var(--bh-cream)', borderColor: 'var(--bh-ink)' }
+            : { background: 'transparent', color: 'var(--bh-ink)', borderColor: 'var(--bh-mute)' }
       }
     >
       {children}

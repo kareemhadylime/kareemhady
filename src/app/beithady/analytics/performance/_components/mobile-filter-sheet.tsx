@@ -8,9 +8,10 @@ type Props = {
   onClose: () => void;
   state: PerfUrlState;
   onChange: (patch: Partial<PerfUrlState>) => void;
+  snapshotDate: string;
 };
 
-export function MobileFilterSheet({ open, onClose, state, onChange }: Props) {
+export function MobileFilterSheet({ open, onClose, state, onChange, snapshotDate }: Props) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -37,7 +38,7 @@ export function MobileFilterSheet({ open, onClose, state, onChange }: Props) {
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full" style={{ background: 'var(--bh-mute)' }} aria-hidden="true" />
         <h2 className="mb-3 text-lg font-semibold" style={{ fontFamily: 'var(--bh-heading)' }}>Filters</h2>
-        <LeftRail state={state} onChange={onChange} />
+        <LeftRail state={state} onChange={onChange} snapshotDate={snapshotDate} />
         <button
           type="button"
           onClick={onClose}
