@@ -32,6 +32,7 @@ export async function loadEarliestSnapshotDate(): Promise<string | null> {
     const { data, error } = await supabaseAdmin()
       .from('daily_report_snapshots')
       .select('report_date')
+      .eq('report_kind', 'beithady_daily')
       .order('report_date', { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -64,6 +65,7 @@ export async function loadSnapshot(dateParam: string | undefined): Promise<Snaps
     const { data, error } = await supabaseAdmin()
       .from('daily_report_snapshots')
       .select('payload, generated_at')
+      .eq('report_kind', 'beithady_daily')
       .eq('report_date', date)
       .order('generated_at', { ascending: false })
       .limit(5);
