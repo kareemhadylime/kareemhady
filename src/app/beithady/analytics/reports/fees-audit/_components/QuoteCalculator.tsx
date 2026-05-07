@@ -49,50 +49,60 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
         Live Quote Calculator
       </h3>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
-        <select
-          value={listingId}
-          onChange={e => setListingId(e.target.value)}
-          className="rounded border border-slate-200 px-2 py-1.5 text-xs dark:bg-slate-800 dark:border-slate-700"
-        >
-          {listings.map(l => (
-            <option key={l.id} value={l.id}>
-              {l.nickname} · {l.bedrooms}BR
-            </option>
-          ))}
-        </select>
-        <select
-          value={channel}
-          onChange={e => setChannel(e.target.value as ChannelBucket)}
-          className="rounded border border-slate-200 px-2 py-1.5 text-xs dark:bg-slate-800 dark:border-slate-700"
-        >
-          {CHANNELS.map(c => (
-            <option key={c.key} value={c.key}>{c.label}</option>
-          ))}
-        </select>
-        <input
-          type="date"
-          value={dateIso}
-          onChange={e => setDateIso(e.target.value)}
-          className="rounded border border-slate-200 px-2 py-1.5 text-xs dark:bg-slate-800 dark:border-slate-700"
-        />
-        <input
-          type="number"
-          min={1}
-          max={365}
-          value={nights}
-          onChange={e => setNights(Number(e.target.value))}
-          placeholder="Nights"
-          className="rounded border border-slate-200 px-2 py-1.5 text-xs dark:bg-slate-800 dark:border-slate-700"
-        />
-        <input
-          type="number"
-          min={1}
-          max={20}
-          value={guests}
-          onChange={e => setGuests(Number(e.target.value))}
-          placeholder="Guests"
-          className="rounded border border-slate-200 px-2 py-1.5 text-xs dark:bg-slate-800 dark:border-slate-700"
-        />
+        <Field label="Listing">
+          <select
+            value={listingId}
+            onChange={e => setListingId(e.target.value)}
+            className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+          >
+            {listings.map(l => (
+              <option key={l.id} value={l.id}>
+                {l.nickname} · {l.bedrooms}BR
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Channel">
+          <select
+            value={channel}
+            onChange={e => setChannel(e.target.value as ChannelBucket)}
+            className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+          >
+            {CHANNELS.map(c => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Check-in date">
+          <input
+            type="date"
+            value={dateIso}
+            onChange={e => setDateIso(e.target.value)}
+            className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+          />
+        </Field>
+        <Field label="Nights">
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={nights}
+            onChange={e => setNights(Number(e.target.value))}
+            placeholder="Nights"
+            className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+          />
+        </Field>
+        <Field label="Guests">
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={guests}
+            onChange={e => setGuests(Number(e.target.value))}
+            placeholder="Guests"
+            className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+          />
+        </Field>
       </div>
 
       {loading ? (
@@ -163,8 +173,21 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <tr className="border-b border-slate-100 dark:border-slate-800">
-      <td className="py-1 text-slate-600 dark:text-slate-400">{label}</td>
-      <td className="py-1 text-right tabular-nums font-medium">{value}</td>
+      <td className="py-1 text-slate-600 dark:text-slate-300">{label}</td>
+      <td className="py-1 text-right tabular-nums font-medium text-slate-800 dark:text-slate-100">
+        {value}
+      </td>
     </tr>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }

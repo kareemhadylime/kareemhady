@@ -132,13 +132,13 @@ export function FeeAuditDashboard({
         />
 
         {error ? (
-          <div className="ix-card p-4 bg-rose-50 text-rose-800 text-sm">
+          <div className="ix-card p-4 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 text-sm">
             Error: {error}
           </div>
         ) : null}
 
         {!data && loading ? (
-          <div className="ix-card p-12 text-center text-slate-500">
+          <div className="ix-card p-12 text-center text-slate-500 dark:text-slate-400">
             <Loader2 className="inline animate-spin" size={20} />
             <span className="ml-2">Building fee audit…</span>
           </div>
@@ -194,7 +194,7 @@ export function FeeAuditDashboard({
             <AnomalyInspector anomalies={data.anomalies} />
 
             {data.warnings?.length ? (
-              <div className="ix-card p-3 text-xs text-amber-800 bg-amber-50">
+              <div className="ix-card p-3 text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30">
                 {data.warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
               </div>
             ) : null}

@@ -1,6 +1,27 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — Tax-stack bootstrap → KPI strip fully populated end-to-end (DB-only, no commits)
+## 🟢 Latest turn — Fee Audit dashboard UX polish (sidebar auto-collapse, sortable cross-ref, labeled quote inputs, dark-mode audit)
+
+User-reported issues from screenshots of `/beithady/analytics/reports/fees-audit`:
+1. Left sidebar didn't auto-collapse on hover-out
+2. Heatmap fonts too small / cramped
+3. Cross-Reference section title bar should be sortable
+4. Live Quote Calculator inputs had no labels
+5. Dark-mode font-color audit needed
+
+Changes (single round, `feat(beithady-fees-audit): UX polish`):
+- **Sidebar.tsx** — added `onMouseEnter`/`onMouseLeave` handlers with paired refs:
+  - Open panel: schedules `onToggle()` 2000ms after `mouseleave`, cancels on `mouseenter`
+  - Closed icon: schedules `onToggle()` 250ms after `mouseenter` (so brushing past doesn't pop it open), cancels on `mouseleave`
+  - Click still works as a hard toggle
+- **Heatmap.tsx** — bumped `text-[10px]` → `text-xs`, `px-1 py-0.5/1` → `px-2/3 py-1.5/2`, building/BR badges `text-[9px]` → `text-[11px]`. Added `dark:text-slate-200` / `dark:text-slate-400` / `dark:border-slate-700` everywhere a light-mode color was hardcoded.
+- **CrossRefTable.tsx** — full rewrite of header row: every column is now a `<SortHeader>` with click-to-sort (asc → desc → clear), arrow indicators (`ArrowUp`/`ArrowDown`/`ArrowUpDown` from lucide). Pivot mode (Analytic categories from sidebar) becomes the *default* ordering when no manual sort key is set. Added "clear sort" link in title when active. Memoized row metrics so sort doesn't re-derive avg/tax/3n on each compare. Dark-mode pass on thead bg, tbody borders, fee-color classes.
+- **QuoteCalculator.tsx** — wrapped each of the five inputs in a `<Field label="…">` helper component (uppercase 10px label above input). Labels: Listing, Channel, Check-in date, Nights, Guests. Also added explicit `dark:text-slate-100` so the dark dropdown text is readable, and dark variant for the breakdown Row text.
+- **FeeAuditDashboard.tsx** — added dark variants on the three small status surfaces (error/loading/warning banners).
+
+Verification:
+- `npx tsc --noEmit` — only pre-existing errors (qrcode types, @testing-library/react in fmplus test); zero `fees-audit/` errors
+- No new dependencies; only reused `lucide-react` icons already in the bundle
 
 Autonomous loop continued. After the perf fix landed, browser verification confirmed dashboard renders with real numbers but **Tax % KPI showed "—"** and Anomaly Inspector listed 79 "no tax configuration" warnings.
 

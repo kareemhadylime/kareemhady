@@ -93,17 +93,20 @@ export function Heatmap({
         Heatmap · {FEE_CATEGORY_LABEL[category]}
       </h3>
       {dates.length === 0 ? (
-        <p className="text-xs text-slate-500">No forward calendar data — run sync first.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">No forward calendar data — run sync first.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="text-[10px] border-collapse">
+          <table className="text-xs border-collapse w-full">
             <thead>
               <tr>
-                <th className="sticky left-0 bg-white dark:bg-slate-900 px-2 py-1 text-left font-semibold border-b border-slate-200">
+                <th className="sticky left-0 bg-white dark:bg-slate-900 px-3 py-2 text-left font-semibold border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
                   Listing
                 </th>
                 {dates.map(d => (
-                  <th key={d} className="px-1 py-1 text-center font-semibold border-b border-slate-200 whitespace-nowrap">
+                  <th
+                    key={d}
+                    className="px-2 py-2 text-center font-semibold border-b border-slate-200 dark:border-slate-700 whitespace-nowrap text-slate-700 dark:text-slate-200"
+                  >
                     {d.slice(5)}
                   </th>
                 ))}
@@ -112,10 +115,14 @@ export function Heatmap({
             <tbody>
               {listings.map(l => (
                 <tr key={l.id}>
-                  <td className="sticky left-0 bg-white dark:bg-slate-900 px-2 py-0.5 font-medium whitespace-nowrap text-slate-700">
-                    <span className="text-[9px] text-slate-400">{l.building}</span>{' '}
-                    {l.nickname}
-                    <span className="text-[9px] text-slate-400 ml-1">{l.bedrooms}BR</span>
+                  <td className="sticky left-0 bg-white dark:bg-slate-900 px-3 py-1.5 font-medium whitespace-nowrap text-slate-700 dark:text-slate-200">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 mr-1">
+                      {l.building}
+                    </span>
+                    <span>{l.nickname}</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1.5">
+                      {l.bedrooms}BR
+                    </span>
                   </td>
                   {dates.map(d => {
                     const v = valueOf(l.id, d);
@@ -124,7 +131,7 @@ export function Heatmap({
                         key={d}
                         onClick={() => onCellClick(l.id, d)}
                         style={{ background: colorFor(v) }}
-                        className="px-1 py-1 text-center cursor-pointer text-white tabular-nums hover:ring-2 hover:ring-amber-400 transition"
+                        className="px-2 py-1.5 text-center cursor-pointer text-white tabular-nums font-medium hover:ring-2 hover:ring-amber-400 transition"
                         title={`${l.nickname} · ${d} · ${fmt(v)}`}
                       >
                         {fmt(v)}

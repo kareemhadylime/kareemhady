@@ -12,7 +12,15 @@ import {
   Calculator,
   Download,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+// How long to keep the sidebar visible after the cursor leaves it before
+// auto-collapsing. Long enough to dodge accidental edge-grazes, short enough
+// that the operator gets the whole-screen reading area back fast.
+const AUTO_COLLAPSE_MS = 2000;
+// Tiny delay before opening on hover, so brushing past the icon doesn't
+// inadvertently pop the sidebar.
+const OPEN_ON_HOVER_MS = 250;
 import type {
   FeeAuditConfig,
   FeeCategory,
@@ -74,10 +82,48 @@ export function Sidebar({
     Discounts: true,
   });
 
+  // Auto-collapse: when the cursor leaves an open sidebar, wait
+  // AUTO_COLLAPSE_MS then collapse it. Re-entering the sidebar (or a child
+  // select picker that briefly leaves the bounding box) cancels the timer.
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function cancelCollapseTimer() {
+    if (collapseTimer.current) {
+      clearTimeout(collapseTimer.current);
+      collapseTimer.current = null;
+    }
+  }
+  function cancelOpenTimer() {
+    if (openTimer.current) {
+      clearTimeout(openTimer.current);
+      openTimer.current = null;
+    }
+  }
+  function scheduleCollapse() {
+    cancelCollapseTimer();
+    collapseTimer.current = setTimeout(() => {
+      onToggle();
+    }, AUTO_COLLAPSE_MS);
+  }
+  function scheduleOpen() {
+    cancelOpenTimer();
+    openTimer.current = setTimeout(() => {
+      onToggle();
+    }, OPEN_ON_HOVER_MS);
+  }
+  useEffect(() => {
+    return () => {
+      cancelCollapseTimer();
+      cancelOpenTimer();
+    };
+  }, []);
+
   if (!open) {
     return (
       <button
         onClick={onToggle}
+        onMouseEnter={scheduleOpen}
+        onMouseLeave={cancelOpenTimer}
         className="ix-card p-2 self-start rounded-lg sticky top-4 transition"
         title="Open sidebar"
         style={{
@@ -93,6 +139,8 @@ export function Sidebar({
 
   return (
     <aside
+      onMouseEnter={cancelCollapseTimer}
+      onMouseLeave={scheduleCollapse}
       className="w-72 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl shadow-sm"
       style={{
         background: 'var(--bh-cream)',
