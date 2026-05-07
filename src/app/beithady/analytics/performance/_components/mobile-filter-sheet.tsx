@@ -28,19 +28,21 @@ export function MobileFilterSheet({ open, onClose, state, onChange }: Props) {
     <div className="fixed inset-0 z-40 md:hidden" onClick={onClose} role="presentation">
       <div className="absolute inset-0 bg-[#003462]/40" />
       <div
-        className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-[#003462]/15 bg-white p-5 text-[#003462] shadow-2xl"
+        className="fixed inset-x-0 bottom-0 z-40 max-h-[80vh] overflow-y-auto rounded-t-2xl p-5 shadow-2xl"
+        style={{ background: 'var(--bh-cream)', color: 'var(--bh-ink)', borderTop: '1px solid var(--bh-mute)' }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Filters"
       >
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#003462]/15" aria-hidden="true" />
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full" style={{ background: 'var(--bh-mute)' }} aria-hidden="true" />
         <h2 className="mb-3 text-lg font-semibold" style={{ fontFamily: 'var(--bh-heading)' }}>Filters</h2>
         <LeftRail state={state} onChange={onChange} />
         <button
           type="button"
           onClick={onClose}
-          className="mt-4 w-full rounded-md border border-[#003462] bg-[#003462] px-3 py-2 text-sm font-medium text-white hover:bg-[#003462]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-2"
+          className="mt-4 w-full rounded-md px-3 py-2 text-sm font-medium hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          style={{ background: 'var(--bh-ink)', color: 'var(--bh-cream)' }}
         >
           Done
         </button>

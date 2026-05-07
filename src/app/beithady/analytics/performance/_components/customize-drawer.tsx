@@ -28,13 +28,14 @@ export function CustomizeDrawer({ onClose }: Props) {
     <div className="fixed inset-0 z-50" onClick={onClose} role="presentation">
       <div className="absolute inset-0 bg-[#003462]/40" />
       <aside
-        className="absolute right-0 top-0 flex h-full w-96 flex-col bg-white shadow-xl"
+        className="absolute right-0 top-0 flex h-full w-96 flex-col shadow-xl"
+        style={{ background: 'var(--bh-cream)' }}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Customize dashboard"
       >
-        <header className="flex items-center justify-between border-b border-[#003462]/10 px-6 py-4">
+        <header className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--bh-mute)' }}>
           <h2 className="text-lg font-semibold text-[#003462]" style={{ fontFamily: 'var(--bh-heading)' }}>⚙ Customize</h2>
           <button
             type="button"
@@ -52,7 +53,7 @@ export function CustomizeDrawer({ onClose }: Props) {
             if (groupPanels.length === 0) return null;
             return (
               <section key={groupId} className="mb-5">
-                <h3 className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em] text-[#6077a6]/70">
+                <h3 className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em]" style={{ color: 'var(--bh-steel)' }}>
                   {PANEL_GROUPS[groupId]}
                 </h3>
                 <ul className="flex flex-col gap-1.5">
@@ -72,18 +73,20 @@ export function CustomizeDrawer({ onClose }: Props) {
           })}
         </div>
 
-        <footer className="border-t border-[#003462]/10 px-6 py-3 flex justify-between">
+        <footer className="px-6 py-3 flex justify-between" style={{ borderTop: '1px solid var(--bh-mute)' }}>
           <button
             type="button"
             onClick={reset}
-            className="rounded-md border border-[#003462]/15 bg-white px-3 py-1.5 text-xs text-[#003462] hover:bg-[#eae9f3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-2"
+            className="rounded-md border px-3 py-1.5 text-xs hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ borderColor: 'var(--bh-mute)', background: 'var(--bh-cream)', color: 'var(--bh-ink)' }}
           >
             Reset to default
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-[#003462] bg-[#003462] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#003462]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-2"
+            className="rounded-md px-3 py-1.5 text-xs font-medium hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            style={{ background: 'var(--bh-ink)', color: 'var(--bh-cream)' }}
           >
             Done
           </button>
@@ -107,7 +110,8 @@ function ToggleRow({
   return (
     <label
       htmlFor={`vis-${id}`}
-      className="flex items-center justify-between rounded-md border border-[#003462]/10 bg-white px-3 py-2 text-[12px] text-[#003462] hover:bg-[#eae9f3] cursor-pointer"
+      className="flex items-center justify-between rounded-md border px-3 py-2 text-[12px] cursor-pointer hover:opacity-90"
+      style={{ borderColor: 'var(--bh-mute)', background: 'var(--bh-cream)', color: 'var(--bh-ink)' }}
     >
       <span>{label}</span>
       <span className="relative inline-flex">

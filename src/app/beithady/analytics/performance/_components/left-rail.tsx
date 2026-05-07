@@ -38,7 +38,8 @@ export function LeftRail({ state, onChange, collapsed = false, pinned = false, o
       <aside
         role="region"
         aria-label="Filters (collapsed)"
-        className="flex flex-col items-center gap-2 border-r border-[#003462]/10 bg-white py-4"
+        className="flex flex-col items-center gap-2 py-4"
+        style={{ background: 'var(--bh-cream)', borderRight: '1px solid var(--bh-mute)' }}
       >
         <CollapsedIcon emoji="📅" title="Period" />
         <CollapsedIcon emoji="🏢" title={`Building: ${state.building}`} />
@@ -48,9 +49,11 @@ export function LeftRail({ state, onChange, collapsed = false, pinned = false, o
           onClick={onTogglePin}
           aria-label={pinned ? 'Unpin filters rail' : 'Pin filters rail open'}
           aria-pressed={pinned}
-          className={
-            'mt-auto flex h-8 w-8 items-center justify-center rounded text-sm transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-1 ' +
-            (pinned ? 'bg-[#003462] text-white' : 'text-[#6077a6] hover:bg-[#eae9f3]')
+          className="mt-auto flex h-8 w-8 items-center justify-center rounded text-sm transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+          style={
+            pinned
+              ? { background: 'var(--bh-ink)', color: 'var(--bh-cream)' }
+              : { color: 'var(--bh-steel)' }
           }
         >
           📌
@@ -62,10 +65,11 @@ export function LeftRail({ state, onChange, collapsed = false, pinned = false, o
     <aside
       role="region"
       aria-label="Filters"
-      className="flex flex-col gap-4 border-r border-[#003462]/10 bg-white px-4 py-5"
+      className="flex flex-col gap-4 px-4 py-5"
+      style={{ background: 'var(--bh-cream)', borderRight: '1px solid var(--bh-mute)' }}
     >
       <Section title="Period">
-        {/* Period pills are display-only stubs in Phase 1 — real period semantics arrive in later phases. */}
+        {/* Period pills are display-only stubs — real period semantics arrive in later phases. */}
         {PERIODS.map((p) => (
           <Pill key={p.label} active={p.label === 'Today'}>{p.label}</Pill>
         ))}
@@ -85,15 +89,17 @@ export function LeftRail({ state, onChange, collapsed = false, pinned = false, o
         ))}
       </Section>
       {/* Pin toggle at the bottom of the expanded rail */}
-      <div className="mt-auto pt-2 border-t border-[#003462]/10">
+      <div className="mt-auto pt-2" style={{ borderTop: '1px solid var(--bh-mute)' }}>
         <button
           type="button"
           onClick={onTogglePin}
           aria-label={pinned ? 'Unpin filters rail (allow auto-collapse)' : 'Pin filters rail open'}
           aria-pressed={pinned}
-          className={
-            'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-1 ' +
-            (pinned ? 'bg-[#003462] text-white' : 'text-[#6077a6] hover:bg-[#eae9f3]')
+          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+          style={
+            pinned
+              ? { background: 'var(--bh-ink)', color: 'var(--bh-cream)' }
+              : { color: 'var(--bh-steel)' }
           }
         >
           <span>📌 Pin rail</span>
@@ -108,7 +114,8 @@ function CollapsedIcon({ emoji, title }: { emoji: string; title: string }) {
   return (
     <span
       title={title}
-      className="flex h-7 w-7 items-center justify-center rounded text-xs text-[#003462]/60 select-none"
+      className="flex h-7 w-7 items-center justify-center rounded text-xs select-none"
+      style={{ color: 'var(--bh-steel)' }}
       aria-hidden="true"
     >
       {emoji}
@@ -119,7 +126,12 @@ function CollapsedIcon({ emoji, title }: { emoji: string; title: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em] text-[#6077a6]/70">{title}</h4>
+      <h4
+        className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em]"
+        style={{ color: 'var(--bh-steel)' }}
+      >
+        {title}
+      </h4>
       <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
@@ -131,9 +143,11 @@ function Pill({ active, children, onClick }: { active?: boolean; children: React
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={
-        'rounded-md border px-2.5 py-1.5 text-left text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-1 ' +
-        (active ? 'border-[#003462] bg-[#003462] text-white' : 'border-[#003462]/10 bg-white text-[#003462] hover:bg-[#eae9f3]')
+      className="rounded-md border px-2.5 py-1.5 text-left text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+      style={
+        active
+          ? { background: 'var(--bh-ink)', color: 'var(--bh-cream)', borderColor: 'var(--bh-ink)' }
+          : { background: 'transparent', color: 'var(--bh-ink)', borderColor: 'var(--bh-mute)' }
       }
     >
       {children}

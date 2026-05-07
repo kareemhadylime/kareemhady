@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { BeithadyShell } from '@/app/beithady/_components/beithady-shell';
+import { BeithadyShell, BeithadyHeader } from '@/app/beithady/_components/beithady-shell';
 import { loadSnapshot, loadEarliestSnapshotDate } from './_lib/load-snapshot';
 import { EmptySnapshot } from './_components/empty-snapshot';
 import { DashboardShell } from './_components/dashboard-shell';
@@ -28,7 +28,13 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         { label: 'Analytics', href: '/beithady/analytics' },
         { label: 'Performance' },
       ]}
+      containerClass="max-w-[1900px]"
     >
+      <BeithadyHeader
+        eyebrow="Beit Hady · Analytics"
+        title="Performance Dashboard"
+        subtitle="Live snapshot of yesterday's performance — occupancy, revenue, pace, AI insights, customizable. Click any panel to drill down."
+      />
       {result.status === 'missing' ? (
         <EmptySnapshot date={result.date} />
       ) : (

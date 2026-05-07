@@ -5,7 +5,7 @@ type Props = { payload: DailyReportPayload; onHide?: () => void };
 
 const TONE_DOT: Record<AIInsight['tone'], string> = {
   positive: 'bg-emerald-400',
-  neutral:  'bg-[#eae9f3]',
+  neutral:  'bg-slate-400',
   warning:  'bg-amber-400',
 };
 
@@ -18,7 +18,7 @@ export function AIInsightsTray({ payload, onHide }: Props) {
     <section
       className="group relative rounded-lg p-4 sm:p-5 text-[#eae9f3]"
       style={{
-        background: 'linear-gradient(135deg, #003462 0%, #1e3a5f 100%)',
+        background: 'linear-gradient(135deg, var(--bh-ink) 0%, #2c4d7a 100%)',
       }}
       aria-label="AI Insights"
     >

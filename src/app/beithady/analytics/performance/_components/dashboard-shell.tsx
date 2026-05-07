@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { TopBar } from './top-bar';
+import { TitleBar } from './title-bar';
 import { LeftRail } from './left-rail';
 import { useRailCollapse } from '../_hooks/use-rail-collapse';
 import { HeroKpi } from './panels/hero-kpi';
@@ -62,30 +62,27 @@ export function DashboardShell({
     return () => mq.removeEventListener('change', updateMobile);
   }, []);
 
+  const railColWidth = isMobile ? 0 : (rail.collapsed ? 44 : 200);
+  const paceAccent = payload.all.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
+
   return (
-    <div
-      className="overflow-hidden rounded-xl border border-[#003462]/10 text-[#003462]"
-      style={{
-        backgroundColor: '#eae9f3',
-        backgroundImage: "url('/brand/beithady/pattern-bg.png')",
-        backgroundSize: '280px auto',
-        backgroundRepeat: 'repeat',
-        backgroundBlendMode: 'soft-light',
-      }}
-    >
-      <TopBar
-        state={state}
+    <>
+      {/* TitleBar — replaces old TopBar, navy gradient matching Fees Audit */}
+      <TitleBar
         generatedAt={generatedAt}
         reportDate={snapshotDate}
         hiddenCount={hiddenCount}
+        currentDate={snapshotDate}
+        state={state}
         onCustomizeClick={() => setDrawerOpen(true)}
         onDateChange={(date) => update({ date })}
-        currentDate={snapshotDate}
         onFilterClick={() => setMobileFilterOpen(true)}
       />
+
+      {/* Body grid — rail + main content */}
       <div
-        className="grid transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
-        style={{ gridTemplateColumns: `${isMobile ? 0 : (rail.collapsed ? 44 : 200)}px 1fr` }}
+        className="grid mt-6 transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
+        style={{ gridTemplateColumns: `${railColWidth}px 1fr` }}
         onMouseEnter={isMobile ? undefined : rail.handleEnter}
         onMouseLeave={isMobile ? undefined : rail.handleLeave}
       >
@@ -98,7 +95,7 @@ export function DashboardShell({
             onTogglePin={rail.togglePinned}
           />
         </div>
-        <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
+        <main className="grid grid-cols-12 gap-3 sm:gap-4">
           {/* AI Insights tray (renders nothing when no insights) — full width */}
           {visibility['ai-insights'] && (
             <div className="col-span-12">
@@ -106,7 +103,7 @@ export function DashboardShell({
             </div>
           )}
 
-          {/* Hero KPI strip — wraps 2-up → 3-up → 6-up by viewport. min-w on each cell prevents crampness. */}
+          {/* Hero KPI strip — wraps 2-up → 3-up → 6-up by viewport */}
           <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {visibility['hero-occupancy'] && (
               <HeroKpi
@@ -115,6 +112,7 @@ export function DashboardShell({
                 delta={{ direction: 'flat', text: 'today' }}
                 spark={payload.sparklines?.occupancy}
                 drillTo="/beithady/analytics/performance"
+                accent="ink"
                 onHide={() => setPanel('hero-occupancy', false)}
               />
             )}
@@ -125,7 +123,7 @@ export function DashboardShell({
                 delta={{ direction: payload.all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: `${payload.all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${payload.all.pickup_vs_prior_month_pct.toFixed(1)}% vs LM` }}
                 spark={payload.sparklines?.mtd_revenue}
                 drillTo="/beithady/financials?period=mtd"
-                goldEdge
+                accent="gold"
                 onHide={() => setPanel('hero-mtd-revenue', false)}
               />
             )}
@@ -136,6 +134,7 @@ export function DashboardShell({
                 delta={payload.revpar?.all != null ? { direction: 'flat', text: 'rev / available night' } : { direction: 'flat', text: 'ADR (RevPAR pending)' }}
                 spark={payload.sparklines?.revpar}
                 drillTo="/beithady/financials?metric=revpar"
+                accent="steel"
                 onHide={() => setPanel('hero-revpar', false)}
               />
             )}
@@ -146,6 +145,7 @@ export function DashboardShell({
                 delta={{ direction: payload.all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
                 spark={payload.sparklines?.pace}
                 drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
+                accent={paceAccent as 'green' | 'red'}
                 onHide={() => setPanel('hero-pace', false)}
               />
             )}
@@ -156,6 +156,7 @@ export function DashboardShell({
                 delta={{ direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }}
                 spark={payload.sparklines?.reviews_avg}
                 drillTo="/beithady/analytics/reviews?period=mtd"
+                accent="amber"
                 onHide={() => setPanel('hero-reviews-avg', false)}
               />
             )}
@@ -166,6 +167,7 @@ export function DashboardShell({
                 delta={payload.conversations ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` } : undefined}
                 spark={payload.sparklines?.response_time}
                 drillTo="/beithady/communication/unified?metric=response-time"
+                accent="steel"
                 onHide={() => setPanel('hero-response-time', false)}
               />
             )}
@@ -277,6 +279,8 @@ export function DashboardShell({
           )}
         </main>
       </div>
+
+      {/* Drawers / modals */}
       {drawerOpen && (
         <CustomizeDrawer
           onClose={() => setDrawerOpen(false)}
@@ -288,6 +292,6 @@ export function DashboardShell({
         state={state}
         onChange={update}
       />
-    </div>
+    </>
   );
 }
