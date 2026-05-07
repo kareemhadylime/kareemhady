@@ -4,6 +4,7 @@
 
 export type PanelId =
   | 'ai-insights'
+  | 'daily-activity'
   | 'top-movers'
   | 'hero-occupancy'
   | 'hero-mtd-revenue'
@@ -50,6 +51,9 @@ export const PANEL_GROUPS: Record<PanelGroupId, string> = {
 };
 
 export const PANELS: PanelDescriptor[] = [
+  // Daily activity strip — top-of-fold operational glance
+  { id: 'daily-activity', label: '📅 Daily activity (check-ins / outs / turnovers / staying)', group: 'operations-guests', defaultVisible: true },
+
   // Hero (always-on by default — these are the morning glance)
   { id: 'hero-occupancy', label: 'Occupancy', group: 'hero', defaultVisible: true },
   { id: 'hero-mtd-revenue', label: 'MTD Revenue', group: 'hero', defaultVisible: true },

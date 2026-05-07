@@ -21,6 +21,7 @@ import { RevenueWaterfall } from './panels/revenue-waterfall';
 import { StlyYoy } from './panels/stly-yoy';
 import { MonthlyGoal } from './panels/monthly-goal';
 import { AIInsightsTray } from './panels/ai-insights-tray';
+import { DailyActivity } from './panels/daily-activity';
 import { SnapshotScrubber } from './panels/snapshot-scrubber';
 import { CustomizeDrawer } from './customize-drawer';
 import { MobileFilterSheet } from './mobile-filter-sheet';
@@ -100,6 +101,17 @@ export function DashboardShell({
           {visibility['ai-insights'] && (
             <div className="col-span-12">
               <AIInsightsTray payload={payload} onHide={() => setPanel('ai-insights', false)} />
+            </div>
+          )}
+
+          {/* Daily activity — top-of-fold operational strip (full width) */}
+          {visibility['daily-activity'] && (
+            <div className="col-span-12">
+              <DailyActivity
+                payload={payload}
+                snapshotDate={snapshotDate}
+                onHide={() => setPanel('daily-activity', false)}
+              />
             </div>
           )}
 

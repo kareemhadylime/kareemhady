@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## Latest turn — Beithady Perf Dashboard: Fees Audit theme refactor + full-width
+## Latest turn — Beithady Perf Dashboard: add "Daily activity" strip (check-ins / outs / turnovers / staying)
+
+User shared two screenshots: a 4-card "Daily activity" strip from a competing surface (Check-ins, Check-outs, Turnovers, Currently staying — each with pastel sub-badges for cleaning queue, payment flags, etc.) and the current Performance Dashboard hero. Asked to add the strip.
+
+Wired it as a new top-of-fold panel above the Hero KPI strip:
+
+- **`_components/panels/daily-activity.tsx`** (new) — single togglable section that renders 4 mini-tiles in `grid-cols-2 lg:grid-cols-4`. Each tile uses the brand chrome (cream surface, `var(--bh-mute)` 1px border, 3px colored left edge in the tile's accent color) with a Cormorant Garamond numeral, an emoji + label, and a stacked list of sub-badges. Sub-badges have three tones: red (`#fdecec` / `#9a2828`), amber (`#fdf3da` / `#7a5300`), info (`#eef3fb` / ink). Header shows "📅 Daily activity" eyebrow + a human-formatted snapshot date in a small chip. Each tile is a drill-through `<a>` to `/beithady/operations?view=…`.
+- **Data sources** (all already on `payload`):
+  - **Check-ins** = `all.check_ins_today` · sub: `cleaning_ops_today.length` units need cleaning (red), `checkin_payment.flagged.length` flagged check-ins (amber)
+  - **Check-outs** = `all.check_outs_today` · sub: flagged payments (amber), `cancellations.count_today` cancellations today (red)
+  - **Turnovers** = `all.turnovers_today` · sub: "same-day checkout + checkin" caption, `no_show.no_shows.length` no-shows (red)
+  - **Currently staying** = `all.occupied_today` · sub: occupancy %, vacant units count (info)
+  - "Shortest turnover" / "guests in total" / "early check-out" sub-metrics from the screenshot are NOT yet in the snapshot payload — left out of v1, easy to extend later.
+- **`_lib/panel-registry.ts`** — added `'daily-activity'` to the `PanelId` union and a new `PANELS` entry under group `operations-guests` with `defaultVisible: true`. Existing localStorage visibility state survives because `_readFromStorage` falls back to `defaultVisibility()` for unknown/missing keys.
+- **`_components/dashboard-shell.tsx`** — imports `DailyActivity`, renders it in a `col-span-12` slot between the AI Insights tray and the Hero KPI strip when `visibility['daily-activity']`. Passes `payload`, `snapshotDate`, and the `onHide` toggle.
+
+`npx tsc --noEmit` clean (0 errors). Commit + push to main, GitHub→Vercel auto-deploy handles prod.
+
+---
+
+## Earlier turn — Beithady Perf Dashboard: Fees Audit theme refactor + full-width
 
 **Commit `b40ef52`** — 10 files changed (270 insertions, 77 deletions).
 
