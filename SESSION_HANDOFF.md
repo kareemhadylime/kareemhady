@@ -1,6 +1,16 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
-## 🟢 Latest turn — node_modules auto-resync hook (Edit/Write on package.json → `npm install`)
+## 🟢 Latest turn — Fresh redeploy, no code drift
+
+User asked for a fresh commit + deploy with the most recent development. Verified state before commit:
+- Worktree branch `claude/flamboyant-chandrasekhar-4473e5` was at `origin/main` exactly (no ahead/behind), working tree clean.
+- Latest substantive commits already on main: `e3e7672` (npm-install hook), `1556940` (fees-audit UX polish), `194935d` (N+1 perf fix), `6d7e999` (DXB→BH-DXB normalization), `336971d` (filters-into-sidebar + TitleBar), `75818da` (MTL/SLT dedupe + BH brand), `952da83` (original Fee Audit module ship).
+
+This handoff stamp is the fresh commit; pushed to main and `vercel --prod` re-issued to confirm production reflects HEAD.
+
+---
+
+## 🟢 Earlier turn — node_modules auto-resync hook (Edit/Write on package.json → `npm install`)
 
 Follow-up to the npm-install-out-of-sync diagnosis. Wired a PostToolUse hook in `.claude/settings.json` so this never recurs:
 
