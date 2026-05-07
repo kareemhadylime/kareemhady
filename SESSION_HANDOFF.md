@@ -1,5 +1,33 @@
 # Kareemhady — Session Handoff (2026-05-07)
 
+## 🟢 Latest turn — Booking-Channel Fee Audit module SHIPPED + PUSHED to main (commit `952da83`)
+
+User said "All in One. Ship it." Done — full feature deployed in single commit, ~31 files added.
+
+**Database** (migration 0062 applied to `bpjproljatbrbmszwbov`):
+- `beithady_pricelabs_daily_rates` — forward calendar (87 listings × 30 days target after first sync)
+- `beithady_listing_terms` — cleaning fee, taxes, min/max stay, security deposit, pet fee, bathrooms
+- `beithady_channel_fees_config` — operator-editable commission constants (6 channels seeded: airbnb 3%/14.2%, booking_com 17.6%, vrbo 8%, expedia 15%, hotels_com 15%, manual 0%)
+- `beithady_listing_fee_history` — append-only audit trail of fee changes
+
+**Lib** (`src/lib/beithady/fees-audit/`, 11 files): types, channel-fees w/ historical-avg refresher, tax-applier (pulls Guesty taxes as-is per Q4), quote-calculator (pure), build-fee-stack orchestrator, anomaly-detector (5 rules: zero/missing, peer outlier, channel parity 15%/50%, min-stay parity = critical, missing forward calendar), sync-pricelabs-daily, sync-guesty-terms, fee-history, render-pdf, render-xlsx.
+
+**API** (`src/app/api/beithady/fees-audit/`, 5 routes): /run, /quote, /history/[listingId], /compare/[listingId], /vendor-export. Plus `/api/cron/beithady-fees-audit-sync` at `50 4 * * *` UTC = 06:50 Cairo.
+
+**Frontend** (`src/app/beithady/analytics/reports/fees-audit/`, 12 files): page, FeeAuditDashboard, Sidebar (7 collapsible groups × 24 items), FilterBar (with Host Net / Guest Gross / Both toggle per Q3), KpiStrip (6 cards), Heatmap (click → drill-through), CrossRefTable (peer-bedroom outlier highlighting), AnomalyInspector (severity-grouped), QuoteCalculator (live debounced), ChannelCompareModal, CellDrillThroughModal, TaxStackTester, VendorExportDialog.
+
+**Wiring:** analytics/reports/page.tsx — featured tile in 1st position (per Q10) with gradient + amber "New" badge.
+
+**Locked-in semantics from plan ratification:** Q1 7/14/30 selector. Q2 fetch-from-Guesty + historical-avg fallback. Q3 toggle host/guest/both. Q4 pull tax stack as-is. Q5 flag min-stay parity as critical. Q6 always USD. Q7 modal + go-to-listing. Q8 fixed thresholds 15%/50%. Q9 daily PriceLabs sync. Q10 prominent 1st position. All 8 improvement suggestions included.
+
+**Verification:** `npx tsc --noEmit` clean, `npm run build` clean (28.9s). Pushed to main after rebase resolved vercel.json conflict (parallel session added FNB+personal-email crons; preserved both).
+
+**First-time run flow:** Tomorrow morning at 06:50 Cairo the new cron populates daily rates + terms. To bootstrap immediately: `GET /api/cron/beithady-fees-audit-sync?force=1&secret=$CRON_SECRET`. After sync, dashboard shows full heatmap + cross-ref + anomaly list. Today on first visit the dashboard renders with "missing forward calendar" anomalies until the sync runs.
+
+**Deploy state:** commit `952da83` on `main`. GitHub→Vercel auto-deploy in flight.
+
+---
+
 ## ✏️ 2026-05-07 — P&L surface polish pass (Manning rounding · cell padding · default collapses · YTD forecast)
 
 Five small UX fixes kareem flagged after a screenshot review of `/fmplus/performance/[contractId]`:
