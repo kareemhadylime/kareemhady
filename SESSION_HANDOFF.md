@@ -1,6 +1,24 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Daily-report backfill: admin "Rebuild snapshot" button on EmptySnapshot (v1.5 #3)
+## Latest turn — Backfill UX upgrade: per-row "Rebuild" buttons on /beithady/setup
+
+User reaction to the EmptySnapshot-only rebuild: "where to choose the date and rebuild." Right — the EmptySnapshot button only fires when you happen to navigate to a NULL date, and the user had to type 10 URLs by hand. Surfaced the rebuild controls in one discoverable place: the existing "Recent reports" table on `/beithady/setup`.
+
+- **`src/app/beithady/setup/page.tsx`**:
+  - `limit(5)` → `limit(14)` so all the legacy gap rows surface in one view.
+  - `select` string extended with `payload_check:payload->all->total_units` — PostgREST JSON-path projection. Returns the integer when the payload is well-formed, `null` when the payload is missing or shaped wrong. Avoids pulling the full ~75KB jsonb per row. Verified the SQL works against production: 14 rows back, 2 well-formed (05-06, 05-07), 10 NULL.
+  - New table columns: **Payload** (Built / NULL · needs rebuild), **Delivery**, **View** (only when built), **Action**.
+  - NULL rows get a soft `bg-rose-50/60` highlight so the user can scan the column at a glance.
+  - `View →` link suppressed for NULL rows (the `/r/beithady/<token>` route would render a broken report).
+  - `export const maxDuration = 180` added so the action's 60–180s build doesn't get killed by Vercel's default page timeout.
+
+- **`src/app/beithady/setup/rebuild-row-button.tsx`** (new) — small client component that calls `rebuildSnapshotAction(date)` via `useTransition`. Two visual states: rose-filled button for NULL rows (primary action), neutral outlined button for already-built rows (re-rebuild allowed but de-emphasized). Disabled with `Building…` label during the transition; reloads on success; surfaces the error inline on failure (40-char truncation to fit the cell).
+
+`tsc --noEmit` clean. The user's flow is now: visit `/beithady/setup`, scan the Payload column for "NULL · needs rebuild" rows (highlighted rose), click Rebuild on each, wait 1–3 min per build, page auto-reloads with the row flipped to "Built · Delivered". Works for all 10 legacy gap dates without leaving the page.
+
+---
+
+## Earlier turn — Daily-report backfill: admin "Rebuild snapshot" button on EmptySnapshot (v1.5 #3)
 
 User asked for v1.5 follow-up #3. The 10 legacy NULL-payload rows from before the cron-resilience fix can now be repaired in-place by an admin from the dashboard.
 

@@ -12,8 +12,13 @@ import {
   deleteRecipientFormAction,
 } from './actions';
 import { SendTestPanel } from './SendTestPanel';
+import { RebuildRowButton } from './rebuild-row-button';
 
 export const dynamic = 'force-dynamic';
+// Server actions invoked from this route inherit its function timeout.
+// `rebuildSnapshotAction` runs a fresh build that can take 60-180s, so match
+// the cron route's cap.
+export const maxDuration = 180;
 export const metadata: Metadata = {
   title: 'Beithady Setup · Daily Report',
 };
@@ -35,6 +40,10 @@ type SnapshotPreview = {
   last_build_error: string | null;
   expires_at: string;
   token: string;
+  /** Cheap well-formedness check — picks a deeply-nested integer field out of the
+   *  payload via PostgREST JSON-path; NULL means the payload is missing or has
+   *  no `all` bucket (the cron-gap pattern). Avoids pulling the full jsonb. */
+  payload_check: number | null;
 };
 
 type Delivery = {
@@ -65,15 +74,17 @@ export default async function BeithadySetupPage({
     .order('created_at', { ascending: false });
   const recipients = (rcpsData as Recipient[] | null) || [];
 
-  // Recent snapshot history (latest 5)
+  // Recent snapshot history (last ~2 weeks). The bumped limit + payload_check
+  // alias surface NULL-payload rows that need a one-click rebuild — closes the
+  // v1.5 backfill loop.
   const { data: snapsData } = await sb
     .from('daily_report_snapshots')
     .select(
-      'report_date, generated_at, delivery_complete, build_attempts, last_build_error, expires_at, token'
+      'report_date, generated_at, delivery_complete, build_attempts, last_build_error, expires_at, token, payload_check:payload->all->total_units'
     )
     .eq('report_kind', 'beithady_daily')
     .order('report_date', { ascending: false })
-    .limit(5);
+    .limit(14);
   const snapshots = (snapsData as SnapshotPreview[] | null) || [];
 
   // Today's delivery log
@@ -242,11 +253,17 @@ export default async function BeithadySetupPage({
           <SendTestPanel />
         </section>
 
-        {/* Delivery monitoring */}
+        {/* Delivery monitoring + per-snapshot rebuild */}
         <section className="mt-6 ix-card p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
-            Recent reports
-          </h2>
+          <div className="flex items-baseline justify-between flex-wrap gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-400">
+              Recent reports
+            </h2>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Click <strong className="text-rose-600 dark:text-rose-400">Rebuild</strong> on any row with a NULL payload to
+              backfill it. Build takes 1–3 min and reloads the page on completion.
+            </p>
+          </div>
           {snapshots.length === 0 ? (
             <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No reports generated yet.</p>
           ) : (
@@ -255,43 +272,75 @@ export default async function BeithadySetupPage({
                 <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
                   <th className="py-2 pr-4">Date</th>
                   <th className="py-2 pr-4">Generated</th>
-                  <th className="py-2 pr-4">Status</th>
+                  <th className="py-2 pr-4">Payload</th>
+                  <th className="py-2 pr-4">Delivery</th>
                   <th className="py-2 pr-4">Attempts</th>
                   <th className="py-2 pr-4">Last error</th>
-                  <th className="py-2"></th>
+                  <th className="py-2 pr-4">View</th>
+                  <th className="py-2 text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {snapshots.map(s => (
-                  <tr key={s.report_date} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{s.report_date}</td>
-                    <td className="py-2 pr-4 text-xs text-slate-500 dark:text-slate-400">{fmtCairoDateTime(s.generated_at)}</td>
-                    <td className="py-2 pr-4">
-                      {s.delivery_complete ? (
-                        <span className="rounded bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
-                          Delivered
-                        </span>
-                      ) : (
-                        <span className="rounded bg-amber-100 dark:bg-amber-900 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
-                          Retrying
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4 text-xs text-slate-700 dark:text-slate-200">{s.build_attempts}</td>
-                    <td className="py-2 pr-4 text-xs text-rose-700 dark:text-rose-300">
-                      {s.last_build_error ? s.last_build_error.slice(0, 60) + (s.last_build_error.length > 60 ? '…' : '') : '—'}
-                    </td>
-                    <td className="py-2">
-                      <Link
-                        href={`/r/beithady/${encodeURIComponent(s.token)}`}
-                        target="_blank"
-                        className="text-xs font-medium text-cyan-700 dark:text-cyan-400 hover:underline"
-                      >
-                        View →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {snapshots.map(s => {
+                  const isMissing = s.payload_check == null;
+                  return (
+                    <tr
+                      key={s.report_date}
+                      className={`border-b border-slate-100 dark:border-slate-800 ${
+                        isMissing ? 'bg-rose-50/60 dark:bg-rose-950/30' : ''
+                      }`}
+                    >
+                      <td className="py-2 pr-4 font-medium text-slate-900 dark:text-slate-100">{s.report_date}</td>
+                      <td className="py-2 pr-4 text-xs text-slate-500 dark:text-slate-400">{fmtCairoDateTime(s.generated_at)}</td>
+                      <td className="py-2 pr-4">
+                        {isMissing ? (
+                          <span className="rounded bg-rose-100 dark:bg-rose-900 px-2 py-0.5 text-xs font-medium text-rose-800 dark:text-rose-200">
+                            NULL · needs rebuild
+                          </span>
+                        ) : (
+                          <span className="rounded bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+                            Built
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {s.delivery_complete ? (
+                          <span className="rounded bg-emerald-100 dark:bg-emerald-900 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+                            Delivered
+                          </span>
+                        ) : isMissing ? (
+                          <span className="rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            —
+                          </span>
+                        ) : (
+                          <span className="rounded bg-amber-100 dark:bg-amber-900 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">
+                            Retrying
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 text-xs text-slate-700 dark:text-slate-200">{s.build_attempts}</td>
+                      <td className="py-2 pr-4 text-xs text-rose-700 dark:text-rose-300">
+                        {s.last_build_error ? s.last_build_error.slice(0, 60) + (s.last_build_error.length > 60 ? '…' : '') : '—'}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {isMissing ? (
+                          <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
+                        ) : (
+                          <Link
+                            href={`/r/beithady/${encodeURIComponent(s.token)}`}
+                            target="_blank"
+                            className="text-xs font-medium text-cyan-700 dark:text-cyan-400 hover:underline"
+                          >
+                            View →
+                          </Link>
+                        )}
+                      </td>
+                      <td className="py-2">
+                        <RebuildRowButton date={s.report_date} isMissing={isMissing} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
