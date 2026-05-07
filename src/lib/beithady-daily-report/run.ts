@@ -12,14 +12,21 @@ import type { DailyReportPayload } from './types';
 //
 //   1. Compute today's Cairo date.
 //   2. Gate: if hour < 9 Cairo and not forced, exit (premature).
-//   3. Upsert snapshot for (beithady_daily, today). Generate a random
-//      token if the row is new.
+//   3. SELECT existing snapshot for (beithady_daily, today).
 //   4. If `delivery_complete` and not restricted, exit early.
-//   5. If `payload IS NULL`, run buildDailyReport(). Persist payload +
-//      bump build_attempts. On error, record + exit (next tick retries).
-//   6. If `pdf_bytes IS NULL`, render the PDF. Persist bytea.
-//   7. Call distributeReport() — fanout to recipients not yet `sent`.
-//   8. If all active recipients are now sent, set delivery_complete=true.
+//   5. If existing row has well-formed payload (and not forceRebuild),
+//      skip the build. Otherwise BUILD FIRST — buildDailyReport() runs
+//      to completion (or throws). The row is touched only AFTER the
+//      build resolves. This is critical: Vercel's maxDuration kills the
+//      whole function on timeout, so an INSERT-then-build pattern would
+//      leave NULL-payload rows behind on every timeout. Building before
+//      writing means a timed-out build leaves the row exactly as it was
+//      (absent or with the prior payload) and the next tick retries.
+//   6. UPSERT — UPDATE existing row with payload + bumped build_attempts,
+//      or INSERT a new row that already includes the payload.
+//   7. If `pdf_bytes IS NULL`, render the PDF. Persist bytea.
+//   8. Call distributeReport() — fanout to recipients not yet `sent`.
+//   9. If all active recipients are now sent, set delivery_complete=true.
 
 const REPORT_KIND = 'beithady_daily';
 const EXPIRY_HOURS = 48;
@@ -42,6 +49,21 @@ function newToken(): string {
   return crypto.randomBytes(24).toString('base64url');
 }
 
+/**
+ * A payload is treated as good enough to skip rebuilding when it has the
+ * three required sections — `all`, `reviews`, `per_building`. NULL payloads
+ * (from the legacy INSERT-then-build pattern that timed out) and partial
+ * payloads (e.g. cleanup blanked it but didn't tombstone) both fail this
+ * check and trigger a rebuild on the next tick. Mirror of the dashboard
+ * `load-snapshot.ts` `isPayloadWellFormed` so the read and write sides
+ * agree on what "valid" means.
+ */
+function isPayloadWellFormed(payload: unknown): payload is DailyReportPayload {
+  if (!payload || typeof payload !== 'object') return false;
+  const p = payload as Partial<DailyReportPayload>;
+  return Boolean(p.all && p.reviews && p.per_building);
+}
+
 export async function runDailyReport(opts: {
   trigger?: 'cron' | 'manual_test' | 'force';
   forceTimeGate?: boolean;
@@ -58,17 +80,6 @@ export async function runDailyReport(opts: {
 
   const today = cairoYmd();
 
-  // --- Upsert snapshot ---
-  // Try to find existing
-  const { data: existing } = await sb
-    .from('daily_report_snapshots')
-    .select(
-      'id, token, payload, pdf_bytes, delivery_complete, build_attempts, generated_at, expires_at, deleted_at'
-    )
-    .eq('report_kind', REPORT_KIND)
-    .eq('report_date', today)
-    .maybeSingle();
-
   type SnapshotRow = {
     id: string;
     token: string;
@@ -80,45 +91,67 @@ export async function runDailyReport(opts: {
     expires_at: string;
     deleted_at: string | null;
   };
+
+  // --- SELECT existing snapshot (fast read; no row writes yet) ---
+  const { data: existing } = await sb
+    .from('daily_report_snapshots')
+    .select(
+      'id, token, payload, pdf_bytes, delivery_complete, build_attempts, generated_at, expires_at, deleted_at'
+    )
+    .eq('report_kind', REPORT_KIND)
+    .eq('report_date', today)
+    .maybeSingle();
+
   let snap = existing as SnapshotRow | null;
 
-  if (!snap) {
-    const token = newToken();
-    const generated = new Date();
-    const expires = new Date(generated.getTime() + EXPIRY_HOURS * 3600_000);
-    const { data: inserted, error: insErr } = await sb
-      .from('daily_report_snapshots')
-      .insert({
-        report_kind: REPORT_KIND,
-        report_date: today,
-        token,
-        generated_at: generated.toISOString(),
-        expires_at: expires.toISOString(),
-        trigger,
-      })
-      .select(
-        'id, token, payload, pdf_bytes, delivery_complete, build_attempts, generated_at, expires_at, deleted_at'
-      )
-      .single();
-    if (insErr || !inserted) {
-      return { ok: false, error: insErr?.message || 'insert_failed', phase: 'upsert' };
-    }
-    snap = inserted as SnapshotRow;
-  }
-
-  // --- Short-circuit if already delivered (and we're NOT in test/restricted mode) ---
-  if (snap.delivery_complete && !opts.restrictToRecipientIds) {
+  // --- Short-circuit if already delivered (no build needed) ---
+  if (snap?.delivery_complete && !opts.restrictToRecipientIds) {
     return { ok: true, status: 'already_complete', snapshot_id: snap.id };
   }
 
-  // --- Build payload if missing ---
-  let payload = snap.payload;
+  // --- Decide whether the payload needs (re)building ---
+  // Existing rows with NULL payload OR missing core sections (the cron-gap
+  // pattern from before this fix landed) are treated as if they had no
+  // payload — we rebuild and overwrite.
+  const existingPayloadOk = isPayloadWellFormed(snap?.payload);
+  const needsBuild = !snap || !existingPayloadOk || !!opts.forceRebuild;
+
+  let payload: DailyReportPayload | null = existingPayloadOk
+    ? (snap!.payload as DailyReportPayload)
+    : null;
   let builtNow = false;
-  if (!payload || opts.forceRebuild) {
+
+  if (needsBuild) {
+    // BUILD FIRST. If buildDailyReport throws, we record the error against
+    // the existing row (if any) but DO NOT create a new NULL-payload row.
+    // If the function is killed by Vercel mid-build (the original bug),
+    // no UPDATE/INSERT runs and the table stays exactly as it was — the
+    // next tick will pick up cleanly.
     try {
       payload = await buildDailyReport(today);
       builtNow = true;
-      await sb
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (snap) {
+        await sb
+          .from('daily_report_snapshots')
+          .update({
+            build_attempts: (snap.build_attempts || 0) + 1,
+            last_attempted_at: new Date().toISOString(),
+            last_build_error: msg.slice(0, 1000),
+          })
+          .eq('id', snap.id);
+      }
+      // Intentionally NOT inserting an error-only observability row when
+      // no row exists — that would re-introduce NULL-payload rows the
+      // dashboard has to filter around. Vercel logs + HTTP 500 response
+      // are sufficient breadcrumbs.
+      return { ok: false, error: msg, phase: 'build' };
+    }
+
+    // --- Persist the freshly-built payload (UPDATE existing or INSERT new) ---
+    if (snap) {
+      const { error: updErr } = await sb
         .from('daily_report_snapshots')
         .update({
           payload,
@@ -127,18 +160,41 @@ export async function runDailyReport(opts: {
           last_build_error: null,
         })
         .eq('id', snap.id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await sb
+      if (updErr) {
+        return { ok: false, error: updErr.message, phase: 'upsert' };
+      }
+      snap = { ...snap, payload };
+    } else {
+      const token = newToken();
+      const generated = new Date();
+      const expires = new Date(generated.getTime() + EXPIRY_HOURS * 3600_000);
+      const { data: inserted, error: insErr } = await sb
         .from('daily_report_snapshots')
-        .update({
-          build_attempts: (snap.build_attempts || 0) + 1,
-          last_attempted_at: new Date().toISOString(),
-          last_build_error: msg.slice(0, 1000),
+        .insert({
+          report_kind: REPORT_KIND,
+          report_date: today,
+          token,
+          generated_at: generated.toISOString(),
+          expires_at: expires.toISOString(),
+          trigger,
+          payload,
+          build_attempts: 1,
+          last_attempted_at: generated.toISOString(),
         })
-        .eq('id', snap.id);
-      return { ok: false, error: msg, phase: 'build' };
+        .select(
+          'id, token, payload, pdf_bytes, delivery_complete, build_attempts, generated_at, expires_at, deleted_at'
+        )
+        .single();
+      if (insErr || !inserted) {
+        return { ok: false, error: insErr?.message || 'insert_failed', phase: 'upsert' };
+      }
+      snap = inserted as SnapshotRow;
     }
+  }
+
+  // After the build branch, snap and payload are both populated.
+  if (!snap || !payload) {
+    return { ok: false, error: 'invariant_no_snap_after_build', phase: 'upsert' };
   }
 
   // --- Render PDF if missing ---
@@ -147,7 +203,7 @@ export async function runDailyReport(opts: {
     : null;
   if (!pdfBytes || builtNow) {
     try {
-      pdfBytes = await renderReportPdf(payload!);
+      pdfBytes = await renderReportPdf(payload);
       await sb
         .from('daily_report_snapshots')
         .update({ pdf_bytes: pdfBytes })
@@ -162,12 +218,16 @@ export async function runDailyReport(opts: {
     }
   }
 
+  if (!pdfBytes) {
+    return { ok: false, error: 'invariant_no_pdf_after_render', phase: 'pdf' };
+  }
+
   // --- Distribute ---
   const delivery = await distributeReport({
     snapshot_id: snap.id,
     token: snap.token,
-    payload: payload!,
-    pdf_bytes: pdfBytes!,
+    payload,
+    pdf_bytes: pdfBytes,
     restrict_to_recipient_ids: opts.restrictToRecipientIds || null,
   });
 

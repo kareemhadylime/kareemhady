@@ -1,6 +1,40 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Compare: tolerant prior-snapshot lookup (handle NULL-payload cron gaps)
+## Latest turn — Cron resilience: build BEFORE writing the row (root-cause fix for NULL payloads)
+
+User asked to take v1.5 follow-up #1 — root-cause fix for the NULL-payload rows the cron has been writing for 10+ consecutive days. Investigated [src/lib/beithady-daily-report/run.ts](src/lib/beithady-daily-report/run.ts) and confirmed the bug:
+
+1. Cron tick fires.
+2. **INSERT** a skeleton row (`report_kind`, `report_date`, `token`, `generated_at`, `expires_at`, `trigger`) — payload column stays NULL.
+3. Call `buildDailyReport(today)` which can run 60–180s.
+4. Vercel kills the function at `maxDuration: 180` if the build exceeds it.
+5. The catch block at line 130–141 never runs → row stays with `payload = NULL` and `last_build_error = null`.
+
+This explains exactly the production state: dates 2026-04-26 → 2026-05-05 all have rows with NULL payloads AND `last_build_error: null` (function killed mid-build, never thrown an error). Only 05-06 and 05-07 have real data because those builds happened to finish under 180s.
+
+**Fix — atomic build-then-write order:**
+
+- **`src/lib/beithady-daily-report/run.ts`** — full reorder of the orchestrator:
+  1. SELECT existing (read-only).
+  2. Short-circuit if `delivery_complete`.
+  3. New `isPayloadWellFormed(payload)` helper (mirrors the dashboard's `load-snapshot.ts` check) — payload must have `all`, `reviews`, `per_building`. Legacy NULL rows fail the check and trigger a rebuild.
+  4. Compute `needsBuild = !snap || !existingPayloadOk || forceRebuild`.
+  5. If needsBuild: **call `buildDailyReport(today)` BEFORE any DB write**. If it throws, update the error fields on the existing row (if any), but DO NOT INSERT a NULL-payload row when no row exists. If Vercel kills the function mid-build, no UPDATE/INSERT runs and the table stays exactly as it was — next tick retries cleanly.
+  6. After successful build: UPDATE existing row with payload (and bumped `build_attempts` + clear `last_build_error`), or INSERT a new row with the payload included in one shot.
+- The PDF render and distribute phases are unchanged structurally — they still update the now-guaranteed-populated row.
+- The cron route handler ([src/app/api/cron/beithady-daily-report/route.ts](src/app/api/cron/beithady-daily-report/route.ts)) is untouched — same external API.
+
+**Deliberate trade-off:** dropped the "INSERT skeleton row first as observability paper trail" pattern. Rationale: the very thing it was supposed to track (mid-build kills) is invisible to it, because Vercel timeouts skip the catch block. The Vercel function logs + HTTP 500 response are sufficient breadcrumbs, and dropping the placeholder row eliminates the entire NULL-payload class of bugs.
+
+**Concurrent-tick safety:** verified via Supabase MCP — the unique index `daily_report_snapshots_report_kind_report_date_key` on `(report_kind, report_date)` exists, so two overlapping ticks racing to INSERT will get a clean unique-constraint violation rather than creating dupes. Not worth optimizing further (cron only fires once per schedule).
+
+**Legacy NULL rows still in the table** — the v1.5 list item #3 (backfill 10 dates of missing payloads) is unchanged and unblocked by this fix. Going forward, no new NULL rows; backward, the existing rows can now be safely overwritten by triggering forced rebuilds for those dates (would need the route to accept `?date=`, currently only takes `?force=1`).
+
+`tsc --noEmit` clean. Committed + pushed to main; auto-deploy via GitHub→Vercel.
+
+---
+
+## Earlier turn — Compare: tolerant prior-snapshot lookup (handle NULL-payload cron gaps)
 
 User reported the red banner "Compare vs last week: no snapshot available for 2026-04-30 — deltas hidden" when comparing 2026-05-07 vs last week. Investigated via Supabase: a row exists for 2026-04-30, but its `payload` column is NULL — same for every date 2026-04-26 through 2026-05-05. Only 2026-05-06 and 2026-05-07 have well-formed payloads. This is the same cron-gap pattern noted in the v1.5 follow-ups ("the Beithady cron occasionally writes its OWN row with `payload.all = null`") — known issue, not yet root-caused at the cron level.
 
