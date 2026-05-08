@@ -1,7 +1,8 @@
 'use client';
-import { PanelFrame } from '../panel-frame';
+import { useState } from 'react';
 import { BUILDING_CODES, type BuildingCode, type DailyReportPayload } from '@/lib/beithady-daily-report/types';
 import { STATUS_COLORS } from '@/lib/beithady/theme';
+import { ActivityDrawer, type DrawerView, type DrawerBuilding } from './activity-drawer';
 
 type Props = {
   payload: DailyReportPayload;
@@ -47,6 +48,8 @@ const ACCENT_COLOR: Record<Accent, string> = {
 
 type Sub = { text: string; tone: 'red' | 'amber' | 'info' };
 
+type DrawerState = { view: DrawerView; building: DrawerBuilding };
+
 export function DailyActivity({
   payload,
   snapshotDate,
@@ -56,6 +59,7 @@ export function DailyActivity({
   onHide,
   cleaningCountOverride,
 }: Props) {
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const isFiltered = buildingFilter !== 'all';
   const all = isFiltered ? payload.per_building[buildingFilter as BuildingCode] : payload.all;
   // Exception sub-counts are only computed at the portfolio level today,
@@ -122,6 +126,7 @@ export function DailyActivity({
   };
 
   return (
+    <>
     <section
       className="rounded-lg p-4 sm:p-5 shadow-sm"
       style={{
@@ -190,39 +195,50 @@ export function DailyActivity({
           label="Check-ins"
           value={all.check_ins_today}
           accent="green"
-          drillTo="/beithady/operations?view=arrivals"
           subs={checkInSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.check_ins_today) : []}
+          onOpen={(building) => setDrawer({ view: 'arrivals', building })}
         />
         <Tile
           icon="🛫"
           label="Check-outs"
           value={all.check_outs_today}
           accent="amber"
-          drillTo="/beithady/operations?view=departures"
           subs={checkOutSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.check_outs_today) : []}
+          onOpen={(building) => setDrawer({ view: 'departures', building })}
         />
         <Tile
           icon="🔁"
           label="Turnovers"
           value={all.turnovers_today}
           accent="gold"
-          drillTo="/beithady/operations?view=turnovers"
           subs={turnoverSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.turnovers_today) : []}
+          onOpen={(building) => setDrawer({ view: 'turnovers', building })}
         />
         <Tile
           icon="🏠"
           label="Currently staying"
           value={all.occupied_today}
           accent="ink"
-          drillTo="/beithady/operations?view=in-house"
           subs={stayingSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.occupied_today) : []}
+          onOpen={(building) => setDrawer({ view: 'inhouse', building })}
         />
       </div>
     </section>
+
+    {drawer && (
+      <ActivityDrawer
+        open
+        onClose={() => setDrawer(null)}
+        view={drawer.view}
+        date={snapshotDate}
+        initialBuilding={drawer.building}
+      />
+    )}
+    </>
   );
 }
 
@@ -242,24 +258,25 @@ function Tile({
   label,
   value,
   accent,
-  drillTo,
   subs,
   buildingBreakdown,
+  onOpen,
 }: {
   icon: string;
   label: string;
   value: number;
   accent: Accent;
-  drillTo: string;
   subs: Sub[];
   buildingBreakdown: BuildingChip[];
+  onOpen: (building: DrawerBuilding) => void;
 }) {
   return (
-    <a
-      href={drillTo}
-      className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+    <button
+      type="button"
+      onClick={() => onOpen('all')}
+      className="block w-full text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 transition hover:shadow-md motion-reduce:transition-none"
       style={{ outlineColor: 'var(--bh-gold)' }}
-      aria-label={`${label} — ${value}. Drill into details.`}
+      aria-label={`${label} — ${value}. Open details.`}
     >
       <div
         className="flex h-full flex-col rounded-md p-3 sm:p-4"
@@ -306,23 +323,27 @@ function Tile({
             aria-label={`${label} per building`}
           >
             {buildingBreakdown.map((chip) => (
-              <li
-                key={chip.code}
-                className="rounded px-1.5 py-0.5 tabular-nums"
-                style={{
-                  background: '#f5f3ec',
-                  color: 'var(--bh-ink)',
-                  border: '1px solid var(--bh-mute)',
-                }}
-              >
-                <span style={{ color: 'var(--bh-steel)' }}>{BUILDING_SHORT[chip.code]}</span>{' '}
-                <span className="font-semibold">{chip.value}</span>
+              <li key={chip.code}>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpen(chip.code); }}
+                  className="rounded px-1.5 py-0.5 tabular-nums transition hover:opacity-75 focus-visible:outline-none focus-visible:ring-1 motion-reduce:transition-none"
+                  style={{
+                    background: '#f5f3ec',
+                    color: 'var(--bh-ink)',
+                    border: '1px solid var(--bh-mute)',
+                  }}
+                  aria-label={`${label} in ${BUILDING_SHORT[chip.code]}: ${chip.value}`}
+                >
+                  <span style={{ color: 'var(--bh-steel)' }}>{BUILDING_SHORT[chip.code]}</span>{' '}
+                  <span className="font-semibold">{chip.value}</span>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </div>
-    </a>
+    </button>
   );
 }
 
