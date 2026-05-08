@@ -9,6 +9,7 @@ type Reservation = {
   id: string;
   confirmation_code: string | null;
   guest_name: string | null;
+  listing_id: string | null;
   listing_nickname: string | null;
   building_code: string | null;
   check_in_date: string | null;
@@ -72,6 +73,129 @@ function statusBadgeStyle(status: string | null): React.CSSProperties {
   }
 }
 
+// ── Turnover-specific grouped rendering ─────────────────────────────────────
+// Each turnover unit contributes 2 reservation rows (checkout + checkin).
+// Group them by listing_id and render as a single paired card.
+
+type TurnoverUnit = {
+  key: string;
+  nickname: string | null;
+  buildingCode: string | null;
+  checkout?: Reservation;
+  checkin?: Reservation;
+};
+
+function groupTurnovers(data: Reservation[], date: string): TurnoverUnit[] {
+  const map = new Map<string, TurnoverUnit>();
+  for (const r of data) {
+    const key = r.listing_id ?? r.listing_nickname ?? r.id;
+    if (!map.has(key)) {
+      map.set(key, { key, nickname: r.listing_nickname, buildingCode: r.building_code });
+    }
+    const unit = map.get(key)!;
+    if (r.check_out_date === date) unit.checkout = r;
+    else if (r.check_in_date === date) unit.checkin = r;
+  }
+  return [...map.values()];
+}
+
+function TurnoverList({ data, date }: { data: Reservation[]; date: string }) {
+  const units = groupTurnovers(data, date);
+  return (
+    <ul className="space-y-2">
+      {units.map((unit) => (
+        <li
+          key={unit.key}
+          className="overflow-hidden rounded-lg"
+          style={{ border: '1px solid var(--bh-mute)' }}
+        >
+          {/* Unit name header */}
+          <div
+            className="flex items-center gap-2 px-3 py-1.5"
+            style={{ background: '#f0ece0', borderBottom: '1px solid var(--bh-mute)' }}
+          >
+            <span
+              className="text-[12px] font-semibold"
+              style={{ color: 'var(--bh-ink)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}
+            >
+              {unit.nickname || unit.buildingCode || 'Unit TBD'}
+            </span>
+            {unit.buildingCode && unit.nickname && (
+              <span className="text-[10px]" style={{ color: 'var(--bh-steel)' }}>
+                {unit.buildingCode}
+              </span>
+            )}
+          </div>
+          {/* Checkout leg */}
+          {unit.checkout && <TurnoverLeg r={unit.checkout} role="out" />}
+          {/* Divider */}
+          {unit.checkout && unit.checkin && (
+            <div style={{ borderTop: '1px solid var(--bh-mute)' }} />
+          )}
+          {/* Checkin leg */}
+          {unit.checkin && <TurnoverLeg r={unit.checkin} role="in" />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TurnoverLeg({ r, role }: { r: Reservation; role: 'in' | 'out' }) {
+  return (
+    <div className="px-3 py-2" style={{ background: '#ffffff' }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="shrink-0 rounded px-1 py-0.5 font-mono text-[9px] uppercase tracking-wide"
+            style={role === 'out'
+              ? { background: '#fdf3da', color: '#7a5300' }
+              : { background: '#dcf5e5', color: '#1a6634' }}
+          >
+            {role === 'out' ? '↑ OUT' : '↓ IN'}
+          </span>
+          <p
+            className="min-w-0 truncate text-[12px] font-semibold leading-snug"
+            style={{ color: 'var(--bh-ink)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}
+          >
+            {r.guest_name || 'Guest'}
+          </p>
+        </div>
+        <span
+          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+          style={{ background: '#eef3fb', color: 'var(--bh-ink)' }}
+        >
+          {normalizeChannel(r.source)}
+        </span>
+      </div>
+      <div
+        className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px]"
+        style={{ color: 'var(--bh-steel)' }}
+      >
+        {r.nights != null && r.nights > 0 && (
+          <span>{r.nights} night{r.nights === 1 ? '' : 's'}</span>
+        )}
+        {r.guests != null && r.guests > 0 && (
+          <span>{r.guests} guest{r.guests === 1 ? '' : 's'}</span>
+        )}
+        {r.check_in_date && (
+          <span><span className="opacity-60">In </span>{r.check_in_date}</span>
+        )}
+        {r.check_out_date && (
+          <span><span className="opacity-60">Out </span>{r.check_out_date}</span>
+        )}
+        {r.confirmation_code && (
+          <span
+            className="rounded px-1 py-0.5 font-mono"
+            style={statusBadgeStyle(r.status)}
+          >
+            {r.confirmation_code}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ActivityDrawer({ open, onClose, view, date, initialBuilding }: Props) {
   const [building, setBuilding] = useState<DrawerBuilding>(initialBuilding);
   const [data, setData] = useState<Reservation[] | null>(null);
@@ -117,7 +241,10 @@ export function ActivityDrawer({ open, onClose, view, date, initialBuilding }: P
 
   if (!open) return null;
 
-  const count = data?.length ?? 0;
+  // Turnovers: each unit appears as 2 rows (checkout + checkin); count unique units.
+  const count = (view === 'turnovers' && data != null)
+    ? new Set(data.map((r) => r.listing_id ?? r.listing_nickname ?? r.id)).size
+    : (data?.length ?? 0);
 
   return (
     <>
@@ -159,7 +286,9 @@ export function ActivityDrawer({ open, onClose, view, date, initialBuilding }: P
               {humanDate(date)}
               {!loading && data && (
                 <span className="ml-2 text-[11px] font-normal opacity-70">
-                  {count} reservation{count === 1 ? '' : 's'}
+                  {view === 'turnovers'
+                    ? `${count} turnover${count === 1 ? '' : 's'}`
+                    : `${count} reservation${count === 1 ? '' : 's'}`}
                 </span>
               )}
             </p>
@@ -228,65 +357,69 @@ export function ActivityDrawer({ open, onClose, view, date, initialBuilding }: P
           )}
 
           {!loading && !fetchError && data && data.length > 0 && (
-            <ul className="space-y-2">
-              {data.map((r) => (
-                <li
-                  key={r.id}
-                  className="rounded-lg p-3"
-                  style={{ background: '#ffffff', border: '1px solid var(--bh-mute)' }}
-                >
-                  {/* Top row: name + channel badge */}
-                  <div className="flex items-start justify-between gap-2">
-                    <p
-                      className="min-w-0 truncate text-[13px] font-semibold leading-snug"
-                      style={{ color: 'var(--bh-ink)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}
-                    >
-                      {r.guest_name || 'Guest'}
-                    </p>
-                    <span
-                      className="shrink-0 rounded px-2 py-0.5 text-[10px] font-medium"
-                      style={{ background: '#eef3fb', color: 'var(--bh-ink)' }}
-                    >
-                      {normalizeChannel(r.source)}
-                    </span>
-                  </div>
-
-                  {/* Unit + stay meta */}
-                  <p className="mt-0.5 text-[11px]" style={{ color: 'var(--bh-steel)' }}>
-                    {r.listing_nickname || r.building_code || 'Unit TBD'}
-                    {r.nights != null && r.nights > 0 && ` · ${r.nights} night${r.nights === 1 ? '' : 's'}`}
-                    {r.guests != null && r.guests > 0 && ` · ${r.guests} guest${r.guests === 1 ? '' : 's'}`}
-                  </p>
-
-                  {/* Dates + code row */}
-                  <div
-                    className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]"
-                    style={{ color: 'var(--bh-steel)' }}
+            view === 'turnovers' ? (
+              <TurnoverList data={data} date={date} />
+            ) : (
+              <ul className="space-y-2">
+                {data.map((r) => (
+                  <li
+                    key={r.id}
+                    className="rounded-lg p-3"
+                    style={{ background: '#ffffff', border: '1px solid var(--bh-mute)' }}
                   >
-                    {r.check_in_date && (
-                      <span>
-                        <span className="opacity-60">In </span>
-                        {r.check_in_date}
-                      </span>
-                    )}
-                    {r.check_out_date && (
-                      <span>
-                        <span className="opacity-60">Out </span>
-                        {r.check_out_date}
-                      </span>
-                    )}
-                    {r.confirmation_code && (
-                      <span
-                        className="rounded px-1.5 py-0.5 font-mono"
-                        style={statusBadgeStyle(r.status)}
+                    {/* Top row: name + channel badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <p
+                        className="min-w-0 truncate text-[13px] font-semibold leading-snug"
+                        style={{ color: 'var(--bh-ink)', fontFamily: 'Cormorant Garamond, Georgia, serif' }}
                       >
-                        {r.confirmation_code}
+                        {r.guest_name || 'Guest'}
+                      </p>
+                      <span
+                        className="shrink-0 rounded px-2 py-0.5 text-[10px] font-medium"
+                        style={{ background: '#eef3fb', color: 'var(--bh-ink)' }}
+                      >
+                        {normalizeChannel(r.source)}
                       </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    </div>
+
+                    {/* Unit + stay meta */}
+                    <p className="mt-0.5 text-[11px]" style={{ color: 'var(--bh-steel)' }}>
+                      {r.listing_nickname || r.building_code || 'Unit TBD'}
+                      {r.nights != null && r.nights > 0 && ` · ${r.nights} night${r.nights === 1 ? '' : 's'}`}
+                      {r.guests != null && r.guests > 0 && ` · ${r.guests} guest${r.guests === 1 ? '' : 's'}`}
+                    </p>
+
+                    {/* Dates + code row */}
+                    <div
+                      className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]"
+                      style={{ color: 'var(--bh-steel)' }}
+                    >
+                      {r.check_in_date && (
+                        <span>
+                          <span className="opacity-60">In </span>
+                          {r.check_in_date}
+                        </span>
+                      )}
+                      {r.check_out_date && (
+                        <span>
+                          <span className="opacity-60">Out </span>
+                          {r.check_out_date}
+                        </span>
+                      )}
+                      {r.confirmation_code && (
+                        <span
+                          className="rounded px-1.5 py-0.5 font-mono"
+                          style={statusBadgeStyle(r.status)}
+                        >
+                          {r.confirmation_code}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
           )}
         </div>
 

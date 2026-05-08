@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
     id: r.id,
     confirmation_code: r.confirmation_code,
     guest_name: r.guest_name,
+    listing_id: r.listing_id,
     listing_nickname: r.listing_nickname,
     building_code: r.listing?.building_code ?? null,
     check_in_date: r.check_in_date,
