@@ -36,7 +36,7 @@ export default async function BoardingPassPage({ params }: { params: Promise<{ t
         {/* Brand header */}
         <header className="text-center space-y-2">
           <div className="relative w-32 h-16 mx-auto">
-            <Image src="/brand/beithady/wordmark.jpg" alt="Beit Hady" fill className="object-contain" sizes="128px" priority />
+            <Image src="/brand/beithady/Wordmark-03.png" alt="Beit Hady" fill className="object-contain" sizes="128px" priority />
           </div>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--bh-navy, #1E2D4A)', fontFamily: 'Cormorant Garamond, Playfair Display, ui-serif, Georgia, serif' }}>
             Welcome, {bundle.guest_first_name}

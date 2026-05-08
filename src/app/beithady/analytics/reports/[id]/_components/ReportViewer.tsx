@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { Play, RefreshCw } from 'lucide-react';
@@ -63,10 +63,10 @@ export function ReportViewer({
         <button
           onClick={refresh}
           disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#1e3a5f] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2c4d7a] disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-[var(--bh-ink)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2c4d7a] disabled:opacity-50"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          {loading ? 'Refreshing…' : 'Refresh data'}
+          {loading ? 'Refreshingâ€¦' : 'Refresh data'}
         </button>
         {data ? (
           <span className="text-xs text-slate-500">
@@ -84,7 +84,7 @@ export function ReportViewer({
           {config.visualization.showPivotTable ? <PivotTable data={data} /> : null}
           {data.commentary?.bullets?.length ? (
             <div className="ix-card p-5">
-              <h3 className="text-sm font-semibold text-[#1e3a5f] dark:text-amber-100 mb-3">
+              <h3 className="text-sm font-semibold text-[var(--bh-ink)] dark:text-amber-100 mb-3">
                 Conclusions
               </h3>
               <ul className="space-y-2 text-sm list-disc pl-5">

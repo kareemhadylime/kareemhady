@@ -33,7 +33,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { user, roles } = await requireBeithadyPermission('fnb', 'full');
   const { id } = await ctx.params;
-  const parsed = StatusUpdatePayloadSchema.parse(await req.json());
+  const parsedResult = StatusUpdatePayloadSchema.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
 
   const sb = supabaseAdmin();
   const { data: order, error } = await sb.from('fnb_orders')

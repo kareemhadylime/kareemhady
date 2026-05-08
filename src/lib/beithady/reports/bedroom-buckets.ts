@@ -21,10 +21,3 @@ export const BEDROOM_LABEL: Record<BedroomBucket, string> = {
   '4_plus': '4+ BR',
 };
 
-export const BEDROOM_BUCKETS: readonly BedroomBucket[] = [
-  'studio',
-  '1',
-  '2',
-  '3',
-  '4_plus',
-] as const;

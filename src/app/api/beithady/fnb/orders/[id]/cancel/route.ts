@@ -15,7 +15,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const { id } = await ctx.params;
-  const { reason } = Body.parse(await req.json());
+  const parsedResult = Body.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const { reason } = parsedResult.data;
 
   const sb = supabaseAdmin();
   const { data: order } = await sb.from('fnb_orders').select('*').eq('id', id).single();

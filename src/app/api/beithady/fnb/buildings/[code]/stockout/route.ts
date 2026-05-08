@@ -14,7 +14,11 @@ interface Ctx { params: Promise<{ code: string }> }
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const { code } = await ctx.params;
-  const { item_id, is_out_of_stock } = Body.parse(await req.json());
+  const parsedResult = Body.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const { item_id, is_out_of_stock } = parsedResult.data;
   await upsertBuildingOverride({
     building_code: code,
     item_id,

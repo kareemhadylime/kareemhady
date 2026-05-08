@@ -1,15 +1,14 @@
 'use client';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { STATUS_COLORS } from '@/lib/beithady/theme';
 
 type Accent = 'ink' | 'gold' | 'steel' | 'green' | 'amber' | 'red';
 const ACCENT_COLOR: Record<Accent, string> = {
   ink: 'var(--bh-ink)',
   gold: 'var(--bh-gold)',
   steel: 'var(--bh-steel)',
-  green: '#15803d',
-  amber: '#b45309',
-  red: '#b91c1c',
+  ...STATUS_COLORS,
 };
 
 type Props = {

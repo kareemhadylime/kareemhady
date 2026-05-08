@@ -26,7 +26,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const { id } = await ctx.params;
   const body = await req.json();
-  const parsed = Body.parse(body);
+  const parsedResult = Body.safeParse(body);
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
   const line = await upsertRecipeLine({
     item_id: id,
     inventory_item_id: parsed.inventory_item_id,

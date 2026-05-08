@@ -64,16 +64,3 @@ export async function isVipDigestEnabled(): Promise<boolean> {
   return getSetting<boolean>('vip_digest_enabled', true);
 }
 
-// Phase C.5 follow-up — DEPRECATED. The single global outbound kill
-// switch was replaced 2026-04-30 with granular per-automation switches
-// + a manual-outbound switch. New code should use:
-//
-//   import { isManualOutboundPaused, isAutomationPaused } from '@/lib/beithady/automations';
-//
-// This shim is kept ONLY to satisfy any external callers that imported
-// the old name; it now reads the manual switch (the closest semantic
-// match for "is outbound paused for what an agent would do?"). Schedule
-// for removal once all imports are migrated.
-export async function isOutboundPaused(): Promise<boolean> {
-  return getSetting<boolean>('beithady_pause_manual_outbound', false);
-}

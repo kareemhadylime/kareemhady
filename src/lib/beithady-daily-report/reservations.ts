@@ -1,6 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '../supabase';
-import { toUsd } from './fx';
+import { usdRate } from './fx';
 import { bucketFromGuestyListing, isExcludedFromReport } from './units';
 import type { BuildingCode } from './types';
 
@@ -132,6 +132,38 @@ export async function loadReservationCorpus(
     if (batch.length < PAGE) break;
   }
 
+  // FX hoist (audit fix 2026-05-08): the previous loop did
+  //   `await toUsd(payout, currency, fxDate)` × 2 per row × ~3000 rows
+  // which issued ~6000 sequential `fx_rates` lookups on every daily
+  // report build (~30-60s wasted under cache-warm conditions). Now we
+  // pre-fetch the rate for each *distinct* currency once and convert
+  // synchronously inside the loop.
+  const distinctCurrencies = new Set<string>();
+  for (const r of collected) {
+    const c = String((r.currency as string | null) || 'USD').toUpperCase();
+    distinctCurrencies.add(c || 'USD');
+  }
+  const rateEntries = await Promise.all(
+    [...distinctCurrencies].map(async c => {
+      if (c === 'USD') return [c, 1] as const;
+      const fx = await usdRate(c, fxDate);
+      return [c, fx?.rate ?? null] as const;
+    })
+  );
+  const rateByCurrency = new Map<string, number | null>(rateEntries);
+
+  function convertSync(
+    amount: number | null | undefined,
+    currency: string | null | undefined
+  ): number | null {
+    if (amount == null || !Number.isFinite(amount)) return null;
+    const c = String(currency || 'USD').toUpperCase();
+    if (c === 'USD') return amount;
+    const rate = rateByCurrency.get(c);
+    if (rate == null) return null;
+    return Math.round((amount / rate) * 100) / 100;
+  }
+
   // Convert + bucket
   const seen = new Set<string>();
   const rows: ReservationRow[] = [];
@@ -154,23 +186,21 @@ export async function loadReservationCorpus(
     const rawPayout = r.host_payout as number | string | null;
     const payoutNum =
       typeof rawPayout === 'string' ? Number(rawPayout) : rawPayout;
-    const usd = await toUsd(
+    const usd = convertSync(
       typeof payoutNum === 'number' && Number.isFinite(payoutNum)
         ? payoutNum
         : null,
       (r.currency as string | null) || 'USD',
-      fxDate
     );
 
     const guestPaidRaw = r.guest_paid as number | string | null;
     const guestPaidNum =
       typeof guestPaidRaw === 'string' ? Number(guestPaidRaw) : guestPaidRaw;
-    const guestPaidUsd = await toUsd(
+    const guestPaidUsd = convertSync(
       typeof guestPaidNum === 'number' && Number.isFinite(guestPaidNum)
         ? guestPaidNum
         : null,
       (r.currency as string | null) || 'USD',
-      fxDate
     );
 
     const cancelledAt = (r.cancelled_at as string | null) || null;

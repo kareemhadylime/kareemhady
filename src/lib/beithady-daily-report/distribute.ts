@@ -1,4 +1,4 @@
-import 'server-only';
+﻿import 'server-only';
 import { supabaseAdmin } from '../supabase';
 import { sendWhatsApp } from '../whatsapp/green-api';
 import { isAutomationPaused } from '@/lib/beithady/automations';
@@ -14,8 +14,8 @@ import type { DailyReportPayload } from './types';
 // every 30 min without sending duplicates.
 //
 // Format:
-//   WhatsApp → text-only message containing the tokenized link
-//   Email    → HTML body (digest + link) + PDF attachment
+//   WhatsApp â†’ text-only message containing the tokenized link
+//   Email    â†’ HTML body (digest + link) + PDF attachment
 
 const round0 = (n: number) => Math.round(n).toLocaleString('en-US');
 
@@ -51,25 +51,25 @@ function buildWhatsAppText(payload: DailyReportPayload, link: string): string {
   const reviews = payload.reviews;
   const flagged = reviews.last_24h.filter(r => r.flagged).length;
   const pickup = all.pickup_vs_prior_month_pct;
-  const arrow = pickup > 0 ? '▲ +' : pickup < 0 ? '▼ ' : '';
+  const arrow = pickup > 0 ? 'â–² +' : pickup < 0 ? 'â–¼ ' : '';
   const fmtUsd1 = (n: number): string => {
     if (Math.abs(n) >= 1000) return '$' + Math.round(n / 1000) + 'k';
     return '$' + Math.round(n);
   };
   return [
-    `🏛️ *Beit Hady · Daily Performance*`,
+    `ðŸ›ï¸ *Beit Hady Â· Daily Performance*`,
     payload.generated_at_cairo,
     ``,
-    `📊 *Today*: ${all.occupied_today}/${all.total_units} occupied (${all.occupancy_today_pct.toFixed(1)}%)`,
-    `   ✅ ${all.check_ins_today} check-ins · ${all.check_outs_today} check-outs · ${all.turnovers_today} turnovers`,
+    `ðŸ“Š *Today*: ${all.occupied_today}/${all.total_units} occupied (${all.occupancy_today_pct.toFixed(1)}%)`,
+    `   âœ… ${all.check_ins_today} check-ins Â· ${all.check_outs_today} check-outs Â· ${all.turnovers_today} turnovers`,
     ``,
-    `💰 *Revenue (check-in this month)*: ${fmtUsd1(all.revenue_mtd_usd)}` +
+    `ðŸ’° *Revenue (check-in this month)*: ${fmtUsd1(all.revenue_mtd_usd)}` +
       (pickup !== 0 ? ` (${arrow}${pickup.toFixed(1)}% vs prior month)` : ''),
-    `📒 *Revenue (booked this month)*: ${fmtUsd1(all.revenue_created_mtd_usd)} _(Guesty Analytics parity)_`,
-    `⭐ ${reviews.count_mtd} reviews · ${reviews.avg_rating_mtd.toFixed(1)}★ avg` +
-      (flagged > 0 ? ` · ${flagged} flagged 🚩` : ''),
+    `ðŸ“’ *Revenue (booked this month)*: ${fmtUsd1(all.revenue_created_mtd_usd)} _(Guesty Analytics parity)_`,
+    `â­ ${reviews.count_mtd} reviews Â· ${reviews.avg_rating_mtd.toFixed(1)}â˜… avg` +
+      (flagged > 0 ? ` Â· ${flagged} flagged ðŸš©` : ''),
     ``,
-    `📋 Full report (expires 48h):`,
+    `ðŸ“‹ Full report (expires 48h):`,
     link,
   ].join('\n');
 }
@@ -86,8 +86,8 @@ function buildEmailBody(payload: DailyReportPayload, link: string): string {
     pickup === 0
       ? ''
       : pickup > 0
-        ? `<span style="color:#15803d;">▲ +${pickup.toFixed(1)}% vs prior month</span>`
-        : `<span style="color:#b91c1c;">▼ ${pickup.toFixed(1)}% vs prior month</span>`;
+        ? `<span style="color:#15803d;">â–² +${pickup.toFixed(1)}% vs prior month</span>`
+        : `<span style="color:#b91c1c;">â–¼ ${pickup.toFixed(1)}% vs prior month</span>`;
   const base =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.VERCEL_URL ||
@@ -99,10 +99,10 @@ function buildEmailBody(payload: DailyReportPayload, link: string): string {
   <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#faf8f3;">
     <tr><td style="padding:24px 16px;">
       <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:white;border-radius:6px;overflow:hidden;border:1px solid #e6dfce;">
-        <tr><td style="padding:20px 24px 14px 24px;border-bottom:2px solid #1e3a5f;text-align:center;">
+        <tr><td style="padding:20px 24px 14px 24px;border-bottom:2px solid #003462;text-align:center;">
           <img src="${logoUrl}" alt="Beit Hady" width="120" style="display:block;margin:0 auto;height:auto;max-width:120px;" />
           <p style="margin:8px 0 0 0;font-size:11px;color:#7a8aa3;letter-spacing:1px;text-transform:uppercase;">Daily Performance Report</p>
-          <p style="margin:4px 0 0 0;font-size:11px;color:#7a8aa3;">${payload.generated_at_cairo} · all amounts USD</p>
+          <p style="margin:4px 0 0 0;font-size:11px;color:#7a8aa3;">${payload.generated_at_cairo} Â· all amounts USD</p>
         </td></tr>
         <tr><td style="padding:16px 24px;background:#f0e9d9;border-left:4px solid #c9a96e;">
           <p style="margin:0;font-size:13px;color:#1a2c47;line-height:1.55;font-family:Georgia,serif;">${payload.digest_oneliner}</p>
@@ -115,20 +115,20 @@ function buildEmailBody(payload: DailyReportPayload, link: string): string {
                 <td style="padding:5px 0;text-align:right;color:#1a2c47;">${all.check_ins_today} / ${all.check_outs_today} / ${all.turnovers_today}</td></tr>
             <tr><td style="padding:5px 0;color:#374b6b;">Revenue <span style="color:#7a8aa3;font-size:10px;">(check-in this month)</span></td>
                 <td style="padding:5px 0;text-align:right;font-weight:600;color:#1a2c47;">${fmtUsd(all.revenue_mtd_usd)} ${pickupStr}</td></tr>
-            <tr><td style="padding:5px 0;color:#374b6b;">Revenue <span style="color:#7a8aa3;font-size:10px;">(booked this month · Guesty Analytics parity)</span></td>
+            <tr><td style="padding:5px 0;color:#374b6b;">Revenue <span style="color:#7a8aa3;font-size:10px;">(booked this month Â· Guesty Analytics parity)</span></td>
                 <td style="padding:5px 0;text-align:right;font-weight:600;color:#1a2c47;">${fmtUsd(all.revenue_created_mtd_usd)}</td></tr>
             <tr><td style="padding:5px 0;color:#374b6b;">ADR MTD</td>
                 <td style="padding:5px 0;text-align:right;color:#1a2c47;">${fmtUsd(all.adr_mtd_usd)}</td></tr>
             <tr><td style="padding:5px 0;color:#374b6b;">Reviews this month</td>
-                <td style="padding:5px 0;text-align:right;color:#1a2c47;">${reviews.count_mtd} · ${reviews.avg_rating_mtd.toFixed(1)}★${flagged > 0 ? ` · ${flagged} flagged` : ''}</td></tr>
+                <td style="padding:5px 0;text-align:right;color:#1a2c47;">${reviews.count_mtd} Â· ${reviews.avg_rating_mtd.toFixed(1)}â˜…${flagged > 0 ? ` Â· ${flagged} flagged` : ''}</td></tr>
           </table>
         </td></tr>
         <tr><td style="padding:0 24px 18px 24px;text-align:center;">
-          <a href="${link}" style="display:inline-block;background:#1e3a5f;color:white;padding:11px 22px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:600;letter-spacing:0.5px;font-family:Georgia,serif;">View Full A4 Report</a>
-          <p style="margin:10px 0 0 0;font-size:11px;color:#7a8aa3;font-family:Georgia,serif;">📎 Full report also attached as PDF. Browser link expires 48h after generation.</p>
+          <a href="${link}" style="display:inline-block;background:#003462;color:white;padding:11px 22px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:600;letter-spacing:0.5px;font-family:Georgia,serif;">View Full A4 Report</a>
+          <p style="margin:10px 0 0 0;font-size:11px;color:#7a8aa3;font-family:Georgia,serif;">ðŸ“Ž Full report also attached as PDF. Browser link expires 48h after generation.</p>
         </td></tr>
         <tr><td style="padding:12px 24px;border-top:1px solid #e6dfce;background:#faf8f3;font-size:10px;color:#7a8aa3;text-align:center;font-family:Georgia,serif;">
-          Generated ${payload.generated_at_iso} · Beit Hady · Powered by FM+
+          Generated ${payload.generated_at_iso} Â· Beit Hady Â· Powered by FM+
         </td></tr>
       </table>
     </td></tr>
@@ -180,7 +180,7 @@ async function getSenderRefreshToken(): Promise<{
  * Fanout to all active recipients for the given snapshot. Skips any
  * recipient that already has status='sent' for this snapshot. Records
  * results in `daily_report_deliveries`. Returns a summary including a
- * `delivery_complete` flag — true when every active recipient has a
+ * `delivery_complete` flag â€” true when every active recipient has a
  * successful send for this snapshot.
  */
 export async function distributeReport(args: {
@@ -188,7 +188,7 @@ export async function distributeReport(args: {
   token: string;
   payload: DailyReportPayload;
   pdf_bytes: Buffer;
-  // For "Send Test Now" — restricts fanout to a single recipient (the clicker).
+  // For "Send Test Now" â€” restricts fanout to a single recipient (the clicker).
   restrict_to_recipient_ids?: string[] | null;
 }): Promise<DistributeResult> {
   const sb = supabaseAdmin();
@@ -205,9 +205,9 @@ export async function distributeReport(args: {
   const { data: rcps } = await q;
   const recipients = (rcps as Recipient[] | null) || [];
 
-  // Existing successful sends → skip set (only when running as cron).
+  // Existing successful sends â†’ skip set (only when running as cron).
   // In TEST MODE (restrict_to_recipient_ids set), the admin wants a
-  // fresh send every click, so bypass the dedupe — otherwise repeated
+  // fresh send every click, so bypass the dedupe â€” otherwise repeated
   // clicks would all return Attempted: 0 because today's recipients
   // already have status='sent' rows from the first test.
   const isTestMode = !!(
@@ -264,7 +264,7 @@ export async function distributeReport(args: {
     const attempt = (count ?? 0) + 1;
 
     if (rcp.channel === 'whatsapp') {
-      // Phase C.5 follow-up — granular kill switch for daily report WA.
+      // Phase C.5 follow-up â€” granular kill switch for daily report WA.
       if (await isAutomationPaused('daily_report_dispatch')) {
         await sb.from('daily_report_deliveries').insert({
           snapshot_id: args.snapshot_id,

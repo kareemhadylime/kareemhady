@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
     query = query.or(`name_en.ilike.%${q}%,sku.ilike.%${q}%,name_ar.ilike.%${q}%`);
   }
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[fnb/inventory-items] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ items: data ?? [] });
 }

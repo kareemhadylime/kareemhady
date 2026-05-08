@@ -1,15 +1,15 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { Swords, FileX, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import type { FeeAuditData, FeeCategory } from '@/lib/beithady/fees-audit/types';
 
 const fmtUsd = (v: number | null): string =>
-  v == null ? '—' : `$${Math.round(v).toLocaleString('en-US')}`;
+  v == null ? 'â€”' : `$${Math.round(v).toLocaleString('en-US')}`;
 
 // Pivot mode: when an Analytic category is selected in the sidebar, the
 // cross-ref table sorts listings by the analytic dimension instead of the
-// default building → bedrooms grouping. Lets the operator slice the same
+// default building â†’ bedrooms grouping. Lets the operator slice the same
 // data set different ways without changing the underlying query.
 type PivotMode = FeeCategory | null;
 
@@ -122,8 +122,8 @@ export function CrossRefTable({
 
   return (
     <div className="ix-card overflow-x-auto">
-      <h3 className="text-sm font-semibold text-[#1e3a5f] dark:text-amber-100 px-4 pt-4 mb-2">
-        Cross-Reference · listing × bedrooms × bathrooms × fees
+      <h3 className="text-sm font-semibold text-[var(--bh-ink)] dark:text-amber-100 px-4 pt-4 mb-2">
+        Cross-Reference Â· listing Ã— bedrooms Ã— bathrooms Ã— fees
         {sortKey && (
           <button
             onClick={() => {
@@ -139,7 +139,7 @@ export function CrossRefTable({
       </h3>
       <table className="w-full text-xs">
         <thead>
-          <tr className="bg-[#f0e9d9] text-[#1e3a5f] dark:bg-slate-800 dark:text-amber-100">
+          <tr className="bg-[#f0e9d9] text-[var(--bh-ink)] dark:bg-slate-800 dark:text-amber-100">
             <SortHeader
               label="Listing"
               align="left"
@@ -267,7 +267,7 @@ export function CrossRefTable({
                   </span>
                 </td>
                 <td className="px-2 py-1.5 text-center">{l.bedrooms}</td>
-                <td className="px-2 py-1.5 text-center">{l.bathrooms ?? '—'}</td>
+                <td className="px-2 py-1.5 text-center">{l.bathrooms ?? 'â€”'}</td>
                 <td className="px-2 py-1.5 text-center">{l.capacity}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd(avgDaily)}</td>
                 <td className={`px-2 py-1.5 text-right tabular-nums ${cleaningClass}`}>
@@ -276,13 +276,13 @@ export function CrossRefTable({
                 <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd(l.pet_fee)}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd(l.extra_guest_fee)}</td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
-                  {l.min_nights_default ?? '—'}
+                  {l.min_nights_default ?? 'â€”'}
                   {Object.keys(l.min_nights_per_channel).length > 0 && (
                     <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-1">+ch</span>
                   )}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
-                  {taxPct > 0 ? `${taxPct.toFixed(1)}%` : '—'}
+                  {taxPct > 0 ? `${taxPct.toFixed(1)}%` : 'â€”'}
                 </td>
                 {(priceMode === 'guest_gross' || priceMode === 'both') && (
                   <td className="px-2 py-1.5 text-right tabular-nums text-emerald-700 dark:text-emerald-300 font-semibold">
@@ -290,7 +290,7 @@ export function CrossRefTable({
                   </td>
                 )}
                 {(priceMode === 'host_net' || priceMode === 'both') && (
-                  <td className="px-2 py-1.5 text-right tabular-nums text-[#1e3a5f] dark:text-amber-200 font-semibold">
+                  <td className="px-2 py-1.5 text-right tabular-nums text-[var(--bh-ink)] dark:text-amber-200 font-semibold">
                     {fmtUsd(host3n)}
                   </td>
                 )}

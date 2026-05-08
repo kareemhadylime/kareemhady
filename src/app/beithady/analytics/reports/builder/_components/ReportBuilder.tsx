@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -54,7 +54,7 @@ const GROUP_LABELS: Record<GroupAxis, string> = {
   listing: 'Listing',
   channel: 'Channel',
   listing_type: 'Listing type',
-  building_x_bedroom: 'Building × Bedroom',
+  building_x_bedroom: 'Building Ã— Bedroom',
 };
 
 type Tab = 'setup' | 'compare' | 'visualize' | 'commentary' | 'export';
@@ -139,7 +139,7 @@ export function ReportBuilder({
                 onClick={() => setTab(t.k)}
                 className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded transition ${
                   tab === t.k
-                    ? 'bg-[#1e3a5f] text-white'
+                    ? 'bg-[var(--bh-ink)] text-white'
                     : 'text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
@@ -170,10 +170,10 @@ export function ReportBuilder({
           <button
             onClick={runReport}
             disabled={running}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c4d7a] disabled:opacity-50"
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--bh-ink)] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c4d7a] disabled:opacity-50"
           >
             <Play size={14} />
-            {running ? 'Running…' : 'Run preview'}
+            {running ? 'Runningâ€¦' : 'Run preview'}
           </button>
           {canSave ? (
             <button
@@ -182,7 +182,7 @@ export function ReportBuilder({
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
             >
               <Save size={14} />
-              {savePending ? 'Saving…' : 'Save'}
+              {savePending ? 'Savingâ€¦' : 'Save'}
             </button>
           ) : null}
         </div>
@@ -208,7 +208,7 @@ export function ReportBuilder({
             {data.warnings?.length ? (
               <div className="ix-card p-3 text-xs text-amber-800 bg-amber-50">
                 {data.warnings.map((w, i) => (
-                  <div key={i}>⚠ {w}</div>
+                  <div key={i}>âš  {w}</div>
                 ))}
               </div>
             ) : null}
@@ -237,7 +237,7 @@ function SetupTab({
           type="text"
           value={config.title}
           onChange={e => setConfig({ ...config, title: e.target.value })}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#1e3a5f] focus:outline-none dark:bg-slate-800 dark:border-slate-700"
+          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[var(--bh-ink)] focus:outline-none dark:bg-slate-800 dark:border-slate-700"
         />
       </div>
       <div>
@@ -246,7 +246,7 @@ function SetupTab({
           rows={2}
           value={config.description || ''}
           onChange={e => setConfig({ ...config, description: e.target.value })}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#1e3a5f] focus:outline-none dark:bg-slate-800 dark:border-slate-700"
+          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[var(--bh-ink)] focus:outline-none dark:bg-slate-800 dark:border-slate-700"
         />
       </div>
 
@@ -314,7 +314,7 @@ function SetupTab({
                   ],
                 });
               }}
-              className="inline-flex items-center gap-1 text-xs text-[#1e3a5f] hover:underline"
+              className="inline-flex items-center gap-1 text-xs text-[var(--bh-ink)] hover:underline"
             >
               <Plus size={12} /> Add period
             </button>
@@ -352,7 +352,7 @@ function SetupTab({
                 key={m}
                 className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded cursor-pointer ${
                   checked
-                    ? 'bg-[#1e3a5f] text-white'
+                    ? 'bg-[var(--bh-ink)] text-white'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
                 }`}
               >
@@ -507,7 +507,7 @@ function CompareTab({
             }
             className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
           >
-            <option value="">— pick —</option>
+            <option value="">â€” pick â€”</option>
             {config.periods.map(p => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -705,7 +705,7 @@ function VisualizeTab({
                 },
               });
             }}
-            className="inline-flex items-center gap-1 text-xs text-[#1e3a5f] hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-[var(--bh-ink)] hover:underline"
           >
             <Plus size={12} /> Add chart
           </button>
@@ -765,7 +765,7 @@ function CommentaryTab({
           checked={config.enableAnomalyDetection !== false}
           onChange={e => setConfig({ ...config, enableAnomalyDetection: e.target.checked })}
         />
-        Flag anomalies (&gt;2σ)
+        Flag anomalies (&gt;2Ïƒ)
       </label>
 
       <button
@@ -774,7 +774,7 @@ function CommentaryTab({
         className="w-full inline-flex items-center justify-center gap-1 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
       >
         <Sparkles size={14} />
-        {generating ? 'Generating…' : 'Generate AI conclusions'}
+        {generating ? 'Generatingâ€¦' : 'Generate AI conclusions'}
       </button>
 
       {bullets.length ? (
@@ -830,7 +830,7 @@ function ExportTab({
           className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
         >
           <Save size={14} />
-          {savePending ? 'Saving…' : 'Save report'}
+          {savePending ? 'Savingâ€¦' : 'Save report'}
         </button>
       ) : (
         <p className="text-xs text-amber-700">Saving requires Business Analyst or admin role.</p>

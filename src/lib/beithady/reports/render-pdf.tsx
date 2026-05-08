@@ -1,6 +1,6 @@
-// Beithady · Generate Report · A4 PDF render via @react-pdf/renderer.
-// Server-side, no Chromium. Mirrors the manual report layout (cover →
-// KPI strip → pivot table → charts → commentary). BeitHady brand palette.
+﻿// Beithady Â· Generate Report Â· A4 PDF render via @react-pdf/renderer.
+// Server-side, no Chromium. Mirrors the manual report layout (cover â†’
+// KPI strip â†’ pivot table â†’ charts â†’ commentary). BeitHady brand palette.
 
 import 'server-only';
 import { readFileSync } from 'node:fs';
@@ -28,14 +28,14 @@ const PALETTE = {
   ink2: '#374b6b',
   muted: '#7a8aa3',
   line: '#e6dfce',
-  brand: '#1e3a5f',
+  brand: '#003462',
   brandBg: '#f0e9d9',
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
   gold: '#c9a96e',
   cardBg: '#faf8f3',
-  chartA: '#1e3a5f',
+  chartA: '#003462',
   chartB: '#c9a96e',
   chartC: '#15803d',
   chartD: '#b45309',
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
 });
 
 function shortFmt(value: number | null, key: MetricKey): string {
-  if (value == null) return '—';
+  if (value == null) return 'â€”';
   const u = METRIC_UNIT[key];
   if (u === 'usd' && Math.abs(value) >= 1000) {
     return `$${(value / 1000).toFixed(1)}k`;
@@ -326,7 +326,7 @@ function BcgQuadrantSvg({
         strokeDasharray="3 3"
       />
       {/* Quadrant labels */}
-      <Text x={xOf(revHigh) + 6} y={padding.top + 12} style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', fill: PALETTE.green }}>★ STARS</Text>
+      <Text x={xOf(revHigh) + 6} y={padding.top + 12} style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', fill: PALETTE.green }}>â˜… STARS</Text>
       <Text x={padding.left + 6} y={padding.top + 12} style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', fill: PALETTE.amber }}>? QUESTION MARKS</Text>
       <Text x={xOf(revHigh) + 6} y={padding.top + h - 6} style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', fill: PALETTE.brand }}>$ CASH COWS</Text>
       <Text x={padding.left + 6} y={padding.top + h - 6} style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', fill: PALETTE.muted }}>DOGS</Text>
@@ -380,23 +380,23 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
               <Text style={styles.subtitle}>{data.config.description}</Text>
             ) : null}
             <Text style={styles.subtitle}>
-              {periods.map(p => p.label).join(' · ')}
+              {periods.map(p => p.label).join(' Â· ')}
             </Text>
           </View>
           {logo ? <Image src={logo} style={{ width: 50, height: 50 }} /> : null}
         </View>
 
-        {/* KPI strip — first period totals */}
+        {/* KPI strip â€” first period totals */}
         {data.config.visualization.showKpiStrip && periods[0] ? (
           <>
-            <Text style={styles.sectionTitle}>Key metrics — {periods[0].label}</Text>
+            <Text style={styles.sectionTitle}>Key metrics â€” {periods[0].label}</Text>
             <View style={styles.kpiGrid}>
               {metrics.slice(0, 6).map(m => {
                 const cell = data.totals[`${periods[0].id}::${m}`];
                 return (
                   <View key={m} style={styles.kpiCard}>
                     <Text style={styles.kpiLabel}>{METRIC_LABEL[m]}</Text>
-                    <Text style={styles.kpiValue}>{cell?.formatted || '—'}</Text>
+                    <Text style={styles.kpiValue}>{cell?.formatted || 'â€”'}</Text>
                   </View>
                 );
               })}
@@ -414,7 +414,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
                 {periods.flatMap(p =>
                   metrics.map(m => (
                     <Text key={`${p.id}::${m}`} style={styles.th}>
-                      {p.label.slice(0, 8)} · {METRIC_LABEL[m].slice(0, 12)}
+                      {p.label.slice(0, 8)} Â· {METRIC_LABEL[m].slice(0, 12)}
                     </Text>
                   ))
                 )}
@@ -423,7 +423,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
                 <View key={r.groupKey} style={styles.tr} wrap={false}>
                   <Text style={[styles.td, styles.tdFirst]}>
                     {r.groupLabels.secondary
-                      ? `${r.groupLabels.primary} · ${r.groupLabels.secondary}`
+                      ? `${r.groupLabels.primary} Â· ${r.groupLabels.secondary}`
                       : r.groupLabels.primary}
                   </Text>
                   {periods.flatMap(p =>
@@ -437,7 +437,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
                             : PALETTE.ink;
                       return (
                         <Text key={`${p.id}::${m}`} style={[styles.td, { color }]}>
-                          {c?.formatted || '—'}
+                          {c?.formatted || 'â€”'}
                         </Text>
                       );
                     })
@@ -468,7 +468,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
             <Text style={styles.sectionTitle}>Conclusions</Text>
             {data.commentary.bullets.map((b, i) => (
               <View key={i} style={styles.bullet}>
-                <Text style={styles.bulletDot}>◆</Text>
+                <Text style={styles.bulletDot}>â—†</Text>
                 <Text style={styles.bulletText}>{b}</Text>
               </View>
             ))}
@@ -477,7 +477,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
                 <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Action items</Text>
                 {data.commentary.action_items.map((a, i) => (
                   <View key={i} style={styles.bullet}>
-                    <Text style={styles.bulletDot}>›</Text>
+                    <Text style={styles.bulletDot}>â€º</Text>
                     <Text style={styles.bulletText}>{a}</Text>
                   </View>
                 ))}
@@ -488,7 +488,7 @@ export async function renderReportPdf(data: ReportData): Promise<Buffer> {
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text>Beit Hady · Confidential</Text>
+          <Text>Beit Hady Â· Confidential</Text>
           <Text
             render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
           />

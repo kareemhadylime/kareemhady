@@ -19,7 +19,10 @@ export const maxDuration = 120;
 
 function checkAuth(req: NextRequest): { ok: true } | { ok: false; reason: string } {
   const expected = process.env.CRON_SECRET || '';
-  if (!expected) return { ok: true };
+  if (!expected) {
+    console.error('[cron beithady-conversation-archive] CRON_SECRET unset — refusing');
+    return { ok: false, reason: 'cron_secret_unset' };
+  }
   const got = req.headers.get('authorization') || '';
   if (got === `Bearer ${expected}`) return { ok: true };
   if (req.nextUrl.searchParams.get('force') === '1' && req.nextUrl.searchParams.get('secret') === expected) {
@@ -33,8 +36,9 @@ export async function GET(req: NextRequest) {
   const auth = checkAuth(req);
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.reason }, { status: 401 });
 
-  const dryRun = req.nextUrl.searchParams.get('dry_run') === '1';
-  const sb = supabaseAdmin();
+  try {
+    const dryRun = req.nextUrl.searchParams.get('dry_run') === '1';
+    const sb = supabaseAdmin();
 
   // Read the three settings in parallel
   const [paused, daysSetting, maxPerRunSetting] = await Promise.all([
@@ -143,11 +147,24 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({
-    ok: true,
-    result: 'success',
-    archived: archivedCount,
-    candidate_count: ids.length,
-    threshold_days: days,
-  });
+    return NextResponse.json({
+      ok: true,
+      result: 'success',
+      archived: archivedCount,
+      candidate_count: ids.length,
+      threshold_days: days,
+    });
+  } catch (e) {
+    console.error('[cron beithady-conversation-archive] unhandled error:', e);
+    try {
+      await recordAudit({
+        module: 'communication',
+        action: 'auto_archive_cron_error',
+        metadata: { error: e instanceof Error ? e.message : String(e) },
+      });
+    } catch {
+      // audit failure shouldn't mask the original
+    }
+    return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
+  }
 }

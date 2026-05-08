@@ -25,7 +25,7 @@ export function InventoryComingSoon({
         <p className="text-sm text-slate-500 mt-2 leading-snug">{description}</p>
         <Link
           href="/beithady/inventory"
-          className="mt-4 inline-flex items-center gap-1 text-xs text-cyan-700 hover:text-cyan-900 font-medium"
+          className="mt-4 inline-flex items-center gap-1 text-xs text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 font-medium"
         >
           <ChevronLeft size={12} /> Back to Inventory
         </Link>

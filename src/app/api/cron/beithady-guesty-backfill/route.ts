@@ -26,11 +26,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
   const result = await runGuestySync('manual');
-  // After Guesty sync, propagate to Beit Hady tables
+  // After Guesty sync, propagate to Beit Hady tables. The two RPCs are
+  // independent (ingest upserts; recompute walks all rows) so they run
+  // in parallel — saves ~1-3s per backfill.
   try {
     const sb = supabaseAdmin();
-    await sb.rpc('beithady_communication_ingest');
-    await sb.rpc('beithady_communication_sla_recompute');
+    await Promise.all([
+      sb.rpc('beithady_communication_ingest'),
+      sb.rpc('beithady_communication_sla_recompute'),
+    ]);
   } catch (e) {
     // best-effort propagation
     return NextResponse.json({

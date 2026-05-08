@@ -8,6 +8,9 @@ export async function GET() {
   const sb = supabaseAdmin();
   const { data, error } = await sb.from('fnb_buildings')
     .select('*').order('building_code');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[fnb/buildings] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ buildings: data ?? [] });
 }

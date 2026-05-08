@@ -2,6 +2,7 @@
 
 import { DollarSign, Sparkles, Percent, Calendar, AlertCircle, AlertTriangle, Building2 } from 'lucide-react';
 import type { FeeAuditData } from '@/lib/beithady/fees-audit/types';
+import { STATUS_COLORS } from '@/lib/beithady/theme';
 
 const fmtUsd = (n: number | null): string =>
   n == null ? '—' : `$${Math.round(n).toLocaleString('en-US')}`;
@@ -14,14 +15,12 @@ const fmtPct = (n: number | null): string =>
 //   --bh-gold    #D4A93A                   Brand Gold accent
 //   --bh-cream   #F5F1E8                   Page background
 //   --bh-lavender #eae9f3                  Pale Lavender (page bg alt)
-// Inline-style fallbacks for non-brand-token colors (status semantics).
+// Status colors come from the shared STATUS_COLORS token.
 const BH = {
   ink: 'var(--bh-ink)',
   steel: 'var(--bh-steel)',
   gold: 'var(--bh-gold)',
-  green: '#15803d',
-  amber: '#b45309',
-  red: '#b91c1c',
+  ...STATUS_COLORS,
 };
 
 export function KpiStrip({ data }: { data: FeeAuditData }) {

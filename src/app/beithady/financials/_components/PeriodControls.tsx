@@ -26,7 +26,7 @@ function LinkSpinnerInner({
     <span
       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${
         active
-          ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+          ? 'bg-slate-700 text-white shadow-sm hover:bg-slate-800'
           : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
       } ${pending ? 'opacity-80 cursor-wait' : ''}`}
     >
@@ -98,7 +98,7 @@ export function PeriodSubmitButton({
   const pending = useContext(PendingContext);
   const base =
     variant === 'primary'
-      ? 'px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium shadow-sm hover:bg-indigo-700 disabled:bg-indigo-500 disabled:cursor-wait'
+      ? 'px-4 py-2 rounded-lg bg-slate-700 text-white font-medium shadow-sm hover:bg-slate-800 disabled:bg-slate-500 disabled:cursor-wait'
       : 'px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-70 disabled:cursor-wait';
   return (
     <button

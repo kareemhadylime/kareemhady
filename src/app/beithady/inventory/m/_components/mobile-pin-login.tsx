@@ -32,7 +32,7 @@ export function MobilePinLogin({ buildings }: { buildings: Building[] }) {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-900 flex items-center justify-center p-4 font-arabic" style={{ fontFamily: '"Cairo", "Tajawal", "Amiri", sans-serif' }}>
+    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 flex items-center justify-center p-4 font-arabic" style={{ fontFamily: '"Cairo", "Tajawal", "Amiri", sans-serif' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
         {/* Branding */}
         <div className="text-center">

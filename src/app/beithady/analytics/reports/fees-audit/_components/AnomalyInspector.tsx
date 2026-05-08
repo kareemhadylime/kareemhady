@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, AlertTriangle, Info, AlertCircle } from 'lucide-react';
@@ -18,7 +18,7 @@ export function AnomalyInspector({ anomalies }: { anomalies: Anomaly[] }) {
     return (
       <div className="ix-card p-5 bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-600">
         <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-          ✓ No anomalies detected
+          âœ“ No anomalies detected
         </div>
         <div className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
           Cleaning fees, taxes, channel parity, and min-stay rules all look healthy.
@@ -36,7 +36,7 @@ export function AnomalyInspector({ anomalies }: { anomalies: Anomaly[] }) {
 
   return (
     <div className="ix-card p-4">
-      <h3 className="text-sm font-semibold text-[#1e3a5f] dark:text-amber-100 mb-3 flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-[var(--bh-ink)] dark:text-amber-100 mb-3 flex items-center gap-2">
         <AlertTriangle size={16} className="text-amber-600" />
         Anomaly Inspector ({anomalies.length})
       </h3>

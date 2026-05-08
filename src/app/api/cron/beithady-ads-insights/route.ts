@@ -14,7 +14,10 @@ export const maxDuration = 300;
 
 function checkAuth(req: NextRequest): boolean {
   const expected = process.env.CRON_SECRET || '';
-  if (!expected) return true;
+  if (!expected) {
+    console.error('[cron beithady-ads-insights] CRON_SECRET unset — refusing');
+    return false;
+  }
   const got = req.headers.get('authorization') || '';
   if (got === `Bearer ${expected}`) return true;
   if (req.nextUrl.searchParams.get('force') === '1' && req.nextUrl.searchParams.get('secret') === expected) return true;

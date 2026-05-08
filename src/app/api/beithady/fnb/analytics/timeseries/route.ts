@@ -14,7 +14,10 @@ export async function GET(req: NextRequest) {
     .select('submitted_at, building_code, total_usd, status')
     .gte('submitted_at', since)
     .neq('status', 'cancelled');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[fnb/analytics/timeseries] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
 
   const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' });
   const byDay = new Map<string, { revenue_usd: number; orders: number }>();

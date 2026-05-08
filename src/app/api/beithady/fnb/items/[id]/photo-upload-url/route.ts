@@ -14,7 +14,11 @@ interface Ctx { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, ctx: Ctx) {
   await requireBeithadyPermission('fnb', 'full');
   const { id } = await ctx.params;
-  const parsed = Body.parse(await req.json());
+  const parsedResult = Body.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
 
   const sb = supabaseAdmin();
   const ext = parsed.filename.split('.').pop()!.toLowerCase();
@@ -24,7 +28,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     .from('beithady-gallery')
     .createSignedUploadUrl(path);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[fnb/items/[id]/photo-upload-url] storage error:', error);
+    return NextResponse.json({ error: 'storage_error' }, { status: 500 });
+  }
 
   return NextResponse.json({
     upload_url: data.signedUrl,

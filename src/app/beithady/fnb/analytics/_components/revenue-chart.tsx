@@ -1,29 +1,21 @@
 'use client';
-import { useEffect, useState } from 'react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts';
 
-interface DailyPoint { date: string; revenue_usd: number; orders: number }
+import dynamic from 'next/dynamic';
 
-export function RevenueChart() {
-  const [data, setData] = useState<DailyPoint[]>([]);
-  useEffect(() => {
-    fetch('/api/beithady/fnb/analytics/timeseries?days=30')
-      .then(r => r.json()).then(j => setData(j.daily ?? []));
-  }, []);
-  return (
-    <div className="ix-card p-4">
-      <h3 className="text-sm font-semibold mb-3">Revenue — last 30 days</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip />
-          <Line type="monotone" dataKey="revenue_usd" stroke="#0F3F58" strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+// Lazy-load the recharts implementation. Without this, ~300 KB of
+// recharts ships in the initial JS bundle on every Beithady page that
+// shares chunks with this route. With ssr:false, the chart renders
+// after hydration on the analytics page only.
+export const RevenueChart = dynamic(
+  () =>
+    import('./revenue-chart-impl').then(m => ({ default: m.RevenueChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="ix-card p-4">
+        <h3 className="text-sm font-semibold mb-3">Revenue — last 30 days</h3>
+        <div className="h-60 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+      </div>
+    ),
+  },
+);

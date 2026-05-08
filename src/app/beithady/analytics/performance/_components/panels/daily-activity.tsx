@@ -1,6 +1,7 @@
 'use client';
 import { PanelFrame } from '../panel-frame';
 import { BUILDING_CODES, type BuildingCode, type DailyReportPayload } from '@/lib/beithady-daily-report/types';
+import { STATUS_COLORS } from '@/lib/beithady/theme';
 
 type Props = {
   payload: DailyReportPayload;
@@ -35,9 +36,7 @@ const ACCENT_COLOR: Record<Accent, string> = {
   ink: 'var(--bh-ink)',
   gold: 'var(--bh-gold)',
   steel: 'var(--bh-steel)',
-  green: '#15803d',
-  amber: '#b45309',
-  red: '#b91c1c',
+  ...STATUS_COLORS,
 };
 
 type Sub = { text: string; tone: 'red' | 'amber' | 'info' };

@@ -2,12 +2,30 @@
 // Gated: BA + ops + manager + admin (analytics:full).
 
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import type { ReportConfig } from '@/lib/beithady/reports/types';
 
 export const runtime = 'nodejs';
+
+// Minimal payload shape. The full ReportConfig is large and lives in
+// reports/types.ts; we only enforce the fields we touch directly.
+const Body = z.object({
+  config: z.object({
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).optional().nullable(),
+    template_key: z.string().max(80).optional().nullable(),
+    periods: z.array(z.unknown()).min(1),
+  }).passthrough(),
+  commentary: z.object({
+    bullets: z.array(z.string()),
+    action_items: z.array(z.string()).optional(),
+    notes: z.string().optional(),
+  }).optional().nullable(),
+  last_run_data: z.unknown().optional().nullable(),
+});
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -16,20 +34,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  let body: {
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 });
+  }
+  const parsedBody = Body.safeParse(raw);
+  if (!parsedBody.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedBody.error.issues }, { status: 400 });
+  }
+  const body = parsedBody.data as {
     config: ReportConfig;
     commentary?: { bullets: string[]; action_items?: string[]; notes?: string };
     last_run_data?: unknown;
   };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: 'invalid json' }, { status: 400 });
-  }
-
-  if (!body.config?.title || !body.config?.periods?.length) {
-    return NextResponse.json({ error: 'invalid config' }, { status: 400 });
-  }
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -47,6 +66,9 @@ export async function POST(req: Request) {
     .select('id')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[reports/save] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ id: data.id });
 }

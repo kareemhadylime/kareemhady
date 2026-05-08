@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
@@ -7,7 +7,7 @@ import type { ChannelBucket } from '@/lib/beithady/guesty-metrics';
 import { CHANNEL_LABEL, CHANNEL_COLOR } from '@/lib/beithady/reports/channel-taxonomy';
 
 const fmt = (v: number | null | undefined): string =>
-  v == null ? '—' : `$${Number(v).toFixed(2)}`;
+  v == null ? 'â€”' : `$${Number(v).toFixed(2)}`;
 
 export function ChannelCompareModal({
   listingId,
@@ -39,14 +39,14 @@ export function ChannelCompareModal({
         className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <header className="bg-[#1e3a5f] text-white px-5 py-4 flex items-start justify-between">
+        <header className="bg-[var(--bh-ink)] text-white px-5 py-4 flex items-start justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-wide text-amber-200">
               Channel Comparison
             </p>
             <h2 className="text-lg font-bold">{listing?.nickname || listingId}</h2>
             <p className="text-xs text-slate-300">
-              {dateIso} · {nights} nights · {listing?.capacity || 2} guests
+              {dateIso} Â· {nights} nights Â· {listing?.capacity || 2} guests
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function ChannelCompareModal({
           {loading ? (
             <div className="text-center text-sm text-slate-500 py-12">
               <Loader2 className="inline animate-spin" size={20} />
-              <span className="ml-2">Comparing channels…</span>
+              <span className="ml-2">Comparing channelsâ€¦</span>
             </div>
           ) : data ? (
             <div className="overflow-x-auto">
@@ -85,7 +85,7 @@ export function ChannelCompareModal({
                         {CHANNEL_LABEL[c.channel]}
                       </th>
                     ))}
-                    <th className="text-right py-2 px-2 font-semibold text-slate-500">Δ% min↔max</th>
+                    <th className="text-right py-2 px-2 font-semibold text-slate-500">Î”% minâ†”max</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -109,7 +109,7 @@ export function ChannelCompareModal({
                           </td>
                         ))}
                         <td className={`py-1.5 px-2 text-right tabular-nums ${dpct > 50 ? 'text-rose-600 font-bold' : dpct > 15 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                          {dpct > 0 ? `${dpct.toFixed(1)}%` : '—'}
+                          {dpct > 0 ? `${dpct.toFixed(1)}%` : 'â€”'}
                         </td>
                       </tr>
                     );
@@ -138,7 +138,7 @@ export function ChannelCompareModal({
                   <tr className="font-bold">
                     <td className="py-2 px-2">Host receives total</td>
                     {data.map(c => (
-                      <td key={c.channel} className="py-2 px-2 text-right tabular-nums text-[#1e3a5f] dark:text-amber-100">
+                      <td key={c.channel} className="py-2 px-2 text-right tabular-nums text-[var(--bh-ink)] dark:text-amber-100">
                         {fmt(c.breakdown.total_host_receives_usd)}
                       </td>
                     ))}
@@ -148,7 +148,7 @@ export function ChannelCompareModal({
                     <td className="py-1.5 px-2 text-slate-500">Min stay</td>
                     {data.map(c => (
                       <td key={c.channel} className="py-1.5 px-2 text-right">
-                        {c.breakdown.min_nights_required ?? '—'}
+                        {c.breakdown.min_nights_required ?? 'â€”'}
                       </td>
                     ))}
                     <td />

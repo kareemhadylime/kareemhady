@@ -97,7 +97,15 @@ export async function GET(req: Request) {
     .lte('next_fire_at', now);
 
   const schedules = (pending as Schedule[] | null) || [];
-  const results: Array<{ scheduleId: string; status: string; error?: string }> = [];
+  type RecipientOutcome = { channel: 'email' | 'wa'; recipient: string; ok: boolean; error?: string };
+  const results: Array<{
+    scheduleId: string;
+    status: string;
+    error?: string;
+    recipients?: RecipientOutcome[];
+    succeeded?: number;
+    failed?: number;
+  }> = [];
 
   for (const s of schedules) {
     try {
@@ -134,7 +142,14 @@ export async function GET(req: Request) {
       const pdf = await renderReportPdf(data);
       const filename = `${r.title.replace(/[^a-z0-9]+/gi, '-')}.pdf`;
 
-      // Email fan-out
+      // Per-recipient outcome tracking (audit fix 2026-05-08): without
+      // this, a recipient with an expired Gmail token gets silently
+      // dropped from every future fire because last_fired_at advances
+      // unconditionally. We now collect per-recipient outcomes, persist
+      // failures to beithady_audit_log, and surface counts in the
+      // schedule update so operators can spot the issue.
+      const outcomes: RecipientOutcome[] = [];
+
       if (s.email_recipients.length) {
         const sender = await getSenderRefreshToken();
         if (sender) {
@@ -153,9 +168,16 @@ export async function GET(req: Request) {
                   bytes: pdf,
                 },
               });
+              outcomes.push({ channel: 'email', recipient: to, ok: true });
             } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
               console.error('[scheduled-reports] email failed', to, e);
+              outcomes.push({ channel: 'email', recipient: to, ok: false, error: msg });
             }
+          }
+        } else {
+          for (const to of s.email_recipients) {
+            outcomes.push({ channel: 'email', recipient: to, ok: false, error: 'no_sender_token' });
           }
         }
       }
@@ -173,19 +195,53 @@ export async function GET(req: Request) {
         for (const phone of s.wa_channel_ids) {
           try {
             await sendWhatsApp({ to: phone, message: summary });
+            outcomes.push({ channel: 'wa', recipient: phone, ok: true });
           } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
             console.error('[scheduled-reports] wa failed', phone, e);
+            outcomes.push({ channel: 'wa', recipient: phone, ok: false, error: msg });
           }
         }
       }
 
+      const failed = outcomes.filter(o => !o.ok);
+      const succeeded = outcomes.filter(o => o.ok);
       const nextAt = computeNextFireAt(s);
       await sb
         .from('beithady_report_schedules')
         .update({ last_fired_at: new Date().toISOString(), next_fire_at: nextAt })
         .eq('id', s.id);
 
-      results.push({ scheduleId: s.id, status: 'fired' });
+      // Persist per-recipient failures to audit log so they're surfaceable
+      // in the dashboard / queryable later. Successes get one summary row.
+      if (failed.length > 0) {
+        await sb.from('beithady_audit_log').insert({
+          module: 'analytics',
+          action: 'scheduled_report.recipient_errors',
+          target_type: 'report_schedule',
+          target_id: s.id,
+          metadata: {
+            report_id: s.report_id,
+            failed_count: failed.length,
+            succeeded_count: succeeded.length,
+            failures: failed.map(f => ({ channel: f.channel, recipient: f.recipient, error: f.error })),
+          },
+        } as never).then(() => undefined, () => undefined);
+      }
+
+      const status =
+        outcomes.length === 0 ? 'fired_no_recipients' :
+        succeeded.length === 0 ? 'fired_all_failed' :
+        failed.length === 0 ? 'fired' :
+        'fired_partial';
+
+      results.push({
+        scheduleId: s.id,
+        status,
+        recipients: outcomes,
+        succeeded: succeeded.length,
+        failed: failed.length,
+      });
     } catch (err) {
       console.error('[scheduled-reports] failed', s.id, err);
       results.push({ scheduleId: s.id, status: 'error', error: String(err) });

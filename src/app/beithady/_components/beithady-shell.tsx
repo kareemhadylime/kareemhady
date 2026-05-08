@@ -70,7 +70,7 @@ export function BeithadyHeader({
         {showWordmark && (
           <div className="hidden sm:block w-24 h-24 relative shrink-0 rounded-xl overflow-hidden bg-white/60 dark:bg-slate-900/40 ring-1 ring-slate-200 dark:ring-slate-700">
             <Image
-              src="/brand/beithady/wordmark.jpg"
+              src="/brand/beithady/Wordmark-03.png"
               alt="Beit Hady"
               fill
               className="object-contain p-2"

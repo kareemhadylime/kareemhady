@@ -17,7 +17,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const body = await req.json();
-  const parsed = ItemSchema.omit({ id: true }).parse(body);
+  const parsedResult = ItemSchema.omit({ id: true }).safeParse(body);
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
   const created = await createItem(parsed, { actor_user_id: user.id });
   return NextResponse.json({ item: created }, { status: 201 });
 }

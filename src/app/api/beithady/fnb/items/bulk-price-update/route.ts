@@ -6,7 +6,11 @@ import { BulkPriceUpdatePayloadSchema } from '@/lib/beithady/fnb/types';
 
 export async function POST(req: NextRequest) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
-  const parsed = BulkPriceUpdatePayloadSchema.parse(await req.json());
+  const parsedResult = BulkPriceUpdatePayloadSchema.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
 
   const items = await listItems({
     categoryId: parsed.category_id ?? undefined,

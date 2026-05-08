@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { Calculator, Loader2 } from 'lucide-react';
@@ -44,7 +44,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
 
   return (
     <div className="ix-card p-4">
-      <h3 className="text-sm font-semibold text-[#1e3a5f] dark:text-amber-100 mb-3 flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-[var(--bh-ink)] dark:text-amber-100 mb-3 flex items-center gap-2">
         <Calculator size={16} className="text-violet-600" />
         Live Quote Calculator
       </h3>
@@ -57,7 +57,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
           >
             {listings.map(l => (
               <option key={l.id} value={l.id}>
-                {l.nickname} · {l.bedrooms}BR
+                {l.nickname} Â· {l.bedrooms}BR
               </option>
             ))}
           </select>
@@ -107,12 +107,12 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
 
       {loading ? (
         <div className="text-xs text-slate-500 flex items-center gap-2">
-          <Loader2 size={12} className="animate-spin" /> Computing…
+          <Loader2 size={12} className="animate-spin" /> Computingâ€¦
         </div>
       ) : breakdown ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="text-xs">
-            <div className="font-bold text-[#1e3a5f] dark:text-amber-100 mb-2 uppercase">
+            <div className="font-bold text-[var(--bh-ink)] dark:text-amber-100 mb-2 uppercase">
               Stay Breakdown
             </div>
             <table className="w-full">
@@ -121,7 +121,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 <Row label="Cleaning fee" value={fmt(breakdown.cleaning_usd)} />
                 {breakdown.pet_usd > 0 && <Row label="Pet fee" value={fmt(breakdown.pet_usd)} />}
                 {breakdown.extra_guest_usd > 0 && <Row label="Extra guest" value={fmt(breakdown.extra_guest_usd)} />}
-                {/* Guesty prices are all-inclusive — taxes_breakdown is empty
+                {/* Guesty prices are all-inclusive â€” taxes_breakdown is empty
                     by design. Kept the .map so any future per-channel
                     surcharge surfaces here without a code change. */}
                 {breakdown.taxes_breakdown.map(t => (
@@ -152,11 +152,11 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 {fmt(breakdown.total_guest_pays_usd)}
               </div>
             </div>
-            <div className="rounded-lg bg-[#1e3a5f]/10 p-3 border-l-4 border-[#1e3a5f]">
-              <div className="text-[10px] uppercase tracking-wide text-[#1e3a5f] dark:text-amber-200">
+            <div className="rounded-lg bg-[var(--bh-ink)]/10 p-3 border-l-4 border-[var(--bh-ink)]">
+              <div className="text-[10px] uppercase tracking-wide text-[var(--bh-ink)] dark:text-amber-200">
                 Host Receives (after commission)
               </div>
-              <div className="text-2xl font-bold text-[#1e3a5f] dark:text-amber-100 tabular-nums">
+              <div className="text-2xl font-bold text-[var(--bh-ink)] dark:text-amber-100 tabular-nums">
                 {fmt(breakdown.total_host_receives_usd)}
               </div>
             </div>
@@ -170,7 +170,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 Min stay required: {breakdown.min_nights_required} nights
                 {nights < breakdown.min_nights_required && (
                   <span className="ml-2 text-rose-600 font-bold">
-                    ⚠ Stay too short!
+                    âš  Stay too short!
                   </span>
                 )}
               </div>

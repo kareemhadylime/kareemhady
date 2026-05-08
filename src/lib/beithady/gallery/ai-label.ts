@@ -50,7 +50,10 @@ async function fetchAsBase64(bucket: GalleryBucket, path: string): Promise<{ dat
     quality: 85,
   });
   if (!url) return null;
-  const res = await fetch(url);
+  // 15s timeout — Supabase Storage signed-URL stalls would otherwise
+  // hang the AI-label cron worker until Vercel kills the function and
+  // loses the whole batch of jobs.
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) return null;
   const mime = res.headers.get('content-type') || 'image/jpeg';
   const buf = await res.arrayBuffer();

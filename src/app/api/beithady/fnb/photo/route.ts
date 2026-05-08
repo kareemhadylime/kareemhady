@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
     .createSignedUrl(path, 3600);
 
   if (error || !data?.signedUrl) {
-    return NextResponse.json({ error: error?.message ?? 'signed_url_failed' }, { status: 500 });
+    if (error) console.error('[fnb/photo] storage error:', error);
+    return NextResponse.json({ error: 'signed_url_failed' }, { status: 500 });
   }
 
   return NextResponse.redirect(data.signedUrl, { status: 302 });

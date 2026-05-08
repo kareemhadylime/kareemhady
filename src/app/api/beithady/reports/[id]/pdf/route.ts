@@ -33,7 +33,10 @@ export async function GET(
     .eq('id', id)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[reports/[id]/pdf] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   if (!row) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
   let data: ReportData;

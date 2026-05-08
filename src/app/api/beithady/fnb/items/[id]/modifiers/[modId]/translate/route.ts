@@ -14,7 +14,11 @@ interface Ctx { params: Promise<{ id: string; modId: string }> }
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const { id, modId } = await ctx.params;
-  const { target_lang } = Body.parse(await req.json());
+  const parsedResult = Body.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const { target_lang } = parsedResult.data;
 
   // Verify the modifier belongs to the item specified in the URL
   const sb = supabaseAdmin();

@@ -34,7 +34,7 @@ export default async function BeithadyBrandingPage() {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <div className="relative h-32 bg-stone-50 dark:bg-stone-900 rounded-lg overflow-hidden ring-1 ring-slate-200 dark:ring-slate-700">
-              <Image src="/brand/beithady/wordmark.jpg" alt="Beit Hady wordmark" fill className="object-contain p-3" sizes="200px" />
+              <Image src="/brand/beithady/Wordmark-03.png" alt="Beit Hady wordmark" fill className="object-contain p-3" sizes="200px" />
             </div>
             <div className="relative h-32 bg-stone-50 dark:bg-stone-900 rounded-lg overflow-hidden ring-1 ring-slate-200 dark:ring-slate-700">
               <Image src="/brand/beithady/monogram.jpg" alt="Beit Hady monogram" fill className="object-contain p-3" sizes="200px" />

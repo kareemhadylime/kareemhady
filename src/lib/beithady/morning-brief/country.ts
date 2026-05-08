@@ -285,18 +285,3 @@ export function bucketInventoryFromCatalog(): Record<BriefBucket, number> {
   return out;
 }
 
-// ====== Backwards-compat exports (deprecated, retained briefly) ======
-// The 2026-04-30 segregation turn shipped a country-based scheme. This
-// file replaces it; old call sites should migrate to the bucket API
-// above. Keeping a thin shim so any straggling caller fails loudly
-// rather than silently mis-bucketing.
-
-/** @deprecated Use `bucketForListing` instead. */
-export type CountryCode = 'EG' | 'AE' | 'OTHER';
-
-/** @deprecated Use `bucketForListing` instead. */
-export function countryForBuilding(buildingCode: string | null | undefined): CountryCode {
-  const b = bucketForBuilding(buildingCode);
-  if (b === 'BH-DXB') return 'AE';
-  return 'EG';
-}

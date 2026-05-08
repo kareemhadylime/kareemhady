@@ -12,7 +12,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const body = await req.json();
-  const parsed = CategorySchema.omit({ id: true }).parse(body);
+  const parsedResult = CategorySchema.omit({ id: true }).safeParse(body);
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
   const created = await createCategory(parsed, { actor_user_id: user.id });
   return NextResponse.json({ category: created }, { status: 201 });
 }

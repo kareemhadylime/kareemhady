@@ -25,7 +25,11 @@ export async function GET(req: NextRequest) {
   if (url.searchParams.get('date_to')) params.date_to = url.searchParams.get('date_to')!;
   if (url.searchParams.get('limit')) params.limit = url.searchParams.get('limit')!;
 
-  const parsed = Q.parse(params);
+  const parsedResult = Q.safeParse(params);
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
   const sb = supabaseAdmin();
   let q = sb.from('fnb_orders')
     .select('*, fnb_order_items(item_name_snapshot, quantity, line_total_usd)')
@@ -37,6 +41,9 @@ export async function GET(req: NextRequest) {
   if (parsed.date_to) q = q.lte('submitted_at', parsed.date_to);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[fnb/orders] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ orders: data ?? [] });
 }

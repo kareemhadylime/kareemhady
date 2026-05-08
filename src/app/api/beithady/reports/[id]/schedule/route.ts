@@ -71,7 +71,10 @@ export async function POST(
     .select('id, next_fire_at')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[reports/[id]/schedule] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ id: data.id, next_fire_at: data.next_fire_at });
 }
 
@@ -91,7 +94,10 @@ export async function GET(
     .select('*')
     .eq('report_id', id)
     .order('created_at', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[reports/[id]/schedule] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ schedules: data || [] });
 }
 
@@ -116,6 +122,9 @@ export async function DELETE(
     .delete()
     .eq('id', scheduleId)
     .eq('report_id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[reports/[id]/schedule] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

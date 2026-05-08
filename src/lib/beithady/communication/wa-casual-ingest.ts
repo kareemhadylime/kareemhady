@@ -467,7 +467,9 @@ async function mirrorWaAttachmentsToStorage(
       continue;
     }
     try {
-      const res = await fetch(url, { redirect: 'follow' });
+      // 20s timeout — Green-API media URLs sometimes stall and would
+      // otherwise hang the cron worker until Vercel kills the function.
+      const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(20_000) });
       if (!res.ok) { next.push(a); continue; }
       const contentType =
         (typeof a.mimeType === 'string' && a.mimeType) ||

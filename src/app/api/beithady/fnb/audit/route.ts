@@ -11,6 +11,9 @@ export async function GET(req: NextRequest) {
   const { data, error } = await sb.from('beithady_audit_log')
     .select('*').eq('module', 'fnb')
     .order('at', { ascending: false }).limit(limit);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[fnb/audit] db error:', error);
+    return NextResponse.json({ error: 'database_error' }, { status: 500 });
+  }
   return NextResponse.json({ events: data ?? [] });
 }

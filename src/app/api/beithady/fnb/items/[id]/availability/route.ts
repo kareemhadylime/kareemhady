@@ -29,7 +29,11 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const { id } = await ctx.params;
-  const parsed = Update.parse(await req.json());
+  const parsedResult = Update.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const parsed = parsedResult.data;
 
   // 1. Update hours / enabled if any of those fields were provided
   if (

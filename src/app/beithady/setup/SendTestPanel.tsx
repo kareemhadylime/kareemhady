@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useActionState } from 'react';
 import { Loader2, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
@@ -6,10 +6,10 @@ import { sendTestNowStateAction, type SendTestResult } from './actions';
 
 // Client component for the "Send Test Report Now" button. Uses React
 // 19's useActionState so the user sees:
-//   1. Idle → click triggers immediate `Sending...` with spinner
-//   2. Pending → button disabled, message says "Building report and
-//      delivering — this can take 30-60s"
-//   3. Result → success or error banner inline; on success a clickable
+//   1. Idle â†’ click triggers immediate `Sending...` with spinner
+//   2. Pending â†’ button disabled, message says "Building report and
+//      delivering â€” this can take 30-60s"
+//   3. Result â†’ success or error banner inline; on success a clickable
 //      preview link
 // No redirect needed; result lives in component state until the next
 // click clears it.
@@ -26,12 +26,12 @@ export function SendTestPanel() {
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-2 rounded-md bg-[#1e3a5f] dark:bg-[#1e3a5f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a2c47] disabled:opacity-60 disabled:cursor-not-allowed transition"
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--bh-ink)] dark:bg-[var(--bh-ink)] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1a2c47] disabled:opacity-60 disabled:cursor-not-allowed transition"
         >
           {isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Sending…
+              Sendingâ€¦
             </>
           ) : (
             'Send Test Report Now'
@@ -39,7 +39,7 @@ export function SendTestPanel() {
         </button>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Builds today&apos;s report and delivers to recipients matching your username/whatsapp
-          (or all active if none match). Skips the 9 AM gate. Takes 30–60s.
+          (or all active if none match). Skips the 9 AM gate. Takes 30â€“60s.
         </p>
       </form>
 
@@ -51,7 +51,7 @@ export function SendTestPanel() {
         >
           <Loader2 className="h-4 w-4 mt-0.5 animate-spin shrink-0" />
           <div>
-            <strong>Processing…</strong> building today&apos;s payload (Guesty + PriceLabs + Stripe + Haiku review summaries), rendering the PDF, and pushing to WhatsApp + Email. Please don&apos;t close this tab.
+            <strong>Processingâ€¦</strong> building today&apos;s payload (Guesty + PriceLabs + Stripe + Haiku review summaries), rendering the PDF, and pushing to WhatsApp + Email. Please don&apos;t close this tab.
           </div>
         </div>
       )}
@@ -66,8 +66,8 @@ export function SendTestPanel() {
                 Test report delivered
               </strong>
               <div className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
-                Attempted: {state.attempted} · Sent: {state.sent}{' '}
-                {state.failed > 0 ? `· Failed: ${state.failed}` : ''}
+                Attempted: {state.attempted} Â· Sent: {state.sent}{' '}
+                {state.failed > 0 ? `Â· Failed: ${state.failed}` : ''}
               </div>
               {state.errors.length > 0 && (
                 <ul className="mt-1 text-xs text-rose-800 dark:text-rose-300 list-disc list-inside">

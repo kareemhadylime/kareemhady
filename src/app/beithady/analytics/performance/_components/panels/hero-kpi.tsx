@@ -1,5 +1,6 @@
 'use client';
 import { PanelFrame } from '../panel-frame';
+import { STATUS_COLORS } from '@/lib/beithady/theme';
 
 type Delta = { direction: 'up' | 'down' | 'flat'; text: string };
 type Accent = 'ink' | 'gold' | 'steel' | 'green' | 'amber' | 'red';
@@ -18,9 +19,7 @@ const ACCENT_COLOR: Record<Accent, string> = {
   ink: 'var(--bh-ink)',
   gold: 'var(--bh-gold)',
   steel: 'var(--bh-steel)',
-  green: '#15803d',
-  amber: '#b45309',
-  red: '#b91c1c',
+  ...STATUS_COLORS,
 };
 
 export function HeroKpi({ label, value, delta, spark, drillTo, accent = 'ink', onHide }: Props) {
@@ -40,7 +39,7 @@ export function HeroKpi({ label, value, delta, spark, drillTo, accent = 'ink', o
         <div
           className="mt-1 text-[10px]"
           style={{
-            color: delta.direction === 'up' ? '#15803d' : delta.direction === 'down' ? '#b91c1c' : 'var(--bh-steel)',
+            color: delta.direction === 'up' ? STATUS_COLORS.green : delta.direction === 'down' ? STATUS_COLORS.red : 'var(--bh-steel)',
           }}
         >
           {delta.direction === 'up' ? '▲ ' : delta.direction === 'down' ? '▼ ' : ''}

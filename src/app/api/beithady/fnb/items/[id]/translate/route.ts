@@ -15,7 +15,11 @@ interface Ctx { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { user } = await requireBeithadyPermission('fnb', 'full');
   const { id } = await ctx.params;
-  const { field, target_lang } = Body.parse(await req.json());
+  const parsedResult = Body.safeParse(await req.json());
+  if (!parsedResult.success) {
+    return NextResponse.json({ error: 'invalid_input', issues: parsedResult.error.issues }, { status: 400 });
+  }
+  const { field, target_lang } = parsedResult.data;
 
   const item = await getItem(id);
   if (!item) return NextResponse.json({ error: 'not_found' }, { status: 404 });
