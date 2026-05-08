@@ -1,4 +1,4 @@
-import { PowerOff, Power, AlertTriangle, MessageCircle, Bot, Megaphone, Calendar, Star, Gift, ShieldAlert, Sun, Crown, BarChart3, Inbox } from 'lucide-react';
+import { PowerOff, Power, AlertTriangle, MessageCircle, Bot, Megaphone, Calendar, Star, Gift, ShieldAlert, Sun, Crown, BarChart3, Inbox, Bell } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import {
   AUTOMATION_REGISTRY,
@@ -24,6 +24,7 @@ const AUTOMATION_ICONS: Record<AutomationKey, React.ComponentType<{ size?: numbe
   late_reply_digest: BarChart3,
   vip_digest: Crown,
   daily_report_dispatch: BarChart3,
+  same_day_alerts: Bell,
 };
 
 const CATEGORY_LABEL: Record<string, string> = {

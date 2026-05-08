@@ -1,6 +1,6 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Beithady audit Phase A: 17 of 18 quick wins shipped
+## Earlier turn — Beithady audit Phase A: 17 of 18 quick wins shipped
 
 User: "You are Authorized to start Phase A - Do all automatically till commit and deploy"
 
@@ -48,6 +48,35 @@ Executed all quick wins from `BEITHADY_AUDIT_2026_05_08.md` Phase A. **One singl
 **Phase A actual time: ~3.5h vs audit estimate of 13h** — efficiency from parallel Edit batching + PowerShell mass-replace for the navy remap.
 
 **Phase B should pick up:** the deferred `recordAudit` await fixes (proper `waitUntil` migration), 12 small refactors (cron-helpers, channels.ts, buildings.ts, listings-repo.ts, dialog-shell, Anthropic-helper, etc.), 9 larger refactors (transactional inventory issue, brand token system, RTL pass, etc.). Audit doc has the full list.
+
+---
+
+## Latest turn — Same-day-booking WhatsApp alerts (cron beithady-same-day-alerts)
+
+User: "need to create a whatsapp message notification to me and guest relations and operations for same day new reservations - Reservations Created Today after 9AM and with Checkin today".
+
+Built it as a cron-driven system (15-min cadence) rather than webhooks — simpler, no Guesty subscription dependencies, idempotent by design. Webhook upgrade is a clean follow-up if 15-min latency becomes a pain.
+
+**Files:**
+
+- **Migration `0101_beithady_same_day_alerts`** — new tiny table with `reservation_id text PRIMARY KEY`, `alerted_at`, `recipients_count`, `delivered_count`, `failed_count`, `message_text`, `errors jsonb`. PK on reservation_id makes the alert idempotent: concurrent ticks racing to send hit the unique constraint and skip cleanly. Applied via Supabase MCP + checked into `supabase/migrations/`.
+- **`src/lib/beithady/same-day-alerts.ts`** — main logic. `runSameDayAlerts({ cairoDate })`:
+  1. Granular kill-switch via `isAutomationPaused('same_day_alerts')`.
+  2. Computes `cairoNineAmUtcIso(today)` (DST-safe, mirrors morning-brief helpers) for the `created_at_odoo >= ...` predicate.
+  3. Selects from `guesty_reservations` where `created_at_odoo >= 09:00 Cairo today`, `check_in_date = today`, `status IN CANONICAL_BOOKED_STATUSES`. Joins listing for building_code.
+  4. Post-filters out BH-DXB via `isExcludedFromReport(building_code)` — same Egypt-only rule the daily report and morning briefs use.
+  5. Dedups against `beithady_same_day_alerts` table.
+  6. For each fresh row: INSERTs the alert log row first (locks idempotency — if another tick beat us here, INSERT errors with 23505 and we skip the WhatsApp send). Then sends WhatsApp to all recipients, then UPDATEs the row with delivery counts.
+  7. Recipient resolution: `loadAlertRecipients()` unions GR + Ops + manager + admin from `beithady_user_roles` (so kareem is auto-included via admin role) and admin-curated extras from `beithady_morning_brief_extras` (reusing the existing one-source-of-truth table). Dedup by WhatsApp number.
+  8. Message format: structured WhatsApp text — `🆕 *Same-day booking · <unit>*` headline, channel + booked-at-time, guest + party size + nights + code, action-prep callout. Single-screen mobile readability.
+- **`src/app/api/cron/beithady-same-day-alerts/route.ts`** — handler. `Authorization: Bearer $CRON_SECRET` (no fallback when secret missing — fail closed). Gates on Cairo hour 9–21; skips cheap outside that window. `?force=1&secret=…` for QA. `maxDuration: 60`.
+- **`src/lib/beithady/automations.ts`** — registered `same_day_alerts` in `AUTOMATION_REGISTRY` with `settingKey: 'beithady_pause_same_day_alerts'`, category `operations`. So the existing kill-switch UI auto-picks it up.
+- **`src/app/beithady/settings/outbound/page.tsx`** — added the Bell icon mapping for `same_day_alerts` (TS errored without it because the registry's icon map is exhaustively typed).
+- **`vercel.json`** — registered `*/15 6-19 * * *` UTC. That covers Cairo 09:00–22:00 (summer DST) / 08:00–21:00 (winter), and the handler's 9–21 Cairo gate cheap-exits any tick at the boundary.
+
+`tsc --noEmit` clean. Going forward: a guest who books at 11:30 AM Cairo for a 4 PM same-day check-in triggers an alert to the entire on-duty team within 15 min, with a structured WhatsApp message ready to drive prep + welcome. Backed by an idempotent log so retries / concurrent ticks can never double-send.
+
+**Defaults the user can change later if needed**: window cap (currently 21:00 Cairo), cadence (currently 15 min), recipient roles (currently GR + Ops + manager + admin), message format (kept terse + structured, easy to extend with arrival time / loyalty tier / VIP flag).
 
 ---
 

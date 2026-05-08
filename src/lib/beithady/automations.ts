@@ -105,6 +105,14 @@ export const AUTOMATION_REGISTRY = {
     category: 'reports',
     triggeredBy: 'cron beithady-daily-report',
   },
+  same_day_alerts: {
+    settingKey: 'beithady_pause_same_day_alerts',
+    label: 'Same-day booking alerts',
+    description:
+      'WhatsApp alert to GR + Ops + admins when a reservation is created today (after 09:00 Cairo) with check-in today. Fires from cron every 15 min during the active window (09:00–21:00 Cairo).',
+    category: 'operations',
+    triggeredBy: 'cron beithady-same-day-alerts',
+  },
 } as const;
 
 export type AutomationKey = keyof typeof AUTOMATION_REGISTRY;
