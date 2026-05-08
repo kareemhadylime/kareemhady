@@ -1,6 +1,33 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Daily Activity now LIVE (today's data) + report title leads with today's date
+## Latest turn — Verify all daily-report surfaces inherit the new title format + Kika parity
+
+User: "was report by email and whatsapp updated · also whatsapp messages - guest relations and operations"
+
+Audit of every surface that consumes `payload.generated_at_cairo`:
+
+**Beithady daily report** — ALL FIVE surfaces auto-inherit my `build.ts` change (no per-surface fixes needed):
+- [render-pdf.tsx:781](src/lib/beithady-daily-report/render-pdf.tsx#L781) — A4 PDF header
+- [render-html.tsx:721](src/lib/beithady-daily-report/render-html.tsx#L721) — web-link page + email body header
+- [distribute.ts:61](src/lib/beithady-daily-report/distribute.ts#L61) — WhatsApp text first line under the title
+- [distribute.ts:105](src/lib/beithady-daily-report/distribute.ts#L105) — email body inline header
+- [distribute.ts:233](src/lib/beithady-daily-report/distribute.ts#L233) — email subject (regex fix from previous turn strips trailing `· 09:00 Cairo`)
+
+So every Beithady recipient (email, WhatsApp, web view, PDF attachment, subject line) sees the new "Fri, May 8 · Reporting on Thu, May 7 (yesterday)" format.
+
+**Beithady morning briefs** (Guest Relations + Operations + Finance) — each is forward-looking with `dateIso = today's Cairo date` (cron passes today). Header reads `<Role title> · <today's Cairo date>` (en) or Arabic equivalent (ops). No date mismatch:
+- GR: today's arrivals / departures / currently staying — today-dated, today-relevant ✓
+- Ops: today's housekeeping schedule (Arabic) — today-dated, today-relevant ✓
+- Finance: today-dated; "Yesterday's revenue (X bookings)" sub-section labeled inline so the time semantics are explicit per-section ✓
+
+**Kika daily report** — same `generated_at_cairo` pattern, same yesterday-leading shape. Flipped to mirror the Beithady convention:
+- [src/lib/kika-daily-report/build.ts](src/lib/kika-daily-report/build.ts) — `generated_at_cairo` now reads `<today> · Reporting on <yesterday> (yesterday) · <tz>`. Affects Kika's PDF, HTML page, WhatsApp text, and email body equally. Subject line uses `weekday_label + report_date` (data date) and was left alone — separate decision.
+
+`tsc --noEmit` clean. Going forward all daily-report surfaces (Beithady + Kika · email + WhatsApp + PDF + web link) share one date convention. Morning briefs were already correct, no changes there.
+
+---
+
+## Earlier turn — Daily Activity now LIVE (today's data) + report title leads with today's date
 
 User: "in Our App is yesterdays App but Written Todays Date — Data should be for today — Guesty is the right one — our data is old. Also need to update the daily performance — Title for Today, info included is for yesterday."
 

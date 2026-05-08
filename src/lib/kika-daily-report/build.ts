@@ -156,8 +156,10 @@ export async function buildKikaDailyReport(
   });
 
   // ---- Header label ----
+  // Lead with TODAY (when the recipient gets the report); data date is the
+  // explanatory subline. Mirrors the Beithady daily report convention.
   const generated_at_cairo =
-    `for ${reportDateLabel(yesterdayDate)} · Generated ${reportDateLabel(generationDate)} ${REPORT_TIMEZONE_LABEL}`;
+    `${reportDateLabel(generationDate)} · Reporting on ${reportDateLabel(yesterdayDate)} (yesterday) · ${REPORT_TIMEZONE_LABEL}`;
 
   return {
     report_date: yesterdayDate,
