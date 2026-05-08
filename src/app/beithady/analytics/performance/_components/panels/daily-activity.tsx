@@ -13,6 +13,12 @@ type Props = {
   /** Called by the < / > stepper. Parent decides whether to set ?date= or clear it. */
   onDateChange?: (date: string) => void;
   onHide?: () => void;
+  /**
+   * When set, overrides `payload.cleaning_ops_today.length` for the cleaning
+   * sub-badge. Pass the live check-out count so the badge reflects real-time
+   * data rather than the stale 09:00 snapshot value.
+   */
+  cleaningCountOverride?: number;
 };
 
 /** Step a YYYY-MM-DD by N days (UTC math, no DST drift). */
@@ -48,13 +54,16 @@ export function DailyActivity({
   latestDate,
   onDateChange,
   onHide,
+  cleaningCountOverride,
 }: Props) {
   const isFiltered = buildingFilter !== 'all';
   const all = isFiltered ? payload.per_building[buildingFilter as BuildingCode] : payload.all;
   // Exception sub-counts are only computed at the portfolio level today,
   // so we hide them when filtered to a single building (avoid showing a
   // misleading portfolio-wide count next to a building-specific tile).
-  const cleaningCount = isFiltered ? 0 : (payload.cleaning_ops_today?.length ?? 0);
+  // `cleaningCountOverride` replaces the snapshot value when the parent
+  // has a live checkout count (landing pulse / perf dashboard today).
+  const cleaningCount = isFiltered ? 0 : (cleaningCountOverride ?? payload.cleaning_ops_today?.length ?? 0);
   const flaggedCheckins = isFiltered ? 0 : (payload.checkin_payment?.flagged?.length ?? 0);
   const cancellationsToday = isFiltered ? 0 : (payload.cancellations?.count_today ?? 0);
   const noShowsToday = isFiltered ? 0 : (payload.no_show?.no_shows?.length ?? 0);

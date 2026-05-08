@@ -64,10 +64,9 @@ export async function LandingPulse() {
       'BH-OK':  { ...payload.per_building['BH-OK'],  ...liveActivity.per_building['BH-OK']  },
       OTHER:    { ...payload.per_building.OTHER,     ...liveActivity.per_building.OTHER     },
     },
-    // Cleaning ops / flagged check-ins / cancellations / no-shows are
-    // computed on yesterday's data; carry them over but they'll feel
-    // slightly stale on the live tile. Acceptable trade-off — those are
-    // sub-badges, not headline numbers.
+    // Flagged check-ins / cancellations / no-shows carry over from the
+    // snapshot (sub-badges, not headlines — acceptable). Cleaning count
+    // is overridden live via the cleaningCountOverride prop below.
   };
   const all = payload.all;
   const paceAccent: 'green' | 'red' = all.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
@@ -111,7 +110,11 @@ export async function LandingPulse() {
       </header>
 
       <div className="px-3 pb-3">
-        <DailyActivity payload={livePayload} snapshotDate={today} />
+        <DailyActivity
+          payload={livePayload}
+          snapshotDate={today}
+          cleaningCountOverride={liveActivity.all.check_outs_today}
+        />
       </div>
 
       <div

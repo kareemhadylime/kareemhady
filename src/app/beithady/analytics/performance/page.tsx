@@ -9,6 +9,8 @@ import {
 } from './_lib/load-snapshot';
 import { EmptySnapshot } from './_components/empty-snapshot';
 import { DashboardShell } from './_components/dashboard-shell';
+import { loadDailyActivityLive } from '@/lib/beithady/daily-activity-live';
+import { cairoYmd } from '@/lib/beithady-daily-report/cairo-dates';
 
 type SearchParams = Promise<{ date?: string; building?: string; compare?: string }>;
 
@@ -73,7 +75,25 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       ) : (
         <Suspense>
           <DashboardShell
-            payload={result.payload}
+            payload={await (async () => {
+              // When the active snapshot is today's, merge live daily-activity so
+              // the Daily Activity strip shows real-time check-in/out counts
+              // rather than the 09:00 snapshot values. Historical dates keep the
+              // pure snapshot (live data only exists for "now").
+              if (result.date !== cairoYmd()) return result.payload;
+              const live = await loadDailyActivityLive(result.date);
+              return {
+                ...result.payload,
+                all: { ...result.payload.all, ...live.all },
+                per_building: {
+                  'BH-26':  { ...result.payload.per_building['BH-26'],  ...live.per_building['BH-26']  },
+                  'BH-73':  { ...result.payload.per_building['BH-73'],  ...live.per_building['BH-73']  },
+                  'BH-435': { ...result.payload.per_building['BH-435'], ...live.per_building['BH-435'] },
+                  'BH-OK':  { ...result.payload.per_building['BH-OK'],  ...live.per_building['BH-OK']  },
+                  OTHER:    { ...result.payload.per_building.OTHER,     ...live.per_building.OTHER     },
+                },
+              };
+            })()}
             snapshotDate={result.date}
             generatedAt={result.generatedAt}
             initialBuilding={sp.building ?? 'all'}
