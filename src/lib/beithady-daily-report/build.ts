@@ -213,8 +213,10 @@ export async function buildDailyReport(
   return {
     report_date: today,
     generated_at_iso: generatedAt.toISOString(),
-    // v2 header: "for Sat, 25 Apr 2026 · Generated 26 Apr 09:00 Cairo"
-    generated_at_cairo: `for ${reportDateLabel(today)} · Generated ${reportDateLabel(generationDate)} 09:00 Cairo`,
+    // Header copy: lead with TODAY's date (when the recipient gets the
+    // report), put the data date as a clear subline. Reads naturally:
+    // "Fri, May 8, 2026 · Reporting on Thu, May 7, 2026 (yesterday) · 09:00 Cairo"
+    generated_at_cairo: `${reportDateLabel(generationDate)} · Reporting on ${reportDateLabel(today)} (yesterday) · 09:00 Cairo`,
     month_label: monthLabel(today),
     month_days_total: ctx.days_total,
     month_days_elapsed: ctx.days_elapsed,

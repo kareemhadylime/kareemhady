@@ -1,6 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Beithady module: full audit complete (deliverable shipped, no code changes)
+## Latest turn — Daily Activity now LIVE (today's data) + report title leads with today's date
+
+User: "in Our App is yesterdays App but Written Todays Date — Data should be for today — Guesty is the right one — our data is old. Also need to update the daily performance — Title for Today, info included is for yesterday."
+
+Two issues, both about today/yesterday date semantics:
+
+1. **Dashboard's "Today's pulse" was reading from the cron snapshot** which by design describes yesterday. So the eyebrow said "Today's pulse" but the numbers were May 7 while the user opened the page on May 8. Verified via SQL: live query for 2026-05-08 = 6 check-ins / 9 check-outs / 4 turnovers / 37 occupied (Egypt-only). Guesty's UI shows 7/9/5/39 (the 1-3 unit deltas are the BH-DXB exclusion that matches our standing Egypt-only rule).
+
+2. **Daily Performance Report header** read `for Thu, May 7, 2026 · Generated Fri, May 8, 2026 09:00 Cairo` — leads with yesterday's date which is confusing when the recipient gets the email today.
+
+**Fixes:**
+
+- **`src/lib/beithady/daily-activity-live.ts`** (new) — slim live query `loadDailyActivityLive(date)`:
+  - Pulls active inventory via existing `loadBuildingInventories`.
+  - Pulls reservations whose stay touches `date` (`check_in_date <= date AND check_out_date >= date`, statuses `confirmed/checked_in/checked_out`).
+  - Honors the BH-DXB exclusion via the existing `isExcludedFromReport` predicate so totals stay consistent with every other Beit Hady aggregate.
+  - Computes per-building check-ins / check-outs / turnovers / occupied / occupancy %. Turnovers detected by per-listing same-day checkin+checkout intersection.
+  - Returns the same shape as the relevant subset of `BuildingBucket` so it slots into the existing payload-driven panels.
+
+- **`src/app/beithady/_components/landing-pulse.tsx`** — fetches `loadDailyActivityLive(today)` in parallel with the snapshot. Synthesizes a `livePayload` whose `all` and `per_building` daily fields point at TODAY's live numbers while everything else (MTD revenue, reviews, sparklines, AI insights) keeps coming from the snapshot. Eyebrow now reads `✨ Today's pulse · 2026-05-08 · activity live · KPIs from 2026-05-07` — fully transparent about the mixed semantics. `<DailyActivity>` receives `snapshotDate={today}` so its header chip shows today's date with today's numbers.
+
+- **`src/lib/beithady-daily-report/build.ts`** — `generated_at_cairo` flipped: was `for Thu, May 7 · Generated Fri, May 8 09:00 Cairo`, now `Fri, May 8, 2026 · Reporting on Thu, May 7, 2026 (yesterday) · 09:00 Cairo`. Today (when the recipient gets the report) leads; data date is the explanatory subline.
+
+- **`src/lib/beithady-daily-report/distribute.ts`** — email-subject regex updated for the new format (was a literal `replace(' · 09:00 Cairo', '')`, now a regex that strips the trailing `· 09:00 Cairo` cleanly so the subject leads with today's date).
+
+`tsc --noEmit` clean. The /beithady landing should now show live numbers for today (~6/9/4/37 right now), with KPIs labeled as snapshotted from yesterday. Tomorrow's PDF email will be subject-lined with tomorrow's date and headlined "Sat, May 9, 2026 · Reporting on Fri, May 8, 2026 (yesterday)" inside.
+
+**Out of scope this turn (acceptable trade-offs):**
+- Daily-activity sub-badges (cleaning queue, flagged check-ins, cancellations, no-shows) still come from the snapshot — they'd need their own live queries to be perfectly fresh. Headline numbers (the four big tiles) are what the user pointed at; sub-badges are slightly stale but informative.
+- Performance Dashboard page itself (`/beithady/analytics/performance`) is unchanged — that surface is for historical analysis (snapshot scrubber, compare). The live-data shift is on the cockpit landing.
+
+---
+
+## Earlier turn (parallel worktree) — Beithady module: full audit complete (deliverable shipped, no code changes)
 
 User requested an end-to-end audit of the Beithady module across functional integrity, code bloat, duplication, performance, stability, and brand/theme consistency. **Explicitly forbade fixes** — they want alignment on scope before any code changes. Dispatched 6 parallel sub-agents (read-only, file:line-cited, severity-classified). All 6 returned. Synthesized into single deliverable: `BEITHADY_AUDIT_2026_05_08.md` (root, mirrors naming of prior `COMMUNICATION_AUDIT_*` and `INVENTORY_AUDIT_*` docs).
 

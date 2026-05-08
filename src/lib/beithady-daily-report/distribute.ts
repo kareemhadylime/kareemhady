@@ -228,7 +228,9 @@ export async function distributeReport(args: {
   const link = buildLinkUrl(args.token);
   const waText = buildWhatsAppText(args.payload, link);
   const emailHtml = buildEmailBody(args.payload, link);
-  const subject = `Beithady Daily Performance — ${args.payload.generated_at_cairo.replace(' · 09:00 Cairo', '')}`;
+  // Subject leads with the receive date so inbox sorting + scanning works.
+  // Strip the trailing ` · 09:00 Cairo` cron-time noise from the header.
+  const subject = `Beithady Daily Performance — ${args.payload.generated_at_cairo.replace(/\s*·\s*09:00 Cairo$/, '')}`;
   const filename = `Beithady_Daily_Report_${args.payload.report_date}.pdf`;
 
   let sender: { refreshTokenEncrypted: string; fromEmail: string } | null = null;

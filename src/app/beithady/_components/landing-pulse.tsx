@@ -3,6 +3,9 @@ import { ArrowRight } from 'lucide-react';
 import { loadSnapshot, loadLatestSnapshotDate } from '@/app/beithady/analytics/performance/_lib/load-snapshot';
 import { DailyActivity } from '@/app/beithady/analytics/performance/_components/panels/daily-activity';
 import { HeroKpi } from '@/app/beithady/analytics/performance/_components/panels/hero-kpi';
+import { loadDailyActivityLive } from '@/lib/beithady/daily-activity-live';
+import { cairoYmd } from '@/lib/beithady-daily-report/cairo-dates';
+import type { DailyReportPayload } from '@/lib/beithady-daily-report/types';
 
 // Server component that surfaces a condensed snapshot of yesterday's
 // performance on the Beit Hady landing. Same data as the Performance
@@ -16,10 +19,17 @@ import { HeroKpi } from '@/app/beithady/analytics/performance/_components/panels
 // noise up the launcher.
 
 export async function LandingPulse() {
-  // No `?date=` to honor → falls back to the latest well-formed snapshot.
-  const [result, latestDate] = await Promise.all([
+  // Today's date in Cairo time — anchor for live activity.
+  const today = cairoYmd();
+  // Fetch in parallel: the latest snapshot (Hero KPIs / MTD context),
+  // and TODAY's live daily-activity numbers from guesty_reservations.
+  // The snapshot describes yesterday's completed period; the live query
+  // gives "what's happening on the property right now" so the Daily
+  // Activity strip's date label matches its data.
+  const [result, latestDate, liveActivity] = await Promise.all([
     loadSnapshot(undefined),
     loadLatestSnapshotDate(),
+    loadDailyActivityLive(today),
   ]);
   if (result.status !== 'found') {
     return (
@@ -37,6 +47,28 @@ export async function LandingPulse() {
   }
 
   const { payload, date: snapshotDate } = result;
+
+  // Synthesize a payload whose `all` and `per_building` daily-activity
+  // fields point at TODAY's live numbers, while everything else (MTD
+  // revenue, reviews, pace, AI insights, sparklines) keeps coming from
+  // the snapshot. This lets DailyActivity render today's headline
+  // numbers alongside the snapshot-driven Hero KPIs without rewriting
+  // the panel components.
+  const livePayload: DailyReportPayload = {
+    ...payload,
+    all: { ...payload.all, ...liveActivity.all },
+    per_building: {
+      'BH-26':  { ...payload.per_building['BH-26'],  ...liveActivity.per_building['BH-26']  },
+      'BH-73':  { ...payload.per_building['BH-73'],  ...liveActivity.per_building['BH-73']  },
+      'BH-435': { ...payload.per_building['BH-435'], ...liveActivity.per_building['BH-435'] },
+      'BH-OK':  { ...payload.per_building['BH-OK'],  ...liveActivity.per_building['BH-OK']  },
+      OTHER:    { ...payload.per_building.OTHER,     ...liveActivity.per_building.OTHER     },
+    },
+    // Cleaning ops / flagged check-ins / cancellations / no-shows are
+    // computed on yesterday's data; carry them over but they'll feel
+    // slightly stale on the live tile. Acceptable trade-off — those are
+    // sub-badges, not headline numbers.
+  };
   const all = payload.all;
   const paceAccent: 'green' | 'red' = all.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
   const isStale = latestDate && snapshotDate !== latestDate;
@@ -51,7 +83,7 @@ export async function LandingPulse() {
       }}
     >
       <header className="flex items-center justify-between px-5 pt-4 pb-3">
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 flex-wrap">
           <p
             className="font-mono text-[9px] uppercase tracking-[0.18em]"
             style={{ color: 'var(--bh-steel)', fontWeight: 600 }}
@@ -62,8 +94,8 @@ export async function LandingPulse() {
             className="text-[10px]"
             style={{ color: 'var(--bh-steel)' }}
           >
-            · {snapshotDate}
-            {isStale && latestDate && <span> (latest)</span>}
+            · {today} · activity live · KPIs from {snapshotDate}
+            {isStale && latestDate && <span> (latest snapshot)</span>}
           </span>
         </div>
         <Link
@@ -79,7 +111,7 @@ export async function LandingPulse() {
       </header>
 
       <div className="px-3 pb-3">
-        <DailyActivity payload={payload} snapshotDate={snapshotDate} />
+        <DailyActivity payload={livePayload} snapshotDate={today} />
       </div>
 
       <div
