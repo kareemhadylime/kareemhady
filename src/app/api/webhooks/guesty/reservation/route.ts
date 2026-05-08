@@ -2,6 +2,7 @@ import 'server-only';
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
+import { notifyNewReservation } from '@/lib/beithady/wa-reservation-notify';
 
 // Guesty reservation webhook — fires on reservation.created / updated / cancelled.
 // Upserts a single reservation row into guesty_reservations immediately,
@@ -140,6 +141,29 @@ export async function POST(req: NextRequest) {
       .upsert(row, { onConflict: 'id' });
 
     if (error) throw new Error(error.message);
+
+    // Fire WhatsApp notification for new confirmed reservations.
+    // Only on 'created'/'confirmed' events — skip updates/cancellations.
+    const isNewConfirmed =
+      row.status === 'confirmed' &&
+      (eventName.includes('created') || eventName.includes('confirmed'));
+    if (isNewConfirmed) {
+      const money = (data.money as Record<string, unknown>) ?? {};
+      const guest = (data.guest as Record<string, unknown>) ?? {};
+      void notifyNewReservation({
+        confirmationCode: row.confirmation_code,
+        status: row.status,
+        source: row.source,
+        listingId: row.listing_id,
+        guestName: row.guest_name,
+        guestPhone: (guest.phone as string) ?? null,
+        checkInDate: row.check_in_date,
+        checkOutDate: row.check_out_date,
+        nights: row.nights,
+        hostPayout: row.host_payout,
+        fareAccommodation: row.fare_accommodation ?? (money.fareAccommodation as number) ?? null,
+      });
+    }
 
     // Update the event log to 'processed'.
     if (uniqueKey) {
