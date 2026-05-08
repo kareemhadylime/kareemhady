@@ -1,6 +1,57 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Verify all daily-report surfaces inherit the new title format + Kika parity
+## Latest turn — Beithady audit Phase A: 17 of 18 quick wins shipped
+
+User: "You are Authorized to start Phase A - Do all automatically till commit and deploy"
+
+Executed all quick wins from `BEITHADY_AUDIT_2026_05_08.md` Phase A. **One single commit, tsc clean, pushed to main, auto-deployed via Vercel GitHub integration.** 92 files changed, +1361 / −933.
+
+**Group 1 (API/cron safety):**
+1. ✅ Flipped 17 cron handlers from `if (!expected) return true` → `false` + `console.error`. The fail-open class is closed.
+2. ✅ Scrubbed raw `error.message` → `'database_error'` (+ console.error) in 16 routes.
+3. ✅ Wrapped `beithady-conversation-archive` body in try/catch + audit log on failure (also fixed its fail-open).
+4. ✅ Schema.parse → safeParse + 400 across 17 FnB routes.
+5. ✅ Zod schemas added to 4 unprotected POST/PUT bodies (reports/save, reports/[id] PUT, fees-audit/run, fees-audit/vendor-export).
+6. ✅ scheduled-reports cron: per-recipient outcomes tracked, failures logged to beithady_audit_log, response shape includes succeeded/failed counts. (Note: did NOT add a column or migration — went with audit-log approach for the quick win; full per-schedule `last_recipient_errors` column is a Phase B item.)
+
+**Group 2 (stability):**
+7. ✅ New `src/app/beithady/error.tsx` — brand-styled root error boundary, logs digest to console.
+8. ✅ AbortSignal.timeout: added on `wa-casual-ingest.ts:470` (20s) and `gallery/ai-label.ts:53` (15s). `amazon-eg-sourcer.ts:219` already had a 30s AbortController — verified, left as-is.
+9. ⏸️ **DEFERRED: void recordAudit drop-awaits** — wider scope than the audit estimated (175 sites in 55 files vs 38/15). Bare `void` risks dropped audits on Vercel function termination; proper fix is `waitUntil(recordAudit(...))` from `@vercel/functions` (already imported in 4 places). Phase B item — needs case-by-case review per call site.
+10. ✅ Promise.all the 2 RPCs in `beithady-guesty-backfill` (ingest + sla_recompute).
+
+**Group 3 (performance):**
+11. ✅ FX Map hoist in `lib/beithady-daily-report/reservations.ts:138-205`. Pre-builds `Map<currency,rate>` once outside the loop via `Promise.all` over distinct currencies, then synchronous conversion inside. Drops the `await toUsd()` × 2 × ~3000 rows pattern. Saves an estimated 30–60s per daily-report build. Also dropped unused `toUsd` import.
+12. ✅ next/dynamic({ssr:false}) wrap recharts:
+    - `revenue-chart.tsx` → renamed to `revenue-chart-impl.tsx`; new wrapper does dynamic import.
+    - `charts/index.tsx` → renamed to `index-impl.tsx`; new wrapper exports lazy `ChartsPanel` / `KpiStrip` / `PivotTable`.
+    Removes ~300–350 KB recharts from initial JS chunks shared with these routes.
+
+**Group 4 (cleanup):**
+13. ✅ Deleted 4 unreferenced public assets (~1.1 MB): `pattern-bg.png` (936 KB), `mark.jpg` (57 KB dup of monogram), `logo-fmplus.jpg` (86 KB), `wordmark.jpg` (39 KB — retired after step 15). Kept `Icon-03.png` (no positive evidence it's dead — could be the canonical icon companion to Wordmark-03).
+14. ✅ Dropped `@deprecated` shims: `BEDROOM_BUCKETS` export (only self-referenced); `CountryCode` + `countryForBuilding` block in `morning-brief/country.ts:288-302`; `isOutboundPaused` in `settings.ts:67-80`. Verified zero callers across the repo before deletion.
+15. ✅ Wordmark JPG → PNG: switched 4 references (`beithady-shell.tsx:73`, `r/beithady/{stay,csat}/[token]/page.tsx`, `settings/branding/page.tsx:37`) from `wordmark.jpg` → `Wordmark-03.png`. Fixes the dark-mode JPG-halo issue. Kept monogram.jpg (no clean PNG twin).
+
+**Group 5 (brand):**
+16. ✅ Remap 50+ `#1e3a5f` → `var(--bh-ink)` (UI files, 12 files) / `#003462` (PDF/email render files where CSS vars don't survive — 5 files). Verified zero remaining `#1e3a5f` in repo.
+17. ✅ New `src/lib/beithady/theme.ts` exports `STATUS_COLORS = {green,amber,red}` triplet. Updated 4 redeclarations to spread it: `panel-frame.tsx`, `panels/hero-kpi.tsx` (also literals at line 43 use it directly now), `panels/daily-activity.tsx`, `fees-audit/_components/KpiStrip.tsx`.
+18. ✅ Subsidiary palette bleed removed:
+    - `financials/_components/PeriodControls.tsx:29,101` — `bg-indigo-600/700` → `bg-slate-700/800` (VOLTAUTO color out).
+    - `inventory/_components/coming-soon.tsx:28` — `text-cyan-700` → `text-slate-700` (Boat Rental color out, dark-mode pair added).
+    - `inventory/m/_components/mobile-pin-login.tsx:35` — gradient `to-cyan-900` → `to-slate-700`.
+
+**Validation + ship:**
+- `tsc --noEmit` → exit 0 (twice — once before commit, once after rebase).
+- Single commit `74e6a5b` (locally, then `ceda2d6` post-rebase). Conflict in `distribute.ts` was an upstream comment + better regex on the email subject line — accepted upstream version.
+- Pushed to main, auto-deployed via GitHub → Vercel.
+
+**Phase A actual time: ~3.5h vs audit estimate of 13h** — efficiency from parallel Edit batching + PowerShell mass-replace for the navy remap.
+
+**Phase B should pick up:** the deferred `recordAudit` await fixes (proper `waitUntil` migration), 12 small refactors (cron-helpers, channels.ts, buildings.ts, listings-repo.ts, dialog-shell, Anthropic-helper, etc.), 9 larger refactors (transactional inventory issue, brand token system, RTL pass, etc.). Audit doc has the full list.
+
+---
+
+## Earlier turn — Verify all daily-report surfaces inherit the new title format + Kika parity
 
 User: "was report by email and whatsapp updated · also whatsapp messages - guest relations and operations"
 
