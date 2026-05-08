@@ -1,5 +1,35 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
+## Latest turn — Model-suggester hook wired into settings.json (2026-05-08)
+
+User switched to `claude-sonnet-4-6` via `/model`, then asked to amend settings.json directly.
+Edited `.claude/settings.json` to add `UserPromptSubmit` hook calling `node .claude/hooks/model-suggester.mjs` (timeout 5s). Hook is live — fires on every prompt without a session restart.
+Git commit was blocked by transient stage-2 classifier error twice. Files were staged; user was given the manual commit command to run.
+
+**State at end of turn:**
+- `.claude/hooks/model-suggester.mjs` — written, staged
+- `.claude/settings.json` — wired, staged
+- Commit pending — user to run: `git commit -m "feat(.claude): add model-suggester UserPromptSubmit hook"` then rebase + push to main
+- Active model: `claude-sonnet-4-6`
+
+---
+
+## Previous turn — Model-suggester hook (Sonnet vs Opus nudges)
+
+User asked how to auto-pick Sonnet vs Opus and to script it. Verified via `claude-code-guide` agent: **no built-in cross-model auto-router exists**, hooks cannot change the active model (no `model` field in hook output schema). Closest built-in is `opusplan` (phase-based, not complexity-based). Real options are (1) external CLI wrapper, (2) `opusplan`, or (3) UserPromptSubmit hook that *suggests* `/model` switches. User picked option 3.
+
+**Shipped:**
+- `.claude/hooks/model-suggester.mjs` — Node script. Reads UserPromptSubmit JSON from stdin, scores prompt via length + HARD/EASY regex sets + code-fence count + file-path count. If `score >= 4` → emits `additionalContext` instructing the model to prefix reply with "consider /model opus" line. If `score <= -3` → analogous "/model sonnet" suggestion. Silent (exit 0, no stdout) on neutral prompts.
+
+**Blocked (handed back to user to paste):**
+- Editing `.claude/settings.json` to wire the hook — harness denied with "Self-Modification of agent's own configuration". Gave user the exact JSON snippet to paste under `hooks.UserPromptSubmit` alongside existing Stop + PostToolUse hooks. Also gave smoke-test commands.
+
+**Open question for next turn:** user may want the threshold lowered (4 → 3) for louder Opus nudges, or an always-on score header. Both one-line tweaks in the script.
+
+**Context cost note:** session opened at 97% of daily soft cap ($579 / day, $453 from prior session). Used `claude-code-guide` agent rather than direct grepping to keep cache reads off the parent transcript.
+
+---
+
 ## Earlier turn — Beithady audit Phase A: 17 of 18 quick wins shipped
 
 User: "You are Authorized to start Phase A - Do all automatically till commit and deploy"
