@@ -1,6 +1,61 @@
 # Kareemhady — Session Handoff (2026-05-08)
 
-## Latest turn — Review responses: filters by Star rating + Replied status + Building
+## Latest turn — Beithady module: full audit complete (deliverable shipped, no code changes)
+
+User requested an end-to-end audit of the Beithady module across functional integrity, code bloat, duplication, performance, stability, and brand/theme consistency. **Explicitly forbade fixes** — they want alignment on scope before any code changes. Dispatched 6 parallel sub-agents (read-only, file:line-cited, severity-classified). All 6 returned. Synthesized into single deliverable: `BEITHADY_AUDIT_2026_05_08.md` (root, mirrors naming of prior `COMMUNICATION_AUDIT_*` and `INVENTORY_AUDIT_*` docs).
+
+**Document structure:**
+- Executive summary with top-line numbers
+- §1 Functional integrity — §6 Brand & theme (one section per audit dimension)
+- Master prioritized action list: 18 quick wins (≤2 hrs each, ~13h total) · 12 small refactors (~7 working days) · 9 larger refactors (~22-25 days)
+- "Not recommended" list (avoid scope creep): keep `*-shared.ts` splits, keep `@react-pdf/renderer`, etc.
+- Open question: live screenshots for brand findings (needs dev server + Chrome MCP — flagged as a separate ~30-min pass if user wants)
+
+**Top 3 things-to-fix-this-week (~8h total):**
+1. Flip 17 fail-open cron auth checks (`if (!expected) return true` → `false`). The single biggest silent-risk class in the module.
+2. Add `src/app/beithady/error.tsx` (one file, closes the entire red-overlay class).
+3. Hoist FX rate `Map` in `lib/beithady-daily-report/reservations.ts:138-205` (kills the per-row `await toUsd()` N+1 — saves 30-60s per daily-report build).
+
+**Top-line numbers from the synthesis:**
+- 487 files, ~22,665 LOC scanned
+- 38 of 51 API routes have no top-level try/catch
+- 17 of 27 cron handlers fail open if `CRON_SECRET` unset
+- 35 of 35 server actions skip Zod validation
+- 0 `error.tsx` boundaries under `/beithady` (vs 2 under `/fmplus`)
+- 14 of 14 Anthropic SDK call sites lack timeout/retry
+- ~380 hard-coded hex codes (~75% off-spec); 3 competing brand navies (`#1E2D4A`, `#003462`, `#1e3a5f`)
+- 12 raw `<img>` tags instead of `next/image`
+- 94 of 94 Beithady pages declare `force-dynamic`, none use `revalidate`
+- 19 of 27 cron handlers share byte-identical `checkAuth` (~440 LOC deduplicable)
+- ~700-900 LOC total deduplicable (cron auth, building parsers, channel taxonomy, money/error/date helpers, modal shells)
+- 5 cron handlers in code but missing from `vercel.json` (settings UI says they run; ~700 LOC dead until decided)
+- 480 KB of unused Beithady brand assets in `/public`
+
+**Surprising-good signals (no action needed):**
+- 0 `console.log`/`console.debug` in client code (only legitimate `console.error` in 19 server paths)
+- 0 commented-out blocks >5 lines
+- 0 `.bak`/`.old`/`.copy`/`.tmp` files anywhere
+- `*-shared.ts` vs `*.ts` server/client splits are intentional
+- `lucide-react` named imports tree-shake correctly
+
+**Per-agent IDs (for resume if user wants follow-up dive):**
+- Functional integrity: `a87c1d585bfdbf73a` ✅
+- Code bloat & dead weight: `a3ea670ce1cfe494f` ✅
+- Duplication & redundancy: `a12e981dca0563c62` ✅
+- Performance & slowness: `abbd25711c32af122` ✅
+- Stability & error handling: `ac4ad8c4f86ff900a` ✅
+- Brand & theme consistency: `af997c532251578cf` ✅
+
+**Outstanding decisions for kareem:**
+1. Approve Phase A (quick wins, ~2 working days) before kicking off?
+2. Do you want the live-screenshot pass for brand deviations now, or proceed without?
+3. The 5 unscheduled engagement crons (pre-arrival, boarding-pass, csat-survey, upsell-offer, review-reply-queue) — re-add to `vercel.json` or delete? Settings UI explicitly contradicts current schedule.
+
+**Files committed this turn:** `BEITHADY_AUDIT_2026_05_08.md` (new). No source code touched.
+
+---
+
+## Earlier turn — Review responses: filters by Star rating + Replied status + Building
 
 User: "Need Filter by Star Rating, Replied Status, Building." Added all three as URL-state filters with a deep-linkable filter bar above the stats grid.
 
