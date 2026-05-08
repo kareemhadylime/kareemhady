@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 export type DrawerView = 'arrivals' | 'departures' | 'turnovers' | 'inhouse';
-export type DrawerBuilding = 'all' | 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'OTHER';
+export type DrawerBuilding = 'all' | 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'OTHER' | 'DXB';
 
 type Reservation = {
   id: string;
@@ -44,6 +44,7 @@ const BUILDINGS: Array<{ code: DrawerBuilding; label: string }> = [
   { code: 'BH-435', label: 'BH-435' },
   { code: 'BH-OK', label: 'BH-OK' },
   { code: 'OTHER', label: 'Other' },
+  { code: 'DXB',   label: 'DXB 🌍' },
 ];
 
 function normalizeChannel(source: string | null): string {

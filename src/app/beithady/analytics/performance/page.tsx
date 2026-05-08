@@ -56,6 +56,12 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const priorOffsetDays =
     priorResult && priorResult.status === 'found' ? priorResult.offsetDays : 0;
 
+  // Hoist live-activity so dxbCounts can be passed as a separate prop.
+  const liveActivity =
+    result.status === 'found' && result.date === cairoYmd()
+      ? await loadDailyActivityLive(result.date)
+      : null;
+
   return (
     <BeithadyShell
       breadcrumbs={[
@@ -75,25 +81,18 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       ) : (
         <Suspense>
           <DashboardShell
-            payload={await (async () => {
-              // When the active snapshot is today's, merge live daily-activity so
-              // the Daily Activity strip shows real-time check-in/out counts
-              // rather than the 09:00 snapshot values. Historical dates keep the
-              // pure snapshot (live data only exists for "now").
-              if (result.date !== cairoYmd()) return result.payload;
-              const live = await loadDailyActivityLive(result.date);
-              return {
-                ...result.payload,
-                all: { ...result.payload.all, ...live.all },
-                per_building: {
-                  'BH-26':  { ...result.payload.per_building['BH-26'],  ...live.per_building['BH-26']  },
-                  'BH-73':  { ...result.payload.per_building['BH-73'],  ...live.per_building['BH-73']  },
-                  'BH-435': { ...result.payload.per_building['BH-435'], ...live.per_building['BH-435'] },
-                  'BH-OK':  { ...result.payload.per_building['BH-OK'],  ...live.per_building['BH-OK']  },
-                  OTHER:    { ...result.payload.per_building.OTHER,     ...live.per_building.OTHER     },
-                },
-              };
-            })()}
+            payload={liveActivity ? {
+              ...result.payload,
+              all: { ...result.payload.all, ...liveActivity.all },
+              per_building: {
+                'BH-26':  { ...result.payload.per_building['BH-26'],  ...liveActivity.per_building['BH-26']  },
+                'BH-73':  { ...result.payload.per_building['BH-73'],  ...liveActivity.per_building['BH-73']  },
+                'BH-435': { ...result.payload.per_building['BH-435'], ...liveActivity.per_building['BH-435'] },
+                'BH-OK':  { ...result.payload.per_building['BH-OK'],  ...liveActivity.per_building['BH-OK']  },
+                OTHER:    { ...result.payload.per_building.OTHER,     ...liveActivity.per_building.OTHER     },
+              },
+            } : result.payload}
+            dxbCounts={liveActivity?.dxb}
             snapshotDate={result.date}
             generatedAt={result.generatedAt}
             initialBuilding={sp.building ?? 'all'}

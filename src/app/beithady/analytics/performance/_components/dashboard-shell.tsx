@@ -55,6 +55,8 @@ type Props = {
   priorTargetDate: string | null;
   /** Signed days between target and actual (target − actual). Negative = actual is BEFORE target. 0 = exact match. */
   priorOffsetDays: number;
+  /** UAE/DXB unit counts — available only when viewing today (live data). */
+  dxbCounts?: { check_ins_today: number; check_outs_today: number; turnovers_today: number; occupied_today: number };
 };
 
 const COMPARE_LABEL: Record<CompareMode, string> = {
@@ -77,6 +79,7 @@ export function DashboardShell({
   priorDate,
   priorTargetDate,
   priorOffsetDays,
+  dxbCounts,
 }: Props) {
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -279,6 +282,7 @@ export function DashboardShell({
                 snapshotDate={snapshotDate}
                 buildingFilter={buildingFilter}
                 latestDate={latestDate}
+                dxbCounts={dxbCounts}
                 onDateChange={(d) =>
                   // Clearing back to "latest" uses URL absence rather than an
                   // explicit ?date= so the latest-fallback path stays canonical.

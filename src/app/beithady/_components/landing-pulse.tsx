@@ -114,6 +114,7 @@ export async function LandingPulse() {
           payload={livePayload}
           snapshotDate={today}
           cleaningCountOverride={liveActivity.all.check_outs_today}
+          dxbCounts={liveActivity.dxb}
         />
       </div>
 

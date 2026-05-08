@@ -32,11 +32,21 @@ export type LiveDailyActivityBucket = {
   turnovers_today: number;
 };
 
+export type DxbCounts = {
+  check_ins_today: number;
+  check_outs_today: number;
+  turnovers_today: number;
+  occupied_today: number;
+};
+
 export type LiveDailyActivity = {
   /** YMD the activity is computed for. */
   date: string;
   all: LiveDailyActivityBucket;
   per_building: Record<BuildingCode, LiveDailyActivityBucket>;
+  /** UAE/DXB units — tracked separately so callers can display them as a
+   *  supplementary figure without polluting the Egypt-only totals. */
+  dxb: DxbCounts;
 };
 
 function emptyBucket(total_units = 0): LiveDailyActivityBucket {
@@ -78,10 +88,15 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
     OTHER: emptyBucket(inventories.OTHER?.total_units ?? 0),
   };
 
+  // UAE/DXB accumulator (excluded from Egypt totals, surfaced as a sidebar count).
+  const dxb: DxbCounts = { check_ins_today: 0, check_outs_today: 0, turnovers_today: 0, occupied_today: 0 };
+  const dxbCheckinsByListing  = new Set<string>();
+  const dxbCheckoutsByListing = new Set<string>();
+
   // Per-listing turnover detection: the same listing has BOTH a checkin
   // and a checkout today.
   const checkoutsByListing = new Set<string>();
-  const checkinsByListing = new Set<string>();
+  const checkinsByListing  = new Set<string>();
 
   type ResRow = {
     id: string;
@@ -94,8 +109,19 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
   for (const raw of (reservations as Array<Record<string, unknown>> | null) || []) {
     const r = raw as unknown as ResRow;
     const listingBuilding = r.listing?.building_code ?? null;
-    // Honor the Egypt-only exclusion at the source.
-    if (isExcludedFromReport(listingBuilding)) continue;
+    // UAE/DXB — accumulate separately, then skip Egypt buckets.
+    if (isExcludedFromReport(listingBuilding)) {
+      const ci = r.check_in_date  === date;
+      const co = r.check_out_date === date;
+      const oc = r.check_in_date != null && r.check_out_date != null &&
+        r.check_in_date <= date && (r.check_out_date > date || (ci && co));
+      if (ci) dxb.check_ins_today  += 1;
+      if (co) dxb.check_outs_today += 1;
+      if (oc) dxb.occupied_today   += 1;
+      if (r.listing_id && ci) dxbCheckinsByListing.add(r.listing_id);
+      if (r.listing_id && co) dxbCheckoutsByListing.add(r.listing_id);
+      continue;
+    }
     const bucket = bucketFromGuestyListing({
       building_code: listingBuilding,
       id: r.listing_id ?? undefined,
@@ -130,6 +156,10 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
       perBuilding[bucket].turnovers_today += 1;
     }
   }
+  // DXB turnovers (same-unit same-day flip within UAE portfolio).
+  for (const id of dxbCheckinsByListing) {
+    if (dxbCheckoutsByListing.has(id)) dxb.turnovers_today += 1;
+  }
 
   // Compute occupancy %
   for (const code of BUILDING_CODES) {
@@ -149,5 +179,5 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
   }
   all.occupancy_today_pct = all.total_units > 0 ? (all.occupied_today / all.total_units) * 100 : 0;
 
-  return { date, all, per_building: perBuilding };
+  return { date, all, per_building: perBuilding, dxb };
 }

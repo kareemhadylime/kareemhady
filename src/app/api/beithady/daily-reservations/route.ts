@@ -74,6 +74,8 @@ export async function GET(req: NextRequest) {
 
   let rows = ((data as unknown as ResRow[]) ?? []).filter((r) => {
     const bc = r.listing?.building_code ?? null;
+    // DXB view: keep only UAE units (inverse of normal exclusion).
+    if (building === 'DXB') return isExcludedFromReport(bc);
     return !isExcludedFromReport(bc);
   });
 
@@ -88,7 +90,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Building filter (post-fetch — row set is small, no SQL join filter needed)
-  if (building !== 'all') {
+  // DXB rows are already narrowed by the isExcludedFromReport inverse above.
+  if (building !== 'all' && building !== 'DXB') {
     rows = rows.filter((r) => {
       const bc = r.listing?.building_code ?? null;
       if (building === 'OTHER') return bc === null || !KNOWN_BUILDINGS.has(bc);

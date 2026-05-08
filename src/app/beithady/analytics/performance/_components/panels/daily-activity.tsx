@@ -20,6 +20,8 @@ type Props = {
    * data rather than the stale 09:00 snapshot value.
    */
   cleaningCountOverride?: number;
+  /** UAE/DXB unit counts shown as a secondary figure in each tile (from live data). */
+  dxbCounts?: { check_ins_today: number; check_outs_today: number; turnovers_today: number; occupied_today: number };
 };
 
 /** Step a YYYY-MM-DD by N days (UTC math, no DST drift). */
@@ -58,6 +60,7 @@ export function DailyActivity({
   onDateChange,
   onHide,
   cleaningCountOverride,
+  dxbCounts,
 }: Props) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const isFiltered = buildingFilter !== 'all';
@@ -110,6 +113,11 @@ export function DailyActivity({
   // user has filtered to a single building, the chip row is just a single
   // chip echoing the headline. Suppress in that case.
   const showBreakdown = !isFiltered;
+  // DXB sidebar counts — hidden when filtered to a single Egypt building.
+  const dxbCI = isFiltered ? 0 : (dxbCounts?.check_ins_today  ?? 0);
+  const dxbCO = isFiltered ? 0 : (dxbCounts?.check_outs_today ?? 0);
+  const dxbTV = isFiltered ? 0 : (dxbCounts?.turnovers_today  ?? 0);
+  const dxbOC = isFiltered ? 0 : (dxbCounts?.occupied_today   ?? 0);
 
   // Date stepper bounds: 3 days back from latest, capped at latest going forward.
   const upper = latestDate ?? snapshotDate;
@@ -197,6 +205,7 @@ export function DailyActivity({
           accent="green"
           subs={checkInSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.check_ins_today) : []}
+          dxbCount={dxbCI}
           onOpen={(building) => setDrawer({ view: 'arrivals', building })}
         />
         <Tile
@@ -206,6 +215,7 @@ export function DailyActivity({
           accent="amber"
           subs={checkOutSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.check_outs_today) : []}
+          dxbCount={dxbCO}
           onOpen={(building) => setDrawer({ view: 'departures', building })}
         />
         <Tile
@@ -215,6 +225,7 @@ export function DailyActivity({
           accent="gold"
           subs={turnoverSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.turnovers_today) : []}
+          dxbCount={dxbTV}
           onOpen={(building) => setDrawer({ view: 'turnovers', building })}
         />
         <Tile
@@ -224,6 +235,7 @@ export function DailyActivity({
           accent="ink"
           subs={stayingSubs}
           buildingBreakdown={showBreakdown ? perBuilding(payload, (b) => b.occupied_today) : []}
+          dxbCount={dxbOC}
           onOpen={(building) => setDrawer({ view: 'inhouse', building })}
         />
       </div>
@@ -260,6 +272,7 @@ function Tile({
   accent,
   subs,
   buildingBreakdown,
+  dxbCount = 0,
   onOpen,
 }: {
   icon: string;
@@ -268,6 +281,7 @@ function Tile({
   accent: Accent;
   subs: Sub[];
   buildingBreakdown: BuildingChip[];
+  dxbCount?: number;
   onOpen: (building: DrawerBuilding) => void;
 }) {
   return (
@@ -296,6 +310,11 @@ function Tile({
         >
           {value.toLocaleString('en-US')}
         </div>
+        {dxbCount > 0 && (
+          <div className="mt-0.5 tabular-nums text-[11px]" style={{ color: '#8b5cf6' }}>
+            +{dxbCount} DXB
+          </div>
+        )}
         <div
           className="mt-1 flex items-center gap-1 text-[11px]"
           style={{ color: 'var(--bh-steel)' }}
@@ -316,7 +335,7 @@ function Tile({
             ))}
           </ul>
         )}
-        {buildingBreakdown.length > 0 && (
+        {(buildingBreakdown.length > 0 || dxbCount > 0) && (
           <ul
             className="mt-3 flex flex-wrap gap-1 border-t pt-2 text-[10px]"
             style={{ borderColor: 'var(--bh-mute)' }}
@@ -340,6 +359,20 @@ function Tile({
                 </button>
               </li>
             ))}
+            {dxbCount > 0 && (
+              <li>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpen('DXB'); }}
+                  className="rounded px-1.5 py-0.5 tabular-nums transition hover:opacity-75 focus-visible:outline-none focus-visible:ring-1 motion-reduce:transition-none"
+                  style={{ background: '#f3f0ff', color: '#5b4d87', border: '1px solid #c4b5fd' }}
+                  aria-label={`${label} DXB: ${dxbCount}`}
+                >
+                  <span style={{ color: '#8b5cf6' }}>DXB</span>{' '}
+                  <span className="font-semibold">{dxbCount}</span>
+                </button>
+              </li>
+            )}
           </ul>
         )}
       </div>
