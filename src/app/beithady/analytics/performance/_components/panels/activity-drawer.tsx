@@ -10,6 +10,8 @@ type Reservation = {
   confirmation_code: string | null;
   guest_name: string | null;
   listing_id: string | null;
+  /** Server-marked leg — avoids client-side date comparison to determine role. */
+  leg: 'checkout' | 'checkin' | 'inhouse';
   listing_nickname: string | null;
   building_code: string | null;
   check_in_date: string | null;
@@ -85,7 +87,7 @@ type TurnoverUnit = {
   checkin?: Reservation;
 };
 
-function groupTurnovers(data: Reservation[], date: string): TurnoverUnit[] {
+function groupTurnovers(data: Reservation[]): TurnoverUnit[] {
   const map = new Map<string, TurnoverUnit>();
   for (const r of data) {
     const key = r.listing_id ?? r.listing_nickname ?? r.id;
@@ -93,14 +95,15 @@ function groupTurnovers(data: Reservation[], date: string): TurnoverUnit[] {
       map.set(key, { key, nickname: r.listing_nickname, buildingCode: r.building_code });
     }
     const unit = map.get(key)!;
-    if (r.check_out_date === date) unit.checkout = r;
-    else if (r.check_in_date === date) unit.checkin = r;
+    // Use server-stamped leg — no client-side date comparison needed.
+    if (r.leg === 'checkout') unit.checkout = r;
+    else if (r.leg === 'checkin') unit.checkin = r;
   }
   return [...map.values()];
 }
 
-function TurnoverList({ data, date }: { data: Reservation[]; date: string }) {
-  const units = groupTurnovers(data, date);
+function TurnoverList({ data }: { data: Reservation[] }) {
+  const units = groupTurnovers(data);
   return (
     <ul className="space-y-2">
       {units.map((unit) => (
@@ -358,7 +361,7 @@ export function ActivityDrawer({ open, onClose, view, date, initialBuilding }: P
 
           {!loading && !fetchError && data && data.length > 0 && (
             view === 'turnovers' ? (
-              <TurnoverList data={data} date={date} />
+              <TurnoverList data={data} />
             ) : (
               <ul className="space-y-2">
                 {data.map((r) => (

@@ -101,6 +101,10 @@ export async function GET(req: NextRequest) {
     confirmation_code: r.confirmation_code,
     guest_name: r.guest_name,
     listing_id: r.listing_id,
+    // Explicit leg marker so the client doesn't have to re-compare date strings.
+    leg: r.check_out_date === date ? 'checkout' as const
+       : r.check_in_date  === date ? 'checkin'  as const
+       : 'inhouse' as const,
     listing_nickname: r.listing_nickname,
     building_code: r.listing?.building_code ?? null,
     check_in_date: r.check_in_date,
