@@ -100,7 +100,10 @@ function groupTurnovers(data: Reservation[]): TurnoverUnit[] {
     if (r.leg === 'checkout') unit.checkout = r;
     else if (r.leg === 'checkin') unit.checkin = r;
   }
-  return [...map.values()];
+  // Exclude same-guest renewals — a guest extending their stay is not a room turnover.
+  return [...map.values()].filter(
+    (u) => !(u.checkout && u.checkin && u.checkout.guest_name && u.checkout.guest_name === u.checkin.guest_name),
+  );
 }
 
 function TurnoverList({ data }: { data: Reservation[] }) {
@@ -247,7 +250,7 @@ export function ActivityDrawer({ open, onClose, view, date, initialBuilding }: P
 
   // Turnovers: each unit appears as 2 rows (checkout + checkin); count unique units.
   const count = (view === 'turnovers' && data != null)
-    ? new Set(data.map((r) => r.listing_id ?? r.listing_nickname ?? r.id)).size
+    ? groupTurnovers(data).length
     : (data?.length ?? 0);
 
   return (

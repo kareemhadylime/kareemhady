@@ -72,7 +72,7 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
     sb
       .from('guesty_reservations')
       .select(
-        'id, listing_id, check_in_date, check_out_date, status, listing:guesty_listings!left(building_code)',
+        'id, listing_id, guest_name, check_in_date, check_out_date, status, listing:guesty_listings!left(building_code)',
       )
       .lte('check_in_date', date)
       .gte('check_out_date', date)
@@ -98,9 +98,26 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
   const checkoutsByListing = new Set<string>();
   const checkinsByListing  = new Set<string>();
 
+  // Pre-compute same-guest renewals: same listing has checkout AND checkin today with identical guest name.
+  // These are booking extensions — not real turnovers and Guesty hides them from daily check-in counts.
+  const _checkoutGuests = new Map<string, string | null>();
+  const renewedListings = new Set<string>();
+  for (const raw of (reservations as Array<Record<string, unknown>> | null) || []) {
+    const rr = raw as { listing_id?: string | null; guest_name?: string | null; check_out_date?: string | null };
+    if (rr.check_out_date === date && rr.listing_id) _checkoutGuests.set(rr.listing_id, rr.guest_name ?? null);
+  }
+  for (const raw of (reservations as Array<Record<string, unknown>> | null) || []) {
+    const rr = raw as { listing_id?: string | null; guest_name?: string | null; check_in_date?: string | null };
+    if (rr.check_in_date === date && rr.listing_id) {
+      const outGuest = _checkoutGuests.get(rr.listing_id);
+      if (outGuest != null && outGuest === (rr.guest_name ?? null)) renewedListings.add(rr.listing_id);
+    }
+  }
+
   type ResRow = {
     id: string;
     listing_id: string | null;
+    guest_name: string | null;
     check_in_date: string | null;
     check_out_date: string | null;
     status: string | null;
@@ -129,7 +146,7 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
     const tile = perBuilding[bucket];
     if (!tile) continue;
 
-    const checksInToday = r.check_in_date === date;
+    const checksInToday = r.check_in_date === date && !(r.listing_id && renewedListings.has(r.listing_id));
     const checksOutToday = r.check_out_date === date;
     // Occupancy: present at any point during today =
     // check_in_date <= date AND check_out_date > date. Same-day flips
