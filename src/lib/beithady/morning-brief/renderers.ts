@@ -65,15 +65,6 @@ export function renderMarkdown(brief: Brief, baseUrl?: string): string {
     lines.push(`${t.view_full}: ${url}`);
   }
 
-  // Canonical-metric transparency footer — every brief discloses its filter
-  // semantics so the team can sanity-check at a glance against Guesty UI.
-  lines.push('');
-  lines.push(
-    brief.language === 'ar'
-      ? '_المصدر: guesty-metrics · status=confirmed/checked\\_in/checked\\_out · stay = check\\_in≤today<check\\_out · الحجوزات اليدوية مدرجة منفصلة_'
-      : '_Source: guesty-metrics · status=confirmed/checked_in/checked_out · stay = check_in≤today<check_out · owner+manual blocks listed separately_'
-  );
-
   return lines.join('\n');
 }
 
