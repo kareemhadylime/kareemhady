@@ -52,7 +52,7 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<SendWhatsA
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ chatId, message: input.message }),
       // Green-API can be slow; cap at 15s so we don't block a request too long.
       signal: AbortSignal.timeout(15_000),
@@ -114,7 +114,7 @@ export async function sendWhatsAppFile(input: SendFileInput): Promise<SendWhatsA
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({
         chatId,
         urlFile: input.fileUrl,
@@ -170,7 +170,7 @@ export async function configureGreenInboundWebhook(webhookUrl: string): Promise<
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({
         webhookUrl,
         incomingWebhook: 'yes',
