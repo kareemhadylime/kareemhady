@@ -130,8 +130,20 @@ export async function buildGuestRelationsBrief(dateIso: string): Promise<Brief> 
   };
   type StayRow = ResRow & { guest_count: number | null; check_in_date: string; check_out_date: string };
   type VipRow = ResRow & { check_in_date: string };
-  const arr = (arrivals as ResRow[] | null) || [];
-  const dep = (departures as ResRow[] | null) || [];
+  const arrRaw = (arrivals as ResRow[] | null) || [];
+  const depRaw = (departures as ResRow[] | null) || [];
+  // Exclude same-guest reservation extensions from arrivals/departures counts and lists.
+  // Unified with daily-activity-live.ts, the departures drawer, and build-buildings.ts.
+  const _grDepGuests = new Map<string, string | null>();
+  for (const r of depRaw) if (r.listing_id) _grDepGuests.set(r.listing_id, r.guest_name ?? null);
+  const grRenewedListings = new Set<string>();
+  for (const r of arrRaw) {
+    if (!r.listing_id) continue;
+    const outGuest = _grDepGuests.get(r.listing_id);
+    if (outGuest != null && outGuest === (r.guest_name ?? null)) grRenewedListings.add(r.listing_id);
+  }
+  const arr = arrRaw.filter(r => !grRenewedListings.has(r.listing_id ?? ''));
+  const dep = depRaw.filter(r => !grRenewedListings.has(r.listing_id ?? ''));
   const stay = (currentlyStaying as StayRow[] | null) || [];
   const vip = (vipUpcoming as VipRow[] | null) || [];
   const pre = (prearrivalPending as Array<{ reservation_id: string; listing_nickname: string | null; listing_id: string | null; building_code: string | null; guest_name: string | null; check_in_date: string }> | null) || [];

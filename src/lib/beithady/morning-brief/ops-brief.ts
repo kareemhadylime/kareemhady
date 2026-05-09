@@ -163,8 +163,20 @@ export async function buildOpsBrief(dateIso: string): Promise<Brief> {
 
   type Res = { reservation_id: string; listing_id: string; listing_nickname: string | null; building_code: string | null; guest_name: string | null; channel: string | null; nights: number | null };
   type Stay = Res & { guest_count: number | null; check_in_date: string; check_out_date: string };
-  const co = (checkouts as Res[] | null) || [];
-  const ci = (checkins as Res[] | null) || [];
+  const coRaw = (checkouts as Res[] | null) || [];
+  const ciRaw = (checkins as Res[] | null) || [];
+  // Exclude same-guest reservation extensions from all checkout/checkin counts and lists.
+  // Unified with daily-activity-live.ts, the departures drawer, and build-buildings.ts.
+  const _opsCoGuests = new Map<string, string | null>();
+  for (const r of coRaw) if (r.listing_id) _opsCoGuests.set(r.listing_id, r.guest_name ?? null);
+  const opsRenewedListings = new Set<string>();
+  for (const r of ciRaw) {
+    if (!r.listing_id) continue;
+    const outGuest = _opsCoGuests.get(r.listing_id);
+    if (outGuest != null && outGuest === (r.guest_name ?? null)) opsRenewedListings.add(r.listing_id);
+  }
+  const co = coRaw.filter(r => !opsRenewedListings.has(r.listing_id ?? ''));
+  const ci = ciRaw.filter(r => !opsRenewedListings.has(r.listing_id ?? ''));
   const ciTomorrow = (tomorrowCheckins as Res[] | null) || [];
   const stay = (currentlyStaying as Stay[] | null) || [];
   const tasks = (openTasks as Array<{ id: string; title: string; type: string; priority: string | null; status: string; due_at: string | null; building_code: string | null; reservation_id: string | null }> | null) || [];

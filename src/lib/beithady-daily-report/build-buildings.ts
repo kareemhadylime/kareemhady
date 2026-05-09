@@ -138,10 +138,26 @@ export function buildBuildingsTable(
   // this set (= UAE) is skipped entirely.
   const allowedListingIds = new Set(inventories.physical_listing_ids_all);
 
+  // Pre-compute same-guest renewal listings (check_out = today AND check_in = today,
+  // same guest). Reservation extensions → no turnover, no cleaning needed.
+  // Unified with daily-activity-live.ts and the departures drawer exclusion.
+  const _snapCoGuests = new Map<string, string | null>();
+  for (const r of active) {
+    if (r.check_out_date === today && r.listing_id) _snapCoGuests.set(r.listing_id, r.guest_name ?? null);
+  }
+  const snapRenewedListings = new Set<string>();
+  for (const r of active) {
+    if (r.check_in_date === today && r.listing_id) {
+      const outGuest = _snapCoGuests.get(r.listing_id);
+      if (outGuest != null && outGuest === (r.guest_name ?? null)) snapRenewedListings.add(r.listing_id);
+    }
+  }
+
   for (const r of active) {
     // Drop UAE / non-physical reservations before they touch any acc.
     if (r.listing_id && !allowedListingIds.has(r.listing_id)) continue;
     const acc = accs.get(r.building) || emptyAcc();
+    const isRenewal = Boolean(r.listing_id && snapRenewedListings.has(r.listing_id));
 
     // ---- Today ----
     if (
@@ -153,7 +169,7 @@ export function buildBuildingsTable(
       if (r.listing_id) acc.occupied_listings.add(r.listing_id);
       if (r.listing_id) accAll.occupied_listings.add(r.listing_id);
     }
-    if (r.check_in_date === today) {
+    if (r.check_in_date === today && !isRenewal) {
       acc.check_ins += 1;
       accAll.check_ins += 1;
       if (r.listing_id) {
@@ -161,7 +177,7 @@ export function buildBuildingsTable(
         accAll.checkin_listings.add(r.listing_id);
       }
     }
-    if (r.check_out_date === today) {
+    if (r.check_out_date === today && !isRenewal) {
       acc.check_outs += 1;
       accAll.check_outs += 1;
       if (r.listing_id) {
