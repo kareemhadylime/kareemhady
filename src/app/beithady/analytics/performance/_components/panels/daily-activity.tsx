@@ -104,6 +104,7 @@ export function DailyActivity({
 
   const stayingSubs: Sub[] = [
     { text: `${all.occupancy_today_pct.toFixed(1)}% occupancy`, tone: 'info' },
+    { text: "incl. today's check-ins", tone: 'info' },
   ];
   if (all.total_units > 0 && all.occupied_today < all.total_units) {
     stayingSubs.push({ text: `${all.total_units - all.occupied_today} unit${all.total_units - all.occupied_today === 1 ? '' : 's'} vacant`, tone: 'info' });
