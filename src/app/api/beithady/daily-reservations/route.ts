@@ -89,7 +89,28 @@ export async function GET(req: NextRequest) {
     rows = rows.filter((r) => r.listing_id && turnoverListings.has(r.listing_id));
   }
 
-  // Building filter (post-fetch — row set is small, no SQL join filter needed)
+  // Exclude same-guest renewals from departures + arrivals: a booking extension
+  // means the guest never physically leaves, so no cleaning or ops intervention needed.
+  if ((view === 'departures' || view === 'arrivals') && rows.length > 0) {
+    const listingIds = [...new Set(rows.map((r) => r.listing_id).filter(Boolean))] as string[];
+    const oppCol = view === 'departures' ? 'check_in_date' : 'check_out_date';
+    const { data: opp } = await sb
+      .from('guesty_reservations')
+      .select('listing_id, guest_name')
+      .in('listing_id', listingIds)
+      .eq(oppCol, date)
+      .in('status', ACTIVE_STATUSES);
+    const renewalIds = new Set<string>();
+    for (const o of opp ?? []) {
+      if (!o.listing_id || !o.guest_name) continue;
+      if (rows.some((r) => r.listing_id === o.listing_id && r.guest_name === o.guest_name)) {
+        renewalIds.add(o.listing_id);
+      }
+    }
+    if (renewalIds.size > 0) rows = rows.filter((r) => !renewalIds.has(r.listing_id ?? ''));
+  }
+
+    // Building filter (post-fetch — row set is small, no SQL join filter needed)
   // DXB rows are already narrowed by the isExcludedFromReport inverse above.
   if (building !== 'all' && building !== 'DXB') {
     rows = rows.filter((r) => {

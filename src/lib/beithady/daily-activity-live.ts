@@ -147,7 +147,7 @@ export async function loadDailyActivityLive(date: string): Promise<LiveDailyActi
     if (!tile) continue;
 
     const checksInToday = r.check_in_date === date && !(r.listing_id && renewedListings.has(r.listing_id));
-    const checksOutToday = r.check_out_date === date;
+    const checksOutToday = r.check_out_date === date && !(r.listing_id && renewedListings.has(r.listing_id));
     // Occupancy: present at any point during today =
     // check_in_date <= date AND check_out_date > date. Same-day flips
     // (check_in_date === date AND check_out_date === date) count as
