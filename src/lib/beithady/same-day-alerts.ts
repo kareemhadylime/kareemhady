@@ -49,6 +49,9 @@ type GuestyResRow = {
   nights: number | null;
   guests: number | null;
   created_at_odoo: string | null;
+  fare_accommodation: number | null;
+  host_payout: number | null;
+  currency: string | null;
   listing: { building_code: string | null } | null;
 };
 
@@ -149,6 +152,20 @@ function normalizeChannel(source: string | null): string {
   return raw.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function fmtDDMonYYYY(ymd: string | null): string {
+  if (!ymd) return 'TBD';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  return `${String(d).padStart(2, '0')}-${months[m - 1]}-${y}`;
+}
+
+function fmtMoney(amount: number | null | undefined, currency: string | null): string {
+  if (amount == null) return 'N/A';
+  const sym = !currency || currency === 'USD' ? '$' : currency;
+  return `${Math.round(Number(amount)).toLocaleString()} ${sym}`;
+}
+
 function fmtCairoTime(iso: string | null): string {
   if (!iso) return 'just now';
   try {
@@ -165,22 +182,31 @@ function fmtCairoTime(iso: string | null): string {
 
 function buildAlertMessage(r: GuestyResRow): string {
   const channel = normalizeChannel(r.source);
+  const guestName = r.guest_name || 'Guest';
   const guests = r.guests != null && r.guests > 0 ? `${r.guests} guest${r.guests === 1 ? '' : 's'}` : null;
   const nights = r.nights != null && r.nights > 0 ? `${r.nights} night${r.nights === 1 ? '' : 's'}` : null;
   const stayMeta = [guests, nights].filter(Boolean).join(' · ');
   const unit = r.listing_nickname || r.listing?.building_code || 'unit TBD';
-  const guestName = r.guest_name || 'Guest';
   const code = r.confirmation_code || r.id.slice(-6);
   const bookedAt = fmtCairoTime(r.created_at_odoo);
+  const checkIn = fmtDDMonYYYY(r.check_in_date);
+  const checkOut = fmtDDMonYYYY(r.check_out_date);
+  const ratePerDay =
+    r.fare_accommodation != null && r.nights != null && r.nights > 0
+      ? r.fare_accommodation / r.nights
+      : null;
 
   return [
     `🆕 *Same-day booking · ${unit}*`,
-    `${channel} · booked ${bookedAt}`,
     ``,
-    `Guest: ${guestName}${stayMeta ? ` · ${stayMeta}` : ''}`,
+    `Booked @ : ${bookedAt}`,
+    `Booking Channel : ${channel}`,
+    `Guest: *${guestName}${stayMeta ? ` · ${stayMeta}` : ''}*`,
+    `Check-in: ${checkIn} (Today)`,
+    `Check-out: ${checkOut}`,
+    `Guest Rate / Day : ${fmtMoney(ratePerDay, r.currency)}`,
+    `Total Reservation Payout : ${fmtMoney(r.host_payout, r.currency)}`,
     `Code: ${code}`,
-    `Check-in: today (${r.check_in_date})`,
-    ``,
     `_Action: prep unit + send welcome message_`,
   ].join('\n');
 }
@@ -220,7 +246,7 @@ export async function runSameDayAlerts(opts: { cairoDate: string; dryRun?: boole
     .select(
       `id, confirmation_code, status, source, listing_id, listing_nickname,
        guest_name, check_in_date, check_out_date, nights, guests,
-       created_at_odoo,
+       created_at_odoo, fare_accommodation, host_payout, currency,
        listing:guesty_listings!left(building_code)`,
     )
     .gte('created_at_odoo', cutoffUtc)
