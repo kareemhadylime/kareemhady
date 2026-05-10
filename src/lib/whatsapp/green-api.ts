@@ -1,6 +1,26 @@
 import 'server-only';
 import { getCredential, getProviderEnabled } from '../credentials';
 
+// ASCII-safe JSON encoder for Green-API requests.
+//
+// 2026-05-10 user reported emoji in the daily-report WhatsApp message
+// rendering as Latin-1 mojibake (e.g. `📊` → `ðŸ"Š`). Root cause: when
+// our outbound JSON body contained raw UTF-8 bytes for non-ASCII chars
+// (emoji, accents, Arabic), Green-API's pipeline somewhere re-decoded
+// them as single-byte Latin-1 / Windows-1252.
+//
+// Fix: pre-escape every code unit ≥ U+0080 to its `\uXXXX` form so the
+// JSON body is pure 7-bit ASCII. The receiving JSON parser then has no
+// ambiguity — every escape decodes to its correct UTF-16 code unit
+// regardless of the server's transport-layer encoding assumptions.
+// Surrogate pairs for emoji land as two consecutive `📊`
+// escapes, which all standard JSON parsers handle correctly.
+function jsonAsciiBody(obj: unknown): string {
+  return JSON.stringify(obj).replace(/[-￿]/g, c =>
+    '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'),
+  );
+}
+
 // Shared Green-API WhatsApp client for Lime. Reads credentials from
 // integration_credentials (provider='green') with env-var fallback —
 // the boat-rental module is the first consumer, Beithady guest
@@ -53,7 +73,7 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<SendWhatsA
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ chatId, message: input.message }),
+      body: jsonAsciiBody({ chatId, message: input.message }),
       // Green-API can be slow; cap at 15s so we don't block a request too long.
       signal: AbortSignal.timeout(15_000),
     });
@@ -115,7 +135,7 @@ export async function sendWhatsAppFile(input: SendFileInput): Promise<SendWhatsA
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({
+      body: jsonAsciiBody({
         chatId,
         urlFile: input.fileUrl,
         fileName: input.fileName,
@@ -171,7 +191,7 @@ export async function configureGreenInboundWebhook(webhookUrl: string): Promise<
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({
+      body: jsonAsciiBody({
         webhookUrl,
         incomingWebhook: 'yes',
         outgoingWebhook: 'yes',
