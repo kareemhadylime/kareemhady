@@ -1,4 +1,25 @@
-# Kareemhady — Session Handoff (2026-05-08)
+# Kareemhady — Session Handoff (2026-05-10)
+
+## 🟢 2026-05-10 — SHIPPED to main: Green-API JSON body now ASCII-escaped (emoji mojibake fix)
+
+User reported today's daily-report WhatsApp showing every emoji as Latin-1 mojibake (e.g. `📊` → `ðŸ"Š`, `💰` → `ðŸ'°`). Root cause: outbound JSON body contained raw UTF-8 bytes for non-ASCII chars; somewhere in Green-API's pipeline they were re-decoded as Latin-1 / Windows-1252.
+
+**Fix shipped in commit `e2f4fdc` (`src/lib/whatsapp/green-api.ts`):**
+
+1. New `jsonAsciiBody()` helper — pre-escapes every code unit ≥ U+0080 to its `\uXXXX` form before sending. JSON body becomes pure 7-bit ASCII; surrogate pairs for emoji land as `\udXXX\udXXX` pairs which all standard JSON parsers handle correctly.
+2. Wired into all 3 fetch sites: `sendWhatsApp`, `sendWhatsAppFile`, `configureGreenInboundWebhook`.
+
+`Content-Type: application/json; charset=utf-8` was already in place from a parallel session — kept as belt-and-suspenders.
+
+**Rebase note:** main was 277 commits ahead from a parallel session. Conflict on green-api.ts (parallel session also added the charset hint); resolved by keeping `jsonAsciiBody` over `JSON.stringify` on all 3 sites.
+
+**Deployment:** `git push origin claude/zen-euler-d3bd5e:main` (`9eba269..e2f4fdc`). `vercel --prod` READY at `https://zen-euler-d3bd5e-hkh1iounw-lime-investments.vercel.app` (alias `zen-euler-d3bd5e.vercel.app`). Tomorrow's 9 AM Cairo daily-report cron is the first email with proper emoji rendering.
+
+**Session-cap status:** lean hook flagging $807/135% daily and 182% session. Recommend `/clear` after this turn.
+
+---
+
+# Earlier handoff (2026-05-08)
 
 ## Latest turn — Model-suggester hook wired into settings.json (2026-05-08)
 
