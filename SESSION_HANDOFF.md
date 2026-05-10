@@ -1006,6 +1006,10 @@ Five small UX fixes kareem flagged after a screenshot review of `/fmplus/perform
 
 Tests: forecast + build-dashboard vitest (10 tests) green. TypeScript clean on touched files (pre-existing `qrcode` and `@testing-library/react` errors unrelated).
 
+Shipped as commit `f98a84c` to origin/main; Vercel auto-deploy via GitHub integration. `vercel --prod` from this worktree returned the sandbox project URL (`intelligent-wiles-541c25-…`), expected per CLAUDE.md — real prod is the lime project's auto-deploy.
+
+Session wrap: kareem asked "is it safe to clear the session?" — verified `f98a84c` present in remote main history, working tree clean, 63 unrelated commits from other worktrees have since landed on top. Confirmed safe to clear. No work in flight from this session.
+
 ---
 
 ## 🏁 2026-05-06 — Performance Dashboard P&L surface FEATURE-COMPLETE
