@@ -138,7 +138,7 @@ export const DOMAIN_THEMES: Record<Domain, DomainTheme> = {
     name: 'BEIT HADY',
     tagline: 'Serviced apartments · short-term rentals.',
     description:
-      'Beithady Hospitality (Egypt + FZCO Dubai) + A1HOSPITALITY (BH-435 owner). 91 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-34.',
+      'Beithady Hospitality (Egypt + FZCO Dubai) + A1HOSPITALITY (BH-435 owner). 79 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-DXB.',
     parentNote: 'A Lime Investments subsidiary',
     // Palette extracted from BeitHady Branding logos + Door Sign /
     // Room Card branded-item screenshots (Plan v0.3 Q-D):

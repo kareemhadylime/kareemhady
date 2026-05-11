@@ -152,7 +152,7 @@ export default async function BeithadyHome() {
       <BeithadyHeader
         eyebrow="Subsidiary cockpit"
         title="Beit Hady"
-        subtitle="Serviced apartments — Egypt + Dubai. 91 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-34."
+        subtitle="Serviced apartments — Egypt + Dubai. 79 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-DXB."
         showWordmark
       />
 

@@ -36,7 +36,7 @@ export async function generatePersona(signal: MarketSignal): Promise<string> {
   const country = countryName(signal.origin_country);
   const cls = signal.signal_type;
 
-  const prompt = `You are a hospitality market analyst writing for Beit Hady, a serviced-apartment operator with 91 units across 5 buildings in Egypt + Dubai (BH-26, BH-73, BH-435, BH-OK, BH-34). Write a 4-6 sentence operator-facing brief on ${country} (${signal.origin_country}) travelers visiting Egypt and the serviced-apartment segment specifically.
+  const prompt = `You are a hospitality market analyst writing for Beit Hady, a serviced-apartment operator with 79 units across 5 buildings in Egypt + Dubai (BH-26, BH-73, BH-435, BH-OK in Egypt + BH-DXB in Dubai). Write a 4-6 sentence operator-facing brief on ${country} (${signal.origin_country}) travelers visiting Egypt and the serviced-apartment segment specifically.
 
 Context:
 - Our share of guests from ${country}: ${signal.our_share_pct ?? 0}%

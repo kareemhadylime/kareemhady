@@ -1,6 +1,28 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
-## 🟢 Latest turn — Decouple "sellable units" count from displayed rows
+## 🟢 Latest turn — BH-domain audit: enforce "79 sellable units" rule consistently
+
+After decoupling sellable-vs-displayed counts in build-fee-stack, swept the entire `src/lib/beithady*` + `src/app/beithady` tree to find every other unit-counting spot. Findings:
+
+**Already correct (no change needed):**
+- `src/lib/beithady/mtl.ts isBookableAtom()` — drops MTL parents, keeps standalones+children = sellable rule. Used by: market/calendar.ts (heatmap), operations/calendar-data.ts (ops calendar), beithady-daily-report/units.ts.
+- `src/lib/beithady-daily-report/units.ts loadBuildingInventories()` — same rule. Feeds occupancy/ADR/RevPAR denominators in `build-buildings.ts` + `daily-activity-live.ts`. Chain is clean.
+- `src/lib/beithady-daily-report/build-blocks.ts` — uses physical-unit denominators correctly.
+- `src/lib/pricelabs-pricing.ts` — different domain (parses PriceLabs's own "-- N Units" name suffix), not a Guesty parent/child concern.
+
+**Stale / wrong (fixed in this commit):**
+- `src/app/beithady/page.tsx:155` — landing-page subtitle hardcoded "91 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-34". Updated to "79 units across BH-26 · BH-73 · BH-435 · BH-OK · BH-DXB". (Old text referenced a defunct BH-34 building.)
+- `src/lib/beithady/ai/classify.ts:117` — AI co-pilot system prompt referenced "91 units across 5 buildings (..., BH-34)". Updated to 79 + current buildings.
+- `src/lib/beithady/market/persona.ts:39` — Market analyst prompt same text, updated.
+- `src/lib/brand-theme.ts:141` — Brand description same text, updated.
+- `src/app/beithady/analytics/reports/fees-audit/_components/FeeAuditDashboard.tsx:130` — Was passing `data.listings.length` (= 64 displayed) to TitleBar's "units in scope" headline. Wired to `data.totals.physical_units` (= 79 sellable) so the big gold number on the dashboard matches the operator's mental model.
+- `src/lib/beithady/fees-audit/sync-guesty-terms.ts` — Stale comment + field renamed: `skipped_mtl_parents` → `skipped_slt_children` (the sync now skips children, not parents). Comment clarified.
+
+`tsc --noEmit` clean.
+
+---
+
+## 🟢 Earlier turn — Decouple "sellable units" count from displayed rows
 
 Operator clarification (2026-05-11): "When counting units, count the standalones & children (not the MTLs) in order to have the right number of units that can be sold."
 

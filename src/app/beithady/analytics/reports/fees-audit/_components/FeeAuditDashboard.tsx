@@ -127,7 +127,10 @@ export function FeeAuditDashboard({
       <div className="space-y-4">
         <TitleBar
           config={config}
-          totalUnits={data?.listings.length ?? null}
+          // Show sellable inventory (standalones + children = 79), not the
+          // rendered row count (= 64). Per operator 2026-05-11: the "units
+          // in scope" headline is about what we can sell, not what we draw.
+          totalUnits={data?.totals?.physical_units ?? null}
           loading={loading}
         />
 

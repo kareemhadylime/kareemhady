@@ -78,7 +78,8 @@ export async function syncGuestyListingTerms(): Promise<{
   listings: number;
   errors: string[];
   skipped_inactive: number;
-  skipped_mtl_parents: number;
+  /** SLT child listings dropped from sync (their parent carries the terms). */
+  skipped_slt_children: number;
   /** How many listings needed the per-listing detail fallback because the
    *  list page payload lacked `prices`. */
   detail_fallbacks?: number;
@@ -86,11 +87,15 @@ export async function syncGuestyListingTerms(): Promise<{
   const sb = supabaseAdmin();
   const errors: string[] = [];
 
-  // Bookable physical units = active + dedupe MTL parents. Anything outside
-  // this set we don't waste API budget on (and don't write rows for).
+  // Sync iteration set = standalones + MTL parents (no SLT children).
+  // Per the post-2026-05-11 rule in bookable-listings.ts, the MTL parent
+  // is the canonical "terms holder" — its rate/cleaning/min-stay apply to
+  // all its children. Anything outside this set we don't waste API budget
+  // on (and don't write rows for). Note this differs from the SELLABLE
+  // count, which adds children back (see types.ts physical_units).
   const bookableIds = new Set(await getBookableListingIds());
   let skippedInactive = 0;
-  let skippedMtlParents = 0;
+  let skippedSltChildren = 0;
   let detailFallbacks = 0;
 
   // ---- Phase 1: list /listings with NO `fields` param ---------------------
@@ -176,11 +181,12 @@ export async function syncGuestyListingTerms(): Promise<{
   for (const raw of allListings) {
     const id = str(raw._id);
     if (!id) continue;
-    // Skip listings that are inactive OR MTL parents (we sync the children
-    // instead — they share calendar + share fees and are the bookable inventory).
+    // Skip listings that are inactive OR SLT children. Per the post-2026-05-11
+    // rule, we sync the MTL PARENT (the terms holder) and let children
+    // inherit. Inverse of the prior convention.
     if (!bookableIds.has(id)) {
       if (raw.active === false) skippedInactive += 1;
-      else skippedMtlParents += 1;
+      else skippedSltChildren += 1;
       continue;
     }
     const prices = readPrices(raw);
@@ -223,7 +229,7 @@ export async function syncGuestyListingTerms(): Promise<{
     listings: upsertedCount,
     errors,
     skipped_inactive: skippedInactive,
-    skipped_mtl_parents: skippedMtlParents,
+    skipped_slt_children: skippedSltChildren,
     detail_fallbacks: detailFallbacks,
   };
 }
