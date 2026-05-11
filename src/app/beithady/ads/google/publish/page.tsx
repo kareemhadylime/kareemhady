@@ -127,6 +127,12 @@ export default async function GooglePublishPage({
           </div>
 
           <div className="space-y-1">
+            <label htmlFor="negative_keywords" className="text-xs font-semibold">Negative keywords (one per line, optional)</label>
+            <p className="text-[11px] text-slate-500">Built-in brand-protection list auto-merges (airbnb, booking.com, free, scam, etc.). Add campaign-specific negatives here.</p>
+            <textarea id="negative_keywords" name="negative_keywords" rows={3} className="ix-input font-mono text-xs" placeholder={'rent to own\ndaily rental egypt'} />
+          </div>
+
+          <div className="space-y-1">
             <label htmlFor="headlines" className="text-xs font-semibold">Headlines (3–15, one per line, ≤30 chars each)</label>
             <textarea id="headlines" name="headlines" required rows={5} className="ix-input font-mono text-xs" placeholder={'Premium Apartments in Cairo\nBook on WhatsApp\nServiced Stays — Beit Hady'} />
           </div>

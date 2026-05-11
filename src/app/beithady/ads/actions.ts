@@ -192,6 +192,7 @@ export async function publishGoogleSearchAction(formData: FormData): Promise<voi
   const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
   const cpcBidUsd = Number.parseFloat(String(formData.get('cpc_bid_usd') || '1'));
   const keywords = String(formData.get('keywords') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const negativeKeywords = String(formData.get('negative_keywords') || '').split('\n').map(s => s.trim()).filter(Boolean);
   const headlines = String(formData.get('headlines') || '').split('\n').map(s => s.trim()).filter(Boolean);
   const descriptions = String(formData.get('descriptions') || '').split('\n').map(s => s.trim()).filter(Boolean);
   const finalUrl = String(formData.get('final_url') || '').trim() || undefined;
@@ -208,6 +209,7 @@ export async function publishGoogleSearchAction(formData: FormData): Promise<voi
     monthlyBudgetCapUsd,
     cpcBidUsd,
     keywords,
+    negativeKeywords,
     headlines,
     descriptions,
     finalUrl,

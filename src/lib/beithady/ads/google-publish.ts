@@ -23,6 +23,7 @@ export type GoogleSearchInput = {
   monthlyBudgetCapUsd?: number | null;   // optional auto-pause cap
   cpcBidUsd?: number;
   keywords: string[];                 // "voltauto" → BROAD, "\"x\"" → PHRASE, "[x]" → EXACT
+  negativeKeywords?: string[];        // operator-supplied, merged with brand-protection defaults
   headlines: string[];                // 3–15, each ≤30 chars
   descriptions: string[];             // 2–4, each ≤90 chars
   finalUrl?: string;                  // default = Beithady wa.me link
@@ -57,6 +58,24 @@ function parseKeyword(line: string): { text: string; matchType: 'BROAD' | 'PHRAS
   if (s.startsWith('[') && s.endsWith(']')) return { text: s.slice(1, -1).trim(), matchType: 'EXACT' };
   if (s.startsWith('"') && s.endsWith('"')) return { text: s.slice(1, -1).trim(), matchType: 'PHRASE' };
   return { text: s, matchType: 'BROAD' };
+}
+
+// Merge per-campaign + global + google-platform default negative keywords.
+// Returns a de-duplicated lowercase list.
+async function mergeNegativeKeywords(perCampaign: string[]): Promise<string[]> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('ads_brand_protection_defaults')
+    .select('scope, platform, keywords')
+    .or('scope.eq.global,platform.eq.google');
+  const fromDb = ((data as Array<{ scope: string; platform: string | null; keywords: string[] | null }> | null) || [])
+    .flatMap(r => r.keywords || []);
+  const set = new Set<string>();
+  for (const kw of [...fromDb, ...perCampaign]) {
+    const v = (kw || '').trim().toLowerCase();
+    if (v) set.add(v);
+  }
+  return Array.from(set).slice(0, 100); // Google limits ~5k negatives total per campaign; cap our auto-add at 100
 }
 
 export async function publishGoogleSearchCampaign(
@@ -274,12 +293,29 @@ export async function publishGoogleSearchCampaign(
   if (!adgroupResource) return { ok: false, mode: 'live', step: 'create_adgroup', error: 'no_adgroup_resource', raw: agRes.body };
   const adgroupExternalId = String(adgroupResource).split('/').pop() || '';
 
-  // Step 5: keywords
+  // Step 5: keywords (positive + brand-protection negatives at campaign level)
   const kwOps = keywords.map(k => ({
     create: { adGroup: adgroupResource, status: 'ENABLED', keyword: { text: k.text, matchType: k.matchType } },
   }));
   const kwRes = await gadsMutate(customerId, 'adGroupCriteria', kwOps, creds, accessToken);
   if (!kwRes.ok) return { ok: false, mode: 'live', step: 'create_keywords', error: 'mutate_failed', raw: kwRes.body };
+
+  // Step 5b: campaign-level negative keywords (brand protection + operator-supplied)
+  const negatives = await mergeNegativeKeywords(input.negativeKeywords || []);
+  if (negatives.length > 0) {
+    const negOps = negatives.map(text => ({
+      create: {
+        campaign: campaignResource,
+        negative: true,
+        keyword: { text, matchType: 'PHRASE' as const },
+      },
+    }));
+    const negRes = await gadsMutate(customerId, 'campaignCriteria', negOps, creds, accessToken);
+    if (!negRes.ok) {
+      // Negatives are nice-to-have — log but don't fail the whole publish.
+      console.warn('[google-publish] negative_keywords mutate failed:', negRes.body);
+    }
+  }
 
   // Step 6: responsive search ad
   const rsa: Record<string, unknown> = {
