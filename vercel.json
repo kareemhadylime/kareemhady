@@ -41,6 +41,7 @@
     { "path": "/api/cron/beithady-ads-audience-sync", "schedule": "0 3 * * 2" },
     { "path": "/api/cron/beithady-ads-anomaly-alert", "schedule": "0 7-19 * * *" },
     { "path": "/api/cron/beithady-ads-lead-sla", "schedule": "*/5 4-19 * * *" },
+    { "path": "/api/cron/beithady-ads-jsonld-check", "schedule": "0 4 * * *" },
     { "path": "/api/cron/fx-rates-refresh", "schedule": "0 2 * * 1" },
     { "path": "/api/cron/beithady-operations-recompute", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/beithady-morning-brief", "schedule": "0 5 * * *" },
