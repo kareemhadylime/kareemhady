@@ -86,6 +86,23 @@ triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
 
 `tsc --noEmit` clean.
 
+**Post-deploy verification** (via Supabase MCP `execute_sql`):
+- `ads_accounts` gained 7 new platform-specific columns (verified count).
+- `ads_instagram_posts` table created.
+- `ads_tiktok_posts` table created.
+- `ads_leads` gained `lead_source` + `building_code` columns.
+- Commits live on `main`: `7866aee` (feat) + `489ce72` (docs); GitHub→Vercel
+  auto-deploy fired.
+
+**Operator next steps (manual)**:
+1. Set new env vars in Vercel (Prod + Preview + Development) — see `.env.example`.
+2. Apply for Google Ads developer token approval (~1–2 wk).
+3. Connect accounts in the new UI at `/beithady/ads/accounts`.
+4. Register Meta Lead webhook at `https://app.limeinc.cc/api/webhooks/meta-ads`
+   (leadgen field).
+5. Register TikTok lead webhook at
+   `https://app.limeinc.cc/api/webhooks/tiktok-leads`.
+
 ---
 
 ## 🟢 Earlier turn — Backfill MTL-parent daily rates + harden PriceLabs sync against null prices
