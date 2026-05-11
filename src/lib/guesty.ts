@@ -280,6 +280,22 @@ export async function listGuestyListings(params: {
   });
 }
 
+/**
+ * Fetch a single listing by id, full payload (no `fields` projection).
+ *
+ * Used by sync-guesty-terms.ts as a fallback for listings whose `/listings`
+ * page response came back without the `prices` / `terms` / `taxes` blocks.
+ * The list endpoint silently honours different field-projection rules
+ * depending on the auth scope — the detail endpoint is more reliable.
+ */
+export async function getGuestyListing(
+  listingId: string
+): Promise<GuestyListing & Record<string, unknown>> {
+  return guestyFetch<GuestyListing & Record<string, unknown>>(
+    `/listings/${listingId}`
+  );
+}
+
 // Guesty review — raw shape straight from /v1/reviews. Channel-specific
 // details live in `rawReview`; the top-level fields are Guesty's envelope.
 // Probed 2026-04-23: `/reviews` only supports `limit` + `skip` — no filter,

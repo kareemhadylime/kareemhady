@@ -1,26 +1,22 @@
 // Beithady · Fee Audit · per-listing terms + taxes + fees sync.
-// Calls Guesty `/listings` with the fee/tax/term fields explicitly requested
-// (Guesty supports `fields` param to widen the default sparse projection).
+//
+// Two-phase fetch (self-healing — 2026-05-11):
+//   1. List `/listings` with NO `fields` param. The `fields` projection on
+//      our auth scope silently drops `prices`/`terms`/`taxes` (probed: it
+//      returns only `_id, accountId, tags`). Default payload is the wider
+//      shape; we trade a small bandwidth bump for a complete projection.
+//   2. For any listing whose page payload STILL lacks `prices`, fall back
+//      to `/listings/:id` (detail endpoint, full payload). The detail
+//      endpoint is the canonical source of truth and ignores scope
+//      projection quirks.
+//
+// Upsert is defensive — sparse Guesty responses can never wipe an existing
+// non-null bootstrap value. See preferGuesty() below.
 
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
-import { listGuestyListings } from '@/lib/guesty';
+import { listGuestyListings, getGuestyListing } from '@/lib/guesty';
 import { getBookableListingIds } from '@/lib/beithady/bookable-listings';
-
-const TERMS_FIELDS = [
-  '_id',
-  'nickname',
-  'bedrooms',
-  'bathrooms',
-  'accommodates',
-  'prices',                // base, cleaning, weekly/monthly discounts
-  'terms',                 // minNights, maxNights
-  'taxes',                 // [{type, amount, units, ...}]
-  'extraGuests',
-  'extraGuestFee',
-  'pets',
-  'security',
-].join(',');
 
 type RawListing = Record<string, unknown>;
 
@@ -83,6 +79,9 @@ export async function syncGuestyListingTerms(): Promise<{
   errors: string[];
   skipped_inactive: number;
   skipped_mtl_parents: number;
+  /** How many listings needed the per-listing detail fallback because the
+   *  list page payload lacked `prices`. */
+  detail_fallbacks?: number;
 }> {
   const sb = supabaseAdmin();
   const errors: string[] = [];
@@ -92,18 +91,17 @@ export async function syncGuestyListingTerms(): Promise<{
   const bookableIds = new Set(await getBookableListingIds());
   let skippedInactive = 0;
   let skippedMtlParents = 0;
+  let detailFallbacks = 0;
 
-  // Fetch all listings with the wide field projection
+  // ---- Phase 1: list /listings with NO `fields` param ---------------------
+  // The `fields` projection silently drops prices/terms/taxes on our scope.
+  // The default payload is wider and includes them.
   let allListings: RawListing[] = [];
   let skip = 0;
   const limit = 100;
   while (true) {
     try {
-      const resp = await listGuestyListings({
-        limit,
-        skip,
-        fields: TERMS_FIELDS,
-      });
+      const resp = await listGuestyListings({ limit, skip });
       const results = (resp as { results?: RawListing[]; data?: RawListing[] }).results
         || (resp as { results?: RawListing[]; data?: RawListing[] }).data
         || [];
@@ -116,6 +114,30 @@ export async function syncGuestyListingTerms(): Promise<{
         `listings.list skip=${skip}: ${e instanceof Error ? e.message : String(e)}`
       );
       break;
+    }
+  }
+
+  // ---- Phase 2: per-listing detail fallback for missing prices ------------
+  // Only the BOOKABLE listings — no point burning API budget on inactive /
+  // MTL-parent rows we won't write anyway. Detail endpoint is authoritative
+  // and ignores list-page projection quirks.
+  for (let i = 0; i < allListings.length; i++) {
+    const lst = allListings[i];
+    const id = str(lst._id);
+    if (!id || !bookableIds.has(id)) continue;
+    const prices = (lst.prices as Record<string, unknown> | undefined);
+    const hasPrices = prices && Object.keys(prices).length > 0;
+    if (hasPrices) continue;
+    try {
+      const detail = await getGuestyListing(id);
+      allListings[i] = detail as unknown as RawListing;
+      detailFallbacks += 1;
+    } catch (e) {
+      errors.push(
+        `listings.get ${id}: ${e instanceof Error ? e.message : String(e)}`
+      );
+      // Keep the sparse list-page payload; defensive upsert below preserves
+      // existing DB values for missing fields, so we never regress.
     }
   }
 
@@ -202,5 +224,6 @@ export async function syncGuestyListingTerms(): Promise<{
     errors,
     skipped_inactive: skippedInactive,
     skipped_mtl_parents: skippedMtlParents,
+    detail_fallbacks: detailFallbacks,
   };
 }
