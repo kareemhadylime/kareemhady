@@ -11,7 +11,15 @@ import { getBookableListingIds } from '@/lib/beithady/bookable-listings';
 
 export async function syncPricelabsDailyRates(opts: {
   daysAhead?: number;
-}): Promise<{ listings: number; rows: number; errors: string[]; slt_children_excluded: number }> {
+}): Promise<{
+  listings: number;
+  rows: number;
+  errors: string[];
+  slt_children_excluded: number;
+  /** PriceLabs returned a day with null price (no rate pushed) — we skip
+   *  the upsert so bootstrap values survive. Surfaced for cron-log visibility. */
+  null_price_days_skipped: number;
+}> {
   const sb = supabaseAdmin();
   const daysAhead = opts.daysAhead ?? 30;
   const errors: string[] = [];
@@ -31,7 +39,13 @@ export async function syncPricelabsDailyRates(opts: {
   const ids = allPlIds.filter(id => bookableIds.has(id));
   const childrenExcluded = allPlIds.length - ids.length;
   if (ids.length === 0) {
-    return { listings: 0, rows: 0, errors: [], slt_children_excluded: childrenExcluded };
+    return {
+      listings: 0,
+      rows: 0,
+      errors: [],
+      slt_children_excluded: childrenExcluded,
+      null_price_days_skipped: 0,
+    };
   }
 
   const today = new Date();
@@ -41,6 +55,7 @@ export async function syncPricelabsDailyRates(opts: {
     .slice(0, 10);
 
   let rowsWritten = 0;
+  let nullPriceSkipped = 0;
   for (const id of ids) {
     try {
       const resp = await getPricelabsListingPrices(id, {
@@ -48,27 +63,39 @@ export async function syncPricelabsDailyRates(opts: {
         dateTo: end,
       });
       const days = (resp.data || []) as PriceLabsListingPrice[];
-      const upserts = days.map(d => {
-        const dt = new Date(d.date + 'T00:00:00Z');
-        const dow = dt.getUTCDay();
-        const isWeekend = dow === 5 || dow === 6;
-        return {
-          listing_id: id,
-          date: d.date,
-          base_price: d.price ?? d.recommended_rate ?? null,
-          min_price: null,
-          max_price: null,
-          currency: 'USD',
-          is_weekend: isWeekend,
-          is_blocked: false,
-          weekly_discount_pct: null,
-          monthly_discount_pct: null,
-          last_minute_discount_pct: null,
-          channel_overrides: null,
-          raw: d as Record<string, unknown>,
-          synced_at: new Date().toISOString(),
-        };
-      });
+      // Filter out days where PriceLabs returned no rate. Upserting with
+      // base_price: null would wipe MTL-parent bootstrap rows (2026-05-11):
+      // for the 8 BH-73 parents PriceLabs has the listing registered but no
+      // rates pushed, so the response is `{date, price: null}`. We bootstrap
+      // those rows from peer medians; this skip keeps them intact until
+      // PriceLabs actually has rates to push.
+      const upserts = days
+        .map(d => {
+          const dt = new Date(d.date + 'T00:00:00Z');
+          const dow = dt.getUTCDay();
+          const isWeekend = dow === 5 || dow === 6;
+          const basePrice = d.price ?? d.recommended_rate ?? null;
+          return basePrice == null
+            ? null
+            : {
+                listing_id: id,
+                date: d.date,
+                base_price: basePrice,
+                min_price: null,
+                max_price: null,
+                currency: 'USD',
+                is_weekend: isWeekend,
+                is_blocked: false,
+                weekly_discount_pct: null,
+                monthly_discount_pct: null,
+                last_minute_discount_pct: null,
+                channel_overrides: null,
+                raw: d as Record<string, unknown>,
+                synced_at: new Date().toISOString(),
+              };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null);
+      nullPriceSkipped += days.length - upserts.length;
       if (upserts.length) {
         const { error } = await sb
           .from('beithady_pricelabs_daily_rates')
@@ -82,5 +109,11 @@ export async function syncPricelabsDailyRates(opts: {
     }
   }
 
-  return { listings: ids.length, rows: rowsWritten, errors, slt_children_excluded: childrenExcluded };
+  return {
+    listings: ids.length,
+    rows: rowsWritten,
+    errors,
+    slt_children_excluded: childrenExcluded,
+    null_price_days_skipped: nullPriceSkipped,
+  };
 }

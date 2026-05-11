@@ -1,6 +1,26 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
-## 🟢 Latest turn — Show MTL parents instead of their SLT children (BH-73)
+## 🟢 Latest turn — Backfill MTL-parent daily rates + harden PriceLabs sync against null prices
+
+Follow-up to the BH-73 MTL-parent visibility fix. With the parents now in the dashboard they showed cleaning fees (backfilled last commit) but daily rates were all "—" because PriceLabs has the parents registered without any rates pushed yet.
+
+**DB backfill (forward-only DML)**:
+- For each of the 8 BH-73 MTL parents, computed median daily rate from peer standalones (same building + bedrooms preferred; cross-building same-bedrooms fallback for the studio parent which had no BH-73 0BR peer).
+- INSERTed 240 rows (8 parents × 30 days) into `beithady_pricelabs_daily_rates`. Each row's `raw` blob carries `{source: "mtl_parent_peer_median", bootstrap: true}` so we can spot them in the data.
+- Resulting average rates: 1BR $46 · 2BR $71 · 3BR $79 · 0BR studio $65 (BH-26 peer).
+- Coverage verification: **all 64 dashboard rows now have cleaning + 30-day forward rates**. Zero missing-data anomalies across the portfolio.
+
+**Code hardening — `sync-pricelabs-daily.ts`**:
+- Filter null-price days OUT of the upsert payload. The previous blind upsert would have wiped these bootstrap rows on the next daily cron because PriceLabs's response for a rate-less listing is `{date, price: null}` and the old code wrote that null straight into `base_price`.
+- New return field `null_price_days_skipped: number` so the cron log shows how many days were skipped per run. Once the operator pushes rates in PriceLabs for the 8 parents, the skip count drops and the bootstrap rows get replaced with real data automatically.
+
+`tsc --noEmit` clean.
+
+**Operator action still optional, no longer blocking**: push rates in PriceLabs for the 8 BH-73 MTL parents. Until then, the dashboard renders with peer-derived rates marked `bootstrap: true`. Real PriceLabs rates take precedence the moment they exist.
+
+---
+
+## 🟢 Earlier turn — Show MTL parents instead of their SLT children (BH-73)
 
 User reported BH-73's heatmap was full of "missing data" rows: 23 child listings with no rates/cleaning while the 5 standalones rendered fine. The 8 MTL parents were excluded entirely.
 
