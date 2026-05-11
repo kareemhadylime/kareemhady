@@ -1,5 +1,29 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
+## 🟢 2026-05-11 (part 2) — SHIPPED to main: pre-commit hook + .gitattributes prevent mojibake regression
+
+Follow-up to part 1's 315-line mojibake repair. Two defenses now in place to stop the corruption class from re-entering:
+
+**1. `.gitattributes`** — declares all source/config text files as `text eol=lf working-tree-encoding=UTF-8`. Git refuses to silently re-encode matching files on checkout/checkin when a Windows editor tries to save in a different codepage.
+
+**2. `scripts/check-mojibake.mjs`** — standalone detector that walks each file looking for runs of Latin-1/CP1252 high-range chars whose byte sequence decodes to valid UTF-8 (= mojibake signature). Skips `.md`/`.yml`/`.yaml` because handoff docs legitimately quote the pattern. Regex documented with explicit byte-level hex in a comment so it self-protects.
+
+**3. `scripts/hooks/pre-commit`** — calls the detector on staged files only (fast). Auto-installed via the new `prepare` npm lifecycle script which sets `core.hooksPath scripts/hooks`. No husky dependency needed; `prepare` runs automatically on every `npm install`.
+
+**4. New npm scripts:**
+- `npm run check:mojibake` — full-repo scan, also runnable in CI
+- `npm run prepare` (runs on `npm install`) — wires `core.hooksPath`
+
+**5. Two residual mojibake sites caught by the new detector** during its first dry run: `ReportViewer.tsx` (1 fix) and `ReportBuilder.tsx` (9 fixes) — both repaired by an inline fixer pass before the hook commit.
+
+**End state:** `npm run check:mojibake` reports `1390 files scanned, clean`. Committing a synthetic mojibake string is rejected with a line-numbered diagnostic. Override for emergencies: `git commit --no-verify`.
+
+**Deployment:** commit `0999485` pushed `1c1168c..0999485` to main. `vercel --prod` READY at `https://zen-euler-d3bd5e-1xyprbs9n-lime-investments.vercel.app` (runtime unchanged — dev tooling only).
+
+---
+
+# Earlier 2026-05-11 entry
+
 ## 🟢 2026-05-11 — SHIPPED to main: source-file mojibake fix (yesterday's jsonAsciiBody was correctly transmitting corrupted source)
 
 User reported the daily-report WhatsApp message STILL showing emoji mojibake (🏛️ → ðŸ›ï¸, · → Â·) despite yesterday's `jsonAsciiBody` Green-API fix. Investigation revealed the helper was faithfully escaping whatever was in the source — and the source file ITSELF was corrupted.
