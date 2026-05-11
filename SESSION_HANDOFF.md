@@ -1,6 +1,94 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
-## 🟢 Latest turn — Backfill MTL-parent daily rates + harden PriceLabs sync against null prices
+## 🟢 Latest turn — BH Ads multi-platform (Phase H+): Google + TikTok + IG Reels + FB
+
+Extended Phase H Beithady Ads (Meta-CTWA-only) to full Voltauto parity by porting the
+remaining ad/social pieces from `C:\Voltauto-pricing\supabase\functions\*` into our
+Next.js + TS architecture.
+
+**Migration `0103_bh_ads_multi_platform`** (applied via Supabase MCP):
+- `ads_accounts` extended: `fb_page_name`, `ig_business_id`, `ig_username`,
+  `google_customer_id`, `google_refresh_token`, `google_refresh_expires_at`,
+  `tiktok_advertiser_id`/`bc_id`/`identity_id`/`identity_type`/`refresh_token`/
+  `open_id`/`username`/`token_expires_at`/`refresh_expires_at`.
+- New `ads_instagram_posts` (state machine: PENDING_CREATE → IN_PROGRESS →
+  PUBLISHED, plus FB cross-post status).
+- New `ads_tiktok_posts` (PENDING_CREATE → PROCESSING_UPLOAD →
+  PROCESSING_DOWNLOAD → SEND_TO_USER_INBOX | PUBLISH_COMPLETE | FAILED).
+- `ads_leads` gained `lead_source` (ctwa | meta_lead_form | tiktok_lead_form) +
+  `building_code`. Backfilled existing rows as `ctwa`.
+
+**Lib layer** (`src/lib/beithady/ads/*`):
+- `platforms.ts` — shared types/constants + `buildBhWaLink` + `statusBadgeClass`.
+- `google-client.ts` + `google-publish.ts` + `google-sync.ts` — Google Ads v24
+  (GAQL searchStream + 6-step mutate). Draft-mode fallback when creds missing.
+  MCC-aware sync (expands children).
+- `tiktok-client.ts` + `tiktok-paid-publish.ts` + `tiktok-organic-publish.ts` +
+  `tiktok-sync.ts` — TikTok Business API v1.3 (paid TRAFFIC ads) + Open API v2
+  (organic Reels inbox flow with polling; direct-post gated to audited apps).
+- `instagram-publish.ts` — Graph v21 REELS media (container → poll → publish);
+  optional FB Reels cross-post via `/video_reels` resumable upload.
+- `meta-client.ts` — added `listIgAccounts` + `resolveIgForAccount`.
+- `ai-copy.ts` — added `generateCaption()` with Claude Haiku vision (image_url
+  → caption + hashtags). Replaces Voltauto's Gemini.
+- `unified-sync.ts` — "Sync now (all)" orchestrator (parallel).
+- `attribution.ts` — extracted 90-day phone-match sweep helper.
+
+**API routes**:
+- `/api/auth/google-ads/start` + `/callback` — OAuth state `<csrf>.<scope>`:
+  `global` writes to `integration_credentials.google_ads.refresh_token`;
+  `<account_id>` writes encrypted `google_refresh_token` on the row.
+- `/api/auth/tiktok/start` + `/callback` — state = `<account_id>`. Echoes
+  `tiktok_verify_token` for URL-property verification.
+- `/api/webhooks/meta-ads` — Meta Lead Forms webhook (GET handles
+  `hub.verify_token` challenge; POST upserts to `ads_leads`).
+- `/api/webhooks/tiktok-leads` — TikTok Instant Form webhook.
+- `/api/cron/beithady-ads-google-sync` + `-tiktok-sync` — DST-safe (gate on
+  Cairo local hour). `vercel.json` registers UTC 03:30+04:30 (Google) and
+  04:00+05:00 (TikTok).
+
+**UI** (all under `/beithady/ads/`):
+- `_components/ads-tabs.tsx` — shared tab nav, grouped Manage/Publish/Settings.
+- `page.tsx` rewritten — per-platform connection cards + unified campaigns
+  table + recent leads.
+- `campaigns/page.tsx` — unified table with platform + status filter chips.
+- `accounts/page.tsx` — unified account table with Connect/Resolve actions.
+- `performance/page.tsx` — cross-platform analytics with per-building rollup.
+- `google/publish/page.tsx` + `google/accounts/page.tsx` — Search ad wizard +
+  customer-ID + OAuth-connect.
+- `tiktok/paid/page.tsx` + `tiktok/organic/page.tsx` + `tiktok/accounts/page.tsx`
+  — paid wizard, Reels publisher with re-poll, advertiser/identity setup.
+- `instagram/reels/page.tsx` + `instagram/accounts/page.tsx` — Reels publisher
+  with FB cross-post toggle, IG business account resolver.
+- `gallery/page.tsx` — asset library filterable by building/kind/ad_eligible.
+- `templates/page.tsx` — placeholder for WhatsApp templates (full editor TBD).
+- `create/page.tsx` + `leads/page.tsx` — gained the new tab nav.
+
+**Env vars** added to `.env.example` (Vercel needs them set in Prod + Preview
++ Development): `META_LEAD_FORM_WEBHOOK_VERIFY_TOKEN`, `GOOGLE_ADS_*` (6 keys),
+`TIKTOK_*` (6 keys).
+
+**Deploy**: pushed to `main` (commit `7866aee`), GitHub→Vercel auto-deploy
+triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
+
+**Open follow-ups**:
+- Auto-pause-on-budget-cap cron (new `monthly_budget_cap_usd` column).
+- ROAS column in Performance tab (have `ads_lead_funnel.booking_value`).
+- Approval workflow (draft → manager review → unpause).
+- Bilingual UI labels (currently English-only; Voltauto uses inline AR+EN).
+- Phase-G market-signal-driven targeting suggestions for Google/TikTok wizards.
+
+**Open risks**:
+- Google Ads developer token needs production approval (~1-2 wk). Until then,
+  GAQL → 403 and publish falls back to draft mode (DB-only).
+- TikTok direct-post requires app audit. Inbox flow ships now; direct-post
+  remains a checkbox warning "requires audited app".
+
+`tsc --noEmit` clean.
+
+---
+
+## 🟢 Earlier turn — Backfill MTL-parent daily rates + harden PriceLabs sync against null prices
 
 Follow-up to the BH-73 MTL-parent visibility fix. With the parents now in the dashboard they showed cleaning fees (backfilled last commit) but daily rates were all "—" because PriceLabs has the parents registered without any rates pushed yet.
 
