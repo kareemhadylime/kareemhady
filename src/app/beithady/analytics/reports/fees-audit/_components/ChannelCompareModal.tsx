@@ -7,7 +7,7 @@ import type { ChannelBucket } from '@/lib/beithady/guesty-metrics';
 import { CHANNEL_LABEL, CHANNEL_COLOR } from '@/lib/beithady/reports/channel-taxonomy';
 
 const fmt = (v: number | null | undefined): string =>
-  v == null ? 'â€”' : `$${Number(v).toFixed(2)}`;
+  v == null ? '—' : `$${Number(v).toFixed(2)}`;
 
 export function ChannelCompareModal({
   listingId,
@@ -46,7 +46,7 @@ export function ChannelCompareModal({
             </p>
             <h2 className="text-lg font-bold">{listing?.nickname || listingId}</h2>
             <p className="text-xs text-slate-300">
-              {dateIso} Â· {nights} nights Â· {listing?.capacity || 2} guests
+              {dateIso} · {nights} nights · {listing?.capacity || 2} guests
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function ChannelCompareModal({
           {loading ? (
             <div className="text-center text-sm text-slate-500 py-12">
               <Loader2 className="inline animate-spin" size={20} />
-              <span className="ml-2">Comparing channelsâ€¦</span>
+              <span className="ml-2">Comparing channels…</span>
             </div>
           ) : data ? (
             <div className="overflow-x-auto">
@@ -85,7 +85,7 @@ export function ChannelCompareModal({
                         {CHANNEL_LABEL[c.channel]}
                       </th>
                     ))}
-                    <th className="text-right py-2 px-2 font-semibold text-slate-500">Î”% minâ†”max</th>
+                    <th className="text-right py-2 px-2 font-semibold text-slate-500">Δ% min↔max</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -109,7 +109,7 @@ export function ChannelCompareModal({
                           </td>
                         ))}
                         <td className={`py-1.5 px-2 text-right tabular-nums ${dpct > 50 ? 'text-rose-600 font-bold' : dpct > 15 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                          {dpct > 0 ? `${dpct.toFixed(1)}%` : 'â€”'}
+                          {dpct > 0 ? `${dpct.toFixed(1)}%` : '—'}
                         </td>
                       </tr>
                     );
@@ -148,7 +148,7 @@ export function ChannelCompareModal({
                     <td className="py-1.5 px-2 text-slate-500">Min stay</td>
                     {data.map(c => (
                       <td key={c.channel} className="py-1.5 px-2 text-right">
-                        {c.breakdown.min_nights_required ?? 'â€”'}
+                        {c.breakdown.min_nights_required ?? '—'}
                       </td>
                     ))}
                     <td />

@@ -21,27 +21,27 @@ import {
 // A4 PDF render via @react-pdf/renderer. Server-side (Node), no Chromium
 // needed. Mirrors the HTML report structure but uses @react-pdf primitives.
 
-// Beithady brand palette â€” Pantone-anchored deep navy / steel / cream / gold,
+// Beithady brand palette — Pantone-anchored deep navy / steel / cream / gold,
 // kept in lockstep with the dashboard tokens in src/app/globals.css:
-//   --bh-ink    #003462   Deep Navy   Â· headings, accents
-//   --bh-steel  #6077a6   Steel Blue  Â· secondary text
-//   --bh-mute   #b3bbcb   muted UI    Â· borders, dividers
-//   --bh-cream  #F5F1E8   page bg     Â· "All" column highlight, callout cards
-//   --bh-gold   #D4A93A   accent      Â· digest box border, eyebrow text
-// Variable names are unchanged from v1 for minimal callsite churn â€” only
+//   --bh-ink    #003462   Deep Navy   · headings, accents
+//   --bh-steel  #6077a6   Steel Blue  · secondary text
+//   --bh-mute   #b3bbcb   muted UI    · borders, dividers
+//   --bh-cream  #F5F1E8   page bg     · "All" column highlight, callout cards
+//   --bh-gold   #D4A93A   accent      · digest box border, eyebrow text
+// Variable names are unchanged from v1 for minimal callsite churn — only
 // the hex values shift to brand-canonical.
 const PALETTE = {
-  ink: '#003462',     // bh-ink  Â· primary navy (was #1a2c47)
+  ink: '#003462',     // bh-ink  · primary navy (was #1a2c47)
   ink2: '#2c4d7a',    // mid-navy used in the dashboard TitleBar gradient (was #374b6b)
-  muted: '#6077a6',   // bh-steel Â· captions, footers (was #7a8aa3)
-  line: '#b3bbcb',    // bh-mute Â· table dividers + card borders (was warm cream #e6dfce)
-  brand: '#003462',   // bh-ink Â· accent (was #003462, the old "primary navy")
-  brandBg: '#F5F1E8', // bh-cream Â· "All" column highlight + digest bg (was warm cream #f0e9d9)
+  muted: '#6077a6',   // bh-steel · captions, footers (was #7a8aa3)
+  line: '#b3bbcb',    // bh-mute · table dividers + card borders (was warm cream #e6dfce)
+  brand: '#003462',   // bh-ink · accent (was #003462, the old "primary navy")
+  brandBg: '#F5F1E8', // bh-cream · "All" column highlight + digest bg (was warm cream #f0e9d9)
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
-  gold: '#D4A93A',    // bh-gold Â· accent (was warm cream-gold #c9a96e)
-  cardBg: '#F5F1E8',  // bh-cream Â· star-cell bg (was #faf8f3)
+  gold: '#D4A93A',    // bh-gold · accent (was warm cream-gold #c9a96e)
+  cardBg: '#F5F1E8',  // bh-cream · star-cell bg (was #faf8f3)
 };
 
 // Load logo bytes once per cold start. The file lives in `public/` so it
@@ -389,9 +389,9 @@ function ReviewsBlockPdf({ payload }: { payload: DailyReportPayload }) {
           marginBottom: 4,
         }}
       >
-        <Text style={styles.sectionTitle}>REVIEWS Â· {payload.month_label.toUpperCase()}</Text>
+        <Text style={styles.sectionTitle}>REVIEWS · {payload.month_label.toUpperCase()}</Text>
         <Text style={{ fontSize: 7.5, color: PALETTE.ink2 }}>
-          {r.count_mtd} reviews Â· avg {r.avg_rating_mtd.toFixed(1)}*
+          {r.count_mtd} reviews · avg {r.avg_rating_mtd.toFixed(1)}*
         </Text>
       </View>
       <View style={styles.starGrid}>
@@ -427,7 +427,7 @@ function ReviewsBlockPdf({ payload }: { payload: DailyReportPayload }) {
                 }}
               >
                 <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 8 }}>
-                  {rv.unit} Â· {rv.channel}
+                  {rv.unit} · {rv.channel}
                 </Text>
                 <Text
                   style={{
@@ -436,7 +436,7 @@ function ReviewsBlockPdf({ payload }: { payload: DailyReportPayload }) {
                     color: rv.flagged ? PALETTE.red : PALETTE.gold,
                   }}
                 >
-                  {rv.rating ? `${rv.rating}*` : 'â€”'}
+                  {rv.rating ? `${rv.rating}*` : '—'}
                   {rv.flagged ? ' [FLAG]' : ''}
                 </Text>
               </View>
@@ -459,7 +459,7 @@ function ChannelMixPdf({ payload }: { payload: DailyReportPayload }) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {payload.channel_mix.map(m => (
           <Text key={m.channel} style={{ fontSize: 8, color: PALETTE.ink2 }}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', color: PALETTE.ink }}>{m.channel}</Text>: {m.pct.toFixed(1)}% Â· {fmtUsd(m.revenue_usd)}
+            <Text style={{ fontFamily: 'Helvetica-Bold', color: PALETTE.ink }}>{m.channel}</Text>: {m.pct.toFixed(1)}% · {fmtUsd(m.revenue_usd)}
           </Text>
         ))}
       </View>
@@ -474,10 +474,10 @@ function MiniBlocksPdf({ payload }: { payload: DailyReportPayload }) {
         <Text style={styles.sectionTitle}>CANCELLATIONS</Text>
         <Text style={{ fontSize: 8 }}>
           Today: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{payload.cancellations.count_today}</Text>
-          {payload.cancellations.value_today_usd > 0 && ` Â· ${fmtUsd(payload.cancellations.value_today_usd)}`}
+          {payload.cancellations.value_today_usd > 0 && ` · ${fmtUsd(payload.cancellations.value_today_usd)}`}
         </Text>
         <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
-          MTD: {payload.cancellations.count_mtd} Â· {fmtUsd(payload.cancellations.value_mtd_usd)}
+          MTD: {payload.cancellations.count_mtd} · {fmtUsd(payload.cancellations.value_mtd_usd)}
         </Text>
       </View>
       <View style={[styles.card, { flex: 1, marginTop: 0 }]}>
@@ -497,7 +497,7 @@ function MiniBlocksPdf({ payload }: { payload: DailyReportPayload }) {
           </Text>
         </Text>
         <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
-          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} Â· high:{' '}
+          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} · high:{' '}
           {payload.inquiry_triage.in_stay_high_count}
         </Text>
       </View>
@@ -514,7 +514,7 @@ function CleaningOpsPdf({ payload }: { payload: DailyReportPayload }) {
       </Text>
       {payload.cleaning_ops_today.map((c, i) => (
         <Text key={i} style={{ fontSize: 8, marginBottom: 1 }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold' }}>{c.unit}</Text> ({c.building}) Â· out: {c.checkout_guest} â†’ in: {c.checkin_guest}
+          <Text style={{ fontFamily: 'Helvetica-Bold' }}>{c.unit}</Text> ({c.building}) · out: {c.checkout_guest} → in: {c.checkin_guest}
         </Text>
       ))}
     </View>
@@ -528,7 +528,7 @@ function PricingAlertsPdf({ payload }: { payload: DailyReportPayload }) {
       <Text style={styles.sectionTitle}>PRICING ALERTS ({payload.pricing_alerts.length})</Text>
       {payload.pricing_alerts.slice(0, 8).map((a, i) => (
         <Text key={i} style={{ fontSize: 8, marginBottom: 1 }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold' }}>{a.unit}</Text> Â· current {fmtUsd(a.current_price_usd)} vs rec {fmtUsd(a.recommended_price_usd)} Â·{' '}
+          <Text style={{ fontFamily: 'Helvetica-Bold' }}>{a.unit}</Text> · current {fmtUsd(a.current_price_usd)} vs rec {fmtUsd(a.recommended_price_usd)} ·{' '}
           <Text style={{ color: a.delta_pct < 0 ? PALETTE.red : PALETTE.green }}>
             {a.delta_pct > 0 ? '+' : ''}
             {a.delta_pct.toFixed(1)}%
@@ -544,12 +544,12 @@ function DeadInventoryPdf({ payload }: { payload: DailyReportPayload }) {
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>
-        DEAD INVENTORY (0 nights booked next 14 days) â€” {payload.dead_inventory.length} units
+        DEAD INVENTORY (0 nights booked next 14 days) — {payload.dead_inventory.length} units
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {payload.dead_inventory.slice(0, 30).map((d, i) => (
           <Text key={i} style={{ fontSize: 7.5, width: '50%', marginBottom: 1 }}>
-            â€¢ {d.unit} <Text style={{ color: PALETTE.muted }}>({d.building})</Text>
+            • {d.unit} <Text style={{ color: PALETTE.muted }}>({d.building})</Text>
           </Text>
         ))}
       </View>
@@ -557,7 +557,7 @@ function DeadInventoryPdf({ payload }: { payload: DailyReportPayload }) {
   );
 }
 
-// v2 PDF blocks â€” paired metrics with no popouts (PDF is summary-only).
+// v2 PDF blocks — paired metrics with no popouts (PDF is summary-only).
 
 function V2_WeeklyDigestPdf({ payload }: { payload: DailyReportPayload }) {
   const w = payload.weekly_digest;
@@ -572,7 +572,7 @@ function V2_WeeklyDigestPdf({ payload }: { payload: DailyReportPayload }) {
       }}
     >
       <Text style={{ color: 'white', fontSize: 8, fontFamily: 'Helvetica-Bold' }}>
-        Week {w.week_start} â†’ {w.week_end}: {w.oneliner.replace(/^[^:]+:\s/, '')}
+        Week {w.week_start} → {w.week_end}: {w.oneliner.replace(/^[^:]+:\s/, '')}
       </Text>
     </View>
   );
@@ -583,7 +583,7 @@ function V2_PairedChannelsPdf({ payload }: { payload: DailyReportPayload }) {
   if (list.length === 0) return null;
   return (
     <View style={styles.card}>
-      <Text style={styles.sectionTitle}>CHANNEL MIX â€” Yesterday vs MTD</Text>
+      <Text style={styles.sectionTitle}>CHANNEL MIX — Yesterday vs MTD</Text>
       <View style={styles.payoutsRow}>
         <Text style={styles.tdLeft}> </Text>
         <Text style={[styles.td, { fontFamily: 'Helvetica-Bold' }]}>Yest $</Text>
@@ -615,17 +615,17 @@ function V2_ConvAndPaymentPdf({ payload }: { payload: DailyReportPayload }) {
         <View style={[styles.card, { flex: 1, marginTop: 0 }]}>
           <Text style={styles.sectionTitle}>RESPONSE TIME</Text>
           <Text style={{ fontSize: 8 }}>
-            Yesterday avg: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{fmtMin(conv.yesterday.avg_response_minutes)}</Text> Â· first {fmtMin(conv.yesterday.first_response_avg_minutes)}
+            Yesterday avg: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{fmtMin(conv.yesterday.avg_response_minutes)}</Text> · first {fmtMin(conv.yesterday.first_response_avg_minutes)}
           </Text>
           <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
-            MTD avg: {fmtMin(conv.mtd.avg_response_minutes)} Â· first {fmtMin(conv.mtd.first_response_avg_minutes)}
+            MTD avg: {fmtMin(conv.mtd.avg_response_minutes)} · first {fmtMin(conv.mtd.first_response_avg_minutes)}
           </Text>
           <Text style={{ fontSize: 8, color: PALETTE.ink2, marginTop: 1 }}>
             Guest msgs Y/MTD: {conv.yesterday.guest_message_count} / {conv.mtd.guest_message_count}
           </Text>
           {conv.worst_2_agents.length > 0 && (
             <Text style={{ fontSize: 7.5, color: PALETTE.red, marginTop: 3 }}>
-              Worst-2: {conv.worst_2_agents.map(a => `${a.agent_name} ${fmtMin(a.avg_response_minutes)}`).join(' Â· ')}
+              Worst-2: {conv.worst_2_agents.map(a => `${a.agent_name} ${fmtMin(a.avg_response_minutes)}`).join(' · ')}
             </Text>
           )}
         </View>
@@ -666,7 +666,7 @@ function V2_BlocksAndNoShowPdf({ payload }: { payload: DailyReportPayload }) {
             Forward {b.forward.days_remaining}d to EOM: {b.forward.available_nights.toLocaleString()} of {b.forward.total_unit_nights.toLocaleString()} avail ({b.forward.available_pct}%)
           </Text>
           <Text style={{ fontSize: 7.5, color: PALETTE.muted, marginTop: 1 }}>
-            Manual blocked: {b.forward.manual_block_nights.toLocaleString()} nights Â· confirmed: {b.forward.confirmed_block_nights.toLocaleString()} nights
+            Manual blocked: {b.forward.manual_block_nights.toLocaleString()} nights · confirmed: {b.forward.confirmed_block_nights.toLocaleString()} nights
           </Text>
         </View>
       )}
@@ -683,11 +683,11 @@ function V2_BlocksAndNoShowPdf({ payload }: { payload: DailyReportPayload }) {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: PALETTE.red }]}>
-            NO-SHOWS â€” {ns.no_shows.length} of {ns.expected}
+            NO-SHOWS — {ns.no_shows.length} of {ns.expected}
           </Text>
           {ns.no_shows.slice(0, 5).map((n, i) => (
             <Text key={i} style={{ fontSize: 7.5, marginBottom: 1 }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}>{n.unit}</Text> Â· {n.guest || 'â€”'} Â· {n.channel}
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>{n.unit}</Text> · {n.guest || '—'} · {n.channel}
             </Text>
           ))}
         </View>
@@ -700,7 +700,7 @@ function V3_PricingIntelligencePdf({ payload }: { payload: DailyReportPayload })
   const pi = payload.pricing_intelligence;
   if (!pi || !pi.available || pi.rows.length === 0) return null;
   const fmtPct = (n: number | null) =>
-    n == null ? 'â€”' : `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
+    n == null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
   const colorFor = (lvl: string) =>
     lvl.startsWith('critical') ? PALETTE.red :
     lvl.startsWith('warn') ? PALETTE.amber :
@@ -713,17 +713,17 @@ function V3_PricingIntelligencePdf({ payload }: { payload: DailyReportPayload })
     lvl === 'warn_over' ? 'Overpriced' :
     lvl === 'in_band' ? 'In band' :
     lvl === 'insufficient' ? 'Low data' :
-    lvl === 'suppressed_occ_high' ? 'Occ â‰¥90%' :
+    lvl === 'suppressed_occ_high' ? 'Occ ≥90%' :
     lvl === 'suppressed_market_slow' ? 'Mkt slow' :
-    'â€”';
+    '—';
   return (
     <View style={styles.card}>
-      <Text style={styles.sectionTitle}>PRICING INTELLIGENCE â€” Area Comps</Text>
+      <Text style={styles.sectionTitle}>PRICING INTELLIGENCE — Area Comps</Text>
       {(pi.summary.underpriced_groups > 0 || pi.summary.overpriced_groups > 0) && (
         <Text style={{ fontSize: 8, marginBottom: 4 }}>
           {pi.summary.underpriced_groups > 0 && (
             <Text style={{ color: PALETTE.amber }}>
-              {pi.summary.underpriced_groups} underpriced Â· gap ~{fmtUsd(pi.summary.daily_revenue_gap_usd)}/night.{' '}
+              {pi.summary.underpriced_groups} underpriced · gap ~{fmtUsd(pi.summary.daily_revenue_gap_usd)}/night.{' '}
             </Text>
           )}
           {pi.summary.overpriced_groups > 0 && (
@@ -739,7 +739,7 @@ function V3_PricingIntelligencePdf({ payload }: { payload: DailyReportPayload })
         <Text style={styles.th}>Units</Text>
         <Text style={styles.th}>Our $</Text>
         <Text style={styles.th}>Mkt med</Text>
-        <Text style={styles.th}>Î”%</Text>
+        <Text style={styles.th}>Δ%</Text>
         <Text style={styles.th}>Comp N</Text>
         <Text style={[styles.th, { flex: 1.5 }]}>Action</Text>
       </View>
@@ -748,8 +748,8 @@ function V3_PricingIntelligencePdf({ payload }: { payload: DailyReportPayload })
           <Text style={[styles.tdLeft, { flex: 1.2 }]}>{r.building}</Text>
           <Text style={[styles.tdLeft, { flex: 0.8 }]}>{r.bedroom_bucket}</Text>
           <Text style={styles.td}>{r.unit_count}</Text>
-          <Text style={styles.td}>{r.our_avg_base_usd != null ? fmtUsd(r.our_avg_base_usd) : 'â€”'}</Text>
-          <Text style={styles.td}>{r.comp_median_usd != null ? fmtUsd(r.comp_median_usd) : 'â€”'}</Text>
+          <Text style={styles.td}>{r.our_avg_base_usd != null ? fmtUsd(r.our_avg_base_usd) : '—'}</Text>
+          <Text style={styles.td}>{r.comp_median_usd != null ? fmtUsd(r.comp_median_usd) : '—'}</Text>
           <Text style={[styles.td, { color: colorFor(r.alert_level), fontFamily: 'Helvetica-Bold' }]}>
             {fmtPct(r.delta_pct)}
           </Text>
@@ -757,7 +757,7 @@ function V3_PricingIntelligencePdf({ payload }: { payload: DailyReportPayload })
           <Text style={[styles.td, { flex: 1.5, color: colorFor(r.alert_level), textAlign: 'left' }]}>
             {labelFor(r.alert_level)}
             {r.recommended_price_usd != null && (r.alert_level.includes('under') || r.alert_level.includes('over')) ?
-              ` â†’ ${fmtUsd(r.recommended_price_usd)}` : ''}
+              ` → ${fmtUsd(r.recommended_price_usd)}` : ''}
           </Text>
         </View>
       ))}
@@ -778,12 +778,12 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
             <View>
               <Text style={styles.title}>Daily Performance Report</Text>
               <Text style={styles.subtitle}>
-                {payload.generated_at_cairo} Â· all amounts USD
+                {payload.generated_at_cairo} · all amounts USD
               </Text>
             </View>
           </View>
           <Text style={{ fontSize: 8, color: PALETTE.muted }}>
-            Day {payload.month_days_elapsed} of {payload.month_days_total} Â· {payload.month_label}
+            Day {payload.month_days_elapsed} of {payload.month_days_total} · {payload.month_label}
           </Text>
         </View>
 
@@ -802,7 +802,7 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
             }}
           >
             <Text style={{ fontSize: 7, color: PALETTE.red }}>
-              âš  {payload.all.drift_warning}
+              ⚠ {payload.all.drift_warning}
             </Text>
           </View>
         )}
@@ -818,7 +818,7 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
         <Text
           style={styles.footer}
           render={({ pageNumber, totalPages }) =>
-            `Generated ${payload.generated_at_iso} Â· Beithady InboxOps Â· Auto-deletes 48h after generation Â· Page ${pageNumber} of ${totalPages}`
+            `Generated ${payload.generated_at_iso} · Beithady InboxOps · Auto-deletes 48h after generation · Page ${pageNumber} of ${totalPages}`
           }
           fixed
         />
@@ -842,7 +842,7 @@ function ReportPdfDocument({ payload }: { payload: DailyReportPayload }) {
         <Text
           style={styles.footer}
           render={({ pageNumber, totalPages }) =>
-            `Generated ${payload.generated_at_iso} Â· Beithady InboxOps Â· Page ${pageNumber} of ${totalPages}`
+            `Generated ${payload.generated_at_iso} · Beithady InboxOps · Page ${pageNumber} of ${totalPages}`
           }
           fixed
         />

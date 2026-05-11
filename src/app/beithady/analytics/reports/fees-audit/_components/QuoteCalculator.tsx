@@ -57,7 +57,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
           >
             {listings.map(l => (
               <option key={l.id} value={l.id}>
-                {l.nickname} Â· {l.bedrooms}BR
+                {l.nickname} · {l.bedrooms}BR
               </option>
             ))}
           </select>
@@ -107,7 +107,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
 
       {loading ? (
         <div className="text-xs text-slate-500 flex items-center gap-2">
-          <Loader2 size={12} className="animate-spin" /> Computingâ€¦
+          <Loader2 size={12} className="animate-spin" /> Computing…
         </div>
       ) : breakdown ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -121,7 +121,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 <Row label="Cleaning fee" value={fmt(breakdown.cleaning_usd)} />
                 {breakdown.pet_usd > 0 && <Row label="Pet fee" value={fmt(breakdown.pet_usd)} />}
                 {breakdown.extra_guest_usd > 0 && <Row label="Extra guest" value={fmt(breakdown.extra_guest_usd)} />}
-                {/* Guesty prices are all-inclusive â€” taxes_breakdown is empty
+                {/* Guesty prices are all-inclusive — taxes_breakdown is empty
                     by design. Kept the .map so any future per-channel
                     surcharge surfaces here without a code change. */}
                 {breakdown.taxes_breakdown.map(t => (
@@ -170,7 +170,7 @@ export function QuoteCalculator({ listings }: { listings: ListingMeta[] }) {
                 Min stay required: {breakdown.min_nights_required} nights
                 {nights < breakdown.min_nights_required && (
                   <span className="ml-2 text-rose-600 font-bold">
-                    âš  Stay too short!
+                    ⚠ Stay too short!
                   </span>
                 )}
               </div>

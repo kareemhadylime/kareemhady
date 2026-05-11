@@ -98,7 +98,7 @@ export function ScheduleEditor({
             {s.frequency === 'monthly' && s.day_of_month != null
               ? ` on day ${s.day_of_month}`
               : null}
-            {' Â· '}
+            {' · '}
             <span className="text-slate-600 dark:text-slate-300">
               {String(s.hour_cairo).padStart(2, '0')}:00 Cairo
             </span>

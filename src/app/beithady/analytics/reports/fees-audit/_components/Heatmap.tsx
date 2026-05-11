@@ -80,7 +80,7 @@ export function Heatmap({
   }
 
   function fmt(v: number | null): string {
-    if (v == null) return 'â€”';
+    if (v == null) return '—';
     if (category.includes('discount')) return `${v.toFixed(1)}%`;
     if (category === 'min_stay' || category === 'max_stay') return v.toFixed(0);
     if (v < 1 && v > 0) return v.toFixed(2);
@@ -90,10 +90,10 @@ export function Heatmap({
   return (
     <div className="ix-card p-4">
       <h3 className="text-sm font-semibold text-[var(--bh-ink)] dark:text-amber-100 mb-3">
-        Heatmap Â· {FEE_CATEGORY_LABEL[category]}
+        Heatmap · {FEE_CATEGORY_LABEL[category]}
       </h3>
       {dates.length === 0 ? (
-        <p className="text-xs text-slate-500 dark:text-slate-400">No forward calendar data â€” run sync first.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">No forward calendar data — run sync first.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="text-xs border-collapse w-full">
@@ -132,7 +132,7 @@ export function Heatmap({
                         onClick={() => onCellClick(l.id, d)}
                         style={{ background: colorFor(v) }}
                         className="px-2 py-1.5 text-center cursor-pointer text-white tabular-nums font-medium hover:ring-2 hover:ring-amber-400 transition"
-                        title={`${l.nickname} Â· ${d} Â· ${fmt(v)}`}
+                        title={`${l.nickname} · ${d} · ${fmt(v)}`}
                       >
                         {fmt(v)}
                       </td>

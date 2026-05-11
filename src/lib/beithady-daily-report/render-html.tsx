@@ -13,34 +13,34 @@
 //
 // Color thresholds (S12):
 //   Occupancy / forward occupancy / pickup pct
-//     â‰¥ 85% green   70-85% amber   < 70% red
-//   ADR / pricing â€” red if delta_pct < -10%
+//     ≥ 85% green   70-85% amber   < 70% red
+//   ADR / pricing — red if delta_pct < -10%
 //
-// Pure presentation â€” never queries data. Takes a fully-built payload.
+// Pure presentation — never queries data. Takes a fully-built payload.
 
-// Beithady brand palette â€” Pantone-anchored deep navy / steel / cream / gold,
+// Beithady brand palette — Pantone-anchored deep navy / steel / cream / gold,
 // kept in lockstep with the dashboard tokens in src/app/globals.css:
-//   --bh-ink    #003462   Deep Navy   Â· headings, accents
-//   --bh-steel  #6077a6   Steel Blue  Â· secondary text
-//   --bh-mute   #b3bbcb   muted UI    Â· borders, dividers
-//   --bh-cream  #F5F1E8   page bg     Â· cards, "All" column highlight
-//   --bh-gold   #D4A93A   accent      Â· digest border, eyebrow text
-// Variable names unchanged from v1 for minimal callsite churn â€” only the
+//   --bh-ink    #003462   Deep Navy   · headings, accents
+//   --bh-steel  #6077a6   Steel Blue  · secondary text
+//   --bh-mute   #b3bbcb   muted UI    · borders, dividers
+//   --bh-cream  #F5F1E8   page bg     · cards, "All" column highlight
+//   --bh-gold   #D4A93A   accent      · digest border, eyebrow text
+// Variable names unchanged from v1 for minimal callsite churn — only the
 // hex values shift to brand-canonical.
 const C = {
-  ink: '#003462',       // bh-ink   Â· headings, primary text (was #1a2c47)
+  ink: '#003462',       // bh-ink   · headings, primary text (was #1a2c47)
   ink2: '#2c4d7a',      // mid-navy from the dashboard TitleBar gradient (was #374b6b)
-  muted: '#6077a6',     // bh-steel Â· captions, footers, neutral text (was #7a8aa3)
-  line: '#b3bbcb',      // bh-mute  Â· table + card borders (was warm cream #e6dfce)
+  muted: '#6077a6',     // bh-steel · captions, footers, neutral text (was #7a8aa3)
+  line: '#b3bbcb',      // bh-mute  · table + card borders (was warm cream #e6dfce)
   bg: '#ffffff',
-  card: '#F5F1E8',      // bh-cream Â· panel surfaces (was #faf8f3)
-  brand: '#003462',     // bh-ink   Â· accent (was #003462)
-  brandBg: '#F5F1E8',   // bh-cream Â· digest + "All" column highlight (was #f0e9d9)
+  card: '#F5F1E8',      // bh-cream · panel surfaces (was #faf8f3)
+  brand: '#003462',     // bh-ink   · accent (was #003462)
+  brandBg: '#F5F1E8',   // bh-cream · digest + "All" column highlight (was #f0e9d9)
   green: '#15803d',
   amber: '#b45309',
   red: '#b91c1c',
   emerald: '#10b981',
-  gold: '#D4A93A',      // bh-gold  Â· accent (was warm cream-gold #c9a96e)
+  gold: '#D4A93A',      // bh-gold  · accent (was warm cream-gold #c9a96e)
 };
 
 const fmtUsd = (n: number): string => {
@@ -79,9 +79,9 @@ function pickupColor(p: number): string {
 }
 
 function pickupArrow(p: number): string {
-  if (p > 0) return 'â–²';
-  if (p < 0) return 'â–¼';
-  return 'Â·';
+  if (p > 0) return '▲';
+  if (p < 0) return '▼';
+  return '·';
 }
 
 const td = (
@@ -400,10 +400,10 @@ function ReviewsBlock({ payload }: { payload: DailyReportPayload }) {
             color: C.brand,
           }}
         >
-          REVIEWS Â· {payload.month_label.toUpperCase()}
+          REVIEWS · {payload.month_label.toUpperCase()}
         </div>
         <div style={{ fontSize: 10, color: C.ink2 }}>
-          {total} reviews Â· avg <strong>{r.avg_rating_mtd.toFixed(1)}â˜…</strong>
+          {total} reviews · avg <strong>{r.avg_rating_mtd.toFixed(1)}★</strong>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -419,7 +419,7 @@ function ReviewsBlock({ payload }: { payload: DailyReportPayload }) {
               textAlign: 'center',
             }}
           >
-            <div style={{ fontWeight: 700, color: C.gold }}>{d.stars}â˜…</div>
+            <div style={{ fontWeight: 700, color: C.gold }}>{d.stars}★</div>
             <div style={{ color: C.ink, fontSize: 12, fontWeight: 600 }}>{d.count}</div>
           </div>
         ))}
@@ -450,7 +450,7 @@ function ReviewsBlock({ payload }: { payload: DailyReportPayload }) {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <strong style={{ color: C.ink }}>
-                  {rv.unit} Â· {rv.channel}
+                  {rv.unit} · {rv.channel}
                 </strong>
                 <span
                   style={{
@@ -458,8 +458,8 @@ function ReviewsBlock({ payload }: { payload: DailyReportPayload }) {
                     fontWeight: 700,
                   }}
                 >
-                  {rv.rating ? `${rv.rating}â˜…` : 'â€”'}
-                  {rv.flagged ? ' ðŸš©' : ''}
+                  {rv.rating ? `${rv.rating}★` : '—'}
+                  {rv.flagged ? ' 🚩' : ''}
                 </span>
               </div>
               <div style={{ color: C.ink2, marginTop: 2 }}>{rv.ai_summary}</div>
@@ -496,7 +496,7 @@ function ChannelMix({ payload }: { payload: DailyReportPayload }) {
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {payload.channel_mix.map(m => (
           <div key={m.channel} style={{ fontSize: 10, color: C.ink2 }}>
-            <strong style={{ color: C.ink }}>{m.channel}</strong>: {m.pct.toFixed(1)}% Â· {fmtUsd1(m.revenue_usd)}
+            <strong style={{ color: C.ink }}>{m.channel}</strong>: {m.pct.toFixed(1)}% · {fmtUsd1(m.revenue_usd)}
           </div>
         ))}
       </div>
@@ -529,10 +529,10 @@ function CancellationsAndTriage({ payload }: { payload: DailyReportPayload }) {
         <div style={{ fontSize: 10, color: C.ink }}>
           Today: <strong>{payload.cancellations.count_today}</strong>{' '}
           {payload.cancellations.value_today_usd > 0 &&
-            `Â· ${fmtUsd1(payload.cancellations.value_today_usd)}`}
+            `· ${fmtUsd1(payload.cancellations.value_today_usd)}`}
         </div>
         <div style={{ fontSize: 10, color: C.ink2, marginTop: 2 }}>
-          MTD: {payload.cancellations.count_mtd} Â· {fmtUsd1(payload.cancellations.value_mtd_usd)}
+          MTD: {payload.cancellations.count_mtd} · {fmtUsd1(payload.cancellations.value_mtd_usd)}
         </div>
       </div>
       <div
@@ -561,7 +561,7 @@ function CancellationsAndTriage({ payload }: { payload: DailyReportPayload }) {
           </strong>
         </div>
         <div style={{ fontSize: 10, color: C.ink2, marginTop: 2 }}>
-          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} Â·
+          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} ·
           high: {payload.inquiry_triage.in_stay_high_count}
         </div>
       </div>
@@ -590,12 +590,12 @@ function CleaningOps({ payload }: { payload: DailyReportPayload }) {
           marginBottom: 6,
         }}
       >
-        ðŸ§¹ CLEANING TURNOVERS TODAY ({payload.cleaning_ops_today.length})
+        🧹 CLEANING TURNOVERS TODAY ({payload.cleaning_ops_today.length})
       </div>
       <div style={{ fontSize: 10 }}>
         {payload.cleaning_ops_today.map((c, i) => (
           <div key={i} style={{ color: C.ink, marginBottom: 2 }}>
-            <strong>{c.unit}</strong> ({c.building}) Â· out: {c.checkout_guest} â†’ in: {c.checkin_guest}
+            <strong>{c.unit}</strong> ({c.building}) · out: {c.checkout_guest} → in: {c.checkin_guest}
           </div>
         ))}
       </div>
@@ -628,7 +628,7 @@ function PricingAlerts({ payload }: { payload: DailyReportPayload }) {
       <div style={{ fontSize: 10 }}>
         {payload.pricing_alerts.slice(0, 8).map((a, i) => (
           <div key={i} style={{ color: C.ink, marginBottom: 2 }}>
-            <strong>{a.unit}</strong> Â· current {fmtUsd(a.current_price_usd)} vs rec {fmtUsd(a.recommended_price_usd)} Â·{' '}
+            <strong>{a.unit}</strong> · current {fmtUsd(a.current_price_usd)} vs rec {fmtUsd(a.recommended_price_usd)} ·{' '}
             <span style={{ color: a.delta_pct < 0 ? C.red : C.green }}>
               {a.delta_pct > 0 ? '+' : ''}
               {a.delta_pct.toFixed(1)}%
@@ -660,12 +660,12 @@ function DeadInventory({ payload }: { payload: DailyReportPayload }) {
           marginBottom: 6,
         }}
       >
-        DEAD INVENTORY (0 nights booked next 14 days) â€” {payload.dead_inventory.length} units
+        DEAD INVENTORY (0 nights booked next 14 days) — {payload.dead_inventory.length} units
       </div>
       <div style={{ fontSize: 9.5, color: C.ink, columnCount: 2, columnGap: 16 }}>
         {payload.dead_inventory.slice(0, 30).map((d, i) => (
           <div key={i}>
-            â€¢ {d.unit} <span style={{ color: C.muted }}>({d.building})</span>
+            • {d.unit} <span style={{ color: C.muted }}>({d.building})</span>
           </div>
         ))}
       </div>
@@ -675,7 +675,7 @@ function DeadInventory({ payload }: { payload: DailyReportPayload }) {
 
 export function renderReportHtml(payload: DailyReportPayload): string {
   // Server-render JSX to a static HTML string. Avoids ReactDOMServer dep
-  // by using a small bespoke renderer would be reinventing â€” instead, use
+  // by using a small bespoke renderer would be reinventing — instead, use
   // the React 19 server renderer indirectly: this file exports a function
   // that returns a JSX tree, the route can return the JSX directly. For
   // email + token-page reuse we ALSO export the bare components so they
@@ -718,12 +718,12 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
               Daily Performance Report
             </div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-              {payload.generated_at_cairo} Â· all amounts USD
+              {payload.generated_at_cairo} · all amounts USD
             </div>
           </div>
         </div>
         <div style={{ fontSize: 10, color: C.muted, textAlign: 'right' }}>
-          Day {payload.month_days_elapsed} of {payload.month_days_total} Â·{' '}
+          Day {payload.month_days_elapsed} of {payload.month_days_total} ·{' '}
           {payload.month_label}
         </div>
       </div>
@@ -741,7 +741,7 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
             borderLeft: `4px solid ${C.gold}`,
           }}
         >
-          ðŸ“… <strong>{payload.weekly_digest.oneliner}</strong>
+          📅 <strong>{payload.weekly_digest.oneliner}</strong>
         </div>
       )}
 
@@ -772,7 +772,7 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
             fontSize: 9,
           }}
         >
-          âš  {payload.all.drift_warning}
+          ⚠ {payload.all.drift_warning}
         </div>
       )}
 
@@ -805,15 +805,15 @@ export function ReportDocument({ payload }: { payload: DailyReportPayload }) {
           textAlign: 'center',
         }}
       >
-        Generated {payload.generated_at_iso} Â· Beithady InboxOps Â· Auto-deletes 48h after generation
+        Generated {payload.generated_at_iso} · Beithady InboxOps · Auto-deletes 48h after generation
       </div>
     </div>
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// v2 sections â€” Yesterday + MTD pairs, popouts via <details> / <dialog>
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────
+// v2 sections — Yesterday + MTD pairs, popouts via <details> / <dialog>
+// ─────────────────────────────────────────────────────────────────────────
 
 function V2_PairedChannelMix({ payload }: { payload: DailyReportPayload }) {
   if (!payload.paired_channel_mix || payload.paired_channel_mix.length === 0) {
@@ -822,7 +822,7 @@ function V2_PairedChannelMix({ payload }: { payload: DailyReportPayload }) {
   return (
     <div style={{ marginTop: 14, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
-        CHANNEL MIX â€” Yesterday vs MTD
+        CHANNEL MIX — Yesterday vs MTD
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <thead>
@@ -861,22 +861,22 @@ function V2_CancellationsAndTriage({ payload }: { payload: DailyReportPayload })
         </div>
         <div style={{ fontSize: 10, color: C.ink }}>
           Yesterday: <strong>{c.count_today}</strong>
-          {c.value_today_usd > 0 && ` Â· ${fmtUsd1(c.value_today_usd)}`}
+          {c.value_today_usd > 0 && ` · ${fmtUsd1(c.value_today_usd)}`}
         </div>
         <div style={{ fontSize: 10, color: C.ink2, marginTop: 2 }}>
-          MTD: {c.count_mtd} Â· {fmtUsd1(c.value_mtd_usd)}
+          MTD: {c.count_mtd} · {fmtUsd1(c.value_mtd_usd)}
         </div>
         {details.length > 0 && (
           <details style={{ marginTop: 6 }}>
             <summary style={{ cursor: 'pointer', fontSize: 9, color: C.brand, fontWeight: 600 }}>
-              Show {details.length} cancellation detail{details.length === 1 ? '' : 's'} â–¾
+              Show {details.length} cancellation detail{details.length === 1 ? '' : 's'} ▾
             </summary>
             <div style={{ marginTop: 4, fontSize: 9 }}>
               {details.map((d, i) => (
                 <div key={i} style={{ padding: '3px 0', borderBottom: `1px solid ${C.line}` }}>
-                  <strong>{d.code || d.id.slice(0, 8)}</strong> Â· {d.unit} Â· {d.channel}<br />
+                  <strong>{d.code || d.id.slice(0, 8)}</strong> · {d.unit} · {d.channel}<br />
                   <span style={{ color: C.muted }}>
-                    Guest: {d.guest || 'â€”'} Â· Was check-in: {d.check_in || 'â€”'} Â· {fmtUsd1(d.value_usd)}
+                    Guest: {d.guest || '—'} · Was check-in: {d.check_in || '—'} · {fmtUsd1(d.value_usd)}
                   </span>
                 </div>
               ))}
@@ -895,7 +895,7 @@ function V2_CancellationsAndTriage({ payload }: { payload: DailyReportPayload })
           </strong>
         </div>
         <div style={{ fontSize: 10, color: C.ink2, marginTop: 2 }}>
-          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} Â· high:{' '}
+          In-stay urgent: {payload.inquiry_triage.in_stay_immediate_count} · high:{' '}
           {payload.inquiry_triage.in_stay_high_count}
         </div>
       </div>
@@ -909,12 +909,12 @@ function V2_NoShow({ payload }: { payload: DailyReportPayload }) {
   return (
     <div style={{ marginTop: 14, padding: 10, background: '#fef2f2', border: `1px solid ${C.red}`, borderRadius: 6 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.red, marginBottom: 6 }}>
-        ðŸš« NO-SHOW ALERT â€” {ns.no_shows.length} of {ns.expected} expected check-ins
+        🚫 NO-SHOW ALERT — {ns.no_shows.length} of {ns.expected} expected check-ins
       </div>
       <div style={{ fontSize: 10 }}>
         {ns.no_shows.map((n, i) => (
           <div key={i} style={{ color: C.ink, marginBottom: 2 }}>
-            <strong>{n.unit}</strong> Â· {n.channel} Â· {n.guest || 'Guest'} {n.code ? `(${n.code})` : ''}
+            <strong>{n.unit}</strong> · {n.channel} · {n.guest || 'Guest'} {n.code ? `(${n.code})` : ''}
           </div>
         ))}
       </div>
@@ -933,13 +933,13 @@ function V2_BlocksAndAvailable({ payload }: { payload: DailyReportPayload }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <tbody>
           <tr>
-            <td style={lblCell}>Yesterday â€” manual / confirmed / total blocked units</td>
+            <td style={lblCell}>Yesterday — manual / confirmed / total blocked units</td>
             <td style={{ ...numCell, fontWeight: 600 }}>
               {b.yesterday.manual_block_units} / {b.yesterday.confirmed_block_units} / {b.yesterday.total_blocked_units}
             </td>
           </tr>
           <tr>
-            <td style={lblCell}>Forward (today â†’ EOM, {b.forward.days_remaining} days)</td>
+            <td style={lblCell}>Forward (today → EOM, {b.forward.days_remaining} days)</td>
             <td style={numCell}>
               {b.forward.available_nights.toLocaleString()} avail of {b.forward.total_unit_nights.toLocaleString()} ({b.forward.available_pct}%)
             </td>
@@ -955,12 +955,12 @@ function V2_BlocksAndAvailable({ payload }: { payload: DailyReportPayload }) {
       {b.manual_blocks_open.length > 0 && (
         <details style={{ marginTop: 6 }}>
           <summary style={{ cursor: 'pointer', fontSize: 9, color: C.brand, fontWeight: 600 }}>
-            Show {b.manual_blocks_open.length} manual block{b.manual_blocks_open.length === 1 ? '' : 's'} â–¾
+            Show {b.manual_blocks_open.length} manual block{b.manual_blocks_open.length === 1 ? '' : 's'} ▾
           </summary>
           <div style={{ marginTop: 4, fontSize: 9, columnCount: 2, columnGap: 16 }}>
             {b.manual_blocks_open.map((mb, i) => (
               <div key={i}>
-                <strong>{mb.unit}</strong> Â· {mb.from} â†’ {mb.to}
+                <strong>{mb.unit}</strong> · {mb.from} → {mb.to}
               </div>
             ))}
           </div>
@@ -1010,12 +1010,12 @@ function V2_CheckinPayment({ payload }: { payload: DailyReportPayload }) {
       {cp.flagged.length > 0 && (
         <details style={{ marginTop: 6 }}>
           <summary style={{ cursor: 'pointer', fontSize: 9, color: C.red, fontWeight: 600 }}>
-            ðŸš© {cp.flagged.length} check-in{cp.flagged.length === 1 ? '' : 's'} without payment â–¾
+            🚩 {cp.flagged.length} check-in{cp.flagged.length === 1 ? '' : 's'} without payment ▾
           </summary>
           <div style={{ marginTop: 4, fontSize: 9 }}>
             {cp.flagged.map((f, i) => (
               <div key={i} style={{ padding: '2px 0' }}>
-                <strong>{f.code || 'â€”'}</strong> Â· {f.unit} Â· {f.guest || 'â€”'} Â· {f.check_in_date}
+                <strong>{f.code || '—'}</strong> · {f.unit} · {f.guest || '—'} · {f.check_in_date}
               </div>
             ))}
           </div>
@@ -1033,7 +1033,7 @@ function V2_Conversations({ payload }: { payload: DailyReportPayload }) {
   return (
     <div style={{ marginTop: 14, padding: 10, border: `1px solid ${C.line}`, borderRadius: 6 }}>
       <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: C.brand, marginBottom: 6 }}>
-        CONVERSATIONS â€” Response time + Messages
+        CONVERSATIONS — Response time + Messages
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <thead>
@@ -1091,12 +1091,12 @@ function V2_Conversations({ payload }: { payload: DailyReportPayload }) {
                 fontWeight: 600,
               }}
             >
-              View worst-2 agents ({conv.worst_2_agents.length}) â†’
+              View worst-2 agents ({conv.worst_2_agents.length}) →
             </button>
             <span style={{ fontSize: 9, color: C.muted, marginLeft: 8 }}>
               {conv.worst_2_agents
                 .map(a => `${a.agent_name}: ${fmtMin(a.avg_response_minutes)}`)
-                .join(' Â· ')}
+                .join(' · ')}
             </span>
           </div>
           {/* The dialog (hidden by default) */}
@@ -1111,23 +1111,23 @@ function V2_Conversations({ payload }: { payload: DailyReportPayload }) {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <strong style={{ color: C.brand, fontSize: 13 }}>Worst-2 Agents â€” Response Time (MTD)</strong>
+              <strong style={{ color: C.brand, fontSize: 13 }}>Worst-2 Agents — Response Time (MTD)</strong>
               <button
                 type="button"
                 data-dialog-close={dialogId}
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18 }}
               >
-                Ã—
+                ×
               </button>
             </div>
             {conv.worst_2_agents.map((a, i) => (
               <div key={i} style={{ marginBottom: 12, fontSize: 10 }}>
                 <div style={{ fontWeight: 700, color: C.ink }}>
-                  {a.agent_name} â€” avg {fmtMin(a.avg_response_minutes)} ({a.sample_size} responses)
+                  {a.agent_name} — avg {fmtMin(a.avg_response_minutes)} ({a.sample_size} responses)
                 </div>
                 {a.slow_threads.map((t, j) => (
                   <div key={j} style={{ marginTop: 3, paddingLeft: 8, borderLeft: `2px solid ${C.amber}`, color: C.ink2 }}>
-                    {t.subject || '(no subject)'} â€” <strong>{fmtMin(t.minutes)}</strong> Â· {t.created_at.slice(0, 16).replace('T', ' ')}
+                    {t.subject || '(no subject)'} — <strong>{fmtMin(t.minutes)}</strong> · {t.created_at.slice(0, 16).replace('T', ' ')}
                   </div>
                 ))}
               </div>
@@ -1139,9 +1139,9 @@ function V2_Conversations({ payload }: { payload: DailyReportPayload }) {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// v3 â€” Pricing Intelligence section (PriceLabs comp-set comparison)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────
+// v3 — Pricing Intelligence section (PriceLabs comp-set comparison)
+// ─────────────────────────────────────────────────────────────────────────
 
 function alertColor(level: string): string {
   if (level.startsWith('critical')) return C.red;
@@ -1150,22 +1150,22 @@ function alertColor(level: string): string {
   return C.muted;
 }
 function alertLabel(level: string, deltaPct: number | null): string {
-  if (level === 'critical_under') return 'ðŸš© Underpriced';
-  if (level === 'warn_under') return 'âš  Underpriced';
-  if (level === 'critical_over') return 'ðŸš© Overpriced';
-  if (level === 'warn_over') return 'âš  Overpriced';
-  if (level === 'in_band') return 'âœ“ In band';
+  if (level === 'critical_under') return '🚩 Underpriced';
+  if (level === 'warn_under') return '⚠ Underpriced';
+  if (level === 'critical_over') return '🚩 Overpriced';
+  if (level === 'warn_over') return '⚠ Overpriced';
+  if (level === 'in_band') return '✓ In band';
   if (level === 'insufficient') return 'Low data';
-  if (level === 'suppressed_occ_high') return 'Occ â‰¥90%';
+  if (level === 'suppressed_occ_high') return 'Occ ≥90%';
   if (level === 'suppressed_market_slow') return 'Market slow';
-  return 'â€”';
+  return '—';
 }
 
 function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
   const pi = payload.pricing_intelligence;
   if (!pi || !pi.available || pi.rows.length === 0) return null;
   const fmtPct = (n: number | null) =>
-    n == null ? 'â€”' : `${n > 0 ? 'â–² +' : 'â–¼ '}${n.toFixed(1)}%`;
+    n == null ? '—' : `${n > 0 ? '▲ +' : '▼ '}${n.toFixed(1)}%`;
   return (
     <div
       style={{
@@ -1191,7 +1191,7 @@ function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
             color: C.brand,
           }}
         >
-          PRICING INTELLIGENCE â€” Beit Hady vs Area Comps
+          PRICING INTELLIGENCE — Beit Hady vs Area Comps
         </div>
         <div style={{ fontSize: 9, color: C.muted }}>
           Source: PriceLabs neighborhood_data
@@ -1213,7 +1213,7 @@ function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
         >
           {pi.summary.underpriced_groups > 0 && (
             <span>
-              <strong style={{ color: C.amber }}>{pi.summary.underpriced_groups}</strong> underpriced groups Â· revenue gap ~{' '}
+              <strong style={{ color: C.amber }}>{pi.summary.underpriced_groups}</strong> underpriced groups · revenue gap ~{' '}
               <strong>{fmtUsd1(pi.summary.daily_revenue_gap_usd)}</strong>/night.{' '}
             </span>
           )}
@@ -1233,7 +1233,7 @@ function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
             <th style={colHead}>Units</th>
             <th style={colHead}>Our base</th>
             <th style={colHead}>Mkt med</th>
-            <th style={colHead}>Î”%</th>
+            <th style={colHead}>Δ%</th>
             <th style={colHead}>Wkdy / Wknd</th>
             <th style={colHead}>Comp size</th>
             <th style={{ ...colHead, textAlign: 'left' }}>Action</th>
@@ -1248,15 +1248,15 @@ function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
               <td style={lblCell}>{r.building}</td>
               <td style={lblCell}>{r.bedroom_bucket}</td>
               <td style={numCell}>{r.unit_count}</td>
-              <td style={numCell}>{r.our_avg_base_usd != null ? fmtUsd(r.our_avg_base_usd) : 'â€”'}</td>
-              <td style={numCell}>{r.comp_median_usd != null ? fmtUsd(r.comp_median_usd) : 'â€”'}</td>
+              <td style={numCell}>{r.our_avg_base_usd != null ? fmtUsd(r.our_avg_base_usd) : '—'}</td>
+              <td style={numCell}>{r.comp_median_usd != null ? fmtUsd(r.comp_median_usd) : '—'}</td>
               <td style={{ ...numCell, color: alertColor(r.alert_level), fontWeight: 600 }}>
                 {fmtPct(r.delta_pct)}
               </td>
               <td style={numCell}>
                 {r.comp_median_weekday_usd != null
-                  ? `${fmtUsd(r.comp_median_weekday_usd)} / ${r.comp_median_weekend_usd != null ? fmtUsd(r.comp_median_weekend_usd) : 'â€”'}`
-                  : 'â€”'}
+                  ? `${fmtUsd(r.comp_median_weekday_usd)} / ${r.comp_median_weekend_usd != null ? fmtUsd(r.comp_median_weekend_usd) : '—'}`
+                  : '—'}
               </td>
               <td style={numCell}>{r.comp_set_size}</td>
               <td style={{ ...lblCell, color: alertColor(r.alert_level), fontWeight: 600 }}>
@@ -1264,7 +1264,7 @@ function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
                 {r.recommended_price_usd != null &&
                   (r.alert_level.includes('under') || r.alert_level.includes('over')) && (
                     <span style={{ color: C.muted, fontWeight: 400, marginLeft: 4 }}>
-                      â†’ {fmtUsd(r.recommended_price_usd)}
+                      → {fmtUsd(r.recommended_price_usd)}
                     </span>
                   )}
               </td>
@@ -1278,13 +1278,13 @@ function V3_PricingIntelligence({ payload }: { payload: DailyReportPayload }) {
 
 // Print-styled wrapper for the standalone /reports/[token] route. Wraps
 // the document inside an HTML page with @page A4 + zero margins so
-// "browser â†’ save as PDF" matches the email PDF layout.
+// "browser → save as PDF" matches the email PDF layout.
 export function ReportPrintPage({ payload }: { payload: DailyReportPayload }) {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <title>Beithady Daily Report â€” {payload.report_date}</title>
+        <title>Beithady Daily Report — {payload.report_date}</title>
         <style
           dangerouslySetInnerHTML={{
             __html: `

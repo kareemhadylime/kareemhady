@@ -63,7 +63,7 @@ export default async function ReportsLandingPage() {
       containerClass="max-w-7xl"
     >
       <BeithadyHeader
-        eyebrow="Beit Hady Â· Analytics"
+        eyebrow="Beit Hady · Analytics"
         title="Generate Report"
         subtitle="Build interactive dashboards with custom periods, group-by axes, and metrics. Print A4 PDF or schedule recurring email + WhatsApp delivery."
         right={
@@ -78,10 +78,10 @@ export default async function ReportsLandingPage() {
         }
       />
 
-      {/* Featured tile â€” Booking-Channel Fee Audit (1st position per Q10). */}
+      {/* Featured tile — Booking-Channel Fee Audit (1st position per Q10). */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
-          Featured Â· operator-self-serve audit
+          Featured · operator-self-serve audit
         </h2>
         <Link
           href="/beithady/analytics/reports/fees-audit"
@@ -105,18 +105,18 @@ export default async function ReportsLandingPage() {
               </div>
               <p className="text-sm text-amber-100/90 mt-1 leading-snug">
                 Forward 7/14/30 day audit of every fee, tax, and stay-rule charged
-                to guests across Airbnb Â· Booking Â· Other OTA Â· Manual.
-                Cross-reference to bedrooms Ã— bathrooms Â· live quote calculator Â·
-                channel parity check Â· vendor CSV export.
+                to guests across Airbnb · Booking · Other OTA · Manual.
+                Cross-reference to bedrooms × bathrooms · live quote calculator ·
+                channel parity check · vendor CSV export.
               </p>
               <div className="flex items-center gap-3 mt-3 text-xs text-amber-200">
-                <span>ðŸ“Š Heatmap</span>
-                <span>Â·</span>
-                <span>ðŸ§® Live Calculator</span>
-                <span>Â·</span>
-                <span>ðŸ”Ž Anomaly Inspector</span>
-                <span>Â·</span>
-                <span>ðŸ“¥ Vendor Export</span>
+                <span>📊 Heatmap</span>
+                <span>·</span>
+                <span>🧮 Live Calculator</span>
+                <span>·</span>
+                <span>🔎 Anomaly Inspector</span>
+                <span>·</span>
+                <span>📥 Vendor Export</span>
               </div>
             </div>
           </div>
@@ -194,7 +194,7 @@ function SavedReportRow({ row, canDelete }: { row: SavedRow; canDelete: boolean 
           </Link>
         </div>
         <div className="text-xs text-slate-500 truncate">
-          {row.description || 'â€”'} Â· last run: {lastRun}
+          {row.description || '—'} · last run: {lastRun}
         </div>
       </div>
       <Link

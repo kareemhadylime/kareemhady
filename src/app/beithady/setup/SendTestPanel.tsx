@@ -6,10 +6,10 @@ import { sendTestNowStateAction, type SendTestResult } from './actions';
 
 // Client component for the "Send Test Report Now" button. Uses React
 // 19's useActionState so the user sees:
-//   1. Idle â†’ click triggers immediate `Sending...` with spinner
-//   2. Pending â†’ button disabled, message says "Building report and
-//      delivering â€” this can take 30-60s"
-//   3. Result â†’ success or error banner inline; on success a clickable
+//   1. Idle → click triggers immediate `Sending...` with spinner
+//   2. Pending → button disabled, message says "Building report and
+//      delivering — this can take 30-60s"
+//   3. Result → success or error banner inline; on success a clickable
 //      preview link
 // No redirect needed; result lives in component state until the next
 // click clears it.
@@ -31,7 +31,7 @@ export function SendTestPanel() {
           {isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Sendingâ€¦
+              Sending…
             </>
           ) : (
             'Send Test Report Now'
@@ -39,7 +39,7 @@ export function SendTestPanel() {
         </button>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Builds today&apos;s report and delivers to recipients matching your username/whatsapp
-          (or all active if none match). Skips the 9 AM gate. Takes 30â€“60s.
+          (or all active if none match). Skips the 9 AM gate. Takes 30–60s.
         </p>
       </form>
 
@@ -51,7 +51,7 @@ export function SendTestPanel() {
         >
           <Loader2 className="h-4 w-4 mt-0.5 animate-spin shrink-0" />
           <div>
-            <strong>Processingâ€¦</strong> building today&apos;s payload (Guesty + PriceLabs + Stripe + Haiku review summaries), rendering the PDF, and pushing to WhatsApp + Email. Please don&apos;t close this tab.
+            <strong>Processing…</strong> building today&apos;s payload (Guesty + PriceLabs + Stripe + Haiku review summaries), rendering the PDF, and pushing to WhatsApp + Email. Please don&apos;t close this tab.
           </div>
         </div>
       )}
@@ -66,8 +66,8 @@ export function SendTestPanel() {
                 Test report delivered
               </strong>
               <div className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5">
-                Attempted: {state.attempted} Â· Sent: {state.sent}{' '}
-                {state.failed > 0 ? `Â· Failed: ${state.failed}` : ''}
+                Attempted: {state.attempted} · Sent: {state.sent}{' '}
+                {state.failed > 0 ? `· Failed: ${state.failed}` : ''}
               </div>
               {state.errors.length > 0 && (
                 <ul className="mt-1 text-xs text-rose-800 dark:text-rose-300 list-disc list-inside">

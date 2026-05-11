@@ -1,4 +1,4 @@
-﻿// Beithady Â· Fee Audit Â· A4 PDF render via @react-pdf/renderer.
+﻿// Beithady · Fee Audit · A4 PDF render via @react-pdf/renderer.
 
 import 'server-only';
 import { readFileSync } from 'node:fs';
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
 });
 
 function fmtUsd(v: number | null | undefined): string {
-  if (v == null) return 'â€”';
+  if (v == null) return '—';
   return `$${Math.round(v).toLocaleString('en-US')}`;
 }
 
@@ -100,8 +100,8 @@ export async function renderFeeAuditPdf(data: FeeAuditData): Promise<Buffer> {
           <View>
             <Text style={styles.title}>Booking-Channel Fee Audit</Text>
             <Text style={styles.subtitle}>
-              Window: {config.startDate} â†’ +{config.windowDays}d Â·
-              Buildings: {config.buildings.length ? config.buildings.join(', ') : 'All'} Â·
+              Window: {config.startDate} → +{config.windowDays}d ·
+              Buildings: {config.buildings.length ? config.buildings.join(', ') : 'All'} ·
               Channels: {config.channels.length ? config.channels.join(', ') : 'All'}
             </Text>
           </View>
@@ -123,13 +123,13 @@ export async function renderFeeAuditPdf(data: FeeAuditData): Promise<Buffer> {
             <Text style={styles.kpiValue}>
               {totals.avg_total_tax_pct != null
                 ? `${totals.avg_total_tax_pct.toFixed(1)}%`
-                : 'â€”'}
+                : '—'}
             </Text>
           </View>
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>Avg Min Nights</Text>
             <Text style={styles.kpiValue}>
-              {totals.avg_min_nights != null ? totals.avg_min_nights.toFixed(1) : 'â€”'}
+              {totals.avg_min_nights != null ? totals.avg_min_nights.toFixed(1) : '—'}
             </Text>
           </View>
           <View style={styles.kpiCard}>
@@ -139,8 +139,8 @@ export async function renderFeeAuditPdf(data: FeeAuditData): Promise<Buffer> {
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>Anomalies</Text>
             <Text style={styles.kpiValue}>
-              {totals.anomaly_count_by_severity.critical} ðŸ”´ Â·{' '}
-              {totals.anomaly_count_by_severity.warning} ðŸŸ¡
+              {totals.anomaly_count_by_severity.critical} 🔴 ·{' '}
+              {totals.anomaly_count_by_severity.warning} 🟡
             </Text>
           </View>
         </View>
@@ -167,16 +167,16 @@ export async function renderFeeAuditPdf(data: FeeAuditData): Promise<Buffer> {
               !l.cleaning_fee || l.cleaning_fee === 0 ? PALETTE.red : PALETTE.ink;
             return (
               <View key={l.id} style={styles.tr} wrap={false}>
-                <Text style={[styles.td, styles.tdFirst]}>{l.nickname} Â· {l.building}</Text>
+                <Text style={[styles.td, styles.tdFirst]}>{l.nickname} · {l.building}</Text>
                 <Text style={styles.td}>
-                  {l.bedrooms} BR / {l.bathrooms ?? 'â€”'} BA
+                  {l.bedrooms} BR / {l.bathrooms ?? '—'} BA
                 </Text>
                 <Text style={styles.td}>{l.capacity}</Text>
                 <Text style={[styles.td, { color: cleanColor }]}>
                   {fmtUsd(l.cleaning_fee)}
                 </Text>
-                <Text style={styles.td}>{l.min_nights_default ?? 'â€”'}</Text>
-                <Text style={styles.td}>{taxPct ? `${taxPct.toFixed(1)}%` : 'â€”'}</Text>
+                <Text style={styles.td}>{l.min_nights_default ?? '—'}</Text>
+                <Text style={styles.td}>{taxPct ? `${taxPct.toFixed(1)}%` : '—'}</Text>
                 <Text style={styles.td}>{fmtUsd(avgDaily)}</Text>
               </View>
             );
@@ -189,13 +189,13 @@ export async function renderFeeAuditPdf(data: FeeAuditData): Promise<Buffer> {
           </Text>
           {anomalies.length === 0 ? (
             <Text style={{ fontSize: 9, color: PALETTE.green }}>
-              âœ“ No anomalies detected.
+              ✓ No anomalies detected.
             </Text>
           ) : (
             anomalies.map((a, i) => (
               <View key={i} style={styles.bullet}>
                 <Text style={styles.bulletDot}>
-                  {a.severity === 'critical' ? 'ðŸ”´' : a.severity === 'warning' ? 'ðŸŸ¡' : 'ðŸ”µ'}
+                  {a.severity === 'critical' ? '🔴' : a.severity === 'warning' ? '🟡' : '🔵'}
                 </Text>
                 <Text style={styles.bulletText}>
                   [{ANOMALY_LABEL[a.kind]}] {a.message}
@@ -206,7 +206,7 @@ export async function renderFeeAuditPdf(data: FeeAuditData): Promise<Buffer> {
         </View>
 
         <View style={styles.footer} fixed>
-          <Text>Beit Hady Â· Confidential Â· Fee Audit</Text>
+          <Text>Beit Hady · Confidential · Fee Audit</Text>
           <Text
             render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
           />

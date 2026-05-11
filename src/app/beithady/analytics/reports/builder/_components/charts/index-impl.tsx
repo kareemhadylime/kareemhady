@@ -29,7 +29,7 @@ import { CHANNEL_LABEL, CHANNEL_COLOR } from '@/lib/beithady/reports/channel-tax
 const PALETTE = ['var(--bh-ink)', '#c9a96e', '#15803d', '#b45309', '#7c3aed'];
 
 // =============================================================================
-// KPI Strip â€” top row of metric cards with sparkline
+// KPI Strip — top row of metric cards with sparkline
 // =============================================================================
 export function KpiStrip({ data }: { data: ReportData }) {
   const period = data.config.periods[0];
@@ -57,7 +57,7 @@ export function KpiStrip({ data }: { data: ReportData }) {
               {METRIC_LABEL[m]}
             </div>
             <div className="text-xl font-bold text-[var(--bh-ink)] dark:text-amber-100 tabular-nums">
-              {cell?.formatted || 'â€”'}
+              {cell?.formatted || '—'}
             </div>
             {delta != null ? (
               <div
@@ -65,7 +65,7 @@ export function KpiStrip({ data }: { data: ReportData }) {
                   delta >= 0 ? 'text-emerald-600' : 'text-rose-600'
                 }`}
               >
-                {delta >= 0 ? 'â–²' : 'â–¼'} {Math.abs(delta).toFixed(1)}% vs prior
+                {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}% vs prior
               </div>
             ) : null}
           </div>
@@ -76,7 +76,7 @@ export function KpiStrip({ data }: { data: ReportData }) {
 }
 
 // =============================================================================
-// Pivot Table â€” replicates the manual sheet exactly
+// Pivot Table — replicates the manual sheet exactly
 // =============================================================================
 export function PivotTable({ data }: { data: ReportData }) {
   const periods = data.config.periods;
@@ -119,7 +119,7 @@ export function PivotTable({ data }: { data: ReportData }) {
             <tr key={r.groupKey} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-3 py-1.5 font-medium sticky left-0 bg-white dark:bg-slate-900">
                 {r.groupLabels.secondary
-                  ? `${r.groupLabels.primary} Â· ${r.groupLabels.secondary}`
+                  ? `${r.groupLabels.primary} · ${r.groupLabels.secondary}`
                   : r.groupLabels.primary}
               </td>
               {periods.flatMap(p =>
@@ -137,7 +137,7 @@ export function PivotTable({ data }: { data: ReportData }) {
                       className={`px-2 py-1.5 text-right tabular-nums ${cls}`}
                       title={c?.flagged || undefined}
                     >
-                      {c?.formatted || 'â€”'}
+                      {c?.formatted || '—'}
                     </td>
                   );
                 })
@@ -151,7 +151,7 @@ export function PivotTable({ data }: { data: ReportData }) {
                 const c = data.totals[`${p.id}::${m}`];
                 return (
                   <td key={`${p.id}::${m}`} className="px-2 py-2 text-right tabular-nums">
-                    {c?.formatted || 'â€”'}
+                    {c?.formatted || '—'}
                   </td>
                 );
               })
@@ -164,7 +164,7 @@ export function PivotTable({ data }: { data: ReportData }) {
 }
 
 // =============================================================================
-// ChartsPanel â€” renders all charts from config.visualization.charts
+// ChartsPanel — renders all charts from config.visualization.charts
 // =============================================================================
 export function ChartsPanel({ data }: { data: ReportData }) {
   return (
@@ -199,13 +199,13 @@ function ChartRenderer({ data, spec }: { data: ReportData; spec: ChartSpec }) {
 }
 
 // =============================================================================
-// Grouped Bar â€” group on X, periods as bars side-by-side
+// Grouped Bar — group on X, periods as bars side-by-side
 // =============================================================================
 function GroupedBarChart({ data, spec }: { data: ReportData; spec: ChartSpec }) {
   const chartData = data.rows.map(r => {
     const row: Record<string, string | number> = {
       group: r.groupLabels.secondary
-        ? `${r.groupLabels.primary} Â· ${r.groupLabels.secondary}`
+        ? `${r.groupLabels.primary} · ${r.groupLabels.secondary}`
         : r.groupLabels.primary,
     };
     for (const p of data.config.periods) {
@@ -241,7 +241,7 @@ function GroupedBarChart({ data, spec }: { data: ReportData; spec: ChartSpec }) 
 }
 
 // =============================================================================
-// Stacked Bar â€” group on X, channel split as stacked bars
+// Stacked Bar — group on X, channel split as stacked bars
 // =============================================================================
 function StackedBarChart({ data, spec }: { data: ReportData; spec: ChartSpec }) {
   const period = data.config.periods[0];
@@ -286,7 +286,7 @@ function StackedBarChart({ data, spec }: { data: ReportData; spec: ChartSpec }) 
 }
 
 // =============================================================================
-// Time series â€” periods on X (or weeks if multi-month range), groups as lines
+// Time series — periods on X (or weeks if multi-month range), groups as lines
 // =============================================================================
 function TimeSeriesChart({ data, spec }: { data: ReportData; spec: ChartSpec }) {
   const chartData = data.config.periods.map(p => {
@@ -325,7 +325,7 @@ function TimeSeriesChart({ data, spec }: { data: ReportData; spec: ChartSpec }) 
 }
 
 // =============================================================================
-// BCG Quadrant â€” Avg Revenue Ã— Occupancy, bubble size = Total Revenue
+// BCG Quadrant — Avg Revenue × Occupancy, bubble size = Total Revenue
 // =============================================================================
 function BcgQuadrantChart({ data, spec }: { data: ReportData; spec: ChartSpec }) {
   const period = data.config.periods[0];
@@ -389,7 +389,7 @@ function BcgQuadrantChart({ data, spec }: { data: ReportData; spec: ChartSpec })
 }
 
 // =============================================================================
-// Heatmap â€” group Ã— period, color = metric value
+// Heatmap — group × period, color = metric value
 // =============================================================================
 function HeatmapChart({ data, spec }: { data: ReportData; spec: ChartSpec }) {
   const periods = data.config.periods;
@@ -444,7 +444,7 @@ function HeatmapChart({ data, spec }: { data: ReportData; spec: ChartSpec }) {
                     }}
                     className="px-2 py-1 text-center font-semibold tabular-nums"
                   >
-                    {c?.formatted || 'â€”'}
+                    {c?.formatted || '—'}
                   </td>
                 );
               })}

@@ -5,7 +5,7 @@ import type { DailyCell, ListingMeta } from '@/lib/beithady/fees-audit/types';
 import { CHANNEL_LABEL } from '@/lib/beithady/reports/channel-taxonomy';
 
 const fmt = (v: number | null | undefined): string =>
-  v == null ? 'â€”' : `$${Number(v).toFixed(2)}`;
+  v == null ? '—' : `$${Number(v).toFixed(2)}`;
 
 export function CellDrillThroughModal({
   cell,
@@ -32,7 +32,7 @@ export function CellDrillThroughModal({
               {listing?.nickname || cell.listing_id}
             </h2>
             <p className="text-xs text-slate-300">
-              {cell.date} Â· {listing?.building} Â· {listing?.bedrooms} BR / {listing?.bathrooms ?? 'â€”'} BA
+              {cell.date} · {listing?.building} · {listing?.bedrooms} BR / {listing?.bathrooms ?? '—'} BA
             </p>
           </div>
           <button onClick={onClose} className="text-white/70 hover:text-white">
@@ -73,7 +73,7 @@ export function CellDrillThroughModal({
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-sm">{CHANNEL_LABEL[ch.channel]}</span>
                     <span className="text-xs text-slate-500">
-                      Guest: <span className="font-bold text-emerald-700">{fmt(ch.guest_gross_usd)}</span> Â·
+                      Guest: <span className="font-bold text-emerald-700">{fmt(ch.guest_gross_usd)}</span> ·
                       Host: <span className="font-bold text-[var(--bh-ink)] dark:text-amber-100">{fmt(ch.host_net_usd)}</span>
                     </span>
                   </div>
@@ -81,7 +81,7 @@ export function CellDrillThroughModal({
                     <tbody>
                       <Row label="Base" value={fmt(ch.breakdown.base_rate_total_usd)} />
                       <Row label="Cleaning" value={fmt(ch.breakdown.cleaning_usd)} />
-                      {/* Guesty prices are all-inclusive â€” taxes_breakdown is
+                      {/* Guesty prices are all-inclusive — taxes_breakdown is
                           empty by design now. Kept the .map for forward
                           compatibility with any future per-channel surcharge. */}
                       {ch.breakdown.taxes_breakdown.map(t => (

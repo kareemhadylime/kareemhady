@@ -18,7 +18,7 @@ export function AnomalyInspector({ anomalies }: { anomalies: Anomaly[] }) {
     return (
       <div className="ix-card p-5 bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-600">
         <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-          âœ“ No anomalies detected
+          ✓ No anomalies detected
         </div>
         <div className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
           Cleaning fees, taxes, channel parity, and min-stay rules all look healthy.
