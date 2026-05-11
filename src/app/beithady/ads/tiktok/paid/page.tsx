@@ -14,13 +14,22 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
-  const { data: accountsRaw } = await sb
-    .from('ads_accounts')
-    .select('id, name, tiktok_advertiser_id, tiktok_identity_id, status')
-    .eq('platform', 'tiktok')
-    .order('id');
+  const [{ data: accountsRaw }, { data: signalsRaw }] = await Promise.all([
+    sb
+      .from('ads_accounts')
+      .select('id, name, tiktok_advertiser_id, tiktok_identity_id, status')
+      .eq('platform', 'tiktok')
+      .order('id'),
+    sb
+      .from('beithady_market_signals')
+      .select('origin_country, signal_type, delta_pct')
+      .eq('signal_type', 'under_indexed')
+      .order('delta_pct', { ascending: true })
+      .limit(8),
+  ]);
   const accounts = (accountsRaw as Array<{ id: number; name: string; tiktok_advertiser_id: string | null; tiktok_identity_id: string | null; status: string }> | null) || [];
   const ready = accounts.filter(a => a.status === 'active' && a.tiktok_advertiser_id && a.tiktok_identity_id);
+  const suggestedCountries = (signalsRaw as Array<{ origin_country: string; delta_pct: number | null }> | null) || [];
 
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'TikTok paid' }]} containerClass="max-w-4xl">
@@ -36,6 +45,23 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
         <div className="ix-card border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm flex items-center gap-2">
           <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span className="font-mono text-xs">{sp.error}</span>
+        </div>
+      )}
+
+      {suggestedCountries.length > 0 && (
+        <div className="ix-card border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950 p-3 text-xs">
+          <div className="font-semibold mb-1 text-cyan-700 dark:text-cyan-200">Phase G market intel — under-indexed countries</div>
+          <p className="text-slate-600 dark:text-slate-300 mb-1.5">
+            Travelers from these markets are under-represented at Beithady vs the Egypt baseline. Use the TikTok geo
+            picker in Ads Manager to add country-specific location IDs (TikTok IDs differ from ISO codes).
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestedCountries.map(s => (
+              <span key={s.origin_country} className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-cyan-200 dark:border-cyan-700 font-mono">
+                {s.origin_country}{s.delta_pct != null ? ` (${s.delta_pct.toFixed(1)}%)` : ''}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

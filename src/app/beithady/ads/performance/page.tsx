@@ -1,9 +1,9 @@
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listCampaigns, listOverviewByDay, getDashboardKpis } from '@/lib/beithady/ads/reporting';
+import { listCampaigns, listOverviewByDay, getDashboardKpis, listCampaignRoas } from '@/lib/beithady/ads/reporting';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
-import { DollarSign, Users, BarChart3, TrendingUp } from 'lucide-react';
+import { DollarSign, Users, BarChart3, TrendingUp, Wallet } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -13,10 +13,11 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const days = Math.max(1, Math.min(180, Number.parseInt(sp.days || '30', 10) || 30));
 
-  const [kpis, campaigns, daily] = await Promise.all([
+  const [kpis, campaigns, daily, roasRows] = await Promise.all([
     getDashboardKpis(days),
     listCampaigns(),
     listOverviewByDay(days),
+    listCampaignRoas(),
   ]);
 
   // Per-platform totals
@@ -55,11 +56,12 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
       <AdsTabs active="performance" />
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+      <section className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
         <Stat icon={DollarSign} label={`Spend (${days}d)`} value={`$${kpis.spend.toLocaleString()}`} />
         <Stat icon={Users} label={`Leads (${days}d)`} value={kpis.leads.toLocaleString()} accent="cyan" />
         <Stat icon={TrendingUp} label="CPL" value={kpis.cpl == null ? '—' : `$${kpis.cpl.toFixed(2)}`} accent="amber" />
-        <Stat icon={BarChart3} label="Bookings attributed" value={kpis.bookings.toLocaleString()} accent="emerald" />
+        <Stat icon={BarChart3} label="Bookings" value={kpis.bookings.toLocaleString()} accent="emerald" />
+        <Stat icon={Wallet} label="ROAS" value={kpis.roas == null ? '—' : `${kpis.roas.toFixed(2)}x`} accent="emerald" />
       </section>
 
       <section className="ix-card p-5 space-y-3">
@@ -123,6 +125,45 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="ix-card p-5 space-y-3">
+        <h2 className="text-sm font-semibold">ROAS by campaign (USD bookings only)</h2>
+        {roasRows.filter(r => r.spend > 0 || r.attributed_revenue > 0).length === 0 ? (
+          <p className="text-xs text-slate-500">No spend yet. ROAS = attributed booking value / ad spend.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left border-b border-slate-200 dark:border-slate-700">
+                <th className="py-2 pr-3">Campaign</th>
+                <th className="py-2 pr-3">Platform</th>
+                <th className="py-2 pr-3 text-right">Spend</th>
+                <th className="py-2 pr-3 text-right">Leads</th>
+                <th className="py-2 pr-3 text-right">Bookings</th>
+                <th className="py-2 pr-3 text-right">Revenue</th>
+                <th className="py-2 pr-3 text-right">ROAS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roasRows
+                .filter(r => r.spend > 0 || r.attributed_revenue > 0)
+                .sort((a, b) => (b.roas ?? -1) - (a.roas ?? -1))
+                .map(r => (
+                  <tr key={r.campaign_id} className="border-b border-slate-100 dark:border-slate-800">
+                    <td className="py-2 pr-3 font-medium truncate max-w-xs">{r.campaign_name}</td>
+                    <td className="py-2 pr-3">{PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] || r.platform}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">${Math.round(r.spend).toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{r.leads.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{r.bookings.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">${r.attributed_revenue.toLocaleString()}</td>
+                    <td className={`py-2 pr-3 text-right tabular-nums font-semibold ${r.roas != null && r.roas >= 1 ? 'text-emerald-700 dark:text-emerald-300' : r.roas != null ? 'text-amber-700 dark:text-amber-300' : 'text-slate-400'}`}>
+                      {r.roas == null ? '—' : `${r.roas.toFixed(2)}x`}
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         )}

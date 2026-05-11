@@ -91,6 +91,7 @@ export async function getDashboardKpis(days = 30): Promise<{
   bookings: number;
   cpl: number | null;
   attributed_revenue: number;
+  roas: number | null;
   active_campaigns: number;
   draft_campaigns: number;
 }> {
@@ -118,7 +119,58 @@ export async function getDashboardKpis(days = 30): Promise<{
     bookings,
     cpl: leadCount > 0 ? Math.round((spend / leadCount) * 100) / 100 : null,
     attributed_revenue: Math.round(attributedRevenue),
+    roas: spend > 0 ? Math.round((attributedRevenue / spend) * 100) / 100 : null,
     active_campaigns: active ?? 0,
     draft_campaigns: drafts ?? 0,
   };
+}
+
+// Per-campaign attributed revenue + ROAS, joined to the campaign performance view.
+// Used by Performance tab. Only counts USD bookings until multi-currency conversion ships.
+export type CampaignRoasRow = {
+  campaign_id: number;
+  campaign_name: string;
+  platform: string;
+  spend: number;
+  leads: number;
+  bookings: number;
+  attributed_revenue: number;
+  roas: number | null;          // attributed_revenue / spend
+};
+
+export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
+  const sb = supabaseAdmin();
+  const [{ data: perf }, { data: leads }] = await Promise.all([
+    sb.from('ads_campaign_performance').select('campaign_id, campaign_name, platform, spend, leads'),
+    sb.from('ads_lead_funnel').select('campaign_id, matched_reservation_id, booking_value, booking_currency'),
+  ]);
+  type PerfRow = { campaign_id: number; campaign_name: string; platform: string; spend: number; leads: number };
+  type FunnelRow = { campaign_id: number | null; matched_reservation_id: string | null; booking_value: number | null; booking_currency: string | null };
+  const perfRows = (perf as PerfRow[] | null) || [];
+  const funnelRows = (leads as FunnelRow[] | null) || [];
+
+  // Roll up booked leads + revenue per campaign_id (USD only).
+  const bookingsByCampaign: Record<number, { bookings: number; revenue: number }> = {};
+  for (const l of funnelRows) {
+    if (l.campaign_id == null) continue;
+    if (!l.matched_reservation_id) continue;
+    const entry = bookingsByCampaign[l.campaign_id] ||= { bookings: 0, revenue: 0 };
+    entry.bookings += 1;
+    if (l.booking_currency === 'USD') entry.revenue += Number(l.booking_value) || 0;
+  }
+
+  return perfRows.map(p => {
+    const b = bookingsByCampaign[p.campaign_id] || { bookings: 0, revenue: 0 };
+    const spend = Number(p.spend) || 0;
+    return {
+      campaign_id: p.campaign_id,
+      campaign_name: p.campaign_name,
+      platform: p.platform,
+      spend,
+      leads: Number(p.leads) || 0,
+      bookings: b.bookings,
+      attributed_revenue: Math.round(b.revenue),
+      roas: spend > 0 ? Math.round((b.revenue / spend) * 100) / 100 : null,
+    };
+  });
 }

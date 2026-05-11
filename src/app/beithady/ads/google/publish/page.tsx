@@ -18,13 +18,22 @@ export default async function GooglePublishPage({
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
-  const { data: accountsRaw } = await sb
-    .from('ads_accounts')
-    .select('id, name, external_id, google_refresh_token, status')
-    .eq('platform', 'google')
-    .order('id');
+  const [{ data: accountsRaw }, { data: signalsRaw }] = await Promise.all([
+    sb
+      .from('ads_accounts')
+      .select('id, name, external_id, google_refresh_token, status')
+      .eq('platform', 'google')
+      .order('id'),
+    sb
+      .from('beithady_market_signals')
+      .select('origin_country, signal_type, our_share_pct, delta_pct')
+      .eq('signal_type', 'under_indexed')
+      .order('delta_pct', { ascending: true })
+      .limit(8),
+  ]);
   const accounts = (accountsRaw as Array<{ id: number; name: string; external_id: string; google_refresh_token: string | null; status: string }> | null) || [];
   const connectedAccounts = accounts.filter(a => !!a.google_refresh_token && a.status === 'active');
+  const suggestedCountries = (signalsRaw as Array<{ origin_country: string; delta_pct: number | null }> | null) || [];
 
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'Google publish' }]} containerClass="max-w-4xl">
@@ -40,6 +49,23 @@ export default async function GooglePublishPage({
         <div className="ix-card border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm flex items-center gap-2">
           <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span className="font-mono text-xs">{sp.error}</span>
+        </div>
+      )}
+
+      {suggestedCountries.length > 0 && (
+        <div className="ix-card border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-950 p-3 text-xs">
+          <div className="font-semibold mb-1 text-cyan-700 dark:text-cyan-200">Phase G market intel — under-indexed countries</div>
+          <p className="text-slate-600 dark:text-slate-300 mb-1.5">
+            Beithady is under-represented for travelers from these markets relative to the Egypt baseline.
+            Use them as Google location IDs (resolve via the Google Ads geo target picker) or as language/audience hints.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {suggestedCountries.map(s => (
+              <span key={s.origin_country} className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-cyan-200 dark:border-cyan-700 font-mono">
+                {s.origin_country}{s.delta_pct != null ? ` (${s.delta_pct.toFixed(1)}%)` : ''}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
