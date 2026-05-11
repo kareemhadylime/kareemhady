@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
+import { convertManyToUsd } from '@/lib/fx-rates';
 
 // Read helpers for the Phase H Ads UI. Pulls from the views created
 // by the migration plus the lead funnel.
@@ -129,11 +130,13 @@ export async function getDashboardKpis(days = 30): Promise<{
   const spend = rollupRows.reduce((s, r) => s + (Number(r.spend) || 0), 0);
   const leadCount = rollupRows.reduce((s, r) => s + (Number(r.leads) || 0), 0);
   const leadRows = (leads as LeadRollupRow[] | null) || [];
-  const bookings = leadRows.filter(l => l.matched_reservation_id).length;
-  // Conversion value (simplistic: USD only for now — multi-currency conversion in Phase H follow-up)
-  const attributedRevenue = leadRows
-    .filter(l => l.matched_reservation_id && l.booking_currency === 'USD')
-    .reduce((s, l) => s + (Number(l.booking_value) || 0), 0);
+  const bookedRows = leadRows.filter(l => l.matched_reservation_id);
+  const bookings = bookedRows.length;
+  // Multi-currency conversion via fx_rates_usd (Phase H+ follow-up shipped).
+  const usdAmounts = await convertManyToUsd(
+    bookedRows.map(l => ({ amount: l.booking_value, currency: l.booking_currency }))
+  );
+  const attributedRevenue = usdAmounts.reduce((s, n) => s + n, 0);
   return {
     spend: Math.round(spend),
     leads: leadCount,
@@ -170,15 +173,19 @@ export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
   const perfRows = (perf as PerfRow[] | null) || [];
   const funnelRows = (leads as FunnelRow[] | null) || [];
 
-  // Roll up booked leads + revenue per campaign_id (USD only).
+  // Convert all booked rows to USD once (batched against the FX cache).
+  const booked = funnelRows.filter(l => l.campaign_id != null && l.matched_reservation_id);
+  const usdAmounts = await convertManyToUsd(
+    booked.map(l => ({ amount: l.booking_value, currency: l.booking_currency }))
+  );
+
   const bookingsByCampaign: Record<number, { bookings: number; revenue: number }> = {};
-  for (const l of funnelRows) {
-    if (l.campaign_id == null) continue;
-    if (!l.matched_reservation_id) continue;
-    const entry = bookingsByCampaign[l.campaign_id] ||= { bookings: 0, revenue: 0 };
+  booked.forEach((l, i) => {
+    const cid = l.campaign_id as number;
+    const entry = bookingsByCampaign[cid] ||= { bookings: 0, revenue: 0 };
     entry.bookings += 1;
-    if (l.booking_currency === 'USD') entry.revenue += Number(l.booking_value) || 0;
-  }
+    entry.revenue += usdAmounts[i] || 0;
+  });
 
   return perfRows.map(p => {
     const b = bookingsByCampaign[p.campaign_id] || { bookings: 0, revenue: 0 };

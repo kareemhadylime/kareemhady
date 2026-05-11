@@ -131,9 +131,9 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       </section>
 
       <section className="ix-card p-5 space-y-3">
-        <h2 className="text-sm font-semibold">ROAS by campaign (USD bookings only)</h2>
+        <h2 className="text-sm font-semibold">ROAS by campaign</h2>
         {roasRows.filter(r => r.spend > 0 || r.attributed_revenue > 0).length === 0 ? (
-          <p className="text-xs text-slate-500">No spend yet. ROAS = attributed booking value / ad spend.</p>
+          <p className="text-xs text-slate-500">No spend yet. ROAS = attributed booking value (all currencies, converted to USD via <code>fx_rates_usd</code>) / ad spend.</p>
         ) : (
           <table className="w-full text-xs">
             <thead>
