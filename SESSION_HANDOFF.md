@@ -102,6 +102,7 @@ triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
 - Approval workflow (draft → manager review → unpause).
 - Bilingual UI labels (currently English-only; Voltauto uses inline AR+EN).
 - ~~Phase-G market-signal-driven targeting suggestions for Google/TikTok wizards~~ — shipped in `578aa88`.
+- ~~Building-keyed UTM templates~~ — shipped in `c0a3683`.
 
 **Open risks**:
 - Google Ads developer token needs production approval (~1-2 wk). Until then,
@@ -136,6 +137,15 @@ the plan:
 - Phase G market-signal hints banner on Google publish + TikTok paid wizards:
   pulls top-8 under-indexed countries from `beithady_market_signals`. Mirrors
   the existing hint shown in the Meta CTWA wizard.
+
+**Follow-up commit `c0a3683`** — closes deferred follow-up #5 (building-keyed
+UTM templates):
+- `publishGoogleSearchCampaign` auto-appends `utm_source=google&utm_medium=cpc&utm_campaign={building}-google`
+  to `final_url` if building_codes is set and the operator didn't already
+  supply utm_* params.
+- `publishTikTokTrafficAd` does the same for `landing_page_url` with `utm_source=tiktok`.
+- Meta CTWA intentionally skipped — wa.me URLs land in WhatsApp, not a
+  tracked web page.
 
 ---
 
