@@ -26,10 +26,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
-  return Array.from(codes.entries()).map(([code, lastMod]) => ({
-    url: `${base}/stay/${code}`,
-    lastModified: new Date(lastMod),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }));
+  const SUPPORTED_LANGS = ['en', 'ar', 'de', 'fr', 'ru', 'it', 'es', 'pl', 'cs'] as const;
+
+  return Array.from(codes.entries()).map(([code, lastMod]) => {
+    const alternates = {
+      languages: Object.fromEntries(SUPPORTED_LANGS.map(l => [l, `${base}/stay/${code}?lang=${l}`])),
+    };
+    return {
+      url: `${base}/stay/${code}`,
+      lastModified: new Date(lastMod),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+      alternates,
+    };
+  });
 }
