@@ -77,6 +77,9 @@ export type LeadFunnelRow = {
   booking_value: number | null;
   booking_currency: string | null;
   booking_check_in: string | null;
+  // SLA tracking (joined separately since the view doesn't carry them)
+  first_response_at?: string | null;
+  sla_minutes?: number | null;
 };
 
 export async function listCampaigns(): Promise<CampaignPerformanceRow[]> {
@@ -104,7 +107,29 @@ export async function listLeadFunnel(opts: { stage?: 'new' | 'processed' | 'book
   let q = sb.from('ads_lead_funnel').select('*').limit(opts.limit ?? 200);
   if (opts.stage) q = q.eq('funnel_stage', opts.stage);
   const { data } = await q;
-  return ((data as LeadFunnelRow[] | null) || []);
+  const rows = ((data as LeadFunnelRow[] | null) || []);
+  // Attach SLA state (joined separately because the funnel view doesn't carry it)
+  if (rows.length === 0) return rows;
+  const ids = rows.map(r => r.lead_id);
+  const { data: slaRaw } = await sb
+    .from('ads_leads')
+    .select('id, first_response_at')
+    .in('id', ids);
+  const slaById = new Map<number, string | null>();
+  for (const r of (slaRaw as Array<{ id: number; first_response_at: string | null }> | null) || []) {
+    slaById.set(r.id, r.first_response_at);
+  }
+  const now = Date.now();
+  return rows.map(r => {
+    const firstResponse = slaById.get(r.lead_id);
+    return {
+      ...r,
+      first_response_at: firstResponse,
+      sla_minutes: firstResponse
+        ? Math.round((new Date(firstResponse).getTime() - new Date(r.created_at).getTime()) / 60_000)
+        : Math.round((now - new Date(r.created_at).getTime()) / 60_000),
+    };
+  });
 }
 
 export async function getDashboardKpis(days = 30): Promise<{

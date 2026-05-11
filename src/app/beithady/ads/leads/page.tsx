@@ -1,11 +1,12 @@
 import Link from 'next/link';
-import { Users, ChevronLeft, ExternalLink } from 'lucide-react';
+import { Users, ChevronLeft, ExternalLink, Check, Clock } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listLeadFunnel } from '@/lib/beithady/ads/reporting';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { flagFor, countryName } from '@/lib/beithady/market/countries';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
+import { markLeadRespondedAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -58,6 +59,7 @@ export default async function AdsLeadsPage({ searchParams }: { searchParams: Pro
                 <th className="py-2 px-4">Campaign</th>
                 <th className="py-2 px-4">Buildings</th>
                 <th className="py-2 px-4">Stage</th>
+                <th className="py-2 px-4">SLA</th>
                 <th className="py-2 px-4 text-right">Booking value</th>
               </tr>
             </thead>
@@ -96,6 +98,23 @@ export default async function AdsLeadsPage({ searchParams }: { searchParams: Pro
                     </span>
                     {l.matched_at && (
                       <div className="text-[9px] text-slate-400 mt-0.5">matched {fmtCairoDateTime(l.matched_at)}</div>
+                    )}
+                  </td>
+                  <td className="py-2 px-4">
+                    {l.first_response_at ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300">
+                        <Check size={10} /> {l.sla_minutes != null ? `${l.sla_minutes}m` : 'responded'}
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${l.sla_minutes != null && l.sla_minutes >= 30 ? 'text-rose-600' : l.sla_minutes != null && l.sla_minutes >= 15 ? 'text-amber-600' : 'text-slate-500'}`}>
+                          <Clock size={10} /> {l.sla_minutes != null ? `${l.sla_minutes}m` : '—'}
+                        </span>
+                        <form action={markLeadRespondedAction} className="inline">
+                          <input type="hidden" name="lead_id" value={l.lead_id} />
+                          <button type="submit" title="Mark responded" className="text-[10px] text-emerald-600 hover:underline">mark</button>
+                        </form>
+                      </div>
                     )}
                   </td>
                   <td className="py-2 px-4 text-right tabular-nums">

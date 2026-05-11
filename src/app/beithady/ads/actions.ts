@@ -456,6 +456,28 @@ export async function resolveIgAccountAction(formData: FormData): Promise<void> 
 }
 
 // =====================================================================
+// Lead SLA — mark a lead as responded (stops the SLA alert clock)
+// =====================================================================
+export async function markLeadRespondedAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const leadId = Number.parseInt(String(formData.get('lead_id') || ''), 10);
+  if (!Number.isFinite(leadId)) return;
+  const sb = supabaseAdmin();
+  await sb.from('ads_leads').update({
+    first_response_at: new Date().toISOString(),
+    processed_at: new Date().toISOString(),
+  }).eq('id', leadId);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'ads',
+    action: 'lead_marked_responded',
+    target_type: 'lead',
+    target_id: String(leadId),
+  });
+  revalidatePath('/beithady/ads/leads');
+}
+
+// =====================================================================
 // Unified campaign status flip — used by the campaign detail page +
 // inline pause/resume buttons on the Campaigns list.
 // =====================================================================
