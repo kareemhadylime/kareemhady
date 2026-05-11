@@ -130,6 +130,17 @@ triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
   table, src/lib/fx-rates.ts, weekly cron from open.er-api.com, ROAS calc
   wired to convertManyToUsd — EGP / AED / EUR / etc. all flow through now).
 
+**Follow-up commit `18d86c6`** — fills the campaign-detail-page UX hole +
+adds inline campaign controls:
+- `/beithady/ads/campaigns/[id]` — KPIs, 30-day spend sparkline, ad sets,
+  ads, recent leads, budget-cap progress bar, big Pause/Activate button.
+  Auto-paused banner with reason + timestamp when budget-guard fired.
+- `setCampaignStatusActionUnified()` server action replaces the per-platform
+  trio for the common case. Audit + redirect + revalidate.
+- Inline pause/resume buttons on the Campaigns list (one per row).
+- "Sync now" button on the Overview (next to "New campaign") — fires
+  `syncAllAction` to pull Meta + Google + TikTok metrics in parallel.
+
 **Open risks**:
 - Google Ads developer token needs production approval (~1-2 wk). Until then,
   GAQL → 403 and publish falls back to draft mode (DB-only).
