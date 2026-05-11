@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listCampaigns, listOverviewByDay, getDashboardKpis, listCampaignRoas } from '@/lib/beithady/ads/reporting';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
@@ -52,6 +53,12 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         eyebrow="Beit Hady · Ads"
         title="Performance"
         subtitle={`Cross-platform analytics over the last ${days} days. Filter, drill into campaigns, export.`}
+        right={
+          <div className="flex items-center gap-2 text-xs">
+            <Link href={`/api/beithady/ads/export?dataset=daily&days=${days}`} className="ix-btn-secondary" prefetch={false}>Daily CSV</Link>
+            <Link href="/api/beithady/ads/export?dataset=roas" className="ix-btn-secondary" prefetch={false}>ROAS CSV</Link>
+          </div>
+        }
       />
 
       <AdsTabs active="performance" />

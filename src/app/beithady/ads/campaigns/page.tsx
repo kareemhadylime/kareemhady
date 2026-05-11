@@ -27,6 +27,11 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
         eyebrow="Beit Hady · Ads"
         title="Campaigns"
         subtitle="Cross-platform campaign list. Click into a row for ad sets, ads, and daily metrics."
+        right={
+          <Link href="/api/beithady/ads/export?dataset=campaigns" className="ix-btn-secondary text-xs" prefetch={false}>
+            Download CSV
+          </Link>
+        }
       />
 
       <AdsTabs active="campaigns" />

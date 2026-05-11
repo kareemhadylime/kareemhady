@@ -28,9 +28,12 @@ export default async function AdsLeadsPage({ searchParams }: { searchParams: Pro
         title="Lead funnel"
         subtitle="Click-to-WhatsApp leads with attribution. The 90-day phone-match trigger links a lead to a Guesty booking automatically."
         right={
-          <Link href="/beithady/ads" className="ix-btn-secondary text-xs">
-            <ChevronLeft size={12} /> Ads dashboard
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/api/beithady/ads/export?dataset=leads" className="ix-btn-secondary text-xs" prefetch={false}>Download CSV</Link>
+            <Link href="/beithady/ads" className="ix-btn-secondary text-xs">
+              <ChevronLeft size={12} /> Ads dashboard
+            </Link>
+          </div>
         }
       />
 
