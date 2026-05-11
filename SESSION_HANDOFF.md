@@ -98,10 +98,10 @@ triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
 
 **Open follow-ups**:
 - Auto-pause-on-budget-cap cron (new `monthly_budget_cap_usd` column).
-- ROAS column in Performance tab (have `ads_lead_funnel.booking_value`).
+- ~~ROAS column in Performance tab~~ — shipped in `578aa88`.
 - Approval workflow (draft → manager review → unpause).
 - Bilingual UI labels (currently English-only; Voltauto uses inline AR+EN).
-- Phase-G market-signal-driven targeting suggestions for Google/TikTok wizards.
+- ~~Phase-G market-signal-driven targeting suggestions for Google/TikTok wizards~~ — shipped in `578aa88`.
 
 **Open risks**:
 - Google Ads developer token needs production approval (~1-2 wk). Until then,
@@ -127,6 +127,15 @@ triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
    (leadgen field).
 5. Register TikTok lead webhook at
    `https://app.limeinc.cc/api/webhooks/tiktok-leads`.
+
+**Follow-up commit `578aa88`** — shipped the two in-scope improvements from
+the plan:
+- ROAS KPI tile + per-campaign ROAS table in `/beithady/ads/performance`
+  (USD bookings only). `listCampaignRoas()` joins `ads_lead_funnel.booking_value`
+  to `ads_campaign_performance.spend`.
+- Phase G market-signal hints banner on Google publish + TikTok paid wizards:
+  pulls top-8 under-indexed countries from `beithady_market_signals`. Mirrors
+  the existing hint shown in the Meta CTWA wizard.
 
 ---
 
