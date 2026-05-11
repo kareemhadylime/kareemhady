@@ -1,12 +1,12 @@
 import Link from 'next/link';
-import { Image as ImageIcon, Check, X, Sparkles, Trophy } from 'lucide-react';
+import { Image as ImageIcon, Check, X, Sparkles, Trophy, Wand2 } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { listAssetPerformance } from '@/lib/beithady/ads/reporting';
-import { toggleGalleryAdEligibleAction, regenerateGalleryCaptionAction } from '../actions';
+import { toggleGalleryAdEligibleAction, regenerateGalleryCaptionAction, generateAiImagesAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -43,6 +43,33 @@ export default async function AdsGalleryPage({ searchParams }: { searchParams: P
       />
 
       <AdsTabs active="gallery" />
+
+      {canEdit && (
+        <section className="ix-card p-5 space-y-3 border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950">
+          <h2 className="text-sm font-semibold flex items-center gap-2 text-violet-700 dark:text-violet-200">
+            <Wand2 size={14} /> Generate AI variants (Replicate / FLUX)
+          </h2>
+          <form action={generateAiImagesAction} className="grid grid-cols-1 md:grid-cols-4 gap-2 text-xs">
+            <input name="prompt" required placeholder="Rooftop sunset over Cairo skyline" className="ix-input md:col-span-2" />
+            <input name="building_code" defaultValue={sp.building || ''} placeholder="Building code" className="ix-input font-mono" />
+            <select name="aspect_ratio" className="ix-input">
+              <option value="1:1">1:1 (feed)</option>
+              <option value="9:16">9:16 (Reel)</option>
+              <option value="4:5">4:5 (portrait)</option>
+              <option value="16:9">16:9 (landscape)</option>
+            </select>
+            <select name="num_variants" className="ix-input">
+              <option value="2">2 variants</option>
+              <option value="3">3 variants</option>
+              <option value="4">4 variants</option>
+            </select>
+            <button type="submit" className="ix-btn-primary md:col-span-3">Generate</button>
+          </form>
+          <p className="text-[10px] text-slate-500">
+            New assets land here with <code>ad_eligible=false</code> — review them, mark eligible, then they show up in publish wizards. Requires <code>REPLICATE_API_TOKEN</code>; no-ops gracefully if missing.
+          </p>
+        </section>
+      )}
 
       {topPerformers.length > 0 && (
         <section className="ix-card p-5 space-y-3">

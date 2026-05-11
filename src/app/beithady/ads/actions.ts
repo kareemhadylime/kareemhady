@@ -573,6 +573,29 @@ export async function syncTikTokAction(): Promise<void> {
 }
 
 // =====================================================================
+// AI image variants — generates 2 new gallery assets per request
+// =====================================================================
+export async function generateAiImagesAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const { generateAdImageVariants } = await import('@/lib/beithady/ads/ai-image');
+  const sourceAssetId = String(formData.get('source_asset_id') || '').trim() || undefined;
+  const prompt = String(formData.get('prompt') || '').trim();
+  const buildingCode = String(formData.get('building_code') || '').trim() || null;
+  const numVariants = Math.max(1, Math.min(4, Number.parseInt(String(formData.get('num_variants') || '2'), 10) || 2));
+  const aspectRatio = String(formData.get('aspect_ratio') || '1:1') as '1:1' | '16:9' | '9:16' | '4:5';
+  if (!prompt) {
+    redirect('/beithady/ads/gallery?error=missing_prompt');
+  }
+  const r = await generateAdImageVariants({ sourceAssetId, prompt, buildingCode, numVariants, aspectRatio });
+  await recordAudit({
+    module: 'ads',
+    action: 'ai_images_generated',
+    metadata: { prompt: prompt.slice(0, 200), variants: numVariants, ok: r.ok, mode: r.mode, saved: r.ok ? r.saved_asset_ids.length : 0, error: r.ok ? null : r.error },
+  });
+  revalidatePath('/beithady/ads/gallery');
+}
+
+// =====================================================================
 // Gallery: inline toggle of ad_eligible + AI caption write-back
 // =====================================================================
 export async function toggleGalleryAdEligibleAction(formData: FormData): Promise<void> {
