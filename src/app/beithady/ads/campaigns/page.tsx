@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Pause, Play } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listCampaigns, listCampaignBudgetStates } from '@/lib/beithady/ads/reporting';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
+import { setCampaignStatusActionUnified } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -61,6 +62,7 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
                 <th className="py-2 pr-3 text-right">CTR</th>
                 <th className="py-2 pr-3 text-right">Cap</th>
                 <th className="py-2 pr-3">Last day</th>
+                <th className="py-2 pr-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +105,17 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
                       )}
                     </td>
                     <td className="py-2 pr-3 text-[11px] text-slate-500">{c.last_date || '—'}</td>
+                    <td className="py-2 pr-3">
+                      {((c.campaign_status || '').toUpperCase() === 'ACTIVE' || (c.campaign_status || '').toUpperCase() === 'PAUSED') && (
+                        <form action={setCampaignStatusActionUnified} className="inline">
+                          <input type="hidden" name="campaign_id" value={c.campaign_id} />
+                          <input type="hidden" name="status" value={(c.campaign_status || '').toUpperCase() === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'} />
+                          <button type="submit" title={(c.campaign_status || '').toUpperCase() === 'ACTIVE' ? 'Pause' : 'Activate'} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">
+                            {(c.campaign_status || '').toUpperCase() === 'ACTIVE' ? <Pause size={12} /> : <Play size={12} />}
+                          </button>
+                        </form>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

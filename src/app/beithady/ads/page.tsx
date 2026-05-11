@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Megaphone, Plus, Users, DollarSign, Activity, BarChart3, AlertTriangle, Globe2 } from 'lucide-react';
+import { Megaphone, Plus, Users, DollarSign, Activity, BarChart3, AlertTriangle, Globe2, RefreshCw } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
 import { getDashboardKpis, listCampaigns, listLeadFunnel } from '@/lib/beithady/ads/reporting';
@@ -7,6 +7,7 @@ import { fmtCairoDate } from '@/lib/fmt-date';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { AdsTabs } from './_components/ads-tabs';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
+import { syncAllAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -66,12 +67,19 @@ export default async function AdsLandingPage({
         title="Ads"
         subtitle="Meta CTWA + Google Search + TikTok Ads. Instagram Reels + TikTok organic. AI copy, gallery-fed creatives, lead-to-booking attribution."
         right={
-          <Link
-            href={`/beithady/ads/create${sp.building ? `?building=${sp.building}` : ''}${sp.date ? `&date=${sp.date}` : ''}${sp.signal ? `&signal=${sp.signal}` : ''}`}
-            className="ix-btn-primary"
-          >
-            <Plus size={14} /> New campaign
-          </Link>
+          <div className="flex items-center gap-2">
+            <form action={syncAllAction} className="inline">
+              <button type="submit" className="ix-btn-secondary text-xs" title="Pull latest spend + leads from Meta + Google + TikTok">
+                <RefreshCw size={12} /> Sync now
+              </button>
+            </form>
+            <Link
+              href={`/beithady/ads/create${sp.building ? `?building=${sp.building}` : ''}${sp.date ? `&date=${sp.date}` : ''}${sp.signal ? `&signal=${sp.signal}` : ''}`}
+              className="ix-btn-primary"
+            >
+              <Plus size={14} /> New campaign
+            </Link>
+          </div>
         }
       />
 

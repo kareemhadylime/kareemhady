@@ -9,6 +9,7 @@ import { generateAdCopy, generateCaption, type AdCopyLanguage, SUPPORTED_LANGUAG
 import { publishCtwaCampaign } from '@/lib/beithady/ads/publish';
 import { metaPost, loadMetaCredentials, resolveIgForAccount } from '@/lib/beithady/ads/meta-client';
 import { publishGoogleSearchCampaign, setGoogleCampaignStatus } from '@/lib/beithady/ads/google-publish';
+import { setCampaignStatusUnified } from '@/lib/beithady/ads/status';
 import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers, listTikTokIdentities } from '@/lib/beithady/ads/tiktok-paid-publish';
 import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
 import { publishInstagramReel, pollInstagramPostStatus } from '@/lib/beithady/ads/instagram-publish';
@@ -450,6 +451,35 @@ export async function resolveIgAccountAction(formData: FormData): Promise<void> 
   await resolveIgForAccount(accountId);
   revalidatePath('/beithady/ads/accounts');
   revalidatePath('/beithady/ads/instagram/accounts');
+}
+
+// =====================================================================
+// Unified campaign status flip — used by the campaign detail page +
+// inline pause/resume buttons on the Campaigns list.
+// =====================================================================
+export async function setCampaignStatusActionUnified(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const campaignId = Number.parseInt(String(formData.get('campaign_id') || ''), 10);
+  const status = String(formData.get('status') || '').toUpperCase() as 'PAUSED' | 'ACTIVE';
+  if (!Number.isFinite(campaignId) || !['PAUSED', 'ACTIVE'].includes(status)) {
+    throw new Error('invalid_input');
+  }
+  const r = await setCampaignStatusUnified(campaignId, status, status === 'PAUSED' ? `manual pause by ${user.username}` : undefined);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'ads',
+    action: 'campaign_status_flipped',
+    target_type: 'campaign',
+    target_id: String(campaignId),
+    metadata: { status, ok: r.ok, platform: 'platform' in r ? r.platform : null, error: 'error' in r ? r.error : null },
+  });
+  revalidatePath('/beithady/ads');
+  revalidatePath('/beithady/ads/campaigns');
+  revalidatePath(`/beithady/ads/campaigns/${campaignId}`);
+  if (!r.ok) {
+    redirect(`/beithady/ads/campaigns/${campaignId}?error=${encodeURIComponent(r.error)}`);
+  }
+  redirect(`/beithady/ads/campaigns/${campaignId}?status_set=${status}`);
 }
 
 // =====================================================================
