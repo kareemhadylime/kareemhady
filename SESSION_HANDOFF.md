@@ -1,4 +1,37 @@
-# Kareemhady — Session Handoff (2026-05-10)
+# Kareemhady — Session Handoff (2026-05-11)
+
+## 🟢 2026-05-11 — SHIPPED to main: source-file mojibake fix (yesterday's jsonAsciiBody was correctly transmitting corrupted source)
+
+User reported the daily-report WhatsApp message STILL showing emoji mojibake (🏛️ → ðŸ›ï¸, · → Â·) despite yesterday's `jsonAsciiBody` Green-API fix. Investigation revealed the helper was faithfully escaping whatever was in the source — and the source file ITSELF was corrupted.
+
+**Root cause:** At some prior point (likely a Windows-editor save with codepage confusion during a rebase), the literal Unicode characters inside template strings got re-saved as Latin-1/CP1252 sequences of UTF-8 bytes. So `🏛️ Beit Hady · Daily Performance` was stored on disk as `ðŸ›ï¸ Beit Hady Â· Daily Performance`. TypeScript reads the file as UTF-8 → gets the mojibake characters → builds the message string with mojibake → my helper correctly escapes the mojibake → user sees the mojibake in WhatsApp.
+
+**Fix shipped in commit `0b84ebf`:** ran a one-shot Node fixer that for each affected file:
+1. Found runs of Latin-1/CP1252 high-range characters
+2. Treated each char as a single byte (with CP1252 mapping for 0x80-0x9F which differ from Latin-1)
+3. Decoded the byte sequence as UTF-8
+4. Verified round-trip produced a shorter, valid result before substituting
+
+**315 replacements across 15 files.** No code-logic changes. Yesterday's `jsonAsciiBody` helper at the send layer stays in place — it now correctly transmits the actual emoji.
+
+Files fixed:
+- `src/lib/beithady-daily-report/distribute.ts` (33 fixes — WhatsApp + email)
+- `src/lib/beithady-daily-report/render-html.tsx` (107 fixes — HTML report)
+- `src/lib/beithady-daily-report/render-pdf.tsx` (56 fixes — PDF report)
+- `src/lib/beithady/reports/render-pdf.tsx` (18 fixes)
+- `src/lib/beithady/fees-audit/render-pdf.tsx` (21 fixes)
+- `src/app/beithady/setup/SendTestPanel.tsx` (9 fixes)
+- `src/app/beithady/analytics/reports/page.tsx` (19 fixes)
+- 6× fees-audit components (33 fixes total)
+- 2× analytics/reports components (19 fixes)
+
+**Deployment:** `git push origin claude/zen-euler-d3bd5e:main` (`7db2656..0b84ebf`). `vercel --prod` READY at `https://zen-euler-d3bd5e-43wjgzegm-lime-investments.vercel.app` (alias `zen-euler-d3bd5e.vercel.app`). Tomorrow's 9 AM Cairo daily-report cron is the first email with proper emoji rendering.
+
+**Prevention follow-up worth considering:** add a `.gitattributes` rule `*.{ts,tsx} text working-tree-encoding=UTF-8` and a pre-commit hook that rejects commits introducing high Latin-1 range chars in TS/TSX template strings. Out of scope this turn.
+
+---
+
+# Earlier handoff (2026-05-10)
 
 ## 🟢 2026-05-10 — SHIPPED to main: Green-API JSON body now ASCII-escaped (emoji mojibake fix)
 
