@@ -1,16 +1,18 @@
 import Link from 'next/link';
-import { Image as ImageIcon } from 'lucide-react';
+import { Image as ImageIcon, Check, X, Sparkles } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { fmtCairoDate } from '@/lib/fmt-date';
+import { toggleGalleryAdEligibleAction, regenerateGalleryCaptionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export default async function AdsGalleryPage({ searchParams }: { searchParams: Promise<{ building?: string; kind?: string; eligible?: string }> }) {
-  await requireBeithadyPermission('ads', 'read');
+  const { user, roles } = await requireBeithadyPermission('ads', 'read');
+  const canEdit = user.is_admin || roles.some(r => r === 'manager' || r === 'admin');
   const sp = await searchParams;
   const sb = supabaseAdmin();
   let q = sb.from('beithady_gallery_assets')
@@ -59,13 +61,44 @@ export default async function AdsGalleryPage({ searchParams }: { searchParams: P
                 <ImageIcon size={24} className="text-slate-400" />
               )}
             </div>
-            <div className="p-2 text-[10px] space-y-1">
+            <div className="p-2 text-[10px] space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-mono">{r.building_code || '—'}</span>
-                {r.ad_eligible && <span className="text-emerald-600">eligible</span>}
+                {canEdit ? (
+                  <form action={toggleGalleryAdEligibleAction} className="inline">
+                    <input type="hidden" name="asset_id" value={r.id} />
+                    <input type="hidden" name="desired" value={r.ad_eligible ? '0' : '1'} />
+                    <button
+                      type="submit"
+                      title={r.ad_eligible ? 'Mark NOT ad-eligible' : 'Mark ad-eligible'}
+                      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold ${
+                        r.ad_eligible
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200'
+                          : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                      }`}
+                    >
+                      {r.ad_eligible ? <Check size={9} /> : <X size={9} />}
+                      eligible
+                    </button>
+                  </form>
+                ) : (
+                  r.ad_eligible && <span className="text-emerald-600">eligible</span>
+                )}
               </div>
-              <div className="text-slate-500 truncate">{r.ai_caption || ''}</div>
-              <div className="text-slate-400">{fmtCairoDate(r.created_at)}</div>
+              <div className="text-slate-500 truncate" title={r.ai_caption || ''}>{r.ai_caption || <span className="italic">no caption</span>}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">{fmtCairoDate(r.created_at)}</span>
+                {canEdit && (
+                  <form action={regenerateGalleryCaptionAction} className="inline">
+                    <input type="hidden" name="asset_id" value={r.id} />
+                    <input type="hidden" name="language" value="en" />
+                    <input type="hidden" name="surface" value="ig_caption" />
+                    <button type="submit" title="Generate AI caption" className="inline-flex items-center gap-0.5 text-violet-600 hover:underline">
+                      <Sparkles size={9} /> AI
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
           </div>
         ))}

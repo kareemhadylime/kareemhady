@@ -474,6 +474,45 @@ export async function syncTikTokAction(): Promise<void> {
 }
 
 // =====================================================================
+// Gallery: inline toggle of ad_eligible + AI caption write-back
+// =====================================================================
+export async function toggleGalleryAdEligibleAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const assetId = String(formData.get('asset_id') || '').trim();
+  const desired = String(formData.get('desired') || '').trim() === '1';
+  if (!assetId) return;
+  const sb = supabaseAdmin();
+  await sb.from('beithady_gallery_assets').update({ ad_eligible: desired }).eq('id', assetId);
+  revalidatePath('/beithady/ads/gallery');
+}
+
+export async function regenerateGalleryCaptionAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const assetId = String(formData.get('asset_id') || '').trim();
+  const language = String(formData.get('language') || 'en') as AdCopyLanguage;
+  const surface = (String(formData.get('surface') || 'ig_caption') as 'meta_ctwa' | 'ig_caption' | 'tiktok_caption' | 'google_rsa' | 'manual');
+  if (!assetId) return;
+  const sb = supabaseAdmin();
+  const { data: asset } = await sb
+    .from('beithady_gallery_assets')
+    .select('id, public_url, building_code, listing_id')
+    .eq('id', assetId)
+    .maybeSingle();
+  if (!asset) return;
+  const a = asset as { id: string; public_url: string | null; building_code: string | null };
+
+  const result = await generateCaption({
+    imageUrl: a.public_url,
+    buildingCode: a.building_code,
+    language,
+    surface,
+  });
+
+  await sb.from('beithady_gallery_assets').update({ ai_caption: result.caption }).eq('id', assetId);
+  revalidatePath('/beithady/ads/gallery');
+}
+
+// =====================================================================
 // AI caption generation (vision)
 // =====================================================================
 export async function generateCaptionAction(formData: FormData): Promise<{ caption: string; hashtags: string[] }> {
