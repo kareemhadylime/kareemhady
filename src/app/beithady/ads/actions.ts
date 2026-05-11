@@ -5,9 +5,16 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
-import { generateAdCopy, logAdCopy, type AdCopyLanguage, SUPPORTED_LANGUAGES } from '@/lib/beithady/ads/ai-copy';
+import { generateAdCopy, generateCaption, type AdCopyLanguage, SUPPORTED_LANGUAGES } from '@/lib/beithady/ads/ai-copy';
 import { publishCtwaCampaign } from '@/lib/beithady/ads/publish';
-import { metaPost, loadMetaCredentials } from '@/lib/beithady/ads/meta-client';
+import { metaPost, loadMetaCredentials, resolveIgForAccount } from '@/lib/beithady/ads/meta-client';
+import { publishGoogleSearchCampaign, setGoogleCampaignStatus } from '@/lib/beithady/ads/google-publish';
+import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers, listTikTokIdentities } from '@/lib/beithady/ads/tiktok-paid-publish';
+import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
+import { publishInstagramReel, pollInstagramPostStatus } from '@/lib/beithady/ads/instagram-publish';
+import { syncAllPlatforms } from '@/lib/beithady/ads/unified-sync';
+import { syncGoogleAds } from '@/lib/beithady/ads/google-sync';
+import { syncTikTokAds } from '@/lib/beithady/ads/tiktok-sync';
 
 async function requireFull() {
   const user = await getCurrentUser();
@@ -167,4 +174,317 @@ export async function setCampaignStatusAction(formData: FormData): Promise<void>
 
   revalidatePath('/beithady/ads');
   revalidatePath(`/beithady/ads/campaigns/${campaignId}`);
+}
+
+// =====================================================================
+// New: Google Search publish + status toggle
+// =====================================================================
+export async function publishGoogleSearchAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const campaignName = String(formData.get('campaign_name') || '').trim();
+  const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
+  const cpcBidUsd = Number.parseFloat(String(formData.get('cpc_bid_usd') || '1'));
+  const keywords = String(formData.get('keywords') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const headlines = String(formData.get('headlines') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const descriptions = String(formData.get('descriptions') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const finalUrl = String(formData.get('final_url') || '').trim() || undefined;
+  const path1 = String(formData.get('path1') || '').trim() || undefined;
+  const path2 = String(formData.get('path2') || '').trim() || undefined;
+  const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!Number.isFinite(accountId)) redirect('/beithady/ads/google/publish?error=missing_account');
+
+  const result = await publishGoogleSearchCampaign({
+    accountId,
+    campaignName: campaignName || undefined,
+    dailyBudgetUsd,
+    cpcBidUsd,
+    keywords,
+    headlines,
+    descriptions,
+    finalUrl,
+    path1,
+    path2,
+    buildingCodes,
+  });
+
+  if (!result.ok) {
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'ads',
+      action: 'google_publish_failed',
+      metadata: { step: result.step, error: result.error, mode: result.mode },
+    });
+    redirect(`/beithady/ads/google/publish?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+
+  revalidatePath('/beithady/ads');
+  revalidatePath('/beithady/ads/campaigns');
+  redirect(`/beithady/ads/campaigns/${result.campaign_id}?published=${result.mode}`);
+}
+
+export async function setGoogleStatusAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const campaignId = Number.parseInt(String(formData.get('campaign_id') || ''), 10);
+  const status = String(formData.get('status') || '').toUpperCase() as 'PAUSED' | 'ENABLED';
+  if (!Number.isFinite(campaignId) || !['PAUSED', 'ENABLED'].includes(status)) throw new Error('invalid_input');
+  const r = await setGoogleCampaignStatus(campaignId, status);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'ads',
+    action: 'google_status_changed',
+    target_type: 'campaign',
+    target_id: String(campaignId),
+    metadata: { status, ok: r.ok },
+  });
+  revalidatePath('/beithady/ads');
+  revalidatePath(`/beithady/ads/campaigns/${campaignId}`);
+}
+
+// =====================================================================
+// TikTok paid publish + status toggle + advertiser/identity discovery
+// =====================================================================
+export async function publishTikTokPaidAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const videoUrl = String(formData.get('video_url') || '').trim();
+  const adText = String(formData.get('ad_text') || '').trim();
+  const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
+  const ageMin = Number.parseInt(String(formData.get('age_min') || '18'), 10);
+  const ageMax = Number.parseInt(String(formData.get('age_max') || '55'), 10);
+  const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
+  const landingUrl = String(formData.get('landing_url') || '').trim() || undefined;
+  const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!Number.isFinite(accountId)) redirect('/beithady/ads/tiktok/paid?error=missing_account');
+
+  const result = await publishTikTokTrafficAd({
+    accountId,
+    videoUrl,
+    adText,
+    dailyBudgetUsd,
+    ageMin,
+    ageMax,
+    campaignName,
+    landingUrl,
+    buildingCodes,
+    createdBy: user.username || null,
+  });
+
+  if (!result.ok) {
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'ads',
+      action: 'tiktok_paid_publish_failed',
+      metadata: { step: result.step, error: result.error, mode: result.mode },
+    });
+    redirect(`/beithady/ads/tiktok/paid?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+
+  revalidatePath('/beithady/ads');
+  redirect(`/beithady/ads/campaigns/${result.campaign_id}?published=${result.mode}`);
+}
+
+export async function setTikTokStatusAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const campaignId = Number.parseInt(String(formData.get('campaign_id') || ''), 10);
+  const status = String(formData.get('status') || '').toUpperCase() as 'PAUSED' | 'ENABLED';
+  if (!Number.isFinite(campaignId) || !['PAUSED', 'ENABLED'].includes(status)) throw new Error('invalid_input');
+  const r = await setTikTokCampaignStatus(campaignId, status);
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'ads',
+    action: 'tiktok_status_changed',
+    target_type: 'campaign',
+    target_id: String(campaignId),
+    metadata: { status, ok: r.ok },
+  });
+  revalidatePath('/beithady/ads');
+  revalidatePath(`/beithady/ads/campaigns/${campaignId}`);
+}
+
+export async function syncTikTokAdvertisersAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const advertiserId = String(formData.get('advertiser_id') || '').trim();
+  const bcId = String(formData.get('bc_id') || '').trim();
+  if (!Number.isFinite(accountId) || !advertiserId) {
+    redirect('/beithady/ads/tiktok/accounts?error=missing_advertiser');
+  }
+  const sb = supabaseAdmin();
+  await sb.from('ads_accounts').update({
+    tiktok_advertiser_id: advertiserId,
+    tiktok_bc_id: bcId || null,
+  }).eq('id', accountId);
+  revalidatePath('/beithady/ads/tiktok/accounts');
+  redirect('/beithady/ads/tiktok/accounts?advertiser=saved');
+}
+
+export async function setTikTokIdentityAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const identityId = String(formData.get('identity_id') || '').trim();
+  const identityType = String(formData.get('identity_type') || 'CUSTOMIZED_USER').trim();
+  if (!Number.isFinite(accountId) || !identityId) {
+    redirect('/beithady/ads/tiktok/accounts?error=missing_identity');
+  }
+  const sb = supabaseAdmin();
+  await sb.from('ads_accounts').update({
+    tiktok_identity_id: identityId,
+    tiktok_identity_type: identityType,
+  }).eq('id', accountId);
+  revalidatePath('/beithady/ads/tiktok/accounts');
+  redirect('/beithady/ads/tiktok/accounts?identity=saved');
+}
+
+export async function listTikTokAdvertisersAction(): Promise<{ ok: true; advertisers: Array<{ bc_id: string; bc_name: string; advertiser_id: string; advertiser_name: string; currency: string; status: string }> } | { ok: false; error: string }> {
+  await requireFull();
+  return listTikTokAdvertisers();
+}
+
+export async function listTikTokIdentitiesAction(advertiserId: string): Promise<{ ok: true; identities: Array<{ identity_type: string; identity_id: string; display_name: string; profile_image: string }> } | { ok: false; error: string }> {
+  await requireFull();
+  return listTikTokIdentities(advertiserId);
+}
+
+// =====================================================================
+// TikTok organic Reels publish + status re-poll
+// =====================================================================
+export async function publishTikTokReelAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const videoUrl = String(formData.get('video_url') || '').trim();
+  const caption = String(formData.get('caption') || '').trim() || undefined;
+  const hashtags = String(formData.get('hashtags') || '').split(/[,\n]/).map(s => s.trim().replace(/^#/, '')).filter(Boolean);
+  const privacyLevel = (String(formData.get('privacy_level') || 'PUBLIC_TO_EVERYONE') as 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY' | 'FOLLOWER_OF_CREATOR');
+  const directPost = String(formData.get('direct_post') || '') === '1';
+  const galleryAssetId = String(formData.get('gallery_asset_id') || '').trim() || null;
+  const buildingCode = String(formData.get('building_code') || '').trim() || null;
+
+  if (!Number.isFinite(accountId)) redirect('/beithady/ads/tiktok/organic?error=missing_account');
+
+  const result = await publishTikTokReel({
+    accountId,
+    videoUrl,
+    caption,
+    hashtags,
+    privacyLevel,
+    directPost,
+    galleryAssetId,
+    buildingCode,
+    createdBy: user.username || null,
+  });
+
+  if (!result.ok) {
+    redirect(`/beithady/ads/tiktok/organic?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+  revalidatePath('/beithady/ads/tiktok/organic');
+  redirect(`/beithady/ads/tiktok/organic?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
+}
+
+export async function pollTikTokPostAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const postId = Number.parseInt(String(formData.get('post_id') || ''), 10);
+  if (!Number.isFinite(postId)) return;
+  await pollTikTokPostStatus(postId);
+  revalidatePath('/beithady/ads/tiktok/organic');
+}
+
+// =====================================================================
+// Instagram Reels (organic) publish + re-poll
+// =====================================================================
+export async function publishInstagramReelAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const videoUrl = String(formData.get('video_url') || '').trim();
+  const caption = String(formData.get('caption') || '').trim() || undefined;
+  const hashtags = String(formData.get('hashtags') || '').split(/[,\n]/).map(s => s.trim().replace(/^#/, '')).filter(Boolean);
+  const shareToFeed = String(formData.get('share_to_feed') || '1') !== '0';
+  const alsoToFacebook = String(formData.get('also_to_facebook') || '') === '1';
+  const galleryAssetId = String(formData.get('gallery_asset_id') || '').trim() || null;
+  const buildingCode = String(formData.get('building_code') || '').trim() || null;
+
+  if (!Number.isFinite(accountId)) redirect('/beithady/ads/instagram/reels?error=missing_account');
+
+  const result = await publishInstagramReel({
+    accountId,
+    videoUrl,
+    caption,
+    hashtags,
+    shareToFeed,
+    alsoToFacebook,
+    galleryAssetId,
+    buildingCode,
+    createdBy: user.username || null,
+  });
+
+  if (!result.ok) {
+    redirect(`/beithady/ads/instagram/reels?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+  revalidatePath('/beithady/ads/instagram/reels');
+  redirect(`/beithady/ads/instagram/reels?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
+}
+
+export async function pollInstagramPostAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const postId = Number.parseInt(String(formData.get('post_id') || ''), 10);
+  if (!Number.isFinite(postId)) return;
+  await pollInstagramPostStatus(postId);
+  revalidatePath('/beithady/ads/instagram/reels');
+}
+
+export async function resolveIgAccountAction(formData: FormData): Promise<void> {
+  await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  if (!Number.isFinite(accountId)) return;
+  await resolveIgForAccount(accountId);
+  revalidatePath('/beithady/ads/accounts');
+  revalidatePath('/beithady/ads/instagram/accounts');
+}
+
+// =====================================================================
+// Unified sync (Meta + Google + TikTok)
+// =====================================================================
+export async function syncAllAction(): Promise<void> {
+  await requireFull();
+  await syncAllPlatforms();
+  revalidatePath('/beithady/ads');
+}
+
+export async function syncGoogleAction(): Promise<void> {
+  await requireFull();
+  await syncGoogleAds();
+  revalidatePath('/beithady/ads');
+}
+
+export async function syncTikTokAction(): Promise<void> {
+  await requireFull();
+  await syncTikTokAds();
+  revalidatePath('/beithady/ads');
+}
+
+// =====================================================================
+// AI caption generation (vision)
+// =====================================================================
+export async function generateCaptionAction(formData: FormData): Promise<{ caption: string; hashtags: string[] }> {
+  await requireFull();
+  const imageUrl = String(formData.get('image_url') || '').trim() || null;
+  const buildingCode = String(formData.get('building_code') || '').trim() || null;
+  const buildingName = String(formData.get('building_name') || '').trim() || null;
+  const language = String(formData.get('language') || 'en') as AdCopyLanguage;
+  const surface = (String(formData.get('surface') || 'ig_caption') as 'meta_ctwa' | 'ig_caption' | 'tiktok_caption' | 'google_rsa' | 'manual');
+  const vibe = String(formData.get('vibe') || '').trim() || undefined;
+  if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) throw new Error('invalid_language');
+
+  const result = await generateCaption({
+    imageUrl,
+    buildingCode,
+    buildingName,
+    language,
+    surface,
+    vibe,
+  });
+
+  return { caption: result.caption, hashtags: result.hashtags };
 }

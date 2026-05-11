@@ -4,6 +4,7 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { SUPPORTED_LANGUAGES } from '@/lib/beithady/ads/ai-copy';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
+import { AdsTabs } from '../_components/ads-tabs';
 import { generateAdCopyAction, publishCampaignAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -71,6 +72,8 @@ export default async function AdsCreateWizardPage({
           </Link>
         }
       />
+
+      <AdsTabs active="create" />
 
       {sp.error && (
         <div className="ix-card border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-xs flex items-center gap-2">

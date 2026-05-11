@@ -90,6 +90,84 @@ export async function metaGet<T = unknown>(path: string, token: string): Promise
   }
 }
 
+// === Instagram Graph API helpers (added Phase H+) ===
+// Reels publishing flow uses the same Meta system-user token. The fb_page_id
+// on ads_accounts resolves to an instagram_business_account.id via the Graph
+// API once, then we POST media containers + media_publish against that.
+
+export type IgAccountInfo = {
+  fb_page_id: string;
+  fb_page_name: string | null;
+  ig_business_id: string;
+  ig_username: string | null;
+  ig_name: string | null;
+  profile_picture_url: string | null;
+};
+
+// List IG Business accounts visible to the system-user token, joined to
+// their parent FB Page.
+export async function listIgAccounts(): Promise<
+  | { ok: true; ig_accounts: IgAccountInfo[] }
+  | { ok: false; error: string }
+> {
+  const credsRes = await loadMetaCredentials();
+  if (!credsRes.ok) return { ok: false, error: credsRes.error };
+  const r = await metaGet<{ data: Array<{ id: string; name?: string; instagram_business_account?: { id: string; username?: string; name?: string; profile_picture_url?: string } }> }>(
+    'me/accounts?fields=id,name,instagram_business_account{id,username,name,profile_picture_url}&limit=100',
+    credsRes.creds.token
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const pages = ((r.data as { data?: Array<{ id: string; name?: string; instagram_business_account?: { id: string; username?: string; name?: string; profile_picture_url?: string } }> }).data || []);
+  const ig_accounts: IgAccountInfo[] = pages
+    .filter(p => !!p.instagram_business_account)
+    .map(p => ({
+      fb_page_id: p.id,
+      fb_page_name: p.name || null,
+      ig_business_id: p.instagram_business_account!.id,
+      ig_username: p.instagram_business_account!.username || null,
+      ig_name: p.instagram_business_account!.name || null,
+      profile_picture_url: p.instagram_business_account!.profile_picture_url || null,
+    }));
+  return { ok: true, ig_accounts };
+}
+
+// Resolve ig_business_id for an ads_accounts row whose fb_page_id is set.
+// Updates the row + returns the resolved ID + username.
+export async function resolveIgForAccount(
+  accountId: number
+): Promise<
+  | { ok: true; ig_business_id: string; ig_username: string | null }
+  | { ok: false; error: string }
+> {
+  const { supabaseAdmin } = await import('@/lib/supabase');
+  const sb = supabaseAdmin();
+  const { data: acc } = await sb
+    .from('ads_accounts')
+    .select('id, platform, fb_page_id, ig_business_id')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (!acc) return { ok: false, error: 'account_not_found' };
+  const a = acc as { id: number; platform: string; fb_page_id: string | null };
+  if (a.platform !== 'meta') return { ok: false, error: 'not_meta' };
+  if (!a.fb_page_id) return { ok: false, error: 'fb_page_id_missing' };
+
+  const credsRes = await loadMetaCredentials();
+  if (!credsRes.ok) return { ok: false, error: credsRes.error };
+
+  const r = await metaGet<{ instagram_business_account?: { id: string; username?: string; name?: string } }>(
+    `${a.fb_page_id}?fields=instagram_business_account{id,username,name}`,
+    credsRes.creds.token
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const ig = (r.data as { instagram_business_account?: { id: string; username?: string } }).instagram_business_account;
+  if (!ig?.id) return { ok: false, error: 'page_has_no_ig_business_account' };
+  await sb.from('ads_accounts').update({
+    ig_business_id: ig.id,
+    ig_username: ig.username || null,
+  }).eq('id', accountId);
+  return { ok: true, ig_business_id: ig.id, ig_username: ig.username || null };
+}
+
 // Probe — used by /admin/integrations to verify the token works.
 export async function pingMetaMarketing(): Promise<
   | { ok: true; ad_account_name: string; pages_count: number }

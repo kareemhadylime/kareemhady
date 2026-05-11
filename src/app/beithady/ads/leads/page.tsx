@@ -5,6 +5,7 @@ import { listLeadFunnel } from '@/lib/beithady/ads/reporting';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 import { flagFor, countryName } from '@/lib/beithady/market/countries';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
+import { AdsTabs } from '../_components/ads-tabs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -31,6 +32,8 @@ export default async function AdsLeadsPage({ searchParams }: { searchParams: Pro
           </Link>
         }
       />
+
+      <AdsTabs active="leads" />
 
       <div className="flex items-center gap-2 text-xs">
         <Link href="/beithady/ads/leads" className={`px-3 py-1 rounded ${!stage ? 'bg-slate-700 text-white' : 'bg-stone-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>All</Link>

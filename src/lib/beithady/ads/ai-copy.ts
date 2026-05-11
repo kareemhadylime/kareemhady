@@ -169,3 +169,94 @@ function normalizeVariants(parsed: { variants?: unknown[] } | null): AdCopyVaria
     };
   });
 }
+
+// =====================================================================
+// Image-aware caption generation (Phase H+) — used by the IG Reels +
+// TikTok Reels publishers. Takes a public image/thumbnail URL and the
+// building context, returns a single caption + suggested hashtags in
+// the requested language.
+// =====================================================================
+
+export type CaptionSurface = 'meta_ctwa' | 'ig_caption' | 'tiktok_caption' | 'google_rsa' | 'manual';
+
+export type GenerateCaptionInput = {
+  imageUrl: string | null;         // public HTTPS — passed to Claude vision
+  buildingCode: string | null;
+  buildingName?: string | null;
+  language: AdCopyLanguage;
+  targetCountry?: string | null;
+  vibe?: string;                   // e.g. "rooftop sunset", "Eid family escape"
+  surface: CaptionSurface;
+};
+
+export type GeneratedCaption = {
+  caption: string;
+  hashtags: string[];              // 5-10 tags, no leading #
+  model: string;
+  prompt_version: string;
+};
+
+export async function generateCaption(input: GenerateCaptionInput): Promise<GeneratedCaption> {
+  const client = getClient();
+  const personaBrief = await getPersonaBrief(input.targetCountry || null);
+  const lang = languageNames[input.language] || input.language;
+
+  const sys = `You write social-media captions for Beit Hady, a serviced-apartment business in Egypt + Dubai. Premium hospitality, warm not salesy, no exclamation marks, no all-caps. Match the cultural register of the target language.`;
+
+  const ask = `Write ONE caption + 5–10 hashtags in ${lang} for this ${captionSurfaceLabel(input.surface)} post.
+
+Building/property: ${input.buildingName || input.buildingCode || 'Beit Hady apartments'}
+${input.targetCountry ? `Audience: travelers from ${input.targetCountry}` : ''}
+${input.vibe ? `Vibe/context: ${input.vibe}` : ''}
+${personaBrief ? `\nMarket persona brief:\n${personaBrief}\n` : ''}
+
+Caption rules:
+- 1–3 short sentences (TikTok/Reels < 150 chars; FB feed can be longer).
+- Open with a hook (no greetings).
+- Don't promise specific prices or dates.
+- If the image hints at a feature (pool, rooftop, view), reference it.
+
+Hashtag rules:
+- 5–10 tags. No # prefix. Mix branded (BeitHady, BeitHadyApartments), location (Cairo, NewCairo, Dubai), and vibe (luxurystay, citybreak).
+- Avoid banned/spammy generic tags.
+
+Return STRICT JSON only, no markdown fences:
+{ "caption": "...", "hashtags": ["BeitHady", "Cairo", "..."] }`;
+
+  type ContentBlock = { type: 'text'; text: string } | { type: 'image'; source: { type: 'url'; url: string } };
+  const content: ContentBlock[] = [];
+  if (input.imageUrl?.startsWith('https://')) {
+    content.push({ type: 'image', source: { type: 'url', url: input.imageUrl } });
+  }
+  content.push({ type: 'text', text: ask });
+
+  const res = await client.messages.create({
+    model: MODEL,
+    max_tokens: 600,
+    temperature: 0.75,
+    system: sys,
+    messages: [{ role: 'user', content: content as never }],
+  });
+  const text = res.content
+    .map(b => (b.type === 'text' ? b.text : ''))
+    .join('')
+    .trim();
+  const parsed = parseJsonish(text) as { caption?: string; hashtags?: unknown[] } | null;
+  const caption = typeof parsed?.caption === 'string' ? parsed.caption.slice(0, 2200) : '';
+  const hashtags = Array.isArray(parsed?.hashtags)
+    ? (parsed!.hashtags as unknown[])
+        .map(t => String(t || '').replace(/^#/, '').trim())
+        .filter(Boolean)
+        .slice(0, 10)
+    : [];
+
+  return { caption, hashtags, model: MODEL, prompt_version: 'v1-caption' };
+}
+
+function captionSurfaceLabel(s: CaptionSurface): string {
+  if (s === 'ig_caption') return 'Instagram Reel';
+  if (s === 'tiktok_caption') return 'TikTok video';
+  if (s === 'google_rsa') return 'Google Search ad';
+  if (s === 'meta_ctwa') return 'Meta CTWA';
+  return 'social-media';
+}
