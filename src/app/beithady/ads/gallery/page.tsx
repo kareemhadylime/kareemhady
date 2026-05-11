@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { Image as ImageIcon, Check, X, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Check, X, Sparkles, Trophy } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { fmtCairoDate } from '@/lib/fmt-date';
+import { listAssetPerformance } from '@/lib/beithady/ads/reporting';
 import { toggleGalleryAdEligibleAction, regenerateGalleryCaptionAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,12 @@ export default async function AdsGalleryPage({ searchParams }: { searchParams: P
   type GalleryRow = { id: string; public_url: string | null; ad_eligible: boolean; building_code: string | null; kind: string | null; ai_caption: string | null; created_at: string };
   const rows = (data as GalleryRow[] | null) || [];
 
+  // Top performers (leads first, then clicks)
+  const topPerformers = await listAssetPerformance({
+    buildingCode: sp.building || undefined,
+    limit: 6,
+  });
+
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'Gallery' }]} containerClass="max-w-7xl">
       <BeithadyHeader
@@ -36,6 +43,32 @@ export default async function AdsGalleryPage({ searchParams }: { searchParams: P
       />
 
       <AdsTabs active="gallery" />
+
+      {topPerformers.length > 0 && (
+        <section className="ix-card p-5 space-y-3">
+          <h2 className="text-sm font-semibold flex items-center gap-2 text-slate-700 dark:text-slate-200">
+            <Trophy size={14} className="text-amber-500" />
+            Top-performing assets ({topPerformers.length})
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {topPerformers.map(p => (
+              <div key={p.asset_id} className="border border-amber-200 dark:border-amber-800 rounded-lg overflow-hidden bg-amber-50 dark:bg-amber-950">
+                <div className="aspect-square bg-amber-100 dark:bg-amber-900 overflow-hidden">
+                  {p.public_url && (
+                    <img src={p.public_url} alt={p.ai_caption || ''} className="w-full h-full object-cover" />
+                  )}
+                </div>
+                <div className="p-2 text-[10px] space-y-0.5">
+                  <div className="font-mono">{p.building_code || '—'}</div>
+                  <div className="text-emerald-700 dark:text-emerald-300 font-semibold tabular-nums">{p.leads} leads</div>
+                  <div className="text-slate-500 tabular-nums">{Math.round(p.spend).toLocaleString()}$ · {p.ctr_pct == null ? '—' : `${p.ctr_pct.toFixed(2)}% CTR`}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-500">Per-asset metrics are proportionally divided across cards in carousel ads (each card gets 1/N of the ad&apos;s share).</p>
+        </section>
+      )}
 
       <section className="ix-card p-3 flex flex-wrap items-center gap-2 text-xs">
         <FilterChip label="All" href="/beithady/ads/gallery" active={!sp.kind && !sp.eligible} />

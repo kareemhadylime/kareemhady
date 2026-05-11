@@ -26,6 +26,30 @@ export type CampaignPerformanceRow = {
   last_date: string | null;
 };
 
+export type AssetPerformanceRow = {
+  asset_id: string;
+  building_code: string | null;
+  public_url: string | null;
+  ai_caption: string | null;
+  category: string | null;
+  ad_count: number;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  leads: number;
+  ctr_pct: number | null;
+  cpc: number | null;
+  cpl: number | null;
+};
+
+export async function listAssetPerformance(opts: { buildingCode?: string; limit?: number } = {}): Promise<AssetPerformanceRow[]> {
+  const sb = supabaseAdmin();
+  let q = sb.from('ads_asset_performance').select('*').order('leads', { ascending: false, nullsFirst: false }).limit(opts.limit ?? 100);
+  if (opts.buildingCode) q = q.eq('building_code', opts.buildingCode);
+  const { data } = await q;
+  return (data as AssetPerformanceRow[] | null) || [];
+}
+
 export type CampaignBudgetState = {
   campaign_id: number;
   monthly_budget_cap_usd: number | null;
