@@ -175,6 +175,33 @@ the plan:
   pulls top-8 under-indexed countries from `beithady_market_signals`. Mirrors
   the existing hint shown in the Meta CTWA wizard.
 
+**Tier-1 / SEO / advanced expansion** — shipped 20 of 20 follow-ups
+suggested in the "what's missing for Ads module" review:
+
+| # | Commit | Feature |
+|---|---|---|
+| 1 | `6d03476` | Meta Conversions API + booking-event bridge (migration 0106, conversion log + triggers, flush cron) |
+| 2 | `96dbdcd` | SEO landing pages `/stay/[code]` + sitemap + robots |
+| 3 | `8b6bbaa` | Meta Customer Match — past-guests + VIP audiences (weekly cron) |
+| 4 | `f7edfa8` | Google negative keywords + brand-protection defaults (migration 0107) |
+| 5 | `998be52` | Daily-spend anomaly alert via WhatsApp |
+| 6 | `146eb92` | Lead SLA timer + mark-responded action (migration 0108, hourly cron) |
+| 7 | `1b1017f` | CSV export endpoint + Download buttons on 3 pages |
+| 8 | `1f5bd8a` | Asset performance scoring view + Top-performers panel (migration 0109) |
+| 9 | `8697d3e` | Google Performance Max publisher + tab nav split |
+| 10 | `1c7dd63` | Refund/cancellation clawback trigger (migration 0110) |
+| 11 | `4b8ac02` | Dynamic OG + Twitter card images per /stay/[code] |
+| 12 | `d77ca09` | hreflang + RTL on landing pages |
+| 13 | `80ce174` | Core Web Vitals beacon (migration 0111, /api/web-vitals) |
+| 15 | `2af0256` | Daily JSON-LD structured-data validation cron |
+| 16 | `569ebef` | A/B experiments table + view + winner-picker UI (migration 0112) |
+| 17 | `805b311` | Dayparting scheduled-hours auto-pause (migration 0113) |
+| 18 | `6e5644d` | AI image variant generation via Replicate/FLUX |
+| 19 | `9267cc2` | Multi-touch attribution scaffold + linear-credit view (migration 0114) |
+| 20 | `6c74640` | Auto-pause low-ROAS guard (14d, $100+ floor, 0.5x threshold) |
+
+(#14 sitemap was already shipped with #2.)
+
 **Follow-up commit `c0a3683`** — closes deferred follow-up #5 (building-keyed
 UTM templates):
 - `publishGoogleSearchCampaign` auto-appends `utm_source=google&utm_medium=cpc&utm_campaign={building}-google`
