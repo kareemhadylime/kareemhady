@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import { supabaseAdmin } from '@/lib/supabase';
 import { buildBhWaLink } from '@/lib/beithady/ads/platforms';
+import { WebVitalsReporter } from '@/app/_components/web-vitals-reporter';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // 1 hour ISR
@@ -210,6 +211,7 @@ export default async function StayPage({
 
   return (
     <main lang={lang} dir={isRTL ? 'rtl' : 'ltr'} className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <WebVitalsReporter buildingCode={code} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
