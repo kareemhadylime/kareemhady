@@ -284,6 +284,12 @@ export const CREDENTIAL_SPECS: Record<ProviderId, CredentialSpec> = {
         hint: 'Page that hosts the CTWA ad creatives.',
       },
       {
+        key: 'pixel_id',
+        label: 'Meta Pixel ID (CAPI)',
+        envVar: 'META_PIXEL_ID',
+        hint: 'Server-side Conversions API target. Find at Events Manager → Data sources.',
+      },
+      {
         key: 'app_id',
         label: 'App ID',
         envVar: 'META_APP_ID',
