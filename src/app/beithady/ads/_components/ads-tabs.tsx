@@ -23,7 +23,8 @@ const TABS: TabDef[] = [
   { slug: 'performance', label: 'Performance', href: '/beithady/ads/performance',           icon: BarChart3,       group: 'main' },
 
   { slug: 'create',      label: 'Meta CTWA',   href: '/beithady/ads/create',                icon: Send,            group: 'publish' },
-  { slug: 'google',      label: 'Google',      href: '/beithady/ads/google/publish',        icon: Search,          group: 'publish' },
+  { slug: 'google',      label: 'Google Search', href: '/beithady/ads/google/publish',      icon: Search,          group: 'publish' },
+  { slug: 'gpmax',       label: 'Google PMax', href: '/beithady/ads/google/pmax',           icon: Search,          group: 'publish' },
   { slug: 'tiktok-paid', label: 'TikTok Ads',  href: '/beithady/ads/tiktok/paid',           icon: Music2,          group: 'publish' },
   { slug: 'reels',       label: 'IG Reels',    href: '/beithady/ads/instagram/reels',       icon: Camera,          group: 'publish' },
   { slug: 'tt-organic',  label: 'TikTok Reels',href: '/beithady/ads/tiktok/organic',        icon: Music2,          group: 'publish' },

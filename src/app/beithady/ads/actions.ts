@@ -9,6 +9,7 @@ import { generateAdCopy, generateCaption, type AdCopyLanguage, SUPPORTED_LANGUAG
 import { publishCtwaCampaign } from '@/lib/beithady/ads/publish';
 import { metaPost, loadMetaCredentials, resolveIgForAccount } from '@/lib/beithady/ads/meta-client';
 import { publishGoogleSearchCampaign, setGoogleCampaignStatus } from '@/lib/beithady/ads/google-publish';
+import { publishGooglePerformanceMax } from '@/lib/beithady/ads/google-pmax-publish';
 import { setCampaignStatusUnified } from '@/lib/beithady/ads/status';
 import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers, listTikTokIdentities } from '@/lib/beithady/ads/tiktok-paid-publish';
 import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
@@ -226,6 +227,50 @@ export async function publishGoogleSearchAction(formData: FormData): Promise<voi
       metadata: { step: result.step, error: result.error, mode: result.mode },
     });
     redirect(`/beithady/ads/google/publish?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+
+  revalidatePath('/beithady/ads');
+  revalidatePath('/beithady/ads/campaigns');
+  redirect(`/beithady/ads/campaigns/${result.campaign_id}?published=${result.mode}`);
+}
+
+export async function publishGooglePMaxAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
+  const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '30'));
+  const monthlyBudgetCapUsdRaw = String(formData.get('monthly_budget_cap_usd') || '').trim();
+  const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
+  const businessName = String(formData.get('business_name') || 'Beit Hady').trim();
+  const headlines = String(formData.get('headlines') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const longHeadlines = String(formData.get('long_headlines') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const descriptions = String(formData.get('descriptions') || '').split('\n').map(s => s.trim()).filter(Boolean);
+  const finalUrl = String(formData.get('final_url') || '').trim() || undefined;
+  const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!Number.isFinite(accountId)) redirect('/beithady/ads/google/pmax?error=missing_account');
+
+  const result = await publishGooglePerformanceMax({
+    accountId,
+    campaignName,
+    dailyBudgetUsd,
+    monthlyBudgetCapUsd,
+    businessName,
+    headlines,
+    longHeadlines,
+    descriptions,
+    finalUrl,
+    buildingCodes,
+  });
+
+  if (!result.ok) {
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'ads',
+      action: 'google_pmax_publish_failed',
+      metadata: { step: result.step, error: result.error, mode: result.mode },
+    });
+    redirect(`/beithady/ads/google/pmax?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
   }
 
   revalidatePath('/beithady/ads');
