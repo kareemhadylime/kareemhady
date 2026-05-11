@@ -117,6 +117,11 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
               <label htmlFor="building_codes" className="text-xs font-semibold">Building codes (comma-separated)</label>
               <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" />
             </div>
+            <div className="space-y-1 md:col-span-2">
+              <label htmlFor="monthly_budget_cap_usd" className="text-xs font-semibold">Monthly cap (USD, optional)</label>
+              <input id="monthly_budget_cap_usd" name="monthly_budget_cap_usd" type="number" min="1" step="10" className="ix-input" placeholder="500" />
+              <p className="text-[11px] text-slate-500">When MTD spend reaches this, the budget-guard cron auto-pauses the campaign.</p>
+            </div>
           </div>
           <div className="flex justify-between items-center">
             <p className="text-[11px] text-slate-500">Created in DISABLED state. Activate from TikTok Ads Manager after review.</p>

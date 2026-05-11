@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import { ShieldAlert } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listCampaigns } from '@/lib/beithady/ads/reporting';
+import { listCampaigns, listCampaignBudgetStates } from '@/lib/beithady/ads/reporting';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
@@ -11,7 +12,8 @@ export const maxDuration = 60;
 export default async function CampaignsListPage({ searchParams }: { searchParams: Promise<{ platform?: string; status?: string }> }) {
   await requireBeithadyPermission('ads', 'read');
   const sp = await searchParams;
-  const all = await listCampaigns();
+  const [all, budgetStates] = await Promise.all([listCampaigns(), listCampaignBudgetStates()]);
+  const budgetByCampaign = new Map(budgetStates.map(b => [b.campaign_id, b]));
   const filtered = all.filter(c => {
     if (sp.platform && c.platform !== sp.platform) return false;
     if (sp.status && (c.campaign_status || '').toUpperCase() !== sp.status.toUpperCase()) return false;
@@ -57,27 +59,53 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
                 <th className="py-2 pr-3 text-right">Leads</th>
                 <th className="py-2 pr-3 text-right">CPL</th>
                 <th className="py-2 pr-3 text-right">CTR</th>
+                <th className="py-2 pr-3 text-right">Cap</th>
                 <th className="py-2 pr-3">Last day</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => (
-                <tr key={c.campaign_id} className="border-b border-slate-100 dark:border-slate-800 align-middle">
-                  <td className="py-2 pr-3">
-                    <Link href={`/beithady/ads/campaigns/${c.campaign_id}`} className="ix-link font-medium">{c.campaign_name}</Link>
-                    <div className="text-[10px] text-slate-400">{c.objective || '—'}</div>
-                  </td>
-                  <td className="py-2 pr-3">{PLATFORM_LABEL[c.platform as keyof typeof PLATFORM_LABEL] || c.platform}</td>
-                  <td className="py-2 pr-3"><span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${statusBadgeClass(c.campaign_status)}`}>{c.campaign_status || '—'}</span></td>
-                  <td className="py-2 pr-3 text-[11px]">{(c.building_codes || []).join(' · ') || '—'}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">${Math.round(c.spend).toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{c.clicks.toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{c.leads.toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `$${c.cpl.toFixed(2)}`}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{c.ctr_pct == null ? '—' : `${c.ctr_pct.toFixed(2)}%`}</td>
-                  <td className="py-2 pr-3 text-[11px] text-slate-500">{c.last_date || '—'}</td>
-                </tr>
-              ))}
+              {filtered.map(c => {
+                const budget = budgetByCampaign.get(c.campaign_id);
+                const cap = budget?.monthly_budget_cap_usd;
+                const autoPaused = !!budget?.auto_paused_at;
+                const pctUsed = cap && cap > 0 ? (c.spend / cap) * 100 : null;
+                return (
+                  <tr key={c.campaign_id} className="border-b border-slate-100 dark:border-slate-800 align-middle">
+                    <td className="py-2 pr-3">
+                      <Link href={`/beithady/ads/campaigns/${c.campaign_id}`} className="ix-link font-medium">{c.campaign_name}</Link>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                        {c.objective || '—'}
+                        {autoPaused && (
+                          <span title={budget?.auto_paused_reason || 'auto-paused'} className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200 font-semibold">
+                            <ShieldAlert size={8} /> auto-pause
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3">{PLATFORM_LABEL[c.platform as keyof typeof PLATFORM_LABEL] || c.platform}</td>
+                    <td className="py-2 pr-3"><span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${statusBadgeClass(c.campaign_status)}`}>{c.campaign_status || '—'}</span></td>
+                    <td className="py-2 pr-3 text-[11px]">{(c.building_codes || []).join(' · ') || '—'}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">${Math.round(c.spend).toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{c.clicks.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{c.leads.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `$${c.cpl.toFixed(2)}`}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{c.ctr_pct == null ? '—' : `${c.ctr_pct.toFixed(2)}%`}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">
+                      {cap == null ? '—' : (
+                        <>
+                          ${cap.toLocaleString()}
+                          {pctUsed != null && (
+                            <div className={`text-[9px] ${pctUsed >= 100 ? 'text-rose-600' : pctUsed >= 80 ? 'text-amber-600' : 'text-slate-400'}`}>
+                              {pctUsed.toFixed(0)}% used
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-[11px] text-slate-500">{c.last_date || '—'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

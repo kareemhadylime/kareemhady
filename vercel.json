@@ -36,6 +36,7 @@
     { "path": "/api/cron/beithady-ads-google-sync", "schedule": "30 4 * * *" },
     { "path": "/api/cron/beithady-ads-tiktok-sync", "schedule": "0 4 * * *" },
     { "path": "/api/cron/beithady-ads-tiktok-sync", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/beithady-ads-budget-guard", "schedule": "*/30 4-19 * * *" },
     { "path": "/api/cron/beithady-operations-recompute", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/beithady-morning-brief", "schedule": "0 5 * * *" },
     { "path": "/api/cron/beithady-morning-brief", "schedule": "0 6 * * *" },

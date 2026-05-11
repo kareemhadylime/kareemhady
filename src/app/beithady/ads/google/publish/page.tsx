@@ -102,6 +102,10 @@ export default async function GooglePublishPage({
             <Field label="CPC bid (USD)" htmlFor="cpc_bid_usd">
               <input id="cpc_bid_usd" name="cpc_bid_usd" type="number" min="0.05" step="0.05" defaultValue="0.50" className="ix-input" />
             </Field>
+            <Field label="Monthly cap (USD, optional)" htmlFor="monthly_budget_cap_usd" className="md:col-span-2">
+              <input id="monthly_budget_cap_usd" name="monthly_budget_cap_usd" type="number" min="1" step="10" className="ix-input" placeholder="500" />
+              <p className="text-[11px] text-slate-500">When MTD spend reaches this, the budget-guard cron auto-pauses the campaign.</p>
+            </Field>
             <Field label="Final URL" htmlFor="final_url" className="md:col-span-2">
               <input id="final_url" name="final_url" type="url" defaultValue={buildBhWaLink('Hi Beit Hady — interested in a stay')} className="ix-input font-mono text-xs" placeholder="https://wa.me/..." />
             </Field>

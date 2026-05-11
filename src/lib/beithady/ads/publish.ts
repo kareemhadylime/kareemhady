@@ -22,6 +22,7 @@ export type PublishCtwaInput = {
   ageMin?: number;
   ageMax?: number;
   dailyBudgetUsd: number;
+  monthlyBudgetCapUsd?: number | null;   // optional auto-pause cap (Phase H+ budget guard)
   durationDays?: number;          // 0 = no end_time
   galleryAssetIds: string[];      // beithady_gallery_assets.id[]
   headline: string;
@@ -117,6 +118,7 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
         buying_type: 'AUCTION',
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes,
+        monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
       })
       .select('id')
       .single();
@@ -285,6 +287,7 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
         buying_type: 'AUCTION',
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes,
+        monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
         raw: campRes.data as object,
       },
       { onConflict: 'platform,external_id' }

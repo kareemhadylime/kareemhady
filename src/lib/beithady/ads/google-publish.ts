@@ -20,6 +20,7 @@ export type GoogleSearchInput = {
   accountId: number;                  // ads_accounts.id (platform=google)
   campaignName?: string;
   dailyBudgetUsd: number;
+  monthlyBudgetCapUsd?: number | null;   // optional auto-pause cap
   cpcBidUsd?: number;
   keywords: string[];                 // "voltauto" → BROAD, "\"x\"" → PHRASE, "[x]" → EXACT
   headlines: string[];                // 3–15, each ≤30 chars
@@ -132,6 +133,7 @@ export async function publishGoogleSearchCampaign(
         buying_type: 'AUCTION',
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes || [],
+        monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
       })
       .select('id')
       .single();
@@ -317,6 +319,7 @@ export async function publishGoogleSearchCampaign(
         buying_type: 'AUCTION',
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes || [],
+        monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
         raw: { customer_id: customerId, budget_resource: budgetResource } as object,
       },
       { onConflict: 'platform,external_id' }

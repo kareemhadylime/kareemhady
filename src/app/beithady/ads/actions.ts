@@ -89,6 +89,8 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
   const targetCountries = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
   const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
+  const monthlyBudgetCapUsdRaw = String(formData.get('monthly_budget_cap_usd') || '').trim();
+  const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
   const durationDays = Number.parseInt(String(formData.get('duration_days') || '0'), 10) || 0;
   const headline = String(formData.get('headline') || '').trim();
   const primaryText = String(formData.get('primary_text') || '').trim();
@@ -111,6 +113,7 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
     ageMin,
     ageMax,
     dailyBudgetUsd,
+    monthlyBudgetCapUsd,
     durationDays,
     galleryAssetIds,
     headline,
@@ -184,6 +187,8 @@ export async function publishGoogleSearchAction(formData: FormData): Promise<voi
   const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
   const campaignName = String(formData.get('campaign_name') || '').trim();
   const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
+  const monthlyBudgetCapUsdRaw = String(formData.get('monthly_budget_cap_usd') || '').trim();
+  const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
   const cpcBidUsd = Number.parseFloat(String(formData.get('cpc_bid_usd') || '1'));
   const keywords = String(formData.get('keywords') || '').split('\n').map(s => s.trim()).filter(Boolean);
   const headlines = String(formData.get('headlines') || '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -199,6 +204,7 @@ export async function publishGoogleSearchAction(formData: FormData): Promise<voi
     accountId,
     campaignName: campaignName || undefined,
     dailyBudgetUsd,
+    monthlyBudgetCapUsd,
     cpcBidUsd,
     keywords,
     headlines,
@@ -251,6 +257,8 @@ export async function publishTikTokPaidAction(formData: FormData): Promise<void>
   const videoUrl = String(formData.get('video_url') || '').trim();
   const adText = String(formData.get('ad_text') || '').trim();
   const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
+  const monthlyBudgetCapUsdRaw = String(formData.get('monthly_budget_cap_usd') || '').trim();
+  const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
   const ageMin = Number.parseInt(String(formData.get('age_min') || '18'), 10);
   const ageMax = Number.parseInt(String(formData.get('age_max') || '55'), 10);
   const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
@@ -264,6 +272,7 @@ export async function publishTikTokPaidAction(formData: FormData): Promise<void>
     videoUrl,
     adText,
     dailyBudgetUsd,
+    monthlyBudgetCapUsd,
     ageMin,
     ageMax,
     campaignName,

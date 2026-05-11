@@ -20,6 +20,7 @@ export type TikTokPaidInput = {
   videoUrl: string;                   // public HTTPS
   adText: string;                     // ≤100 chars
   dailyBudgetUsd: number;
+  monthlyBudgetCapUsd?: number | null; // optional auto-pause cap
   ageMin?: number;                    // default 18
   ageMax?: number;                    // default 55
   gender?: 'GENDER_MALE' | 'GENDER_FEMALE' | 'GENDER_UNLIMITED';
@@ -111,6 +112,7 @@ export async function publishTikTokTrafficAd(input: TikTokPaidInput): Promise<Ti
         buying_type: 'AUCTION',
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes || [],
+        monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
       })
       .select('id')
       .single();
@@ -281,6 +283,7 @@ export async function publishTikTokTrafficAd(input: TikTokPaidInput): Promise<Ti
         buying_type: 'AUCTION',
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes || [],
+        monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
         raw: { advertiser_id: advertiserId } as object,
       },
       { onConflict: 'platform,external_id' }

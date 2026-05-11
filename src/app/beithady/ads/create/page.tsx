@@ -202,6 +202,11 @@ export default async function AdsCreateWizardPage({
               <span className="text-xs font-medium">Age max</span>
               <input name="age_max" type="number" defaultValue="65" min="18" max="65" className="ix-input w-full mt-1 text-sm" />
             </label>
+            <label className="block col-span-2">
+              <span className="text-xs font-medium">Monthly cap USD (optional)</span>
+              <input name="monthly_budget_cap_usd" type="number" min="1" step="10" className="ix-input w-full mt-1 text-sm" placeholder="500" />
+              <span className="text-[10px] text-slate-500">Auto-pauses the campaign when MTD spend reaches this.</span>
+            </label>
           </div>
 
           <label className="block">

@@ -25,6 +25,27 @@ export type CampaignPerformanceRow = {
   last_date: string | null;
 };
 
+export type CampaignBudgetState = {
+  campaign_id: number;
+  monthly_budget_cap_usd: number | null;
+  auto_paused_at: string | null;
+  auto_paused_reason: string | null;
+};
+
+export async function listCampaignBudgetStates(): Promise<CampaignBudgetState[]> {
+  const sb = supabaseAdmin();
+  const { data } = await sb
+    .from('ads_campaigns')
+    .select('id, monthly_budget_cap_usd, auto_paused_at, auto_paused_reason');
+  return ((data as Array<{ id: number; monthly_budget_cap_usd: number | null; auto_paused_at: string | null; auto_paused_reason: string | null }> | null) || [])
+    .map(r => ({
+      campaign_id: r.id,
+      monthly_budget_cap_usd: r.monthly_budget_cap_usd,
+      auto_paused_at: r.auto_paused_at,
+      auto_paused_reason: r.auto_paused_reason,
+    }));
+}
+
 export type DailyOverviewRow = {
   metric_date: string;
   platform: string;
