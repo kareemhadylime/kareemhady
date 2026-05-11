@@ -183,14 +183,15 @@ export type FeeAuditData = {
     avg_min_nights: number | null;
     listings_with_missing_data: number;
     anomaly_count_by_severity: Record<AnomalySeverity, number>;
-    /** Bookable physical units in scope = active listings minus MTL parents
-     *  (which are virtual umbrellas sharing calendar with their SLT children).
-     *  This is the operator-facing count and matches the "77 units" reality. */
+    /** Bookable physical units in scope = active listings minus SLT children
+     *  (each MTL parent represents the same apartment its children sit
+     *  inside; per operator 2026-05-11, the parent is the reportable unit).
+     *  This is the operator-facing count. */
     physical_units: number;
-    /** Raw `active = true` count from guesty_listings, including MTL parents.
-     *  Difference between this and physical_units = mtl_parents_excluded. */
+    /** Raw `active = true` count from guesty_listings, including SLT children.
+     *  Difference between this and physical_units = slt_children_excluded. */
     total_active_listings: number;
-    mtl_parents_excluded: number;
+    slt_children_excluded: number;
   };
   warnings?: string[];
 };

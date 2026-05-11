@@ -37,9 +37,13 @@ export async function buildFeeStack(
   const endDate = addDays(startDate, config.windowDays - 1);
 
   // ---- Listings -----------------------------------------------------------
-  // Pull all (incl. inactive + MTL parents) so we can compute exclusion stats,
-  // then dedupe via the canonical bookable-listings logic. MTL parents share
-  // calendar + fees with their SLT children — auditing both = double-count.
+  // Pull all (incl. inactive + SLT children) so we can compute exclusion
+  // stats, then dedupe via the canonical bookable-listings rule.
+  //
+  // Per operator's 2026-05-11 instruction: the reportable unit is the
+  // standalone listing OR the MTL parent (the apartment as a whole). SLT
+  // children — the individual rooms within an MTL parent — are dropped
+  // because they share calendar + fees with their parent.
   const { data: listingsRaw } = await sb
     .from('guesty_listings')
     .select('id, nickname, building_code, bedrooms, accommodates, active, master_listing_id');
@@ -56,16 +60,13 @@ export async function buildFeeStack(
   const allRaw = (listingsRaw as LRow[] | null) || [];
   const totalActive = allRaw.filter(l => l.active === true).length;
 
-  // Build the parent-id set — listings that ARE master_listing_ids of others.
-  const parentIds = new Set<string>();
-  for (const l of allRaw) {
-    if (l.master_listing_id) parentIds.add(l.master_listing_id);
-  }
-  let mtlParentsExcluded = 0;
+  // Drop SLT children (rows with master_listing_id) — the parent represents
+  // the same physical apartment.
+  let sltChildrenExcluded = 0;
   let listings = allRaw.filter(l => {
     if (l.active !== true) return false;
-    if (parentIds.has(l.id)) {
-      mtlParentsExcluded += 1;
+    if (l.master_listing_id) {
+      sltChildrenExcluded += 1;
       return false;
     }
     return true;
@@ -263,7 +264,7 @@ export async function buildFeeStack(
       anomaly_count_by_severity: sevCount,
       physical_units: physicalUnits,
       total_active_listings: totalActive,
-      mtl_parents_excluded: mtlParentsExcluded,
+      slt_children_excluded: sltChildrenExcluded,
     },
     warnings: warnings.length ? warnings : undefined,
   };

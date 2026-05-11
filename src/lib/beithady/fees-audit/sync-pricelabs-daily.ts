@@ -11,13 +11,13 @@ import { getBookableListingIds } from '@/lib/beithady/bookable-listings';
 
 export async function syncPricelabsDailyRates(opts: {
   daysAhead?: number;
-}): Promise<{ listings: number; rows: number; errors: string[]; mtl_parents_excluded: number }> {
+}): Promise<{ listings: number; rows: number; errors: string[]; slt_children_excluded: number }> {
   const sb = supabaseAdmin();
   const daysAhead = opts.daysAhead ?? 30;
   const errors: string[] = [];
 
-  // Source of truth for "which listings to sync" = active + dedup MTL parents.
-  // MTL parents share calendar with their SLT children → syncing both wastes
+  // Source of truth for "which listings to sync" = standalones + MTL parents.
+  // SLT children share calendar with their parent → syncing both wastes
   // PriceLabs API quota and writes duplicate daily-rate rows.
   const bookableIds = new Set(await getBookableListingIds());
 
@@ -29,9 +29,9 @@ export async function syncPricelabsDailyRates(opts: {
   // Cross-filter: PriceLabs side must ALSO be in our active+deduped set.
   const allPlIds = ((listings as Array<{ id: string }> | null) || []).map(l => l.id);
   const ids = allPlIds.filter(id => bookableIds.has(id));
-  const mtlExcluded = allPlIds.length - ids.length;
+  const childrenExcluded = allPlIds.length - ids.length;
   if (ids.length === 0) {
-    return { listings: 0, rows: 0, errors: [], mtl_parents_excluded: mtlExcluded };
+    return { listings: 0, rows: 0, errors: [], slt_children_excluded: childrenExcluded };
   }
 
   const today = new Date();
@@ -82,5 +82,5 @@ export async function syncPricelabsDailyRates(opts: {
     }
   }
 
-  return { listings: ids.length, rows: rowsWritten, errors, mtl_parents_excluded: mtlExcluded };
+  return { listings: ids.length, rows: rowsWritten, errors, slt_children_excluded: childrenExcluded };
 }

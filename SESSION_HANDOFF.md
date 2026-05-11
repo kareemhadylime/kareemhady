@@ -1,6 +1,30 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
-## 🟢 Latest turn — Self-healing Guesty sync: drop broken fields projection + per-listing GET fallback
+## 🟢 Latest turn — Show MTL parents instead of their SLT children (BH-73)
+
+User reported BH-73's heatmap was full of "missing data" rows: 23 child listings with no rates/cleaning while the 5 standalones rendered fine. The 8 MTL parents were excluded entirely.
+
+**Root cause** — wrong dedup convention. Previous code excluded MTL parents and kept SLT children, but for BH-73's setup PriceLabs tracks the parent (the apartment as a whole), and the children are the individual rooms inside. So the dashboard saw 23 rooms × no data each.
+
+**Operator's rule (2026-05-11)**: "Show the main multi-units & single units — no need to see the child units, they will have the same info."
+
+Fixes:
+- **`bookable-listings.ts`** rewrote the canonical rule: include standalones + MTL parents, exclude SLT children. Counter renamed `mtl_parents_excluded` → `slt_children_excluded`. New `includeSltChildren` option for the rare per-room operational view.
+- **`build-fee-stack.ts`** — same inversion in the inline filter that build-fee-stack uses for dashboard render.
+- **`sync-pricelabs-daily.ts`** + **`KpiStrip.tsx`** + **`types.ts`** — propagated the rename.
+- **DB backfill**: 8 BH-73 MTL parents had `cleaning_fee = NULL` because the old sync skipped them. Inserted parent rows in `beithady_listing_terms` using a representative child's cleaning_fee/taxes/min_nights/bathrooms — so the parents inherit the same fee data they share with their rooms in Guesty.
+
+Dashboard impact:
+- BH-73 rows: **28 → 13** (5 standalones + 8 MTL parents; 23 SLT children hidden).
+- Total dashboard rows: **79 → 64**.
+- 8 MTL parents now have realistic cleaning fees ($25–$35).
+- Daily rates remain "—" for the 8 parents — PriceLabs has the parents registered but no rates pushed yet. Operator action: push rates in PriceLabs for those 8 parent listings. The sync at the next cron run will pick them up automatically.
+
+`tsc --noEmit` clean.
+
+---
+
+## 🟢 Earlier turn — Self-healing Guesty sync: drop broken fields projection + per-listing GET fallback
 
 Follow-up to the cleaning-fee re-bootstrap. The previous commit hardened the upsert against sparse responses; this one fixes the upstream cause so fresh Guesty values actually flow through.
 

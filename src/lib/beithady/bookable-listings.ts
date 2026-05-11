@@ -1,16 +1,27 @@
 // Canonical "what is a bookable physical unit?" resolver.
 //
 // Why this exists:
-//   guesty_listings has 87 active rows for our portfolio, but only ~79 are
-//   distinct bookable physical inventory. The 8 extra are MTL parents — these
-//   represent the same physical apartments as their SLT children (calendar
-//   shared; can't double-book). For any audit or rate-card report, double-
-//   counting them inflates totals and causes confusing "duplicate listings"
-//   warnings.
+//   guesty_listings has 87 active rows for our portfolio. Most are standalone
+//   listings. BH-73 also has 8 MTL (multi-unit) parent listings that bundle
+//   23 SLT child listings — the parent represents the building/apartment when
+//   rented as a single party, the children are the individual rooms inside.
 //
-// This module is the single source of truth for "give me the listings I should
-// audit / sync / report against". Every fees-audit, daily-rate sync, and
-// listing-terms sync goes through here so the math is consistent.
+// Operator's rule (2026-05-11):
+//   "Show the main multi-units & single units, no need to see the child units
+//    — they will have the same info."
+//
+// So the canonical bookable set is now:
+//   - Standalone listings (no parent, no children)
+//   - MTL parents (the umbrella listing for a multi-unit apartment)
+//   - NOT SLT children (master_listing_id IS NOT NULL — they're rooms within
+//     a parent and double-count the same physical inventory)
+//
+// Previous convention was the opposite (kept children, dropped parents). That
+// caused BH-73 to render 28 rows (5 standalones + 23 children) with most
+// children missing PriceLabs data because PriceLabs tracks the parent.
+//
+// Every fees-audit, daily-rate sync, and listing-terms sync goes through
+// here so the math is consistent.
 
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -22,16 +33,18 @@ export type BookableListing = {
   bedrooms: number | null;
   accommodates: number | null;
   master_listing_id: string | null;     // null = standalone or MTL parent
-  is_mtl_parent: boolean;               // true = has children, virtual umbrella
+  is_mtl_parent: boolean;               // true = has children
   is_slt_child: boolean;                // true = master_listing_id IS NOT NULL
   is_standalone: boolean;               // true = no children, no parent
 };
 
 export type BookableListingsResult = {
-  listings: BookableListing[];          // deduped: standalone + SLT children only
-  total_active: number;                 // raw active count (incl. parents)
+  listings: BookableListing[];          // standalones + MTL parents (no children)
+  total_active: number;                 // raw active count (incl. all roles)
   physical_units: number;               // listings.length
-  mtl_parents_excluded: number;
+  /** Was `mtl_parents_excluded` pre-2026-05-11; renamed to reflect the new
+   *  rule. Number of SLT child listings dropped from the canonical set. */
+  slt_children_excluded: number;
   by_building: Record<string, number>;
 };
 
@@ -39,15 +52,22 @@ export type BookableListingsResult = {
  * Returns the canonical "physical bookable units" list:
  *   - active = true
  *   - PLUS standalone listings (no master, no children)
- *   - PLUS SLT children (master_listing_id IS NOT NULL)
- *   - MINUS MTL parents (id IS in any other row's master_listing_id)
+ *   - PLUS MTL parents (id IS in any other row's master_listing_id)
+ *   - MINUS SLT children (master_listing_id IS NOT NULL)
  *
  * The MTL parent and its SLT children share the SAME physical inventory and
- * the SAME calendar in Guesty. Counting both = double-count.
+ * the SAME calendar in Guesty. Counting both = double-count. Per operator's
+ * 2026-05-11 instruction, the parent (the apartment as a whole) is the
+ * reportable unit, not the individual rooms.
  */
 export async function getBookableListings(opts: {
   buildings?: string[];                 // optional building filter (post-fetch)
-  includeMtlParents?: boolean;          // default false
+  /** @deprecated The default already includes MTL parents. Kept for API
+   *  compatibility; ignored at runtime. */
+  includeMtlParents?: boolean;
+  /** Set to true to keep SLT children in the result (rarely needed —
+   *  per-room operational views like cleaning-list might want them). */
+  includeSltChildren?: boolean;
 } = {}): Promise<BookableListingsResult> {
   const sb = supabaseAdmin();
 
@@ -77,15 +97,15 @@ export async function getBookableListings(opts: {
     if (r.master_listing_id) parentIds.add(r.master_listing_id);
   }
 
-  let mtlParentsExcluded = 0;
+  let sltChildrenExcluded = 0;
   const out: BookableListing[] = [];
   for (const r of all) {
     const isMtlParent = parentIds.has(r.id);
     const isSltChild = r.master_listing_id !== null && r.master_listing_id !== '';
     const isStandalone = !isMtlParent && !isSltChild;
 
-    if (isMtlParent && !opts.includeMtlParents) {
-      mtlParentsExcluded += 1;
+    if (isSltChild && !opts.includeSltChildren) {
+      sltChildrenExcluded += 1;
       continue;
     }
 
@@ -128,7 +148,7 @@ export async function getBookableListings(opts: {
     listings: filtered,
     total_active: all.length,
     physical_units: filtered.length,
-    mtl_parents_excluded: mtlParentsExcluded,
+    slt_children_excluded: sltChildrenExcluded,
     by_building: byBuilding,
   };
 }
@@ -140,6 +160,7 @@ export async function getBookableListings(opts: {
 export async function getBookableListingIds(opts: {
   buildings?: string[];
   includeMtlParents?: boolean;
+  includeSltChildren?: boolean;
 } = {}): Promise<string[]> {
   const r = await getBookableListings(opts);
   return r.listings.map(l => l.id);
