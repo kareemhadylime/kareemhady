@@ -38,6 +38,7 @@
     { "path": "/api/cron/beithady-ads-tiktok-sync", "schedule": "0 5 * * *" },
     { "path": "/api/cron/beithady-ads-budget-guard", "schedule": "*/30 4-19 * * *" },
     { "path": "/api/cron/beithady-ads-conversions-flush", "schedule": "*/10 * * * *" },
+    { "path": "/api/cron/beithady-ads-audience-sync", "schedule": "0 3 * * 2" },
     { "path": "/api/cron/fx-rates-refresh", "schedule": "0 2 * * 1" },
     { "path": "/api/cron/beithady-operations-recompute", "schedule": "*/30 * * * *" },
     { "path": "/api/cron/beithady-morning-brief", "schedule": "0 5 * * *" },
