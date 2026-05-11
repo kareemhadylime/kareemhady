@@ -126,7 +126,9 @@ triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
 - ~~Phase-G market-signal-driven targeting~~ — shipped in `578aa88`.
 - ~~Building-keyed UTM templates~~ — shipped in `c0a3683`.
 - ~~In-product gallery editor (toggle ad_eligible, AI caption regen)~~ — shipped in `8553329`.
-- Multi-currency ROAS (USD-only today; need FX rates source).
+- ~~Multi-currency ROAS~~ — shipped in `d1b414f` (migration 0105 fx_rates_usd
+  table, src/lib/fx-rates.ts, weekly cron from open.er-api.com, ROAS calc
+  wired to convertManyToUsd — EGP / AED / EUR / etc. all flow through now).
 
 **Open risks**:
 - Google Ads developer token needs production approval (~1-2 wk). Until then,
