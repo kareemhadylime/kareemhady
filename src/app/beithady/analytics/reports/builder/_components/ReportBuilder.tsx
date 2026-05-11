@@ -54,7 +54,7 @@ const GROUP_LABELS: Record<GroupAxis, string> = {
   listing: 'Listing',
   channel: 'Channel',
   listing_type: 'Listing type',
-  building_x_bedroom: 'Building Ã— Bedroom',
+  building_x_bedroom: 'Building × Bedroom',
 };
 
 type Tab = 'setup' | 'compare' | 'visualize' | 'commentary' | 'export';
@@ -173,7 +173,7 @@ export function ReportBuilder({
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--bh-ink)] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2c4d7a] disabled:opacity-50"
           >
             <Play size={14} />
-            {running ? 'Runningâ€¦' : 'Run preview'}
+            {running ? 'Running…' : 'Run preview'}
           </button>
           {canSave ? (
             <button
@@ -182,7 +182,7 @@ export function ReportBuilder({
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
             >
               <Save size={14} />
-              {savePending ? 'Savingâ€¦' : 'Save'}
+              {savePending ? 'Saving…' : 'Save'}
             </button>
           ) : null}
         </div>
@@ -208,7 +208,7 @@ export function ReportBuilder({
             {data.warnings?.length ? (
               <div className="ix-card p-3 text-xs text-amber-800 bg-amber-50">
                 {data.warnings.map((w, i) => (
-                  <div key={i}>âš  {w}</div>
+                  <div key={i}>⚠ {w}</div>
                 ))}
               </div>
             ) : null}
@@ -507,7 +507,7 @@ function CompareTab({
             }
             className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700"
           >
-            <option value="">â€” pick â€”</option>
+            <option value="">— pick —</option>
             {config.periods.map(p => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -765,7 +765,7 @@ function CommentaryTab({
           checked={config.enableAnomalyDetection !== false}
           onChange={e => setConfig({ ...config, enableAnomalyDetection: e.target.checked })}
         />
-        Flag anomalies (&gt;2Ïƒ)
+        Flag anomalies (&gt;2σ)
       </label>
 
       <button
@@ -774,7 +774,7 @@ function CommentaryTab({
         className="w-full inline-flex items-center justify-center gap-1 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
       >
         <Sparkles size={14} />
-        {generating ? 'Generatingâ€¦' : 'Generate AI conclusions'}
+        {generating ? 'Generating…' : 'Generate AI conclusions'}
       </button>
 
       {bullets.length ? (
@@ -830,7 +830,7 @@ function ExportTab({
           className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
         >
           <Save size={14} />
-          {savePending ? 'Savingâ€¦' : 'Save report'}
+          {savePending ? 'Saving…' : 'Save report'}
         </button>
       ) : (
         <p className="text-xs text-amber-700">Saving requires Business Analyst or admin role.</p>

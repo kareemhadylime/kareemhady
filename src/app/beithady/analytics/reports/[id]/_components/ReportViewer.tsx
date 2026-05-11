@@ -66,7 +66,7 @@ export function ReportViewer({
           className="inline-flex items-center gap-2 rounded-lg bg-[var(--bh-ink)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2c4d7a] disabled:opacity-50"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          {loading ? 'Refreshingâ€¦' : 'Refresh data'}
+          {loading ? 'Refreshing…' : 'Refresh data'}
         </button>
         {data ? (
           <span className="text-xs text-slate-500">

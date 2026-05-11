@@ -1,0 +1,26 @@
+#!/bin/sh
+# Auto-installed by `npm run prepare` (= `git config core.hooksPath
+# scripts/hooks`). Scans only the files staged for this commit, so it's
+# fast — the full-repo scan is available via `npm run check:mojibake`.
+#
+# Bypass for an emergency commit: `git commit --no-verify`.
+
+set -e
+
+# Collect staged files (added / copied / modified / renamed), null-delimited.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR -z)
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+# Filter to text types worth checking. Skipping .md / .yml / .yaml on
+# purpose — those often legitimately document the mojibake pattern
+# (e.g. SESSION_HANDOFF entries describing what got fixed). Source
+# files don't have that exemption.
+FILTERED=$(printf '%s' "$STAGED" | tr '\0' '\n' | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|json|sql|html|css)$' || true)
+if [ -z "$FILTERED" ]; then
+  exit 0
+fi
+
+# Pass each file as a positional arg.
+echo "$FILTERED" | xargs -d '\n' node scripts/check-mojibake.mjs

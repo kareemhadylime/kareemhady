@@ -1,0 +1,41 @@
+# Force all source / config text files to be stored and worked on as UTF-8.
+#
+# Why: 2026-05-11 we shipped a 315-line repair across 15 source files
+# because a prior Windows-editor save had re-encoded JS template-string
+# Unicode characters (emoji, middle-dot, arrows) as Latin-1/CP1252
+# representations of UTF-8 bytes. The daily-report WhatsApp message
+# then rendered as `ðŸ›ï¸ Beit Hady Â· Daily Performance` instead of
+# `🏛️ Beit Hady · Daily Performance`. See commit 0b84ebf.
+#
+# `working-tree-encoding=UTF-8` tells Git to refuse to silently re-encode
+# matching files on checkout/checkin. Combined with the pre-commit hook
+# at `scripts/hooks/pre-commit` (auto-installed via `npm install`), this
+# catches the mojibake class of corruption before it ships.
+
+*.ts        text eol=lf working-tree-encoding=UTF-8
+*.tsx       text eol=lf working-tree-encoding=UTF-8
+*.js        text eol=lf working-tree-encoding=UTF-8
+*.jsx       text eol=lf working-tree-encoding=UTF-8
+*.mjs       text eol=lf working-tree-encoding=UTF-8
+*.cjs       text eol=lf working-tree-encoding=UTF-8
+*.json      text eol=lf working-tree-encoding=UTF-8
+*.md        text eol=lf working-tree-encoding=UTF-8
+*.sql       text eol=lf working-tree-encoding=UTF-8
+*.html      text eol=lf working-tree-encoding=UTF-8
+*.css       text eol=lf working-tree-encoding=UTF-8
+*.yml       text eol=lf working-tree-encoding=UTF-8
+*.yaml      text eol=lf working-tree-encoding=UTF-8
+
+# Binary assets — never auto-convert.
+*.pdf       binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.webp      binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.zip       binary
+*.xlsx      binary
+*.xlsm      binary

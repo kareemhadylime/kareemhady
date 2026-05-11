@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:mojibake": "node scripts/check-mojibake.mjs",
+    "prepare": "git config core.hooksPath scripts/hooks || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
