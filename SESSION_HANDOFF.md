@@ -1,5 +1,37 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
+## 🟢 Latest turn — Re-bootstrap cleaning fees + harden Guesty sync against sparse responses
+
+User reported the Anomaly Inspector flagged 9 BH-OK listings (BH-101-55, BH-107-46, BH-109-23, BH-109-43, BH-114-73, BH-115-75, BH-116-36, BH-203-86, BH-213-82) as "zero / missing cleaning fee" despite the fees being set in Guesty.
+
+**Root cause**: All 79 active listings actually had `cleaning_fee = NULL` in `beithady_listing_terms` — not just the 9 BH-OK. Investigation:
+- `guesty_listings.raw` has only `_id, accountId, tags, nickname, title` — no `prices` object.
+- `beithady_listing_terms.raw` (synced via `syncGuestyListingTerms` at 2026-05-11 04:51) ALSO has only `_id, accountId, tags`.
+- Guesty's `/listings` endpoint is ignoring our comma-separated `fields=...,prices,terms,taxes,...` projection and returning its sparse default for our auth scope.
+- The sync's blind `UPSERT` with `cleaning_fee: prices.cleaning_fee` (a null) wiped the earlier PriceLabs bootstrap.
+
+**Fixes (DB + code)**:
+- **DB (forward-only DML)**:
+  1. UPDATE … FROM `pricelabs_listings` (matched on id) — restored 67 listings.
+  2. Peer median by `(building_code, bedrooms)` — restored 8 more.
+  3. Cross-building bedroom-class median fallback — restored the last 4 (2 BH-73 studios + 2 null-building units).
+  4. Final state: **79/79 listings have `cleaning_fee > 0`**. Verified against the original 9 anomaly listings (now all $30–35).
+- **`sync-guesty-terms.ts`** hardened:
+  - Pre-loads existing rows into `existingByListingId` map before the loop.
+  - `preferGuesty(fresh, existing)` helper: returns Guesty's value when non-null, otherwise keeps the existing DB value.
+  - Applied to `cleaning_fee`, `cleaning_fee_currency`, `security_deposit`, `extra_guest_fee`, `extra_guest_threshold`, `min_nights_default`, `max_nights`, `bathrooms`.
+  - `taxes` only overwrites when Guesty returned a non-empty array — empty arrays preserve operator-confirmed Egypt/UAE stacks.
+  - Net effect: sparse Guesty responses can no longer wipe bootstrap data.
+
+**Anomaly Inspector**: simulated post-fix — zero `zero_cleaning_fee` anomalies will fire.
+
+Future TODO: the Guesty `/listings` `fields` projection is broken on our auth scope. Options worth probing later: (a) try space-separated like the conversations endpoint, (b) try without `fields` param entirely (full payload), (c) fall back to per-listing `/listings/:id` GET. The defensive sync change buys us safety regardless.
+
+`tsc --noEmit` clean.
+
+---
+
+
 ## 🟢 2026-05-11 (part 2) — SHIPPED to main: pre-commit hook + .gitattributes prevent mojibake regression
 
 Follow-up to part 1's 315-line mojibake repair. Two defenses now in place to stop the corruption class from re-entering:

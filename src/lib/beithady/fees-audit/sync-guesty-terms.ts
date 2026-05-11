@@ -119,6 +119,37 @@ export async function syncGuestyListingTerms(): Promise<{
     }
   }
 
+  // Pre-load existing rows so we can preserve bootstrap values when Guesty's
+  // response is sparse. (Guesty's `/listings` endpoint sometimes drops the
+  // `prices` / `terms` / `taxes` blobs when the requested-fields projection
+  // doesn't match what its auth scope can return — observed 2026-05-11:
+  // every listing came back with only `_id, accountId, tags`. Without this
+  // guard the broken sync silently NULLs out the PriceLabs-bootstrap fees.)
+  const { data: existingRows } = await sb
+    .from('beithady_listing_terms')
+    .select('listing_id, cleaning_fee, cleaning_fee_currency, security_deposit, extra_guest_fee, extra_guest_threshold, taxes, min_nights_default, max_nights, bathrooms');
+  type ExistingRow = {
+    listing_id: string;
+    cleaning_fee: number | null;
+    cleaning_fee_currency: string | null;
+    security_deposit: number | null;
+    extra_guest_fee: number | null;
+    extra_guest_threshold: number | null;
+    taxes: unknown;
+    min_nights_default: number | null;
+    max_nights: number | null;
+    bathrooms: number | null;
+  };
+  const existingByListingId = new Map<string, ExistingRow>(
+    ((existingRows as ExistingRow[] | null) || []).map(r => [r.listing_id, r] as const)
+  );
+
+  /** Prefer Guesty's value when it's a non-null number; otherwise keep the
+   *  existing DB value. Stops sparse Guesty responses from wiping bootstrap. */
+  function preferGuesty<T>(fresh: T | null, existing: T | null | undefined): T | null {
+    return fresh != null ? fresh : (existing ?? null);
+  }
+
   let upsertedCount = 0;
   for (const raw of allListings) {
     const id = str(raw._id);
@@ -136,23 +167,27 @@ export async function syncGuestyListingTerms(): Promise<{
     const extraGuestThreshold = num(raw.extraGuests);
     const extraGuestFee = num(raw.extraGuestFee);
     const bathrooms = num(raw.bathrooms);
+    const existing = existingByListingId.get(id);
 
     const { error } = await sb.from('beithady_listing_terms').upsert(
       {
         listing_id: id,
-        cleaning_fee: prices.cleaning_fee,
-        cleaning_fee_currency: prices.cleaning_currency,
-        security_deposit: prices.security_deposit,
+        cleaning_fee: preferGuesty(prices.cleaning_fee, existing?.cleaning_fee ?? null),
+        cleaning_fee_currency: preferGuesty(prices.cleaning_currency, existing?.cleaning_fee_currency ?? null),
+        security_deposit: preferGuesty(prices.security_deposit, existing?.security_deposit ?? null),
         pet_fee: null,
-        extra_guest_fee: extraGuestFee,
-        extra_guest_threshold: extraGuestThreshold,
-        taxes,
-        min_nights_default: terms.min_nights,
+        extra_guest_fee: preferGuesty(extraGuestFee, existing?.extra_guest_fee ?? null),
+        extra_guest_threshold: preferGuesty(extraGuestThreshold, existing?.extra_guest_threshold ?? null),
+        // Taxes are an array — only overwrite when Guesty returned a non-empty
+        // array. Empty / missing → keep existing (which may include the
+        // operator-confirmed Egypt/UAE stacks).
+        taxes: taxes.length > 0 ? taxes : (existing?.taxes ?? []),
+        min_nights_default: preferGuesty(terms.min_nights, existing?.min_nights_default ?? null),
         min_nights_per_channel: {}, // Guesty doesn't expose per-channel here; populated via channel-specific endpoints later
-        max_nights: terms.max_nights,
+        max_nights: preferGuesty(terms.max_nights, existing?.max_nights ?? null),
         prep_time_hours: null,
         advance_notice_hours: null,
-        bathrooms,
+        bathrooms: preferGuesty(bathrooms, existing?.bathrooms ?? null),
         raw,
         synced_at: new Date().toISOString(),
       },
