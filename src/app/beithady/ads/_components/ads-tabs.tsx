@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import {
   LayoutDashboard, Megaphone, Users, Send, Search, Music2, Camera, Image as ImageIcon,
-  KeyRound, BarChart3, MessageSquareText,
+  KeyRound, BarChart3, MessageSquareText, FlaskConical,
 } from 'lucide-react';
 
 // Shared tab nav for the BH Ads module. The "active" prop is set by each
@@ -21,6 +21,7 @@ const TABS: TabDef[] = [
   { slug: 'campaigns',   label: 'Campaigns',   href: '/beithady/ads/campaigns',             icon: Megaphone,       group: 'main' },
   { slug: 'leads',       label: 'Leads',       href: '/beithady/ads/leads',                 icon: Users,           group: 'main' },
   { slug: 'performance', label: 'Performance', href: '/beithady/ads/performance',           icon: BarChart3,       group: 'main' },
+  { slug: 'experiments', label: 'Experiments', href: '/beithady/ads/experiments',           icon: FlaskConical,    group: 'main' },
 
   { slug: 'create',      label: 'Meta CTWA',   href: '/beithady/ads/create',                icon: Send,            group: 'publish' },
   { slug: 'google',      label: 'Google Search', href: '/beithady/ads/google/publish',      icon: Search,          group: 'publish' },
