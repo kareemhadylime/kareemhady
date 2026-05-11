@@ -1,6 +1,32 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
-## 🟢 Latest turn — Re-bootstrap cleaning fees + harden Guesty sync against sparse responses
+## 🟢 Latest turn — Self-healing Guesty sync: drop broken fields projection + per-listing GET fallback
+
+Follow-up to the cleaning-fee re-bootstrap. The previous commit hardened the upsert against sparse responses; this one fixes the upstream cause so fresh Guesty values actually flow through.
+
+**Root cause** (re-stated): `GET /listings?fields=_id,nickname,bedrooms,prices,terms,taxes,...` returned only `_id, accountId, tags` for every listing — Guesty's field-projection on our auth scope silently dropped almost everything we asked for.
+
+**Fix** (commit `940979f`):
+- **`lib/guesty.ts`**: new `getGuestyListing(id)` helper hitting `GET /listings/:id` (detail endpoint, full payload, ignores list-page projection quirks).
+- **`sync-guesty-terms.ts`** rewritten with a two-phase fetch:
+  1. List `/listings` **without** the `fields` param. Guesty's default payload is wider than our broken projection and includes prices/terms/taxes for the listings where it has them.
+  2. For any bookable listing whose page payload still lacks `prices`, GET `/listings/:id` and replace the row. Detail endpoint is authoritative.
+  - Returns `detail_fallbacks: number` in the sync result so the cron log surfaces how many listings needed the slower per-listing path.
+- **Probe route removed** (`_probe-guesty-fields`) — the sync self-heals at runtime now, no diagnostic harness needed.
+- Defensive upsert from the prior commit still in place: sparse responses can never regress existing values regardless of which path each listing comes through.
+
+**Verification plan** (next cron at `50 4 * * *` UTC / 07:50 Cairo tomorrow):
+- Check `beithady_listing_terms.raw` for one of the BH-OK listings — should now contain `prices`, `terms`, `taxes` keys.
+- Check `beithady_listing_terms.cleaning_fee` for any listing whose Guesty value differs from the PriceLabs bootstrap — Guesty's value should now win.
+- Check the cron-route response for non-zero `detail_fallbacks` count.
+
+If the operator wants to verify sooner, hit `GET /api/cron/beithady-fees-audit-sync?force=1&secret=$CRON_SECRET` against `limeinc.vercel.app` — `force=1` bypasses the Cairo-9AM gate.
+
+`tsc --noEmit` clean.
+
+---
+
+## 🟢 Earlier turn — Re-bootstrap cleaning fees + harden Guesty sync against sparse responses
 
 User reported the Anomaly Inspector flagged 9 BH-OK listings (BH-101-55, BH-107-46, BH-109-23, BH-109-43, BH-114-73, BH-115-75, BH-116-36, BH-203-86, BH-213-82) as "zero / missing cleaning fee" despite the fees being set in Guesty.
 
