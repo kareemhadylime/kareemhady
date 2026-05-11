@@ -119,14 +119,14 @@ Next.js + TS architecture.
 triggered. `vercel --prod --archive=tgz` running as belt-and-suspenders.
 
 **Open follow-ups**:
-- ~~Auto-pause-on-budget-cap cron~~ — shipped in `62bdea8` (migration 0104,
-  `status.ts` dispatcher, budget-guard cron every 30 min Cairo 04–19, cap
-  field in 3 wizards, "Cap" column + auto-pause chip on Campaigns page).
+- ~~Auto-pause-on-budget-cap cron~~ — shipped in `62bdea8`.
 - ~~ROAS column in Performance tab~~ — shipped in `578aa88`.
 - Approval workflow (draft → manager review → unpause).
 - Bilingual UI labels (currently English-only; Voltauto uses inline AR+EN).
-- ~~Phase-G market-signal-driven targeting suggestions for Google/TikTok wizards~~ — shipped in `578aa88`.
+- ~~Phase-G market-signal-driven targeting~~ — shipped in `578aa88`.
 - ~~Building-keyed UTM templates~~ — shipped in `c0a3683`.
+- ~~In-product gallery editor (toggle ad_eligible, AI caption regen)~~ — shipped in `8553329`.
+- Multi-currency ROAS (USD-only today; need FX rates source).
 
 **Open risks**:
 - Google Ads developer token needs production approval (~1-2 wk). Until then,
