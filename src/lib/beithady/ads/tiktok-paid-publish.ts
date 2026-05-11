@@ -79,7 +79,18 @@ export async function publishTikTokTrafficAd(input: TikTokPaidInput): Promise<Ti
   const ageMax = Math.min(100, input.ageMax || 55);
   const gender = input.gender || 'GENDER_UNLIMITED';
   const locationIds = (input.locationIds && input.locationIds.length ? input.locationIds : DEFAULT_GEO_IDS.tiktok) as readonly string[];
-  const landingUrl = (input.landingUrl || buildBhWaLink()).trim();
+  let landingUrl = (input.landingUrl || buildBhWaLink()).trim();
+
+  // Building-keyed UTM auto-append (mirrors Google publish behavior).
+  if ((input.buildingCodes || []).length > 0 && !/[?&]utm_/.test(landingUrl)) {
+    const sep = landingUrl.includes('?') ? '&' : '?';
+    const utm = new URLSearchParams({
+      utm_source: 'tiktok',
+      utm_medium: 'cpc',
+      utm_campaign: `${input.buildingCodes![0]}-tiktok`,
+    });
+    landingUrl = `${landingUrl}${sep}${utm.toString()}`;
+  }
 
   // Load creds
   const credsRes = await loadTikTokAppCredentials();

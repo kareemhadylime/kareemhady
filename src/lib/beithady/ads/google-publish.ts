@@ -78,8 +78,21 @@ export async function publishGoogleSearchCampaign(
   if (descriptions.length < 2) return { ok: false, mode: 'live', step: 'validate', error: 'min 2 descriptions (≤90 chars each)' };
   if (descriptions.length > 4) return { ok: false, mode: 'live', step: 'validate', error: 'max 4 descriptions' };
 
-  const finalUrl = (input.finalUrl || buildBhWaLink()).trim();
+  let finalUrl = (input.finalUrl || buildBhWaLink()).trim();
   if (!finalUrl.startsWith('https://')) return { ok: false, mode: 'live', step: 'validate', error: 'final_url must be https' };
+
+  // Building-keyed UTM auto-append. Only stamps if the operator didn't set utm_*
+  // params themselves and at least one building_code is attached. utm_campaign
+  // gets the first building code; analytics can split fan-outs per campaign later.
+  if ((input.buildingCodes || []).length > 0 && !/[?&]utm_/.test(finalUrl)) {
+    const sep = finalUrl.includes('?') ? '&' : '?';
+    const utm = new URLSearchParams({
+      utm_source: 'google',
+      utm_medium: 'cpc',
+      utm_campaign: `${input.buildingCodes![0]}-google`,
+    });
+    finalUrl = `${finalUrl}${sep}${utm.toString()}`;
+  }
 
   // Load account
   const { data: acc } = await sb
