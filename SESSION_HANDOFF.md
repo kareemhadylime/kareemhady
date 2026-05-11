@@ -1,5 +1,30 @@
 # Kareemhady — Session Handoff (2026-05-11)
 
+## 🟢 Latest turn — Decouple "sellable units" count from displayed rows
+
+Operator clarification (2026-05-11): "When counting units, count the standalones & children (not the MTLs) in order to have the right number of units that can be sold."
+
+Previously `physical_units` was equal to displayed rows (64) because we'd just dropped SLT children from the render set. But that's the wrong number for the operator's mental model — a 5-room MTL parent represents 5 sellable units (each room can be sold individually OR the whole apartment as one party). The dashboard view collapses them into 1 row for readability; the COUNT should reflect the underlying inventory.
+
+Fixes (commit `92065d2`):
+- **`build-fee-stack.ts`** — split the count into two:
+  - `displayed_rows = 64` — standalones + MTL parents (what scrolls on screen)
+  - `physical_units = 79` — standalones + SLT children (sellable inventory)
+  - Both respect the building / bedroom filters.
+- **`types.ts`** — `FeeAuditData.totals` gets a new `displayed_rows: number` and `physical_units`'s docstring rewritten to reflect "sellable inventory".
+- **`KpiStrip.tsx`** — Physical Units KPI now reads **"79 · 23 rolled up"** instead of "64 · 23 child rooms excl". The "rolled up" framing communicates that the count includes the 23 children, they're just visually grouped under their 8 MTL parent rows in the cross-ref / heatmap.
+
+Numbers verified against DB:
+- 87 total active listings
+- 79 sellable units (standalones 56 + children 23)
+- 64 displayed rows (standalones 56 + MTL parents 8)
+- 23 SLT children rolled up
+
+`tsc --noEmit` clean.
+
+---
+
+
 ## 🟢 Latest turn — BH Ads multi-platform (Phase H+): Google + TikTok + IG Reels + FB
 
 Extended Phase H Beithady Ads (Meta-CTWA-only) to full Voltauto parity by porting the

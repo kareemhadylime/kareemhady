@@ -28,7 +28,7 @@ export function KpiStrip({ data }: { data: FeeAuditData }) {
   const cards = [
     {
       label: 'Physical Units',
-      value: `${t.physical_units}${t.slt_children_excluded > 0 ? ` · ${t.slt_children_excluded} child rooms excl` : ''}`,
+      value: `${t.physical_units}${t.slt_children_excluded > 0 ? ` · ${t.slt_children_excluded} rolled up` : ''}`,
       icon: Building2,
       accent: BH.ink,
     },

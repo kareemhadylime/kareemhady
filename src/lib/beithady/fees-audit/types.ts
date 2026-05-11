@@ -183,14 +183,22 @@ export type FeeAuditData = {
     avg_min_nights: number | null;
     listings_with_missing_data: number;
     anomaly_count_by_severity: Record<AnomalySeverity, number>;
-    /** Bookable physical units in scope = active listings minus SLT children
-     *  (each MTL parent represents the same apartment its children sit
-     *  inside; per operator 2026-05-11, the parent is the reportable unit).
-     *  This is the operator-facing count. */
+    /** Sellable inventory = standalones + SLT children (the count of units
+     *  that can actually be booked). MTL parents are virtual umbrellas
+     *  over their children's inventory, so they don't count toward the
+     *  total. Per operator 2026-05-11: "When counting units, count
+     *  standalones + children, not MTLs". */
     physical_units: number;
-    /** Raw `active = true` count from guesty_listings, including SLT children.
-     *  Difference between this and physical_units = slt_children_excluded. */
+    /** Rows the dashboard renders = standalones + MTL parents (children
+     *  are rolled up into their parent row, so this is usually smaller
+     *  than physical_units for portfolios with multi-unit listings). */
+    displayed_rows: number;
+    /** Raw `active = true` count from guesty_listings, including SLT
+     *  children and MTL parents. */
     total_active_listings: number;
+    /** Count of SLT child listings rolled up under their MTL parent in the
+     *  displayed rows. Equals physical_units - displayed_rows + (number
+     *  of MTL parents shown). */
     slt_children_excluded: number;
   };
   warnings?: string[];

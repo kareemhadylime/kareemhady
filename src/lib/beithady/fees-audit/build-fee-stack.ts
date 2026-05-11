@@ -60,14 +60,29 @@ export async function buildFeeStack(
   const allRaw = (listingsRaw as LRow[] | null) || [];
   const totalActive = allRaw.filter(l => l.active === true).length;
 
-  // Drop SLT children (rows with master_listing_id) — the parent represents
-  // the same physical apartment.
+  // Build the parent-id set first so we can classify each row.
+  const parentIds = new Set<string>();
+  for (const l of allRaw) {
+    if (l.master_listing_id) parentIds.add(l.master_listing_id);
+  }
+
+  // Two different counts/views (intentionally decoupled per operator
+  // 2026-05-11):
+  //
+  //  - Displayed rows  = standalones + MTL parents (collapsed view, what
+  //    the operator scrolls through). SLT children are rolled up into the
+  //    parent row.
+  //
+  //  - Sellable units  = standalones + children (max bookable inventory).
+  //    A 5-room MTL parent = 5 sellable units (each room can be sold
+  //    individually OR the whole apartment as one) — the operator wants
+  //    THIS number when answering "how many units do we have?".
   let sltChildrenExcluded = 0;
   let listings = allRaw.filter(l => {
     if (l.active !== true) return false;
     if (l.master_listing_id) {
       sltChildrenExcluded += 1;
-      return false;
+      return false; // drop SLT children from displayed rows
     }
     return true;
   });
@@ -82,7 +97,20 @@ export async function buildFeeStack(
   }
 
   const listingIds = listings.map(l => l.id);
-  const physicalUnits = listings.length;
+
+  // Sellable inventory respects the same building/bedroom filters but
+  // counts standalones + children (NOT MTL parents — they're virtual
+  // umbrellas over their children's inventory).
+  const sellableUnits = allRaw.filter(l => {
+    if (l.active !== true) return false;
+    if (parentIds.has(l.id)) return false; // skip MTL parents
+    if (
+      config.buildings.length &&
+      !config.buildings.includes(bucketBuilding(l.building_code) as typeof config.buildings[number])
+    ) return false;
+    if (config.bedroomFilter?.length && !config.bedroomFilter.includes(l.bedrooms || 0)) return false;
+    return true;
+  }).length;
 
   // ---- Listing terms ------------------------------------------------------
   const { data: termsRaw } = await sb
@@ -262,7 +290,8 @@ export async function buildFeeStack(
       avg_min_nights: avg(validMinNights),
       listings_with_missing_data: listingMetas.filter(l => !l.has_full_data).length,
       anomaly_count_by_severity: sevCount,
-      physical_units: physicalUnits,
+      physical_units: sellableUnits,
+      displayed_rows: listings.length,
       total_active_listings: totalActive,
       slt_children_excluded: sltChildrenExcluded,
     },
