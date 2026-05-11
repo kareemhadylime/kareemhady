@@ -1,0 +1,288 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import Image from 'next/image';
+import { supabaseAdmin } from '@/lib/supabase';
+import { buildBhWaLink } from '@/lib/beithady/ads/platforms';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 3600; // 1 hour ISR
+
+// Public SEO-optimized landing page per building. Indexed by search engines,
+// shareable on social with rich previews, and the primary destination for
+// Google Search ads + future Google Hotel Ads. Sets schema.org LodgingBusiness
+// JSON-LD so listings show up with rich snippets (rating, price range, etc.).
+
+type Building = {
+  code: string;
+  display_name: string;
+  city: string | null;
+  country: string | null;
+  bedrooms: number | null;
+  accommodates: number | null;
+  property_type: string | null;
+  address: string | null;
+  description: string | null;
+  hero_photo_url: string | null;
+  photo_count: number;
+};
+
+async function loadBuilding(code: string): Promise<Building | null> {
+  const sb = supabaseAdmin();
+  // Group listings by building_code and pick the most descriptive parent.
+  const { data: listingsRaw } = await sb
+    .from('guesty_listings')
+    .select('id, nickname, title, listing_type, bedrooms, accommodates, property_type, address_full, address_city, address_country, raw')
+    .eq('building_code', code)
+    .eq('active', true)
+    .limit(50);
+  type ListingRow = {
+    id: string;
+    nickname: string | null;
+    title: string | null;
+    listing_type: string | null;
+    bedrooms: number | null;
+    accommodates: number | null;
+    property_type: string | null;
+    address_full: string | null;
+    address_city: string | null;
+    address_country: string | null;
+    raw: Record<string, unknown> | null;
+  };
+  const listings = (listingsRaw as ListingRow[] | null) || [];
+  if (listings.length === 0) return null;
+
+  // Prefer master/parent listings for the headline
+  const parent = listings.find(l => l.listing_type?.toUpperCase() === 'MTL') || listings[0];
+
+  // Pull description from raw JSON if Guesty has it
+  const summary =
+    (parent.raw as { publicDescription?: { summary?: string } } | null)?.publicDescription?.summary ||
+    (parent.raw as { description?: { summary?: string } } | null)?.description?.summary ||
+    null;
+
+  // Aggregate beds + capacity across all units in the building
+  const totalBedrooms = listings.reduce((s, l) => s + (l.bedrooms || 0), 0);
+  const totalAccommodates = listings.reduce((s, l) => s + (l.accommodates || 0), 0);
+
+  // Pick a hero photo from ad-eligible gallery
+  const { data: galleryRaw } = await sb
+    .from('beithady_gallery_assets')
+    .select('public_url')
+    .eq('building_code', code)
+    .eq('ad_eligible', true)
+    .not('public_url', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const heroPhoto = (galleryRaw as Array<{ public_url: string | null }> | null)?.[0]?.public_url || null;
+
+  const { count: photoCount } = await sb
+    .from('beithady_gallery_assets')
+    .select('id', { count: 'exact', head: true })
+    .eq('building_code', code)
+    .eq('ad_eligible', true);
+
+  return {
+    code,
+    display_name: parent.title || parent.nickname || `Beit Hady ${code}`,
+    city: parent.address_city,
+    country: parent.address_country,
+    bedrooms: totalBedrooms || parent.bedrooms,
+    accommodates: totalAccommodates || parent.accommodates,
+    property_type: parent.property_type || 'Apartment',
+    address: parent.address_full,
+    description: summary,
+    hero_photo_url: heroPhoto,
+    photo_count: photoCount ?? 0,
+  };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}): Promise<Metadata> {
+  const { code } = await params;
+  const b = await loadBuilding(code);
+  if (!b) {
+    return {
+      title: 'Beit Hady — Property not found',
+      robots: { index: false },
+    };
+  }
+  const title = `${b.display_name} — Premium serviced apartments in ${b.city || 'Cairo'} | Beit Hady`;
+  const desc = (b.description?.slice(0, 155) ||
+    `Direct-book ${b.display_name}: ${b.bedrooms ? `${b.bedrooms} bedrooms · ` : ''}${b.accommodates ? `sleeps ${b.accommodates} · ` : ''}24/7 concierge · serviced apartments in ${b.city || 'Cairo'}, Egypt. Message on WhatsApp.`);
+  const ogImage = b.hero_photo_url ? [{ url: b.hero_photo_url, width: 1200, height: 630, alt: b.display_name }] : [];
+  return {
+    title,
+    description: desc,
+    alternates: { canonical: `/stay/${code}` },
+    openGraph: {
+      title,
+      description: desc,
+      url: `/stay/${code}`,
+      siteName: 'Beit Hady',
+      type: 'website',
+      locale: 'en_US',
+      images: ogImage,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: desc,
+      images: ogImage.length ? [ogImage[0].url] : undefined,
+    },
+    robots: { index: true, follow: true },
+  };
+}
+
+export default async function StayPage({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}) {
+  const { code } = await params;
+  const b = await loadBuilding(code);
+  if (!b) notFound();
+
+  const waLink = buildBhWaLink(`Hi Beit Hady — interested in ${b.display_name}`);
+
+  // Pull up to 12 photos for the gallery
+  const sb = supabaseAdmin();
+  const { data: galleryRaw } = await sb
+    .from('beithady_gallery_assets')
+    .select('id, public_url, ai_caption, kind')
+    .eq('building_code', code)
+    .eq('ad_eligible', true)
+    .not('public_url', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(12);
+  type GalleryRow = { id: string; public_url: string; ai_caption: string | null; kind: string | null };
+  const gallery = ((galleryRaw as GalleryRow[] | null) || []).filter((g): g is GalleryRow => !!g.public_url);
+
+  // JSON-LD schema.org LodgingBusiness
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LodgingBusiness',
+    name: b.display_name,
+    description: b.description,
+    image: gallery.slice(0, 4).map(g => g.public_url),
+    address: b.address
+      ? {
+          '@type': 'PostalAddress',
+          streetAddress: b.address,
+          addressLocality: b.city,
+          addressCountry: b.country,
+        }
+      : undefined,
+    numberOfRooms: b.bedrooms,
+    petsAllowed: false,
+    starRating: { '@type': 'Rating', ratingValue: 5 },
+    priceRange: '$$',
+    url: `https://app.limeinc.cc/stay/${b.code}`,
+    sameAs: ['https://wa.me/201101300300'],
+  };
+
+  return (
+    <main className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* Hero */}
+      <header className="relative">
+        {b.hero_photo_url && (
+          <div className="relative aspect-[16/9] sm:aspect-[21/9] overflow-hidden bg-slate-900">
+            <Image
+              src={b.hero_photo_url}
+              alt={b.display_name}
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover opacity-90"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+          </div>
+        )}
+        <div className={`max-w-5xl mx-auto px-6 ${b.hero_photo_url ? '-mt-32 relative z-10 text-white' : 'py-16'}`}>
+          <p className="text-xs uppercase tracking-[0.3em] opacity-75 mb-2">Beit Hady · {b.code}</p>
+          <h1 className="text-3xl sm:text-5xl font-bold mb-3 max-w-3xl">{b.display_name}</h1>
+          <p className="text-sm sm:text-base opacity-90 max-w-2xl">
+            {[b.property_type, b.city, b.country].filter(Boolean).join(' · ')}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a href={waLink} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-md font-semibold shadow-lg transition">
+              Message on WhatsApp →
+            </a>
+            <a href="#gallery" className="inline-flex items-center gap-2 bg-white/10 backdrop-blur hover:bg-white/20 text-white px-6 py-3 rounded-md font-semibold transition">
+              See photos ({b.photo_count})
+            </a>
+          </div>
+        </div>
+      </header>
+
+      {/* Highlights */}
+      <section className="max-w-5xl mx-auto px-6 py-12 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+        <Highlight label="Bedrooms" value={b.bedrooms ?? '—'} />
+        <Highlight label="Sleeps" value={b.accommodates ?? '—'} />
+        <Highlight label="Concierge" value="24 / 7" />
+        <Highlight label="Direct host" value="Yes" />
+      </section>
+
+      {/* Description */}
+      {b.description && (
+        <section className="max-w-3xl mx-auto px-6 py-8">
+          <h2 className="text-2xl font-semibold mb-4">About this property</h2>
+          <p className="text-slate-600 dark:text-slate-300 whitespace-pre-line leading-relaxed">{b.description}</p>
+        </section>
+      )}
+
+      {/* Gallery */}
+      {gallery.length > 0 && (
+        <section id="gallery" className="max-w-6xl mx-auto px-6 py-12">
+          <h2 className="text-2xl font-semibold mb-6">Photos</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {gallery.map(g => (
+              <div key={g.id} className="aspect-square relative overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
+                {g.kind === 'video' ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video src={g.public_url} className="w-full h-full object-cover" muted preload="metadata" />
+                ) : (
+                  <Image src={g.public_url} alt={g.ai_caption || b.display_name} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover" />
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* CTA footer */}
+      <section className="bg-slate-50 dark:bg-slate-900 py-16">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <h2 className="text-3xl font-semibold mb-3">Ready to book?</h2>
+          <p className="text-slate-600 dark:text-slate-300 mb-6">
+            Message us directly on WhatsApp for real-time availability and rates.
+            No middleman, no booking fees.
+          </p>
+          <a href={waLink} className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-md font-semibold text-lg shadow-lg transition">
+            Message on WhatsApp →
+          </a>
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500">
+        © Beit Hady · {b.city || 'Cairo'} · Egypt
+      </footer>
+    </main>
+  );
+}
+
+function Highlight({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
+      <div className="text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</div>
+      <div className="text-xs uppercase tracking-wider text-slate-500 mt-1">{label}</div>
+    </div>
+  );
+}

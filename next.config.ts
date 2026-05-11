@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '15mb',
     },
   },
+  // Allow next/image to optimize Supabase Storage assets (gallery photos,
+  // building heroes on /stay/[code] SEO landing pages).
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'bpjproljatbrbmszwbov.supabase.co',
+        pathname: '/storage/v1/object/**',
+      },
+    ],
+  },
   // Backward-compat redirects after pulling Beit Hady out of the
   // /emails/* legacy hierarchy. Old bookmarks or hardcoded links to
   // /emails/beithady/* land on the new /beithady/* tree without a 404.
