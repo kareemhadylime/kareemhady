@@ -1,5 +1,23 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🟢 2026-05-12 — Skills maintenance: pull-all + handoff-push-all paths fixed for KAREE-PC
+
+No app code changed. Skills + session housekeeping only.
+
+**What happened:**
+- `/handoff-push-all` invoked (plan mode was active; planned → approved → executed). Committed `.claude/hooks/model-suggester.mjs` + SESSION_HANDOFF.md as `219637f`, pushed.
+- `/pull-all` run — kareemhady pulled 5 commits fast-forward (Eid carousel, pnl migration from a prior session).
+- Updated `pull-all` and `handoff-push-all` skills with actual KAREE-PC repo paths (all live at `C:\` root, not `C:\Users\karee\projects\`): `C:\fmplus-beta`, `C:\Voltauto-pricing`, `C:\kareemhady`, `C:\voltauto-website`, `C:\ETSY\etsy-store`.
+- `/pull-all` run again with correct paths: Voltauto-pricing pulled 14 commits (SESSION_HANDOFF.md stash-conflict auto-resolved); all five repos synced to HEAD.
+
+**Commits this session:** `219637f`, `6495db6`, `d91c894`, `823d1eb`
+
+**State left in:** All skills committed and pushed. All five repos at origin/main HEAD.
+
+**Next session:** daily-report v3 Task 8+ is the active work — see `docs/superpowers/plans/2026-05-12-daily-report-v3-today-live-dxb.md`.
+
+---
+
 ## 🔵 2026-05-12 — Session close: no new work, /handoff-push-all run
 
 No app code changed this session. All five repos were clean (ahead=0, no staged files).
