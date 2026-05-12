@@ -8,7 +8,14 @@ import {
   getDashboardKpis,
   getTopHoldings,
   getRecentActivity,
+  getDividendsByYear,
+  getAccountBalanceSeries,
+  getPortfolioCostSeries,
 } from '@/lib/personal/stocks/queries';
+import { PortfolioChart } from './_components/portfolio-chart';
+import { DividendsChart } from './_components/dividends-chart';
+import { BalanceLinesChart } from './_components/balance-lines-chart';
+import { RealizedPnlChart } from './_components/realized-pnl-chart';
 import type { Period, AccountCode } from '@/lib/personal/stocks/types';
 
 export const dynamic = 'force-dynamic';
@@ -21,11 +28,15 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const period: Period = sp.period ?? 'all';
   const account = sp.account ?? 'all';
-  const [k, holdings, activity] = await Promise.all([
-    getDashboardKpis({ period, account }),
-    getTopHoldings(10),
-    getRecentActivity(8),
-  ]);
+  const [k, holdings, activity, portfolioSeries, balanceSeries, divsByYear] =
+    await Promise.all([
+      getDashboardKpis({ period, account }),
+      getTopHoldings(10),
+      getRecentActivity(8),
+      getPortfolioCostSeries(),
+      getAccountBalanceSeries(),
+      getDividendsByYear(),
+    ]);
 
   return (
     <div className="space-y-4">
@@ -116,6 +127,13 @@ export default async function DashboardPage({
         <div>
           <ActivityFeed rows={activity} />
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <PortfolioChart data={portfolioSeries} />
+        <BalanceLinesChart data={balanceSeries} />
+        <DividendsChart data={divsByYear} />
+        <RealizedPnlChart data={[]} />
       </div>
     </div>
   );

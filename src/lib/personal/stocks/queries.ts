@@ -374,3 +374,72 @@ export async function getRecentActivity(limit = 8): Promise<ActivityRow[]> {
   out.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
   return out.slice(0, limit);
 }
+
+export async function getDividendsByYear(): Promise<
+  { year: number; amount: number }[]
+> {
+  const client = supabaseAdmin();
+  const r = await client
+    .from('personal_stock_dividends')
+    .select('pay_date, amount');
+  const m = new Map<number, number>();
+  for (const row of r.data ?? []) {
+    const y = parseInt(row.pay_date.slice(0, 4), 10);
+    m.set(y, (m.get(y) ?? 0) + Number(row.amount));
+  }
+  return [...m.entries()]
+    .map(([year, amount]) => ({ year, amount }))
+    .sort((a, b) => a.year - b.year);
+}
+
+export async function getAccountBalanceSeries(): Promise<
+  { date: string; '001': number; '003': number; '009': number }[]
+> {
+  const client = supabaseAdmin();
+  const r = await client
+    .from('v_personal_stock_account_balance')
+    .select('account_id, occurred_at, balance_egp')
+    .order('occurred_at', { ascending: true });
+  const accs = await client
+    .from('personal_stock_accounts')
+    .select('id, code');
+  const codeById = new Map(
+    (accs.data ?? []).map(
+      (a: { id: number; code: string }) => [a.id, a.code] as const,
+    ),
+  );
+  const byMonth = new Map<
+    string,
+    { '001': number; '003': number; '009': number }
+  >();
+  for (const row of r.data ?? []) {
+    const ym = row.occurred_at.slice(0, 7);
+    const code = codeById.get(row.account_id) as '001' | '003' | '009';
+    if (!code) continue;
+    const cur = byMonth.get(ym) ?? { '001': 0, '003': 0, '009': 0 };
+    cur[code] = Number(row.balance_egp);
+    byMonth.set(ym, cur);
+  }
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, ...v }));
+}
+
+export async function getPortfolioCostSeries(): Promise<
+  { date: string; cost: number }[]
+> {
+  const client = supabaseAdmin();
+  const trades = await client
+    .from('personal_stock_trades')
+    .select('side, qty, price, trade_date')
+    .order('trade_date', { ascending: true });
+  const monthly = new Map<string, number>();
+  let running = 0;
+  for (const t of trades.data ?? []) {
+    const ym = t.trade_date.slice(0, 7);
+    const delta = (t.side === 'buy' ? 1 : -1) * Number(t.qty) * Number(t.price);
+    running += delta;
+    monthly.set(ym, running);
+  }
+  return [...monthly.entries()].map(([date, cost]) => ({ date, cost }));
+}
