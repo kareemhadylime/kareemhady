@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Mail,
   Ship,
+  TrendingUp,
   User,
   type LucideIcon,
 } from 'lucide-react';
@@ -15,7 +16,7 @@ type Tile = {
   title: string;
   description: string;
   icon: LucideIcon;
-  accent: 'slate' | 'cyan';
+  accent: 'slate' | 'cyan' | 'emerald';
   badge?: { label: string; tone?: 'navy' | 'gold' };
 };
 
@@ -27,6 +28,15 @@ const TILES: Tile[] = [
       "Triage GMAIL · LIME · FM+ inboxes by 9 categories with rule + AI hybrid classification and two-way Gmail label sync.",
     icon: Mail,
     accent: 'slate',
+    badge: { label: 'Live', tone: 'navy' },
+  },
+  {
+    href: '/personal/stocks',
+    title: 'Stock Investment',
+    description:
+      'AOLB broker statements: holdings, cash flow, buy/sell totals, dividends, realized + unrealized P&L across 3 accounts (001 trading, 003 margin, 009 fund).',
+    icon: TrendingUp,
+    accent: 'emerald',
     badge: { label: 'Live', tone: 'navy' },
   },
   {
@@ -53,6 +63,11 @@ const ACCENTS: Record<Tile['accent'], {
     iconBg: 'bg-cyan-50 dark:bg-cyan-950', iconText: 'text-cyan-700 dark:text-cyan-300',
     hoverBorder: 'group-hover:border-cyan-400', arrow: 'group-hover:text-cyan-600',
     gradFrom: 'from-cyan-400', gradTo: 'to-cyan-600',
+  },
+  emerald: {
+    iconBg: 'bg-emerald-50 dark:bg-emerald-950', iconText: 'text-emerald-700 dark:text-emerald-300',
+    hoverBorder: 'group-hover:border-emerald-400', arrow: 'group-hover:text-emerald-600',
+    gradFrom: 'from-emerald-400', gradTo: 'to-emerald-600',
   },
 };
 
