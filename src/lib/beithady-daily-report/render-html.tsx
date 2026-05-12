@@ -155,10 +155,14 @@ function BuildingsTable({ payload }: { payload: DailyReportPayload }) {
     { label: 'Turnovers', val: b => fmtNum(b.turnovers_today) },
 
     {
-      label: 'Revenue (check-in this month)',
-      val: b => <strong>{fmtUsd1(b.revenue_mtd_usd)}</strong>,
+      label: 'MTD Revenue (check-ins so far)',
+      val: b => <strong>{fmtUsd1(b.revenue_mtd_actual_usd)}</strong>,
       section: 'mtd',
       sectionLabel: 'MONTH-TO-DATE',
+    },
+    {
+      label: 'Month Revenue (incl. confirmed → EOM)',
+      val: b => <strong>{fmtUsd1(b.revenue_mtd_usd)}</strong>,
     },
     {
       label: 'Revenue (booked this month)',
