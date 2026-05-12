@@ -82,11 +82,15 @@ export async function buildPayoutsSection(
   const next7End = addDays(today, 6);
   const next7StripeStart = addDays(today, 1);
   const next7StripeEnd = addDays(today, 7);
+  const next3dEnd = addDays(today, 2);
+  const next3dStripeStart = addDays(today, 1);
+  const next3dStripeEnd = addDays(today, 3);
 
   // ---- Airbnb side (from reservations) ----
   let mtd_received_airbnb_usd = 0;
   let expected_today_airbnb_usd = 0;
   let next_7d_airbnb_usd = 0;
+  let next_3d_airbnb_usd = 0;
 
   for (const r of active) {
     if (!r.check_in_date || !r.host_payout_usd) continue;
@@ -100,6 +104,9 @@ export async function buildPayoutsSection(
     }
     if (r.check_in_date >= today && r.check_in_date <= next7End) {
       next_7d_airbnb_usd += r.host_payout_usd;
+    }
+    if (r.check_in_date >= today && r.check_in_date <= next3dEnd) {
+      next_3d_airbnb_usd += r.host_payout_usd;
     }
   }
 
@@ -139,6 +146,22 @@ export async function buildPayoutsSection(
     0
   );
 
+  // Next 3d window
+  const stripe3 = await loadStripePayouts(
+    next3dStripeStart,
+    next3dStripeEnd,
+    new Date(`${today}T12:00:00Z`)
+  );
+  if (stripe3.error) warnings.push(`stripe_next3: ${stripe3.error}`);
+  const next_3d_stripe_usd = stripe3.rows
+    .filter(
+      p =>
+        p.arrival_date_ymd &&
+        p.arrival_date_ymd >= next3dStripeStart &&
+        p.arrival_date_ymd <= next3dStripeEnd
+    )
+    .reduce((s, p) => s + p.amount_usd, 0);
+
   const section: PayoutsSection = {
     mtd_received_airbnb_usd: round2(mtd_received_airbnb_usd),
     mtd_received_stripe_usd: round2(mtd_received_stripe_usd),
@@ -155,6 +178,9 @@ export async function buildPayoutsSection(
     next_7d_projected_total_usd: round2(
       next_7d_airbnb_usd + next_7d_stripe_usd
     ),
+    next_3d_airbnb_usd: round2(next_3d_airbnb_usd),
+    next_3d_stripe_usd: round2(next_3d_stripe_usd),
+    next_3d_total_usd: round2(next_3d_airbnb_usd + next_3d_stripe_usd),
   };
 
   return { section, warnings };
