@@ -48,7 +48,7 @@ describe('buildDxbSection', () => {
     expect(out.today.check_ins).toBe(1);
     expect(out.today.check_outs).toBe(1);
     expect(out.yesterday.check_ins).toBe(1);
-    expect(out.revenue_mtd.check_in_attribution_usd).toBe(600 + 500 + 400);
+    expect(out.revenue_mtd.check_in_attribution_usd).toBe(600 + 700 + 500 + 400); // all 4 rows have check_in_date in May
   });
 
   it('computes next_3d_total_usd as Airbnb-only sum of check-ins in [today, today+2]', () => {

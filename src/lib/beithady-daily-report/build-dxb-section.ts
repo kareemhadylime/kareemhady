@@ -142,21 +142,16 @@ export function buildDxbSection(
 
   // ── Revenue MTD ───────────────────────────────────────────────────────────
   // Check-in attribution: host_payout for stays whose check_in is in
-  // [monthStart, monthEnd], excluding stays that are completing today
-  // (check_out === todayYmd). Today's checkouts are "in flight" at
-  // report-generation time and are counted in the today.check_outs metric
-  // separately; excluding them avoids double-counting in the MTD snapshot.
+  // [monthStart, monthEnd].
   let checkInAttributionUsd = 0;
   let bookedAttributionUsd = 0;
 
   for (const r of active) {
-    // Check-in attribution: check_in_date in [monthStart, monthEnd]
-    // AND stay is not completing today (not an "in-flight" checkout).
+    // Check-in attribution: check_in_date in [monthStart, monthEnd].
     if (
       r.check_in_date &&
       r.check_in_date >= monthStart &&
-      r.check_in_date <= monthEnd &&
-      r.check_out_date !== todayYmd
+      r.check_in_date <= monthEnd
     ) {
       checkInAttributionUsd += r.host_payout_usd || 0;
     }
