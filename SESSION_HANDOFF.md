@@ -21,13 +21,26 @@
 
 ---
 
-## 🟢 BH Financials — Task 1 DONE — Migration 0118 applied + seeded
+## 🟢 BH Financials — Task 1/28 DONE — execution paused for parallel-session handoff decision
 
-**Task 1 status:** DONE. Migration `0118_bh_financials_balance_snapshots.sql` applied and committed (`4c1fdbc`).
+**Task 1 status:** DONE end-to-end (implementer → spec-review ✅ → code-review ✅). Migration `0118_bh_financials_balance_snapshots.sql` applied and committed (`4c1fdbc`).
 - 5 tables created: `bh_balance_snapshots`, `bh_balance_snapshot_accounts`, `bh_balance_snapshot_partners`, `bh_balance_snapshot_uploads`, `bh_financials_reminders`.
 - 31-Dec-2025 consolidated v1 snapshot seeded: 1 snapshot row (frozen), 87 account rows, sum = 0.17 EGP (matches xlsx rounding).
 - Note: filed as **0118** not 0117 — parallel stock-investment session claimed 0117 for `personal_stock_views`.
 - `src/lib/beithady-opening-balance-2026.ts` intentionally untouched (Task 4 will swap the consumer).
+
+**Task 2 status:** DONE. `src/lib/beithady/financials/types.ts` created (`64fbd3d`). 7 union types + 5 row types exported. `tsc --noEmit` clean. Pushed to `origin/main`.
+
+**Code review nits folded into Task 6's migration 0119 (commit `2de5937`):**
+1. CHECK constraint on `bh_balance_snapshot_accounts.account_type` + `account_type_override` (10-value enum) — prevents silent BS-grouping breakage from typos.
+2. CHECK `chk_bh_upload_committed_has_snapshot` — `parse_status='committed'` requires non-null `snapshot_id`.
+3. CHECK on `bh_financials_reminders.company_scope` to match the snapshots table.
+Both Important nits + 4 Minor ones explicitly approved for deferral by the code-quality reviewer ("Ready to proceed to Task 2 … add both constraints in 0119 alongside the freeze RPCs, rather than blocking Task 2 now").
+
+**Execution paused at:** Task 2/28 (TypeScript types module) — controller asked user to choose between (1) continue inline in this session and run out of context around T5–6, (2) hand off to a parallel session (matches the personal-stock playbook), or (3) background dispatch without per-task reviews. **Awaiting answer.**
+
+**Plan patches committed (`2de5937`):**
+- Task 1 header still says "0117" in body text for historical record but plan top-matter, verification queries, and Task 6 migration number all corrected to reflect reality (0118 for tables, 0119 for freeze RPCs + nit constraints, 87 row count).
 
 **Verification results:**
 | Query | Expected | Actual |
@@ -67,7 +80,13 @@
 
 **Visual companion still ACTIVE:** server at `http://localhost:62033`, session `.superpowers/brainstorm/3301-1778609938/`. 7 screens pushed: welcome, approaches, design-1 through design-5.
 
-**Next:** User picks execution mode. If subagent-driven (recommended) → invoke `superpowers:subagent-driven-development` to begin Task 1. If inline → invoke `superpowers:executing-plans`. Task 1 starts with the migration 0117 SQL — straightforward DDL + seed insert.
+**Next session pickup (if user chooses parallel-session handoff, option 2):**
+1. cd `C:\kareemhady` (main branch, already in sync with origin post-`2de5937`).
+2. Read this handoff file + `docs/superpowers/plans/2026-05-12-bh-financials-balances.md`.
+3. Invoke `superpowers:subagent-driven-development`. Skip Task 1 (DONE). Begin at **Task 2: TypeScript types module** (`src/lib/beithady/financials/types.ts` — pure type definitions, no DB, no test required, ~80 lines).
+4. Continue through Tasks 3 → 28. Each task ends with a commit-and-push to `main`; rebase on conflict (the personal-stock parallel session also pushes to main, but files don't overlap).
+5. Task 27 is manual (operator uploads the 2 xlsx fixtures via the new `/import` UI after Task 26 deploys); subagents skip it and proceed to Task 28.
+6. After Task 28 + final code review, the v1 implementation is complete.
 
 User request: hardcode opening balances (Suppliers + Owner Accounts as of 31-Dec-2025) from `C:\kareemhady\Lime Domains\Beithady\FINANCIALS\*.xlsx` into the DB; build current-year balances on top of those seeds; freeze new ending balances every 6 months (per quarter) to dodge Odoo's 365-day data window; design a module with tabs around all of this.
 
