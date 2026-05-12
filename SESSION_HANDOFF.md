@@ -42,7 +42,27 @@ User said: *"I want the briefing message to report the full picture at the lates
 
 Hard gate still in effect: no code until spec written and user-approved.
 
-**For the next session if it picks this up:** the orchestrator's one-line semantics flip is at `build.ts:58`, but downstream builders (`build-buildings.ts`, `build-extras.ts` cleaning/cancellations, payment-on-checkin, no-show, weekly-digest, AI-insights) all assume `today === yesterday`. Any "today live" option needs an audit pass — likely cleaner to introduce a `period.data_date` vs `period.report_date` split rather than monkey-patch the alias.
+**Progress update — spec and plan both written and committed (later in 2026-05-12):**
+- Spec: `docs/superpowers/specs/2026-05-12-daily-report-v3-today-live-dxb-design.md` (commit `3133dae`). User reviewed and said "go".
+- Plan: `docs/superpowers/plans/2026-05-12-daily-report-v3-today-live-dxb.md` (commit `7ee12f1`). 13 TDD tasks, per-task commits, concrete code in every step.
+- Self-review pass on the plan fixed one placeholder in Task 2 step 2.4 — extracted shared `_loadAllRowsRaw` helper instead of leaving "verbatim — see existing implementation" gap. Egypt path stays byte-identical; partition added via thin wrapper.
+- Worktree branch `claude/zen-euler-d3bd5e` is at `7ee12f1` matching `origin/main`. Docs only — no runtime change deployed yet.
+
+**Currently waiting on user's pick of execution mode:**
+1. Subagent-Driven (recommended) — fresh subagent per task, two-stage review, lean parent context.
+2. Inline Execution — `superpowers:executing-plans` in this session, batched checkpoints.
+
+**For the next session if it picks this up:** implementation has NOT started. Plan is in `docs/superpowers/plans/2026-05-12-daily-report-v3-today-live-dxb.md`. Confirm execution mode with user, then either dispatch subagents per task or invoke `superpowers:executing-plans`. Tasks must run in declared order — Task 2 (partitioned loaders) is foundational for Tasks 3/4; Task 7 (alias removal + builder audit) is foundational for the today-live semantics flip; Task 13 must come last (ship + e2e verification).
+
+**Task 1 DONE — commit `84286e8` (2026-05-12):**
+- `src/lib/beithady-daily-report/types.ts` — added `YesterdaySummary` type, `DxbSection` type, extended `PayoutsSection` with `next_3d_airbnb_usd` / `next_3d_stripe_usd` / `next_3d_total_usd`, and extended `DailyReportPayload` with `yesterday_summary: YesterdaySummary`, `dxb: DxbSection`, `data_fresh_to_iso: string | null`.
+- `tsc --noEmit` on the file alone passes. Full project tsc is expected to fail until downstream callers are wired (Tasks 3–12).
+- Not pushed (orchestrator pushes after final review).
+
+**Task 1 code-review fix — commit `940bde2` (2026-05-12):**
+- All three new `DailyReportPayload` fields made optional (`?`) so pre-v3 stored snapshots read without TypeScript-vs-runtime mismatch.
+- Reviewer's naming nit (`next_7d_projected_*` vs no `_projected_` on `next_3d_*`) was **verified and refuted**: the existing fields ARE `next_7d_projected_airbnb_usd` / `stripe` / `total` (line 95-97 in types.ts), so the reviewer was CORRECT that there is an inconsistency. However, the spec explicitly specified `next_3d_airbnb_usd` without `_projected_` — we followed the spec, and aligning would be a separate rename of `next_3d_*` fields; left as a nit, not changed.
+- `tsc --noEmit src/lib/beithady-daily-report/types.ts` passes clean.
 
 ---
 
