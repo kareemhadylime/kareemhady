@@ -83,7 +83,6 @@ export async function buildPayoutsSection(
   const next7StripeStart = addDays(today, 1);
   const next7StripeEnd = addDays(today, 7);
   const next3dEnd = addDays(today, 2);
-  const next3dStripeStart = addDays(today, 1);
   const next3dStripeEnd = addDays(today, 3);
 
   // ---- Airbnb side (from reservations) ----
@@ -146,19 +145,12 @@ export async function buildPayoutsSection(
     0
   );
 
-  // Next 3d window
-  const stripe3 = await loadStripePayouts(
-    next3dStripeStart,
-    next3dStripeEnd,
-    new Date(`${today}T12:00:00Z`)
-  );
-  if (stripe3.error) warnings.push(`stripe_next3: ${stripe3.error}`);
-  const next_3d_stripe_usd = stripe3.rows
-    .filter(
-      p =>
-        p.arrival_date_ymd &&
-        p.arrival_date_ymd >= next3dStripeStart &&
-        p.arrival_date_ymd <= next3dStripeEnd
+  // Next 3d window — derived from already-fetched stripe7.rows (subset [today+1, today+3])
+  const next_3d_stripe_usd = stripe7.rows
+    .filter(p =>
+      p.arrival_date_ymd &&
+      p.arrival_date_ymd >= next7StripeStart &&
+      p.arrival_date_ymd <= next3dStripeEnd
     )
     .reduce((s, p) => s + p.amount_usd, 0);
 
