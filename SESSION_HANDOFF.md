@@ -53,10 +53,13 @@ Row 2: [MTD Revenue] [Month Revenue OTB] [RevPAR] [Reviews avg] [Response time]
 ```
 Responsive grid: `grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5`.
 
-**Next step on resume:** await user spec review → invoke writing-plans skill
-→ execute the plan (touches `types.ts`, `build-buildings.ts`,
-`build-sparklines.ts`, `landing-pulse.tsx`, `dashboard-shell.tsx`,
-`panel-registry.ts`, `use-visibility.ts` + two test files).
+**Next step on resume:** awaiting kareem's execution-mode choice —
+**subagent-driven** (fresh subagent per task, review between tasks) or
+**inline** (executing-plans skill, batch with checkpoints). Plan is
+committed at `docs/superpowers/plans/2026-05-12-beithady-dashboard-month-kpis.md`
+(15 tasks, ~1275 lines, commit `9e6ed6d`). Plan also includes the
+PDF/HTML/WhatsApp renderer + digest one-liner corrections in scope per
+kareem's "correct also the PDF" follow-up.
 
 ## 🟢 Prior turn — Performance Dashboard promoted to first tile in Analytics
 
