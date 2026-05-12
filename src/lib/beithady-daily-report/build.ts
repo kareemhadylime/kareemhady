@@ -8,8 +8,11 @@ import {
   yesterday as yesterdayOf,
   reportPeriodWindow,
 } from './cairo-dates';
-import { loadBuildingInventories } from './units';
-import { loadReservationCorpus } from './reservations';
+import { supabaseAdmin } from '../supabase';
+import { loadAllInventoriesWithDxb } from './units';
+import { loadReservationCorpusWithDxb } from './reservations';
+import { buildYesterdaySummary } from './build-yesterday-summary';
+import { buildDxbSection } from './build-dxb-section';
 import { buildBuildingsTable } from './build-buildings';
 import { buildPayoutsSection } from './build-payouts';
 import { buildReviewsSection } from './build-reviews';
@@ -44,6 +47,18 @@ import type { DailyReportPayload, BuildingCode } from './types';
 // Orchestrator. Single entry point: returns a fully-built DailyReportPayload
 // for a given Cairo wall date. Throws on unrecoverable build errors so the
 // retry-until-success cron can keep trying through the day.
+
+async function loadDataFreshToIso(): Promise<string | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from('guesty_reservations')
+    .select('synced_at')
+    .order('synced_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { synced_at: string | null }).synced_at;
+}
 
 export async function buildDailyReport(
   reportDateYmd?: string
@@ -89,14 +104,21 @@ export async function buildDailyReport(
   const generatedAt = new Date();
   const fxDate = generatedAt;
 
-  // Pull inventories first — needed by buildings + dead-inventory.
-  const inventories = await loadBuildingInventories();
-
   // Reservation window: month_start - 30 days (catches stays that started
   // before the month and continue into it) → next 14 days (dead inventory).
   const windowFrom = addDays(ctx.start, -30);
   const windowTo = addDays(ctx.today, 14);
-  const corpus = await loadReservationCorpus(windowFrom, windowTo, fxDate);
+
+  // Parallel: partitioned inventory + corpus loaders + freshness watermark.
+  const [inventoriesWithDxb, corpusWithDxb, dataFreshToIso] = await Promise.all([
+    loadAllInventoriesWithDxb(),
+    loadReservationCorpusWithDxb(windowFrom, windowTo, fxDate),
+    loadDataFreshToIso(),
+  ]);
+  const inventories = inventoriesWithDxb.egypt;     // existing builders still see Egypt-only
+  const corpus = corpusWithDxb.egypt;
+  const dxbInventory = inventoriesWithDxb.dxb;
+  const dxbCorpus = corpusWithDxb.dxb;
 
   // Run the per-section builders. Some are sync (no IO); some are async
   // (Stripe API, Anthropic, Postgres count queries). Run async ones in parallel.
@@ -110,6 +132,17 @@ export async function buildDailyReport(
   const no_show = buildNoShowSection(corpus.active, period);
   const weekly_digest = buildWeeklyDigest(corpus.active, corpus.canceled, period);
   const paired_channel_mix = buildPairedChannelMix(corpus.active, period);
+
+  // v3 new: yesterday closed-day summary + DXB section
+  const yesterday_summary = buildYesterdaySummary(corpus.active, inventories, yesterdayDate);
+  const dxb = buildDxbSection(
+    dxbCorpus.active,
+    dxbInventory,
+    today,
+    yesterdayDate,
+    ctx.start,   // monthStart
+    ctx.end,     // monthEnd
+  );
 
   const [
     payoutsResult,
@@ -286,6 +319,10 @@ export async function buildDailyReport(
     // v5 AI-derived
     insights: aiInsights,
     review_topics: reviewTopics,
+    // v3 new fields
+    yesterday_summary,
+    dxb,
+    data_fresh_to_iso: dataFreshToIso,
   };
 }
 
