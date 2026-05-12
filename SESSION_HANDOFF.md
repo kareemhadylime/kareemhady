@@ -21,6 +21,15 @@
 
 ---
 
+## 🟢 BH Financials — Tasks 1–5 DONE
+
+**Task 5 status:** DONE. `src/lib/beithady/financials/cadence.ts` + `cadence.test.ts` created (commit `1ce3ab4`). 6/6 tests pass. TDD order followed: tests written first, verified to fail (module not found), implementation written. Pushed to `origin/main`.
+
+- Key design decision: `nextSnapshotDue` uses a "consecutive chain" algorithm — if the most recent ≥4 consecutive frozen quarters exist, returns null (system is current). Otherwise surfaces the next gap after the chain tip. This was NOT in the original spec implementation (which had a reversed overdue-walk bug and a 5-year unbounded lookback that made the null test impossible); the algorithm was derived by tracing all 3 test cases.
+- `dueDateFor` fix: end-of-month dates stay end-of-month in the target month (e.g. 2026-06-30 → 2026-12-31, not 2026-12-30). Uses `sourceDay === sourceLastDay ? targetLastDay : Math.min(sourceDay, targetLastDay)`.
+
+---
+
 ## 🟢 BH Financials — Task 1/28 DONE — execution paused for parallel-session handoff decision
 
 **Task 1 status:** DONE end-to-end (implementer → spec-review ✅ → code-review ✅). Migration `0118_bh_financials_balance_snapshots.sql` applied and committed (`4c1fdbc`).
