@@ -219,10 +219,21 @@ export type AllInventoriesWithDxb = {
 /**
  * v3 (2026-05-12): partitioned inventory loader. Egypt half is identical
  * to `loadBuildingInventories()` (same filter logic, same physical-unit
- * detection, same fallback). DXB half is a single flat bucket containing
- * all active DXB listings.
+ * detection, same `isPhysicalUnit` guard, same query). DXB half is a
+ * single flat bucket containing all active DXB listings.
  *
- * Reuses the same query — no extra DB round-trip.
+ * Reuses the same query as `loadBuildingInventories()` — no extra DB
+ * round-trip.
+ *
+ * Note on catalog-fallback path (when `guesty_listings` is empty):
+ * `loadBuildingInventories()` had a latent inconsistency in this branch
+ * — its DB-rows path filtered DXB via `isExcludedFromReport`, but the
+ * catalog-fallback (BEITHADY_LISTINGS) did NOT filter DXB and lumped
+ * DXB catalog rows into the `OTHER` bucket of `total_all`. This new
+ * function applies `isExcludedFromReport` in BOTH paths, so
+ * `egypt.total_all` here excludes DXB even in the catalog-fallback
+ * branch. The catalog-fallback path is effectively dead code post
+ * Phase-9 Guesty sync, so this difference does not affect production.
  */
 export async function loadAllInventoriesWithDxb(): Promise<AllInventoriesWithDxb> {
   const sb = supabaseAdmin();
