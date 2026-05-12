@@ -63,7 +63,8 @@ function buildWhatsAppText(payload: DailyReportPayload, link: string): string {
     `📊 *Today*: ${all.occupied_today}/${all.total_units} occupied (${all.occupancy_today_pct.toFixed(1)}%)`,
     `   ✅ ${all.check_ins_today} check-ins · ${all.check_outs_today} check-outs · ${all.turnovers_today} turnovers`,
     ``,
-    `💰 *Revenue (check-in this month)*: ${fmtUsd1(all.revenue_mtd_usd)}` +
+    `💰 *MTD Revenue (check-ins so far)*: ${fmtUsd1(all.revenue_mtd_actual_usd)}`,
+    `📈 *Month Revenue (incl. confirmed → EOM)*: ${fmtUsd1(all.revenue_mtd_usd)}` +
       (pickup !== 0 ? ` (${arrow}${pickup.toFixed(1)}% vs prior month)` : ''),
     `📒 *Revenue (booked this month)*: ${fmtUsd1(all.revenue_created_mtd_usd)} _(Guesty Analytics parity)_`,
     `⭐ ${reviews.count_mtd} reviews · ${reviews.avg_rating_mtd.toFixed(1)}★ avg` +
@@ -113,7 +114,9 @@ function buildEmailBody(payload: DailyReportPayload, link: string): string {
                 <td style="padding:5px 0;text-align:right;font-weight:600;color:#1a2c47;">${all.occupied_today}/${all.total_units} (${all.occupancy_today_pct.toFixed(1)}%)</td></tr>
             <tr><td style="padding:5px 0;color:#374b6b;">Check-ins / Check-outs / Turnovers</td>
                 <td style="padding:5px 0;text-align:right;color:#1a2c47;">${all.check_ins_today} / ${all.check_outs_today} / ${all.turnovers_today}</td></tr>
-            <tr><td style="padding:5px 0;color:#374b6b;">Revenue <span style="color:#7a8aa3;font-size:10px;">(check-in this month)</span></td>
+            <tr><td style="padding:5px 0;color:#374b6b;">MTD Revenue <span style="color:#7a8aa3;font-size:10px;">(check-ins so far)</span></td>
+                <td style="padding:5px 0;text-align:right;font-weight:600;color:#1a2c47;">${fmtUsd(all.revenue_mtd_actual_usd)}</td></tr>
+            <tr><td style="padding:5px 0;color:#374b6b;">Month Revenue <span style="color:#7a8aa3;font-size:10px;">(incl. confirmed → EOM)</span></td>
                 <td style="padding:5px 0;text-align:right;font-weight:600;color:#1a2c47;">${fmtUsd(all.revenue_mtd_usd)} ${pickupStr}</td></tr>
             <tr><td style="padding:5px 0;color:#374b6b;">Revenue <span style="color:#7a8aa3;font-size:10px;">(booked this month · Guesty Analytics parity)</span></td>
                 <td style="padding:5px 0;text-align:right;font-weight:600;color:#1a2c47;">${fmtUsd(all.revenue_created_mtd_usd)}</td></tr>
