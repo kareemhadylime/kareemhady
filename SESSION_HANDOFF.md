@@ -1,5 +1,52 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🔵 2026-05-12 — Personal Domain: Stock Investment module — brainstorming in progress
+
+User requested a new **Stock Investment** tile/module in the Personal Domain, based on broker statements in `C:\kareemhady\Lime Domains\Personal\AOLB`.
+
+**AOLB data parsed (SpreadsheetML 2003 XML, not real Excel):**
+- 7 files: 001 (2024/25/26), 003 (2024/25/26), 009 (2024 only). **No 2023 file** — user said "2023 till today" — needs clarification.
+- Columns: Details · Date (DD-MM-YYYY) · Operation Type · Description · Debit · Credit · Balance · D/C
+- Operation Types observed across all files: Buy Invoice (381), Sell Invoice (285), With Drawal (57, Arabic desc), Cash Transfer (24), Daily (22, fees), CASHDIVIDEND (17), INTEREST (17), Correction (13), ICS (11 — Makaseb fund), Bank Deposit (8), BANK PROFIT (5)
+- **001** = main trading + admin (bank deposits land here)
+- **003** = margin/leveraged trading (carries ~7.9M LE debit balance, charged monthly interest)
+- **009** = holds ICS Makaseb 2nd Edition Fund (NI Capital) units — money-market/income fund, NOT a savings account
+- All EGX-listed, EGP. ~20 distinct tickers parseable from Description ("Buy 100 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40079967) @44.000")
+- Inter-account transfers are matchable across files (18880001 ↔ 18880003 ↔ 18880009)
+- Personal Domain landing page is `src/app/personal/page.tsx` — tile-based, currently has 2 tiles (Email, Boat Rental). New tile will be a 3rd entry.
+
+**Process state:** Inside brainstorming skill. Completed context exploration. Next: offer visual companion (own message), then start clarifying-question loop. After 95% confidence → propose 2-3 approaches → present design → write spec to `docs/superpowers/specs/2026-05-12-stock-investment-design.md` → user review → invoke writing-plans → implementation.
+
+**Decisions locked so far:**
+1. **Time range** = 2024 → today. No 2023 data.
+2. **Import** = Hybrid: bulk-seed the 7 existing files once, then permanent upload UI for new statements.
+3. **Currency** = EGP-only, schema has `currency` column for future extension.
+4. **Pricing** = Cost-basis for sold (realized P&L); **manual current-price entry with date** for still-owned (unrealized P&L).
+5. **Tax/cap-gains report** = SKIP — pure ops view.
+6. **Architecture** = Approach B — fully normalized (10 tables + 4 views), not single-table.
+7. **Tabs** = Option A — Rich 8 tabs: Dashboard · Portfolio · Transactions · Cash Flow · Dividends · Accounts · Prices · Import.
+8. **Data model** = LOCKED. See below.
+
+**Schema (locked):**
+- Lookup: `personal_stock_accounts` (3 seeded rows: 001/003/009), `personal_stock_instruments` (~21 auto-discovered)
+- Audit: `personal_stock_uploads`, `personal_stock_raw_rows`
+- Core: `personal_stock_trades` (one table for stocks+fund, distinguished by instrument.kind), `personal_stock_dividends`, `personal_stock_cash_movements`, `personal_stock_fees`, `personal_stock_interest`, `personal_stock_corrections`, `personal_stock_current_prices` (append-only)
+- Views: `v_personal_stock_positions`, `v_personal_stock_realized_pnl` (FIFO), `v_personal_stock_account_balance`, `v_personal_stock_dashboard_kpis`
+- Migration file: `0116_personal_stock_investment.sql`
+
+**Import flow (drafted):**
+- SpreadsheetML XML parser, SHA-256 dedup on uploads, filename parsing for account+year, op_type → typed table routing, auto-discover new tickers, Open/Close balance reconciliation check, re-process button.
+
+**Tab contents (drafted):** All 8 tabs scoped. Two open questions sent to user before pushing dashboard mockup:
+1. Cash Flow has 3 sub-views (bank in/out, inter-account, balance-over-time) — OK or split into 2 tabs?
+2. Prices tab — modal-per-ticker or single editable table with inline inputs?
+
+**Visual companion:** active. Session dir `.superpowers/brainstorm/1881-1778606977/`. Screens pushed: welcome (data findings), tabs (3 layout options), datamodel (10 tables + 4 views). Next push: dashboard mockup.
+
+**Process state:** Spec written and committed at `docs/superpowers/specs/2026-05-12-personal-stock-investment-design.md`. Awaiting user review. Next: invoke writing-plans skill to produce implementation plan.
+
+---
+
 ## 🟡 Active turn — Beithady dashboard KPI redesign (spec written, awaiting user review)
 
 **Status:** Spec written + committed (`f066242`) + pushed to main. Waiting
