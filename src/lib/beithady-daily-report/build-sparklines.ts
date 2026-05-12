@@ -28,7 +28,11 @@ export async function buildSparklines(today: string): Promise<SparklinesSection 
 
     const series: SparklinesSection = {
       occupancy: [],
+      mtd_occupancy: [],
+      month_to_end_occupancy: [],
+      month_occupancy: [],
       mtd_revenue: [],
+      mtd_revenue_actual: [],
       revpar: [],
       pace: [],
       reviews_avg: [],
@@ -38,7 +42,11 @@ export async function buildSparklines(today: string): Promise<SparklinesSection 
     for (const row of data as Array<{ report_date: string; payload: unknown }>) {
       const p = row.payload as DailyReportPayload;
       series.occupancy.push(p.all?.occupancy_today_pct ?? 0);
+      series.mtd_occupancy.push(p.all?.backward_occupancy_pct ?? 0);
+      series.month_to_end_occupancy.push(p.all?.forward_occupancy_pct ?? 0);
+      series.month_occupancy.push(p.all?.month_occupancy_pct ?? 0);
       series.mtd_revenue.push(p.all?.revenue_mtd_usd ?? 0);
+      series.mtd_revenue_actual.push(p.all?.revenue_mtd_actual_usd ?? 0);
       // revpar is a v4 field — may be absent in older snapshots
       series.revpar.push((p as { revpar?: { all?: number } | null }).revpar?.all ?? 0);
       series.pace.push(p.all?.pickup_vs_prior_month_pct ?? 0);
