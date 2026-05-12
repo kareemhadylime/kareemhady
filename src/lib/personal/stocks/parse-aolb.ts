@@ -23,14 +23,15 @@ export type AolbParseResult = {
   openBalance: number | null;
   closeBalance: number | null;
   rows: AolbRawRow[];
+  parseWarnings: string[];
 };
 
 const SS_NS = 'urn:schemas-microsoft-com:office:spreadsheet';
 
-function toNumber(v: unknown): number {
-  if (v === null || v === undefined || v === '') return 0;
+function toNumber(v: unknown): { value: number; ok: boolean } {
+  if (v === null || v === undefined || v === '') return { value: 0, ok: true };
   const n = typeof v === 'number' ? v : parseFloat(String(v));
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? { value: n, ok: true } : { value: 0, ok: false };
 }
 
 function parseDateDmy(s: string | null): string | null {
@@ -73,6 +74,7 @@ export function parseAolbXml(xml: string): AolbParseResult {
   let openBalance: number | null = null;
   let closeBalance: number | null = null;
   const out: AolbRawRow[] = [];
+  const parseWarnings: string[] = [];
 
   rows.forEach((row, rowIndex) => {
     const cells: any[] = row?.Cell ?? [];
@@ -88,6 +90,11 @@ export function parseAolbXml(xml: string): AolbParseResult {
       cursor += 1;
     }
 
+    // Normalize empty strings → null so `=== null` checks cover both cases.
+    for (let i = 0; i < cols.length; i += 1) {
+      if (cols[i] === '') cols[i] = null;
+    }
+
     // Detect open / close balance rows (single text cell starting with "Open Balance" or "Close Balance")
     if (cols[0]) {
       const t = String(cols[0]).trim();
@@ -99,7 +106,14 @@ export function parseAolbXml(xml: string): AolbParseResult {
     if (cols[0] === 'Details' && cols[2] === 'Operation Type') return;
 
     // Empty row
-    if (cols.every((c) => c === null || c === '')) return;
+    if (cols.every((c) => c === null)) return;
+
+    const debit = toNumber(cols[4]);
+    const credit = toNumber(cols[5]);
+    const balanceAfter = cols[6] === null ? null : toNumber(cols[6]);
+    if (!debit.ok) parseWarnings.push(`row ${rowIndex}: junk debit value "${String(cols[4])}"`);
+    if (!credit.ok) parseWarnings.push(`row ${rowIndex}: junk credit value "${String(cols[5])}"`);
+    if (balanceAfter && !balanceAfter.ok) parseWarnings.push(`row ${rowIndex}: junk balance value "${String(cols[6])}"`);
 
     out.push({
       rowIndex,
@@ -107,12 +121,12 @@ export function parseAolbXml(xml: string): AolbParseResult {
       occurredAt: parseDateDmy(cols[1] ?? null),
       opType: cols[2] ?? null,
       description: cols[3] ?? null,
-      debit: toNumber(cols[4]),
-      credit: toNumber(cols[5]),
-      balanceAfter: cols[6] === null ? null : toNumber(cols[6]),
+      debit: debit.value,
+      credit: credit.value,
+      balanceAfter: balanceAfter === null ? null : balanceAfter.value,
       dcFlag: cols[7] ?? null,
     });
   });
 
-  return { openBalance, closeBalance, rows: out };
+  return { openBalance, closeBalance, rows: out, parseWarnings };
 }

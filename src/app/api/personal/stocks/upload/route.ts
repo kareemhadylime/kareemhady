@@ -16,7 +16,9 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   if (!user.is_admin) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  const form = await req.formData();
+  let form: FormData;
+  try { form = await req.formData(); }
+  catch { return NextResponse.json({ error: 'invalid multipart' }, { status: 400 }); }
   const files = form.getAll('files');
   if (!files.length) return NextResponse.json({ error: 'no files' }, { status: 400 });
 

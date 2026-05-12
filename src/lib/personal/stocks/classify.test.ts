@@ -97,6 +97,18 @@ describe('classifyRow', () => {
     expect(r.data.amount).toBe(350);
   });
 
+  it('routes Daily with Arabic اكتتاب as ipo_subscription', () => {
+    const r = classifyRow(row({
+      opType: 'Daily',
+      description: 'قيمة خصم قيمة اكتتاب شركة اكت فاينانشال للاستشارات (الطرح الخاص)',
+      debit: 5000,
+    }));
+    expect(r.kind).toBe('fee');
+    if (r.kind !== 'fee') throw new Error();
+    expect(r.data.kind).toBe('ipo_subscription');
+    expect(r.data.amount).toBe(5000);
+  });
+
   it('routes INTEREST on debit balance as charge', () => {
     const r = classifyRow(row({ opType: 'INTEREST', debit: 10161.92 }));
     expect(r.kind).toBe('interest');

@@ -135,6 +135,12 @@ export async function importAolbFile(input: ImportInput): Promise<ImportResult> 
   const instrumentIdByTicker = new Map<string, number>();
   const accountIdByCode = new Map<string, number>([[code, accountId]]);
 
+  async function insertBatch(table: string, rows: any[]): Promise<void> {
+    if (!rows.length) return;
+    const { error } = await client.from(table).insert(rows);
+    if (error) throw new Error(`Insert into ${table} failed: ${error.message}`);
+  }
+
   async function resolveAccountId(c: string): Promise<number | null> {
     if (accountIdByCode.has(c)) return accountIdByCode.get(c)!;
     const r = await client.from('personal_stock_accounts').select('id').eq('code', c).maybeSingle();
@@ -159,6 +165,7 @@ export async function importAolbFile(input: ImportInput): Promise<ImportResult> 
 
   for (const raw of parsed.rows) {
     const rawId = rawIdByIndex.get(raw.rowIndex) ?? null;
+    if (!rawId) continue;
     const c = classifyRow(raw);
     if (c.kind === 'skipped') {
       counts.skipped += 1;
@@ -237,12 +244,12 @@ export async function importAolbFile(input: ImportInput): Promise<ImportResult> 
     }
   }
 
-  if (tradeInserts.length) await client.from('personal_stock_trades').insert(tradeInserts);
-  if (dividendInserts.length) await client.from('personal_stock_dividends').insert(dividendInserts);
-  if (cashInserts.length) await client.from('personal_stock_cash_movements').insert(cashInserts);
-  if (feeInserts.length) await client.from('personal_stock_fees').insert(feeInserts);
-  if (interestInserts.length) await client.from('personal_stock_interest').insert(interestInserts);
-  if (correctionInserts.length) await client.from('personal_stock_corrections').insert(correctionInserts);
+  await insertBatch('personal_stock_trades', tradeInserts);
+  await insertBatch('personal_stock_dividends', dividendInserts);
+  await insertBatch('personal_stock_cash_movements', cashInserts);
+  await insertBatch('personal_stock_fees', feeInserts);
+  await insertBatch('personal_stock_interest', interestInserts);
+  await insertBatch('personal_stock_corrections', correctionInserts);
 
   // Reconcile
   const sumDelta = parsed.rows.reduce((acc, r) => acc + r.credit - r.debit, 0);

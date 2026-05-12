@@ -41,7 +41,8 @@ export async function POST(req: Request) {
   if (rawIds.length === 0) return NextResponse.json({ error: 'no raw rows' }, { status: 404 });
 
   for (const table of DERIVED_TABLES) {
-    await client.from(table).delete().in('raw_row_id', rawIds);
+    const { error } = await client.from(table).delete().in('raw_row_id', rawIds);
+    if (error) return NextResponse.json({ error: `failed clearing ${table}: ${error.message}` }, { status: 500 });
   }
 
   return NextResponse.json({ status: 'reclassify-pending', cleared: rawIds.length });

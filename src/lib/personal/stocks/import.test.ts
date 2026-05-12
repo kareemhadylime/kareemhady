@@ -54,12 +54,20 @@ function makeMockClient() {
           }),
         }),
         insert: (rows: any) => {
-          inserted[table] = (inserted[table] ?? []).concat(Array.isArray(rows) ? rows : [rows]);
-          return {
-            select: () => ({
-              single: async () => ({ data: { id: 'mock-' + table + '-id', ...inserted[table][inserted[table].length - 1] } }),
-            }),
+          const arr = Array.isArray(rows) ? rows : [rows];
+          inserted[table] = (inserted[table] ?? []).concat(arr);
+          const rowsWithIds = arr.map((r, i) => ({ ...r, id: `mock-${table}-${Date.now()}-${i}`, row_index: r.row_index }));
+          const promiseLike: any = {
+            then: (resolve: any) => resolve({ data: rowsWithIds, error: null }),
+            select: () => {
+              const inner: any = {
+                single: async () => ({ data: rowsWithIds[rowsWithIds.length - 1], error: null }),
+                then: (resolve: any) => resolve({ data: rowsWithIds, error: null }),
+              };
+              return inner;
+            },
           };
+          return promiseLike;
         },
         update: (patch: any) => ({
           eq: (_c: string, _v: any) => ({ then: (cb: any) => cb({ data: null }) }),

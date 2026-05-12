@@ -20,7 +20,12 @@ export async function POST(_req: Request) {
   const seedPath = process.env.STOCK_AOLB_SEED_PATH;
   if (!seedPath) return NextResponse.json({ error: 'STOCK_AOLB_SEED_PATH not set' }, { status: 500 });
 
-  const entries = await readdir(seedPath);
+  let entries: string[];
+  try { entries = await readdir(seedPath); }
+  catch (err: any) {
+    if (err?.code === 'ENOENT') return NextResponse.json({ error: 'seed path unreadable', path: seedPath }, { status: 503 });
+    throw err;
+  }
   const xlsFiles = entries.filter((f) => /^AOLB Account \d{3} - \d{4}\.xls$/i.test(f));
   const client = supabaseAdmin();
   const results: Array<Record<string, unknown>> = [];
