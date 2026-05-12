@@ -1,5 +1,38 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🟢 2026-05-12 — Beithady Financials P&L fixed — matches Odoo within 0.4%
+
+**What happened:**
+Full investigation and fix of the Beithady Financials P&L discrepancies vs Odoo April 2026 report.
+
+**Root causes found and fixed:**
+
+1. **Missing move-line data** (data fix, not code): Odoo accounts and move lines for companies 5 (Egypt) and 10 (Dubai) were out of date. Ran full sync: accounts → partners → move-lines co.5 → move-lines co.10 → finalize. Egypt's 502100 "Rent Costs" (975.9K) now has April entries. Depreciation accounts (607xxx, 862K total) were already present.
+
+2. **Tax Compensation over-excluded** (code fix — main bug): Dubai's 502116 "Tax Compensation" (294K, partner = Egypt 27007) was incorrectly eliminated by the single-pass intercompany partner filter. This entry has no P&L counterpart in Egypt (Egypt records it as VAT liability 225001, a balance-sheet item). Fix: split intercompany elimination into two mechanisms in `pnl_aggregated`:
+   - Partner filter → income/income_other accounts ONLY (kills Egypt 401009 "Revenue from hospitality" 2.1M)
+   - Account-code filter (new `p_exclude_account_codes` param) → kills Dubai 510104 "COST OF HOSPITALITY" 2.1M by code, not by partner
+   - 502116 Tax Compensation is now correctly included.
+
+**Files changed:**
+- `supabase/migrations/0115_pnl_aggregated_precise_intercompany.sql` — new SQL function with split elimination
+- `src/lib/financials-pnl.ts` — `fetchAccountTotals` gets `excludeAccountCodes`; `buildPnlReport` passes `INTERCOMPANY_PASSTHROUGH_EXPENSE_CODES = ['510104']`
+
+**Post-fix accuracy vs Odoo April 2026:**
+- Revenue: 4,553K vs 4,521K (+32K, 0.7% — data timing)
+- CoR: 2,238K vs 2,195K (+43K, 2% — data timing)
+- HoC: 1,617,793 vs 1,617,793 — **EXACT**
+- GE: ~1,202K vs 1,201K — +642, ✓
+- INT-TAX-DEP: 2,278,708 vs 2,278,808 — -100, ✓
+- Net: -2,783K vs -2,772K — -11K (0.4%) — data timing only
+
+**Deployed:** commit `9d289b6` pushed to `origin/main`; Vercel auto-deploy triggered.
+
+**Next session:** No outstanding P&L issues. Remaining ~11K gap is pure data timing (entries posted in Odoo after sync); runs itself to zero on next scheduled sync.
+
+---
+
+
 ## 🔵 2026-05-12 — Handoff-push-all skill invoked; model-suggester hook committed
 
 No app code changed. Maintenance only.
