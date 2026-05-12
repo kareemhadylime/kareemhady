@@ -35,6 +35,22 @@ describe('parseStockDescription', () => {
   it('returns null on unparseable', () => {
     expect(parseStockDescription('Bank Deposit')).toBeNull();
   });
+  it('handles truncated /L. suffix (no /E./1/<venue>) with parens in name', () => {
+    // Real failing row from AOLB Account 003 - 2024 statement: 59 rows came in
+    // with the currency/venue suffix truncated to just "/L." instead of the
+    // full "/L.E./1/Egypt Stock Exchange". Parens in the instrument name
+    // ("(SODIC)") must not be swallowed by the venue group.
+    const r = parseStockDescription(
+      'Buy 7500 Six of October Development & Investment (SODIC)/L. (inv. 50017855) @62.350'
+    );
+    expect(r).toEqual({
+      side: 'buy',
+      qty: 7500,
+      name: 'Six of October Development & Investment (SODIC)',
+      invoiceId: '50017855',
+      price: 62.350,
+    });
+  });
 });
 
 describe('parseFundDescription', () => {
