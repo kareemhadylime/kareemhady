@@ -28,6 +28,15 @@
 - Key design decision: `nextSnapshotDue` uses a "consecutive chain" algorithm — if the most recent ≥4 consecutive frozen quarters exist, returns null (system is current). Otherwise surfaces the next gap after the chain tip. This was NOT in the original spec implementation (which had a reversed overdue-walk bug and a 5-year unbounded lookback that made the null test impossible); the algorithm was derived by tracing all 3 test cases.
 - `dueDateFor` fix: end-of-month dates stay end-of-month in the target month (e.g. 2026-06-30 → 2026-12-31, not 2026-12-30). Uses `sourceDay === sourceLastDay ? targetLastDay : Math.min(sourceDay, targetLastDay)`.
 
+## 🟢 BH Financials — Task 6 DONE (commit `77c99de`)
+
+**Task 6 status:** DONE. TDD cycle followed (fail → impl → 4/4 pass). Migration 0119 applied.
+
+- `src/lib/beithady/financials/snapshots.ts` — `listSnapshots`, `getSnapshot`, `freezeSnapshot`, `cloneForRefreeze`. `import 'server-only'` guard. `freezeSnapshot` validates account rows exist before calling DB RPC (defense in depth).
+- `src/lib/beithady/financials/snapshots.test.ts` — 4 tests, 4/4 pass.
+- `supabase/migrations/0119_bh_freeze_rpcs.sql` — 4 CHECK constraints (account_type enum, account_type_override enum, committed-upload-needs-snapshot, reminders scope enum) + 2 stored procedures (`bh_freeze_snapshot`, `bh_clone_snapshot_for_refreeze`). All 6 DB objects confirmed in catalog.
+- Note: repo had a pre-existing `0118_personal_stock_fifo.sql` collision (two files prefixed 0118). Migration 0119 was uncontested and used as planned.
+
 ---
 
 ## 🟢 BH Financials — Task 1/28 DONE — execution paused for parallel-session handoff decision
