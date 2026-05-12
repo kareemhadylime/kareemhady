@@ -1,118 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
-## 🟢 2026-05-12 — Task 2 of 23: SpreadsheetML XML parser (parse-aolb)
+## 🟢 Task 1 complete — BuildingBucket type updated (2026-05-12)
 
-Implemented `src/lib/personal/stocks/parse-aolb.ts` + colocated vitest tests. TDD: 5/5 tests pass. Parser extracts open/close balances, normalizes DD-MM-YYYY → ISO dates, materializes 8-col rows honoring `ss:Index` gaps, and skips header/balance lines.
+**Commit `26ac805`** — `src/lib/beithady-daily-report/types.ts` — added `revenue_mtd_actual_usd` and `month_occupancy_pct` fields.
 
-Added `fast-xml-parser@^5.8.0` as a direct dep — the plan said it might be transitive via googleapis but it was not actually installed.
+**Commit `199fd52`** — code-review fixup on top of `26ac805`:
+- Block comment prose reordered to match field declaration order (revenue_mtd_usd → revenue_mtd_actual_usd → revenue_created_mtd_usd).
+- Header changed from "Three revenue lines now:" to "Revenue lines — three methodologies:".
+- month_occupancy_pct formula moved from inline comment into block comment; added weighted-blend explanation for all three occupancy variants.
+- Inline comment shortened to "0..100, whole-month OTB (formula above)".
+- Added 2026-05-12 addition note with undefined → 0 fallback notice.
 
-Commit `5ec3653` pushed to origin/main. Vercel will auto-deploy from the GitHub integration.
+Typecheck confirms exactly 3 expected errors in `build-buildings.ts` — no new errors in `types.ts`.
 
-**Files added:**
-- `src/lib/personal/stocks/parse-aolb.ts`
-- `src/lib/personal/stocks/parse-aolb.test.ts`
-
-**Next:** Task 3 of the 23-task plan (not started this session).
-
----
-
-## 🔵 2026-05-12 — Personal Domain: Stock Investment module — brainstorming in progress
-
-User requested a new **Stock Investment** tile/module in the Personal Domain, based on broker statements in `C:\kareemhady\Lime Domains\Personal\AOLB`.
-
-**AOLB data parsed (SpreadsheetML 2003 XML, not real Excel):**
-- 7 files: 001 (2024/25/26), 003 (2024/25/26), 009 (2024 only). **No 2023 file** — user said "2023 till today" — needs clarification.
-- Columns: Details · Date (DD-MM-YYYY) · Operation Type · Description · Debit · Credit · Balance · D/C
-- Operation Types observed across all files: Buy Invoice (381), Sell Invoice (285), With Drawal (57, Arabic desc), Cash Transfer (24), Daily (22, fees), CASHDIVIDEND (17), INTEREST (17), Correction (13), ICS (11 — Makaseb fund), Bank Deposit (8), BANK PROFIT (5)
-- **001** = main trading + admin (bank deposits land here)
-- **003** = margin/leveraged trading (carries ~7.9M LE debit balance, charged monthly interest)
-- **009** = holds ICS Makaseb 2nd Edition Fund (NI Capital) units — money-market/income fund, NOT a savings account
-- All EGX-listed, EGP. ~20 distinct tickers parseable from Description ("Buy 100 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40079967) @44.000")
-- Inter-account transfers are matchable across files (18880001 ↔ 18880003 ↔ 18880009)
-- Personal Domain landing page is `src/app/personal/page.tsx` — tile-based, currently has 2 tiles (Email, Boat Rental). New tile will be a 3rd entry.
-
-**Process state:** Inside brainstorming skill. Completed context exploration. Next: offer visual companion (own message), then start clarifying-question loop. After 95% confidence → propose 2-3 approaches → present design → write spec to `docs/superpowers/specs/2026-05-12-stock-investment-design.md` → user review → invoke writing-plans → implementation.
-
-**Decisions locked so far:**
-1. **Time range** = 2024 → today. No 2023 data.
-2. **Import** = Hybrid: bulk-seed the 7 existing files once, then permanent upload UI for new statements.
-3. **Currency** = EGP-only, schema has `currency` column for future extension.
-4. **Pricing** = Cost-basis for sold (realized P&L); **manual current-price entry with date** for still-owned (unrealized P&L).
-5. **Tax/cap-gains report** = SKIP — pure ops view.
-6. **Architecture** = Approach B — fully normalized (10 tables + 4 views), not single-table.
-7. **Tabs** = Option A — Rich 8 tabs: Dashboard · Portfolio · Transactions · Cash Flow · Dividends · Accounts · Prices · Import.
-8. **Data model** = LOCKED. See below.
-
-**Schema (locked):**
-- Lookup: `personal_stock_accounts` (3 seeded rows: 001/003/009), `personal_stock_instruments` (~21 auto-discovered)
-- Audit: `personal_stock_uploads`, `personal_stock_raw_rows`
-- Core: `personal_stock_trades` (one table for stocks+fund, distinguished by instrument.kind), `personal_stock_dividends`, `personal_stock_cash_movements`, `personal_stock_fees`, `personal_stock_interest`, `personal_stock_corrections`, `personal_stock_current_prices` (append-only)
-- Views: `v_personal_stock_positions`, `v_personal_stock_realized_pnl` (FIFO), `v_personal_stock_account_balance`, `v_personal_stock_dashboard_kpis`
-- Migration file: `0116_personal_stock_investment.sql`
-
-**Import flow (drafted):**
-- SpreadsheetML XML parser, SHA-256 dedup on uploads, filename parsing for account+year, op_type → typed table routing, auto-discover new tickers, Open/Close balance reconciliation check, re-process button.
-
-**Tab contents (drafted):** All 8 tabs scoped. Two open questions sent to user before pushing dashboard mockup:
-1. Cash Flow has 3 sub-views (bank in/out, inter-account, balance-over-time) — OK or split into 2 tabs?
-2. Prices tab — modal-per-ticker or single editable table with inline inputs?
-
-**Visual companion:** active. Session dir `.superpowers/brainstorm/1881-1778606977/`. Screens pushed: welcome (data findings), tabs (3 layout options), datamodel (10 tables + 4 views). Next push: dashboard mockup.
-
-**Process state:** Spec approved by user. Plan written and committed at `docs/superpowers/plans/2026-05-12-personal-stock-investment.md` (commit `20e87e1`, pushed to main). 23 tasks across 6 phases:
-- Phase 1 (Tasks 1–8): Migration 0116/0117 + parser + classifier + import orchestrator + API routes + bulk-seed verification
-- Phase 2 (Tasks 9–10): Personal tile + 8-tab module layout
-- Phase 3 (Tasks 11–14): Dashboard — KPI bands, holdings, activity feed, 4 charts
-- Phase 4 (Tasks 15–19): Portfolio / Transactions / Cash Flow / Dividends / Accounts tabs
-- Phase 5 (Tasks 20–22): Prices inline editor + Import drag-drop UI + FIFO stub + realized/unrealized P&L wiring
-- Phase 6 (Task 23): Full smoke + tsc + deploy
-
-**Intentional v1 trade-offs in plan:** FIFO function body ships as stub (realized-P&L = 0); reprocess endpoint is cleanup-only; CSV export + portfolio drilldown modal flagged as follow-ups.
-
-**Awaiting user decision:** execution mode — (1) subagent-driven (recommended) vs (2) inline execution. After choice, invoke `superpowers:subagent-driven-development` or `superpowers:executing-plans` to begin Task 1.
-
-**Visual companion:** plan-ready.html screen pushed to preview panel with phase breakdown table + execution chooser cards.
-
----
-
-## 🔵 2026-05-12 — BH Financials: Beginning Balances hardcoding + rolling balance module
-
-User requested a new **BH Financials** module covering:
-1. **Hardcode beginning balances** (Suppliers & Owner Accounts as of end-Dec 2025) from files in `C:\kareemhady\Lime Domains\Beithady\FINANCIALS` into the database.
-2. **Build on those balances** for pulled Odoo data for the current year (working around Odoo's 365-day data limit).
-3. **Rolling quarterly snapshot** — every 6 months (starting now) automatically hardcode ending balances so we never hit the 365-day limit again. Applies to all accounts affecting the Balance Sheet.
-4. **Module with full tabs & functions** to be designed.
-
-**Process state:** Inside `superpowers:brainstorming` skill. Context exploration completed. Visual companion offered — awaiting user yes/no before starting clarifying-question loop.
-
-**Exploration findings (locked into context):**
-- **Source files (12) in `Lime Domains/Beithady/FINANCIALS/`:**
-  - `BH Accounts Payable Suppliers partner_ledger ...xlsx` — 85 suppliers, total **-8,567,422.64 EGP** as of 31-Dec-2025.
-  - `BH Owners Payable partner_ledger ...xlsx` — 6 owners (A1 HOSPITALITY -2,105,005 · LIME SOLUTIONS -125,675 · MARINA GOUNA -29,981 · MOHAMMED ELSAYED 101-55 -122,909 · MOHAMMED ELSAYED 213-BH -108,447 · WATER SIDE GOUNA -26,196), total **-2,518,213.03 EGP**.
-  - `bh balance sheet.xlsx` — consolidated 31-Dec-2025 BS (already coded as `BEITHADY_OPENING_BALANCES_2026` in TS).
-  - Plus per-entity P&Ls and Feb-2026 balance sheets for cross-check.
-- **Existing seed**: `src/lib/beithady-opening-balance-2026.ts` — account-level only (TS const, not in DB). Consumed by `buildBalanceSheet` in `financials-pnl.ts` (consolidated scope, companies 5+10, asOf > 2025-12-31 → seed + Odoo deltas).
-- **Reconciliation gap**: account 227002 "Suppliers" consolidated = **-9,081,444.65**; new supplier partner ledger sums to **-8,567,422.64** → **-514,022.01 EGP** unallocated. Needs operator decision (synthetic "Unallocated supplier" row vs adjust per-partner vs trust partner total).
-- **Owners**: NOT a separate account on consolidated balance sheet — owner balances live in per-company books (Egypt / Dubai / A1) and net out on consolidation. Likely sit under intercompany loans or `222008 Total Lime Loan` (-42.31M).
-- **Existing routes**: `/beithady/financials/` (real PnL+BS+Payables, 1182 lines) vs `/beithady/financial/` (56-line stub). Likely add new tabs to `/beithady/financials/` rather than a new route.
-- **`buildPayablesReport`** already buckets by `vendor / employee / owner` from `odoo_move_lines` joined with `odoo_partners.is_owner / is_employee / supplier_rank` — partner-level infrastructure already exists; it just lacks an **opening-balance seed per partner** (only account-level seed exists today).
-
-**Open clarifying questions queued (one at a time, after visual companion answered):**
-1. **Snapshot cadence**: "every 6 months of every quarter" — does that mean (a) every 6 months (2/yr: Jun-30 + Dec-31), (b) every quarter (4/yr), or (c) lag-by-6-months (Q1 snapshot taken in Q3)?
-2. **Reconciliation gap policy**: 227002 has a -514K delta between partner ledger and consolidated. Add a synthetic "Unallocated" partner row, prorate, trust partner total (override account), or trust account total (block import)?
-3. **Owners on consolidated**: skip owners from consolidated entirely (since they net out) or expose under a virtual `Owner Payables` group with intercompany elimination?
-4. **Scope of partner-level opening balances**: just Suppliers + Owners now, or also Customers (122001 -796,296), Employees (loans/salary-advance), and Custody accounts (121012..121063)?
-5. **Module placement**: new tab inside existing `/beithady/financials/` page, or a new sibling route like `/beithady/financials/snapshots/`?
-6. **Snapshot trigger**: manual operator action (button "Freeze snapshot") with cron-based reminder, fully automatic cron, or both?
-
-**Working hypothesis for module tabs (to refine after Qs answered):**
-- Balance Sheet (already exists — extend to show snapshot date + deltas)
-- Snapshots (list/manage all dated opening-balance snapshots, account-level + partner-level)
-- Suppliers Ledger (per-supplier current balance = opening + deltas)
-- Owners Ledger (per-owner current balance, per-company scope)
-- Reconciliation (account total vs partner total per snapshot — visualize gaps)
-- Upload / Import (xlsx upload UI for new snapshots)
-- Cadence / Settings (snapshot schedule + reminder config)
+**Next task:** Task 2 — builder logic in `build-buildings.ts`.
 
 ---
 
