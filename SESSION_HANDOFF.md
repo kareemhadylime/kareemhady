@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🟢 2026-05-12 — Skills synced: pull-all, handoff, push-all now all tracked in git
+
+No code change to the app. Skills maintenance only.
+
+**What happened:**
+- User asked how to copy `pull-all` and `handoff` skills to another machine. Confirmed both `.claude/skills/pull-all/SKILL.md` and `.claude/skills/handoff/SKILL.md` are already tracked in git (not gitignored), so a `git pull` on the other machine is all that's needed.
+- User then asked to also ensure `push-all` is synced. The skill was listed in the system prompt but the file did not exist on disk. Created `.claude/skills/push-all/SKILL.md` with full instructions for end-of-session commit+push across all five repos, then committed and pushed it (commit `451b748`).
+
+**State left in:** All three skills are on `origin/main`. Other machine just needs `git pull origin main` inside the `kareemhady` repo to get them.
+
+**Next session:** Nothing pending from this turn.
+
+---
+
 ## 🟡 2026-05-12 (open) — Brainstorming: switch daily-report briefing from "yesterday completed" → "today live, fresh data at send time"
 
 No code yet. Brainstorming skill in flight, awaiting user pick of scope option.
