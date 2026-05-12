@@ -1,5 +1,47 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🎨 2026-05-12 — Beithady Ads Module: Eid Carousel Creatives (Gulf States) — bundle location clarified
+
+**bundle.html is a temp skills artifact** — deep path inside Claude's AppData session folder, not in the repo.
+Easiest access: the artifact rendered inline in the conversation (clickable HTML artifact panel).
+To save it permanently: copy the HTML from the artifact → save as `docs/ad-creatives/eid-carousel-2026.html` in the repo.
+
+
+
+**What happened:**
+User requested 4 carousel ad creatives for Beithady's Eid campaign targeting Gulf States citizens (Saudi, UAE, Kuwait, Qatar, Bahrain, Oman), to be used on Meta/Instagram carousel and TikTok Reels.
+
+**Research done:**
+- Studied 4 competitor Instagram accounts (Beithady, Prime Hospitality, Birdnest, Vesta) for design inspiration
+- Pulled exact brand colors from Google Drive `Colors.pdf`: Navy `#003462` · Periwinkle `#6077a6` · Lavender `#eae9f3`
+- Read full brand identity PDF: Font = Cairo, Icon = H+ب mark, tone = Inviting/Professional/Attentive
+- Tagline confirmed: "كل لحظة، كل ذكرى / Every Moment. Every Memory"
+- Locations confirmed: New Cairo · Kattemya · El Gouna · Dubai
+- Reviewed existing Ads module (19 page routes, Meta/Google/TikTok/Instagram publisher, gallery, AI copy)
+
+**Deliverable:** Interactive HTML carousel preview at:
+`skills/web-artifacts-builder/beithady-eid-carousel/bundle.html`
+
+Also delivered as artifact in conversation. 4 slides:
+1. **عيد مبارك (Eid Greeting)** — Navy + animated gold crescent/star + Islamic geometric pattern
+2. **منزلكم الثاني في القاهرة (Your Home)** — Split interior illustration / navy panel, family suite specs + locations
+3. **كل ما تحتاجه (Services)** — Lavender bg, 4 service cards grid, 5-star badge
+4. **احجز الآن (Book Now)** — Diagonal navy/gold CTA, corner ornaments, contact block
+
+Features: Instagram phone-frame mockup, smooth slide transitions, Feed 1:1 ↔ Stories 9:16 toggle, thumbnail strip, keyboard navigation.
+
+**NOT committed/deployed** — this is a design asset/mockup, not app code. No migration needed.
+
+**Next session — outstanding items:**
+- Replace CSS interior illustration on Slide 2 with real Beithady property photos from Google Drive `Beithady Hospitality` buildings folder
+- Upload final approved creatives to `beithady_gallery_assets` table (mark `ad_eligible = true`) via Ads → Gallery module
+- Consider adding 5th slide: "Eid Special Offer" with specific pricing/discount for Gulf bookers
+- Add Arabic caption copy for use in Meta CTWA campaign publisher
+
+---
+
+
+
 ## 🟢 2026-05-12 — Beithady Financials P&L fixed — matches Odoo within 0.4%
 
 **What happened:**
