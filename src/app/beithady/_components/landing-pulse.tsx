@@ -68,7 +68,10 @@ export async function LandingPulse() {
     // snapshot (sub-badges, not headlines — acceptable). Cleaning count
     // is overridden live via the cleaningCountOverride prop below.
   };
-  const all = payload.all;
+  // Use livePayload.all so the OCCUPANCY KPI card reflects the live
+  // occupancy_today_pct (same source as the Currently Staying tile),
+  // not the stale morning-cron snapshot value.
+  const all = livePayload.all;
   const paceAccent: 'green' | 'red' = all.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
   const isStale = latestDate && snapshotDate !== latestDate;
 
