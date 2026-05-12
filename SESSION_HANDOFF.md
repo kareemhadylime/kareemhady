@@ -105,6 +105,10 @@ Hard gate still in effect: no code until spec written and user-approved.
 - `tsc --noEmit` exits 0 (zero errors). 363/363 tests pass. Pushed to `origin/main`.
 - Self-review note: existing 7d code does NOT apply a secondary `.filter()` on the reduced rows (they are pre-filtered by the API window). For consistency, the 3d Stripe reduction does include an explicit `.filter()` on `arrival_date_ymd` — belt-and-suspenders against any off-by-one in the timestamp conversion, matching the pattern used for `mtd_received_stripe_usd`.
 
+**Task 5 bugfix — commit `80c2852` (2026-05-12):**
+- `src/lib/beithady-daily-report/build-payouts.ts`: eliminated the redundant `stripe3` API call. The `[today+1, today+3]` window is a strict subset of the already-fetched `stripe7` window `[today+1, today+7]`. Fix: removed the `loadStripePayouts(next3dStripeStart, next3dStripeEnd, ...)` call plus its warning push; deleted the redundant `next3dStripeStart` alias (equals `next7StripeStart`); derived `next_3d_stripe_usd` inline by filtering `stripe7.rows` on `arrival_date_ymd <= next3dStripeEnd`. Now exactly ONE Stripe API call for the projection window.
+- `tsc --noEmit` clean, 363/363 tests pass. Pushed to `origin/main`.
+
 ---
 
 ## 🔵 2026-05-12 — Q&A: "why does our app say 7 check-ins / 5 check-outs and Guesty says 5 / 10?"
