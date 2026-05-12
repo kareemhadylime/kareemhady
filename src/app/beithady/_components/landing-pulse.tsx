@@ -122,11 +122,11 @@ export async function LandingPulse() {
       </div>
 
       <div
-        className="grid grid-cols-2 gap-3 px-3 pb-4 sm:grid-cols-3 xl:grid-cols-6"
+        className="grid grid-cols-2 gap-3 px-3 pb-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5"
         aria-label="Hero KPIs"
       >
         <HeroKpi
-          label="Occupancy"
+          label="Occupancy today"
           value={`${all.occupancy_today_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'today' }}
           spark={payload.sparklines?.occupancy}
@@ -134,14 +134,57 @@ export async function LandingPulse() {
           accent="ink"
         />
         <HeroKpi
+          label="MTD Occupancy"
+          value={`${all.backward_occupancy_pct.toFixed(1)}%`}
+          delta={{ direction: 'flat', text: '1st → today' }}
+          spark={payload.sparklines?.mtd_occupancy}
+          drillTo="/beithady/analytics/performance?metric=backward-occupancy"
+          accent="steel"
+        />
+        <HeroKpi
+          label="Month-to-End Occupancy"
+          value={`${all.forward_occupancy_pct.toFixed(1)}%`}
+          delta={{ direction: 'flat', text: 'today → EOM, OTB' }}
+          spark={payload.sparklines?.month_to_end_occupancy}
+          drillTo="/beithady/analytics/performance?metric=forward-occupancy"
+          accent="steel"
+        />
+        <HeroKpi
+          label="Month Occupancy"
+          value={`${(all.month_occupancy_pct ?? 0).toFixed(1)}%`}
+          delta={{ direction: 'flat', text: 'whole month, OTB' }}
+          spark={payload.sparklines?.month_occupancy}
+          drillTo="/beithady/analytics/performance?metric=month-occupancy"
+          accent="gold"
+        />
+        <HeroKpi
+          label="Pace"
+          value={`${all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${all.pickup_vs_prior_month_pct.toFixed(1)}%`}
+          delta={{
+            direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
+            text: 'vs prior month',
+          }}
+          spark={payload.sparklines?.pace}
+          drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
+          accent={paceAccent}
+        />
+        <HeroKpi
           label="MTD Revenue"
+          value={`$${((all.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
+          delta={{ direction: 'flat', text: 'check-ins so far' }}
+          spark={payload.sparklines?.mtd_revenue_actual}
+          drillTo="/beithady/financials?period=mtd-actual"
+          accent="gold"
+        />
+        <HeroKpi
+          label="Month Revenue (OTB)"
           value={`$${(all.revenue_mtd_usd / 1000).toFixed(1)}k`}
           delta={{
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
-            text: `${all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${all.pickup_vs_prior_month_pct.toFixed(1)}% vs LM`,
+            text: 'incl. confirmed → EOM',
           }}
           spark={payload.sparklines?.mtd_revenue}
-          drillTo="/beithady/financials?period=mtd"
+          drillTo="/beithady/financials?period=month-otb"
           accent="gold"
         />
         <HeroKpi
@@ -159,17 +202,6 @@ export async function LandingPulse() {
           spark={payload.sparklines?.revpar}
           drillTo="/beithady/financials?metric=revpar"
           accent="steel"
-        />
-        <HeroKpi
-          label="Pace"
-          value={`${all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${all.pickup_vs_prior_month_pct.toFixed(1)}%`}
-          delta={{
-            direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
-            text: 'vs prior month',
-          }}
-          spark={payload.sparklines?.pace}
-          drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
-          accent={paceAccent}
         />
         <HeroKpi
           label="Reviews avg"
