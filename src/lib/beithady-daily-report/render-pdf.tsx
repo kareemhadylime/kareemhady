@@ -244,7 +244,11 @@ function BuildingsTablePdf({ payload }: { payload: DailyReportPayload }) {
     { label: 'Turnovers', val: b => ({ text: fmtNum(b.turnovers_today) }) },
     {
       section: 'MONTH-TO-DATE',
-      label: 'Revenue (check-in this month)',
+      label: 'MTD Revenue (check-ins so far)',
+      val: b => ({ text: fmtUsd(b.revenue_mtd_actual_usd), bold: true }),
+    },
+    {
+      label: 'Month Revenue (incl. confirmed → EOM)',
       val: b => ({ text: fmtUsd(b.revenue_mtd_usd), bold: true }),
     },
     {
