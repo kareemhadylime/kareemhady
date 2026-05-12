@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ar" dir="auto">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Beithady — Eid Campaign 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{background:#f0f2f5;font-family:'Cairo',sans-serif}
+button{cursor:pointer;border:none;background:none}
+
+/* app layout */
+.app-root{min-height:100vh;background:#f0f2f5;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px}
+
+/* header */
+.header{width:100%;max-width:640px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:12px 18px;background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(0,52,98,.09)}
+.platform-toggle{display:flex;gap:6px}
+.toggle-btn{padding:5px 14px;border-radius:20px;font-family:'Cairo',sans-serif;font-size:11px;font-weight:700;color:#6077a6;background:#eae9f3;transition:all .2s}
+.toggle-btn.active{background:#003462;color:#fff}
+.toggle-btn:hover:not(.active){background:#d8d6ea}
+
+/* carousel area */
+.carousel-area{display:flex;align-items:center;gap:16px}
+.nav-arrow{width:40px;height:40px;border-radius:50%;background:#fff;box-shadow:0 2px 12px rgba(0,52,98,.14);font-size:24px;color:#003462;display:flex;align-items:center;justify-content:center;transition:all .18s;flex-shrink:0;line-height:1}
+.nav-arrow:hover{background:#003462;color:#fff;transform:scale(1.06)}
+
+/* phone frame */
+.phone-frame{background:#fff;border-radius:30px;box-shadow:0 10px 50px rgba(0,0,0,.18),0 0 0 1.5px rgba(0,52,98,.1);overflow:hidden;display:flex;flex-direction:column;align-items:center;padding-bottom:16px}
+.phone-notch{width:60px;height:5px;background:#ddd;border-radius:3px;margin:8px auto 4px}
+.ig-header{width:100%;display:flex;align-items:center;gap:9px;padding:7px 14px 5px}
+.ig-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#C9A84C,#003462);flex-shrink:0}
+
+/* slide */
+.slide-viewport{overflow:hidden;transition:opacity .18s ease;flex-shrink:0;position:relative}
+.slide-viewport.fading{opacity:0}
+
+/* dots */
+.carousel-dots{display:flex;gap:5px;margin-top:8px}
+.dot{width:6px;height:6px;border-radius:50%;background:#ccc;transition:all .2s;cursor:pointer}
+.dot.active{background:#003462;width:18px;border-radius:3px}
+
+/* ig actions */
+.ig-actions{width:100%;display:flex;align-items:center;gap:12px;padding:8px 14px 2px}
+
+/* slide info */
+.slide-info{display:flex;align-items:center;gap:4px;margin:14px 0 16px}
+.slide-counter{font-family:'Cairo',sans-serif;font-size:12px;font-weight:700;color:#C9A84C;background:#003462;padding:2px 10px;border-radius:12px}
+.dim-label{font-family:'Cairo',sans-serif;font-size:10px;color:#bbb;margin-left:10px;letter-spacing:.5px}
+
+/* thumbnails */
+.thumbnails{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:580px}
+.thumb-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px;border-radius:10px;border:2px solid transparent;background:#fff;transition:all .18s;box-shadow:0 1px 6px rgba(0,52,98,.08);width:98px;overflow:hidden}
+.thumb-btn:hover{border-color:#6077a6}
+.thumb-btn.active{border-color:#003462;box-shadow:0 2px 14px rgba(0,52,98,.2)}
+.thumb-label{font-family:'Cairo',sans-serif;font-size:9.5px;font-weight:700;color:#003462;text-align:center;margin-top:2px}
+.thumb-inner{width:82px;height:82px;border-radius:5px;overflow:hidden;position:relative;flex-shrink:0}
+
+/* animations */
+@keyframes crescentPulse{0%,100%{filter:drop-shadow(0 0 8px rgba(201,168,76,.4))}50%{filter:drop-shadow(0 0 28px rgba(201,168,76,.9))}}
+.crescent-glow{animation:crescentPulse 2.8s ease-in-out infinite}
+@keyframes sparklePop{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:1;transform:scale(2)}}
+.sparkle{animation:sparklePop 2s ease-in-out infinite;border-radius:50%}
+
+/* slide contents */
+.slide-inner{position:relative;width:100%;height:100%;overflow:hidden}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+const NAVY = '#003462';
+const GOLD = '#C9A84C';
+const PERIWINKLE = '#6077a6';
+const LAVENDER = '#eae9f3';
+
+function starPoints(cx, cy, r, pts, inner) {
+  const p = [];
+  for (let i = 0; i < pts * 2; i++) {
+    const a = (i * Math.PI) / pts - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : inner;
+    p.push(`${cx + rad * Math.cos(a)},${cy + rad * Math.sin(a)}`);
+  }
+  return p.join(' ');
+}
+
+function GeometricBg({ opacity = 0.12, color = GOLD }) {
+  return (
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity, pointerEvents: 'none' }}>
+      <defs>
+        <pattern id={`ig${Math.floor(opacity*100)}`} x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+          <polygon points={starPoints(40,40,28,8,12)} fill="none" stroke={color} strokeWidth="0.7"/>
+          <line x1="0" y1="0" x2="40" y2="40" stroke={color} strokeWidth="0.35"/>
+          <line x1="80" y1="0" x2="40" y2="40" stroke={color} strokeWidth="0.35"/>
+          <line x1="0" y1="80" x2="40" y2="40" stroke={color} strokeWidth="0.35"/>
+          <line x1="80" y1="80" x2="40" y2="40" stroke={color} strokeWidth="0.35"/>
+          <line x1="40" y1="0" x2="40" y2="80" stroke={color} strokeWidth="0.35"/>
+          <line x1="0" y1="40" x2="80" y2="40" stroke={color} strokeWidth="0.35"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill={`url(#ig${Math.floor(opacity*100)})`}/>
+    </svg>
+  );
+}
+
+function LogoMark({ light = true, size = 38 }) {
+  const c = light ? '#fff' : NAVY;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <svg width={size} height={size} viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="19" fill="none" stroke={GOLD} strokeWidth="1.2"/>
+        <text x="20" y="26" textAnchor="middle" fontFamily="Cairo,sans-serif" fontWeight="700" fontSize="17" fill={GOLD}>H</text>
+        <text x="20" y="36" textAnchor="middle" fontFamily="Cairo,sans-serif" fontWeight="700" fontSize="9" fill={c}>ب</text>
+      </svg>
+      <div style={{ lineHeight: 1.1 }}>
+        <div style={{ fontFamily: 'Cairo,sans-serif', fontWeight: 800, fontSize: size * 0.38, color: c, letterSpacing: 2 }}>BEIT HADY</div>
+        <div style={{ fontFamily: 'Cairo,sans-serif', fontWeight: 500, fontSize: size * 0.27, color: GOLD, direction: 'rtl' }}>بيت هادي</div>
+      </div>
+    </div>
+  );
+}
+
+function Crescent() {
+  return (
+    <svg width="145" height="145" viewBox="0 0 145 145" className="crescent-glow">
+      <circle cx="72" cy="72" r="56" fill={GOLD}/>
+      <circle cx="95" cy="58" r="46" fill={NAVY}/>
+      <polygon points={starPoints(108,46,15,5,6)} fill={GOLD}/>
+    </svg>
+  );
+}
+
+function CornerOrnament({ pos }) {
+  const rots = { tl: '0 0 0', tr: '90 30 30', bl: '270 30 30', br: '180 30 30' };
+  return (
+    <svg width="60" height="60" viewBox="0 0 60 60" style={{ opacity: 0.88 }}>
+      <g transform={`rotate(${rots[pos]})`}>
+        <line x1="2" y1="2" x2="52" y2="2" stroke={GOLD} strokeWidth="1.5"/>
+        <line x1="2" y1="2" x2="2" y2="52" stroke={GOLD} strokeWidth="1.5"/>
+        <polygon points={starPoints(9,9,7,8,3)} fill={GOLD}/>
+      </g>
+    </svg>
+  );
+}
+
+function ServiceCard({ arabic, english, icon }) {
+  return (
+    <div style={{ background: '#fff', border: `1.5px solid ${NAVY}1A`, borderRadius: 12, padding: '13px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, boxShadow: '0 2px 12px rgba(0,52,98,.07)' }}>
+      <div style={{ fontSize: 26 }}>{icon}</div>
+      <div style={{ fontFamily: 'Cairo,sans-serif', fontWeight: 700, fontSize: 12, color: NAVY, direction: 'rtl', textAlign: 'center' }}>{arabic}</div>
+      <div style={{ fontFamily: 'Cairo,sans-serif', fontWeight: 400, fontSize: 9.5, color: PERIWINKLE, textAlign: 'center' }}>{english}</div>
+    </div>
+  );
+}
+
+/* ═══════ SLIDE 1 ═══════ */
+function Slide1() {
+  return (
+    <div className="slide-inner" style={{ background: NAVY }}>
+      <GeometricBg opacity={0.13}/>
+      {/* gold bottom line */}
+      <div style={{ position:'absolute', bottom:0, left:'18%', right:'18%', height:2, background:`linear-gradient(90deg,transparent,${GOLD},transparent)`, zIndex:2 }}/>
+      {/* logo */}
+      <div style={{ position:'absolute', top:22, left:'50%', transform:'translateX(-50%)', zIndex:10 }}>
+        <LogoMark light size={30}/>
+      </div>
+      {/* crescent */}
+      <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-60%)', zIndex:5 }}>
+        <Crescent/>
+      </div>
+      {/* text */}
+      <div style={{ position:'absolute', bottom:82, left:0, right:0, display:'flex', flexDirection:'column', alignItems:'center', gap:8, zIndex:10 }}>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:900, fontSize:52, color:GOLD, direction:'rtl', textShadow:`0 0 30px ${GOLD}55`, letterSpacing:2 }}>عيد مبارك</div>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:400, fontSize:21, color:'#fff', direction:'rtl', opacity:.9 }}>احتفلوا بالعيد في ضيافتنا</div>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:300, fontSize:14, color:PERIWINKLE, letterSpacing:1 }}>Celebrate Eid in Our Care</div>
+      </div>
+      {/* bottom handle */}
+      <div style={{ position:'absolute', bottom:18, left:0, right:0, textAlign:'center', zIndex:10 }}>
+        <span style={{ fontFamily:'Cairo,sans-serif', fontSize:10, color:'rgba(255,255,255,.45)', letterSpacing:2 }}>@BEITHADY &nbsp;•&nbsp; BEITHADY.COM</span>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ SLIDE 2 ═══════ */
+function Slide2() {
+  return (
+    <div className="slide-inner">
+      {/* interior left */}
+      <div style={{ position:'absolute', left:0, top:0, width:'58%', height:'100%', background:'linear-gradient(145deg,#f5f0e8 0%,#ede5d4 40%,#cfc1a4 100%)' }}>
+        {/* gold left stripe */}
+        <div style={{ position:'absolute', left:0, top:0, bottom:0, width:4, background:`linear-gradient(180deg,${GOLD},${GOLD}88,${GOLD})`, zIndex:2 }}/>
+        {/* window */}
+        <div style={{ position:'absolute', top:'8%', left:'12%', width:'76%', height:'42%', background:'linear-gradient(180deg,#9bb8d4,#c2d8ee,#e4f0fa)', borderRadius:'4px 4px 0 0', boxShadow:'inset 0 0 0 5px rgba(255,255,255,.45)' }}>
+          <div style={{ position:'absolute', top:'50%', left:0, right:0, height:2, background:'rgba(255,255,255,.6)', marginTop:-1 }}/>
+          <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:2, background:'rgba(255,255,255,.6)', marginLeft:-1 }}/>
+        </div>
+        {/* sofa */}
+        <div style={{ position:'absolute', bottom:'22%', left:'5%', width:'90%', height:'20%', background:'#8b7355', borderRadius:'8px 8px 0 0', boxShadow:'0 4px 12px rgba(0,0,0,.15)' }}>
+          <div style={{ position:'absolute', top:0, left:'8%', right:'8%', height:'45%', background:'#9d8463', borderRadius:'4px 4px 0 0' }}/>
+        </div>
+        {/* floor */}
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'22%', background:'linear-gradient(180deg,#c4a97d,#b89668)' }}/>
+        {/* coffee table */}
+        <div style={{ position:'absolute', bottom:'28%', left:'22%', width:'56%', height:'5%', background:'#5c4a2a', borderRadius:4 }}/>
+        {/* lamp */}
+        <div style={{ position:'absolute', bottom:'42%', right:'5%', width:'8%', height:'28%', background:'linear-gradient(180deg,#d4a84c55,transparent)', borderRadius:'50% 50% 0 0' }}/>
+      </div>
+      {/* navy right */}
+      <div style={{ position:'absolute', right:0, top:0, width:'44%', height:'100%', background:NAVY }}>
+        <GeometricBg opacity={0.08}/>
+        <div style={{ position:'absolute', top:15, right:12, zIndex:10 }}>
+          <LogoMark light size={23}/>
+        </div>
+        <div style={{ position:'absolute', top:'27%', left:13, right:13, zIndex:10 }}>
+          <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:800, fontSize:19, color:'#fff', direction:'rtl', textAlign:'right', lineHeight:1.35 }}>منزلكم الثاني في القاهرة</div>
+          <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:300, fontSize:11, color:GOLD, letterSpacing:.8, marginTop:5, textAlign:'right' }}>Your Second Home in Cairo</div>
+          <div style={{ margin:'11px 0', height:1, background:`linear-gradient(90deg,transparent,${GOLD}55)` }}/>
+          {[
+            { icon:'🛏', ar:'أجنحة 1–4 غرف نوم', en:'1–4 Bedroom Family Suites' },
+            { icon:'📍', ar:'المعادي • القاهرة الجديدة • الجونة', en:'New Cairo · Kattemya · El Gouna' },
+            { icon:'⭐', ar:'خدمة فندقية متكاملة', en:'Fully Serviced · 24/7' },
+          ].map((item, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:7, marginBottom:9, direction:'rtl' }}>
+              <span style={{ fontSize:14, marginTop:1 }}>{item.icon}</span>
+              <div>
+                <div style={{ fontFamily:'Cairo,sans-serif', fontSize:10.5, color:'#fff', fontWeight:600 }}>{item.ar}</div>
+                <div style={{ fontFamily:'Cairo,sans-serif', fontSize:9, color:PERIWINKLE }}>{item.en}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ position:'absolute', bottom:13, left:0, right:0, textAlign:'center', zIndex:10 }}>
+          <span style={{ fontFamily:'Cairo,sans-serif', fontSize:9, color:'rgba(255,255,255,.4)', letterSpacing:1.5 }}>@BEITHADY</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ SLIDE 3 ═══════ */
+function Slide3() {
+  return (
+    <div className="slide-inner" style={{ background:LAVENDER, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'20px 18px 12px' }}>
+      <div style={{ position:'absolute', top:-60, right:-60, width:200, height:200, borderRadius:'50%', background:`${NAVY}07` }}/>
+      <div style={{ position:'absolute', bottom:-80, left:-50, width:240, height:240, borderRadius:'50%', background:`${NAVY}05` }}/>
+      {/* bottom rule */}
+      <div style={{ position:'absolute', bottom:0, left:'15%', right:'15%', height:2, background:`linear-gradient(90deg,transparent,${GOLD},transparent)`, zIndex:2 }}/>
+      {/* logo */}
+      <div style={{ position:'absolute', top:15, left:'50%', transform:'translateX(-50%)', zIndex:10 }}>
+        <LogoMark light={false} size={25}/>
+      </div>
+      {/* rating badge */}
+      <div style={{ position:'absolute', top:66, left:'50%', transform:'translateX(-50%)', background:GOLD, borderRadius:20, padding:'2px 13px', fontFamily:'Cairo,sans-serif', fontSize:9.5, fontWeight:700, color:NAVY, letterSpacing:.8, whiteSpace:'nowrap', zIndex:10 }}>
+        ⭐⭐⭐⭐⭐ &nbsp;5-STAR EXPERIENCE
+      </div>
+      {/* title */}
+      <div style={{ textAlign:'center', marginBottom:12, marginTop:50, zIndex:5 }}>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:800, fontSize:19, color:NAVY, direction:'rtl', lineHeight:1.3 }}>كل ما تحتاجه تحت سقف واحد</div>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:400, fontSize:11, color:PERIWINKLE, letterSpacing:.4, marginTop:3 }}>All the Luxuries of a 5-Star Hotel</div>
+      </div>
+      {/* 2×2 grid */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, width:'100%', zIndex:5 }}>
+        <ServiceCard arabic="تنظيف يومي" english="Daily Housekeeping" icon="🏠"/>
+        <ServiceCard arabic="أمن على مدار الساعة" english="24/7 Security" icon="🔒"/>
+        <ServiceCard arabic="استقبال وكونسيرج" english="Concierge & Reception" icon="🛎"/>
+        <ServiceCard arabic="خدمة الغرف" english="In-Room Dining" icon="🍽"/>
+      </div>
+      {/* tagline */}
+      <div style={{ marginTop:13, textAlign:'center', zIndex:5 }}>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:700, fontSize:12, color:NAVY, direction:'rtl' }}>كل لحظة، كل ذكرى</div>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontSize:9.5, color:PERIWINKLE, letterSpacing:.8 }}>Every Moment. Every Memory.</div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ SLIDE 4 ═══════ */
+function Slide4() {
+  const sparkles = [
+    { top:'12%', left:'8%', size:4, delay:0 },
+    { top:'7%', right:'15%', size:6, delay:.4 },
+    { top:'21%', right:'8%', size:3, delay:.8 },
+    { bottom:'17%', left:'7%', size:5, delay:1.2 },
+    { bottom:'8%', right:'10%', size:4, delay:1.6 },
+  ];
+  return (
+    <div className="slide-inner">
+      <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${NAVY} 0%,${NAVY} 55%,#1a2744 100%)` }}/>
+      <div style={{ position:'absolute', inset:0, background:`linear-gradient(315deg,${GOLD}CC 0%,${GOLD}55 30%,transparent 55%)` }}/>
+      <GeometricBg opacity={0.1}/>
+      {sparkles.map((s,i) => (
+        <div key={i} className="sparkle" style={{ position:'absolute', ...s, width:s.size, height:s.size, background:GOLD, animationDelay:`${s.delay}s` }}/>
+      ))}
+      {/* corners */}
+      <div style={{ position:'absolute', top:6, left:6, zIndex:5 }}><CornerOrnament pos="tl"/></div>
+      <div style={{ position:'absolute', top:6, right:6, zIndex:5 }}><CornerOrnament pos="tr"/></div>
+      <div style={{ position:'absolute', bottom:6, left:6, zIndex:5 }}><CornerOrnament pos="bl"/></div>
+      <div style={{ position:'absolute', bottom:6, right:6, zIndex:5 }}><CornerOrnament pos="br"/></div>
+      {/* logo */}
+      <div style={{ position:'absolute', top:20, left:'50%', transform:'translateX(-50%)', zIndex:10 }}>
+        <LogoMark light size={26}/>
+      </div>
+      {/* main CTA text */}
+      <div style={{ position:'absolute', top:'50%', left:0, right:0, transform:'translateY(-55%)', display:'flex', flexDirection:'column', alignItems:'center', gap:5, zIndex:10, padding:'0 26px' }}>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:900, fontSize:50, color:'#fff', direction:'rtl', textShadow:'0 2px 20px rgba(0,0,0,.35)' }}>احجز الآن</div>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:400, fontSize:20, color:'rgba(255,255,255,.88)', direction:'rtl' }}>قبل امتلاء المواعيد</div>
+        <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:300, fontSize:12, color:GOLD, letterSpacing:1, textAlign:'center' }}>Book Early — Limited Eid Availability</div>
+        {/* diamond divider */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, width:'78%', margin:'7px 0' }}>
+          <div style={{ flex:1, height:1, background:`${GOLD}80` }}/>
+          <div style={{ width:8, height:8, background:GOLD, transform:'rotate(45deg)' }}/>
+          <div style={{ flex:1, height:1, background:`${GOLD}80` }}/>
+        </div>
+        {/* contact */}
+        <div style={{ display:'flex', flexDirection:'column', gap:5, alignItems:'center' }}>
+          {[
+            { icon:'📞', text:'+20 150 011 0 1120' },
+            { icon:'🌐', text:'BEITHADY.COM' },
+            { icon:'📱', text:'@BEITHADY' },
+          ].map((item,i) => (
+            <div key={i} style={{ fontFamily:'Cairo,sans-serif', fontSize:12.5, color:'#fff', display:'flex', gap:6 }}>
+              <span>{item.icon}</span><span style={{ letterSpacing:.5 }}>{item.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* bottom strip */}
+      <div style={{ position:'absolute', bottom:0, left:0, right:0, background:'rgba(0,0,0,.32)', padding:'5px 0', textAlign:'center', zIndex:10 }}>
+        <span style={{ fontFamily:'Cairo,sans-serif', fontSize:9, color:'rgba(255,255,255,.45)', letterSpacing:2 }}>POWERED BY FM+</span>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ MAIN APP ═══════ */
+const SLIDES = [
+  { component: Slide1, label: 'Eid Greeting', ar: 'تحية العيد' },
+  { component: Slide2, label: 'Your Home', ar: 'منزلكم' },
+  { component: Slide3, label: 'Services', ar: 'خدماتنا' },
+  { component: Slide4, label: 'Book Now', ar: 'احجز الآن' },
+];
+
+function App() {
+  const [active, setActive] = useState(0);
+  const [isStories, setIsStories] = useState(false);
+  const [fading, setFading] = useState(false);
+
+  const go = (dir) => {
+    setFading(true);
+    setTimeout(() => {
+      setActive(prev => dir === 'next' ? (prev + 1) % SLIDES.length : (prev - 1 + SLIDES.length) % SLIDES.length);
+      setFading(false);
+    }, 160);
+  };
+
+  useEffect(() => {
+    const h = (e) => {
+      if (e.key === 'ArrowRight') go('next');
+      if (e.key === 'ArrowLeft') go('prev');
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  });
+
+  const W = isStories ? 258 : 385;
+  const H = isStories ? 458 : 385;
+  const SlideComp = SLIDES[active].component;
+
+  return (
+    <div className="app-root">
+      {/* header */}
+      <div className="header">
+        <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
+          <span style={{ fontFamily:'Cairo,sans-serif', fontWeight:800, color:NAVY, fontSize:17 }}>بيت هادي — Beit Hady</span>
+          <span style={{ fontFamily:'Cairo,sans-serif', color:PERIWINKLE, fontSize:11 }}>Eid Al-Adha Campaign 2026 · Gulf States</span>
+        </div>
+        <div className="platform-toggle">
+          <button className={`toggle-btn ${!isStories ? 'active' : ''}`} onClick={() => setIsStories(false)}>⬛ Feed 1:1</button>
+          <button className={`toggle-btn ${isStories ? 'active' : ''}`} onClick={() => setIsStories(true)}>⬜ Stories 9:16</button>
+        </div>
+      </div>
+
+      {/* carousel */}
+      <div className="carousel-area">
+        <button className="nav-arrow" onClick={() => go('prev')}>‹</button>
+
+        <div className="phone-frame" style={{ width: W + 28, minHeight: H + 116 }}>
+          <div className="phone-notch"/>
+          {/* ig top bar */}
+          <div className="ig-header">
+            <div className="ig-avatar"/>
+            <div>
+              <div style={{ fontFamily:'Cairo,sans-serif', fontWeight:700, fontSize:12, color:'#111' }}>beithady</div>
+              <div style={{ fontFamily:'Cairo,sans-serif', fontSize:10, color:'#999' }}>Sponsored</div>
+            </div>
+            <div style={{ marginLeft:'auto', fontSize:16, color:'#999', letterSpacing:2 }}>•••</div>
+          </div>
+
+          {/* slide */}
+          <div className={`slide-viewport ${fading ? 'fading' : ''}`} style={{ width: W, height: H }}>
+            <SlideComp/>
+          </div>
+
+          {/* dots */}
+          <div className="carousel-dots">
+            {SLIDES.map((_, i) => (
+              <button key={i} className={`dot ${i === active ? 'active' : ''}`} onClick={() => setActive(i)}/>
+            ))}
+          </div>
+
+          {/* actions */}
+          <div className="ig-actions">
+            <span style={{ fontSize:20 }}>🤍</span>
+            <span style={{ fontSize:20 }}>💬</span>
+            <span style={{ fontSize:20 }}>📤</span>
+            <span style={{ marginLeft:'auto', fontSize:20 }}>🔖</span>
+          </div>
+        </div>
+
+        <button className="nav-arrow" onClick={() => go('next')}>›</button>
+      </div>
+
+      {/* slide info */}
+      <div className="slide-info">
+        <span className="slide-counter">{active + 1} / {SLIDES.length}</span>
+        <span style={{ fontFamily:'Cairo,sans-serif', fontWeight:700, fontSize:13, color:NAVY, marginLeft:10 }}>{SLIDES[active].label}</span>
+        <span style={{ fontFamily:'Cairo,sans-serif', fontSize:12, color:PERIWINKLE, marginLeft:5, direction:'rtl' }}>— {SLIDES[active].ar}</span>
+        <span className="dim-label">{isStories ? '1080 × 1920 px' : '1080 × 1080 px'}</span>
+      </div>
+
+      {/* thumbnails */}
+      <div className="thumbnails">
+        {SLIDES.map((s, i) => {
+          const ThumbComp = s.component;
+          return (
+            <button key={i} className={`thumb-btn ${i === active ? 'active' : ''}`} onClick={() => setActive(i)}>
+              <div className="thumb-inner">
+                <div style={{ transform:'scale(0.213)', transformOrigin:'top left', width:385, height:385, pointerEvents:'none' }}>
+                  <ThumbComp/>
+                </div>
+              </div>
+              <div className="thumb-label">{i + 1}. {s.label}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
