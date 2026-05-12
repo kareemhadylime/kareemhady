@@ -74,6 +74,12 @@ Hard gate still in effect: no code until spec written and user-approved.
 - 353/353 tests pass. Pre-existing `build-payouts.ts` TS error (missing `next_3d_*` from Task 1) confirmed pre-existing — zero new errors from Task 2.
 - Not pushed yet (orchestrator push cycle).
 
+**Task 3 DONE — commit `4defa7d` (2026-05-12):**
+- Created `src/lib/beithady-daily-report/build-yesterday-summary.ts`: pure `buildYesterdaySummary(active, inventories, yesterdayYmd)` — renewal-excluded check_ins/check_outs/turnovers, occupied-at-23:59 count, revenue_usd, total_units from `inventories.total_all`.
+- Created `src/lib/beithady-daily-report/build-yesterday-summary.test.ts`: 4 tests, all pass. TDD cycle: red → fixed with one-to-one renewal guard (multi-checkin on same listing does not trigger renewal exclusion).
+- Key implementation note: renewal detection guards against `yCheckinCountByListing === 1` — when 2+ check-ins land on the same listing on yesterday, it can't be a clean one-to-one renewal extension, so both count as real check-ins.
+- Pushed to `origin/main`.
+
 **Task 1 code-review fix — commit `940bde2` (2026-05-12):**
 - All three new `DailyReportPayload` fields made optional (`?`) so pre-v3 stored snapshots read without TypeScript-vs-runtime mismatch.
 - Reviewer's naming nit (`next_7d_projected_*` vs no `_projected_` on `next_3d_*`) was **verified and refuted**: the existing fields ARE `next_7d_projected_airbnb_usd` / `stripe` / `total` (line 95-97 in types.ts), so the reviewer was CORRECT that there is an inconsistency. However, the spec explicitly specified `next_3d_airbnb_usd` without `_projected_` — we followed the spec, and aligning would be a separate rename of `next_3d_*` fields; left as a nit, not changed.
