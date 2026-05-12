@@ -118,7 +118,7 @@ export default async function DashboardPage({
             label="Realized P&L"
             tone={k.realizedPnlEgp >= 0 ? 'pos' : 'neg'}
             value={fmtEgp(k.realizedPnlEgp, { compact: true })}
-            sub="FIFO matched (pending Task 22)"
+            sub="FIFO matched"
           />
           <KpiTile
             label="Unrealized P&L"

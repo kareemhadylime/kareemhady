@@ -20,7 +20,7 @@ export function RealizedPnlChart({
       <div className="h-44">
         {data.length === 0 ? (
           <div className="h-full flex items-center justify-center text-xs text-slate-400 italic">
-            Pending FIFO view (lands in Task 22)
+            No realized lots yet.
           </div>
         ) : (
           <ResponsiveContainer>
