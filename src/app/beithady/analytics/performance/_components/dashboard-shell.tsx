@@ -293,80 +293,101 @@ export function DashboardShell({
             </div>
           )}
 
-          {/* Hero KPI strip — wraps 2-up → 3-up → 6-up by viewport */}
-          <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          {/* Hero KPI strip — 10 cards, 2 rows of 5 on xl, responsive down */}
+          <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
             {visibility['hero-occupancy'] && (
               <HeroKpi
-                label={`Occupancy${filterSuffix}`}
-                value={`${bucket.occupancy_today_pct.toFixed(1)}%`}
-                delta={ppDelta(bucket.occupancy_today_pct, priorBucket?.occupancy_today_pct ?? 0, 'today')}
-                spark={isFiltered ? undefined : payload.sparklines?.occupancy}
+                label="Occupancy today"
+                value={`${payload.all.occupancy_today_pct.toFixed(1)}%`}
+                delta={{ direction: 'flat', text: 'today' }}
+                spark={payload.sparklines?.occupancy}
                 drillTo="/beithady/analytics/performance"
                 accent="ink"
                 onHide={() => setPanel('hero-occupancy', false)}
               />
             )}
+            {visibility['hero-mtd-occupancy'] && (
+              <HeroKpi
+                label="MTD Occupancy"
+                value={`${payload.all.backward_occupancy_pct.toFixed(1)}%`}
+                delta={{ direction: 'flat', text: '1st → today' }}
+                spark={payload.sparklines?.mtd_occupancy}
+                drillTo="/beithady/analytics/performance?metric=backward-occupancy"
+                accent="steel"
+                onHide={() => setPanel('hero-mtd-occupancy', false)}
+              />
+            )}
+            {visibility['hero-month-to-end-occupancy'] && (
+              <HeroKpi
+                label="Month-to-End Occupancy"
+                value={`${payload.all.forward_occupancy_pct.toFixed(1)}%`}
+                delta={{ direction: 'flat', text: 'today → EOM, OTB' }}
+                spark={payload.sparklines?.month_to_end_occupancy}
+                drillTo="/beithady/analytics/performance?metric=forward-occupancy"
+                accent="steel"
+                onHide={() => setPanel('hero-month-to-end-occupancy', false)}
+              />
+            )}
+            {visibility['hero-month-occupancy'] && (
+              <HeroKpi
+                label="Month Occupancy"
+                value={`${(payload.all.month_occupancy_pct ?? 0).toFixed(1)}%`}
+                delta={{ direction: 'flat', text: 'whole month, OTB' }}
+                spark={payload.sparklines?.month_occupancy}
+                drillTo="/beithady/analytics/performance?metric=month-occupancy"
+                accent="gold"
+                onHide={() => setPanel('hero-month-occupancy', false)}
+              />
+            )}
+            {visibility['hero-pace'] && (
+              <HeroKpi
+                label="Pace"
+                value={`${payload.all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${payload.all.pickup_vs_prior_month_pct.toFixed(1)}%`}
+                delta={{ direction: payload.all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
+                spark={payload.sparklines?.pace}
+                drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
+                accent={paceAccent as 'green' | 'red'}
+                onHide={() => setPanel('hero-pace', false)}
+              />
+            )}
+            {visibility['hero-mtd-revenue-actual'] && (
+              <HeroKpi
+                label="MTD Revenue"
+                value={`$${((payload.all.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
+                delta={{ direction: 'flat', text: 'check-ins so far' }}
+                spark={payload.sparklines?.mtd_revenue_actual}
+                drillTo="/beithady/financials?period=mtd-actual"
+                accent="gold"
+                onHide={() => setPanel('hero-mtd-revenue-actual', false)}
+              />
+            )}
             {visibility['hero-mtd-revenue'] && (
               <HeroKpi
-                label={`MTD Revenue${filterSuffix}`}
-                value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
-                delta={
-                  compareActive && priorBucket
-                    ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'vs LM')
-                    : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: `${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}% vs LM` }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
-                drillTo="/beithady/financials?period=mtd"
+                label="Month Revenue (OTB)"
+                value={`$${(payload.all.revenue_mtd_usd / 1000).toFixed(1)}k`}
+                delta={{ direction: payload.all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'incl. confirmed → EOM' }}
+                spark={payload.sparklines?.mtd_revenue}
+                drillTo="/beithady/financials?period=month-otb"
                 accent="gold"
                 onHide={() => setPanel('hero-mtd-revenue', false)}
               />
             )}
             {visibility['hero-revpar'] && (
               <HeroKpi
-                label={`RevPAR${filterSuffix}`}
-                value={revparValue != null ? `$${revparValue.toFixed(2)}` : `$${bucket.adr_mtd_usd.toFixed(0)}`}
-                delta={
-                  compareActive && revparValue != null && priorRevpar != null
-                    ? pctDelta(revparValue, priorRevpar, 'rev / available night')
-                    : revparValue != null
-                      ? { direction: 'flat', text: 'rev / available night' }
-                      : { direction: 'flat', text: 'ADR (RevPAR pending)' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.revpar}
+                label="RevPAR"
+                value={payload.revpar?.all != null ? `$${payload.revpar.all.toFixed(2)}` : `$${payload.all.adr_mtd_usd.toFixed(0)}`}
+                delta={payload.revpar?.all != null ? { direction: 'flat', text: 'rev / available night' } : { direction: 'flat', text: 'ADR (RevPAR pending)' }}
+                spark={payload.sparklines?.revpar}
                 drillTo="/beithady/financials?metric=revpar"
                 accent="steel"
                 onHide={() => setPanel('hero-revpar', false)}
-              />
-            )}
-            {visibility['hero-pace'] && (
-              <HeroKpi
-                label={`Pace${filterSuffix}`}
-                value={`${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}%`}
-                delta={
-                  compareActive && priorBucket
-                    ? ppDelta(bucket.pickup_vs_prior_month_pct, priorBucket.pickup_vs_prior_month_pct, 'vs prior month')
-                    : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.pace}
-                drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
-                accent={paceAccent as 'green' | 'red'}
-                onHide={() => setPanel('hero-pace', false)}
               />
             )}
             {visibility['hero-reviews-avg'] && (
               <HeroKpi
                 label="Reviews avg"
                 value={`${payload.reviews.avg_rating_mtd.toFixed(1)}★`}
-                delta={
-                  compareActive && priorPayload
-                    ? absDelta(
-                        payload.reviews.avg_rating_mtd,
-                        priorPayload.reviews.avg_rating_mtd,
-                        '★',
-                        `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`,
-                      )
-                    : { direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }
-                }
+                delta={{ direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }}
                 spark={payload.sparklines?.reviews_avg}
                 drillTo="/beithady/analytics/reviews?period=mtd"
                 accent="amber"
@@ -377,19 +398,7 @@ export function DashboardShell({
               <HeroKpi
                 label="Response time"
                 value={payload.conversations ? `${payload.conversations.yesterday.avg_response_minutes.toFixed(0)}m` : '—'}
-                delta={
-                  compareActive && payload.conversations && priorPayload?.conversations
-                    ? absDelta(
-                        payload.conversations.yesterday.avg_response_minutes,
-                        priorPayload.conversations.yesterday.avg_response_minutes,
-                        'm',
-                        `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m`,
-                        true, // invert: lower is better, so positive delta = down
-                      )
-                    : payload.conversations
-                      ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` }
-                      : undefined
-                }
+                delta={payload.conversations ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` } : undefined}
                 spark={payload.sparklines?.response_time}
                 drillTo="/beithady/communication/unified?metric=response-time"
                 accent="steel"
