@@ -24,13 +24,13 @@
 1. Wait ~1-2 min for the GitHub→Vercel deploy to settle.
 2. Open `https://limeinc.vercel.app/beithady` — confirm Today's Pulse shows 10 cards.
 3. Open `https://limeinc.vercel.app/beithady/analytics/performance` — confirm hero strip shows 10 cards (with optional building filter + compare-mode dropdown working).
-4. **Force-rebuild today's snapshot** to populate the new fields immediately (the 09:00 Cairo cron will do this tomorrow automatically):
-   ```bash
-   curl -sS -H "Authorization: Bearer $CRON_SECRET" \
-     "https://limeinc.vercel.app/api/cron/beithady-daily-report?force=1"
-   ```
-   The CRON_SECRET is in Vercel env (Production). Until this runs, the new cards show 0% / $0k because pre-deploy snapshots lack the new fields (the UI's `?? 0` fallback handles this gracefully).
+4. **Snapshot rebuild status:** kareem opted to **wait for the 09:00 Cairo cron tomorrow (2026-05-13)** rather than force-trigger manually. Until that runs, the 4 new cards display `0.0%` / `$0.0k` via the `?? 0` fallback. After the cron fires, they switch to live values.
 5. (Optional) Trigger a distribute run and check WhatsApp + Gmail show three revenue lines. **Heads up: this sends real notifications to recipients.**
+
+**Watch for on 2026-05-13:**
+- 09:00 Cairo cron runs at 06:00 UTC (or 07:00 UTC during DST — the DST-safe schedule registers both times in `vercel.json` and the handler gates on Cairo local hour).
+- After the run, all 4 new cards should show non-zero values matching the underlying Guesty/PriceLabs corpus.
+- If anything looks off (numbers mismatch expectation, layout breaks on a specific viewport, etc.), kareem will surface it in a fresh session.
 
 **Spec + plan artifacts:**
 - Spec: `docs/superpowers/specs/2026-05-12-beithady-dashboard-month-kpis-design.md`
