@@ -7,7 +7,11 @@ export type PanelId =
   | 'daily-activity'
   | 'top-movers'
   | 'hero-occupancy'
+  | 'hero-mtd-occupancy'
+  | 'hero-month-to-end-occupancy'
+  | 'hero-month-occupancy'
   | 'hero-mtd-revenue'
+  | 'hero-mtd-revenue-actual'
   | 'hero-revpar'
   | 'hero-pace'
   | 'hero-reviews-avg'
@@ -55,10 +59,14 @@ export const PANELS: PanelDescriptor[] = [
   { id: 'daily-activity', label: '📅 Daily activity (check-ins / outs / turnovers / staying)', group: 'operations-guests', defaultVisible: true },
 
   // Hero (always-on by default — these are the morning glance)
-  { id: 'hero-occupancy', label: 'Occupancy', group: 'hero', defaultVisible: true },
-  { id: 'hero-mtd-revenue', label: 'MTD Revenue', group: 'hero', defaultVisible: true },
-  { id: 'hero-revpar', label: 'RevPAR', group: 'hero', defaultVisible: true },
+  { id: 'hero-occupancy', label: 'Occupancy today', group: 'hero', defaultVisible: true },
+  { id: 'hero-mtd-occupancy', label: 'MTD Occupancy', group: 'hero', defaultVisible: true },
+  { id: 'hero-month-to-end-occupancy', label: 'Month-to-End Occupancy', group: 'hero', defaultVisible: true },
+  { id: 'hero-month-occupancy', label: 'Month Occupancy', group: 'hero', defaultVisible: true },
   { id: 'hero-pace', label: 'Pace', group: 'hero', defaultVisible: true },
+  { id: 'hero-mtd-revenue-actual', label: 'MTD Revenue (actual)', group: 'hero', defaultVisible: true },
+  { id: 'hero-mtd-revenue', label: 'Month Revenue (OTB)', group: 'hero', defaultVisible: true },
+  { id: 'hero-revpar', label: 'RevPAR', group: 'hero', defaultVisible: true },
   { id: 'hero-reviews-avg', label: 'Reviews avg', group: 'hero', defaultVisible: true },
   { id: 'hero-response-time', label: 'Response time', group: 'hero', defaultVisible: true },
 
