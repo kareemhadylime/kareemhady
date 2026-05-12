@@ -96,6 +96,15 @@ Hard gate still in effect: no code until spec written and user-approved.
 - Reviewer's naming nit (`next_7d_projected_*` vs no `_projected_` on `next_3d_*`) was **verified and refuted**: the existing fields ARE `next_7d_projected_airbnb_usd` / `stripe` / `total` (line 95-97 in types.ts), so the reviewer was CORRECT that there is an inconsistency. However, the spec explicitly specified `next_3d_airbnb_usd` without `_projected_` — we followed the spec, and aligning would be a separate rename of `next_3d_*` fields; left as a nit, not changed.
 - `tsc --noEmit src/lib/beithady-daily-report/types.ts` passes clean.
 
+**Task 5 DONE — commit `665cb46` (2026-05-12):**
+- `src/lib/beithady-daily-report/build-payouts.ts`: added three new accumulators for the 3-day window:
+  - Airbnb: `next_3d_airbnb_usd` — sums `host_payout_usd` for reservations with `check_in_date in [today, today+2]` (parallel to existing 7d guard in the same loop).
+  - Stripe: `next_3d_stripe_usd` — separate `loadStripePayouts()` call for `[today+1, today+3]`, filtered and reduced (same pattern as MTD and 7d calls).
+  - Combined: `next_3d_total_usd = round2(next_3d_airbnb_usd + next_3d_stripe_usd)` — all three emitted in the returned `section`.
+- All three fields were already declared in `PayoutsSection` (Task 1); this task wires up the values so the TS error is now resolved.
+- `tsc --noEmit` exits 0 (zero errors). 363/363 tests pass. Pushed to `origin/main`.
+- Self-review note: existing 7d code does NOT apply a secondary `.filter()` on the reduced rows (they are pre-filtered by the API window). For consistency, the 3d Stripe reduction does include an explicit `.filter()` on `arrival_date_ymd` — belt-and-suspenders against any off-by-one in the timestamp conversion, matching the pattern used for `mtd_received_stripe_usd`.
+
 ---
 
 ## 🔵 2026-05-12 — Q&A: "why does our app say 7 check-ins / 5 check-outs and Guesty says 5 / 10?"
