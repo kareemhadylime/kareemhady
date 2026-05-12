@@ -1,6 +1,42 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
-## Task 13 complete — dashboard-shell.tsx hero strip expanded to 10 cards (2026-05-12)
+## 🟢 Shipped: Beithady dashboard month-oriented KPI redesign (Tasks 1-15)
+
+**Final state:** All 15 plan tasks complete + final cross-cutting review applied. 20 commits pushed to `origin/main` (HEAD: `276d5e9`). Vercel auto-deploy triggered via GitHub integration.
+
+**What shipped:**
+- 4 new hero KPI cards on both `/beithady` (Today's Pulse) and `/beithady/analytics/performance` (Performance Dashboard hero strip): **MTD Occupancy · Month-to-End Occupancy · Month Occupancy · MTD Revenue (actual)**. Grid expanded from 6 cards (sm:3, xl:6) to 10 cards (sm:3, lg:5, xl:5 — 2 rows of 5 on desktop).
+- 2 new payload fields on `BuildingBucket`: `month_occupancy_pct` (blended whole-month OTB) + `revenue_mtd_actual_usd` (true past-only MTD revenue, since the historically-named `revenue_mtd_usd` is actually whole-month OTB).
+- 4 new sparkline series (`mtd_occupancy`, `month_to_end_occupancy`, `month_occupancy`, `mtd_revenue_actual`).
+- PDF + HTML + WhatsApp + Gmail body + digest one-liner all updated to show three-line revenue (MTD actual · Month OTB · Booked).
+- AI insights compact payload renamed `mtd_revenue_usd → month_revenue_otb_usd` + added `mtd_revenue_actual_usd` so the Haiku narrative has the right vocabulary.
+- Buildings table panel renamed misleading "MTD Rev" column → "Month OTB" (final-review fix).
+- Building-filter + compare-mode logic preserved on the Performance Dashboard hero strip (Task 13 had a regression — fix `fe24395` restored it).
+
+**Process:** Subagent-driven execution. 15 implementer dispatches + 15 spec+quality reviews + 3 fix iterations (Tasks 1, 3, 13) + 1 final cross-cutting review with 2 follow-up fixes. ~30 subagent calls total.
+
+**Verification:**
+- `npx tsc --noEmit`: clean (modulo 2 pre-existing unrelated errors: `qrcode` + `@testing-library/react`).
+- `npm run test`: 367 pass, 22 skipped, 1 pre-existing module-load failure on `fmplus-logo.test.tsx` (unrelated).
+- All edits are forward-only, no data loss, no destructive ops.
+
+**Post-deploy verification (operator):**
+1. Wait ~1-2 min for the GitHub→Vercel deploy to settle.
+2. Open `https://limeinc.vercel.app/beithady` — confirm Today's Pulse shows 10 cards.
+3. Open `https://limeinc.vercel.app/beithady/analytics/performance` — confirm hero strip shows 10 cards (with optional building filter + compare-mode dropdown working).
+4. **Force-rebuild today's snapshot** to populate the new fields immediately (the 09:00 Cairo cron will do this tomorrow automatically):
+   ```bash
+   curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+     "https://limeinc.vercel.app/api/cron/beithady-daily-report?force=1"
+   ```
+   The CRON_SECRET is in Vercel env (Production). Until this runs, the new cards show 0% / $0k because pre-deploy snapshots lack the new fields (the UI's `?? 0` fallback handles this gracefully).
+5. (Optional) Trigger a distribute run and check WhatsApp + Gmail show three revenue lines. **Heads up: this sends real notifications to recipients.**
+
+**Spec + plan artifacts:**
+- Spec: `docs/superpowers/specs/2026-05-12-beithady-dashboard-month-kpis-design.md`
+- Plan: `docs/superpowers/plans/2026-05-12-beithady-dashboard-month-kpis.md`
+
+## (prior) Task 13 complete — dashboard-shell.tsx hero strip expanded to 10 cards (2026-05-12)
 
 **Commit `f5a0241`** — `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (1 file, 71 insertions, 62 deletions):
 - Replaced 6-card hero strip with 10-card version in display order: Occupancy today / MTD Occupancy / Month-to-End Occupancy / Month Occupancy / Pace / MTD Revenue (actual) / Month Revenue (OTB) / RevPAR / Reviews avg / Response time.
