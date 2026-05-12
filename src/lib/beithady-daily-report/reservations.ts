@@ -64,17 +64,15 @@ export function normalizeChannel(source: string | null): string {
   return raw.replace(/\b\w/g, c => c.toUpperCase());
 }
 
-/**
- * Load all reservations whose stay or creation overlaps the report
- * window. We pull a 90-day stay window (start-of-month minus 30,
- * end-of-month plus 14, capped to 90 days) plus a 60-day creation
- * window (for pace metrics).
- */
-export async function loadReservationCorpus(
+// Internal helper — returns all rows with their raw building_code attached
+// so callers can decide whether to keep or split on isExcludedFromReport().
+type RawRow = ReservationRow & { _building_code_raw: string | null };
+
+async function _loadAllRowsRaw(
   windowFromYmd: string,
   windowToYmd: string,
-  fxDate: Date = new Date()
-): Promise<ReservationCorpus> {
+  fxDate: Date,
+): Promise<RawRow[]> {
   const sb = supabaseAdmin();
   const PAGE = 1000;
   const collected: Array<Record<string, unknown>> = [];
@@ -166,20 +164,16 @@ export async function loadReservationCorpus(
 
   // Convert + bucket
   const seen = new Set<string>();
-  const rows: ReservationRow[] = [];
+  const rawRows: RawRow[] = [];
   for (const r of collected) {
     const id = String(r.id || '');
     if (!id || seen.has(id)) continue;
     seen.add(id);
 
     const listing = (r.listing as { building_code: string | null } | null) || null;
-    // BH-DXB exclusion (2026-05-04): drop UAE reservations at the
-    // ingest layer so all downstream builders (channel mix, payouts,
-    // cleaning, payment, no-show, weekly digest) automatically agree
-    // with the morning-brief Egypt-only treatment.
-    if (isExcludedFromReport(listing?.building_code || null)) continue;
+    const buildingCodeRaw = listing?.building_code || null;
     const building = bucketFromGuestyListing({
-      building_code: listing?.building_code || null,
+      building_code: buildingCodeRaw,
       id: (r.listing_id as string | null) || undefined,
     });
 
@@ -207,7 +201,7 @@ export async function loadReservationCorpus(
     const updatedAt = (r.updated_at_odoo as string | null) || null;
     const effectiveCancel = cancelledAt || updatedAt;
 
-    rows.push({
+    rawRows.push({
       id,
       confirmation_code: (r.confirmation_code as string | null) || null,
       status: ((r.status as string | null) || '').toLowerCase() || null,
@@ -232,13 +226,67 @@ export async function loadReservationCorpus(
       cancelled_at_iso: cancelledAt,
       effective_cancel_at_iso: effectiveCancel,
       building,
+      _building_code_raw: buildingCodeRaw,
     });
   }
 
-  const active = rows.filter(r => r.status && ACTIVE_STATUSES.has(r.status));
-  const canceled = rows.filter(r => r.status === 'canceled');
+  return rawRows;
+}
 
-  return { rows, active, canceled };
+/**
+ * Load all reservations whose stay or creation overlaps the report
+ * window. We pull a 90-day stay window (start-of-month minus 30,
+ * end-of-month plus 14, capped to 90 days) plus a 60-day creation
+ * window (for pace metrics).
+ *
+ * Egypt-only — DXB rows are filtered out. Behaviour unchanged from v2.
+ */
+export async function loadReservationCorpus(
+  windowFromYmd: string,
+  windowToYmd: string,
+  fxDate: Date = new Date()
+): Promise<ReservationCorpus> {
+  const raw = await _loadAllRowsRaw(windowFromYmd, windowToYmd, fxDate);
+  const rows: ReservationRow[] = raw
+    .filter(r => !isExcludedFromReport(r._building_code_raw))
+    .map(({ _building_code_raw: _bc, ...rest }) => rest);
+  return {
+    rows,
+    active: rows.filter(r => r.status && ACTIVE_STATUSES.has(r.status)),
+    canceled: rows.filter(r => r.status === 'canceled'),
+  };
+}
+
+// New partitioned variant.
+export type ReservationCorpusWithDxb = {
+  egypt: ReservationCorpus;
+  dxb: ReservationCorpus;
+};
+
+/**
+ * v3 (2026-05-12): partitioned reservation loader. Same query as
+ * `loadReservationCorpus()` — no extra DB round-trip. Returns Egypt and
+ * DXB corpora separately so v3 builders can compute DXB-section metrics.
+ */
+export async function loadReservationCorpusWithDxb(
+  windowFromYmd: string,
+  windowToYmd: string,
+  fxDate: Date = new Date()
+): Promise<ReservationCorpusWithDxb> {
+  const raw = await _loadAllRowsRaw(windowFromYmd, windowToYmd, fxDate);
+  const egyptRows: ReservationRow[] = [];
+  const dxbRows: ReservationRow[] = [];
+  for (const r of raw) {
+    const { _building_code_raw, ...row } = r;
+    if (isExcludedFromReport(_building_code_raw)) dxbRows.push(row);
+    else egyptRows.push(row);
+  }
+  const partition = (rows: ReservationRow[]): ReservationCorpus => ({
+    rows,
+    active: rows.filter(r => r.status && ACTIVE_STATUSES.has(r.status)),
+    canceled: rows.filter(r => r.status === 'canceled'),
+  });
+  return { egypt: partition(egyptRows), dxb: partition(dxbRows) };
 }
 
 /**

@@ -31,7 +31,7 @@ export type AllInventories = Record<BuildingCode, BuildingInventory> & {
   physical_listing_ids_all: string[];
 };
 
-function bucketBuilding(rawBuilding: string | null | undefined): BuildingCode {
+export function bucketBuildingHelper(rawBuilding: string | null | undefined): BuildingCode {
   if (!rawBuilding) return 'OTHER';
   const code = canonicalBuildingFromTag(rawBuilding);
   if (
@@ -145,7 +145,7 @@ export async function loadBuildingInventories(): Promise<AllInventories> {
     // Fallback to static catalog (excludes MULTI-UNIT parents).
     for (const l of BEITHADY_LISTINGS) {
       if (l.unit_type === 'MULTI-UNIT') continue;
-      const bucket = bucketBuilding(l.building_tag);
+      const bucket = bucketBuildingHelper(l.building_tag);
       out[bucket].total_units += 1;
       out[bucket].physical_listing_ids.push(l.guesty_listing_id);
       out.total_all += 1;
@@ -172,7 +172,7 @@ export async function loadBuildingInventories(): Promise<AllInventories> {
     // physical_listing_ids_all (= the filter used to scope all
     // downstream report queries to "real BH inventory").
     if (isExcludedFromReport(bcRaw)) continue;
-    const bucket = bucketBuilding(bcRaw);
+    const bucket = bucketBuildingHelper(bcRaw);
     out[bucket].total_units += 1;
     out[bucket].physical_listing_ids.push(r.id);
     out.total_all += 1;
@@ -197,11 +197,106 @@ export function bucketFromGuestyListing(row: {
   building_code: string | null;
   id?: string;
 }): BuildingCode {
-  const fromBc = bucketBuilding(row.building_code);
+  const fromBc = bucketBuildingHelper(row.building_code);
   if (fromBc !== 'OTHER') return fromBc;
   if (row.id) {
     const cat = getListingByGuestyId(row.id);
-    if (cat) return bucketBuilding(cat.building_tag);
+    if (cat) return bucketBuildingHelper(cat.building_tag);
   }
   return 'OTHER';
+}
+
+export type DxbInventory = {
+  total_units: number;
+  physical_listing_ids: string[];
+};
+
+export type AllInventoriesWithDxb = {
+  egypt: AllInventories;
+  dxb: DxbInventory;
+};
+
+/**
+ * v3 (2026-05-12): partitioned inventory loader. Egypt half is identical
+ * to `loadBuildingInventories()` (same filter logic, same physical-unit
+ * detection, same fallback). DXB half is a single flat bucket containing
+ * all active DXB listings.
+ *
+ * Reuses the same query — no extra DB round-trip.
+ */
+export async function loadAllInventoriesWithDxb(): Promise<AllInventoriesWithDxb> {
+  const sb = supabaseAdmin();
+  const [{ data }, mtlParentIds] = await Promise.all([
+    sb
+      .from('guesty_listings')
+      .select('id, building_code, listing_type, master_listing_id, active, nickname'),
+    fetchMtlParentIds(),
+  ]);
+  const rows = (data || []) as Array<{
+    id: string;
+    building_code: string | null;
+    listing_type: string | null;
+    master_listing_id: string | null;
+    active: boolean | null;
+    nickname: string | null;
+  }>;
+
+  const egypt: AllInventories = {
+    'BH-26': { total_units: 0, physical_listing_ids: [] },
+    'BH-73': { total_units: 0, physical_listing_ids: [] },
+    'BH-435': { total_units: 0, physical_listing_ids: [] },
+    'BH-OK': { total_units: 0, physical_listing_ids: [] },
+    OTHER: { total_units: 0, physical_listing_ids: [] },
+    total_all: 0,
+    physical_listing_ids_all: [],
+  };
+  const dxb: DxbInventory = {
+    total_units: 0,
+    physical_listing_ids: [],
+  };
+
+  if (rows.length === 0) {
+    // Catalog fallback. DXB catalog rows are tagged so check there too.
+    for (const l of BEITHADY_LISTINGS) {
+      if (l.unit_type === 'MULTI-UNIT') continue;
+      const bcRaw = l.building_tag;
+      if (isExcludedFromReport(bcRaw)) {
+        dxb.total_units += 1;
+        dxb.physical_listing_ids.push(l.guesty_listing_id);
+        continue;
+      }
+      const bucket = bucketBuildingHelper(bcRaw);
+      egypt[bucket].total_units += 1;
+      egypt[bucket].physical_listing_ids.push(l.guesty_listing_id);
+      egypt.total_all += 1;
+      egypt.physical_listing_ids_all.push(l.guesty_listing_id);
+    }
+    return { egypt, dxb };
+  }
+
+  for (const r of rows) {
+    if (!isPhysicalUnit({
+      id: r.id,
+      listing_type: r.listing_type,
+      active: r.active,
+      nickname: r.nickname,
+      master_listing_id: r.master_listing_id,
+    }, mtlParentIds)) continue;
+    const bcRaw =
+      r.building_code ||
+      getListingByGuestyId(r.id)?.building_tag ||
+      null;
+    if (isExcludedFromReport(bcRaw)) {
+      dxb.total_units += 1;
+      dxb.physical_listing_ids.push(r.id);
+      continue;
+    }
+    const bucket = bucketBuildingHelper(bcRaw);
+    egypt[bucket].total_units += 1;
+    egypt[bucket].physical_listing_ids.push(r.id);
+    egypt.total_all += 1;
+    egypt.physical_listing_ids_all.push(r.id);
+  }
+
+  return { egypt, dxb };
 }
