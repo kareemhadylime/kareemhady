@@ -297,14 +297,22 @@ type RawAggregateRow = {
 };
 
 // Intercompany elimination. The tenant books monthly Turnkey Fee invoices
-// between Beithady Egypt (5) and FZCO Dubai (10) — see memory
-// beithady_intercompany_model.md for the full structure. On the consolidated
-// P&L those lines must be eliminated or revenue + cost both inflate by the
-// same amount. Partners representing the other Beithady entity carry names
-// like "Beithady Hospitality - Egypt" / "053. BeitHady Hospitality- UAE";
-// we match by that pattern. Customer "Beit Hady Website" partners are NOT
-// intercompany (it's the booking-website flow) — the 'hospitality' keyword
-// excludes them.
+// between Beithady Egypt (5) and FZCO Dubai (10). On the consolidated P&L
+// those pass-through lines must be eliminated or revenue + cost both inflate.
+//
+// Two-mechanism approach (see migration 0115):
+// 1. Partner filter (income only): eliminates Egypt's 401009 "Revenue from
+//    hospitality" tagged to Dubai partner 27005.
+// 2. Account-code filter: eliminates Dubai's 510104 "COST OF HOSPITALITY"
+//    which is the direct cost-side counterpart of that revenue.
+//
+// 502116 "Tax Compensation" (Dubai, ~294K) is intentionally NOT eliminated:
+// it's a real VAT cost Dubai pays on Egypt's behalf; Egypt records it as a
+// VAT liability (balance sheet), not as income.
+//
+// Partners matching "beithady hospitality" / "beit hady hospitality" are
+// intercompany. "Beit Hady Website" is NOT — that's the booking website.
+const INTERCOMPANY_PASSTHROUGH_EXPENSE_CODES = ['510104'] as const;
 async function getIntercompanyPartnerIds(): Promise<number[]> {
   const sb = supabaseAdmin();
   const { data } = await sb
@@ -321,13 +329,11 @@ async function fetchAccountTotals(params: {
   toDate: string;
   companyIds: number[];
   excludePartnerIds: number[];
+  excludeAccountCodes?: string[];
   buildingCode?: string;
   lobLabel?: string;
 }): Promise<{ rows: RawAggregateRow[]; totalLineCount: number; excluded: number }> {
   const sb = supabaseAdmin();
-  // Delegate aggregation to the pnl_aggregated Postgres function so we can
-  // efficiently filter by building_code / lob_label via the analytic link
-  // table without hauling 60k+ rows through supabase-js.
   const { data, error } = await sb.rpc('pnl_aggregated', {
     p_from: params.fromDate,
     p_to: params.toDate,
@@ -336,6 +342,10 @@ async function fetchAccountTotals(params: {
     p_lob_label: params.lobLabel || null,
     p_exclude_partner_ids:
       params.excludePartnerIds.length > 0 ? params.excludePartnerIds : null,
+    p_exclude_account_codes:
+      params.excludeAccountCodes && params.excludeAccountCodes.length > 0
+        ? params.excludeAccountCodes
+        : null,
   });
   if (error) throw new Error(`fetchAccountTotals: ${error.message}`);
   const rawRows = (data as Array<{
@@ -385,6 +395,9 @@ export async function buildPnlReport(params: {
     toDate: params.toDate,
     companyIds,
     excludePartnerIds,
+    excludeAccountCodes: eliminateIntercompany
+      ? [...INTERCOMPANY_PASSTHROUGH_EXPENSE_CODES]
+      : [],
     buildingCode: params.buildingCode,
     lobLabel: params.lobLabel,
   });
