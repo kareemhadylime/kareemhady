@@ -48,16 +48,43 @@ import type { DailyReportPayload, BuildingCode } from './types';
 export async function buildDailyReport(
   reportDateYmd?: string
 ): Promise<DailyReportPayload> {
-  // v2 date semantics: report run "today" describes "yesterday's" full
-  // 24h period (00:00–23:59 Cairo). All "today" math in the existing
-  // builders points at the report's DATA date (yesterday) rather than
-  // the GENERATION date. We keep the local var named `today` in the
-  // existing builders so they require minimal change.
-  const generationDate = reportDateYmd || cairoYmd();
-  const yesterdayDate = yesterdayOf(generationDate);
-  const today = yesterdayDate; // alias for clarity in this scope
+  // v3 date semantics (2026-05-12): the report describes TODAY live.
+  // `today` = the wall date the report covers (Cairo); `yesterdayDate`
+  // = the day that just closed (used for backward-looking metrics such
+  // as no-shows, payment check-ins, and the weekly digest).
+  //
+  // v3 audit (2026-05-12): builders consuming `today` / `ctx.today`:
+  //   build-buildings.ts:          A — occupied/check-ins "today" correctly uses actual today
+  //   build-payouts.ts:            A — Airbnb MTD uses [start, yesterday] internally; next-7d from today correct
+  //   build-extras / CancelMix:    A — cancellations "today" = live today metric (details_ label is legacy)
+  //   build-extras / DeadInv:      A — forward dead-inventory window from today correct
+  //   build-extras / CleaningOps:  A — cleaning ops today (checkout+checkin on today) correct
+  //   build-reviews.ts:            A — last24Iso = addDays(ctx.today, -1) = yesterday; correct after flip
+  //   build-no-show.ts:            A (not affected) — uses ReportPeriodWindow.yesterday, not today
+  //   build-payment-checkins.ts:   A (not affected) — uses ReportPeriodWindow.yesterday, not today
+  //   build-weekly-digest.ts:      A (not affected) — uses ReportPeriodWindow.yesterday/week_start
+  //   build-channels-paired.ts:    A (not affected) — uses ReportPeriodWindow.yesterday/mtd_*
+  //   build-conversations.ts:      A (not affected) — uses ReportPeriodWindow.*_iso fields
+  //   build-blocks.ts:             A (not affected) — uses ctx.yesterday + ctx.generated_today already
+  //   build-cancel-risk.ts:        A — forward risk from today correct
+  //   build-stly.ts:               A — 365d lookback from today correct
+  //   build-sparklines.ts:         A — last 7 snapshots up to today correct
+  //   build-top-movers.ts:         A — 7d WoW from today correct
+  //   build-forward-occupancy.ts:  A — 7/30/60d forward from today correct
+  //   build-occupancy-gaps.ts:     A — 14d gap scan from today correct
+  //   build-revpar.ts:             A — pure function; uses ctx.days_elapsed (today-anchored) correct
+  //   build-revenue-concentration: A — pure function, no dates
+  //   build-revenue-waterfall:     A — pure function, no dates
+  //   build-insights.ts:           A — takes full payload, no date param
+  //   build-review-topics.ts:      A — takes last_24h array, no date param
+  //
+  // No Category-B builders identified: all builders that need "the day
+  // just closed" already read from ReportPeriodWindow.yesterday (which is
+  // derived from generationDate, not from this `today` variable).
+  const today = reportDateYmd || cairoYmd();
+  const yesterdayDate = yesterdayOf(today);
   const ctx = cairoMonthContext(today);
-  const period = reportPeriodWindow(generationDate);
+  const period = reportPeriodWindow(today);
   const generatedAt = new Date();
   const fxDate = generatedAt;
 
@@ -77,7 +104,7 @@ export async function buildDailyReport(
   const cancellations = buildCancellations(corpus.canceled, ctx);
   const cleaning_ops_today = buildCleaningOps(corpus.active, ctx);
 
-  // v2 sync builders
+  // Backward-looking sync builders (anchored to yesterday via ReportPeriodWindow)
   const checkin_payment = buildCheckinPaymentSection(corpus.active, period);
   const no_show = buildNoShowSection(corpus.active, period);
   const weekly_digest = buildWeeklyDigest(corpus.active, corpus.canceled, period);
@@ -178,8 +205,8 @@ export async function buildDailyReport(
     ...conversationsResult.warnings,
   ];
 
-  // Plain-English digest. Header copy now reads "Yesterday: …" so the
-  // recipient understands the report describes a completed day.
+  // Plain-English digest. v3: leads with "Today (YYYY-MM-DD): …"
+  // so the recipient sees the actual date the report describes live.
   const digest = composeDigest({
     today,
     occupiedAll: buildings.all.occupied_today,
@@ -205,7 +232,7 @@ export async function buildDailyReport(
     if (r.currency && r.currency !== 'USD') seenCurrencies.add(r.currency);
   }
 
-  // Cancellation popout details (yesterday's actually-canceled rows).
+  // Cancellation popout details (today's actually-canceled rows; field name is legacy v2).
   const cancellationDetails = (cancellations as unknown as {
     details_yesterday?: DailyReportPayload['cancellation_details'];
   }).details_yesterday || [];
@@ -213,10 +240,9 @@ export async function buildDailyReport(
   return {
     report_date: today,
     generated_at_iso: generatedAt.toISOString(),
-    // Header copy: lead with TODAY's date (when the recipient gets the
-    // report), put the data date as a clear subline. Reads naturally:
-    // "Fri, May 8, 2026 · Reporting on Thu, May 7, 2026 (yesterday) · 09:00 Cairo"
-    generated_at_cairo: `${reportDateLabel(generationDate)} · Reporting on ${reportDateLabel(today)} (yesterday) · 09:00 Cairo`,
+    // v3: report describes today live; header is just the date + time.
+    // "Mon, 12 May 2026 · 09:00 Cairo"
+    generated_at_cairo: `${reportDateLabel(today)} · 09:00 Cairo`,
     month_label: monthLabel(today),
     month_days_total: ctx.days_total,
     month_days_elapsed: ctx.days_elapsed,
@@ -235,7 +261,7 @@ export async function buildDailyReport(
     fx_rates_used: fxRatesUsed,
     // v2 additions
     period_yesterday: yesterdayDate,
-    period_generated_today: generationDate,
+    period_generated_today: today,
     cancellation_details: cancellationDetails,
     conversations: conversationsResult.section,
     checkin_payment,
@@ -291,7 +317,7 @@ function composeDigest(p: {
   const flag =
     p.flaggedCount > 0 ? ` · ${p.flaggedCount} flagged 🚩` : '';
   return (
-    `Yesterday: ${p.occupiedAll}/${p.totalUnits} occupied (${p.occPct.toFixed(1)}%). ` +
+    `Today (${p.today}): ${p.occupiedAll}/${p.totalUnits} occupied (${p.occPct.toFixed(1)}%). ` +
     `${p.checkIns} check-ins · ${p.checkOuts} check-outs · ${p.turnovers} turnovers. ` +
     `${p.monthLabelStr} revenue ${fmtUsd(p.revenueMtd)} (check-in)${pickup} · ` +
     `${fmtUsd(p.revenueCreatedMtd)} (booked, Guesty Analytics parity). ` +
