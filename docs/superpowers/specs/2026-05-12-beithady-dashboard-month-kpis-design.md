@@ -193,6 +193,79 @@ Vitest unit tests, colocated with builders.
 No new UI tests — `landing-pulse.tsx` and `dashboard-shell.tsx` are not
 under test today, and the change is purely additive layout.
 
+## PDF + HTML + WhatsApp renderer corrections
+
+The daily-report PDF, the email HTML preview, and the WhatsApp digest
+all currently render the `revenue_mtd_usd` field under the label
+"Revenue (check-in this month)" — technically correct but misleading
+because "this month" silently includes future check-ins through EOM.
+Update them to match the dashboard's two-line story.
+
+### `src/lib/beithady-daily-report/render-pdf.tsx` (line 247)
+
+Replace the single revenue line with two lines:
+
+```tsx
+// before
+{ label: 'Revenue (check-in this month)', val: fmtUsd1(all.revenue_mtd_usd) }
+{ label: 'Revenue (booked this month)', val: fmtUsd1(all.revenue_created_mtd_usd) }
+
+// after
+{ label: 'MTD Revenue (check-ins so far)', val: fmtUsd1(all.revenue_mtd_actual_usd) }
+{ label: 'Month Revenue (incl. confirmed → EOM)', val: fmtUsd1(all.revenue_mtd_usd) }
+{ label: 'Revenue booked this month', val: fmtUsd1(all.revenue_created_mtd_usd) }
+```
+
+### `src/lib/beithady-daily-report/render-html.tsx` (line 158)
+
+Same triple-line replacement applied to the email-HTML KPI list (with
+the same labels). The `val:` lambda for `revenue_mtd_actual_usd` becomes
+`b => <strong>{fmtUsd1(b.revenue_mtd_actual_usd)}</strong>`.
+
+### `src/lib/beithady-daily-report/distribute.ts` (lines 66-68, 116-118)
+
+WhatsApp text digest + Gmail HTML body — same triple-line update:
+
+```ts
+`💰 *MTD Revenue (check-ins so far)*: ${fmtUsd1(all.revenue_mtd_actual_usd)}`
+`📈 *Month Revenue (incl. confirmed → EOM)*: ${fmtUsd1(all.revenue_mtd_usd)}`
+`📒 *Revenue (booked this month)*: ${fmtUsd1(all.revenue_created_mtd_usd)}` // unchanged
+```
+
+And the inline HTML <tr> rows in the Gmail body get the same three lines
+with matching cell styling.
+
+### `src/lib/beithady-daily-report/build.ts` (line 360)
+
+The digest one-liner at the top of the report currently says:
+
+```
+"${monthLabel} revenue $X (check-in) · …"
+```
+
+Change to explicitly say "month, OTB" so the one-liner doesn't lie:
+
+```
+"${monthLabel} revenue $X (month, OTB) · …"
+```
+
+### Sanity — what `revenue_mtd_usd` consumers should keep using
+
+- `build-revenue-waterfall.ts` (uses `revenue_mtd_usd` as gross) —
+  **unchanged.** Waterfall represents whole-month gross-to-net, so the
+  OTB number is the correct input.
+- `build-revenue-concentration.ts` (per-building rev share) —
+  **unchanged.** Concentration is a whole-month view.
+- `build-revpar.ts` (RevPAR denominator) — **unchanged.** RevPAR is a
+  whole-month yield metric.
+- `build-stly.ts` (STLY YoY) — **unchanged.** STLY compares whole-month
+  numbers against the same wall-time last year.
+- `build-insights.ts` (`mtd_revenue_usd` field passed to Anthropic for
+  AI narrative) — **rename the field locally to `month_revenue_otb_usd`**
+  and update the prompt so the AI doesn't conflate "MTD" with "past
+  only". The payload field on the prompt is just labeling; no schema
+  change downstream.
+
 ## Out of scope
 
 - Drilldown destination pages for the new metrics (the params are
@@ -207,11 +280,9 @@ under test today, and the change is purely additive layout.
   consumers ignore unknown fields, and the new fields default to 0 in
   `emptyBucket()` if the builder hasn't run yet.
 - The relabel of `revenue_mtd_usd` (display only — name unchanged in code)
-  is a pure copy change. PDF/HTML renderers keep showing the same
-  number under the old "MTD Revenue" label, which is technically wrong
-  but matches existing behavior. **Follow-up: separate ticket to rename
-  the PDF/HTML labels to match** (not in scope here — the user asked
-  only for the dashboard).
+  is a pure copy change. PDF, HTML, and WhatsApp/Gmail distribute renderers
+  all updated in scope (see "PDF + HTML + WhatsApp renderer corrections")
+  so the daily report is consistent with the dashboard.
 - If the new month_occupancy computation produces unexpected values
   (e.g. > 100% from data quality issues), the HeroKpi card just shows
   the number with a `.toFixed(1)%` — no crash. The drift-warning channel
