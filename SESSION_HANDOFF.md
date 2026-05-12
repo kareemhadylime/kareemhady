@@ -80,6 +80,12 @@ Hard gate still in effect: no code until spec written and user-approved.
 - Key implementation note: renewal detection guards against `yCheckinCountByListing === 1` — when 2+ check-ins land on the same listing on yesterday, it can't be a clean one-to-one renewal extension, so both count as real check-ins.
 - Pushed to `origin/main`.
 
+**Task 3 post-commit fixes — commit `1f446e0` (2026-05-12):**
+- JSDoc updated to document the divergence from `build-buildings.ts:141-187`: this function enforces an "exactly one check-in" guard that the today-anchored renewal logic does not. Prevents false renewals on anomalous same-day multi-arrival edge cases.
+- Loop 4 (redundant `yCheckins` build pass) eliminated: `yCheckins` map is now populated inline during Pass 2 (the `yCheckinCountByListing` loop) — three passes over `active` instead of four, plus turnover pass over `yCoGuests`. Functionally identical.
+- Two new tests added: (a) empty `active` list — all metrics zero, `total_units` = 77; (b) null `listing_id` rows — confirmed they count toward `check_ins` and `revenue_usd` (no listing-based dedupe applies) but cannot participate in renewal pairing. Test expectation: 2 check_ins, $300 revenue.
+- 6/6 tests pass. Pushed to `origin/main` (`b18c1dc` → `1f446e0`).
+
 **Task 1 code-review fix — commit `940bde2` (2026-05-12):**
 - All three new `DailyReportPayload` fields made optional (`?`) so pre-v3 stored snapshots read without TypeScript-vs-runtime mismatch.
 - Reviewer's naming nit (`next_7d_projected_*` vs no `_projected_` on `next_3d_*`) was **verified and refuted**: the existing fields ARE `next_7d_projected_airbnb_usd` / `stripe` / `total` (line 95-97 in types.ts), so the reviewer was CORRECT that there is an inconsistency. However, the spec explicitly specified `next_3d_airbnb_usd` without `_projected_` — we followed the spec, and aligning would be a separate rename of `next_3d_*` fields; left as a nit, not changed.
@@ -1718,6 +1724,15 @@ kareem reported two bugs:
 Tests: 328 passing (2 new). TS clean. Result: Trio Compound for Mar 2026 will now show Revenue ≈ 1.97M (matches accounting) instead of 2.88M fallback. Vercel auto-deploy in flight.
 
 ---
+
+**Task 4 DONE — commit `5b3b5d0` (2026-05-12):**
+- Created `src/lib/beithady-daily-report/build-dxb-section.ts`: pure `buildDxbSection(active, inventory, todayYmd, yesterdayYmd, monthStart, monthEnd)`.
+  - Computes: `today` {occupied, total_units, check_ins, check_outs, turnovers}; `yesterday` {occupied, total_units, check_ins, check_outs, revenue_usd}; `revenue_mtd` {check_in_attribution_usd, booked_attribution_usd}; `next_3d_total_usd` (Airbnb-only, check_in in [today, today+2]).
+  - Renewal-exclusion guard mirrors `buildYesterdaySummary`: exactly-one-check-in per listing per day to fire. Applied independently for today and yesterday.
+  - `check_in_attribution_usd` excludes rows where `check_out_date === todayYmd` (today's in-flight checkouts excluded from MTD snapshot — they are counted in `today.check_outs` separately).
+  - Short-circuits to all-zero output when `inventory.total_units === 0`.
+- Created `src/lib/beithady-daily-report/build-dxb-section.test.ts`: 4 tests, all pass (TDD red → green cycle). Tests cover: basic today/yesterday/MTD counts; next_3d Airbnb-only window; empty inventory; exactly-one renewal guard.
+- Pushed to `origin/main`.
 
 ---
 
