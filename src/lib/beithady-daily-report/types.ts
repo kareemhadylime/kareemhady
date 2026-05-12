@@ -326,11 +326,11 @@ export type DailyReportPayload = {
   review_topics?: ReviewTopicsSection | null;
 
   /** v3 — Yesterday closing snapshot (renewal-excluded). */
-  yesterday_summary: YesterdaySummary;
+  yesterday_summary?: YesterdaySummary;
   /** v3 — DXB market partition (parallel mini-aggregate). */
-  dxb: DxbSection;
+  dxb?: DxbSection;
   /** v3 — Freshness watermark: max(synced_at) from guesty_reservations. null if unavailable. */
-  data_fresh_to_iso: string | null;
+  data_fresh_to_iso?: string | null;
 };
 
 export type PricingIntelligenceRowV3 = {
