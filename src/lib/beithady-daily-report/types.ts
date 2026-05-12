@@ -95,6 +95,10 @@ export type PayoutsSection = {
   next_7d_projected_airbnb_usd: number;
   next_7d_projected_stripe_usd: number;
   next_7d_projected_total_usd: number;
+  // Forecast — next 3 days (v3)
+  next_3d_airbnb_usd: number;
+  next_3d_stripe_usd: number;
+  next_3d_total_usd: number;
 };
 
 export type ChannelMix = {
@@ -212,6 +216,44 @@ export type PairedChannelMixV2 = {
   mtd_net_usd: number | null;
 };
 
+// v3 (2026-05-12): yesterday-closing one-liner. Renewal-excluded counts
+// matching the same `snapRenewedListings` logic used in build-buildings.ts
+// for the today/yesterday turnover detection.
+export type YesterdaySummary = {
+  occupied: number;          // units occupied at yesterday 23:59 Cairo
+  total_units: number;
+  check_ins: number;         // same-guest renewals excluded
+  check_outs: number;        // same-guest renewals excluded
+  turnovers: number;         // different-guest check-out + check-in same day
+  revenue_usd: number;       // host_payout_usd summed for yesterday's check-ins
+};
+
+// v3 (2026-05-12): DXB partition. Egypt aggregates stay untouched; this is
+// a parallel mini-aggregate computed from a DXB-only corpus + inventory.
+// `next_3d_total_usd` is Airbnb-only for DXB since Stripe payouts can't
+// be partitioned by market (see spec).
+export type DxbSection = {
+  today: {
+    occupied: number;
+    total_units: number;
+    check_ins: number;
+    check_outs: number;
+    turnovers: number;
+  };
+  yesterday: {
+    occupied: number;
+    total_units: number;
+    check_ins: number;
+    check_outs: number;
+    revenue_usd: number;
+  };
+  revenue_mtd: {
+    check_in_attribution_usd: number;
+    booked_attribution_usd: number;
+  };
+  next_3d_total_usd: number;     // Airbnb-only (DXB-specific limitation)
+};
+
 export type DailyReportPayload = {
   // ---- Header / context ----
   report_date: string;             // 'YYYY-MM-DD' (Cairo)
@@ -282,6 +324,13 @@ export type DailyReportPayload = {
   /** v5 — AI-derived (Phase 5). */
   insights?: AIInsight[] | null;
   review_topics?: ReviewTopicsSection | null;
+
+  /** v3 — Yesterday closing snapshot (renewal-excluded). */
+  yesterday_summary: YesterdaySummary;
+  /** v3 — DXB market partition (parallel mini-aggregate). */
+  dxb: DxbSection;
+  /** v3 — Freshness watermark: max(synced_at) from guesty_reservations. null if unavailable. */
+  data_fresh_to_iso: string | null;
 };
 
 export type PricingIntelligenceRowV3 = {
