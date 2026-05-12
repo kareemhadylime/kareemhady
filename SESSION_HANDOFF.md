@@ -1,5 +1,167 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## Task 13 complete — dashboard-shell.tsx hero strip expanded to 10 cards (2026-05-12)
+
+**Commit `f5a0241`** — `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (1 file, 71 insertions, 62 deletions):
+- Replaced 6-card hero strip with 10-card version in display order: Occupancy today / MTD Occupancy / Month-to-End Occupancy / Month Occupancy / Pace / MTD Revenue (actual) / Month Revenue (OTB) / RevPAR / Reviews avg / Response time.
+- Grid class: `grid-cols-2 sm:grid-cols-3 xl:grid-cols-6` → `grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5` (2 rows of 5 on xl).
+- New cards reference 4 panel IDs registered in Task 12: `hero-mtd-occupancy`, `hero-month-to-end-occupancy`, `hero-month-occupancy`, `hero-mtd-revenue-actual`.
+- Old per-building `bucket`/`filterSuffix` logic replaced with portfolio-only `payload.all.*` references (new cards are portfolio KPIs, not per-building).
+- `?? 0` fallback on `month_occupancy_pct` and `revenue_mtd_actual_usd` guards pre-deploy snapshots without these fields.
+- Typecheck (`npx tsc --noEmit | grep dashboard-shell`): zero matches (clean).
+- Vitest: 367 passed, 22 skipped — no regressions.
+
+**Next task:** Task 14.
+
+---
+
+## Task 12 complete — panel-registry.ts register 4 new hero panel IDs (2026-05-12)
+
+**Commit `43c17b7`** — `src/app/beithady/analytics/performance/_lib/panel-registry.ts` (1 file, 11 insertions, 3 deletions):
+- Extended `PanelId` union from 25 to 29 members: added `hero-mtd-occupancy`, `hero-month-to-end-occupancy`, `hero-month-occupancy`, `hero-mtd-revenue-actual`.
+- Replaced 6-row hero block with 10-row block in final display order (spec-matching).
+- `hero-occupancy` label: "Occupancy" → "Occupancy today" (disambiguation).
+- `hero-mtd-revenue` label: "MTD Revenue" → "Month Revenue (OTB)" (whole-month OTB).
+- Typecheck (`npx tsc --noEmit`): zero errors (clean — dashboard-shell.tsx doesn't yet reference new IDs; Task 13 closes those).
+
+**Next task:** Task 13.
+
+---
+
+## Task 11 complete — build-insights.ts expose month_revenue_otb + mtd_revenue_actual to AI (2026-05-12)
+
+**Commit `efcc6a7`** — `src/lib/beithady-daily-report/build-insights.ts` (1 file, 2 insertions, 1 deletion):
+- Renamed `mtd_revenue_usd` key to `month_revenue_otb_usd` in the compact AI payload (more accurately describes whole-month OTB).
+- Added new `mtd_revenue_actual_usd` key carrying `payload.all?.revenue_mtd_actual_usd` so Claude Haiku can distinguish actual past earnings from OTB.
+- Typecheck (`npx tsc --noEmit | grep build-insights`): zero matches (clean).
+- Vitest: 367 passed, 22 skipped — no regressions.
+
+**Next task:** Task 12.
+
+---
+
+## Task 10 complete — build.ts digest one-liner three-line revenue (2026-05-12)
+
+**Commit `2ec2b00`** — `src/lib/beithady-daily-report/build.ts` (1 file, 4 insertions, 1 deletion):
+- Added `revenueMtdActual: buildings.all.revenue_mtd_actual_usd` to the `composeDigest` call (Step 1).
+- Added `revenueMtdActual: number;` to the `composeDigest` parameter type definition (Step 2).
+- Updated the one-liner template: `(check-in)` → `(month, OTB)`, added middle line `${fmtUsd(p.revenueMtdActual)} MTD actual ·` (Step 3).
+- Typecheck (`npx tsc --noEmit | grep build.ts`): zero matches (clean).
+- Vitest: 367 passed, 22 skipped — no regressions.
+
+**Next task:** Task 11.
+
+---
+
+## Task 9 complete — distribute.ts WhatsApp + Gmail three-line revenue layout (2026-05-12)
+
+**Commit `1362131`** — `src/lib/beithady-daily-report/distribute.ts` (1 file, 5 insertions, 2 deletions):
+- WhatsApp text block: replaced 2-line revenue section with 3-line version. New first line `💰 *MTD Revenue (check-ins so far)*` uses `revenue_mtd_actual_usd`. Second line `📈 *Month Revenue (incl. confirmed → EOM)*` uses `revenue_mtd_usd` and carries the pickup-vs-prior-month annotation. Third line `📒 *Revenue (booked this month)*` unchanged.
+- Gmail HTML body: replaced 2-row `<tr>` block with 3-row version using the same field/label mapping. `${pickupStr}` moved to the Month Revenue row.
+- Typecheck (`npx tsc --noEmit | grep distribute`): zero matches (clean).
+
+**Next task:** Task 10.
+
+---
+
+## Task 8 complete — HTML preview three-line revenue layout (2026-05-12)
+
+**Commit `8cf2ee5`** — `src/lib/beithady-daily-report/render-html.tsx` (1 file, 6 insertions, 2 deletions):
+- Replaced the two-line `MONTH-TO-DATE` revenue block with a three-line version.
+- Added new first entry `MTD Revenue (check-ins so far)` using `revenue_mtd_actual_usd` (past-actual); carries `section: 'mtd'` + `sectionLabel: 'MONTH-TO-DATE'` markers.
+- Second entry `Month Revenue (incl. confirmed → EOM)` uses existing `revenue_mtd_usd` (whole-month OTB).
+- Third entry `Revenue (booked this month)` / `revenue_created_mtd_usd` unchanged.
+- Typecheck (`npx tsc --noEmit | grep render-html`): zero matches (clean).
+- Mirrors Task 7's PDF three-line layout, using `<strong>` + `fmtUsd1` (HTML) vs `bold: true` + `fmtUsd` (PDF).
+
+**Next task:** Task 9 — wire the new revenue lines into the daily report data pipeline.
+
+---
+
+## Task 7 complete — PDF three-line revenue layout (2026-05-12)
+
+**Commit `4343384`** — `src/lib/beithady-daily-report/render-pdf.tsx` (1 file, 5 insertions, 1 deletion):
+- Replaced the two-line `MONTH-TO-DATE` revenue block with a three-line version.
+- Added new first entry `MTD Revenue (check-ins so far)` using `revenue_mtd_actual_usd` (past-actual).
+- Renamed the existing check-in entry to `Month Revenue (incl. confirmed → EOM)` using `revenue_mtd_usd` (whole-month OTB).
+- `Revenue (booked this month)` / `revenue_created_mtd_usd` entry unchanged.
+- Typecheck (`npx tsc --noEmit | grep render-pdf`): zero matches (clean).
+
+**Next task:** Task 8 — wire new sparkline series into the UI.
+
+---
+
+## Task 6 complete — extend build-sparklines.test.ts assertions (2026-05-12)
+
+**Commit `327647d`** — `src/lib/beithady-daily-report/build-sparklines.test.ts` (1 file, 22 insertions, 2 deletions):
+- Expanded `fakeRows` to include 4 new `all` fields: `backward_occupancy_pct`, `forward_occupancy_pct`, `month_occupancy_pct`, `revenue_mtd_actual_usd`.
+- Replaced the existing 5-assertion "returns chronological series per hero KPI" test body with a 9-assertion version covering all 10 `HeroKpiId` series (`mtd_occupancy`, `month_to_end_occupancy`, `month_occupancy`, `mtd_revenue_actual` added).
+- Full test run: 3/3 pass in the file; full suite 72 files, 367 tests pass — zero regressions.
+
+**Next task:** Task 7 — wire the new sparkline series into the UI.
+
+---
+
+## Task 5 complete — populate 4 new sparkline series in build-sparklines.ts (2026-05-12)
+
+**Commit `5bd336e`** — `src/lib/beithady-daily-report/build-sparklines.ts` (1 file, 8 insertions):
+- Expanded `series` initializer from 6 keys to 10 keys: added `mtd_occupancy`, `month_to_end_occupancy`, `month_occupancy`, `mtd_revenue_actual`.
+- Updated `for` loop to push the 4 new fields: `backward_occupancy_pct`, `forward_occupancy_pct`, `month_occupancy_pct`, `revenue_mtd_actual_usd` — all with `?? 0` fallbacks for older snapshots.
+- Typecheck (`npx tsc --noEmit | grep build-sparklines`): zero matches (clean).
+
+**Next task:** Task 6 — wire the new sparkline series into the UI.
+
+---
+
+## Task 4 complete — extend HeroKpiId + SparklinesSection (2026-05-12)
+
+**Commit `d69d12f`** — `src/lib/beithady-daily-report/types.ts` (1 file, 11 insertions, 1 deletion):
+- Replaced the 6-ID `HeroKpiId` one-liner with a 10-ID multi-line union, adding: `mtd_occupancy`, `month_to_end_occupancy`, `month_occupancy`, `mtd_revenue_actual`.
+- `SparklinesSection = Record<HeroKpiId, number[]>` picks up the new IDs automatically.
+- Typecheck: exactly 1 error in `build-sparklines.ts:29` (missing 4 new keys in `series` initializer) — expected, to be fixed in Task 5. Zero errors elsewhere.
+
+**Next task:** Task 5 — fix build-sparklines.ts to satisfy the broader `SparklinesSection` constraint.
+
+---
+
+## Task 3 code-review fixes applied — build-buildings.test.ts (2026-05-12)
+
+**Commit `a3ad3b8`** — applied 3 code-review improvements to `src/lib/beithady-daily-report/build-buildings.test.ts`:
+- **Fix 1 (assertion tightening):** Changed `toBeCloseTo(9.0, 1)` → `toBe(9.0)` on both `.all` and `.per_building['BH-26']` assertions in test 2, since `pct()` already rounds to one decimal; also updated the math-explanation comment.
+- **Fix 2 (doc):** Added JSDoc block above `res()` documenting the `listing_id: 'L-${opts.id}'` coupling and the requirement to include the ID in `physical_listing_ids_all` + building's `physical_listing_ids`.
+- **Fix 3 (edge case):** Added 4th test: `month_occupancy_pct reduces to backward_occupancy_pct on the last day of the month` — sets `today === monthEnd`, asserts `month_occupancy_pct === backward_occupancy_pct` and both equal `3.2`. Test passes with expected value exactly `3.2`.
+- Full suite: 367 passed (366 + 1 new), 22 skipped, 0 failures.
+
+**Next task:** Task 4 — surface the new fields in the UI components.
+
+---
+
+## Task 3 complete — unit tests for build-buildings new fields (2026-05-12)
+
+**Commit `f3b73d5`** — created `src/lib/beithady-daily-report/build-buildings.test.ts` (103 lines):
+- 3 tests covering `revenue_mtd_actual_usd` (past vs. future check-in split) and `month_occupancy_pct` (blend formula).
+- Fixture deviation from task plan: used `physical_listing_ids: string[]` (real `AllInventories` shape) instead of `listings: new Map()` (wrong), and added `total_all` + `physical_listing_ids_all` required by the `allowedListingIds` filter in the builder.
+- Full suite: 366 passed, 22 skipped, 0 failures.
+
+**Next task:** Task 4 — surface the new fields in the UI components.
+
+---
+
+## 🟢 Task 2 complete — build-buildings.ts computation (2026-05-12)
+
+**Commit `0159ef3`** — `src/lib/beithady-daily-report/build-buildings.ts` — 19 insertions, 1 deletion:
+- `emptyBucket()`: added `revenue_mtd_actual_usd: 0` and `month_occupancy_pct: 0` zero defaults.
+- `Accumulator` type: added `revenue_actual_usd: number` field with comment.
+- `emptyAcc()`: added `revenue_actual_usd: 0`.
+- Per-reservation loop: new `if` block accumulates `revenue_actual_usd` when `check_in_date ∈ [monthStart, today]`.
+- Per-building materialization: emits `revenue_mtd_actual_usd` and `month_occupancy_pct` with correct `pct(nights_mtd + forward_nights_booked, days_total * units)` formula.
+- `all` bucket: same two fields emitted using `accAll` and `totalUnits`.
+- Typecheck: zero errors in `build-buildings.ts` or `types.ts`.
+
+**Next task:** Task 3 — surface the new fields in the UI components.
+
+---
+
 ## 🟢 Task 1 complete — BuildingBucket type updated (2026-05-12)
 
 **Commit `26ac805`** — `src/lib/beithady-daily-report/types.ts` — added `revenue_mtd_actual_usd` and `month_occupancy_pct` fields.
