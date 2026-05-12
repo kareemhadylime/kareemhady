@@ -87,4 +87,26 @@ describe('buildYesterdaySummary', () => {
     const out = buildYesterdaySummary(active, baseInventory, Y);
     expect(out.occupied).toBe(2);
   });
+
+  it('handles empty active list without throwing', () => {
+    const out = buildYesterdaySummary([], baseInventory, Y);
+    expect(out.occupied).toBe(0);
+    expect(out.check_ins).toBe(0);
+    expect(out.check_outs).toBe(0);
+    expect(out.turnovers).toBe(0);
+    expect(out.revenue_usd).toBe(0);
+    expect(out.total_units).toBe(77);
+  });
+
+  it('silently skips rows with null listing_id', () => {
+    const active: ReservationRow[] = [
+      mkRow({ listing_id: null as any, check_in_date: Y, check_out_date: '2026-05-13', host_payout_usd: 100 }),
+      mkRow({ listing_id: 'L1', check_in_date: Y, check_out_date: '2026-05-14', host_payout_usd: 200 }),
+    ];
+    const out = buildYesterdaySummary(active, baseInventory, Y);
+    // Null-listing rows still count toward check_ins/revenue (no listing-based dedupe applies),
+    // but they cannot be part of a renewal pair (which requires a listing_id).
+    expect(out.check_ins).toBe(2);
+    expect(out.revenue_usd).toBe(300);
+  });
 });

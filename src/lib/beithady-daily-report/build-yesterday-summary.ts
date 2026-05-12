@@ -8,6 +8,13 @@ import type { YesterdaySummary } from './types';
  * a same-day checkout AND checkin where guest_name matches is treated
  * as a stay extension, not a real transition.
  *
+ * **Divergence from `build-buildings.ts`:** unlike the today-anchored
+ * renewal logic in `build-buildings.ts:141-187`, this function only treats
+ * a listing as a renewal when **exactly one** check-in exists on the listing
+ * on `yesterdayYmd`. This prevents false renewals when a listing has multiple
+ * same-day arrivals (an edge case that is anomalous in production data but
+ * worth being explicit about).
+ *
  * `inventories.total_all` is the report's Egypt-only total. We do not
  * filter on inventories.physical_listing_ids_all here — the caller is
  * expected to pass an `active` slice that's already scoped to Egypt
@@ -29,11 +36,14 @@ export function buildYesterdaySummary(
       yCoGuests.set(r.listing_id, r.guest_name ?? null);
     }
   }
-  // Count how many distinct checkins land on each listing yesterday.
+  // Pass 2: count checkins per listing yesterday AND record the checkin guest.
+  // Combining both in one pass eliminates a redundant later pass for turnover detection.
   const yCheckinCountByListing = new Map<string, number>();
+  const yCheckins = new Map<string, string | null>();
   for (const r of active) {
     if (r.check_in_date === yesterdayYmd && r.listing_id) {
       yCheckinCountByListing.set(r.listing_id, (yCheckinCountByListing.get(r.listing_id) ?? 0) + 1);
+      yCheckins.set(r.listing_id, r.guest_name ?? null);
     }
   }
   const renewedListings = new Set<string>();
@@ -74,12 +84,7 @@ export function buildYesterdaySummary(
   }
 
   // Turnover = different-guest checkout + checkin on yesterday, same listing.
-  const yCheckins = new Map<string, string | null>();
-  for (const r of active) {
-    if (r.check_in_date === yesterdayYmd && r.listing_id) {
-      yCheckins.set(r.listing_id, r.guest_name ?? null);
-    }
-  }
+  // yCheckins was already populated in pass 2 above.
   for (const [listingId, outGuest] of yCoGuests) {
     const inGuest = yCheckins.get(listingId);
     if (inGuest != null && inGuest !== outGuest) turnovers += 1;
