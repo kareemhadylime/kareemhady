@@ -11,6 +11,7 @@ import {
   getDividendsByYear,
   getAccountBalanceSeries,
   getPortfolioCostSeries,
+  getRealizedPnlByYear,
 } from '@/lib/personal/stocks/queries';
 import { PortfolioChart } from './_components/portfolio-chart';
 import { DividendsChart } from './_components/dividends-chart';
@@ -28,15 +29,23 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const period: Period = sp.period ?? 'all';
   const account = sp.account ?? 'all';
-  const [k, holdings, activity, portfolioSeries, balanceSeries, divsByYear] =
-    await Promise.all([
-      getDashboardKpis({ period, account }),
-      getTopHoldings(10),
-      getRecentActivity(8),
-      getPortfolioCostSeries(),
-      getAccountBalanceSeries(),
-      getDividendsByYear(),
-    ]);
+  const [
+    k,
+    holdings,
+    activity,
+    portfolioSeries,
+    balanceSeries,
+    divsByYear,
+    realizedByYear,
+  ] = await Promise.all([
+    getDashboardKpis({ period, account }),
+    getTopHoldings(10),
+    getRecentActivity(8),
+    getPortfolioCostSeries(),
+    getAccountBalanceSeries(),
+    getDividendsByYear(),
+    getRealizedPnlByYear(),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -133,7 +142,7 @@ export default async function DashboardPage({
         <PortfolioChart data={portfolioSeries} />
         <BalanceLinesChart data={balanceSeries} />
         <DividendsChart data={divsByYear} />
-        <RealizedPnlChart data={[]} />
+        <RealizedPnlChart data={realizedByYear} />
       </div>
     </div>
   );

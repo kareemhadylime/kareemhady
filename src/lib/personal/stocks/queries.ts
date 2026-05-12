@@ -54,6 +54,15 @@ export async function getDashboardKpis(opts: {
       },
       0,
     );
+    // Realized P&L from FIFO view
+    const pnl = await client
+      .from('v_personal_stock_realized_pnl')
+      .select('gain_egp');
+    const realizedPnlEgp = (pnl.data ?? []).reduce(
+      (a: number, r: { gain_egp: number | string | null }) =>
+        a + Number(r.gain_egp ?? 0),
+      0,
+    );
     return {
       cashInEgp: Number(v.data?.cash_in_egp ?? 0),
       cashOutEgp: Number(v.data?.cash_out_egp ?? 0),
@@ -61,7 +70,7 @@ export async function getDashboardKpis(opts: {
       totalSoldEgp: Number(v.data?.total_sold_egp ?? 0),
       dividendsEgp: Number(v.data?.dividends_egp ?? 0),
       openPositionsCostEgp: Number(v.data?.open_positions_cost_egp ?? 0),
-      realizedPnlEgp: 0,
+      realizedPnlEgp,
       unrealizedPnlEgp,
     };
   }
@@ -423,6 +432,23 @@ export async function getAccountBalanceSeries(): Promise<
   return [...byMonth.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, v]) => ({ date, ...v }));
+}
+
+export async function getRealizedPnlByYear(): Promise<
+  { year: number; amount: number }[]
+> {
+  const client = supabaseAdmin();
+  const r = await client
+    .from('v_personal_stock_realized_pnl')
+    .select('sell_date, gain_egp');
+  const m = new Map<number, number>();
+  for (const row of r.data ?? []) {
+    const y = parseInt(row.sell_date.slice(0, 4), 10);
+    m.set(y, (m.get(y) ?? 0) + Number(row.gain_egp ?? 0));
+  }
+  return [...m.entries()]
+    .map(([year, amount]) => ({ year, amount }))
+    .sort((a, b) => a.year - b.year);
 }
 
 export async function getPortfolioCostSeries(): Promise<
