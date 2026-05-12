@@ -56,6 +56,7 @@ export async function buildDailyReport(
   // v3 audit (2026-05-12): builders consuming `today` / `ctx.today`:
   //   build-buildings.ts:          A — occupied/check-ins "today" correctly uses actual today
   //   build-payouts.ts:            A — Airbnb MTD uses [start, yesterday] internally; next-7d from today correct
+  //   build-pricing-intelligence.ts: A (not affected) — fetches external comp-set data, no date param
   //   build-extras / CancelMix:    A — cancellations "today" = live today metric (details_ label is legacy)
   //   build-extras / DeadInv:      A — forward dead-inventory window from today correct
   //   build-extras / CleaningOps:  A — cleaning ops today (checkout+checkin on today) correct

@@ -70,6 +70,9 @@ export function buildCancellations(
   let value_today_usd = 0;
   let count_mtd = 0;
   let value_mtd_usd = 0;
+  // TODO (v3 follow-up): rename `details_yesterday` → `details_today` across build-extras.ts + build.ts.
+  // Post v3-alias-removal (commit 723a2b6), this field captures TODAY's cancellations, not yesterday's.
+  // The legacy name is misleading. Deferred to keep the alias-removal commit focused.
   const details_yesterday: Array<{
     id: string;
     code: string | null;
