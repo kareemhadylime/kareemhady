@@ -10,13 +10,16 @@ Handle the common case where `.gitignore` has local-only additions that block a 
 
 ## Projects
 
+> **Machine-specific paths** — update this table when working from a different machine.
+> Current machine: `KAREE-PC` (Windows, `C:\` root layout)
+
 | Directory | GitHub repo | Notes |
 |-----------|-------------|-------|
-| `C:\Users\karee\projects\fmplus-beta` | kareemhadylime/fmplus-beta | FM+ CAFM app |
-| `C:\Users\karee\projects\voltauto-pricing` | kareemhadylime/voltauto-pricing | pricing tool |
-| `C:\Users\karee\projects\kareemhady` | kareemhadylime/kareemhady | main dashboard (prod) |
-| `C:\Users\karee\projects\etsy` | kareemhadylime/etsy-store | Etsy store mgmt |
-| `C:\Users\karee\projects\voltauto-website` | kareemhadylime/VOLTAUTO-WEB | VoltAuto website |
+| `C:\fmplus-beta` | kareemhadylime/fmplus-beta | FM+ CAFM app |
+| `C:\Voltauto-pricing` | kareemhadylime/voltauto-pricing | pricing tool |
+| `C:\kareemhady` | kareemhadylime/kareemhady | main dashboard (prod) |
+| *(not cloned)* | kareemhadylime/etsy-store | Etsy store mgmt — skip if absent |
+| `C:\voltauto-website` | kareemhadylime/VOLTAUTO-WEB | VoltAuto website |
 
 ## Steps
 
@@ -26,11 +29,11 @@ Run these status checks in parallel:
 
 ```powershell
 # For each of:
-#   C:\Users\karee\projects\fmplus-beta
-#   C:\Users\karee\projects\voltauto-pricing
-#   C:\Users\karee\projects\kareemhady
-#   C:\Users\karee\projects\etsy
-#   C:\Users\karee\projects\voltauto-website
+#   C:\fmplus-beta
+#   C:\Voltauto-pricing
+#   C:\kareemhady
+#   C:\voltauto-website
+#   (etsy not cloned — skip)
 Set-Location <path>
 git fetch origin
 $branch = git rev-parse --abbrev-ref HEAD
@@ -89,7 +92,7 @@ if ($stashed) {
 kareemhady is the main production repo. If the local branch is ahead of origin after resolving the stash (e.g. from a `.gitignore` merge commit made during this pull), push it:
 
 ```powershell
-Set-Location C:\Users\karee\projects\kareemhady
+Set-Location C:\kareemhady
 $ahead = git rev-list "origin/main..HEAD" --count
 if ([int]$ahead -gt 0) {
     git push origin main

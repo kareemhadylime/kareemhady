@@ -9,13 +9,16 @@ One command to end a session cleanly across all five Lime projects.
 
 ## Projects
 
+> **Machine-specific paths** — update this table when working from a different machine.
+> Current machine: `KAREE-PC` (Windows, `C:\` root layout)
+
 | Directory | GitHub repo | Vercel? |
 |-----------|-------------|---------|
-| `C:\Users\karee\projects\kareemhady` | kareemhadylime/kareemhady | ✓ prod |
-| `C:\Users\karee\projects\fmplus-beta` | kareemhadylime/fmplus-beta | — |
-| `C:\Users\karee\projects\voltauto-pricing` | kareemhadylime/voltauto-pricing | — |
-| `C:\Users\karee\projects\etsy` | kareemhadylime/etsy-store | — |
-| `C:\Users\karee\projects\voltauto-website` | kareemhadylime/VOLTAUTO-WEB | — |
+| `C:\kareemhady` | kareemhadylime/kareemhady | ✓ prod |
+| `C:\fmplus-beta` | kareemhadylime/fmplus-beta | — |
+| `C:\Voltauto-pricing` | kareemhadylime/voltauto-pricing | — |
+| *(not cloned)* | kareemhadylime/etsy-store | — |
+| `C:\voltauto-website` | kareemhadylime/VOLTAUTO-WEB | — |
 
 ---
 
