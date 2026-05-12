@@ -59,6 +59,10 @@ Hard gate still in effect: no code until spec written and user-approved.
 - `tsc --noEmit` on the file alone passes. Full project tsc is expected to fail until downstream callers are wired (Tasks 3–12).
 - Not pushed (orchestrator pushes after final review).
 
+**Task 2 JSDoc note — commit `4cb9823` (2026-05-12):**
+- `src/lib/beithady-daily-report/units.ts`: expanded JSDoc on `loadAllInventoriesWithDxb()` to document the catalog-fallback DXB behavior delta vs `loadBuildingInventories()`. JSDoc-only; tsc passes (pre-existing `build-payouts.ts` type error is unrelated and pre-existing).
+- Pushed to `origin/main`.
+
 **Task 2 DONE — commit `cf78461` (2026-05-12):**
 - `src/lib/beithady-daily-report/units.ts`:
   - `bucketBuilding` → `bucketBuildingHelper` (exported). All 4 internal callers updated. `bucketFromGuestyListing` (public) unchanged.
