@@ -15,7 +15,8 @@ export async function buildAIInsights(payload: DailyReportPayload): Promise<AIIn
     const compact = {
       report_date: payload.report_date,
       occupancy_today_pct: payload.all?.occupancy_today_pct ?? null,
-      mtd_revenue_usd: payload.all?.revenue_mtd_usd ?? null,
+      month_revenue_otb_usd: payload.all?.revenue_mtd_usd ?? null,
+      mtd_revenue_actual_usd: payload.all?.revenue_mtd_actual_usd ?? null,
       pickup_vs_prior_month_pct: payload.all?.pickup_vs_prior_month_pct ?? null,
       reviews_avg: payload.reviews?.avg_rating_mtd ?? null,
       reviews_flagged_24h: payload.reviews?.last_24h?.filter((r) => r.flagged).length ?? 0,
