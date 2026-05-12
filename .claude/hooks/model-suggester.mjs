@@ -63,17 +63,24 @@ if (paths >= 6) score += 2;
 else if (paths >= 3) score += 1;
 
 let line = null;
+let switchCmd = null;
 if (score >= 4) {
-  line = `model-suggester: prompt looks complex (score ${score}). If on Sonnet, consider /model opus.`;
+  line = `model-suggester: complex task (score ${score}) — /model opus recommended for best output.`;
+  switchCmd = '/model opus';
 } else if (score <= -3) {
-  line = `model-suggester: prompt looks lightweight (score ${score}). If on Opus, save cost with /model sonnet.`;
+  line = `model-suggester: lightweight task (score ${score}) — /model sonnet saves cost here.`;
+  switchCmd = '/model sonnet';
 }
 
 if (!line) process.exit(0);
 
 const additionalContext =
-  `[model-suggester] BEFORE answering, prepend exactly one line to your reply: "${line}" ` +
-  `Then continue normally. Do not explain the suggester itself unless the user asks.`;
+  `[model-suggester] Start your reply with exactly these two lines and nothing else yet:\n` +
+  `Line 1: "${line}"\n` +
+  `Line 2: "→ Run \`${switchCmd}\` and re-send to switch, or reply **continue** to proceed on the current model."\n` +
+  `Then STOP. Do not answer the original prompt until the user replies. ` +
+  `If they reply "continue" (or any affirmative), answer the original prompt in full. ` +
+  `Do not explain the suggester itself unless asked.`;
 
 const out = {
   hookSpecificOutput: {
