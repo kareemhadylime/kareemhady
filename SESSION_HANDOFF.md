@@ -33,6 +33,8 @@
 
 **Task 3 status:** DONE. `src/lib/beithady/financials/load-opening.ts` + test created (`bde0b32`). 2/2 tests pass. TDD order followed: test written first, verified to fail (`Cannot find module`), then implementation written. Both files pushed to `origin/main`.
 
+**Task 4 status:** DONE. `buildBalanceSheet` in `src/lib/financials-pnl.ts` now reads opening balances from `bh_balance_snapshots` via `loadOpeningBalanceSnapshot` instead of the TS const. `src/lib/beithady-opening-balance-2026.ts` deleted via `git rm`. Commit `f53ee83`. `tsc --noEmit` clean. DB spot-check: 87 rows confirmed. Pushed to `origin/main`.
+
 **Code review nits folded into Task 6's migration 0119 (commit `2de5937`):**
 1. CHECK constraint on `bh_balance_snapshot_accounts.account_type` + `account_type_override` (10-value enum) — prevents silent BS-grouping breakage from typos.
 2. CHECK `chk_bh_upload_committed_has_snapshot` — `parse_status='committed'` requires non-null `snapshot_id`.
