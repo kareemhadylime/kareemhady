@@ -109,6 +109,11 @@ Hard gate still in effect: no code until spec written and user-approved.
 - `src/lib/beithady-daily-report/build-payouts.ts`: eliminated the redundant `stripe3` API call. The `[today+1, today+3]` window is a strict subset of the already-fetched `stripe7` window `[today+1, today+7]`. Fix: removed the `loadStripePayouts(next3dStripeStart, next3dStripeEnd, ...)` call plus its warning push; deleted the redundant `next3dStripeStart` alias (equals `next7StripeStart`); derived `next_3d_stripe_usd` inline by filtering `stripe7.rows` on `arrival_date_ymd <= next3dStripeEnd`. Now exactly ONE Stripe API call for the projection window.
 - `tsc --noEmit` clean, 363/363 tests pass. Pushed to `origin/main`.
 
+**Task 7 follow-up — commit `9e1a858` (2026-05-12):**
+- `src/lib/beithady-daily-report/build.ts`: added `build-pricing-intelligence.ts: A (not affected)` entry to the v3 audit comment block (was imported and called but missing from the audit list).
+- `src/lib/beithady-daily-report/build-extras.ts`: added TODO comment above `details_yesterday` declaration flagging the `details_yesterday` → `details_today` rename as a post-v3 follow-up. No rename performed — deferred to keep alias-removal commit focused.
+- `tsc --noEmit` clean. 363/363 tests pass. Pushed to `origin/main`.
+
 **Task 7 DONE — commit `723a2b6` (2026-05-12):**
 - `src/lib/beithady-daily-report/build.ts`: removed `const today = yesterdayDate` alias (v2 semantics). Replaced with:
   ```ts
