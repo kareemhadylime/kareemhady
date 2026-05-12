@@ -59,6 +59,17 @@ Hard gate still in effect: no code until spec written and user-approved.
 - `tsc --noEmit` on the file alone passes. Full project tsc is expected to fail until downstream callers are wired (Tasks 3–12).
 - Not pushed (orchestrator pushes after final review).
 
+**Task 2 DONE — commit `cf78461` (2026-05-12):**
+- `src/lib/beithady-daily-report/units.ts`:
+  - `bucketBuilding` → `bucketBuildingHelper` (exported). All 4 internal callers updated. `bucketFromGuestyListing` (public) unchanged.
+  - Added `DxbInventory` type, `AllInventoriesWithDxb` type, and `loadAllInventoriesWithDxb()` — single DB query partitioned into `{ egypt, dxb }`. Egypt path is byte-identical to `loadBuildingInventories()`.
+- `src/lib/beithady-daily-report/reservations.ts`:
+  - Extracted private `_loadAllRowsRaw()` (drops the `isExcludedFromReport` skip, attaches `_building_code_raw` to each row).
+  - `loadReservationCorpus()` is now a thin wrapper: filters out DXB, strips internal field. Behaviour byte-identical for Egypt-only callers.
+  - Added `ReservationCorpusWithDxb` type and `loadReservationCorpusWithDxb()` — partitions same raw rows into `{ egypt, dxb }`.
+- 353/353 tests pass. Pre-existing `build-payouts.ts` TS error (missing `next_3d_*` from Task 1) confirmed pre-existing — zero new errors from Task 2.
+- Not pushed yet (orchestrator push cycle).
+
 **Task 1 code-review fix — commit `940bde2` (2026-05-12):**
 - All three new `DailyReportPayload` fields made optional (`?`) so pre-v3 stored snapshots read without TypeScript-vs-runtime mismatch.
 - Reviewer's naming nit (`next_7d_projected_*` vs no `_projected_` on `next_3d_*`) was **verified and refuted**: the existing fields ARE `next_7d_projected_airbnb_usd` / `stripe` / `total` (line 95-97 in types.ts), so the reviewer was CORRECT that there is an inconsistency. However, the spec explicitly specified `next_3d_airbnb_usd` without `_projected_` — we followed the spec, and aligning would be a separate rename of `next_3d_*` fields; left as a nit, not changed.
