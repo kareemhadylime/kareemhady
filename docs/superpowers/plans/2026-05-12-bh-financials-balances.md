@@ -43,7 +43,7 @@
 - `src/lib/beithady-opening-balance-2026.ts` (data migrated to DB)
 - `src/app/beithady/financial/` singular stub (redirect added in `next.config.ts`)
 
-**One forward-only SQL migration:** `supabase/migrations/0117_bh_financials_balance_snapshots.sql` — creates 5 tables, seeds 31-Dec-2025 consolidated v1 snapshot bit-for-bit from the TS const.
+**Forward-only SQL migrations:** `supabase/migrations/0118_bh_financials_balance_snapshots.sql` (originally planned as 0117 but parallel session took that number) — creates 5 tables, seeds 31-Dec-2025 consolidated v1 snapshot bit-for-bit from the TS const (87 account rows). Plus `0119_bh_freeze_rpcs.sql` from Task 6 with the freeze + clone-for-refreeze stored functions.
 
 ---
 
@@ -306,7 +306,7 @@ select count(*) from public.bh_balance_snapshots;
 select status, version, period_end, company_scope from public.bh_balance_snapshots;
 -- expect: frozen, 1, 2025-12-31, consolidated
 select count(*) from public.bh_balance_snapshot_accounts;
--- expect: 75
+-- expect: 87  (38 asset_cash + 1 asset_receivable + 7 asset_current + 2 asset_prepayments + 26 asset_fixed + 7 liability_current + 1 liability_payable + 3 liability_non_current + 2 equity)
 select sum(opening_raw)::numeric(18,2) from public.bh_balance_snapshot_accounts;
 -- expect: 0.17  (the documented 0.17 EGP rounding from the source xlsx)
 ```
@@ -788,7 +788,7 @@ Run via Supabase MCP `execute_sql`:
 select count(*) from public.bh_balance_snapshot_accounts
 where snapshot_id = (select id from public.bh_balance_snapshots
                     where period_end='2025-12-31' and status='frozen');
--- expect 75
+-- expect 87
 ```
 
 - [ ] **Step 8: Commit**
@@ -1168,13 +1168,42 @@ export async function cloneForRefreeze(params: {
 }
 ```
 
-- [ ] **Step 4: Add stored functions in a follow-on migration `0118_bh_freeze_rpcs.sql`**
+- [ ] **Step 4: Add stored functions in a follow-on migration `0119_bh_freeze_rpcs.sql`**
 
-Create `supabase/migrations/0118_bh_freeze_rpcs.sql`:
+Create `supabase/migrations/0119_bh_freeze_rpcs.sql`:
 
 ```sql
--- 0118_bh_freeze_rpcs.sql
+-- 0119_bh_freeze_rpcs.sql
 -- Stored functions for atomic snapshot freeze + re-freeze clone.
+-- Also adds CHECK constraints + integrity guards deferred from Task 1 review.
+
+-- Constraint 1: lock down account_type / account_type_override enums.
+alter table public.bh_balance_snapshot_accounts
+  add constraint chk_bh_acct_type check (
+    account_type in (
+      'asset_cash','asset_receivable','asset_current','asset_prepayments',
+      'asset_fixed','liability_current','liability_payable',
+      'liability_non_current','equity','equity_unaffected'
+    )
+  );
+alter table public.bh_balance_snapshot_accounts
+  add constraint chk_bh_acct_type_override check (
+    account_type_override is null or account_type_override in (
+      'asset_cash','asset_receivable','asset_current','asset_prepayments',
+      'asset_fixed','liability_current','liability_payable',
+      'liability_non_current','equity','equity_unaffected'
+    )
+  );
+
+-- Constraint 2: an upload marked 'committed' MUST have a snapshot_id.
+alter table public.bh_balance_snapshot_uploads
+  add constraint chk_bh_upload_committed_has_snapshot
+  check (parse_status <> 'committed' or snapshot_id is not null);
+
+-- Constraint 3: align company_scope on reminders with the snapshots table.
+alter table public.bh_financials_reminders
+  add constraint chk_bh_reminders_scope
+  check (company_scope in ('consolidated','egypt','dubai','a1'));
 
 create or replace function public.bh_freeze_snapshot(
   p_snapshot_id uuid,
@@ -1270,7 +1299,7 @@ end;
 $$;
 ```
 
-Apply migration `0118_bh_freeze_rpcs` via `apply_migration`.
+Apply migration `0119_bh_freeze_rpcs` via `apply_migration`.
 
 - [ ] **Step 5: Run tests to verify pass**
 
@@ -1283,7 +1312,7 @@ Expected: PASS, 4/4.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/beithady/financials/snapshots.ts src/lib/beithady/financials/snapshots.test.ts supabase/migrations/0118_bh_freeze_rpcs.sql
+git add src/lib/beithady/financials/snapshots.ts src/lib/beithady/financials/snapshots.test.ts supabase/migrations/0119_bh_freeze_rpcs.sql
 git commit -m "feat(bh-financials): snapshot CRUD + freeze/clone RPCs (4/4 tests)
 
 Plan: Task 6"
