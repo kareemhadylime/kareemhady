@@ -443,3 +443,27 @@ export async function getPortfolioCostSeries(): Promise<
   }
   return [...monthly.entries()].map(([date, cost]) => ({ date, cost }));
 }
+
+export type TxnFilters = {
+  account?: AccountCode | 'all';
+  kinds?: ActivityKind[];
+  from?: string;
+  to?: string;
+  limit?: number;
+};
+
+export async function getTransactions(f: TxnFilters): Promise<ActivityRow[]> {
+  // Re-use the union logic from getRecentActivity with large limit, filter in memory.
+  // <2k rows total → fine.
+  const all = await getRecentActivity(100000);
+  return all
+    .filter((r) => {
+      if (f.account && f.account !== 'all' && r.accountCode !== f.account)
+        return false;
+      if (f.kinds && f.kinds.length && !f.kinds.includes(r.kind)) return false;
+      if (f.from && r.occurredAt < f.from) return false;
+      if (f.to && r.occurredAt > f.to) return false;
+      return true;
+    })
+    .slice(0, f.limit ?? 500);
+}
