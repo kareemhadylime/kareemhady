@@ -17,7 +17,7 @@ One command to end a session cleanly across all five Lime projects.
 | `C:\kareemhady` | kareemhadylime/kareemhady | ✓ prod |
 | `C:\fmplus-beta` | kareemhadylime/fmplus-beta | — |
 | `C:\Voltauto-pricing` | kareemhadylime/voltauto-pricing | — |
-| *(not cloned)* | kareemhadylime/etsy-store | — |
+| `C:\ETSY` | kareemhadylime/etsy-store | — |
 | `C:\voltauto-website` | kareemhadylime/VOLTAUTO-WEB | — |
 
 ---

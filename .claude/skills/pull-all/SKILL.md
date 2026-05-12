@@ -18,7 +18,7 @@ Handle the common case where `.gitignore` has local-only additions that block a 
 | `C:\fmplus-beta` | kareemhadylime/fmplus-beta | FM+ CAFM app |
 | `C:\Voltauto-pricing` | kareemhadylime/voltauto-pricing | pricing tool |
 | `C:\kareemhady` | kareemhadylime/kareemhady | main dashboard (prod) |
-| *(not cloned)* | kareemhadylime/etsy-store | Etsy store mgmt — skip if absent |
+| `C:\ETSY` | kareemhadylime/etsy-store | Etsy store mgmt |
 | `C:\voltauto-website` | kareemhadylime/VOLTAUTO-WEB | VoltAuto website |
 
 ## Steps
@@ -33,7 +33,7 @@ Run these status checks in parallel:
 #   C:\Voltauto-pricing
 #   C:\kareemhady
 #   C:\voltauto-website
-#   (etsy not cloned — skip)
+#   C:\ETSY
 Set-Location <path>
 git fetch origin
 $branch = git rev-parse --abbrev-ref HEAD
