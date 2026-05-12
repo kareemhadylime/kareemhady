@@ -1,4 +1,98 @@
-# Kareemhady — Session Handoff (2026-05-11)
+# Kareemhady — Session Handoff (2026-05-12)
+
+## 🟡 2026-05-12 (open) — Brainstorming: switch daily-report briefing from "yesterday completed" → "today live, fresh data at send time"
+
+No code yet. Brainstorming skill in flight, awaiting user pick of scope option.
+
+User said: *"I want the briefing message to report the full picture at the latest cron pull up, preferably 9am, all data refreshed upto the minute the message is sent."*
+
+**Current state I confirmed before asking anything:**
+- The 09:00 WhatsApp/email/PDF comes from `beithady-daily-report` cron (`*/30 6-21 * * *`).
+- `src/lib/beithady-daily-report/build.ts:56-58` reassigns `today = yesterday(generationDate)` — so every builder's "today" math is actually yesterday's data. That's v2 semantics from commit `51265a7`. WhatsApp body still labels it "Today" → that's the misleading bit user just noticed in the Guesty comparison.
+- `/api/cron/guesty` runs `40 */4 * * *`. At 09:00 Cairo (06:00 UTC summer), most recent sync is ~04:40 UTC = ~2.5–3 hours stale.
+- Separate `beithady-morning-brief` cron exists (05:00 + 06:00 UTC, DST-gated to Cairo 9 AM) — NOT what the screenshot showed; user is talking about the rich daily-report.
+
+**Q1 — semantics flip.** User picked **B** (today live + yesterday closing line).
+**Q2 — freshness mechanism.** User picked **β** (tighten Guesty cron to roughly every 15 min through the morning; no inline sync inside report cron).
+**Q3 — body shape.** First draft had DXB as its own subsection; user corrected: *"just BH-DXB on same line of each headline, not separate section, EGY is our main market."* Final WhatsApp body sketch (Egypt headline, `· DXB …` suffix appended to each headline line):
+
+```
+📊 Today: 44/77 occupied (57.1%) · 5 in · 10 out · 3 turnovers · DXB 6/8 · 1 in · 0 out
+   🧹 5 cleanings · ⏰ 1 late check-in
+📅 Yesterday: 44/77 occ · 7 in · 5 out · $4.2k · DXB 5/8 · 0 in · 1 out · $D
+💰 Revenue MTD: $38k check-in · $28k booked (▲ +112.8%) · DXB $X / $Y
+⭐ 35 reviews · 4.6★ avg · 1 flagged 🚩
+```
+
+**Design presented to user, awaiting final approval before spec is written:**
+- `build.ts:58` revert: remove `today = yesterday(generationDate)` alias so "today" math is genuinely today.
+- New `build-yesterday-summary.ts` — flat object {occ, ins (renewal-excluded), outs (renewal-excluded), turnovers, revenue} for the closing line.
+- New `build-dxb-section.ts` — parallel mini-aggregate that bypasses `isExcludedFromReport`. Same shape as Egypt today + yesterday + MTD revenue.
+- `loadBuildingInventories` / `loadReservationCorpus` — keep Egypt-only exclusion for the main path; add DXB sibling (likely partitioned `{egypt, dxb}` shape — single query, two views).
+- `distribute.ts` `buildWhatsAppText` rewrite to the new layout; `render-html.tsx` + `render-pdf.tsx` mirror.
+- `types.ts` — add `yesterday_summary` and `dxb` fields to `DailyReportPayload`.
+- `vercel.json` — Guesty cron: keep `40 */4 * * *` and add `*/15 6-10 * * *` for the morning brief window.
+- **Out of scope (separate brainstorm later if user wants):** DXB rows in every detail section of the PDF; review split by market; AED alongside USD on DXB revenue.
+
+**Risk callouts flagged to user:**
+- The `today = yesterday` alias is load-bearing in ~15 builders. Implementation plan needs a per-builder audit pass before deletion — cleaning ops, payment-on-checkin, no-show, weekly digest are likely off-by-one-day candidates.
+- Cron retries will produce slightly different "live" numbers on each retry (acceptable; later retry = later snapshot).
+
+**Next step when user says go:** write spec to `docs/superpowers/specs/2026-05-12-daily-report-v3-today-live-dxb-design.md`, commit, then writing-plans skill for implementation plan.
+
+Hard gate still in effect: no code until spec written and user-approved.
+
+**For the next session if it picks this up:** the orchestrator's one-line semantics flip is at `build.ts:58`, but downstream builders (`build-buildings.ts`, `build-extras.ts` cleaning/cancellations, payment-on-checkin, no-show, weekly-digest, AI-insights) all assume `today === yesterday`. Any "today live" option needs an audit pass — likely cleaner to introduce a `period.data_date` vs `period.report_date` split rather than monkey-patch the alias.
+
+---
+
+## 🔵 2026-05-12 — Q&A: "why does our app say 7 check-ins / 5 check-outs and Guesty says 5 / 10?"
+
+No code change. Diagnostic only.
+
+User shared the Tue-May-12 09:00 WhatsApp daily-performance message (7 check-ins · 5 check-outs · 0 turnovers) alongside Guesty homepage screenshots showing 5 / 10 / 3 plus the check-in and check-out drawers.
+
+**Root cause: comparing different dates.**
+- Our WhatsApp report says verbatim *"Reporting on Mon, May 11, 2026 (yesterday)"*. Daily-report semantics is "yesterday at 09:00 Cairo" (`cairoDates.yesterday()` in `src/lib/beithady-daily-report/cairo-dates.ts:109`, v2 semantics shipped in `51265a7`). So 7 / 5 / 0 = **May 11**.
+- Guesty homepage panel header reads "May 12, 2026" — today. So 5 / 10 / 3 = **May 12**.
+- Cross-checked the 3 Guesty turnovers (May 12) by listing-id overlap on the user's screenshots: BH-26-302, BH-26-303, BH-435-002 — all distinct guest names, so all 5 May-12 check-ins are new arrivals. No same-guest renewals to confound the count today.
+
+**Told the user how to align:** step Guesty's Daily-activity date back to May 11 with the `<` arrow next to the date label.
+
+**Secondary cause to keep in mind on any aligned-date comparison:** our counts apply same-guest renewal exclusion (`snapRenewedListings` in `src/lib/beithady-daily-report/build-buildings.ts:141-187`; commits `19228cc`, `900c71f`, `9eba269`). Guesty counts every reservation boundary; we skip both legs of a same-guest extension. Residual gap after date-alignment = number of renewals on the day.
+
+Not in play here: building scope is aligned (we exclude BH-DXB; every Guesty row was BH-26 / BH-73 / BH-435), and the recent mojibake work is unrelated to counts.
+
+---
+
+## 🔵 2026-05-11 (part 3) — Q&A: "why don't emoji show on my other machine reading SESSION_HANDOFF?"
+
+No code change. Diagnostic only.
+
+User reported emoji work invisible when reading SESSION_HANDOFF on a second machine. Verified locally:
+- `SESSION_HANDOFF.md` bytes are real UTF-8 (`F0 9F 9F A2` at offset 50 = 🟢, `E2 80 94` = —).
+- Local `HEAD` == `origin/main` == `2f64c8b`. Source-file un-mojibake (`0b84ebf`) and pre-commit/.gitattributes prevention (`0999485`) are on main.
+- `git check-attr` confirms `.md` resolves to `text eol=lf working-tree-encoding=UTF-8`.
+
+**Root cause is the renderer on the other machine, not the file.** Same Latin-1/CP1252 misread of correct UTF-8 that originally hit WhatsApp — but happening at the reader layer this time.
+
+Most likely culprits on machine B:
+1. PowerShell 5.1 `Get-Content` / `cat` without `-Encoding UTF8` (defaults to ANSI codepage).
+2. `cmd.exe` `type` under codepage 437/1252 (fix: `chcp 65001` first).
+3. Notepad opening UTF-8-without-BOM as ANSI (older versions only).
+4. Less likely: missing emoji font (Segoe UI Emoji is default on modern Windows).
+5. Stale checkout — `.gitattributes` does **not** retroactively rewrite already-checked-out files; if machine B had locally corrupted files before pulling, `git checkout HEAD -- <file>` restores from index.
+
+Recommended verify-on-machine-B sequence handed to user:
+```powershell
+git rev-parse origin/main                                    # should == 2f64c8b
+[System.IO.File]::ReadAllBytes('SESSION_HANDOFF.md')[47..52] # expect F0 9F 9F A2
+code SESSION_HANDOFF.md                                       # or: pwsh -c "Get-Content …"
+```
+
+Reminder for future sessions: the pre-commit hook protects **writes**. It cannot protect a viewer that mis-decodes correct UTF-8. Viewer issues are out of repo scope.
+
+---
 
 ## 🟢 Latest turn — BH-domain audit: enforce "79 sellable units" rule consistently
 
