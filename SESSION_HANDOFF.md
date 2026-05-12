@@ -1,5 +1,125 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🟢 2026-05-12 — Stock Investment module: Tasks 1-5 of 23 complete (subagent-driven, parallel session)
+
+**Progress:** 5/23 tasks shipped through implementer → spec-reviewer → code-quality-reviewer pipeline.
+
+- **Task 1** — Migration `0116_personal_stock_investment.sql` applied (`e9fcc68`). 11 tables, 3 accounts seeded.
+- **Task 2** — `parse-aolb.ts` + tests (`5ec3653`). 5/5 pass. Added `fast-xml-parser ^5.8.0`.
+- **Task 3** — `instruments.ts` + tests (`f4326b8`). 7/7 pass. Approved as-is.
+- **Task 4** — `classify.ts` + tests (`c6ad9df`). 12/12 pass. Approved.
+- **Task 5** — `import.ts` orchestrator + tests (`aa37150`). 3/3 pass. Plan deviation: removed `if (!rawId) continue;` because test mock lacks ID echo-back; production-safe (DB constraints backstop).
+
+**Pre-Task-8 cleanup queue** (must address before real-data seed run):
+1. `parse-aolb.ts` — `toNumber` silently returns 0 on junk text (masks reconciliation drift)
+2. `parse-aolb.ts` — `cols[i] === ''` vs `null` asymmetry in numeric fields
+3. `classify.test.ts` — missing Arabic `اكتتاب` IPO subscription branch test
+4. `import.ts` — no `.error` check on 6 batched downstream inserts (silent partial-import + SHA dedup → blocked retries)
+5. `import.test.ts` — mock returns no IDs from `.insert().select()` array form; FK linkage untested
+
+**Next:** Task 6 — API routes (upload/reprocess/seed/prices) + `.env.example`. Plan at `docs/superpowers/plans/2026-05-12-personal-stock-investment.md`.
+
+---
+
+## 🟢 BH Financials — Task 1 DONE — Migration 0118 applied + seeded
+
+**Task 1 status:** DONE. Migration `0118_bh_financials_balance_snapshots.sql` applied and committed (`4c1fdbc`).
+- 5 tables created: `bh_balance_snapshots`, `bh_balance_snapshot_accounts`, `bh_balance_snapshot_partners`, `bh_balance_snapshot_uploads`, `bh_financials_reminders`.
+- 31-Dec-2025 consolidated v1 snapshot seeded: 1 snapshot row (frozen), 87 account rows, sum = 0.17 EGP (matches xlsx rounding).
+- Note: filed as **0118** not 0117 — parallel stock-investment session claimed 0117 for `personal_stock_views`.
+- `src/lib/beithady-opening-balance-2026.ts` intentionally untouched (Task 4 will swap the consumer).
+
+**Verification results:**
+| Query | Expected | Actual |
+|---|---|---|
+| count bh_balance_snapshots | 1 | 1 ✅ |
+| status/version/period/scope | frozen/1/2025-12-31/consolidated | frozen/1/2025-12-31/consolidated ✅ |
+| count bh_balance_snapshot_accounts | 87 (plan said 75, but TS const has 87 rows) | 87 ✅ |
+| sum(opening_raw) | 0.17 | 0.17 ✅ |
+
+**Previous status:** Brainstorming + writing-plans complete. **28-task plan committed and pushed (`4a1c666`)**.
+
+**Spec:** `docs/superpowers/specs/2026-05-12-bh-financials-balances-design.md` (commit `3c7ffc5`)
+**Plan:** `docs/superpowers/plans/2026-05-12-bh-financials-balances.md` (commit `4a1c666`, 4004 lines, 28 tasks)
+
+**6 clarifying questions, all locked:**
+- Q1 cadence: **C** — quarterly snapshot, 6-month lag (Q4-2025 due by 30-Jun-2026 etc).
+- Q2 gap: **A** — synthetic `__UNALLOCATED_<code>` rows + mandatory Reconciliation audit page.
+- Q3 owners: all 6 owners (incl. A1) **external** — no intercompany elim. A1 removed from `getIntercompanyPartnerIds`.
+- Q4 scope: **everything** — 6+ partner-tracked accounts; Import Queue surfaces missing ledgers.
+- Q5 placement: **Hybrid (C)** — promote `/beithady/financials/` to cockpit, extract PnL/BS/Payables, add Ledgers/Snapshots/Reconciliation/Import.
+- Q6 trigger: **B + (i)** — Sunday-9-Cairo cron-reminder + manual confirm + versioned re-freezes.
+
+**Architecture locked: A** — versioned snapshots persisted in DB + on-the-fly current-balance compute. 5 new tables (snapshots, snapshot_accounts, snapshot_partners, snapshot_uploads, reminders). Migration 0117 seeds 31-Dec-2025 consolidated v1 from the existing TS const bit-for-bit (TS const deleted in same commit).
+
+**9-phase plan structure:**
+1. DB foundation — T1 (migration 0117) · T2 (types) · T3 (loadOpeningBalanceSnapshot helper) · T4 (swap buildBalanceSheet TS→DB; delete TS const)
+2. Cadence + CRUD — T5 (cadence.ts pure date math) · T6 (snapshots.ts + RPCs migration 0118)
+3. Partner matching — T7 (partner-match.ts fuzzy)
+4. Import pipeline — T8 (commit xlsx fixtures) · T9 (parse) · T10 (classify+match) · T11 (commit + synthetic row)
+5. Ledgers + Reconciliation — T12 (buildLedgerReport) · T13 (buildReconciliation)
+6. Cockpit refactor — T14 (drop A1 from intercompany) · T15-17 (extract Performance/BS/Payables) · T18 (refactor /financials → cockpit) · T19 (delete /financial stub + redirect)
+7. New subpages — T20 (/snapshots + [id]) · T21 (/ledgers) · T22 (/reconciliation) · T23 (/import) · T24 (/import/[upload_id])
+8. Cron + banner — T25 (cron handler + vercel.json) · T26 (overdue banner)
+9. Seed + smoke + deploy — T27 (operator-action xlsx imports) · T28 (full smoke + tsc + deploy)
+
+**Plan self-review passed:** spec coverage complete (1 intentionally deferred = "books-closed pre-flight" in §6.5 marked optional in spec), no placeholders (all code shown, even JSX-paste markers in T15-17 have full surrounding boilerplate spelled out), type consistency across tasks (PartnerKind/CompanyScope/etc. defined once in types.ts and reused).
+
+**Visual companion still ACTIVE:** server at `http://localhost:62033`, session `.superpowers/brainstorm/3301-1778609938/`. 7 screens pushed: welcome, approaches, design-1 through design-5.
+
+**Next:** User picks execution mode. If subagent-driven (recommended) → invoke `superpowers:subagent-driven-development` to begin Task 1. If inline → invoke `superpowers:executing-plans`. Task 1 starts with the migration 0117 SQL — straightforward DDL + seed insert.
+
+User request: hardcode opening balances (Suppliers + Owner Accounts as of 31-Dec-2025) from `C:\kareemhady\Lime Domains\Beithady\FINANCIALS\*.xlsx` into the DB; build current-year balances on top of those seeds; freeze new ending balances every 6 months (per quarter) to dodge Odoo's 365-day data window; design a module with tabs around all of this.
+
+**Process state:** Inside `superpowers:brainstorming` skill. Visual companion ACTIVE — server `http://localhost:62033`, session `.superpowers/brainstorm/3301-1778609938/`. All 6 clarifying questions LOCKED. Approach LOCKED (A — versioned snapshots + on-the-fly compute). Design walkthrough in progress: **Section 1 (Data Model) APPROVED · Section 2 (Routes & Cockpit) PRESENTED · awaiting Section 2 approval before Section 3 (Import + Reconciliation).**
+
+**Screens pushed to visual companion:**
+- `welcome.html` — findings + 6 queued Qs
+- `approaches.html` — 3 architecture approaches (A picked)
+- `design-1-data-model.html` — 4 tables (approved)
+- `design-2-routes.html` — cockpit landing + 8 routes + Ledgers subpage anatomy (awaiting approval)
+
+**Exploration findings (locked):**
+- Source files: 12 in `Lime Domains/Beithady/FINANCIALS/`. Key 2 with partner-level data:
+  - `BH Accounts Payable Suppliers partner_ledger ...xlsx` → 85 suppliers, total **−8,567,422.64 EGP**.
+  - `BH Owners Payable partner_ledger ...xlsx` → 6 owners (A1 HOSPITALITY −2,105,005 · LIME SOLUTIONS −125,675 · MARINA GOUNA −29,981 · MOHAMMED ELSAYED 101-55 −122,909 · MOHAMMED ELSAYED 213-BH −108,447 · WATER SIDE GOUNA −26,196), total **−2,518,213.03 EGP**.
+- Existing seed: `src/lib/beithady-opening-balance-2026.ts` (account-level only, in TS, not DB). Consumed by `buildBalanceSheet` (consolidated scope, companies 5+10, asOf > 2025-12-31 → seed + Odoo deltas).
+- Reconciliation gap discovered: account 227002 Suppliers consolidated = −9,081,444.65 vs partner ledger total = −8,567,422.64 → **−514,022.01 EGP** unallocated. Will recur every snapshot.
+- Existing routes: `/beithady/financials/` (real 1182-line PnL+BS+Payables) vs `/beithady/financial/` (56-line stub).
+- `buildPayablesReport` already buckets by `vendor / employee / owner` via `odoo_partners` flags — partner-level infra exists; just needs a per-partner opening-balance seed.
+
+**Clarifying questions — answers locked:**
+- ✅ **Q1 (cadence)**: **C** — quarterly snapshot, taken 6 months in arrears. First freeze today = 31-Dec-2025. Next ≈ 2026-08 for Q1-2026 (31-Mar-2026), then 2026-11 for Q2-2026, etc.
+- ✅ **Q2 (gap policy)**: **A** — synthetic "Unallocated" partner row per affected account. HARD requirement: dedicated **Reconciliation/Variance** tab must show account ↔ ledger ↔ Odoo move-lines side-by-side for audit.
+- ✅ **Q3 (owners on consolidated)**: All 6 owners (including A1) treated as **external parties** — no intercompany elimination for owners. They appear on consolidated AND per-company books under an "Owner Payables" group, distinct from Suppliers. Implication: remove A1 from `getIntercompanyPartnerIds()` exclude set.
+- ✅ **Q4 (partner-seed scope)**: **Everything** — module must support partner-level seeds for all 6+ partner-tracked balance-sheet accounts (Suppliers, Owners, Customers 122001, Contract Insurance Guarantee 113002, Loans for employees 124005, Salaries in advance 124006, Accrued Salaries 223001, Notes Payable holders 221001). Module supports drop-in import of additional ledgers anytime (not gated to quarterly snapshots). Module includes an "Import Queue" view showing 6 missing ledgers as TODO tiles.
+- ✅ **Q5 (module placement)**: **Hybrid (C)** — promote `/beithady/financials/` to a finance cockpit with tiles. Extract existing PnL/BS/Payables into focused subpages. Routes:
+  - `/beithady/financials/` ← cockpit (tiles)
+  - `/beithady/financials/performance/` ← PnL (extracted)
+  - `/beithady/financials/balance-sheet/` ← BS (extracted)
+  - `/beithady/financials/payables/` ← Aging report (extracted)
+  - `/beithady/financials/ledgers/` ← NEW partner-level current balances
+  - `/beithady/financials/snapshots/` ← NEW frozen opening balances
+  - `/beithady/financials/reconciliation/` ← NEW variance audit (hard req from Q2)
+  - `/beithady/financials/import/` ← NEW xlsx upload UI
+- ✅ **Q6 (snapshot trigger)**: **B + (i)** — Sunday Cairo-9-AM cron-reminder banner + WhatsApp + morning-brief mention; operator clicks "Freeze Snapshot" to commit. Any re-freeze creates a new dated revision (status=`superseded` on the prior); full audit trail preserved.
+
+**Design walkthrough — sections:**
+- ✅ **Section 1 (Data Model)**: APPROVED. 4 tables — `bh_balance_snapshots` (header, versioned), `bh_balance_snapshot_accounts`, `bh_balance_snapshot_partners` (with synthetic `__UNALLOCATED` support + match_confidence + odoo_partners FK), `bh_balance_snapshot_uploads` (xlsx audit, SHA dedup, raw_rows for reprocess). Migration `0117_bh_financials_balance_snapshots.sql`. TS const `BEITHADY_OPENING_BALANCES_2026` migrates to 1st DB snapshot (period_end=2025-12-31, scope=consolidated, v1), then deleted; `buildBalanceSheet` reads from DB.
+- 🟡 **Section 2 (Routes & Cockpit)**: PRESENTED, awaiting approval. Cockpit landing = 3 status cards (Active snapshot · Open variance · Next snapshot due) + 7 tiles (Performance · BS · Payables · Ledgers NEW · Snapshots NEW · Reconciliation NEW · Import NEW). 8 routes total. Ledgers subpage mocked with kind-tabs (supplier/owner/customer/etc.), as-of+scope+snapshot-base filters, table columns: Partner | Opening | Deltas YTD | Current bal | Last move. Synthetic `__UNALLOCATED` row visually flagged.
+- ⏳ **Section 3 (Import + Reconciliation)**: pending.
+- ⏳ **Section 4 (Snapshot Lifecycle — freeze + cron + versioning)**: pending.
+- ⏳ **Section 5 (Existing Code Impact)**: pending.
+
+**Next steps after Q6:**
+1. Propose 2–3 architecture approaches (visual)
+2. Present design in sections, get section-by-section approval
+3. Write spec to `docs/superpowers/specs/2026-05-12-bh-financials-balances-design.md`
+4. Spec self-review + user review
+5. Invoke `superpowers:writing-plans` for implementation plan
+
+---
+
 ## 🟢 Shipped: Beithady dashboard month-oriented KPI redesign (Tasks 1-15)
 
 **Final state:** All 15 plan tasks complete + final cross-cutting review applied. 20 commits pushed to `origin/main` (HEAD: `276d5e9`). Vercel auto-deploy triggered via GitHub integration.
