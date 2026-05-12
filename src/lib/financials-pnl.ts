@@ -1,9 +1,9 @@
 import { supabaseAdmin } from './supabase';
-import {
-  BEITHADY_OPENING_BALANCES_2026,
-  OPENING_BALANCE_DATE,
-  ACCOUNT_TYPE_OVERRIDES,
-} from './beithady-opening-balance-2026';
+import { loadOpeningBalanceSnapshot } from './beithady/financials/load-opening';
+
+// The first frozen snapshot's period_end. Anything after this date triggers
+// the seed-plus-deltas path; anything on/before falls back to raw odoo_move_lines.
+const OPENING_BALANCE_DATE = '2025-12-31';
 
 // Default scope = Consolidated Beithady (Egypt 5 + Dubai 10).
 // Callers can override via opts.companyIds for per-company views:
@@ -810,16 +810,29 @@ export async function buildBalanceSheet(params: {
     { code: string; name: string; account_type: string; sum: number }
   >();
 
-  // Seed opening balances first so later Odoo deltas stack on top of them.
+  // Seed opening balances from the latest frozen consolidated snapshot.
+  let accountTypeOverrides: Record<string, string> = {};
   if (useOpeningBalance) {
-    for (const op of BEITHADY_OPENING_BALANCES_2026) {
-      const key = `${op.code}||${op.name}||${op.account_type}`;
+    const seed = await loadOpeningBalanceSnapshot({
+      period_end: OPENING_BALANCE_DATE,
+      scope: 'consolidated',
+    });
+    if (!seed.snapshot_id) {
+      throw new Error(
+        `buildBalanceSheet: no frozen consolidated snapshot for ${OPENING_BALANCE_DATE}`
+      );
+    }
+    for (const op of seed.accounts) {
+      const key = `${op.account_code}||${op.account_name}||${op.account_type}`;
       byAccount.set(key, {
-        code: op.code,
-        name: op.name,
+        code: op.account_code,
+        name: op.account_name,
         account_type: op.account_type,
         sum: op.opening_raw,
       });
+      if (op.account_type_override) {
+        accountTypeOverrides[op.account_code] = op.account_type_override;
+      }
     }
   }
 
@@ -852,8 +865,8 @@ export async function buildBalanceSheet(params: {
       // Non-current). Only overrides when we're in opening-balance mode so
       // per-company views keep the raw Odoo classification.
       const accountType =
-        useOpeningBalance && ACCOUNT_TYPE_OVERRIDES[code]
-          ? ACCOUNT_TYPE_OVERRIDES[code]
+        useOpeningBalance && accountTypeOverrides[code]
+          ? accountTypeOverrides[code]
           : rawAccountType;
       const key = `${code}||${name}||${accountType}`;
       const existing = byAccount.get(key);
