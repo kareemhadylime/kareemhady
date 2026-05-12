@@ -80,6 +80,11 @@ Hard gate still in effect: no code until spec written and user-approved.
 - Key implementation note: renewal detection guards against `yCheckinCountByListing === 1` — when 2+ check-ins land on the same listing on yesterday, it can't be a clean one-to-one renewal extension, so both count as real check-ins.
 - Pushed to `origin/main`.
 
+**Task 4 spec-deviation fix — commit `ea4ead7` (2026-05-12):**
+- `src/lib/beithady-daily-report/build-dxb-section.ts`: removed the spurious `r.check_out_date !== todayYmd` guard from the MTD check-in attribution accumulator. Rule now exactly mirrors the spec: `check_in_date >= monthStart && check_in_date <= monthEnd` with no condition on check_out_date. Removed the "today's in-flight checkouts excluded" comment block.
+- `src/lib/beithady-daily-report/build-dxb-section.test.ts`: Test 1 MTD expectation corrected from `600 + 500 + 400` to `600 + 700 + 500 + 400` (= 2200) — D2 (check_in May 10, check_out May 12) now correctly counts. Added `// all 4 rows have check_in_date in May` comment.
+- All 4 tests pass. tsc on the file is clean (pre-existing Map/Set iteration errors are in unrelated files, unaffected). Pushed to `origin/main` (`efe9f51` → `ea4ead7`).
+
 **Task 3 post-commit fixes — commit `1f446e0` (2026-05-12):**
 - JSDoc updated to document the divergence from `build-buildings.ts:141-187`: this function enforces an "exactly one check-in" guard that the today-anchored renewal logic does not. Prevents false renewals on anomalous same-day multi-arrival edge cases.
 - Loop 4 (redundant `yCheckins` build pass) eliminated: `yCheckins` map is now populated inline during Pass 2 (the `yCheckinCountByListing` loop) — three passes over `active` instead of four, plus turnover pass over `yCoGuests`. Functionally identical.
