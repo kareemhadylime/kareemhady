@@ -372,7 +372,7 @@ export function DashboardShell({
             )}
             {visibility['hero-mtd-revenue-actual'] && (
               <HeroKpi
-                label={`MTD Revenue actual${filterSuffix}`}
+                label={`MTD Revenue${filterSuffix}`}
                 value={`$${((bucket.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
                 delta={
                   compareActive && priorBucket

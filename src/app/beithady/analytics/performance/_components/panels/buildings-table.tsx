@@ -21,7 +21,7 @@ export function BuildingsTable({ payload, onHide }: Props) {
           ))}
         </Row>
 
-        <Row label="MTD Rev">
+        <Row label="Month OTB">
           <Td>{fmtMoneyK(payload.all.revenue_mtd_usd)}</Td>
           {BUILDING_CODES.map((code) => (
             <Td key={code}>{fmtMoneyK(payload.per_building[code].revenue_mtd_usd)}</Td>
