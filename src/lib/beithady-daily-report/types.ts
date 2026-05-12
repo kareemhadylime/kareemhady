@@ -31,21 +31,25 @@ export type BuildingBucket = {
   check_outs_today: number;
   turnovers_today: number;         // same-unit checkout + checkin same day
   // ---- MTD performance ----
-  // Two revenue lines, per user request 2026-05-05:
-  //   revenue_mtd_usd       = host_payout for reservations whose CHECK-IN
-  //                           is in this calendar month (Guesty Homepage
-  //                           parity / "money earned via stays starting
-  //                           this month")
-  //   revenue_created_mtd_usd = host_payout for reservations CREATED in
-  //                           this calendar month (Guesty Analytics →
-  //                           General Overview default filter / "how
-  //                           much we booked this month")
-  // Both shown side-by-side in the report so the methodology of each
-  // is explicit and the user can sanity-check against Guesty UI.
+  // Three revenue lines now:
+  //   revenue_mtd_actual_usd = host_payout for reservations whose CHECK-IN
+  //                            is in [start_of_month, today] — TRUE past-only
+  //                            MTD revenue (no future check-ins).
+  //   revenue_mtd_usd        = host_payout for reservations whose CHECK-IN
+  //                            is anywhere in this calendar month (incl.
+  //                            future). This IS the "Month Revenue (OTB)"
+  //                            number — name kept for backward compat with
+  //                            historical snapshots; UI labels it as such.
+  //   revenue_created_mtd_usd = host_payout for reservations CREATED in this
+  //                            calendar month (Guesty Analytics parity).
+  // All three shown side-by-side in the daily report so methodology is
+  // explicit and the operator can cross-check Guesty UI.
   revenue_mtd_usd: number;
+  revenue_mtd_actual_usd: number;
   revenue_created_mtd_usd: number;
   forward_occupancy_pct: number;   // today → end of month, on-the-books
   backward_occupancy_pct: number;  // start-of-month → today, classic %
+  month_occupancy_pct: number;     // whole-month OTB = (nights_mtd + forward_nights_booked) / (days_total × total_units) × 100
   backward_avg_units_per_day: number; // user's literal formula: nights/days_elapsed
   adr_mtd_usd: number;
   opportunity_nights: number;      // free unit-nights from today → EOM
