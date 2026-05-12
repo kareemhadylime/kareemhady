@@ -109,6 +109,21 @@ Hard gate still in effect: no code until spec written and user-approved.
 - `src/lib/beithady-daily-report/build-payouts.ts`: eliminated the redundant `stripe3` API call. The `[today+1, today+3]` window is a strict subset of the already-fetched `stripe7` window `[today+1, today+7]`. Fix: removed the `loadStripePayouts(next3dStripeStart, next3dStripeEnd, ...)` call plus its warning push; deleted the redundant `next3dStripeStart` alias (equals `next7StripeStart`); derived `next_3d_stripe_usd` inline by filtering `stripe7.rows` on `arrival_date_ymd <= next3dStripeEnd`. Now exactly ONE Stripe API call for the projection window.
 - `tsc --noEmit` clean, 363/363 tests pass. Pushed to `origin/main`.
 
+**Task 7 DONE — commit `723a2b6` (2026-05-12):**
+- `src/lib/beithady-daily-report/build.ts`: removed `const today = yesterdayDate` alias (v2 semantics). Replaced with:
+  ```ts
+  const today = reportDateYmd || cairoYmd();
+  const yesterdayDate = yesterdayOf(today);
+  ```
+- Full audit of all 22 builders consuming `today`/`ctx.today` — **all Category A** (no Category-B rewires needed):
+  - Backward-looking builders (no-show, payment-checkins, weekly-digest, channels-paired, conversations) already read from `ReportPeriodWindow.yesterday`, not from `today`. Unaffected.
+  - `buildCancellations` `effective === today` now captures today's live cancellations (correct for v3).
+  - `buildCleaningOps` `ctx.today` now shows today's live cleaning ops (correct for v3).
+  - `buildReviews` `addDays(ctx.today, -1)` = yesterday = correct for last-24h window.
+  - All IO builders (cancel-risk, stly, sparklines, top-movers, forward-occ, occ-gaps) use actual today as anchor = correct for v3.
+- Also: updated `composeDigest` text from "Yesterday:" → "Today (YYYY-MM-DD):"; updated `generated_at_cairo` header to drop the "(yesterday)" suffix; fixed all `generationDate` references (now `today`); updated stale v2 comments.
+- 363/363 tests pass. `tsc --noEmit` exits 0. Pushed to `origin/main`.
+
 ---
 
 ## 🔵 2026-05-12 — Q&A: "why does our app say 7 check-ins / 5 check-outs and Guesty says 5 / 10?"
