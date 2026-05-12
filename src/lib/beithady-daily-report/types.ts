@@ -457,7 +457,17 @@ export type TopMover = {
   one_liner: string;             // human-readable single line for ribbon display
 };
 
-export type HeroKpiId = 'occupancy' | 'mtd_revenue' | 'revpar' | 'pace' | 'reviews_avg' | 'response_time';
+export type HeroKpiId =
+  | 'occupancy'
+  | 'mtd_occupancy'
+  | 'month_to_end_occupancy'
+  | 'month_occupancy'
+  | 'mtd_revenue'              // historical: now represents Month Revenue (OTB)
+  | 'mtd_revenue_actual'
+  | 'revpar'
+  | 'pace'
+  | 'reviews_avg'
+  | 'response_time';
 export type SparklinesSection = Record<HeroKpiId, number[]>;
 
 export type GoalSection = {
