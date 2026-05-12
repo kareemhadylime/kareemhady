@@ -4,7 +4,15 @@ const fakeRows = [
   {
     report_date: '2026-04-29',
     payload: {
-      all: { occupancy_today_pct: 38, revenue_mtd_usd: 4000, pickup_vs_prior_month_pct: 50 },
+      all: {
+        occupancy_today_pct: 38,
+        backward_occupancy_pct: 35,
+        forward_occupancy_pct: 60,
+        month_occupancy_pct: 50,
+        revenue_mtd_usd: 4000,
+        revenue_mtd_actual_usd: 2400,
+        pickup_vs_prior_month_pct: 50,
+      },
       reviews: { avg_rating_mtd: 4.7 },
       conversations: { yesterday: { avg_response_minutes: 50 } },
     },
@@ -12,7 +20,15 @@ const fakeRows = [
   {
     report_date: '2026-04-30',
     payload: {
-      all: { occupancy_today_pct: 42, revenue_mtd_usd: 9000, pickup_vs_prior_month_pct: 55 },
+      all: {
+        occupancy_today_pct: 42,
+        backward_occupancy_pct: 38,
+        forward_occupancy_pct: 65,
+        month_occupancy_pct: 55,
+        revenue_mtd_usd: 9000,
+        revenue_mtd_actual_usd: 5400,
+        pickup_vs_prior_month_pct: 55,
+      },
       reviews: { avg_rating_mtd: 4.8 },
       conversations: { yesterday: { avg_response_minutes: 45 } },
     },
@@ -39,7 +55,11 @@ describe('buildSparklines', () => {
     const out = await buildSparklines('2026-04-30');
     expect(out).not.toBeNull();
     expect(out!.occupancy).toEqual([38, 42]);
+    expect(out!.mtd_occupancy).toEqual([35, 38]);
+    expect(out!.month_to_end_occupancy).toEqual([60, 65]);
+    expect(out!.month_occupancy).toEqual([50, 55]);
     expect(out!.mtd_revenue).toEqual([4000, 9000]);
+    expect(out!.mtd_revenue_actual).toEqual([2400, 5400]);
     expect(out!.reviews_avg).toEqual([4.7, 4.8]);
     expect(out!.response_time).toEqual([50, 45]);
     expect(out!.pace).toEqual([50, 55]);
