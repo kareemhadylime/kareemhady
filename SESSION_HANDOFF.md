@@ -52,6 +52,27 @@ User is asking *"is it safe to clear?"* — yes, once this entry is committed. A
 
 ---
 
+## ✅ 2026-05-13 — Tasks T20-T24: BH Financials 5 new subpages (snapshots, ledgers, reconciliation, import, import/[upload_id])
+
+Batched execution of T20-T24 from `docs/superpowers/plans/2026-05-12-bh-financials-balances.md`.
+
+**What was done:**
+- `src/app/beithady/financials/snapshots/page.tsx` — list page: consolidated snapshots grouped by period_end, sorted newest-first, version badges (frozen/draft/superseded), link to detail.
+- `src/app/beithady/financials/snapshots/[id]/page.tsx` — detail page: account-level table (code, name, opening, partner total, variance) + partner-level table (account, kind, partner, balance). Synthetic rows highlighted red.
+- `src/app/beithady/financials/_components/PartnerLedgerTable.tsx` — reusable component for ledger rows (opening, delta YTD, current balance, last move date).
+- `src/app/beithady/financials/ledgers/page.tsx` — kind sub-tabs (supplier/owner/customer/landlord/employee/noteholder/all), scope + asof search params, sum footer.
+- `src/app/beithady/financials/reconciliation/page.tsx` — auto-loads latest frozen consolidated snapshot; 4-badge summary strip; variance table with red-highlight for open variances; no-snapshot fallback.
+- `src/app/beithady/financials/import/actions.ts` — `uploadXlsx` server action: SHA dedup, `parsePartnerLedgerXlsx`, insert to `bh_balance_snapshot_uploads`, redirect to review page.
+- `src/app/beithady/financials/import/page.tsx` — upload form (account_code, period_end, scope, file) + Import Queue tile grid showing ✓/⏳ per account+kind.
+- `src/app/beithady/financials/import/[upload_id]/actions.ts` — `commitUpload` server action: loads upload + frozen snapshot + Odoo partners, classifies rows, commits, updates upload status, revalidates import/reconciliation/ledgers, redirects to reconciliation.
+- `src/app/beithady/financials/import/[upload_id]/page.tsx` — review page: parsed row table, parse errors panel, partner-kind selector, "Commit to snapshot" form; already-committed guard shows green notice instead of form.
+
+**tsc result:** zero errors in new paths. Pre-existing `xlsx-import.ts` Buffer warning unchanged.
+
+**Commit:** `547c1be` — pushed to `origin/main`.
+
+---
+
 ## ✅ 2026-05-13 — Tasks T15-T18: BH Financials cockpit refactor + 3 subpages
 
 Batched execution of T15-T18 from `docs/superpowers/plans/2026-05-12-bh-financials-balances.md`.
