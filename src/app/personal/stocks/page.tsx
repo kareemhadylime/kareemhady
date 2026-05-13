@@ -91,12 +91,12 @@ export default async function DashboardPage({
             sub="EGP · avg cost"
           />
           <KpiTile
-            label="Margin Loan"
+            label="Margin Loan (today)"
             tone={cap.marginLoanEgp > 0 ? 'neg' : 'neutral'}
             value={fmtEgp(cap.marginLoanEgp, { compact: true })}
             sub={
               cap.marginRatioPct !== null
-                ? `${cap.marginRatioPct.toFixed(1)}% of stocks`
+                ? `${cap.marginRatioPct.toFixed(1)}% of stocks · as of ${cap.perAccount.find((s) => s.cashEgp < 0)?.asOf ?? '—'}`
                 : 'no margin'
             }
           />
@@ -156,9 +156,9 @@ export default async function DashboardPage({
 
       <section>
         <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-2">
-          Returns & Costs
+          Returns
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <KpiTile
             label="Dividends Earned"
             tone="pos"
@@ -177,11 +177,38 @@ export default async function DashboardPage({
             value={fmtEgp(k.unrealizedPnlEgp, { compact: true })}
             sub="vs last manual prices"
           />
+        </div>
+      </section>
+
+      <section>
+        <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-2">
+          Broker Costs (lifetime)
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <KpiTile
-            label="Margin Interest + Fees"
+            label="Broker Fees"
             tone="neg"
-            value={fmtEgp(cap.totalInterestPaidEgp + cap.totalFeesPaidEgp, { compact: true })}
-            sub={`int ${fmtEgp(cap.totalInterestPaidEgp, { compact: true })} · fees ${fmtEgp(cap.totalFeesPaidEgp, { compact: true })}`}
+            value={fmtEgp(cap.totalFeesPaidEgp, { compact: true })}
+            sub={
+              cap.feeRefundsEgp > 0
+                ? `gross · ${fmtEgp(cap.feeRefundsEgp, { compact: true })} refunded`
+                : 'Daily / platform fees'
+            }
+          />
+          <KpiTile
+            label="Broker Interest"
+            tone="neg"
+            value={fmtEgp(cap.totalInterestPaidEgp, { compact: true })}
+            sub="margin interest charged"
+          />
+          <KpiTile
+            label="Total Broker Costs"
+            tone="neg"
+            value={fmtEgp(
+              cap.totalFeesPaidEgp + cap.totalInterestPaidEgp,
+              { compact: true },
+            )}
+            sub="fees + interest"
           />
         </div>
       </section>
