@@ -596,7 +596,8 @@ export type CapitalSummary = {
   marginLoanEgp: number;        // sum of |negative cash balances|
   stocksAtCostEgp: number;
   totalInterestPaidEgp: number;
-  totalFeesPaidEgp: number;              // platform_daily + other ONLY (excludes IPO subscription)
+  totalFeesPaidEgp: number;              // platform_daily + other (excludes IPO subscription)
+  tradeCommissionsEgp: number;           // per-trade fees embedded in trades.fees_amount (|net_amount - gross_amount| on every invoice)
   ipoSubscriptionEgp: number;            // money paid to subscribe to IPO allocations
   marginRatioPct: number | null;  // margin / stocks_at_cost, on margin accounts only
   // Lifetime bank flows (net of correction reversals — "Cancel" rows)
@@ -622,6 +623,7 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     bankInRows,
     bankOutRows,
     correctionRows,
+    tradeFeeRows,
   ] = await Promise.all([
     client.from('personal_stock_accounts').select('id, code'),
     // last balance per account
@@ -640,6 +642,7 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     client
       .from('personal_stock_corrections')
       .select('amount_debit, amount_credit, note'),
+    client.from('personal_stock_trades').select('fees_amount'),
   ]);
 
   const accountById = new Map(
@@ -716,6 +719,15 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     0,
   );
 
+  // Per-trade broker commissions — embedded in every Buy/Sell Invoice as
+  // (net_amount - gross_amount). For buys the broker took extra (positive),
+  // for sells the broker took out of proceeds (negative). |fees_amount| is
+  // the absolute commission per trade in either direction.
+  const tradeCommissionsEgp = (tradeFeeRows.data ?? []).reduce(
+    (a, r) => a + Math.abs(Number(r.fees_amount ?? 0)),
+    0,
+  );
+
   const marginRatioPct =
     stocksAtCostEgp > 0 ? (marginLoanEgp / stocksAtCostEgp) * 100 : null;
 
@@ -768,6 +780,7 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     stocksAtCostEgp,
     totalInterestPaidEgp,
     totalFeesPaidEgp,
+    tradeCommissionsEgp,
     ipoSubscriptionEgp,
     marginRatioPct,
     bankInGrossEgp,

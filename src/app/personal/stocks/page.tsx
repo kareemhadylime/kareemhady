@@ -186,17 +186,14 @@ export default async function DashboardPage({
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <KpiTile
-            label="Broker Fees (net)"
+            label="Broker Fees"
             tone="neg"
             value={fmtEgp(
-              Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0),
-              { compact: false },
+              cap.tradeCommissionsEgp +
+                Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0),
+              { compact: true },
             )}
-            sub={
-              cap.feeRefundsEgp > 0
-                ? `gross ${fmtEgp(cap.totalFeesPaidEgp, { compact: true })} · refunded ${fmtEgp(cap.feeRefundsEgp, { compact: true })}`
-                : `${fmtEgp(cap.totalFeesPaidEgp, { compact: false })} platform/daily`
-            }
+            sub={`per-trade ${fmtEgp(cap.tradeCommissionsEgp, { compact: true })} · platform ${fmtEgp(Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0), { compact: false })}`}
           />
           <KpiTile
             label="Broker Interest"
@@ -208,11 +205,12 @@ export default async function DashboardPage({
             label="Total Broker Costs"
             tone="neg"
             value={fmtEgp(
-              Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0) +
+              cap.tradeCommissionsEgp +
+                Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0) +
                 cap.totalInterestPaidEgp,
               { compact: true },
             )}
-            sub="fees (net) + interest"
+            sub="fees + interest"
           />
         </div>
         {cap.ipoSubscriptionEgp > 0 && (
