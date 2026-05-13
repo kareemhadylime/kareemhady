@@ -3,6 +3,16 @@
 -- 5 new tables; seeds the 31-Dec-2025 consolidated v1 snapshot from the
 -- current TS const beithady-opening-balance-2026.ts so behavior is
 -- value-identical on day 1.
+--
+-- Seed expected state (audit anchor — verify with:
+--   select count(*), sum(opening_raw)::numeric(18,2)
+--   from public.bh_balance_snapshot_accounts
+--   where snapshot_id = (
+--     select id from public.bh_balance_snapshots
+--     where period_end='2025-12-31' and status='frozen' and company_scope='consolidated'
+--   );
+-- ):
+--   count = 87, sum = 0.17  (the documented 0.17 EGP rounding from xlsx)
 -- Note: filed as 0118 (not 0117) because 0117 was taken by the parallel
 -- personal-stock-investment session.
 

@@ -8,6 +8,7 @@ import {
   type CompanyScope,
 } from '@/lib/financials-pnl';
 import { PayablesBlock } from '../_components/PayablesBlock';
+import { FinancialsFilterStrip } from '../_components/FinancialsFilterStrip';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -51,6 +52,12 @@ export default async function PayablesPage({
           <h1 className="text-2xl font-bold">Payables · {scopeLabel(scope)}</h1>
           <p className="text-sm text-slate-500">As of {asOf}</p>
         </header>
+        <FinancialsFilterStrip
+          basePath="/beithady/financials/payables"
+          activeScope={scope}
+          activeAsOf={asOf}
+          showAsOf
+        />
         <PayablesBlock
           payables={payables}
           scope={scope}

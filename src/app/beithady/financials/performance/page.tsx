@@ -9,6 +9,7 @@ import {
   type CompanyScope,
 } from '@/lib/financials-pnl';
 import { PnlSection, UnclassifiedPanel } from '../_components/PnlSection';
+import { FinancialsFilterStrip } from '../_components/FinancialsFilterStrip';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -71,6 +72,12 @@ export default async function PerformancePage({
           <h1 className="text-2xl font-bold">Performance · {scopeLabel(scope)}</h1>
           <p className="text-sm text-slate-500">{period.label}</p>
         </header>
+        <FinancialsFilterStrip
+          basePath="/beithady/financials/performance"
+          activeScope={scope}
+          activePreset={preset.startsWith('month:') ? undefined : preset}
+          showPeriodPresets
+        />
         <PnlSection
           pnl={pnl}
           scopeLbl={scopeLabel(scope)}

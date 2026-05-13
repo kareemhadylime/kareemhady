@@ -8,6 +8,7 @@ import {
   type CompanyScope,
 } from '@/lib/financials-pnl';
 import { BalanceSheetSection } from '../_components/BalanceSheetSection';
+import { FinancialsFilterStrip } from '../_components/FinancialsFilterStrip';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -51,6 +52,12 @@ export default async function BalanceSheetPage({
           <h1 className="text-2xl font-bold">Balance Sheet · {scopeLabel(scope)}</h1>
           <p className="text-sm text-slate-500">As of {asOf}</p>
         </header>
+        <FinancialsFilterStrip
+          basePath="/beithady/financials/balance-sheet"
+          activeScope={scope}
+          activeAsOf={asOf}
+          showAsOf
+        />
         <BalanceSheetSection bs={bs} />
       </main>
     </>
