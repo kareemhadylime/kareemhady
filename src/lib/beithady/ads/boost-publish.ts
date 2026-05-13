@@ -145,8 +145,8 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
     objective: useCtwa ? 'OUTCOME_ENGAGEMENT' : 'OUTCOME_TRAFFIC',
     status: 'PAUSED',
     special_ad_categories: [],
-    // buying_type defaults to AUCTION — omitting explicit field to avoid
-    // "Invalid parameter" on accounts that don't support the field
+    // Budget lives at ad-set level (not CBO) — Meta API v21 requires this explicit
+    is_adset_budget_sharing_enabled: false,
   };
   // CTWA requires promoted_object at campaign level in Meta API v21+
   if (useCtwa && c.fbPageId) {
