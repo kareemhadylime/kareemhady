@@ -49,8 +49,46 @@ export async function setCampaignStatusUnified(
   if (c.platform === 'meta') {
     const creds = await loadMetaCredentials();
     if (creds.ok) {
+      // 1. Campaign
       const r = await metaPost(c.external_id, { status }, creds.creds.token);
       if (!r.ok) return { ok: false, platform: 'meta', error: r.error };
+
+      // 2. Cascade to ad sets — Meta requires each level to be ACTIVE for ads to run
+      const { data: adsetRows } = await sb
+        .from('ads_ad_sets')
+        .select('id, external_id')
+        .eq('campaign_id', campaignDbId)
+        .not('external_id', 'is', null);
+      const adsets = (adsetRows as Array<{ id: number; external_id: string }> | null) || [];
+      const adsetIds: number[] = [];
+      for (const a of adsets) {
+        if (a.external_id?.startsWith('draft_')) continue;
+        const r2 = await metaPost(a.external_id, { status }, creds.creds.token);
+        if (r2.ok) adsetIds.push(a.id);
+        // Continue on individual failure — campaign-level toggle already succeeded
+      }
+      if (adsetIds.length) {
+        await sb.from('ads_ad_sets').update({ status }).in('id', adsetIds);
+      }
+
+      // 3. Cascade to ads
+      if (adsets.length) {
+        const { data: adRows } = await sb
+          .from('ads_ads')
+          .select('id, external_id')
+          .in('ad_set_id', adsets.map(a => a.id))
+          .not('external_id', 'is', null);
+        const ads = (adRows as Array<{ id: number; external_id: string }> | null) || [];
+        const adIds: number[] = [];
+        for (const ad of ads) {
+          if (ad.external_id?.startsWith('draft_')) continue;
+          const r3 = await metaPost(ad.external_id, { status }, creds.creds.token);
+          if (r3.ok) adIds.push(ad.id);
+        }
+        if (adIds.length) {
+          await sb.from('ads_ads').update({ status }).in('id', adIds);
+        }
+      }
     }
     await sb.from('ads_campaigns').update({
       status,
