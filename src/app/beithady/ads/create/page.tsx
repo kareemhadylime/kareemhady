@@ -6,6 +6,7 @@ import { SUPPORTED_LANGUAGES } from '@/lib/beithady/ads/ai-copy';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
 import { generateAdCopyAction, publishCampaignAction } from '../actions';
+import { TargetGroupPicker } from '../_components/target-group-picker';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -180,10 +181,7 @@ export default async function AdsCreateWizardPage({
             <input name="building_codes" required defaultValue={sp.building || ''} className="ix-input w-full mt-1 text-sm" />
           </label>
 
-          <label className="block">
-            <span className="text-xs font-medium">Target countries (ISO, comma-separated)</span>
-            <input name="target_countries" required defaultValue={sp.country || 'DE,IT,RU,PL,CZ'} className="ix-input w-full mt-1 text-sm" />
-          </label>
+          <TargetGroupPicker />
 
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
@@ -193,14 +191,6 @@ export default async function AdsCreateWizardPage({
             <label className="block">
               <span className="text-xs font-medium">Duration (days, 0=open)</span>
               <input name="duration_days" type="number" defaultValue="0" min="0" className="ix-input w-full mt-1 text-sm" />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium">Age min</span>
-              <input name="age_min" type="number" defaultValue="25" min="18" max="65" className="ix-input w-full mt-1 text-sm" />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium">Age max</span>
-              <input name="age_max" type="number" defaultValue="65" min="18" max="65" className="ix-input w-full mt-1 text-sm" />
             </label>
             <label className="block col-span-2">
               <span className="text-xs font-medium">Monthly cap USD (optional)</span>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Music2, AlertCircle } from 'lucide-react';
+import { TargetGroupPicker } from '../../_components/target-group-picker';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -99,15 +100,8 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
               <label htmlFor="daily_budget_usd" className="text-xs font-semibold">Daily budget (USD)</label>
               <input id="daily_budget_usd" name="daily_budget_usd" type="number" min="1" step="1" defaultValue="10" required className="ix-input" />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label htmlFor="age_min" className="text-xs font-semibold">Age min</label>
-                <input id="age_min" name="age_min" type="number" min="13" max="100" defaultValue="18" className="ix-input" />
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="age_max" className="text-xs font-semibold">Age max</label>
-                <input id="age_max" name="age_max" type="number" min="13" max="100" defaultValue="55" className="ix-input" />
-              </div>
+            <div className="md:col-span-2">
+              <TargetGroupPicker />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="landing_url" className="text-xs font-semibold">Landing URL</label>

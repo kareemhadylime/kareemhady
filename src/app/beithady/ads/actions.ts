@@ -91,6 +91,7 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
   const campaignName = String(formData.get('campaign_name') || '').trim();
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
   const targetCountries = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  const targetGroupId = formData.get('target_group_id') ? Number(formData.get('target_group_id')) : null;
   const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
   const monthlyBudgetCapUsdRaw = String(formData.get('monthly_budget_cap_usd') || '').trim();
   const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
@@ -100,7 +101,7 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
   const language = String(formData.get('language') || 'en');
   const galleryAssetIds = String(formData.get('gallery_asset_ids') || '').split(',').map(s => s.trim()).filter(Boolean);
   const ageMin = Number.parseInt(String(formData.get('age_min') || '25'), 10);
-  const ageMax = Number.parseInt(String(formData.get('age_max') || '65'), 10);
+  const ageMax = Number.parseInt(String(formData.get('age_max') || '55'), 10);
 
   if (!campaignName || !buildingCodes.length || !targetCountries.length || !headline || !primaryText) {
     redirect('/beithady/ads/create?error=missing_required_fields');
@@ -113,6 +114,7 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
     campaignName,
     buildingCodes,
     targetCountries,
+    targetGroupId: targetGroupId ?? undefined,
     ageMin,
     ageMax,
     dailyBudgetUsd,
@@ -494,6 +496,7 @@ export async function boostInstagramPostAction(formData: FormData): Promise<void
   const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
   const targetCountries = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  const targetGroupId = formData.get('target_group_id') ? Number(formData.get('target_group_id')) : null;
   const ageMin = Number.parseInt(String(formData.get('age_min') || '25'), 10);
   const ageMax = Number.parseInt(String(formData.get('age_max') || '55'), 10);
   const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
@@ -519,6 +522,7 @@ export async function boostInstagramPostAction(formData: FormData): Promise<void
     campaignName,
     buildingCodes,
     targetCountries,
+    targetGroupId: targetGroupId ?? undefined,
     ageMin,
     ageMax,
     dailyBudgetUsd,

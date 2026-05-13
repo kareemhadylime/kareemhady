@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Rocket, Heart, MessageSquare, ExternalLink, AlertCircle, Play } from 'lucide-react';
+import { TargetGroupPicker } from '../../_components/target-group-picker';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -175,19 +176,8 @@ export default async function InstagramBoostPage({
                     <label htmlFor="building_codes" className="text-xs font-semibold">Building codes (comma-separated)</label>
                     <input id="building_codes" name="building_codes" required className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" />
                   </div>
-                  <div className="space-y-1">
-                    <label htmlFor="target_countries" className="text-xs font-semibold">Target countries (ISO, comma-separated)</label>
-                    <input id="target_countries" name="target_countries" required defaultValue="EG,SA,AE,DE,IT,RU" className="ix-input font-mono text-xs" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label htmlFor="age_min" className="text-xs font-semibold">Age min</label>
-                      <input id="age_min" name="age_min" type="number" min="18" max="65" defaultValue="25" className="ix-input" />
-                    </div>
-                    <div className="space-y-1">
-                      <label htmlFor="age_max" className="text-xs font-semibold">Age max</label>
-                      <input id="age_max" name="age_max" type="number" min="18" max="65" defaultValue="55" className="ix-input" />
-                    </div>
+                  <div className="md:col-span-2">
+                    <TargetGroupPicker />
                   </div>
                   <div className="space-y-1">
                     <label htmlFor="daily_budget_usd" className="text-xs font-semibold">Daily budget (USD)</label>

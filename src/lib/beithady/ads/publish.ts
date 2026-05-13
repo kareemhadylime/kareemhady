@@ -19,6 +19,7 @@ export type PublishCtwaInput = {
   campaignName: string;
   buildingCodes: string[];
   targetCountries: string[];
+  targetGroupId?: number;              // ads_target_groups.id — stored for attribution
   ageMin?: number;
   ageMax?: number;
   dailyBudgetUsd: number;
@@ -119,6 +120,7 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes,
         monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
+        target_group_id: input.targetGroupId ?? null,
       })
       .select('id')
       .single();
@@ -288,6 +290,7 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes,
         monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
+        target_group_id: input.targetGroupId ?? null,
         raw: campRes.data as object,
       },
       { onConflict: 'platform,external_id' }

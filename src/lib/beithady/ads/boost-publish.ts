@@ -23,6 +23,7 @@ export type BoostIgInput = {
   campaignName?: string;
   buildingCodes: string[];
   targetCountries: string[];          // ISO alpha-2
+  targetGroupId?: number;             // ads_target_groups.id — stored for attribution
   ageMin?: number;
   ageMax?: number;
   dailyBudgetUsd: number;
@@ -81,6 +82,7 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes,
         monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
+        target_group_id: input.targetGroupId ?? null,
         raw: { kind: 'boost_existing_ig_post', ig_media_id: input.igMediaId, permalink: input.permalink } as object,
       })
       .select('id').single();
@@ -235,6 +237,7 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
         daily_budget_micros: dailyBudgetMicros,
         building_codes: input.buildingCodes,
         monthly_budget_cap_usd: input.monthlyBudgetCapUsd ?? null,
+        target_group_id: input.targetGroupId ?? null,
         raw: { kind: 'boost_existing_ig_post', ig_media_id: input.igMediaId, permalink: input.permalink, object_story_id: objectStoryId } as object,
       },
       { onConflict: 'platform,external_id' }

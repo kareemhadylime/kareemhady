@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Search, AlertCircle } from 'lucide-react';
+import { TargetGroupPicker } from '../../_components/target-group-picker';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -114,6 +115,9 @@ export default async function GooglePublishPage({
             </Field>
             <Field label="Path 2 (optional, ≤15 chars)" htmlFor="path2">
               <input id="path2" name="path2" maxLength={15} className="ix-input" placeholder="cairo-stay" />
+            </Field>
+            <Field label="Target audience" htmlFor="target_group" className="md:col-span-2">
+              <TargetGroupPicker />
             </Field>
             <Field label="Building codes (comma-separated)" htmlFor="building_codes" className="md:col-span-2">
               <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" />
