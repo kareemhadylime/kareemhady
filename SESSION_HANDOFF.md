@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-05-13)
 
+## 🟢 2026-05-13 — Finance morning brief trim shipped (commit `8dcf62b`)
+
+**What changed:** Finance & Accounting WhatsApp brief now fits one mobile screen.
+
+- `src/lib/beithady/morning-brief/country.ts` — added `formatEgyptGrandTotal` helper (sum Egypt buckets → `"$7,958"` or `"$7,958 + 1,234 AED"`); simplified `formatDxbInfoLine` (dropped `(excluded from totals)` suffix).
+- `src/lib/beithady/morning-brief/finance-brief.ts` — section-by-section trim: section titles now carry grand totals; `[N new]` and `[UAE — excluded]` chips removed everywhere; `Expected payouts — next 2 days / month end` collapsed to single summary bullet; `Unpaid + arriving ≤7 days` drops the 8 per-reservation rows; `Direct-booking` title gains the total.
+- Presentation-only change — `summary` keys untouched, downstream trend tracking continues working.
+- Spec: `docs/superpowers/specs/2026-05-13-finance-morning-brief-trim-design.md`
+- Plan: `docs/superpowers/plans/2026-05-13-finance-morning-brief-trim.md`
+
+**Verification:** Open `https://limeinc.vercel.app/beithady/operations/morning-brief?role=finance&date=2026-05-13` and click *Preview* in the test panel after Vercel finishes deploying.
+
+**Stash note:** The worktree had ~100 pre-existing unstaged changes (deletions from other sessions). They were stashed before the rebase and are still in `git stash` as `stash@{0}`. These appear to be stale worktree state matching what's on main — they can be dropped (`git stash drop`) or left alone.
+
+---
+
 ## 🟢 2026-05-13 — Leak recovered + final I-fixes shipped (override regression caught & fixed)
 
 **Authorized force-push completed.** User said "go" → executed the recovery plan:
