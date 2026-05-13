@@ -38,6 +38,17 @@ const nextConfig: NextConfig = {
         destination: '/beithady/:path*',
         permanent: true,
       },
+      // Singular /beithady/financial → plural /beithady/financials (cockpit).
+      {
+        source: '/beithady/financial',
+        destination: '/beithady/financials',
+        permanent: true,
+      },
+      {
+        source: '/beithady/financial/:path*',
+        destination: '/beithady/financials/:path*',
+        permanent: true,
+      },
     ];
   },
   async headers() {
