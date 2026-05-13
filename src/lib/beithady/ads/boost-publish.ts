@@ -215,19 +215,21 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   // underlying post/Reel. Comments + likes from the organic post stay
   // attached to the ad creative.
   const objectStoryId = `${input.igBusinessId}_${input.igMediaId}`;
+  const creativePayload: Record<string, unknown> = {
+    name: `${campaignName} — boost creative`,
+    object_story_id: objectStoryId,
+    // instagram_user_id (newer field) tells Meta to use the IG account
+    // directly without resolving through the Facebook Page, which sidesteps
+    // sub:1815813 ("Page not available"). instagram_actor_id is the legacy
+    // name — kept for CTWA where the WhatsApp CTA needs both.
+    instagram_user_id: input.igBusinessId,
+  };
+  if (useCtwa) {
+    creativePayload.instagram_actor_id = input.igBusinessId;
+  }
   const creativeRes = await metaPost<{ id: string }>(
     `${adAccountPath}/adcreatives`,
-    {
-      name: `${campaignName} — boost creative`,
-      object_story_id: objectStoryId,
-      // instagram_actor_id is only needed for CTWA to render the WhatsApp CTA.
-      // For website-link destination, object_story_id alone is correct — passing
-      // instagram_actor_id causes (#100) "must be a valid Instagram account id".
-      ...(useCtwa ? {
-        instagram_actor_id: input.igBusinessId,
-        instagram_user_id: input.igBusinessId,
-      } : {}),
-    },
+    creativePayload,
     c.token
   );
   if (!creativeRes.ok) return { ok: false, mode: 'live', step: 'create_creative', error: creativeRes.error, raw: creativeRes.raw };
