@@ -220,12 +220,11 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
     {
       name: `${campaignName} — boost creative`,
       object_story_id: objectStoryId,
-      // Always pass instagram_actor_id — without it Meta tries to resolve
-      // the creative through the Facebook Page and hits sub:1815813 ("Page
-      // not available") when the system user lacks direct Page advertiser
-      // access. Routing through the IG actor bypasses that check.
-      instagram_actor_id: input.igBusinessId,
+      // instagram_actor_id is only needed for CTWA to render the WhatsApp CTA.
+      // For website-link destination, object_story_id alone is correct — passing
+      // instagram_actor_id causes (#100) "must be a valid Instagram account id".
       ...(useCtwa ? {
+        instagram_actor_id: input.igBusinessId,
         instagram_user_id: input.igBusinessId,
       } : {}),
     },
