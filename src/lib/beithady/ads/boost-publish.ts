@@ -140,18 +140,27 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
 
   // 1. Campaign
   const useCtwa = input.ctwa !== false;
+  const campPayload: Record<string, unknown> = {
+    name: campaignName,
+    objective: useCtwa ? 'OUTCOME_ENGAGEMENT' : 'OUTCOME_TRAFFIC',
+    status: 'PAUSED',
+    special_ad_categories: [],
+    // buying_type defaults to AUCTION — omitting explicit field to avoid
+    // "Invalid parameter" on accounts that don't support the field
+  };
+  // CTWA requires promoted_object at campaign level in Meta API v21+
+  if (useCtwa && c.fbPageId) {
+    campPayload.promoted_object = { page_id: c.fbPageId };
+  }
   const campRes = await metaPost<{ id: string }>(
     `${adAccountPath}/campaigns`,
-    {
-      name: campaignName,
-      objective: useCtwa ? 'OUTCOME_ENGAGEMENT' : 'OUTCOME_TRAFFIC',
-      status: 'PAUSED',
-      special_ad_categories: [],
-      buying_type: 'AUCTION',
-    },
+    campPayload,
     c.token
   );
-  if (!campRes.ok) return { ok: false, mode: 'live', step: 'create_campaign', error: campRes.error, raw: campRes.raw };
+  if (!campRes.ok) {
+    console.error('[boost-publish] create_campaign failed', JSON.stringify(campRes.raw));
+    return { ok: false, mode: 'live', step: 'create_campaign', error: campRes.error, raw: campRes.raw };
+  }
   const campaignExternalId = (campRes.data as { id: string }).id;
 
   // 2. Ad set — resolve interest/behavior IDs from target group if provided

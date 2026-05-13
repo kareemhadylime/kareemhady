@@ -540,7 +540,13 @@ export async function boostInstagramPostAction(formData: FormData): Promise<void
       action: 'boost_publish_failed',
       metadata: { step: result.step, error: result.error, mode: result.mode, ig_media_id: igMediaId },
     });
-    redirect(`/beithady/ads/instagram/boost?account_id=${accountId}&media_id=${igMediaId}&error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+    // Extract subcode from raw Meta error for easier diagnosis
+    const raw = result.raw as Record<string, unknown> | null;
+    const metaErr = raw?.error as Record<string, unknown> | undefined;
+    const detail = metaErr?.error_subcode
+      ? ` [sub:${metaErr.error_subcode}] ${metaErr.error_user_msg ?? ''}`
+      : '';
+    redirect(`/beithady/ads/instagram/boost?account_id=${accountId}&error=${encodeURIComponent(`${result.step}: ${result.error}${detail}`)}`);
   }
 
   revalidatePath('/beithady/ads');
