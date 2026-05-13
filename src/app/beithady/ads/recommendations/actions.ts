@@ -7,7 +7,7 @@ import { applyMetaRecommendation } from '@/lib/beithady/ads/meta-recommendation-
 import { recordAudit } from '@/lib/beithady/audit';
 
 export async function applyRecommendationAction(formData: FormData): Promise<void> {
-  const user = await requireBeithadyPermission('ads', 'full');
+  const { user } = await requireBeithadyPermission('ads', 'full');
   const type = String(formData.get('type') || '').trim().toUpperCase();
   if (!type) {
     redirect('/beithady/ads/recommendations?error=missing_type');

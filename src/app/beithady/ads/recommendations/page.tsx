@@ -6,6 +6,7 @@ import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell'
 import { AdsTabs } from '../_components/ads-tabs';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { applyRecommendationAction } from './actions';
+import { ApplyButton } from './apply-button';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -238,13 +239,7 @@ export default async function MetaRecommendationsPage({
                     </div>
                     <form action={applyRecommendationAction} className="flex-shrink-0">
                       <input type="hidden" name="type" value={rec.type} />
-                      <button
-                        type="submit"
-                        className={`text-xs inline-flex items-center gap-1.5 ${canApply ? 'ix-btn-primary' : 'ix-btn-secondary'}`}
-                      >
-                        {canApply ? <Sparkles size={11} /> : <Info size={11} />}
-                        {canApply ? 'Apply now' : 'Why manual?'}
-                      </button>
+                      <ApplyButton canApply={canApply} />
                     </form>
                   </div>
                 );

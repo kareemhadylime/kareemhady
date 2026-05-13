@@ -77,7 +77,7 @@ async function applyAdvantagePlusAudience(): Promise<ApplyResult> {
   // Enable audience expansion on all live ad sets
   type AdSet = { id: string };
   const listRes = await metaGet<{ data: AdSet[] }>(
-    `${creds.creds.adAccountId}/adsets?fields=id&limit=200&effective_status=["ACTIVE","PAUSED"]`,
+    `${creds.creds.adAccountId}/adsets?fields=id&limit=200&effective_status=${encodeURIComponent('["ACTIVE","PAUSED"]')}`,
     creds.creds.token
   );
   if (!listRes.ok) return { ok: false, reason: `list_adsets_failed: ${listRes.error}` };
@@ -109,7 +109,7 @@ async function applyAdvantagePlusPlacements(): Promise<ApplyResult> {
   // Remove explicit placement restrictions on all ad sets so Meta uses all
   type AdSet = { id: string };
   const listRes = await metaGet<{ data: AdSet[] }>(
-    `${creds.creds.adAccountId}/adsets?fields=id&limit=200&effective_status=["ACTIVE","PAUSED"]`,
+    `${creds.creds.adAccountId}/adsets?fields=id&limit=200&effective_status=${encodeURIComponent('["ACTIVE","PAUSED"]')}`,
     creds.creds.token
   );
   if (!listRes.ok) return { ok: false, reason: `list_adsets_failed: ${listRes.error}` };
