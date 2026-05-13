@@ -209,20 +209,34 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   if (!adsetRes.ok) return { ok: false, mode: 'live', step: 'create_adset', error: adsetRes.error, raw: adsetRes.raw };
   const adsetExternalId = (adsetRes.data as { id: string }).id;
 
-  // 3. Creative — reference the existing IG post
-  // The supported way to promote an existing IG media is via object_story_id
-  // formatted as "<ig_business_id>_<media_id>". Meta resolves it to the
-  // underlying post/Reel. Comments + likes from the organic post stay
-  // attached to the ad creative.
+  // 3. Creative
+  // For website-link destination, use object_story_spec with link_data —
+  // diagnosed via direct Meta API testing that object_story_id with IG
+  // post ID consistently hits sub:1815813 ("Page not available") even
+  // with full permissions and Page Access Token. object_story_spec works.
+  //
+  // Trade-off: creates a fresh ad creative (no organic likes/comments
+  // preserved). For CTWA we still try object_story_id to preserve social
+  // proof since CTWA uses a different code path with promoted_object.
   const objectStoryId = `${input.igBusinessId}_${input.igMediaId}`;
-  const creativePayload: Record<string, unknown> = {
-    name: `${campaignName} — boost creative`,
-    object_story_id: objectStoryId,
-  };
-  if (useCtwa) {
-    creativePayload.instagram_actor_id = input.igBusinessId;
-    creativePayload.instagram_user_id = input.igBusinessId;
-  }
+  const creativePayload: Record<string, unknown> = useCtwa
+    ? {
+        name: `${campaignName} — boost creative`,
+        object_story_id: objectStoryId,
+        instagram_actor_id: input.igBusinessId,
+        instagram_user_id: input.igBusinessId,
+      }
+    : {
+        name: `${campaignName} — boost creative`,
+        object_story_spec: {
+          page_id: c.fbPageId,
+          instagram_user_id: input.igBusinessId,
+          link_data: {
+            link: landingUrl,
+            message: input.caption?.slice(0, 500) || `Beit Hady — discover our newest collection`,
+          },
+        },
+      };
   console.log('[boost-publish] create_creative payload', JSON.stringify(creativePayload));
   const creativeRes = await metaPost<{ id: string }>(
     `${adAccountPath}/adcreatives`,
@@ -231,8 +245,8 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   );
   if (!creativeRes.ok) {
     console.error('[boost-publish] create_creative failed', JSON.stringify(creativeRes.raw));
+    return { ok: false, mode: 'live', step: 'create_creative', error: creativeRes.error, raw: creativeRes.raw };
   }
-  if (!creativeRes.ok) return { ok: false, mode: 'live', step: 'create_creative', error: creativeRes.error, raw: creativeRes.raw };
 
   // 4. Ad
   const adRes = await metaPost<{ id: string }>(
