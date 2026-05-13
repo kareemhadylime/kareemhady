@@ -69,7 +69,7 @@ async function fetchRawReservations(from: string, to: string): Promise<RawRes[]>
       .range(offset, offset + PAGE - 1);
 
     if (error) throw new Error(`hc_fetch_failed: ${error.message}`);
-    const batch = (data || []) as Array<{
+    const batch = (data || []) as unknown as Array<{
       listing_id: string | null;
       check_in_date: string | null;
       check_out_date: string | null;
