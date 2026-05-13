@@ -244,6 +244,15 @@ User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no b
 - DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
 - ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
 
+**Margin / Broker Fees / Broker Interest tiles split (`43e89b8` on main, 2026-05-13):**
+- User asked for those 3 as dedicated tiles (previously combined into one "Margin Interest + Fees" tile).
+- Band 1's "Margin Loan" retitled "Margin Loan (today)" with explicit as-of date in subtitle.
+- Band 2 split into two: **Returns** (3 tiles: Dividends · Realized P&L · Unrealized P&L) and **Broker Costs (lifetime)** (3 tiles: Broker Fees · Broker Interest · Total Broker Costs).
+- Fee refunds (216k from corrections) called out in Broker Fees subtitle.
+- 433 vitest pass · tsc clean.
+
+---
+
 **Net bank flows (correction-aware) shipped (`e52f4ab` on main, 2026-05-13):**
 - User flagged: "Cash In 35.2M" is wrong because 14M of that was reversed by a Correction ("Cancel" on 001/2024). Same on withdrawal side — corrections cancelled 3.4M of withdrawals.
 - `getCapitalSummary` now returns: `bankInGrossEgp`, `bankInCancelledEgp`, `bankInNetEgp`, same for `bankOut*`, and a `feeRefundsEgp` bucket for non-withdrawal credit corrections.
