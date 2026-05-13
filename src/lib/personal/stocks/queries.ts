@@ -596,7 +596,8 @@ export type CapitalSummary = {
   marginLoanEgp: number;        // sum of |negative cash balances|
   stocksAtCostEgp: number;
   totalInterestPaidEgp: number;
-  totalFeesPaidEgp: number;
+  totalFeesPaidEgp: number;              // platform_daily + other ONLY (excludes IPO subscription)
+  ipoSubscriptionEgp: number;            // money paid to subscribe to IPO allocations
   marginRatioPct: number | null;  // margin / stocks_at_cost, on margin accounts only
   // Lifetime bank flows (net of correction reversals — "Cancel" rows)
   bankInGrossEgp: number;          // sum of Bank Deposits as-reported
@@ -633,7 +634,7 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
       .from('v_personal_stock_positions')
       .select('account_id, qty_held, avg_cost'),
     client.from('personal_stock_interest').select('direction, amount'),
-    client.from('personal_stock_fees').select('amount'),
+    client.from('personal_stock_fees').select('amount, kind'),
     client.from('personal_stock_cash_movements').select('amount').eq('kind', 'deposit'),
     client.from('personal_stock_cash_movements').select('amount').eq('kind', 'withdrawal'),
     client
@@ -704,8 +705,14 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     (a, r) => a + (r.direction === 'charge' ? Number(r.amount) : -Number(r.amount)),
     0,
   );
+  // Exclude IPO subscriptions — they're cash used to buy shares, not fees.
+  // The actual broker fees are only platform_daily + other.
   const totalFeesPaidEgp = (feeRows.data ?? []).reduce(
-    (a, r) => a + Number(r.amount),
+    (a, r) => a + (r.kind === 'ipo_subscription' ? 0 : Number(r.amount)),
+    0,
+  );
+  const ipoSubscriptionEgp = (feeRows.data ?? []).reduce(
+    (a, r) => a + (r.kind === 'ipo_subscription' ? Number(r.amount) : 0),
     0,
   );
 
@@ -761,6 +768,7 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     stocksAtCostEgp,
     totalInterestPaidEgp,
     totalFeesPaidEgp,
+    ipoSubscriptionEgp,
     marginRatioPct,
     bankInGrossEgp,
     bankInCancelledEgp,

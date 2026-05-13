@@ -186,13 +186,16 @@ export default async function DashboardPage({
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <KpiTile
-            label="Broker Fees"
+            label="Broker Fees (net)"
             tone="neg"
-            value={fmtEgp(cap.totalFeesPaidEgp, { compact: true })}
+            value={fmtEgp(
+              Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0),
+              { compact: false },
+            )}
             sub={
               cap.feeRefundsEgp > 0
-                ? `gross · ${fmtEgp(cap.feeRefundsEgp, { compact: true })} refunded`
-                : 'Daily / platform fees'
+                ? `gross ${fmtEgp(cap.totalFeesPaidEgp, { compact: true })} · refunded ${fmtEgp(cap.feeRefundsEgp, { compact: true })}`
+                : `${fmtEgp(cap.totalFeesPaidEgp, { compact: false })} platform/daily`
             }
           />
           <KpiTile
@@ -205,12 +208,20 @@ export default async function DashboardPage({
             label="Total Broker Costs"
             tone="neg"
             value={fmtEgp(
-              cap.totalFeesPaidEgp + cap.totalInterestPaidEgp,
+              Math.max(cap.totalFeesPaidEgp - cap.feeRefundsEgp, 0) +
+                cap.totalInterestPaidEgp,
               { compact: true },
             )}
-            sub="fees + interest"
+            sub="fees (net) + interest"
           />
         </div>
+        {cap.ipoSubscriptionEgp > 0 && (
+          <div className="mt-2 text-[11px] text-slate-500 italic px-1">
+            Note: {fmtEgp(cap.ipoSubscriptionEgp, { compact: true })} of IPO subscription
+            payments are not included here — those are cash used to acquire IPO-allocated
+            shares (ACT Financial), not broker fees.
+          </div>
+        )}
       </section>
 
       <section>
