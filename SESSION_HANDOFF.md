@@ -48,6 +48,22 @@ No commits this turn. Audit was inline-Python (cleaned up after).
 
 ---
 
+## 2026-05-13 — BH Financials Task 10: xlsx classify+match stage + tests
+
+**Completed Task 10** of the BH Financials plan.
+
+**Files modified (appended):**
+- `src/lib/beithady/financials/xlsx-import.ts` — appended `classifyParsedRows` + `ClassifiedRow` + `ClassifyResult` types; imports `matchPartners` + `PartnerKind`
+- `src/lib/beithady/financials/xlsx-import.test.ts` — appended `classifyParsedRows` describe block (2 new tests)
+
+**Test results: 5/5 PASS** (3 parse + 2 classify)
+
+**Commit:** `f58653c` — pushed to main.
+
+**Next:** Task 11 — commit stage (insert classified rows into Supabase).
+
+---
+
 ## 2026-05-13 — BH Financials Task 9: xlsx parse stage + tests
 
 **Completed Task 9** of the BH Financials plan (`docs/superpowers/plans/2026-05-12-bh-financials-balances.md`).
