@@ -218,20 +218,20 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   const creativePayload: Record<string, unknown> = {
     name: `${campaignName} — boost creative`,
     object_story_id: objectStoryId,
-    // instagram_user_id (newer field) tells Meta to use the IG account
-    // directly without resolving through the Facebook Page, which sidesteps
-    // sub:1815813 ("Page not available"). instagram_actor_id is the legacy
-    // name — kept for CTWA where the WhatsApp CTA needs both.
-    instagram_user_id: input.igBusinessId,
   };
   if (useCtwa) {
     creativePayload.instagram_actor_id = input.igBusinessId;
+    creativePayload.instagram_user_id = input.igBusinessId;
   }
+  console.log('[boost-publish] create_creative payload', JSON.stringify(creativePayload));
   const creativeRes = await metaPost<{ id: string }>(
     `${adAccountPath}/adcreatives`,
     creativePayload,
     c.token
   );
+  if (!creativeRes.ok) {
+    console.error('[boost-publish] create_creative failed', JSON.stringify(creativeRes.raw));
+  }
   if (!creativeRes.ok) return { ok: false, mode: 'live', step: 'create_creative', error: creativeRes.error, raw: creativeRes.raw };
 
   // 4. Ad
