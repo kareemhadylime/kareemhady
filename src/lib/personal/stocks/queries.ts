@@ -598,13 +598,30 @@ export type CapitalSummary = {
   totalInterestPaidEgp: number;
   totalFeesPaidEgp: number;
   marginRatioPct: number | null;  // margin / stocks_at_cost, on margin accounts only
+  // Lifetime bank flows (net of correction reversals — "Cancel" rows)
+  bankInGrossEgp: number;          // sum of Bank Deposits as-reported
+  bankInCancelledEgp: number;      // correction debits that reversed deposits
+  bankInNetEgp: number;            // effective money in from bank
+  bankOutGrossEgp: number;         // sum of Withdrawals as-reported
+  bankOutCancelledEgp: number;     // correction credits that reversed withdrawals
+  bankOutNetEgp: number;           // effective money out to bank
+  feeRefundsEgp: number;           // correction credits that reversed fees (NOT withdrawals)
   perAccount: AccountSnapshot[];
 };
 
 export async function getCapitalSummary(): Promise<CapitalSummary> {
   const client = supabaseAdmin();
 
-  const [accs, balanceRows, positions, interestRows, feeRows] = await Promise.all([
+  const [
+    accs,
+    balanceRows,
+    positions,
+    interestRows,
+    feeRows,
+    bankInRows,
+    bankOutRows,
+    correctionRows,
+  ] = await Promise.all([
     client.from('personal_stock_accounts').select('id, code'),
     // last balance per account
     client
@@ -617,6 +634,11 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
       .select('account_id, qty_held, avg_cost'),
     client.from('personal_stock_interest').select('direction, amount'),
     client.from('personal_stock_fees').select('amount'),
+    client.from('personal_stock_cash_movements').select('amount').eq('kind', 'deposit'),
+    client.from('personal_stock_cash_movements').select('amount').eq('kind', 'withdrawal'),
+    client
+      .from('personal_stock_corrections')
+      .select('amount_debit, amount_credit, note'),
   ]);
 
   const accountById = new Map(
@@ -690,6 +712,48 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
   const marginRatioPct =
     stocksAtCostEgp > 0 ? (marginLoanEgp / stocksAtCostEgp) * 100 : null;
 
+  // Bank flows + correction netting.
+  // Heuristic for correction classification (based on note text + sign):
+  //   - amount_debit > 0  → reverses an INFLOW. We assume it cancels a Bank Deposit
+  //                          (only known pattern in real data: note = "Cancel" pairing
+  //                          with the 14M deposit on 001/2024).
+  //   - amount_credit > 0:
+  //       · note contains Arabic "تحويل نقدي" (cash transfer) → reverses a Withdrawal
+  //       · otherwise → reverses a Fee / Daily charge (refund)
+  //
+  // This isn't 100% rigorous — corrections could in principle reverse anything —
+  // but it covers the observed cases and avoids netting wrongly.
+  const bankInGrossEgp = (bankInRows.data ?? []).reduce(
+    (a, r) => a + Number(r.amount ?? 0),
+    0,
+  );
+  const bankOutGrossEgp = (bankOutRows.data ?? []).reduce(
+    (a, r) => a + Number(r.amount ?? 0),
+    0,
+  );
+
+  let bankInCancelledEgp = 0;
+  let bankOutCancelledEgp = 0;
+  let feeRefundsEgp = 0;
+  for (const c of correctionRows.data ?? []) {
+    const debit = Number(c.amount_debit ?? 0);
+    const credit = Number(c.amount_credit ?? 0);
+    const note = String(c.note ?? '');
+    if (debit > 0) {
+      bankInCancelledEgp += debit;
+    }
+    if (credit > 0) {
+      // Arabic "تحويل نقدي" = "cash transfer (to bank)" — withdrawal cancellation
+      if (/تحويل نقدي/.test(note)) {
+        bankOutCancelledEgp += credit;
+      } else {
+        feeRefundsEgp += credit;
+      }
+    }
+  }
+  const bankInNetEgp = bankInGrossEgp - bankInCancelledEgp;
+  const bankOutNetEgp = bankOutGrossEgp - bankOutCancelledEgp;
+
   return {
     myEquityEgp,
     cashOnHandEgp,
@@ -698,6 +762,13 @@ export async function getCapitalSummary(): Promise<CapitalSummary> {
     totalInterestPaidEgp,
     totalFeesPaidEgp,
     marginRatioPct,
+    bankInGrossEgp,
+    bankInCancelledEgp,
+    bankInNetEgp,
+    bankOutGrossEgp,
+    bankOutCancelledEgp,
+    bankOutNetEgp,
+    feeRefundsEgp,
     perAccount,
   };
 }

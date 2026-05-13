@@ -188,24 +188,65 @@ export default async function DashboardPage({
 
       <section>
         <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-2">
-          Lifetime activity{' '}
-          <span className="text-slate-400 normal-case tracking-normal">
-            gross flows · not current balance
-          </span>
+          Bank flows (lifetime, net of cancelled rows)
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
           <div className="ix-card p-2">
-            <div className="text-[9px] uppercase text-slate-500">Bank deposits</div>
+            <div className="text-[9px] uppercase text-slate-500">Bank In (net)</div>
             <div className="text-base font-semibold text-emerald-700">
-              {fmtEgp(k.cashInEgp, { compact: true })}
+              {fmtEgp(cap.bankInNetEgp, { compact: true })}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-0.5">
+              gross {fmtEgp(cap.bankInGrossEgp, { compact: true })}
+              {cap.bankInCancelledEgp > 0 && (
+                <> · cancelled {fmtEgp(cap.bankInCancelledEgp, { compact: true })}</>
+              )}
             </div>
           </div>
           <div className="ix-card p-2">
-            <div className="text-[9px] uppercase text-slate-500">Bank withdrawals</div>
+            <div className="text-[9px] uppercase text-slate-500">Bank Out (net)</div>
             <div className="text-base font-semibold text-rose-700">
-              {fmtEgp(k.cashOutEgp, { compact: true })}
+              {fmtEgp(cap.bankOutNetEgp, { compact: true })}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-0.5">
+              gross {fmtEgp(cap.bankOutGrossEgp, { compact: true })}
+              {cap.bankOutCancelledEgp > 0 && (
+                <> · cancelled {fmtEgp(cap.bankOutCancelledEgp, { compact: true })}</>
+              )}
             </div>
           </div>
+          <div className="ix-card p-2">
+            <div className="text-[9px] uppercase text-slate-500">Net contribution</div>
+            <div
+              className={`text-base font-semibold ${
+                cap.bankInNetEgp - cap.bankOutNetEgp >= 0
+                  ? 'text-emerald-700'
+                  : 'text-rose-700'
+              }`}
+            >
+              {fmtEgp(cap.bankInNetEgp - cap.bankOutNetEgp, { compact: true })}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-0.5">
+              your own money put into broker
+            </div>
+          </div>
+          <div className="ix-card p-2">
+            <div className="text-[9px] uppercase text-slate-500">Fee refunds</div>
+            <div className="text-base font-semibold text-emerald-700">
+              {fmtEgp(cap.feeRefundsEgp, { compact: true })}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-0.5">
+              corrections crediting cash, not bank
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-2">
+          Trading volume (lifetime, gross — same shares often re-traded)
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
           <div className="ix-card p-2">
             <div className="text-[9px] uppercase text-slate-500">Total bought</div>
             <div className="text-base font-semibold">
@@ -216,6 +257,21 @@ export default async function DashboardPage({
             <div className="text-[9px] uppercase text-slate-500">Total sold</div>
             <div className="text-base font-semibold">
               {fmtEgp(k.totalSoldEgp, { compact: true })}
+            </div>
+          </div>
+          <div className="ix-card p-2">
+            <div className="text-[9px] uppercase text-slate-500">Buy - Sell delta</div>
+            <div
+              className={`text-base font-semibold ${
+                k.totalBoughtEgp - k.totalSoldEgp >= 0
+                  ? 'text-slate-700'
+                  : 'text-slate-700'
+              }`}
+            >
+              {fmtEgp(k.totalBoughtEgp - k.totalSoldEgp, { compact: true })}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-0.5">
+              excludes off-invoice transfers
             </div>
           </div>
         </div>
