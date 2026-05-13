@@ -116,5 +116,77 @@ describe('commitClassifiedRows', () => {
     });
     // 1 real row + 1 synthetic = 2 inserts.
     expect(mockInsert).toHaveBeenCalledTimes(2);
+
+    // Verify the synthetic insert payload's shape (I5 follow-up assertions).
+    const syntheticCall = mockInsert.mock.calls[1];
+    const syntheticRow = syntheticCall[0][0];
+    expect(syntheticRow.partner_kind).toBe('unallocated');
+    expect(syntheticRow.is_synthetic).toBe(true);
+    expect(syntheticRow.partner_id).toBeNull();
+    expect(syntheticRow.partner_name_raw).toBe('__UNALLOCATED_227002');
+    expect(syntheticRow.opening_balance).toBe(-100);
+    expect(syntheticRow.match_confidence).toBe('synthetic');
+    expect(syntheticRow.match_warnings).toEqual([
+      'auto-generated to reconcile partner_total vs account_total',
+    ]);
+  });
+
+  it('does NOT insert a synthetic row when variance is exactly 0', async () => {
+    await commitClassifiedRows({
+      snapshot_id: 'snap-1',
+      classified: {
+        rows: [
+          {
+            source_row: 4,
+            account_code: '227002',
+            partner_kind: 'supplier',
+            raw: 'X',
+            normalized: 'x',
+            balance: -200,
+            partner_id: 11,
+            matched_name: 'X',
+            confidence: 'exact',
+            score: 1,
+          },
+        ],
+        errors: [],
+        ledger_total: -200,
+        account_total: -200,
+        variance: 0,
+        partner_kind: 'supplier',
+        account_code: '227002',
+      },
+    });
+    // 1 real row, no synthetic = exactly 1 insert.
+    expect(mockInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates the cached partner_total on the account row', async () => {
+    await commitClassifiedRows({
+      snapshot_id: 'snap-1',
+      classified: {
+        rows: [
+          {
+            source_row: 4,
+            account_code: '227002',
+            partner_kind: 'supplier',
+            raw: 'X',
+            normalized: 'x',
+            balance: -100,
+            partner_id: 11,
+            matched_name: 'X',
+            confidence: 'exact',
+            score: 1,
+          },
+        ],
+        errors: [],
+        ledger_total: -100,
+        account_total: -100,
+        variance: 0,
+        partner_kind: 'supplier',
+        account_code: '227002',
+      },
+    });
+    expect(mockUpdate).toHaveBeenCalled();
   });
 });

@@ -830,11 +830,18 @@ export async function buildBalanceSheet(params: {
       );
     }
     for (const op of seed.accounts) {
-      const key = `${op.account_code}||${op.account_name}||${op.account_type}`;
+      // Apply the override at seed time too — the TS const had its overrides
+      // baked into op.account_type directly, so swapping to DB without
+      // applying the override here would split the same account_code into
+      // two byAccount keys (seed under raw type, deltas under override) and
+      // double-count the row in the BS view. Smoke-tested by
+      // financials-pnl.balance-sheet.test.ts.
+      const effectiveType = op.account_type_override ?? op.account_type;
+      const key = `${op.account_code}||${op.account_name}||${effectiveType}`;
       byAccount.set(key, {
         code: op.account_code,
         name: op.account_name,
-        account_type: op.account_type,
+        account_type: effectiveType,
         sum: op.opening_raw,
       });
       if (op.account_type_override) {
