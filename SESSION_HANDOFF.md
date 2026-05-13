@@ -47,11 +47,11 @@ User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no b
 - DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
 - ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
 
-**Not yet implemented (future enhancement):**
-- UI to manage overrides via `/personal/stocks/prices` or a new "Positions" admin tab
-- Currently overrides are insert-only via SQL; user can re-seed by clearing the table and re-running the insert
-
-No new tests added in this turn (the override path is a DB-only change; existing 396 vitest pass unchanged).
+**Overrides UI shipped (`f244be3` on main, 2026-05-13):**
+- Portfolio tab now has a "Position overrides" section: Active (qty>0) + Zero-out (qty=0) sub-tables, per-row Edit / Remove buttons, "+ Add override" → modal form (account · instrument · qty · avg cost · note · as-of date)
+- "Override" amber badge on the holdings table flags any row whose qty/avg-cost is overridden
+- New API routes: `POST /api/personal/stocks/overrides` (upsert on `(account_id, instrument_id)`) and `DELETE /api/personal/stocks/overrides/[id]`, both `getCurrentUser` + `is_admin` gated
+- 426 vitest pass (up from 396 due to parallel session adds), tsc clean for stocks module (the only repo-wide tsc error is in `src/lib/beithady/financials/xlsx-import.ts` from the parallel BH Financials session — not my code)
 
 ---
 
