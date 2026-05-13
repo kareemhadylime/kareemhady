@@ -223,3 +223,108 @@ export async function pingMetaMarketing(): Promise<
     pages_count: pages.ok ? ((pages.data as { data?: unknown[] })?.data || []).length : 0,
   };
 }
+
+// ── Targeting helpers ─────────────────────────────────────────────────────────
+
+export type MetaTargetingItem = { id: string; name: string };
+
+// Resolves a single interest name → best-match {id, name} via Meta Targeting
+// Search API. Returns null if the API call fails or no match found.
+// Results are NOT cached here — callers batch names and deduplicate upstream.
+export async function searchMetaInterest(
+  name: string,
+  token: string
+): Promise<MetaTargetingItem | null> {
+  const url =
+    `${GRAPH}/search?type=adinterest&q=${encodeURIComponent(name)}&locale=EN&limit=5&access_token=${encodeURIComponent(token)}`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: Array<{ id: string; name: string }> };
+    const match = (j.data || []).find(
+      d => d.name.toLowerCase() === name.toLowerCase()
+    ) || j.data?.[0];
+    return match ? { id: match.id, name: match.name } : null;
+  } catch {
+    return null;
+  }
+}
+
+// Resolves a single behavior name → best-match {id, name}.
+export async function searchMetaBehavior(
+  name: string,
+  token: string
+): Promise<MetaTargetingItem | null> {
+  const url =
+    `${GRAPH}/search?type=TargetingCategory&class=behaviors&q=${encodeURIComponent(name)}&limit=5&access_token=${encodeURIComponent(token)}`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: Array<{ id: string; name: string }> };
+    const match = (j.data || []).find(
+      d => d.name.toLowerCase().includes(name.toLowerCase())
+    ) || j.data?.[0];
+    return match ? { id: match.id, name: match.name } : null;
+  } catch {
+    return null;
+  }
+}
+
+export type TargetGroupRow = {
+  id: number;
+  slug: string;
+  age_min: number;
+  age_max: number;
+  countries?: string[];
+  meta_locales?: number[];
+  meta_interest_names?: string[];
+  meta_behavior_names?: string[];
+  spending_power?: string;
+};
+
+// Spending-power behavior names Meta understands (resolved via Targeting Search)
+const SPENDING_POWER_BEHAVIORS: Record<string, string[]> = {
+  top_25: ['High income earners', 'High-value individuals', 'Engaged shoppers'],
+  top_50: ['Engaged shoppers', 'Online shoppers'],
+  all:    [],
+};
+
+// Builds the full Meta ad-set targeting object for a given target group row.
+// Resolves interest + behavior names to Meta IDs in parallel (best-effort;
+// unresolved names are silently dropped so the campaign still publishes).
+export async function buildMetaTargetingSpec(
+  group: TargetGroupRow,
+  token: string
+): Promise<Record<string, unknown>> {
+  const interestNames = group.meta_interest_names || [];
+  const behaviorNamesFromGroup = group.meta_behavior_names || [];
+  const spendingBehaviorNames = SPENDING_POWER_BEHAVIORS[group.spending_power || 'all'] || [];
+  const allBehaviorNames = [...new Set([...behaviorNamesFromGroup, ...spendingBehaviorNames])];
+
+  // Resolve in parallel — cap at 20 interest + 6 behavior lookups
+  const [interestResults, behaviorResults] = await Promise.all([
+    Promise.all(interestNames.slice(0, 20).map(n => searchMetaInterest(n, token))),
+    Promise.all(allBehaviorNames.slice(0, 6).map(n => searchMetaBehavior(n, token))),
+  ]);
+
+  const interests = interestResults.filter((x): x is MetaTargetingItem => !!x);
+  const behaviors = behaviorResults.filter((x): x is MetaTargetingItem => !!x);
+
+  const spec: Record<string, unknown> = {
+    age_min: group.age_min,
+    age_max: group.age_max,
+  };
+
+  if ((group.meta_locales || []).length > 0) {
+    spec.locales = group.meta_locales;
+  }
+  if (interests.length > 0) {
+    // flexible_spec: OR between interest clusters (any-of semantics)
+    spec.flexible_spec = [{ interests }];
+  }
+  if (behaviors.length > 0) {
+    spec.behaviors = behaviors;
+  }
+
+  return spec;
+}

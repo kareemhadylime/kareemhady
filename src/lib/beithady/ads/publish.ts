@@ -1,7 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit } from '@/lib/beithady/audit';
-import { loadMetaCredentials, metaPost } from './meta-client';
+import { loadMetaCredentials, metaPost, buildMetaTargetingSpec } from './meta-client';
 
 // Publish a CTWA campaign to Meta. Mirrors Voltauto's ads-meta-publish
 // edge function (C:\Voltauto-pricing\supabase\functions\ads-meta-publish\
@@ -203,7 +203,25 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
   if (!campRes.ok) return { ok: false, mode: 'live', step: 'create_campaign', error: campRes.error, raw: campRes.raw };
   const campaignExternalId = (campRes.data as { id: string }).id;
 
-  // 2. Ad Set
+  // 2. Ad Set — build targeting spec (resolves interest/behavior IDs if a group is set)
+  let targetingExtras: Record<string, unknown> = {
+    age_min: input.ageMin ?? 25,
+    age_max: input.ageMax ?? 65,
+  };
+  if (input.targetGroupId) {
+    const sb = supabaseAdmin();
+    const { data: grp } = await sb
+      .from('ads_target_groups')
+      .select('id,slug,age_min,age_max,meta_locales,meta_interest_names,meta_behavior_names,spending_power')
+      .eq('id', input.targetGroupId)
+      .single();
+    if (grp) {
+      targetingExtras = await buildMetaTargetingSpec(
+        grp as Parameters<typeof buildMetaTargetingSpec>[0],
+        c.token
+      );
+    }
+  }
   const adsetPayload: Record<string, unknown> = {
     name: `${input.campaignName} — adset`,
     campaign_id: campaignExternalId,
@@ -215,8 +233,7 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
     daily_budget: dailyBudgetCents,
     promoted_object: { page_id: c.fbPageId },
     targeting: {
-      age_min: input.ageMin ?? 25,
-      age_max: input.ageMax ?? 65,
+      ...targetingExtras,
       geo_locations: { countries: input.targetCountries },
       publisher_platforms: ['facebook', 'instagram'],
       facebook_positions: ['feed', 'story'],

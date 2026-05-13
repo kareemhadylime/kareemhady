@@ -1,7 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit } from '@/lib/beithady/audit';
-import { loadMetaCredentials, metaPost } from './meta-client';
+import { loadMetaCredentials, metaPost, buildMetaTargetingSpec } from './meta-client';
 import { buildBhWaLink } from './platforms';
 
 // "Boost existing post" flow for Instagram. Operator picks a Reel /
@@ -154,7 +154,24 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   if (!campRes.ok) return { ok: false, mode: 'live', step: 'create_campaign', error: campRes.error, raw: campRes.raw };
   const campaignExternalId = (campRes.data as { id: string }).id;
 
-  // 2. Ad set
+  // 2. Ad set — resolve interest/behavior IDs from target group if provided
+  let targetingExtras: Record<string, unknown> = {
+    age_min: input.ageMin ?? 25,
+    age_max: input.ageMax ?? 55,
+  };
+  if (input.targetGroupId) {
+    const { data: grp } = await supabaseAdmin()
+      .from('ads_target_groups')
+      .select('id,slug,age_min,age_max,meta_locales,meta_interest_names,meta_behavior_names,spending_power')
+      .eq('id', input.targetGroupId)
+      .single();
+    if (grp) {
+      targetingExtras = await buildMetaTargetingSpec(
+        grp as Parameters<typeof buildMetaTargetingSpec>[0],
+        c.token
+      );
+    }
+  }
   const landingUrl = useCtwa ? buildBhWaLink(`Hi Beit Hady — interested in this post`) : (input.landingUrl || buildBhWaLink());
   const adsetPayload: Record<string, unknown> = {
     name: `${campaignName} — adset`,
@@ -165,8 +182,7 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
     bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
     daily_budget: dailyBudgetCents,
     targeting: {
-      age_min: input.ageMin ?? 25,
-      age_max: input.ageMax ?? 65,
+      ...targetingExtras,
       geo_locations: { countries: input.targetCountries },
       publisher_platforms: ['instagram', 'facebook'],
       instagram_positions: ['stream', 'story', 'explore', 'reels'],

@@ -28,10 +28,10 @@ export const DEFAULT_TARGET_GROUPS: TargetGroup[] = [
     name: 'Gulf',
     region: 'Gulf',
     countries: ['SA', 'AE', 'OM', 'KW', 'JO', 'LB'],
-    languages: null,
-    age_min: 25,
-    age_max: 55,
-    notes: 'Saudi Arabia · UAE · Oman · Kuwait · Jordan · Lebanon',
+    languages: ['ar'],
+    age_min: 23,
+    age_max: 54,
+    notes: 'SA · AE · OM · KW · JO · LB',
   },
   {
     id: 2,
@@ -40,9 +40,9 @@ export const DEFAULT_TARGET_GROUPS: TargetGroup[] = [
     region: 'Europe',
     countries: ['FR', 'IT', 'NL', 'UA'],
     languages: null,
-    age_min: 25,
-    age_max: 55,
-    notes: 'France · Italy · Netherlands · Ukraine',
+    age_min: 28,
+    age_max: 58,
+    notes: 'FR · IT · NL · UA',
   },
   {
     id: 3,
@@ -53,9 +53,33 @@ export const DEFAULT_TARGET_GROUPS: TargetGroup[] = [
     languages: ['ar'],
     age_min: 25,
     age_max: 55,
-    notes: 'Canada · USA — Arabic language overlay (diaspora Arabs)',
+    notes: 'CA · US',
   },
 ];
+
+const GROUP_INTERESTS: Record<string, string[]> = {
+  gulf:          ['Luxury travel', 'Beach resort', 'Egypt', 'Family vacation', 'Hotel'],
+  europe:        ['Egypt', 'Red Sea', 'Beach vacation', 'Cairo', 'Snorkeling'],
+  north_america: ['Egypt', 'Arab culture', 'Middle East', 'Eid al-Fitr'],
+};
+
+const GROUP_BEHAVIORS: Record<string, string[]> = {
+  gulf:          ['Frequent intl. travelers', 'Engaged shoppers'],
+  europe:        ['Frequent travelers'],
+  north_america: ['Expats', 'Frequent intl. travelers'],
+};
+
+const SPENDING_LABEL: Record<string, string | null> = {
+  top_25: 'Top 25% spending',
+  top_50: 'Top 50% spending',
+  all:    null,
+};
+
+const GROUP_SPENDING: Record<string, string> = {
+  gulf:          'top_50',
+  europe:        'all',
+  north_america: 'all',
+};
 
 const REGION_EMOJI: Record<string, string> = {
   Gulf: '🌍',
@@ -102,12 +126,34 @@ export function TargetGroupPicker({ groups = DEFAULT_TARGET_GROUPS, defaultGroup
               )}
               <div className="text-base mb-0.5">{REGION_EMOJI[g.region] ?? '🌐'}</div>
               <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">{g.name}</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{g.notes}</div>
-              {g.languages?.length ? (
-                <div className="mt-1 text-[9px] font-mono bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded px-1 py-0.5 inline-block">
-                  + Arabic language filter
+              <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{g.notes}</div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                Age {g.age_min}–{g.age_max}
+              </div>
+
+              {/* Interests */}
+              {GROUP_INTERESTS[g.slug] && (
+                <div className="mt-1.5 flex flex-wrap gap-0.5">
+                  {GROUP_INTERESTS[g.slug].map(i => (
+                    <span key={i} className="text-[9px] bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded px-1 py-0.5">{i}</span>
+                  ))}
                 </div>
-              ) : null}
+              )}
+
+              {/* Behaviors + spending + language */}
+              <div className="mt-1 flex flex-wrap gap-0.5">
+                {GROUP_BEHAVIORS[g.slug]?.map(b => (
+                  <span key={b} className="text-[9px] bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800 rounded px-1 py-0.5">{b}</span>
+                ))}
+                {SPENDING_LABEL[GROUP_SPENDING[g.slug] || 'all'] && (
+                  <span className="text-[9px] bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded px-1 py-0.5">
+                    {SPENDING_LABEL[GROUP_SPENDING[g.slug]]}
+                  </span>
+                )}
+                {g.languages?.includes('ar') && (
+                  <span className="text-[9px] bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded px-1 py-0.5">Arabic only</span>
+                )}
+              </div>
             </button>
           );
         })}
