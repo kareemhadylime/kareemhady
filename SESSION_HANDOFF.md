@@ -52,6 +52,28 @@ User is asking *"is it safe to clear?"* — yes, once this entry is committed. A
 
 ---
 
+## ✅ 2026-05-13 — Tasks T15-T18: BH Financials cockpit refactor + 3 subpages
+
+Batched execution of T15-T18 from `docs/superpowers/plans/2026-05-12-bh-financials-balances.md`.
+
+**What was done:**
+- Extracted `PnlSection`, `UnclassifiedPanel` → `_components/PnlSection.tsx`
+- Extracted `BalanceSheetSection` + helpers → `_components/BalanceSheetSection.tsx`
+- Extracted `PayablesBlock` + `PayablesCard` → `_components/PayablesBlock.tsx`
+- Added `CockpitTile` → `_components/CockpitTile.tsx`
+- Created `/beithady/financials/performance/page.tsx` — full P&L with `preset/from/to/month/scope/building/lob` search params
+- Created `/beithady/financials/balance-sheet/page.tsx` — BS with `asof/scope` search params
+- Created `/beithady/financials/payables/page.tsx` — AP aging with `asof/scope` search params
+- Refactored `page.tsx` from 1182 lines → 169-line cockpit with 3 status cards (Active snapshot, Open variance, Next snapshot due) + 7 tile grid
+
+**FinancialsFilters extraction:** skipped for v1 — subpages consume raw search params without the filter UI strip. Filter strip stays on the old page (now gone from cockpit). Subpages are navigable with explicit URL params.
+
+**tsc result:** clean for financials paths. Pre-existing `xlsx-import.ts` Buffer error unaffected.
+
+**Commit:** `625a07d` — pushed to `origin/main`.
+
+---
+
 ## ✅ 2026-05-13 — Task 13: `buildReconciliation` + test (BH Financials plan)
 
 Created `src/lib/beithady/financials/reconciliation.ts` and `src/lib/beithady/financials/reconciliation.test.ts`.
