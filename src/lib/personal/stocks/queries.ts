@@ -572,3 +572,132 @@ export async function getAccountsList(): Promise<
     .order('code');
   return (r.data ?? []).map((a) => ({ id: a.id, code: a.code, kind: a.kind }));
 }
+
+// ─── Capital & margin summary ────────────────────────────────────────────────
+// Today's snapshot of the user's real money in the broker account:
+//   - my_equity        = sum(cash) + sum(stocks at cost)
+//   - cash_on_hand     = sum of POSITIVE cash balances (positive accounts)
+//   - margin_loan      = sum of NEGATIVE cash balances, absolute (the debit owed)
+//   - stocks_at_cost   = sum(qty_held * avg_cost) across v_personal_stock_positions
+//   - total_interest_paid + total_fees_paid = lifetime cost of trading
+
+export type AccountSnapshot = {
+  accountId: number;
+  accountCode: string;
+  cashEgp: number;             // signed; negative = margin debit
+  stocksAtCostEgp: number;
+  equityEgp: number;           // cash + stocks
+  asOf: string | null;         // date of last ledger row
+};
+
+export type CapitalSummary = {
+  myEquityEgp: number;
+  cashOnHandEgp: number;        // sum of positive cash balances
+  marginLoanEgp: number;        // sum of |negative cash balances|
+  stocksAtCostEgp: number;
+  totalInterestPaidEgp: number;
+  totalFeesPaidEgp: number;
+  marginRatioPct: number | null;  // margin / stocks_at_cost, on margin accounts only
+  perAccount: AccountSnapshot[];
+};
+
+export async function getCapitalSummary(): Promise<CapitalSummary> {
+  const client = supabaseAdmin();
+
+  const [accs, balanceRows, positions, interestRows, feeRows] = await Promise.all([
+    client.from('personal_stock_accounts').select('id, code'),
+    // last balance per account
+    client
+      .from('v_personal_stock_account_balance')
+      .select('account_id, balance_egp, occurred_at, row_index')
+      .order('occurred_at', { ascending: false })
+      .order('row_index', { ascending: false }),
+    client
+      .from('v_personal_stock_positions')
+      .select('account_id, qty_held, avg_cost'),
+    client.from('personal_stock_interest').select('direction, amount'),
+    client.from('personal_stock_fees').select('amount'),
+  ]);
+
+  const accountById = new Map(
+    (accs.data ?? []).map((a) => [a.id, a.code] as const),
+  );
+
+  // Latest balance per account
+  const latestBalance = new Map<
+    number,
+    { balance: number; asOf: string }
+  >();
+  for (const r of balanceRows.data ?? []) {
+    if (!latestBalance.has(r.account_id)) {
+      latestBalance.set(r.account_id, {
+        balance: Number(r.balance_egp),
+        asOf: r.occurred_at,
+      });
+    }
+  }
+
+  // Stocks at cost per account
+  const stocksByAccount = new Map<number, number>();
+  for (const p of positions.data ?? []) {
+    const cost = Number(p.qty_held) * Number(p.avg_cost);
+    stocksByAccount.set(
+      p.account_id,
+      (stocksByAccount.get(p.account_id) ?? 0) + cost,
+    );
+  }
+
+  // Build per-account snapshot
+  const perAccount: AccountSnapshot[] = [];
+  for (const [id, code] of accountById) {
+    const bal = latestBalance.get(id);
+    const cash = bal?.balance ?? 0;
+    const stocks = stocksByAccount.get(id) ?? 0;
+    perAccount.push({
+      accountId: id,
+      accountCode: code,
+      cashEgp: cash,
+      stocksAtCostEgp: stocks,
+      equityEgp: cash + stocks,
+      asOf: bal?.asOf ?? null,
+    });
+  }
+  perAccount.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
+  const cashOnHandEgp = perAccount.reduce(
+    (a, s) => a + (s.cashEgp > 0 ? s.cashEgp : 0),
+    0,
+  );
+  const marginLoanEgp = perAccount.reduce(
+    (a, s) => a + (s.cashEgp < 0 ? -s.cashEgp : 0),
+    0,
+  );
+  const stocksAtCostEgp = perAccount.reduce(
+    (a, s) => a + s.stocksAtCostEgp,
+    0,
+  );
+  const myEquityEgp = perAccount.reduce((a, s) => a + s.equityEgp, 0);
+
+  const totalInterestPaidEgp = (interestRows.data ?? []).reduce(
+    (a, r) => a + (r.direction === 'charge' ? Number(r.amount) : -Number(r.amount)),
+    0,
+  );
+  const totalFeesPaidEgp = (feeRows.data ?? []).reduce(
+    (a, r) => a + Number(r.amount),
+    0,
+  );
+
+  const marginRatioPct =
+    stocksAtCostEgp > 0 ? (marginLoanEgp / stocksAtCostEgp) * 100 : null;
+
+  return {
+    myEquityEgp,
+    cashOnHandEgp,
+    marginLoanEgp,
+    stocksAtCostEgp,
+    totalInterestPaidEgp,
+    totalFeesPaidEgp,
+    marginRatioPct,
+    perAccount,
+  };
+}
