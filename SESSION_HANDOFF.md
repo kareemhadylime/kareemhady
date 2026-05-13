@@ -1,4 +1,269 @@
-# Kareemhady — Session Handoff (2026-05-13)
+# Kareemhady — Session Handoff (2026-05-13) [last-touch: 12:43:09]
+
+## 🔵 2026-05-13 — Google Ads account setup in progress (step-by-step walkthrough)
+
+**Status:** Brainstorming / discovery phase — no code written yet.
+
+**Context explored:**
+- Google Ads backend is already largely built: `google-client.ts`, `google-publish.ts`, `google-pmax-publish.ts`, `google-sync.ts`, OAuth callback at `/api/auth/google-ads/callback`
+- UI route stubs exist: `/beithady/ads/google/accounts`, `/google/publish`, `/google/pmax`
+- DB schema already has `ads_accounts`, `ads_campaigns`, `ads_daily_metrics` etc.
+- What's missing: actual credentials in Supabase `integration_credentials` (provider: `google_ads`) and Vercel env vars
+
+**Walkthrough in progress:**
+- Step 1 asked: confirm Google Ads account at ads.google.com — get Customer ID (10-digit `XXX-XXX-XXXX`)
+- Need to confirm: Customer ID, whether it's a Manager (MCC) account, then Google Cloud OAuth credentials + developer token
+
+**Next steps when user returns:**
+1. User pastes Customer ID from ads.google.com
+2. Check Google Cloud Console for existing project + OAuth client
+3. Check Google Ads API Center for developer token
+4. Enter credentials into Supabase `integration_credentials` + Vercel env vars
+5. Run OAuth flow to get refresh token
+6. Test with `pingGoogleAds()`
+
+---
+
+## 🟢 2026-05-13 — Session cleared cleanly (no work items pending)
+
+**Turn summary:** User asked "is it safe to clear session?" — confirmed yes. All work from this session is fully persisted:
+- Code committed to git + deployed to Vercel production
+- Meta credentials in Supabase `integration_credentials` + Vercel env vars
+- Target audience groups in `ads_target_groups` table
+- Plan file at `C:\Users\karee\.claude\plans\need-to-start-working-happy-rainbow.md`
+
+**Next session can pick up from:** This SESSION_HANDOFF.md + the plan file. Natural next steps are: (1) run first real boost campaign, (2) connect Google Ads, (3) connect TikTok — per the multi-platform plan.
+
+---
+
+
+## 🟢 2026-05-13 — Meta fully connected and working
+
+**Token 3 (final, working):** `EAASF2Q9SX9QBRRmFTVV…` — 29 permissions including `instagram_manage_contents`, `instagram_manage_insights`, `instagram_basic`, `instagram_content_publish`, `ads_management`, etc.
+- Updated in Supabase `integration_credentials` (meta_marketing) ✅
+- Updated Vercel `META_MARKETING_TOKEN` ✅
+- Force-redeployed ✅
+- Boost IG page loads `@beithady` posts ✅
+
+**Full Meta setup complete:**
+- App: "Beit Hady Ads" (ID: 1273067218296788) — Live mode
+- Business: BEIT HADY (ID: 798567705613762)
+- Ad account: act_1856636178519989
+- FB Page: 604292486094824
+- IG Business: @beithady (resolved via Accounts page)
+- System user: BeitHady_Ads (Employee role, Full Control on ad account + Page + IG)
+- Code: `listIgMedia()` uses Page API (`GET /{page_id}?fields=instagram_business_account{media{...}}`) — commit dd8a684
+
+**Target audience groups live (migrations 0121 + 0122):**
+- Gulf: SA/AE/OM/KW/JO/LB, age 23-54, top-50% spending, Arabic, luxury/travel interests
+- Europe: FR/IT/NL/UA, age 28-58, Egypt-destination interests
+- North America: CA/US, age 25-55, Arabic only, Arab diaspora interests
+
+**IG App credentials (from Instagram API use case — for future IG Login flow):**
+- App ID: 2412828792525217
+- App secret: 3eb92d9777c8c711787c2bf772e38b0b
+
+---
+
+## 🔴 2026-05-13 — IG media blocked — needs token with instagram_business_basic (RESOLVED)
+
+**Status: WAITING for user to regenerate System User token (3rd attempt)**
+
+**Root cause (final diagnosis):**
+- Token 1 (EAASF2Q9SX9QBRYUNRhz…): generated in Dev mode → `instagram_basic` not active
+- Token 2 (EAASF2Q9SX9QBRVSEepKINi73…): generated in Live mode but BEFORE Instagram API use case was added → still missing `instagram_business_basic`
+- Token 2 IS in Supabase now (updated 2026-05-13 11:48 UTC)
+- User added "Instagram API" use case to the app → this adds `instagram_business_basic` permission
+- Need Token 3 generated AFTER the Instagram API use case was added, with `instagram_business_basic` checked
+
+**Instagram app created (from Instagram API use case setup):**
+- IG App name: Beit Hady Ads-IG
+- IG App ID: `2412828792525217`
+- IG App secret: `3eb92d9777c8c711787c2bf772e38b0b`
+- (Store in credentials as `ig_app_id` / `ig_app_secret` under meta_marketing provider)
+
+**What user needs to do:**
+1. Go to business.facebook.com/settings/system-users
+2. Click BeitHady_Ads → "Generate new token"
+3. App: "Beit Hady Ads", Expiration: Never
+4. Check: `ads_management`, `ads_read`, `business_management`, `instagram_business_basic` ← NEW, `instagram_content_publish`, `leads_retrieval`, `pages_read_engagement`, `pages_show_list`, `read_insights`
+5. Copy token → paste to Claude
+
+**What Claude must do when user pastes new token:**
+```sql
+UPDATE integration_credentials
+SET config = jsonb_set(config, '{system_user_token}', '"<NEW_TOKEN>"'),
+    updated_at = now()
+WHERE provider = 'meta_marketing';
+```
+Then update Vercel: `vercel env rm META_MARKETING_TOKEN production --yes && echo "<NEW_TOKEN>" | vercel env add META_MARKETING_TOKEN production`
+Then force redeploy: `vercel --prod --yes --archive=tgz`
+
+**Code already deployed:** `listIgMedia()` uses Page API (`GET /{page_id}?fields=instagram_business_account{media{...}}`), commit dd8a684. No code change needed once token is right.
+
+---
+
+## 🟢 2026-05-13 — IG media API fix (commit dd8a684)
+
+**Problem:** `/beithady/ads/instagram/boost` showed `(#10) Application does not have permission` even after switching app to Live mode.
+
+**Root cause:** `listIgMedia()` was calling `GET /{ig_business_id}/media` which requires `instagram_basic` — a permission that requires App Review or a fresh token minted in Live mode. The System User token was minted in Development mode.
+
+**Fix (no token regeneration needed):** Switched to the **Page API approach**:
+- Old: `GET /17841462866748161/media` (needs `instagram_basic`)  
+- New: `GET /604292486094824?fields=instagram_business_account{media{...}}` (uses `pages_read_engagement` — already on the token)
+
+**File changed:** `src/lib/beithady/ads/meta-client.ts` — `listIgMedia()` function rewritten to go through the FB Page API
+
+**Deploy status:** `dd8a684` pushed to main, Vercel deploying. User should refresh `/beithady/ads/instagram/boost` after deploy completes.
+
+**Also done this session:**
+- App icon: resized `monogram.jpg` → `meta-app-icon-1024.png` (1024×1024 PNG) at `C:\kareemhady\Lime Domains\Beithady\beithady Branding\`
+- "Beit Hady Ads" Meta app switched to **Live/Published** mode ✅
+
+---
+
+## 🟢 2026-05-13 — Meta app icon + Live mode fix (IN PROGRESS)
+
+**Problem:** `/beithady/ads/instagram/boost` shows `(#10) Application does not have permission for this action` when loading IG posts grid.
+
+**Root cause:** "Beit Hady Ads" Meta app is in **Development mode** — `instagram_basic` permission is inactive in dev mode for System User tokens.
+
+**Fix:** Switch app to Live mode at developers.facebook.com/apps/1273067218296788/settings/basic/
+Requirements before going Live:
+- ✅ Privacy Policy URL: already entered (https://beithady... visible in screenshot)
+- ✅ App icon: **DONE** — resized `monogram.jpg` → `meta-app-icon-1024.png` (1024×1024 PNG, 177KB) at `C:\kareemhady\Lime Domains\Beithady\beithady Branding\meta-app-icon-1024.png`
+- User uploading the icon now, then clicking "Switch to Live"
+
+**After going Live:**
+- `/beithady/ads/instagram/boost` — IG posts grid should load ✅
+- `/beithady/ads/instagram/reels` — IG Reels publisher should work ✅
+- All `instagram_basic` + `instagram_content_publish` calls will activate
+
+**No code changes this turn** — just icon resize + Meta developer portal guidance.
+
+---
+
+## 🟡 2026-05-13 — Meta token refresh + IG media fix (in-progress)
+
+**What was done:**
+- Regenerated System User token (new: `EAASF2Q9SX9QBRVSEE…`) — old token was minted in Dev mode so `instagram_basic` wasn't active
+- Updated Supabase `integration_credentials` (meta_marketing.system_user_token) with new token
+- Updated Vercel `META_MARKETING_TOKEN` env var with new token
+- Fixed `listIgMedia()` in `meta-client.ts` to use Page API (`GET /{page_id}?fields=instagram_business_account{media{...}}`) instead of `GET /{ig_id}/media` — avoids need for `instagram_basic`, uses `pages_read_engagement` instead (commit dd8a684)
+- Force-redeployed to Vercel to flush warm instance credential cache
+- Meta app "Beit Hady Ads" switched to Live mode (was Dev mode) — icon: `C:\kareemhady\Lime Domains\Beithady\beithady Branding\meta-app-icon-1024.png`
+
+**Still failing:** `(#10) Application does not have permission` on Boost IG page
+**Root cause suspect:** The `instagram_business_account` field on the Page may require `instagram_manage_insights` or `pages_manage_metadata` permission specifically — or the app's use cases don't include a Content Management use case
+
+**Next debug step if still failing after redeploy:**
+1. Test the token directly: GET https://graph.facebook.com/v21.0/604292486094824?fields=instagram_business_account&access_token=NEWTOKEN
+2. If that fails #10 → need to add "Read content published by Pages and Instagram" use case in developers.facebook.com → Beit Hady Ads → Use cases
+3. If that works → the Page API approach should work and it's a cache issue
+
+---
+
+## 🟢 2026-05-13 — Audience targeting layers shipped (commit 7dcca17)
+
+**What shipped:**
+- Migration `0122_bh_ads_target_group_layers`: adds `meta_interest_names[]`, `meta_behavior_names[]`, `meta_locales[]`, `spending_power` to `ads_target_groups`; seeds all 3 groups
+- **Gulf** (user-confirmed): age 23-54, top-50% spending, Arabic locale, interests: Luxury travel/Beach resort/Egypt/Family vacation/Hotel, behaviors: Frequent intl travelers + Engaged shoppers
+- **Europe**: age 28-58, no locale filter, interests: Egypt/Red Sea/Beach vacation/Cairo/Snorkeling, behaviors: Frequent travelers
+- **North America**: age 25-55, Arabic locale, interests: Egypt/Arab culture/Middle East/Eid al-Fitr, behaviors: Expats + Frequent intl travelers
+- `meta-client.ts`: `searchMetaInterest()` + `searchMetaBehavior()` (Targeting Search API) + `buildMetaTargetingSpec()` — resolves names→IDs at publish time, best-effort
+- `publish.ts` + `boost-publish.ts`: loads target group from DB, calls `buildMetaTargetingSpec`, spreads into ad-set targeting
+- `TargetGroupPicker`: shows interest chips (sky), behavior chips (violet), spending tier (emerald), Arabic filter (amber) on each card
+
+**How interest/behavior resolution works:**
+At publish time, `buildMetaTargetingSpec()` calls the Meta Targeting Search API (`/search?type=adinterest&q=NAME`) for each interest name in parallel, takes the best match, and passes `{id, name}` objects to the ad set's `flexible_spec`. Same for behaviors via `type=TargetingCategory&class=behaviors`. Unresolved names are silently dropped — campaign still publishes.
+
+---
+
+## 🟢 2026-05-13 — Target Audience Groups shipped (commit 3687736)
+
+**What shipped:**
+- Migration `0121_bh_ads_target_groups` — `ads_target_groups` table + FK on `ads_campaigns.target_group_id`
+- 3 seeded groups:
+  - **Gulf** (ID 1): SA, AE, OM, KW, JO, LB
+  - **Europe** (ID 2): FR, IT, NL, UA
+  - **North America Arabs** (ID 3): CA, US + Arabic language overlay
+- `TargetGroupPicker` client component — card-based 3-tile selector, wires hidden inputs (`target_group_id`, `target_countries`, `age_min`, `age_max`) into form
+- Wired into all 4 campaign wizards: Meta CTWA (`create/page.tsx`), IG Boost (`instagram/boost/page.tsx`), TikTok paid (`tiktok/paid/page.tsx`), Google Search (`google/publish/page.tsx`)
+- `target_group_id` stored on every campaign row for performance group-by queries
+
+**Meta connection fully wired (from earlier this session):**
+- `integration_credentials` row for `meta_marketing` — enabled=true
+- `ads_accounts` row ID=2 (platform=meta, external_id=1856636178519989, ig_business_id=17841462866748161, ig_username=beithady)
+- All Vercel env vars set: `META_MARKETING_TOKEN`, `META_BUSINESS_ID`, `META_AD_ACCOUNT_ID`, `META_FB_PAGE_ID`, `META_APP_ID`, `META_APP_SECRET`
+- Business Manager: BeitHady_Ads system user has Full Control on ad account + FB Page + IG account
+
+**Next natural steps:**
+- Test the full flow: go to `/beithady/ads/instagram/boost` → pick a post → select Gulf group → submit → verify campaign appears in `/beithady/ads/campaigns`
+- Set up Meta Pixel + CAPI: get Pixel ID from Events Manager → add to credentials as `pixel_id`
+- Configure Lead Forms webhook: developers.facebook.com → Beit Hady Ads → Webhooks → subscribe to `leadgen`
+- Google Ads: connect via `/beithady/ads/google/accounts` OAuth flow
+- TikTok Ads: connect via `/beithady/ads/tiktok/accounts` OAuth flow
+
+---
+
+## 🟢 2026-05-13 — Meta credentials setup (AWAITING 3 IDs from user)
+
+**Status: IN PROGRESS — user assigning system user to Instagram account**
+
+**ALL CREDENTIALS WIRED ✅**
+
+Supabase `integration_credentials` row inserted (provider=`meta_marketing`, enabled=true):
+- `system_user_token` → `EAASF2Q9SX9QBRYUNRhz…` (permanent, never-expiring)
+- `business_id` → `798567705613762`
+- `ad_account_id` → `act_1856636178519989`
+- `fb_page_id` → `604292486094824`
+- `app_id` → `1273067218296788`
+- `app_secret` → `fe9601e774b49cba4dc2cff6341e1884`
+
+Vercel env vars also set (fallback path): `META_MARKETING_TOKEN`, `META_BUSINESS_ID`, `META_AD_ACCOUNT_ID`, `META_FB_PAGE_ID`, `META_APP_ID`, `META_APP_SECRET`
+
+**Asset assignments confirmed in Business Manager:**
+- ✅ `Beithady_ads` system user → Ad account (`act_1856636178519989`) → Full control
+- ✅ `Beithady_ads` system user → Beithady Facebook Page (`604292486094824`) → Full control
+- ⏳ `Beithady_ads` system user → Instagram account → user checking now (left sidebar → Instagram accounts)
+
+**Next steps after IG account assignment:**
+1. Step 5: Go to `app.limeinc.cc/beithady/ads/accounts` → click "Resolve IG" button on the Meta row → this calls `resolveIgForAccount()` in `meta-client.ts` which GETs `/{fb_page_id}?fields=instagram_business_account` and saves `ig_business_id` + `ig_username` to `ads_accounts` table
+2. Step 6: Smoke test — visit `/beithady/ads` → confirm KPI cards load without errors; visit `/beithady/ads/instagram/boost` → confirm IG posts grid loads
+3. Step 7 (optional): Set up Meta Pixel + CAPI — get Pixel ID from Events Manager, add to credentials as `pixel_id`
+4. Step 8 (optional): Configure Lead Forms webhook at developers.facebook.com → Beit Hady Ads → Webhooks → subscribe to `leadgen` events → verify token = value of `META_LEAD_FORM_WEBHOOK_VERIFY_TOKEN` env var
+
+---
+
+## 🟢 2026-05-13 — Meta App creation walkthrough (Step 3 — System User blocked)
+
+**Status: IN PROGRESS — user is actively doing setup in browser**
+
+**Completed so far:**
+- ✅ Step 1: "Beit Hady Ads" Meta App created (App ID: `1273067218296788`, App Secret: `fe9601e774b49cba4dc2cff6341e1884`)
+- ✅ Use cases added: "Create & manage ads with Marketing API" + "Capture & manage ad leads with Marketing API" + 2 others (Meta Ads Manager, Measure ad performance)
+- ✅ Step 2: Credentials noted
+
+**Current position — Step 3 (System User creation):**
+- User is at `business.facebook.com/settings/system-users`
+- Tried to create `BeitHady_Ads` as **Admin** → blocked: "maximum number of admin system user limit (1)"
+- Existing Admin system user is `3CX` (ID: 61585777760642) — used for the phone system
+- **Fix given:** Change role dropdown from "Admin" → **"Employee"**, then create. Employee system user with Full Control on specific assets works identically for API ad management.
+- User has not yet completed this step (screenshot showed the error dialog still open)
+
+**Remaining steps (not yet done):**
+- Step 3 cont: Create `BeitHady_Ads` as Employee system user → Generate token with permissions: `ads_management`, `ads_read`, `business_management`, `instagram_basic`, `instagram_content_publish`, `leads_retrieval`, `pages_read_engagement`, `pages_show_list`, `read_insights`
+- Step 4: Assign assets to System User (ad account, FB Page, WABA, Pixel, IG account) with Full Control
+- Step 5: Resolve IG Business Account in app Accounts settings
+- Step 6: Configure webhooks (Lead Forms + IG events)
+- Step 7: Pixel + CAPI test-events verification
+- Step 8: Wire credentials into app (admin UI or env vars)
+- Step 9: Smoke test
+
+**No code changes this turn** — pure operator walkthrough.
+
+---
 
 ## 🟢 2026-05-13 — Boost existing IG content + Meta setup walkthrough
 
