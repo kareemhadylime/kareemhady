@@ -9,6 +9,8 @@ import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { convertToUsd } from '@/lib/fx-rates';
 import { fmtCairoDateTime, fmtCairoDate } from '@/lib/fmt-date';
 import { setCampaignStatusActionUnified } from '../../actions';
+import { loadMetaCredentials, fetchMetaEntityStatusBatch, type MetaLiveStatus } from '@/lib/beithady/ads/meta-client';
+import { MetaStatusBadge, MetaIssuesList } from './meta-status-badge';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -121,6 +123,22 @@ export default async function CampaignDetailPage({
   }
   const roas = totalSpend > 0 ? attributedRevenueUsd / totalSpend : null;
 
+  // Live Meta delivery status (effective_status + issues_info) — only for
+  // Meta campaigns with non-draft external IDs. Batched parallel fetch.
+  let liveStatuses: Map<string, MetaLiveStatus> = new Map();
+  if (camp.platform === 'meta' && !camp.external_id.startsWith('draft_')) {
+    const creds = await loadMetaCredentials();
+    if (creds.ok) {
+      const externalIds = [
+        camp.external_id,
+        ...adSets.map(s => s.external_id).filter(Boolean),
+        ...ads.map(a => a.external_id).filter(Boolean),
+      ];
+      liveStatuses = await fetchMetaEntityStatusBatch(externalIds, creds.creds.token);
+    }
+  }
+  const campLive = liveStatuses.get(camp.external_id) || null;
+
   // Budget-cap state
   const cap = camp.monthly_budget_cap_usd != null ? Number(camp.monthly_budget_cap_usd) : null;
   const capPct = cap && cap > 0 ? (totalSpend / cap) * 100 : null;
@@ -188,10 +206,15 @@ export default async function CampaignDetailPage({
       {/* Header KPIs + status flip */}
       <section className="ix-card p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className={`text-xs uppercase tracking-wide font-semibold px-2 py-0.5 rounded ${statusBadgeClass(camp.status)}`}>
               {camp.status || '—'}
             </span>
+            {camp.platform === 'meta' && campLive && (
+              <span className="text-[10px] text-slate-400 inline-flex items-center gap-1">
+                Meta says: <MetaStatusBadge status={campLive} />
+              </span>
+            )}
             <span className="text-xs text-slate-500">{PLATFORM_LABEL[camp.platform]} · account {account?.name || '—'}</span>
             {isDraft && <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">draft (db-only)</span>}
           </div>
@@ -214,6 +237,9 @@ export default async function CampaignDetailPage({
           <Stat label="Bookings revenue (USD)" value={`$${Math.round(attributedRevenueUsd).toLocaleString()}`} accent="emerald" />
           <Stat label="ROAS" value={roas == null ? '—' : `${roas.toFixed(2)}x`} accent={roas != null && roas >= 1 ? 'emerald' : 'amber'} />
         </div>
+
+        {/* Campaign-level Meta issues (disapproval / billing / etc) */}
+        <MetaIssuesList status={campLive} />
 
         {(cap != null || camp.building_codes?.length) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -269,24 +295,30 @@ export default async function CampaignDetailPage({
               <tr className="text-left border-b border-slate-200 dark:border-slate-700">
                 <th className="py-2 pr-3">Name</th>
                 <th className="py-2 pr-3">Status</th>
+                {camp.platform === 'meta' && <th className="py-2 pr-3">Meta delivery</th>}
                 <th className="py-2 pr-3">Goal</th>
                 <th className="py-2 pr-3 text-right">Daily budget</th>
                 <th className="py-2 pr-3">Targeting</th>
               </tr>
             </thead>
             <tbody>
-              {adSets.map(s => (
+              {adSets.map(s => {
+                const sLive = liveStatuses.get(s.external_id) || null;
+                return (
                 <tr key={s.id} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-3 font-medium">{s.name}</td>
                   <td className="py-2 pr-3"><span className={`text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded ${statusBadgeClass(s.status)}`}>{s.status || '—'}</span></td>
+                  {camp.platform === 'meta' && (
+                    <td className="py-2 pr-3"><MetaStatusBadge status={sLive} /></td>
+                  )}
                   <td className="py-2 pr-3">{s.optimization_goal || '—'}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{s.daily_budget_micros ? `$${(s.daily_budget_micros / 1_000_000).toFixed(2)}` : '—'}</td>
                   <td className="py-2 pr-3 text-[10px]">
                     {(s.target_countries || []).join(', ') || '—'}
                     {(s.age_min || s.age_max) && <span className="text-slate-500"> · age {s.age_min || '?'}–{s.age_max || '?'}</span>}
                   </td>
-                </tr>
-              ))}
+                </tr>);
+              })}
             </tbody>
           </table>
         )}
@@ -299,7 +331,9 @@ export default async function CampaignDetailPage({
           <p className="text-xs text-slate-500">No ads yet.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            {ads.map(a => (
+            {ads.map(a => {
+              const aLive = liveStatuses.get(a.external_id) || null;
+              return (
               <div key={a.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 flex gap-3">
                 {a.creative_url && (
                   <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden shrink-0">
@@ -314,6 +348,11 @@ export default async function CampaignDetailPage({
                     <div className="font-medium truncate">{a.name}</div>
                     <span className={`text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded ${statusBadgeClass(a.status)} shrink-0`}>{a.status || '—'}</span>
                   </div>
+                  {camp.platform === 'meta' && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                      <span>Meta:</span> <MetaStatusBadge status={aLive} />
+                    </div>
+                  )}
                   {a.headline && <div className="font-semibold">{a.headline}</div>}
                   {a.body && <div className="text-slate-500 line-clamp-2">{a.body}</div>}
                   {a.landing_url && (
@@ -321,9 +360,10 @@ export default async function CampaignDetailPage({
                       Landing URL <ExternalLink size={9} />
                     </a>
                   )}
+                  <MetaIssuesList status={aLive} />
                 </div>
-              </div>
-            ))}
+              </div>);
+            })}
           </div>
         )}
       </section>

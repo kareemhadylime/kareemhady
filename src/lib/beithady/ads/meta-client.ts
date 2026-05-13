@@ -339,6 +339,70 @@ export async function buildMetaTargetingSpec(
   return spec;
 }
 
+// === Live entity status / delivery checker ===
+// Fetches effective_status + issues_info for campaign / ad set / ad rows so the
+// dashboard can show what Meta actually thinks (e.g. IN_REVIEW, DISAPPROVED,
+// PENDING_BILLING_INFO). Our DB only tracks the manual status we set; this is
+// the source of truth for delivery.
+
+export type MetaIssue = {
+  level: 'AD' | 'ADSET' | 'CAMPAIGN' | 'AD_ACCOUNT' | string;
+  error_code: number;
+  error_summary: string;
+  error_message: string;
+  error_type: string;
+};
+
+export type MetaLiveStatus = {
+  external_id: string;
+  effective_status: string;  // ACTIVE | IN_REVIEW | DISAPPROVED | PENDING_BILLING_INFO | ...
+  configured_status?: string;
+  issues_info: MetaIssue[];
+  not_found?: boolean;
+  error?: string;
+};
+
+export async function fetchMetaEntityStatus(
+  externalId: string,
+  token: string
+): Promise<MetaLiveStatus> {
+  if (!externalId || externalId.startsWith('draft_')) {
+    return { external_id: externalId, effective_status: 'DRAFT', issues_info: [] };
+  }
+  const url = `${GRAPH}/${externalId}?fields=effective_status,configured_status,issues_info&access_token=${encodeURIComponent(token)}`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!r.ok || j.error) {
+      const code = (j.error as { code?: number } | undefined)?.code;
+      const msg = (j.error as { message?: string } | undefined)?.message || `http_${r.status}`;
+      // 100 = "Unsupported get request" — entity might have been deleted in Meta
+      const notFound = code === 100 || /does not exist|cannot be loaded/i.test(msg);
+      return { external_id: externalId, effective_status: 'UNKNOWN', issues_info: [], not_found: notFound, error: msg };
+    }
+    return {
+      external_id: externalId,
+      effective_status: (j.effective_status as string) || 'UNKNOWN',
+      configured_status: j.configured_status as string | undefined,
+      issues_info: (j.issues_info as MetaIssue[] | undefined) || [],
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { external_id: externalId, effective_status: 'UNKNOWN', issues_info: [], error: msg };
+  }
+}
+
+export async function fetchMetaEntityStatusBatch(
+  externalIds: string[],
+  token: string
+): Promise<Map<string, MetaLiveStatus>> {
+  const out = new Map<string, MetaLiveStatus>();
+  // Parallel fetch — for ~10 entities this is ~500ms, faster than Meta's batch endpoint setup
+  const results = await Promise.all(externalIds.map(id => fetchMetaEntityStatus(id, token)));
+  for (const r of results) out.set(r.external_id, r);
+  return out;
+}
+
 // === Ad-account recommendations (Opportunity Score) ===
 // Meta's Advantage+ panel surfaces ML-driven optimization suggestions. The
 // /act_<id>?fields=recommendations,opportunity_score endpoint returns the
