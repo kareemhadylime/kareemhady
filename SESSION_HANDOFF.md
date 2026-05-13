@@ -244,6 +244,15 @@ User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no b
 - DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
 - ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
 
+**Broker Fees fix #2 — included per-trade commissions (`b52b694` on main, 2026-05-13):**
+- User flagged: 3,200 EGP broker fees still wrong. The Invoices file has a Total Fees column per trade (broker commission per invoice) — those were stored on `personal_stock_trades.fees_amount` (signed: + for buys, − for sells) but never aggregated into the dashboard.
+- Added `tradeCommissionsEgp = sum(|fees_amount|)` to `getCapitalSummary`. Across 677 trades: **543,034 EGP** (245,718 buy + 297,316 sell).
+- Broker Fees tile now = per-trade commissions + platform-daily fees (net of refunds). Subtitle splits the two.
+- **New numbers:** Broker Fees ~546k · Broker Interest 3.77M · Total Broker Costs ~4.32M.
+- 433 vitest pass · tsc clean.
+
+---
+
 **Broker Fees fix — excluded ACT IPO subscription (`ed8e7f4` on main, 2026-05-13):**
 - User flagged 4.22M Broker Fees as impossibly high. Found one `Daily` row on 001/2024 with Arabic note "اكتتاب اكت" (ACT IPO subscription) for 4,000,000 EGP — correctly tagged `kind='ipo_subscription'` by the classifier but was still being summed into `totalFeesPaidEgp`.
 - `getCapitalSummary` now: `totalFeesPaidEgp` = only `platform_daily` + `other` (220k), new `ipoSubscriptionEgp` field returns IPO sub amounts separately (4M).
