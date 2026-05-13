@@ -52,6 +52,22 @@ User is asking *"is it safe to clear?"* — yes, once this entry is committed. A
 
 ---
 
+## ✅ 2026-05-13 — Tasks T25-T26: BH Financials snapshot reminder cron + cockpit banner
+
+Implemented and shipped T25-T26 from `docs/superpowers/plans/2026-05-12-bh-financials-balances.md`.
+
+**Commit:** `e7bf9a9`
+
+**What was done:**
+- `src/app/api/cron/bh-financials-snapshot-reminder/route.ts` — cron handler: checks Cairo local hour (gate: h===9), queries `bh_balance_snapshots` to build frozenSet, calls `nextSnapshotDue`, upserts `bh_financials_reminders` row when overdue (idempotent via `onConflict: period_end,company_scope`).
+- `src/app/api/cron/bh-financials-snapshot-reminder/route.test.ts` — 2 tests: 401 without bearer, 200+skipped key outside Cairo-9-AM. 2/2 passing.
+- `vercel.json` — 2 new cron entries: `0 6 * * 0` + `0 7 * * 0` (DST-safe Sunday pair for Cairo 9 AM).
+- `src/app/beithady/financials/page.tsx` — `loadCockpitData` now queries `bh_financials_reminders` (unresolved + not-dismissed), returns `reminders[]`. Banner renders above the 3-card status row when `reminders.length > 0`, linking to `/beithady/financials/snapshots`.
+
+**Test results:** 2/2 pass. tsc clean for both new files.
+
+---
+
 ## ✅ 2026-05-13 — Tasks T20-T24: BH Financials 5 new subpages (snapshots, ledgers, reconciliation, import, import/[upload_id])
 
 Batched execution of T20-T24 from `docs/superpowers/plans/2026-05-12-bh-financials-balances.md`.
