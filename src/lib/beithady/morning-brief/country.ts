@@ -242,10 +242,8 @@ export function sumEgyptByCurrency(totals: BucketCurrencyTotals): Map<string, nu
   return out;
 }
 
-// Render the UAE-only "separate info line" — used when the user wants
-// transparency on UAE activity even though it's excluded from totals.
-// Returns null if no UAE rows exist (so callers don't render an empty
-// line).
+// Render the UAE-only "separate info line" — quiet info, no callout chip.
+// Returns null if no UAE rows exist (so callers don't render an empty line).
 export function formatDxbInfoLine(
   totals: BucketCurrencyTotals,
   count: number,
@@ -258,11 +256,10 @@ export function formatDxbInfoLine(
     ? entries.map(([ccy, v]) => formatMoneyByCurrency(v, ccy)).join(' + ')
     : null;
   const label = language === 'ar' ? BUCKET_LABEL['BH-DXB'].ar : BUCKET_LABEL['BH-DXB'].en;
-  const note = language === 'ar' ? 'مستثناة من الإجمالي' : 'excluded from totals';
   if (moneyLine) {
-    return `${label}: ${count} · ${moneyLine} (${note})`;
+    return `${label}: ${count} · ${moneyLine}`;
   }
-  return `${label}: ${count} reservation${count === 1 ? '' : 's'} (${note})`;
+  return `${label}: ${count} reservation${count === 1 ? '' : 's'}`;
 }
 
 // ===== Catalog reference list (helper for the rebucket migration) =====
@@ -283,5 +280,20 @@ export function bucketInventoryFromCatalog(): Record<BriefBucket, number> {
     out['BH-OTHERS'] += 1;
   }
   return out;
+}
+
+// Sum Egypt totals across all buckets and format as a single string for
+// section titles ("$7,958" or "$7,958 + 1,234 EGP"). Excludes BH-DXB.
+// Returns empty string when nothing to sum — callers use truthiness to
+// decide whether to append ` — $X` to a section title.
+export function formatEgyptGrandTotal(
+  totals: BucketCurrencyTotals,
+): string {
+  const sums = sumEgyptByCurrency(totals);
+  const entries = Array.from(sums.entries())
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return '';
+  return entries.map(([ccy, v]) => formatMoneyByCurrency(v, ccy)).join(' + ');
 }
 

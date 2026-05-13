@@ -9,7 +9,7 @@ import {
   formatEgyptTotalsLine,
   formatDxbInfoLine,
   formatMoneyByCurrency,
-  formatMoneyBucket,
+  formatEgyptGrandTotal,
   sumEgyptByCurrency,
   BUCKET_LABEL,
   EGYPT_BUCKETS,
@@ -226,10 +226,6 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
     return parts.join(' · ');
   })();
   const unpaidEgyptCount = EGYPT_BUCKETS.reduce((s, b) => s + unpaidByBucket[b].count, 0);
-  const unpaidDxbCount = unpaidByBucket['BH-DXB'].count;
-  const unpaidDxbLine = unpaidDxbCount > 0
-    ? `BH-DXB: ${unpaidDxbCount} reservation${unpaidDxbCount === 1 ? '' : 's'} (excluded from totals)`
-    : null;
 
   // Helper: "BH-DXB: N reservations · X AED (excluded from totals)" when there's UAE activity.
   const dxbLine = (totals: typeof yestTotals, count: number) =>
@@ -237,35 +233,40 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
 
   const sections: BriefSection[] = [
     {
-      title: `Yesterday's revenue (${yestEgypt} bookings)`,
+      title: (() => {
+        const total = formatEgyptGrandTotal(yestTotals);
+        return total
+          ? `Yesterday's revenue (${yestEgypt} bookings) — ${total}`
+          : `Yesterday's revenue (${yestEgypt} bookings)`;
+      })(),
       emoji: '💰',
       items: [
         {
           primary: `${formatEgyptTotalsLine(yestTotals, 'en')} accrued`,
           secondary: yestChannelLine || (yestEgypt === 0 ? 'Quiet day' : 'Per-bucket above'),
-          tag: yestEgypt === 0
-            ? { label: 'Quiet day', tone: 'slate' }
-            : { label: `${yestEgypt} new`, tone: 'green' },
+          ...(yestEgypt === 0 ? { tag: { label: 'Quiet day', tone: 'slate' as const } } : {}),
         },
         ...(yestCount['BH-DXB'] > 0 ? [{
           primary: dxbLine(yestTotals, yestCount['BH-DXB']) || '',
           secondary: undefined,
-          tag: { label: 'UAE — excluded', tone: 'slate' as const },
         }] : []),
       ],
     },
     {
-      title: 'Month-to-date',
+      title: (() => {
+        const total = formatEgyptGrandTotal(mtdTotals);
+        return total
+          ? `Month-to-date — ${total} across ${mtdEgypt} bookings`
+          : `Month-to-date — ${mtdEgypt} bookings`;
+      })(),
       emoji: '📊',
       items: [
         {
-          primary: `${formatEgyptTotalsLine(mtdTotals, 'en')} MTD across ${mtdEgypt} bookings`,
-          secondary: 'Per Egypt bucket in native currency · UAE excluded.',
+          primary: formatEgyptTotalsLine(mtdTotals, 'en'),
         },
         ...(mtdCount['BH-DXB'] > 0 ? [{
           primary: dxbLine(mtdTotals, mtdCount['BH-DXB']) || '',
           secondary: undefined,
-          tag: { label: 'UAE — excluded', tone: 'slate' as const },
         }] : []),
       ],
     },
@@ -280,13 +281,11 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
         },
         ...((stayingCanonical.arriving_today?.length || 0) > 0 ? [{
           primary: `${stayingCanonical.arriving_today!.length} arriving today (counted in stay total)`,
-          secondary: 'Guesty UI may show only physically-checked-in guests; this brief uses calendar-overlap.',
           tag: { label: 'Pending arrival', tone: 'amber' as const },
         }] : []),
         ...(stayingCount['BH-DXB'] > 0 ? [{
           primary: dxbLine(stayingTotals, stayingCount['BH-DXB']) || '',
           secondary: undefined,
-          tag: { label: 'UAE — excluded', tone: 'slate' as const },
         }] : []),
       ],
       empty_message: 'No active stays today.',
@@ -310,27 +309,15 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '⏱',
       items: payouts2Egypt > 0 ? [
         {
-          primary: `${formatEgyptTotalsLine(payouts2Totals, 'en')} accruing`,
-          secondary: EGYPT_BUCKETS.filter(b => payouts2Count[b] > 0).map(b => `${BUCKET_LABEL[b].en}: ${payouts2Count[b]}`).join(' · '),
+          primary: (() => {
+            const total = formatEgyptGrandTotal(payouts2Totals);
+            return total
+              ? `${total} accruing across ${payouts2Egypt} reservation${payouts2Egypt === 1 ? '' : 's'}`
+              : `${payouts2Egypt} reservation${payouts2Egypt === 1 ? '' : 's'} accruing`;
+          })(),
           tag: { label: 'Forecast', tone: 'cyan' },
         },
-        ...payouts2.filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname }))).slice(0, 8).map(r => {
-          const bucket = bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname });
-          return {
-            primary: `${r.check_in_date} · ${r.listing_nickname || '—'}`,
-            secondary: `${BUCKET_LABEL[bucket].en} · ${r.channel || ''} · ${formatMoneyBucket(Number(r.host_payout || 0), bucket)}`,
-          };
-        }),
-        ...(payouts2Count['BH-DXB'] > 0 ? [{
-          primary: dxbLine(payouts2Totals, payouts2Count['BH-DXB']) || '',
-          secondary: undefined,
-          tag: { label: 'UAE — excluded', tone: 'slate' as const },
-        }] : []),
-      ] : (payouts2Count['BH-DXB'] > 0 ? [{
-        primary: dxbLine(payouts2Totals, payouts2Count['BH-DXB']) || '',
-        secondary: undefined,
-        tag: { label: 'UAE — excluded', tone: 'slate' as const },
-      }] : []),
+      ] : [],
       empty_message: 'No confirmed check-ins in the next 2 days.',
     },
     {
@@ -338,15 +325,14 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
       emoji: '📅',
       items: payoutsMEgypt > 0 ? [
         {
-          primary: `${formatEgyptTotalsLine(payoutsMTotals, 'en')} forecast through ${monthEndIso}`,
-          secondary: `${EGYPT_BUCKETS.filter(b => payoutsMCount[b] > 0).map(b => `${BUCKET_LABEL[b].en}: ${payoutsMCount[b]}`).join(' · ')} · assumes channel pre-collect.`,
+          primary: (() => {
+            const total = formatEgyptGrandTotal(payoutsMTotals);
+            return total
+              ? `${total} forecast through ${monthEndIso}`
+              : `${payoutsMEgypt} reservation${payoutsMEgypt === 1 ? '' : 's'} forecast through ${monthEndIso}`;
+          })(),
           tag: { label: 'Forecast', tone: 'cyan' },
         },
-        ...(payoutsMCount['BH-DXB'] > 0 ? [{
-          primary: dxbLine(payoutsMTotals, payoutsMCount['BH-DXB']) || '',
-          secondary: undefined,
-          tag: { label: 'UAE — excluded', tone: 'slate' as const },
-        }] : []),
       ] : [],
       empty_message: 'No confirmed bookings checking in this month.',
     },
@@ -359,48 +345,29 @@ export async function buildFinanceBrief(dateIso: string): Promise<Brief> {
           secondary: unpaidEgyptLine || 'Confirm payment with each guest before check-in',
           tag: { label: 'Action', tone: 'red' },
         },
-        ...unpaid
-          .filter(r => !isExcludedFromRevenue(bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname })))
-          .slice(0, 8)
-          .map(r => {
-            const bucket = bucketForListing({ building_code: r.building_code, listing_id: r.listing_id, nickname: r.listing_nickname });
-            const ccy = (r.payment_currency || r.currency || BUCKET_LABEL[bucket].display_currency).toUpperCase();
-            return {
-              primary: `${r.check_in_date} · ${r.listing_nickname || '—'} · ${r.guest_name || 'Guest'}`,
-              secondary: `${BUCKET_LABEL[bucket].en} · ${r.channel || ''}${r.payment_balance_cents != null ? ` · ${formatMoneyByCurrency((r.payment_balance_cents || 0) / 100, ccy)}` : ''}`,
-              href: `/beithady/operations/calendar?reservation=${r.reservation_id}`,
-            };
-          }),
-        ...(unpaidDxbLine ? [{
-          primary: unpaidDxbLine,
-          secondary: undefined,
-          tag: { label: 'UAE — excluded', tone: 'slate' as const },
-        }] : []),
-      ] : (unpaidDxbLine ? [{
-        primary: unpaidDxbLine,
-        secondary: undefined,
-        tag: { label: 'UAE — excluded', tone: 'slate' as const },
-      }] : []),
+      ] : [],
       empty_message: 'No unpaid reservations in the next 7 days. ✓',
     },
     {
-      title: `Direct-booking revenue yesterday (${directEgypt})`,
+      title: (() => {
+        const total = formatEgyptGrandTotal(directTotals);
+        return total
+          ? `Direct-booking revenue yesterday (${directEgypt}) — ${total}`
+          : `Direct-booking revenue yesterday (${directEgypt})`;
+      })(),
       emoji: '🎯',
       items: directEgypt > 0
         ? [{
-            primary: `${formatEgyptTotalsLine(directTotals, 'en')} from ${directEgypt} direct booking${directEgypt === 1 ? '' : 's'}`,
-            secondary: direct.filter(d => !isExcludedFromRevenue(bucketForListing({ building_code: d.building_code, listing_id: d.listing_id, nickname: d.listing_nickname }))).map(d => d.listing_nickname).filter(Boolean).slice(0, 5).join(' · '),
+            primary: formatEgyptTotalsLine(directTotals, 'en'),
+            secondary: direct
+              .filter(d => !isExcludedFromRevenue(bucketForListing({ building_code: d.building_code, listing_id: d.listing_id, nickname: d.listing_nickname })))
+              .map(d => d.listing_nickname)
+              .filter(Boolean)
+              .slice(0, 5)
+              .join(' · '),
             tag: { label: 'No commission', tone: 'green' },
-          }, ...(directCount['BH-DXB'] > 0 ? [{
-            primary: dxbLine(directTotals, directCount['BH-DXB']) || '',
-            secondary: undefined,
-            tag: { label: 'UAE — excluded', tone: 'slate' as const },
-          }] : [])]
-        : (directCount['BH-DXB'] > 0 ? [{
-            primary: dxbLine(directTotals, directCount['BH-DXB']) || '',
-            secondary: undefined,
-            tag: { label: 'UAE — excluded', tone: 'slate' as const },
-          }] : []),
+          }]
+        : [],
       empty_message: 'No direct bookings yesterday. Push the Direct funnel.',
     },
   ];
