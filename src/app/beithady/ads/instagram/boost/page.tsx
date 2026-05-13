@@ -129,7 +129,7 @@ export default async function InstagramBoostPage({
                           </a>
                         )}
                         <Link
-                          href={`/beithady/ads/instagram/boost?account_id=${selectedAccountId}&media_id=${m.id}`}
+                          href={`/beithady/ads/instagram/boost?account_id=${selectedAccountId}&media_id=${m.id}#boost-form`}
                           className="ix-btn-primary text-[10px] py-1 px-2 inline-flex items-center gap-1"
                         >
                           <Rocket size={10} /> Boost
@@ -146,7 +146,7 @@ export default async function InstagramBoostPage({
             const picked = mediaList.media.find(m => m.id === sp.media_id);
             if (!picked) return null;
             return (
-              <section className="ix-card p-5 space-y-4 border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/40">
+              <section id="boost-form" className="ix-card p-5 space-y-4 border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/40">
                 <div className="flex items-start gap-4">
                   {(picked.thumbnail_url || picked.media_url) && (
                     // eslint-disable-next-line @next/next/no-img-element
