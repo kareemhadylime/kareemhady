@@ -48,6 +48,27 @@ No commits this turn. Audit was inline-Python (cleaned up after).
 
 ---
 
+## 2026-05-13 — BH Financials Task 9: xlsx parse stage + tests
+
+**Completed Task 9** of the BH Financials plan (`docs/superpowers/plans/2026-05-12-bh-financials-balances.md`).
+
+**Files created:**
+- `src/lib/beithady/financials/xlsx-import.ts` — `parsePartnerLedgerXlsx(buffer)` with `server-only` directive
+- `src/lib/beithady/financials/xlsx-import.test.ts` — 3 tests, all passing
+
+**Key finding (deviation from plan):** The task description said `cell[2]=string, cell[3]=number` but actual Odoo exports use `v[1]=partner_name, v[2]=balance` (columns B and C in ExcelJS 1-indexed row.values). Verified by inspecting both fixture files. The filter `typeof v[1] === 'string' && typeof v[2] === 'number'` cleanly skips all header rows (date row has `v[1]=undefined`; sub-header and Balance rows have `v[2]` as a string, not a number).
+
+**Test results: 3/3 PASS**
+- 85 suppliers totaling -8,567,422.64 EGP
+- First row = '003. AMAN P V C' @ -3888 EGP
+- 6 owners totaling -2,518,213.03 EGP
+
+**Commit:** `82bb41c` — pushed to main.
+
+**Next:** Task 10 — classify stage (partner-match + category assignment).
+
+---
+
 ## 2026-05-13 — Task 7: BH Financials partner-name fuzzy matcher
 
 **Completed:** TDD implementation of `partner-match.ts` for the BH Financials ledger import pipeline.
