@@ -1,6 +1,7 @@
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { HCTabs } from './_components/hc-tabs';
+import { HKCalculator } from './_components/hk-calculator';
 import { fetchHKBaseData } from '@/lib/beithady/hc-estimator';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function HKPage() {
         subtitle={`Based on ${baseData.month} actuals — adjust multiplier to project forward.`}
       />
       <HCTabs />
-      <p className="text-slate-500 text-sm">HK calculator coming soon…</p>
+      <HKCalculator base={baseData} />
     </BeithadyShell>
   );
 }
