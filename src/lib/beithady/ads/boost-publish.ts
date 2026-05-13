@@ -110,7 +110,9 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       name: `${campaignName} — boost`,
       status: 'DRAFT',
       creative_type: 'boost_existing_post',
-      creative_url: input.permalink,
+      // creative_url is what the dashboard renders as an <img>, so use
+      // the IG thumbnail/media URL, not the permalink (which is a page URL)
+      creative_url: input.imageUrl || input.permalink,
       headline: null,
       body: input.caption?.slice(0, 500) || null,
       landing_url: input.ctwa === false ? input.landingUrl : buildBhWaLink(),
@@ -314,11 +316,12 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       name: `${campaignName} — boost ad`,
       status: 'PAUSED',
       creative_type: 'boost_existing_post',
-      creative_url: input.permalink,
+      // creative_url is rendered as <img> by the dashboard, so prefer thumbnail
+      creative_url: input.imageUrl || input.permalink,
       headline: null,
       body: input.caption?.slice(0, 500) || null,
       landing_url: landingUrl,
-      raw: { ig_media_id: input.igMediaId, object_story_id: objectStoryId } as object,
+      raw: { ig_media_id: input.igMediaId, object_story_id: objectStoryId, permalink: input.permalink } as object,
     },
     { onConflict: 'platform,external_id' }
   );
