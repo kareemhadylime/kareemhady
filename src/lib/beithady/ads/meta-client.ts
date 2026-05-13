@@ -338,3 +338,57 @@ export async function buildMetaTargetingSpec(
 
   return spec;
 }
+
+// === Ad-account recommendations (Opportunity Score) ===
+// Meta's Advantage+ panel surfaces ML-driven optimization suggestions. The
+// /act_<id>?fields=recommendations,opportunity_score endpoint returns the
+// same content seen in Ads Manager's "Actions to take" section.
+
+export type MetaRecommendation = {
+  type: string;                          // e.g. PARTNERSHIP_ADS, ADVANTAGE_PLUS_CREATIVE
+  recommendation_stage: string;          // pre_create_guidance, etc.
+  recommendation_time: string;
+  url: string;                           // deep link to Meta Ads Manager
+  object_ids: string[];
+  recommendation_content: {
+    lift_estimate?: string;              // e.g. "19% lower cost per result"
+    body?: string;
+    opportunity_score_lift?: string;     // e.g. "1" (points)
+  };
+};
+
+export type MetaRecommendationsBundle = {
+  opportunity_score: number | null;
+  recommendations: MetaRecommendation[];
+};
+
+export async function listMetaRecommendations(
+  adAccountId: string,
+  token: string
+): Promise<
+  | { ok: true; data: MetaRecommendationsBundle }
+  | { ok: false; error: string }
+> {
+  const url = `${GRAPH}/${adAccountId}?fields=recommendations,opportunity_score&access_token=${encodeURIComponent(token)}`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!r.ok || j.error) {
+      const msg = (j.error as { message?: string } | undefined)?.message || `http_${r.status}`;
+      return { ok: false, error: msg };
+    }
+    // Shape: { opportunity_score, recommendations: { data: [ { recommendations: [...] } ] } }
+    const groups = (j.recommendations as { data?: Array<{ recommendations?: MetaRecommendation[] }> } | undefined)?.data || [];
+    const flat: MetaRecommendation[] = [];
+    for (const g of groups) for (const rec of g.recommendations || []) flat.push(rec);
+    return {
+      ok: true,
+      data: {
+        opportunity_score: typeof j.opportunity_score === 'number' ? (j.opportunity_score as number) : null,
+        recommendations: flat,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
