@@ -148,10 +148,8 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
     // Budget lives at ad-set level (not CBO) — Meta API v21 requires this explicit
     is_adset_budget_sharing_enabled: false,
   };
-  // CTWA requires promoted_object at campaign level in Meta API v21+
-  if (useCtwa && c.fbPageId) {
-    campPayload.promoted_object = { page_id: c.fbPageId };
-  }
+  // NOTE: promoted_object must NOT be set at campaign level for OUTCOME_ENGAGEMENT
+  // (Meta sub:1815023). It is set at ad-set level only (see adsetPayload below).
   const campRes = await metaPost<{ id: string }>(
     `${adAccountPath}/campaigns`,
     campPayload,
