@@ -21,6 +21,7 @@ export function resolveUnitType(listingId: string): UnitTypeKey | null {
   if (/\b3[\s-]?br\b|\b3\s*bedroom\b/.test(title)) return 'threeBR';
   if (/\b4[\s-]?br\b|\b4\s*bedroom\b/.test(title)) return 'fourBR';
 
+  console.warn(`[hc-unit-type] unresolved unit type for listing ${listingId} ("${cat.title}")`);
   return null;
 }
 

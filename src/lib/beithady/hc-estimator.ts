@@ -102,10 +102,12 @@ export async function computeHKBaseData(now: Date = new Date()): Promise<HKBaseD
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
-  // Index rows by listing_id for rollover detection
+  // Index rows by listing_id for rollover detection (BH rows only — DXB excluded)
   const byListing = new Map<string, RawRes[]>();
   for (const r of rows) {
-    if (!r.listing_id) continue;
+    if (!r.listing_id || isExcludedFromReport(r.building_code)) continue;
+    const b = bucketFromGuestyListing({ building_code: r.building_code, id: r.listing_id });
+    if (!BUILDINGS.includes(b as BuildingKey)) continue;
     const existing = byListing.get(r.listing_id) || [];
     existing.push(r);
     byListing.set(r.listing_id, existing);
@@ -129,8 +131,8 @@ export async function computeHKBaseData(now: Date = new Date()): Promise<HKBaseD
   for (const r of rows) {
     if (!r.listing_id || !r.check_in_date || !r.check_out_date) continue;
 
-    const building = bucketFromGuestyListing({ building_code: r.building_code, id: r.listing_id });
     if (isExcludedFromReport(r.building_code)) continue;
+    const building = bucketFromGuestyListing({ building_code: r.building_code, id: r.listing_id });
     if (!BUILDINGS.includes(building as BuildingKey)) continue;
     const bk = building as BuildingKey;
 
@@ -158,14 +160,21 @@ export async function computeHKBaseData(now: Date = new Date()): Promise<HKBaseD
       }
     }
 
-    // Stay-ins: occupied on each interior date (not check-in or check-out day)
-    for (const date of dates) {
-      if (date > r.check_in_date && date < r.check_out_date) {
-        const bldMap = dayDataMap.get(date);
-        if (bldMap) {
-          bldMap.get(bk)!.stayIns++;
-          totalStayIns++;
-        }
+    // Stay-ins: walk only the interior dates of this reservation
+    const stayStart = new Date(Math.max(
+      new Date(r.check_in_date + 'T00:00:00Z').getTime() + 86400_000,
+      new Date(from + 'T00:00:00Z').getTime(),
+    ));
+    const stayEnd = new Date(Math.min(
+      new Date(r.check_out_date + 'T00:00:00Z').getTime() - 86400_000,
+      new Date(to + 'T00:00:00Z').getTime(),
+    ));
+    for (let d = new Date(stayStart); d <= stayEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      const bldMap = dayDataMap.get(dateStr);
+      if (bldMap) {
+        bldMap.get(bk)!.stayIns++;
+        totalStayIns++;
       }
     }
   }
@@ -212,6 +221,7 @@ export async function fetchHKBaseData(): Promise<HKBaseData> {
       .select('data')
       .eq('month_key', monthKey)
       .maybeSingle();
+    // If snapshot query errors, data is null — fall through to live aggregation gracefully.
     if (data) return data.data as HKBaseData;
   }
 
