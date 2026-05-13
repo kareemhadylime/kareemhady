@@ -1,5 +1,72 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## 🔴 2026-05-12 — Personal Stock Investment: AUDIT FOUND POSITIONS ARE WRONG
+
+User uploaded 19 new broker reports to `C:\kareemhady\Lime Domains\Personal\AOLB\` — 3 categories × 3 years × 2 accounts (001/003) + 1 for 009: **Cashflow / Invoices / Executions**. Also screenshotted current broker positions:
+- 001: ACT Financial 150,000 @ 3.17
+- 003: ACT Financial 1,281,100 @ 3.1709
+- 003: Beltone Financial 86,600 @ 3.435
+- 009: ICS Makaseb (not screenshotted)
+
+**DB currently shows 8 open positions** — only 2 overlap with broker truth, and both have wrong quantities. 6 positions are phantom (broker says 0).
+
+**Audit verdict:** parser + classifier are NOT losing data. Trade counts per (account, year) match Invoices files exactly (one off-by-one in 001/2026: Invoices has 14, DB has 13). Cash, fees, dividends, deposits, withdrawals, transfers — all match. **The AOLB Account, Cashflow, and Invoices files themselves don't capture stock transfers between accounts or corporate actions (bonus issues, IPO allocations).**
+
+**Two types of off-invoice events identified:**
+1. Internal stock transfers between Kareem's accounts (symmetric +/− on 001 vs 003 for Emaar Misr 220k, Ezz Steel 57.3k, TMG 51.8k, Construction 5.35k, Egyptian Tourism 120k, SODIC 24.7k, Orascom 46.8k = Orascom Development Egypt renamed 1:1)
+2. ACT Financial corporate action — Invoices net +51,790 vs broker 1,431,100 = ~1.38M shares from IPO subscription (the `اكتتاب اكت` Arabic Daily fee rows) and/or bonus issue (the paired `460,794 EGP CASHDIVIDEND` 003↔001 transfers are likely bonus-issue cash value).
+
+**Minor data-fix items found:**
+- DB has 22 interest rows; Cashflow has 23 (17 INTEREST + 6 BANK PROFIT). One row missing — investigate by diffing raw rows for affected file.
+- DB has 001/2026 13 trades; Invoices file has 14. Re-upload to capture the latecomer.
+- Dividend `460,794 EGP ACT coupon transfer 003→001` is currently inserted as 2 dividend rows in DB (gross 2.08M); should be classified as inter-account transfer (net dividends ≈ 1.16M).
+
+**Recommended fixes (ranked):**
+1. Add `personal_stock_position_overrides` table — single source of truth per (account, instrument) with override qty + avg_cost; positions view becomes `coalesce(override, computed)`. ~1h work.
+2. Re-import `AOLB Account 001 - 2026.xls` to pick up the missing 14th trade.
+3. Fix missing BANK PROFIT row (investigate raw rows in 001/2024).
+4. Classifier: detect Arabic `تحويل كوبون` text on CASHDIVIDEND and route to `cash_movements` (transfer) instead of `dividends`.
+5. Long-term: add Holdings-snapshot import (drop a broker position export to overwrite computed positions).
+
+**Awaiting user decision:** "the cleanest immediate fix is #1 (position overrides) — gives a manual escape valve for the 9 mismatched positions. Want me to brainstorm + plan + ship that, or hold for your call?"
+
+**Update 2026-05-13:** User said "use new files as source of truth to override mismatches; ask specific questions if needed". On deeper analysis I found that Σ-Invoices-across-accounts net qty per ticker matches broker truth for everything EXCEPT ACT Financial (which is off by +1,379,310 shares — clear bonus issue / IPO allocation signal). So the Invoices files are authoritative for total holdings; per-account split is silent inter-account stock transfers.
+
+**3 specific questions asked, awaiting user answers:**
+1. **ACT Financial extra ~1.38M shares** — bonus issue (ratio?), IPO subscription allocation (qty + price?), both, or "just trust broker's avg cost"?
+2. **009 ICS Makaseb current position** — qty + avg cost? (Not on screenshot.)
+3. **Confirm silent inter-account stock transfers**: 220k Emaar Misr 001→003 · 57.3k Ezz Steel 001→003 · 51.8k T M G 001→003 · 5.35k Orascom Construction 001→003 · 120k Egyptian Tourism 003→001 · 24.7k SODIC 003→001 · 46.8k Orascom = Orascom Development Egypt (within 003, ticker rename).
+
+**Planned fix once answers in hand:** `personal_stock_position_overrides` table seeded with broker truth — 001/ACT 150k @ 3.17 · 003/ACT 1,281,100 @ 3.1709 · 003/Beltone 86,600 @ 3.435 · 009/ICS (TBD) · all other (account, instrument) pairs → qty=0. Positions view becomes `coalesce(override, computed)`. Plus a re-import pass on `AOLB Account 001 - 2026.xls` to pick up the 1 missing invoice the file has but DB doesn't.
+
+No commits this turn. Audit was inline-Python (cleaned up after).
+
+**Reference for next session:**
+- Audit logic was inline (Python scripts deleted after run); needs to be re-codified as `scripts/audit-stocks.py` for re-runs after future statement uploads (this was the dispatch I queued and then handled inline instead).
+- Supabase MCP `execute_sql` was used; no new schema applied.
+- No commits this turn.
+
+---
+
+## 2026-05-13 — Task 7: BH Financials partner-name fuzzy matcher
+
+**Completed:** TDD implementation of `partner-match.ts` for the BH Financials ledger import pipeline.
+
+**Files created:**
+- `src/lib/beithady/financials/partner-match.ts` — pure utility: `normalizePartnerName`, `scoreMatch` (Jaccard token-set), `matchPartners`
+- `src/lib/beithady/financials/partner-match.test.ts` — 10 tests across 3 describe blocks
+
+**Test results:** 10/10 passed. TDD order followed: tests written first, confirmed FAIL (module not found), then implementation, then PASS.
+
+**Key design decisions:**
+- `normalizePartnerName` strips `NUMERIC_PREFIX` (`020. `, `034 - `) and `NUMERIC_SUFFIX` (`.138`), lowercases, collapses whitespace
+- `scoreMatch` uses Jaccard similarity on token sets (splits on `\s`, `()`, `-`); identical strings short-circuit to 1.0
+- `matchPartners` uses exact map lookup first, then fuzzy at threshold 0.7; returns `confidence: 'exact' | 'fuzzy' | 'unmatched'`
+
+**Commit:** `13648af` — pushed to `origin/main`
+
+---
+
 ## 🟢 2026-05-12 — Personal Stock Investment module: ALL 23 TASKS COMPLETE & DEPLOYED ✅
 
 **Live at:** `/personal/stocks` on `limeinc.vercel.app` (and `app.limeinc.cc` after alias refresh if it didn't auto-update). Build verified, 37 static pages generated.
