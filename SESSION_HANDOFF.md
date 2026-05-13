@@ -1,3 +1,17 @@
+# Kareemhady — Session Handoff (2026-05-13)
+
+## ✅ 2026-05-13 — Task 12: `buildLedgerReport` + test (BH Financials plan)
+
+Created `src/lib/beithady/financials/ledgers.ts` and `src/lib/beithady/financials/ledgers.test.ts`.
+
+- `buildLedgerReport(params)` fetches the latest frozen `bh_balance_snapshots` row for the given `scope` at or before `as_of`, loads per-partner opening balances from `bh_balance_snapshot_partners` (filtered by `kind`), then paginates `odoo_move_lines` for deltas after the snapshot date, returns `LedgerRow[]` with `opening_balance + delta = current_balance` (rounded to 2dp).
+- Pagination loop: 1000 rows/page, `.order('id').range()` convention per project.
+- `kind: 'all'` skips the partner_kind filter.
+- Test: 1/1 pass. Note: vitest's `vi.mock` calls `mockFrom(undefined)` during mock initialization — guard added (`if (t === undefined) return undefined`) to prevent a spurious throw.
+- Commit: `e6f9ca7` — pushed to `main`.
+
+---
+
 # Kareemhady — Session Handoff (2026-05-12)
 
 ## ✅ 2026-05-13 — Stock positions reconciled to broker truth (migration 0119 deployed)
