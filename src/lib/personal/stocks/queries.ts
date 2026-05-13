@@ -146,6 +146,7 @@ export async function getDashboardKpis(opts: {
 }
 
 export type HoldingRow = {
+  accountId: number;
   accountCode: string;
   instrumentId: number;
   ticker: string;
@@ -157,13 +158,14 @@ export type HoldingRow = {
   currentValue: number | null;
   unrealizedPnl: number | null;
   unrealizedPnlPct: number | null;
+  overridden: boolean;
 };
 
 export async function getTopHoldings(limit?: number): Promise<HoldingRow[]> {
   const client = supabaseAdmin();
   const positions = await client
     .from('v_personal_stock_positions')
-    .select('account_id, instrument_id, qty_held, avg_cost');
+    .select('account_id, instrument_id, qty_held, avg_cost, overridden');
   if (!positions.data?.length) return [];
 
   const instrumentIds = [
@@ -219,6 +221,7 @@ export async function getTopHoldings(limit?: number): Promise<HoldingRow[]> {
       instrument_id: number;
       qty_held: number;
       avg_cost: number;
+      overridden: boolean;
     }) => {
       const ins = instrById.get(p.instrument_id) as
         | { id: number; ticker: string; name: string }
@@ -229,6 +232,7 @@ export async function getTopHoldings(limit?: number): Promise<HoldingRow[]> {
       const cv = lp ? qty * lp.price : null;
       const up = lp ? (lp.price - avg) * qty : null;
       return {
+        accountId: p.account_id,
         accountCode: acctById.get(p.account_id) ?? '???',
         instrumentId: p.instrument_id,
         ticker: ins?.ticker ?? '?',
@@ -241,6 +245,7 @@ export async function getTopHoldings(limit?: number): Promise<HoldingRow[]> {
         unrealizedPnl: up,
         unrealizedPnlPct:
           up !== null && avg > 0 ? ((lp!.price - avg) / avg) * 100 : null,
+        overridden: Boolean(p.overridden),
       };
     },
   );
@@ -492,4 +497,78 @@ export async function getTransactions(f: TxnFilters): Promise<ActivityRow[]> {
       return true;
     })
     .slice(0, f.limit ?? 500);
+}
+
+// ─── Position overrides ──────────────────────────────────────────────────────
+
+export type OverrideRow = {
+  id: string;
+  accountId: number;
+  accountCode: string;
+  instrumentId: number;
+  ticker: string;
+  name: string;
+  qtyHeld: number;
+  avgCost: number;
+  note: string | null;
+  asOfDate: string;
+  enteredAt: string;
+  enteredBy: string | null;
+};
+
+export async function getAllOverrides(): Promise<OverrideRow[]> {
+  const client = supabaseAdmin();
+  const [overrides, accs, ins] = await Promise.all([
+    client
+      .from('personal_stock_position_overrides')
+      .select('id, account_id, instrument_id, qty_held, avg_cost, note, as_of_date, entered_at, entered_by')
+      .order('entered_at', { ascending: false }),
+    client.from('personal_stock_accounts').select('id, code'),
+    client.from('personal_stock_instruments').select('id, ticker, name'),
+  ]);
+  const acct = new Map<number, string>((accs.data ?? []).map((a) => [a.id, a.code]));
+  const inst = new Map<number, { ticker: string; name: string }>(
+    (ins.data ?? []).map((i) => [i.id, { ticker: i.ticker, name: i.name }]),
+  );
+  return (overrides.data ?? []).map((o) => ({
+    id: o.id,
+    accountId: o.account_id,
+    accountCode: acct.get(o.account_id) ?? '?',
+    instrumentId: o.instrument_id,
+    ticker: inst.get(o.instrument_id)?.ticker ?? '?',
+    name: inst.get(o.instrument_id)?.name ?? '?',
+    qtyHeld: Number(o.qty_held),
+    avgCost: Number(o.avg_cost),
+    note: o.note,
+    asOfDate: o.as_of_date,
+    enteredAt: o.entered_at,
+    enteredBy: o.entered_by,
+  }));
+}
+
+export async function getInstrumentsList(): Promise<
+  Array<{ id: number; ticker: string; name: string; kind: string }>
+> {
+  const client = supabaseAdmin();
+  const r = await client
+    .from('personal_stock_instruments')
+    .select('id, ticker, name, kind')
+    .order('name');
+  return (r.data ?? []).map((i) => ({
+    id: i.id,
+    ticker: i.ticker,
+    name: i.name,
+    kind: i.kind,
+  }));
+}
+
+export async function getAccountsList(): Promise<
+  Array<{ id: number; code: string; kind: string }>
+> {
+  const client = supabaseAdmin();
+  const r = await client
+    .from('personal_stock_accounts')
+    .select('id, code, kind')
+    .order('code');
+  return (r.data ?? []).map((a) => ({ id: a.id, code: a.code, kind: a.kind }));
 }

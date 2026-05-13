@@ -34,7 +34,17 @@ export function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                 className="border-t border-slate-100 dark:border-slate-800"
               >
                 <td className="px-3 py-2">
-                  <div className="font-medium">{r.ticker}</div>
+                  <div className="font-medium flex items-center gap-1.5">
+                    {r.ticker}
+                    {r.overridden && (
+                      <span
+                        title="Position is overridden — qty/avg cost come from a manual override row, not from trades"
+                        className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800"
+                      >
+                        Override
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10px] text-slate-400">{r.name}</div>
                 </td>
                 <td className="px-3 py-2">{r.accountCode}</td>
