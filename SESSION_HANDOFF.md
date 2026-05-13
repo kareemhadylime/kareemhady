@@ -1,5 +1,16 @@
 # Kareemhady — Session Handoff (2026-05-13)
 
+## ✅ 2026-05-13 — Task 13: `buildReconciliation` + test (BH Financials plan)
+
+Created `src/lib/beithady/financials/reconciliation.ts` and `src/lib/beithady/financials/reconciliation.test.ts`.
+
+- `buildReconciliation({ snapshot_id })` fetches all rows from `bh_balance_snapshot_accounts` for the given snapshot, maps to `ReconciliationRow[]`, and computes a 4-field summary: `accounts_with_partners` (partner_total not null), `accounts_awaiting_ledger` (partner_total null), `open_variance_count` (status='open' AND variance≠0), `total_variance` (sum rounded to 2dp).
+- Exports: `buildReconciliation`, `ReconciliationRow`, `ReconciliationReport`.
+- Test: 1/1 pass. TDD: confirmed FAIL before implementation.
+- Commit: `312c3ad` — pushed to `main`.
+
+---
+
 ## ✅ 2026-05-13 — Task 12: `buildLedgerReport` + test (BH Financials plan)
 
 Created `src/lib/beithady/financials/ledgers.ts` and `src/lib/beithady/financials/ledgers.test.ts`.
