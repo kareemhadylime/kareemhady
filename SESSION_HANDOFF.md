@@ -1,5 +1,35 @@
 # Kareemhady — Session Handoff (2026-05-12)
 
+## ✅ 2026-05-13 — Stock positions reconciled to broker truth (migration 0119 deployed)
+
+User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no bonus issue; (Q2) 009 ICS Makaseb = 0 today, no 2026 activity; (Q3) all inferred inter-account transfers are real.
+
+**Migration 0119 applied** (`1c51bdc` on `main`): added `personal_stock_position_overrides` table with unique (account_id, instrument_id), rebuilt `v_personal_stock_positions` view to coalesce override → computed, rebuilt `v_personal_stock_dashboard_kpis` (cascade dep).
+
+**Seeded 9 overrides** as of 2026-05-12 from broker dashboard:
+- 001/ACT 150,000 @ 3.17 (IPO allocation + transfers) — note this position did NOT previously exist in DB because there were zero ACT buys recorded against 001
+- 003/ACT 1,281,100 @ 3.1709
+- 003/Beltone 86,600 @ 3.435
+- 6 zero-out rows: 001/{Emaar,EzzSteel,TMG,OrascomConstruction}, 003/{EgyptianTourism,SODIC}
+
+**Verification:**
+- v_personal_stock_positions now shows exactly 3 active positions, all `overridden=true`
+- v_personal_stock_dashboard_kpis.open_positions_cost_egp = 4,835,211 (was 20.5M; broker total cost 4,835,192 — match within 19 EGP rounding)
+- Dashboard tile + Portfolio tab will reflect the corrected positions on next page load
+
+**Small data-fix items still queued (low priority):**
+- DB has 22 interest rows; Cashflow file has 23 (17 INTEREST + 6 BANK PROFIT) — one row missing from import
+- DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
+- ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
+
+**Not yet implemented (future enhancement):**
+- UI to manage overrides via `/personal/stocks/prices` or a new "Positions" admin tab
+- Currently overrides are insert-only via SQL; user can re-seed by clearing the table and re-running the insert
+
+No new tests added in this turn (the override path is a DB-only change; existing 396 vitest pass unchanged).
+
+---
+
 ## 🔴 2026-05-12 — Personal Stock Investment: AUDIT FOUND POSITIONS ARE WRONG
 
 User uploaded 19 new broker reports to `C:\kareemhady\Lime Domains\Personal\AOLB\` — 3 categories × 3 years × 2 accounts (001/003) + 1 for 009: **Cashflow / Invoices / Executions**. Also screenshotted current broker positions:
