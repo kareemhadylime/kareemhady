@@ -493,6 +493,7 @@ export async function boostInstagramPostAction(formData: FormData): Promise<void
   const igMediaId = String(formData.get('ig_media_id') || '').trim();
   const permalink = String(formData.get('permalink') || '').trim() || null;
   const caption = String(formData.get('caption') || '').trim() || null;
+  const imageUrl = String(formData.get('image_url') || '').trim() || null;
   const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
   const targetCountries = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
@@ -519,6 +520,7 @@ export async function boostInstagramPostAction(formData: FormData): Promise<void
     igMediaId,
     permalink,
     caption,
+    imageUrl,
     campaignName,
     buildingCodes,
     targetCountries,

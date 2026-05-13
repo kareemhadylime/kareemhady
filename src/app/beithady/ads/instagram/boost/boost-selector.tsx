@@ -187,6 +187,7 @@ export function BoostSelector({
             <input type="hidden" name="ig_media_id" value={picked.id} />
             <input type="hidden" name="permalink" value={picked.permalink || ''} />
             <input type="hidden" name="caption" value={picked.caption || ''} />
+            <input type="hidden" name="image_url" value={picked.thumbnail_url || picked.media_url || ''} />
 
             <div className="space-y-1">
               <label htmlFor="campaign_name" className="text-xs font-semibold">

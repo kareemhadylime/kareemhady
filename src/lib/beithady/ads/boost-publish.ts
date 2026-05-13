@@ -20,6 +20,7 @@ export type BoostIgInput = {
   igMediaId: string;                  // the existing post/Reel id
   permalink: string | null;
   caption: string | null;
+  imageUrl?: string | null;           // IG media thumbnail/image URL for ad creative picture
   campaignName?: string;
   buildingCodes: string[];
   targetCountries: string[];          // ISO alpha-2
@@ -234,6 +235,7 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
           link_data: {
             link: landingUrl,
             message: input.caption?.slice(0, 500) || `Beit Hady — discover our newest collection`,
+            ...(input.imageUrl ? { picture: input.imageUrl } : {}),
           },
         },
       };
