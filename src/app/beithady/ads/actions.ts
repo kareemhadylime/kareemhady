@@ -14,6 +14,7 @@ import { setCampaignStatusUnified } from '@/lib/beithady/ads/status';
 import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers, listTikTokIdentities } from '@/lib/beithady/ads/tiktok-paid-publish';
 import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
 import { publishInstagramReel, pollInstagramPostStatus } from '@/lib/beithady/ads/instagram-publish';
+import { boostInstagramPost } from '@/lib/beithady/ads/boost-publish';
 import { syncAllPlatforms } from '@/lib/beithady/ads/unified-sync';
 import { syncGoogleAds } from '@/lib/beithady/ads/google-sync';
 import { syncTikTokAds } from '@/lib/beithady/ads/tiktok-sync';
@@ -481,6 +482,66 @@ export async function publishInstagramReelAction(formData: FormData): Promise<vo
   }
   revalidatePath('/beithady/ads/instagram/reels');
   redirect(`/beithady/ads/instagram/reels?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
+}
+
+export async function boostInstagramPostAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const igBusinessId = String(formData.get('ig_business_id') || '').trim();
+  const igMediaId = String(formData.get('ig_media_id') || '').trim();
+  const permalink = String(formData.get('permalink') || '').trim() || null;
+  const caption = String(formData.get('caption') || '').trim() || null;
+  const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
+  const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
+  const targetCountries = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  const ageMin = Number.parseInt(String(formData.get('age_min') || '25'), 10);
+  const ageMax = Number.parseInt(String(formData.get('age_max') || '55'), 10);
+  const dailyBudgetUsd = Number.parseFloat(String(formData.get('daily_budget_usd') || '5'));
+  const durationDays = Number.parseInt(String(formData.get('duration_days') || '7'), 10) || 0;
+  const monthlyBudgetCapUsdRaw = String(formData.get('monthly_budget_cap_usd') || '').trim();
+  const monthlyBudgetCapUsd = monthlyBudgetCapUsdRaw && Number.isFinite(Number(monthlyBudgetCapUsdRaw)) ? Number(monthlyBudgetCapUsdRaw) : null;
+  const destination = String(formData.get('destination') || 'ctwa');
+  const landingUrl = String(formData.get('landing_url') || '').trim() || undefined;
+
+  if (!Number.isFinite(accountId) || !igBusinessId || !igMediaId) {
+    redirect('/beithady/ads/instagram/boost?error=missing_required');
+  }
+  if (!buildingCodes.length || !targetCountries.length) {
+    redirect(`/beithady/ads/instagram/boost?account_id=${accountId}&media_id=${igMediaId}&error=missing_targeting`);
+  }
+
+  const result = await boostInstagramPost({
+    accountId,
+    igBusinessId,
+    igMediaId,
+    permalink,
+    caption,
+    campaignName,
+    buildingCodes,
+    targetCountries,
+    ageMin,
+    ageMax,
+    dailyBudgetUsd,
+    monthlyBudgetCapUsd,
+    durationDays,
+    ctwa: destination !== 'link',
+    landingUrl,
+    createdBy: user.username || null,
+  });
+
+  if (!result.ok) {
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'ads',
+      action: 'boost_publish_failed',
+      metadata: { step: result.step, error: result.error, mode: result.mode, ig_media_id: igMediaId },
+    });
+    redirect(`/beithady/ads/instagram/boost?account_id=${accountId}&media_id=${igMediaId}&error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+
+  revalidatePath('/beithady/ads');
+  revalidatePath('/beithady/ads/campaigns');
+  redirect(`/beithady/ads/campaigns/${result.campaign_id}?published=${result.mode}`);
 }
 
 export async function pollInstagramPostAction(formData: FormData): Promise<void> {

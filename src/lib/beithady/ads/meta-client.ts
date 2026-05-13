@@ -168,6 +168,45 @@ export async function resolveIgForAccount(
   return { ok: true, ig_business_id: ig.id, ig_username: ig.username || null };
 }
 
+// === Existing IG media listing (for boost-post flow) ===
+// Returns the most recent N posts + reels + carousels from the connected
+// IG Business account. Stories are excluded — they expire after 24h and
+// have a separate /stories endpoint with different ad mechanics.
+
+export type IgMediaItem = {
+  id: string;
+  media_type: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM' | 'REELS';
+  media_product_type: 'AD' | 'FEED' | 'STORY' | 'REELS' | string | null;
+  permalink: string | null;
+  caption: string | null;
+  media_url: string | null;
+  thumbnail_url: string | null;
+  timestamp: string;
+  like_count: number | null;
+  comments_count: number | null;
+};
+
+export async function listIgMedia(
+  igBusinessId: string,
+  limit = 25
+): Promise<
+  | { ok: true; media: IgMediaItem[] }
+  | { ok: false; error: string }
+> {
+  const creds = await loadMetaCredentials();
+  if (!creds.ok) return { ok: false, error: creds.error };
+  const fields = 'id,media_type,media_product_type,permalink,caption,media_url,thumbnail_url,timestamp,like_count,comments_count';
+  const r = await metaGet<{ data: IgMediaItem[] }>(
+    `${igBusinessId}/media?fields=${fields}&limit=${Math.min(50, Math.max(1, limit))}`,
+    creds.creds.token
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const items = ((r.data as { data?: IgMediaItem[] })?.data || [])
+    // Posts + Reels + Carousels — exclude STORY (24h expiry isn't useful for ads)
+    .filter(m => m.media_product_type !== 'STORY');
+  return { ok: true, media: items };
+}
+
 // Probe — used by /admin/integrations to verify the token works.
 export async function pingMetaMarketing(): Promise<
   | { ok: true; ad_account_name: string; pages_count: number }
