@@ -249,9 +249,11 @@ export async function searchMetaInterest(
     const r = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!r.ok) return null;
     const j = (await r.json()) as { data?: Array<{ id: string; name: string }> };
+    // Exact match only — no fallback to j.data[0]. First-result fallback
+    // can return deprecated interest IDs (Meta sub:1870247) for near-matches.
     const match = (j.data || []).find(
       d => d.name.toLowerCase() === name.toLowerCase()
-    ) || j.data?.[0];
+    );
     return match ? { id: match.id, name: match.name } : null;
   } catch {
     return null;
