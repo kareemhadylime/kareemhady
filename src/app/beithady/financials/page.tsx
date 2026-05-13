@@ -46,11 +46,16 @@ async function loadCockpitData() {
   const today = new Date().toISOString().slice(0, 10);
   const next = nextSnapshotDue(today, frozenSet);
 
-  return { active, openVariance, openVarCount: openVarRows.length, next };
+  const { data: reminders } = await sb
+    .from('bh_financials_reminders')
+    .select('period_end, company_scope, first_seen_at, dismissed_until')
+    .is('resolved_at', null)
+    .or(`dismissed_until.is.null,dismissed_until.lt.${new Date().toISOString()}`);
+  return { active, openVariance, openVarCount: openVarRows.length, next, reminders: reminders ?? [] };
 }
 
 export default async function FinancialsCockpit() {
-  const { active, openVariance, openVarCount, next } = await loadCockpitData();
+  const { active, openVariance, openVarCount, next, reminders } = await loadCockpitData();
 
   return (
     <>
@@ -64,6 +69,16 @@ export default async function FinancialsCockpit() {
 
       <main className="max-w-6xl mx-auto px-6 py-10 flex-1">
         <h1 className="text-2xl font-bold mb-6">Financials · Beithady</h1>
+
+        {reminders.length > 0 ? (
+          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm">
+            🔴 <strong>Snapshot overdue:</strong>{' '}
+            {reminders.map((r) => `${r.period_end} (${r.company_scope})`).join(', ')}.{' '}
+            <a href="/beithady/financials/snapshots" className="underline ml-1">
+              Start draft →
+            </a>
+          </div>
+        ) : null}
 
         {/* Status row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">

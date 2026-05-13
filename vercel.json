@@ -64,6 +64,8 @@
     { "path": "/api/cron/fnb-checkout-reminder", "schedule": "0 6 * * *" },
     { "path": "/api/cron/fnb-checkout-reminder", "schedule": "0 7 * * *" },
     { "path": "/api/cron/fnb-send-menu-link",    "schedule": "*/10 * * * *" },
-    { "path": "/api/cron/beithady-fees-audit-sync", "schedule": "50 4 * * *" }
+    { "path": "/api/cron/beithady-fees-audit-sync", "schedule": "50 4 * * *" },
+    { "path": "/api/cron/bh-financials-snapshot-reminder", "schedule": "0 6 * * 0" },
+    { "path": "/api/cron/bh-financials-snapshot-reminder", "schedule": "0 7 * * 0" }
   ]
 }
