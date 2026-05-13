@@ -1,4 +1,89 @@
-# Kareemhady — Session Handoff (2026-05-13) [last-touch: 12:43:09]
+# Kareemhady — Session Handoff (2026-05-13) [last-touch: 16:26:00]
+
+## 🔵 2026-05-13 — Head Count Estimator module — brainstorming in progress
+
+**Status:** Brainstorming phase (clarifying questions), no code written yet.
+
+**Feature:** New module under BH Analytics — "Head Count Estimator"
+- First tab: Housekeeping (HK)
+- Second tab: Security (not yet designed)
+- Route will be: `/beithady/analytics/headcount`
+- New tile added to analytics launcher
+
+**All clarifying questions complete (Q1–Q6):**
+1. Data source = Guesty reservations from Supabase (last month actuals) + user-input multiplier
+2. Common areas = user-input hours per building per day
+3. Night shift HK = user-input count per building (BH-26, BH-73, BH-435, BH-OKAT)
+4. Security tab = fixed posts per building × shifts (roster planner, not occupancy-driven)
+5. Same-day rollover = peak concurrency constraint: checkout 11 AM / checkin 3 PM → 4-hr window; if rollovers exceed what can be done sequentially, HK count scales up to handle concurrently
+6. Output = weekly breakdown (W1: days 1–7, W2: 8–14, W3: 15–21, W4: 22–end) + monthly summary; hired monthly
+
+**Buildings in scope:** BH-26, BH-73, BH-435, BH-OKAT (share staff pool, adjacent)
+
+**HK rules confirmed:**
+- 1 HK × 1 hr → Studio / 1BR turnovers
+- 2 HKs × 1 hr each → 2BR / 3BR / 4BR turnovers
+- 5% of stay-in occupied units per day → daily HK
+- Day shift: 9 AM–5 PM (8 hrs); Night shift: 5 PM–1 AM (8 hrs), count user-input per building
+- Same-day rollover overrides daily count if peak demand exceeds 4-hr window capacity
+- 1 supervisor per 10 HKs (rounded up)
+
+**Approach chosen:** B — Server aggregates last-month reservation data once on page load (checkins per unit type / building / week); client component handles all input controls + calculation in React state (instant recalculation like a spreadsheet). No re-fetch on input change.
+
+**Design sections presented & approved so far:**
+- Section 1 ✅ — Module entry (tile on analytics hub, two tabs: HK + Security, route `/beithady/analytics/headcount`)
+- Section 2 ✅ — HK Input Panel: multiplier + presets strip, per-building grid (areas hrs + night HKs), last-month actuals table with live projected total
+- Section 3 ✅ — Calculation engine (turnover hrs, stay-in 5%, rollover peak override, supervisors per 10), weekly breakdown table (W1–W4 + monthly row), rollover ⚠️ flag
+- Section 4 ✅ — Split-pane output: table left + dashboard panel right (4 KPI cards, week-by-week bar chart, staff composition bars), both update on every input change
+
+**Still to design:**
+- Security tab (fixed posts × shifts per building)
+
+**Spec status:** Written, self-reviewed, user-approved at `docs/superpowers/specs/2026-05-13-hc-estimator-design.md`
+- Two self-review fixes applied: stayIns query expanded to cover long-stay guests; pooling logic made explicit
+
+**Writing-plans phase — in progress, one decision pending:**
+- User proposed caching last-month Guesty data after 15 days pass (smart — avoids re-querying 3k rows every page load)
+- Awaiting answer on snapshot generation method:
+  - A — Auto via Vercel cron on the 15th
+  - B — Manual "Lock Data" button in UI
+  - C — Lazy: compute on first page load after 15th, cache result forever
+- Once answered, update spec section 5/9 and write the implementation plan
+
+**Key existing file insights (gathered for plan writing):**
+- Reservation table: `guesty_reservations`, joined to `guesty_listings` via `listing:guesty_listings!left(building_code)` — building code lives on the listing, not the reservation row
+- `listing_nickname` on reservation rows encodes unit type (e.g. "BH26-ST-101", "BH73-2BR-A-204") — unit type must be parsed from nickname or joined from `guesty_listings`
+- `loadReservationCorpus()` in `src/lib/beithady-daily-report/reservations.ts` is the existing pattern — reuse its window-query approach
+- Launcher accent `teal` not in `beithady-launcher.tsx` ACCENT_CLASSES — use `cyan` instead (or add `teal`)
+- Tab pattern: copy `fnb-tabs.tsx` exactly, changing base to `/beithady/analytics/headcount` and tab labels
+
+**Snapshot caching:** Auto Vercel cron on 15th of each month (option A). After 15th: serve from `hc_estimator_snapshots` table; before 15th: live query.
+
+**Implementation plan:** Complete, saved to `docs/superpowers/plans/2026-05-13-hc-estimator.md`
+- 14 tasks, TDD throughout, all file paths + complete code provided
+- Two spec corrections baked in: building code is `'BH-OK'` (not `'BH-OKAT'`), launcher accent is `'cyan'` (not `'teal'`)
+- All 19 spec requirements mapped to tasks — self-review coverage table at bottom of plan
+
+**Task 4 DONE (2026-05-13 16:21):**
+- Created `src/lib/beithady/hc-estimator.ts` — server aggregation + snapshot logic
+- Created `src/lib/beithady/hc-estimator.test.ts` — 10 tests, all passing
+- Exports: `getLastMonthKey`, `getLastMonthWindow`, `assignWeek` (pure helpers), `computeHKBaseData`, `fetchHKBaseData`, `saveSnapshot`
+- `fetchHKBaseData()` serves from `hc_estimator_snapshots` table when day ≥ 15, else live query
+- Committed: `feat(hc-estimator): server aggregation + snapshot logic` (e9f8679)
+
+**Code quality fixes applied (2026-05-13 16:26) — commit 027a955:**
+1. `isExcludedFromReport` now guards before `bucketFromGuestyListing` in `computeHKBaseData`
+2. `byListing` index scoped to BH-only rows (DXB excluded from rollover detection)
+3. Stay-in loop replaced: O(reservations × days) → O(interior dates per reservation) date-range walk
+4. Silent-fallback comment added on `fetchHKBaseData` snapshot query
+5. `resolveUnitType` now emits `console.warn` for listings with a known category but no matching unit-type tag/title pattern
+All 10 tests still pass after fixes.
+
+**Ready to implement.** Next step: continue with remaining tasks per plan.
+Tasks complete: 1 (types), 2 (unit-type resolver), 3 (unit-type resolver tests), 4 (aggregation + snapshot)
+Tasks remaining: 5–14 per `docs/superpowers/plans/2026-05-13-hc-estimator.md`
+
+---
 
 ## 🔵 2026-05-13 — Google Ads account setup in progress (step-by-step walkthrough)
 
@@ -7294,3 +7379,29 @@ suite: 326 pass, 22 skipped, 1 pre-existing module-load failure on
 
 **Deployed:** push to main → GitHub→Vercel auto-deploy + `vercel --prod --yes`
 sandbox deploy as belt-and-suspenders.
+
+---
+
+## 2026-05-13 · Task 1: HC Estimator – Migration
+
+**Task:** Implement Supabase migration for `hc_estimator_snapshots` table.
+
+**Completed:**
+
+1. Created `supabase/migrations/0079_hc_estimator_snapshots.sql`
+   - `id` (UUID, PK, auto-generated)
+   - `month_key` (text, unique) — snapshot identifier like "2026-04"
+   - `data` (JSONB) — serialised HKBaseData snapshot
+   - `created_at` (timestamptz, auto-timestamp)
+
+2. Applied migration via Supabase MCP (`apply_migration` tool) — **success**
+
+3. Verified table exists via `execute_sql` — **success** — one row returned
+
+4. Committed: `feat(hc-estimator): migration — hc_estimator_snapshots table`
+   Commit hash: `1f5cea5`
+
+**Files changed:**
+- `supabase/migrations/0079_hc_estimator_snapshots.sql` (created)
+
+**Status:** DONE · Ready for next task (Task 2: TypeScript types)
