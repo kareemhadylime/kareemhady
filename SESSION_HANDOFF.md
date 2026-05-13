@@ -244,6 +244,16 @@ User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no b
 - DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
 - ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
 
+**Net bank flows (correction-aware) shipped (`e52f4ab` on main, 2026-05-13):**
+- User flagged: "Cash In 35.2M" is wrong because 14M of that was reversed by a Correction ("Cancel" on 001/2024). Same on withdrawal side — corrections cancelled 3.4M of withdrawals.
+- `getCapitalSummary` now returns: `bankInGrossEgp`, `bankInCancelledEgp`, `bankInNetEgp`, same for `bankOut*`, and a `feeRefundsEgp` bucket for non-withdrawal credit corrections.
+- Correction classification heuristic: debit > 0 → cancels a deposit; credit > 0 with Arabic "تحويل نقدي" in note → cancels a withdrawal; credit > 0 with other note → fee refund.
+- Dashboard "Bank flows (lifetime, net of cancelled rows)" section now shows: Bank In Net 21.2M (gross 35.2M · cancelled 14M) · Bank Out Net 16.3M (gross 19.6M · cancelled 3.4M) · Net contribution +4.97M · Fee refunds 0.22M.
+- Trading volume (Total Bought / Sold / delta) moved to its own row, relabelled as "gross — same shares often re-traded".
+- 433/433 vitest pass · tsc clean.
+
+---
+
 **Dashboard reframed around equity & margin (`1a572be` → rebased `1a08712` on main, 2026-05-13):**
 - User flagged: Cash In/Cash Out tiles were misleading (lifetime gross flows ≠ current balance) and margin (1.92M owed on 003) wasn't surfaced.
 - New `getCapitalSummary()` query → today's snapshot of equity, margin, cash-on-hand, lifetime fees+interest, per-account split.
