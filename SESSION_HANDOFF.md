@@ -1,5 +1,57 @@
 # Kareemhady — Session Handoff (2026-05-13)
 
+## 🟡 2026-05-13 (open) — Executing v3 daily-report plan via subagent-driven-development (8 of 13 tasks complete)
+
+Continuation of yesterday's brainstorming + spec + plan. User picked option **1 (Subagent-Driven)** for execution. Each task = fresh implementer subagent → spec compliance review → code quality review → fix loop if needed → next task.
+
+User is asking *"is it safe to clear?"* — yes, once this entry is committed. All shipped code is on `origin/main`; remaining 5 tasks are well-scoped and the next session can resume from Task 9 by reading the plan + this handoff.
+
+### Locations a fresh session needs
+
+- Worktree: `C:\kareemhady\.claude\worktrees\zen-euler-d3bd5e`
+- Branch: `claude/zen-euler-d3bd5e` (origin/main is the auto-deploy target)
+- Spec: `docs/superpowers/specs/2026-05-12-daily-report-v3-today-live-dxb-design.md`
+- Plan: `docs/superpowers/plans/2026-05-12-daily-report-v3-today-live-dxb.md`
+- Tests: 363 passing, 22 skipped. `npx tsc --noEmit` clean.
+
+### Completed tasks (all on origin/main)
+
+| Task | Description | Commits |
+|---|---|---|
+| 1 | Payload types — `YesterdaySummary`, `DxbSection`, `PayoutsSection.next_3d_*`, optional `DailyReportPayload.{yesterday_summary,dxb,data_fresh_to_iso}` | `84286e8` + `940bde2` (optional-fields fix per code review) |
+| 2 | Partitioned data loaders — `loadAllInventoriesWithDxb`, `loadReservationCorpusWithDxb`. Egypt-only originals kept alive for `daily-activity-live.ts`. | `cf78461` + `4cb9823` (JSDoc divergence note) |
+| 3 | `buildYesterdaySummary` (TDD, 6 tests) — yesterday's closing snapshot. Renewal-guard divergence from `build-buildings.ts`: only fires when exactly 1 check-in per listing on the date. Documented. | `4defa7d` + `1f446e0` (loop dedup + JSDoc) |
+| 4 | `buildDxbSection` (TDD, 4 tests) — parallel DXB mini-aggregate. Mirrors Task 3's renewal-guard. | `5b3b5d0` + `ea4ead7` (MTD attribution bug — removed spurious `check_out_date !== today` condition) |
+| 5 | `buildPayoutsSection` extended with `next_3d_{airbnb,stripe,total}_usd`. Stripe side filters the already-fetched 7d query — no extra API call. | `665cb46` + `80c2852` (eliminated redundant Stripe call per code review) |
+| 7 | Removed `today = yesterday` alias at `build.ts:56-58`. Audited all 23 builders — every one is Category-A (correct after flip). `today` now genuinely today. | `723a2b6` + `9e1a858` (audit list completed + TODO marker on `details_yesterday`) |
+| 6+8 | Combined: `loadDataFreshToIso` helper + orchestrator wiring. `Promise.all` of 3 parallel queries (inventory partition + reservation partition + freshness). Payload now populates `yesterday_summary`, `dxb`, `data_fresh_to_iso`. | `b9f71b1` |
+
+### Remaining tasks (5)
+
+- **Task 9** — Rewrite `src/lib/beithady-daily-report/distribute.ts:49-75` (`buildWhatsAppText`) to the final v3 layout. Plan has the full body template + line-by-line transform.
+- **Task 10** — Mirror layout in `render-html.tsx` (HTML email body). Lower detail sections stay Egypt-only.
+- **Task 11** — Mirror layout in `render-pdf.tsx` (PDF cover page).
+- **Task 12** — `vercel.json`: add `{ "path": "/api/cron/guesty", "schedule": "*/15 6-10 * * *" }` alongside the existing `40 */4 * * *`. Tightens morning data to ≤15-min stale at the 09:00 Cairo brief.
+- **Task 13** — Manual e2e on preview deploy via `/api/run-now` for `beithady-daily-report`. Compare WhatsApp output against Guesty Daily-activity panel for same Cairo date. Cross-check `yesterday_summary` against the prior day's snapshot.
+
+### Key nuances a fresh session MUST know
+
+1. **Renewal-guard divergence:** `buildYesterdaySummary` and `buildDxbSection` apply an "exactly 1 check-in" guard NOT in `build-buildings.ts`. Approved as a semantic improvement; documented in both JSDocs. If you write a third yesterday-anchored aggregator, mirror it for consistency.
+2. **DXB next_3d is Airbnb-only:** Stripe payouts can't be partitioned by market without metadata tagging. Documented as a v3 limitation in the spec under "non-goals".
+3. **Optional payload fields:** `yesterday_summary?`, `dxb?`, `data_fresh_to_iso?` are optional in `DailyReportPayload` for backwards-compatibility with pre-v3 stored snapshots in `daily_report_snapshots.payload`. Renderers (Tasks 9-11) must handle `undefined` gracefully (e.g. omit the line when the field is absent).
+4. **`build-extras.ts` `details_yesterday` field is now misleading** — captures TODAY's cancellations post-alias-removal. TODO marker in place at `build-extras.ts:73`. Rename deferred to keep the alias-removal commit focused.
+5. **Old single-market loaders kept alive:** Don't delete `loadBuildingInventories` / `loadReservationCorpus` from `units.ts` / `reservations.ts` — `src/lib/beithady/daily-activity-live.ts` still imports them.
+6. **Naming asymmetry:** `next_3d_*` (no `_projected_` infix) vs existing `next_7d_projected_*`. Per spec — don't rename without scope discussion.
+
+### Picking up after `/clear`
+
+1. Read this handoff + the spec + the plan.
+2. Continue with Task 9. The plan has the complete `buildWhatsAppText` rewrite ready to copy.
+3. Keep using `superpowers:subagent-driven-development` — fresh implementer subagent per task, then spec compliance + code quality reviewers.
+4. Each task is per-commit on `claude/zen-euler-d3bd5e`, push to `origin/main` (auto-deploys via GitHub→Vercel).
+
+---
+
 ## ✅ 2026-05-13 — Task 13: `buildReconciliation` + test (BH Financials plan)
 
 Created `src/lib/beithady/financials/reconciliation.ts` and `src/lib/beithady/financials/reconciliation.test.ts`.
