@@ -1,4 +1,4 @@
-import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart, Target } from 'lucide-react';
+import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart, Target, Users } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { BeithadyLauncher, type LauncherTile } from '../_components/beithady-launcher';
@@ -57,6 +57,14 @@ export default async function BeithadyAnalyticsPage() {
       description: 'Build custom dashboards · pivot tables · BCG matrix · A4 PDF · scheduled email + WhatsApp delivery.',
       icon: FileBarChart,
       accent: 'indigo',
+      badge: { label: 'New', tone: 'gold' },
+    },
+    {
+      href: '/beithady/analytics/headcount',
+      title: 'Head Count Estimator',
+      description: "Project HK & Security staffing needs based on last month's check-ins — weekly breakdown, peak-driven monthly hire recommendation.",
+      icon: Users,
+      accent: 'cyan',
       badge: { label: 'New', tone: 'gold' },
     },
   ];
