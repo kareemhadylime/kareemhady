@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-05-13)
 
+## 🟢 2026-05-13 — Boost existing IG content + Meta setup walkthrough
+
+**Shipped `a51e43e`** — new `/beithady/ads/instagram/boost` page lets operators promote Reels / posts / carousels they've already published, instead of uploading fresh creatives.
+
+- `src/lib/beithady/ads/meta-client.ts` gained `listIgMedia(igBusinessId, limit)` — pulls last 30 posts via `GET /{ig_business_id}/media`, filters out Stories (24h expiry doesn't fit ad lifecycles).
+- `src/lib/beithady/ads/boost-publish.ts` (new) — `boostInstagramPost(input)`: full 4-step Meta create (Campaign → AdSet → Creative → Ad) where the Creative uses `object_story_id = "<ig_business_id>_<media_id>"` instead of uploading new creative bytes. Likes + comments on the organic post stay attached to the boosted ad (strong social-proof signal). Two destination modes: CTWA (default, `OUTCOME_ENGAGEMENT` + `destination_type=WHATSAPP`) or external link (`OUTCOME_TRAFFIC` + landing URL). Draft-mode fallback when Meta creds missing.
+- `/beithady/ads/instagram/boost` — chip-strip account picker, grid of last 30 IG posts with thumbnail / video badge / carousel badge / caption / like + comment counts / post date. Click "Boost" on a card → inline configuration form appears (targeting, age, daily budget, duration, monthly cap, CTWA vs link).
+- Server action `boostInstagramPostAction` wired through `actions.ts`. Tab nav gains a "Boost IG" entry under the Publish group.
+- Audit-log entries land as `kind=boost_existing_ig_post` with the IG media id + permalink in metadata.
+
+**Conversation deliverable** — produced a step-by-step Meta setup walkthrough for the user. Covers 9 steps: BM verification → Meta App creation → System User + permanent token + scope list → asset assignment (ad account, Page, WABA, Pixel) → IG Business resolution → webhook configuration (lead form + IG + WABA) → Pixel + CAPI test-events setup → credential wiring (admin UI option A vs env vars option B) → smoke-test flow (token test, IG resolve, draft CTWA publish, CAPI verify, lead webhook end-to-end). Includes a troubleshooting matrix (10 common failures + fixes), timing expectations table, and asset-role reference table. No code change beyond the boost-IG ship — this was a docs/walkthrough deliverable for operator onboarding.
+
+`tsc --noEmit` clean for everything I touched (one pre-existing error in `financials/xlsx-import.ts` is unrelated).
+
+---
+
 ## 🟢 2026-05-13 — Finance morning brief trim shipped (commit `8dcf62b`)
 
 **What changed:** Finance & Accounting WhatsApp brief now fits one mobile screen.
