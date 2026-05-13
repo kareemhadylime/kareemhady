@@ -1,4 +1,4 @@
-# Kareemhady — Session Handoff (2026-05-13) [last-touch: 16:26:00]
+# Kareemhady — Session Handoff (2026-05-13) [last-touch: 16:55:00]
 
 ## 🔵 2026-05-13 — Head Count Estimator module — brainstorming in progress
 
@@ -79,9 +79,30 @@
 5. `resolveUnitType` now emits `console.warn` for listings with a known category but no matching unit-type tag/title pattern
 All 10 tests still pass after fixes.
 
-**Ready to implement.** Next step: continue with remaining tasks per plan.
-Tasks complete: 1 (types), 2 (unit-type resolver), 3 (unit-type resolver tests), 4 (aggregation + snapshot)
-Tasks remaining: 5–14 per `docs/superpowers/plans/2026-05-13-hc-estimator.md`
+**Tasks 7, 8, 11 DONE (2026-05-13 16:55):**
+- Task 7 — `hk-actuals-table.tsx`: reference table showing last-month actuals per building (studio/1BR/2BR/3BR/4BR, rollovers, avg stay-ins/day) with projected total comparison header. Committed: `feat(hc-estimator): HK actuals reference table` (5a87cab)
+- Task 8 — `hk-weekly-table.tsx`: weekly breakdown (W1–W4 + monthly totals row) showing projected check-ins, rollovers, HK-hrs, day/night/supervisors on-shift; peak week highlighted amber; rollover override ⚠️ with tooltip; footer notes. Committed: `feat(hc-estimator): HK weekly breakdown table` (3bb8c17)
+- Task 11 — `security-building-card.tsx`: client component, editable post table per building (post name + day/night/24hr spinners), live day/night totals row, add/remove post controls. Committed: `feat(hc-estimator): security per-building post editor` (7de23b1)
+
+**Tasks 9, 10, 12 DONE (2026-05-13):**
+- Task 9 — `hk-dashboard.tsx`: 4 KPI cards (Day HKs / Night HKs / Supervisors / Grand Total, each showing on-shift + to-hire), weekly bar chart with peak week highlighted amber, staff composition progress bars. Committed: `feat(hc-estimator): HK dashboard — KPI cards + charts` (d13437e)
+- Task 10 — `hk-calculator.tsx` + updated `headcount/page.tsx`: full input panel (multiplier + presets strip, per-building areas-hrs/night-HKs grid), wires HKActualsTable + HKDashboard + HKWeeklyTable together via useMemo. Page no longer shows placeholder text — renders live calculator. Committed: `feat(hc-estimator): HK calculator — input panel wired to live output` (7ea70eb)
+- Task 12 — `security-dashboard.tsx` + `security-calculator.tsx` + updated `security/page.tsx`: SecurityDashboard (4 KPI cards + stacked bar chart per building), SecurityCalculator wraps SecurityBuildingCard grid + SecurityDashboard with useMemo live updates, security page wired. Committed: `feat(hc-estimator): security tab — post editor + live KPI dashboard` (e78257e) + `feat(hc-estimator): security dashboard — KPI cards + stacked bar chart` (f1e32a6)
+
+All pushed to origin/main and Vercel deploy triggered.
+
+Tasks complete: 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12
+Tasks remaining: 6 (cron snapshot), 13 (analytics hub tile), 14 (e2e test) per `docs/superpowers/plans/2026-05-13-hc-estimator.md`
+
+**Task 5 DONE (2026-05-13 16:29) — commit f3799a1:**
+- Created `src/lib/beithady/hk-calc.ts` — pure HK calculation engine + security calculation
+  - `coverageFactor(n)` — ×7/6 coverage factor with ceil
+  - `calculateHKWeeks(base, inputs)` — pools per-building day data, computes peak day HKs per week (baseline vs rollover override), night HKs, supervisors, monthly summary with to-hire counts
+  - `calculateSecurity(configs)` — building-level day/night/allDay post counting with coverage factor applied per building and portfolio totals
+- Created `src/lib/beithady/hk-calc.test.ts` — 3 tests, all passing
+  - coverageFactor rounds up correctly (6→7, 10→12, 0→0)
+  - W1 with known checkins: dayHKs=2, nightHKs=4
+  - Rollover override fires when rollovers (9) demand more HKs than baseline
 
 ---
 
@@ -7405,3 +7426,40 @@ sandbox deploy as belt-and-suspenders.
 - `supabase/migrations/0079_hc_estimator_snapshots.sql` (created)
 
 **Status:** DONE · Ready for next task (Task 2: TypeScript types)
+
+---
+
+## 2026-05-13 · Task 6: HC Estimator – Tab Nav + Page Skeletons
+
+**Task:** Create tab navigation component and page skeletons for the Head Count Estimator module.
+
+**Completed:**
+
+1. Created `src/app/beithady/analytics/headcount/_components/hc-tabs.tsx`
+   - Client component with 2 tabs: "Housekeeping" and "Security"
+   - Uses `usePathname()` to highlight active tab
+   - Correctly handles root path (`/beithady/analytics/headcount`) vs. subpath
+
+2. Created `src/app/beithady/analytics/headcount/page.tsx`
+   - Server component with permission check
+   - Imports HCBaseData from Task 4 (`fetchHKBaseData`)
+   - Displays base month in subtitle
+   - Uses BeithadyShell + BeithadyHeader with correct relative import path
+
+3. Created `src/app/beithady/analytics/headcount/security/page.tsx`
+   - Mirror security subpage with adjusted breadcrumbs and subtitle
+   - Same permission/shell pattern as main page
+
+**Import path verified:**
+Used `../../_components/beithady-shell` (from `src/app/beithady/_components/beithady-shell.tsx`).
+Confirmed by checking existing analytics pages (calendar-heatmap, market-intel).
+
+**Files changed:**
+- `src/app/beithady/analytics/headcount/_components/hc-tabs.tsx` (created)
+- `src/app/beithady/analytics/headcount/page.tsx` (created)
+- `src/app/beithady/analytics/headcount/security/page.tsx` (created)
+
+**Committed:** `feat(hc-estimator): tab nav + page skeletons`
+Commit hash: `a13d616`
+
+**Status:** DONE · Ready for next task (Task 2 or Task 3)
