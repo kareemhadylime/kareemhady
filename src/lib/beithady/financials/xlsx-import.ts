@@ -37,7 +37,9 @@ export async function parsePartnerLedgerXlsx(buffer: Buffer | ArrayBuffer): Prom
   const buf: Buffer = Buffer.isBuffer(buffer)
     ? buffer
     : Buffer.from(buffer as ArrayBuffer);
-  await wb.xlsx.load(buf);
+  // ExcelJS' Buffer type doesn't include the new Buffer<ArrayBufferLike>
+  // generic Node 22 introduced; cast it through unknown to satisfy tsc.
+  await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
   const sheet = wb.worksheets[0];
   if (!sheet) throw new Error('parsePartnerLedgerXlsx: no worksheet');
 
