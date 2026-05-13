@@ -244,6 +244,17 @@ User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no b
 - DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
 - ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
 
+**Dashboard reframed around equity & margin (`1a572be` → rebased `1a08712` on main, 2026-05-13):**
+- User flagged: Cash In/Cash Out tiles were misleading (lifetime gross flows ≠ current balance) and margin (1.92M owed on 003) wasn't surfaced.
+- New `getCapitalSummary()` query → today's snapshot of equity, margin, cash-on-hand, lifetime fees+interest, per-account split.
+- Dashboard reorganized into 3 bands:
+  - **Band 1 "My Money Now"** — My Equity (2.92M) / Stocks Held (4.84M) / Margin Loan (1.92M, ≈44% of stocks) / Cash on Hand. Plus per-account snapshot cards (001 cash 2.6k+stocks 475k=478k equity all own; 003 cash −1.92M+stocks 4.36M=2.44M equity 56% own; 009 656 equity)
+  - **Band 2 "Returns & Costs"** — Dividends / Realized P&L / Unrealized P&L / Margin Interest+Fees (lifetime, breakdown subtitle)
+  - **Band 3 "Lifetime activity"** (demoted to smaller cards, explicitly labelled "gross flows · not current balance") — Bank Deposits, Withdrawals, Total Bought, Total Sold
+- 433/433 vitest pass · tsc clean
+
+---
+
 **Overrides UI shipped (`f244be3` on main, 2026-05-13):**
 - Portfolio tab now has a "Position overrides" section: Active (qty>0) + Zero-out (qty=0) sub-tables, per-row Edit / Remove buttons, "+ Add override" → modal form (account · instrument · qty · avg cost · note · as-of date)
 - "Override" amber badge on the holdings table flags any row whose qty/avg-cost is overridden
