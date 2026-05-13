@@ -71,3 +71,58 @@ export async function parsePartnerLedgerXlsx(buffer: Buffer | ArrayBuffer): Prom
   // Round total to 2dp to defeat floating-point drift in assertions.
   return { rows, errors, total: Math.round(total * 100) / 100 };
 }
+
+import { matchPartners, type MatchResult } from './partner-match';
+import type { PartnerKind } from './types';
+
+export type ClassifiedRow = MatchResult & {
+  source_row: number;
+  account_code: string;
+  partner_kind: PartnerKind;
+};
+
+export type ClassifyResult = {
+  rows: ClassifiedRow[];
+  errors: Array<{ row: number; error: string }>;
+  ledger_total: number;
+  account_total: number | null;
+  variance: number | null;
+  partner_kind: PartnerKind;
+  account_code: string;
+};
+
+export function classifyParsedRows(
+  parsed: ParseResult,
+  ctx: {
+    account_code: string;
+    partner_kind: PartnerKind;
+    odoo_partners: Array<{ id: number; name: string }>;
+    account_opening_raw?: number;
+  },
+): ClassifyResult {
+  const matched = matchPartners(
+    parsed.rows.map((r) => ({ raw: r.partner_name_raw, balance: r.balance })),
+    ctx.odoo_partners,
+  );
+  const rows: ClassifiedRow[] = parsed.rows.map((r, i) => ({
+    ...matched[i],
+    source_row: r.source_row,
+    account_code: ctx.account_code,
+    partner_kind: ctx.partner_kind,
+  }));
+  const account_total =
+    typeof ctx.account_opening_raw === 'number' ? ctx.account_opening_raw : null;
+  const variance =
+    account_total === null
+      ? null
+      : Math.round((account_total - parsed.total) * 100) / 100;
+  return {
+    rows,
+    errors: parsed.errors,
+    ledger_total: parsed.total,
+    account_total,
+    variance,
+    partner_kind: ctx.partner_kind,
+    account_code: ctx.account_code,
+  };
+}

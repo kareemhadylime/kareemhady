@@ -32,3 +32,28 @@ describe('parsePartnerLedgerXlsx — owners fixture', () => {
     expect(Math.round(total * 100) / 100).toBe(-2518213.03);
   });
 });
+
+import { classifyParsedRows } from './xlsx-import';
+
+describe('classifyParsedRows', () => {
+  const directory = [
+    { id: 11, name: 'B.Tech' },
+    { id: 12, name: 'Amazon' },
+    { id: 13, name: 'Adel Fathy IT Industrial' },
+  ];
+  it('assigns exact matches', () => {
+    const out = classifyParsedRows(
+      { rows: [{ source_row: 4, partner_name_raw: '020. B.Tech', balance: -1911052.06 }], errors: [], total: -1911052.06 },
+      { account_code: '227002', partner_kind: 'supplier', odoo_partners: directory }
+    );
+    expect(out.rows[0].partner_id).toBe(11);
+    expect(out.rows[0].confidence).toBe('exact');
+  });
+  it('computes variance against an account-level total', () => {
+    const out = classifyParsedRows(
+      { rows: [{ source_row: 4, partner_name_raw: '020. B.Tech', balance: -100 }], errors: [], total: -100 },
+      { account_code: '227002', partner_kind: 'supplier', odoo_partners: directory, account_opening_raw: -200 }
+    );
+    expect(out.variance).toBe(-100);
+  });
+});
