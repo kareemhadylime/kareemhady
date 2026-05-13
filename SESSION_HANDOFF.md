@@ -244,6 +244,16 @@ User confirmed: (Q1) ACT extra ~1.38M shares = IPO subscription allocation, no b
 - DB has 13 trades for 001/2026; Invoices file has 14 — one trade newer than the AOLB Account file export
 - ACT coupon transfer 003→001 (460,794 EGP) is recorded as 2 dividend rows in DB (gross 2.08M); should be classified as cash_transfer (net 1.16M). Cosmetic — doesn't affect positions, just inflates `dividends_egp` KPI by ~921k
 
+**Broker Fees fix — excluded ACT IPO subscription (`ed8e7f4` on main, 2026-05-13):**
+- User flagged 4.22M Broker Fees as impossibly high. Found one `Daily` row on 001/2024 with Arabic note "اكتتاب اكت" (ACT IPO subscription) for 4,000,000 EGP — correctly tagged `kind='ipo_subscription'` by the classifier but was still being summed into `totalFeesPaidEgp`.
+- `getCapitalSummary` now: `totalFeesPaidEgp` = only `platform_daily` + `other` (220k), new `ipoSubscriptionEgp` field returns IPO sub amounts separately (4M).
+- Broker Fees tile now shows NET of correction-refunds: gross 220k − refunded 217k = **~3,200 EGP actual**. Subtitle exposes gross/refunded breakdown.
+- Total Broker Costs: ~3.78M (fees net 3k + interest 3.77M), down from misleading 8M.
+- Italic footnote under the Broker Costs band: "X EGP of IPO subscription payments are not included here — those are cash used to acquire IPO-allocated shares (ACT Financial), not broker fees."
+- 433 vitest pass · tsc clean.
+
+---
+
 **Margin / Broker Fees / Broker Interest tiles split (`43e89b8` on main, 2026-05-13):**
 - User asked for those 3 as dedicated tiles (previously combined into one "Margin Interest + Fees" tile).
 - Band 1's "Margin Loan" retitled "Margin Loan (today)" with explicit as-of date in subtitle.
