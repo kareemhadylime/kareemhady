@@ -312,6 +312,13 @@ type RawAggregateRow = {
 //
 // Partners matching "beithady hospitality" / "beit hady hospitality" are
 // intercompany. "Beit Hady Website" is NOT — that's the booking website.
+//
+// A1 HOSPITALITY is intentionally NOT included here. Although Lime owns 50%
+// of A1, the BH Financials spec (Q3, 2026-05-12) treats A1 as an external
+// party — Beithady manages BH-435 for a 25% fee, so the AP balance to A1 is
+// a real liability that must surface on consolidated payables. The current
+// ILIKE patterns don't match "A1 HOSPITALITY" so this is already correct;
+// the comment is here to prevent a future engineer from "fixing" it.
 const INTERCOMPANY_PASSTHROUGH_EXPENSE_CODES = ['510104'] as const;
 async function getIntercompanyPartnerIds(): Promise<number[]> {
   const sb = supabaseAdmin();
