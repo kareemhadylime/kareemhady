@@ -48,6 +48,24 @@ No commits this turn. Audit was inline-Python (cleaned up after).
 
 ---
 
+## 2026-05-13 — BH Financials Task 11: xlsx commit stage + tests
+
+**Completed Task 11** of the BH Financials plan.
+
+**Files modified (appended):**
+- `src/lib/beithady/financials/xlsx-import.ts` — appended `commitClassifiedRows` + `import { supabaseAdmin }`
+- `src/lib/beithady/financials/xlsx-import.test.ts` — added top-level `vi.mock('@/lib/supabase', ...)` + `mockFrom` shared variable; appended `commitClassifiedRows` describe block (1 test)
+
+**doMock fallback used:** The plan's `vi.doMock` approach failed because the module was already cached. Switched to top-level `vi.mock` with shared `mockFrom` (matching T6 snapshots.test.ts pattern). Mock is hoisted before imports so it does not affect parse/classify tests.
+
+**Test results: 6/6 PASS** (3 parse + 2 classify + 1 commit)
+
+**Commit:** `8620fce` — pushed to main.
+
+**Next:** Task 12 — UI upload wizard / integration with the snapshot workflow.
+
+---
+
 ## 2026-05-13 — BH Financials Task 10: xlsx classify+match stage + tests
 
 **Completed Task 10** of the BH Financials plan.
