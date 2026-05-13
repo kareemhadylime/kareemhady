@@ -195,14 +195,22 @@ export async function listIgMedia(
 > {
   const creds = await loadMetaCredentials();
   if (!creds.ok) return { ok: false, error: creds.error };
-  const fields = 'id,media_type,media_product_type,permalink,caption,media_url,thumbnail_url,timestamp,like_count,comments_count';
-  const r = await metaGet<{ data: IgMediaItem[] }>(
-    `${igBusinessId}/media?fields=${fields}&limit=${Math.min(50, Math.max(1, limit))}`,
+
+  // Use the Facebook Page API (requires pages_read_engagement, NOT instagram_basic).
+  // This works correctly with System User tokens from the Marketing API.
+  // Pattern: GET /{page_id}?fields=instagram_business_account{media{...}}
+  const mediaFields = 'id,media_type,media_product_type,permalink,caption,media_url,thumbnail_url,timestamp,like_count,comments_count';
+  const fields = `instagram_business_account{media.limit(${Math.min(50, Math.max(1, limit))}){${mediaFields}}}`;
+
+  type PageResp = { instagram_business_account?: { media?: { data: IgMediaItem[] } } };
+  const r = await metaGet<PageResp>(
+    `${creds.creds.fbPageId}?fields=${encodeURIComponent(fields)}`,
     creds.creds.token
   );
   if (!r.ok) return { ok: false, error: r.error };
-  const items = ((r.data as { data?: IgMediaItem[] })?.data || [])
-    // Posts + Reels + Carousels — exclude STORY (24h expiry isn't useful for ads)
+
+  const items = ((r.data as PageResp)?.instagram_business_account?.media?.data || [])
+    // Exclude Stories — 24h expiry doesn't fit ad lifecycles
     .filter(m => m.media_product_type !== 'STORY');
   return { ok: true, media: items };
 }
