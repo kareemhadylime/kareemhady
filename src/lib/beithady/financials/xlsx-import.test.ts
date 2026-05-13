@@ -69,12 +69,19 @@ import { commitClassifiedRows } from './xlsx-import';
 describe('commitClassifiedRows', () => {
   const mockInsert = vi.fn();
   const mockUpdate = vi.fn();
+  const mockDelete = vi.fn();
 
   beforeEach(() => {
     mockInsert.mockReset().mockResolvedValue({ error: null });
     mockUpdate.mockReset().mockResolvedValue({ error: null });
+    mockDelete.mockReset().mockResolvedValue({ error: null });
     mockFrom.mockReset().mockImplementation((t: string) => {
-      if (t === 'bh_balance_snapshot_partners') return { insert: mockInsert };
+      if (t === 'bh_balance_snapshot_partners') {
+        return {
+          insert: mockInsert,
+          delete: () => ({ eq: () => ({ eq: mockDelete }) }),
+        };
+      }
       if (t === 'bh_balance_snapshot_accounts')
         return { update: () => ({ eq: () => ({ eq: mockUpdate }) }) };
       throw new Error(`unexpected table: ${t}`);

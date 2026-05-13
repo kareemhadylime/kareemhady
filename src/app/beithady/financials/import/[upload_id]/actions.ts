@@ -22,16 +22,32 @@ export async function commitUpload(formData: FormData) {
     .maybeSingle();
   if (upErr || !up) throw new Error(`commitUpload load: ${upErr?.message ?? 'not found'}`);
 
-  const { data: snap } = await sb
+  // Prefer a DRAFT snapshot for this (period, scope) — that's the re-freeze
+  // workflow target. Fall back to FROZEN for the additive seed-day flow where
+  // operator is fleshing out partner-level rows on the initial frozen seed.
+  const { data: snapDraft } = await sb
     .from('bh_balance_snapshots')
     .select('id')
     .eq('period_end', up.period_end)
     .eq('company_scope', up.company_scope)
-    .eq('status', 'frozen')
+    .eq('status', 'draft')
     .order('version', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!snap) throw new Error('commitUpload: no frozen snapshot for this period+scope');
+  let snap = snapDraft;
+  if (!snap) {
+    const { data: snapFrozen } = await sb
+      .from('bh_balance_snapshots')
+      .select('id')
+      .eq('period_end', up.period_end)
+      .eq('company_scope', up.company_scope)
+      .eq('status', 'frozen')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    snap = snapFrozen;
+  }
+  if (!snap) throw new Error('commitUpload: no draft or frozen snapshot for this period+scope');
 
   const { data: acct } = await sb
     .from('bh_balance_snapshot_accounts')

@@ -15,8 +15,13 @@ function cairoLocalHour(now: Date = new Date()): number {
 }
 
 export async function GET(req: Request) {
+  if (!process.env.CRON_SECRET) {
+    // Fail closed when secret is unset; otherwise an `Authorization: Bearer `
+    // (literal trailing space) request would pass the auth check.
+    return NextResponse.json({ ok: false, error: 'unconfigured' }, { status: 503 });
+  }
   const auth = req.headers.get('Authorization') ?? '';
-  if (auth !== `Bearer ${process.env.CRON_SECRET ?? ''}`) {
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
   const url = new URL(req.url);

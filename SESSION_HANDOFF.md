@@ -1,5 +1,39 @@
 # Kareemhady — Session Handoff (2026-05-13)
 
+## 🔴 2026-05-13 — DATA LEAK on public repo · awaiting user authorization to force-rewrite
+
+**What happened:** While committing the C1/C2/I1 code-review fixes for BH Financials, I used `git add -A` (against CLAUDE.md's explicit guidance to "prefer adding specific files by name") and accidentally swept in the entire untracked `Lime Domains/` directory plus other unrelated untracked content. Pushed as commit `a36685c` to `origin/main` on **public** repo `kareemhadylime/kareemhady`.
+
+**Files leaked to public GitHub:**
+- `Lime Domains/Personal/AOLB/*` — 22 personal broker-statement .xls files (2024-2026 trade + cashflow + invoices for accounts 001, 003, 009)
+- `Lime Domains/Beithady/FINANCIALS/*` — supplier partner ledger, owner partner ledger, consolidated P&L, balance sheets, A1 F.S., Beithady Egypt F.S., Beithady UAE F.S.
+- `Lime Domains/KIKA/*` — KIKA F.S.
+- Brand-asset reorganizations (less sensitive)
+- `scripts/audit-stocks.*` from the parallel personal-stock session
+
+**Recovery plan presented to user (awaiting yes/no):**
+1. `git reset --hard a36685c^` (back to `3a883de`).
+2. Re-stage only the 4 source files that are legitimate fixes:
+   - `src/lib/beithady/financials/xlsx-import.ts` (C1 fix: leading delete before insert)
+   - `src/lib/beithady/financials/xlsx-import.test.ts` (mock extended for delete chain)
+   - `src/app/beithady/financials/import/[upload_id]/actions.ts` (C2 fix: prefer draft over frozen)
+   - `src/app/api/cron/bh-financials-snapshot-reminder/route.ts` (I1 fix: 503 when CRON_SECRET unset)
+3. Commit + `git push --force-with-lease origin main`.
+4. Add `Lime Domains/` to `.gitignore`.
+5. Treat leaked financial data as compromised regardless (scrapers may already have it).
+
+**Per CLAUDE.md `git push --force` requires explicit user authorization.** Waiting for "yes" before proceeding.
+
+**Pre-leak state (good news):** C1+C2+I1 fixes are correct + all tests green (8/8 in xlsx + cron suites, 428 in full repo). tsc clean. Once the force-rewrite happens, the code is ready.
+
+**Final code review findings before the leak:**
+- 2 Critical (C1 = synthetic row uniqueness collision on re-import; C2 = commitUpload requires frozen but should prefer draft) → BOTH FIXED in the contaminated commit
+- 1 Important fix included (I1 = cron auth guard when CRON_SECRET unset) → ALSO FIXED
+- 6 other Important issues filed as follow-ups (I2 freezeSnapshot atomicity; I3 fuzzy-match scores not surfaced; I4 filter strip missing on subpages; I5 commit test under-asserts; I6 buildBalanceSheet has no test; I7 cron upsert behavior non-obvious)
+- 10 Minor issues filed as follow-ups
+
+---
+
 ## 🟡 2026-05-13 (open) — Executing v3 daily-report plan via subagent-driven-development (8 of 13 tasks complete)
 
 Continuation of yesterday's brainstorming + spec + plan. User picked option **1 (Subagent-Driven)** for execution. Each task = fresh implementer subagent → spec compliance review → code quality review → fix loop if needed → next task.

@@ -150,6 +150,17 @@ export async function commitClassifiedRows(params: {
     match_warnings: [] as string[],
   }));
 
+  // Re-import safety: delete any prior partner rows for this (snapshot, account)
+  // before re-inserting. Without this, a second commit collides on the
+  // (snapshot_id, account_code, partner_name_raw) unique index — especially
+  // for the deterministic __UNALLOCATED_<code> synthetic row.
+  const { error: errDel } = await sb
+    .from('bh_balance_snapshot_partners')
+    .delete()
+    .eq('snapshot_id', params.snapshot_id)
+    .eq('account_code', params.classified.account_code);
+  if (errDel) throw new Error(`commitClassifiedRows clear-prior: ${errDel.message}`);
+
   // Insert real partner rows.
   const { error: errPartners } = await sb
     .from('bh_balance_snapshot_partners')
