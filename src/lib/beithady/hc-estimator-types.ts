@@ -40,6 +40,7 @@ export type HKInputs = {
 // --- Calculation output types ---
 
 export type HKDayResult = {
+  // reserved for future per-day drill-down view
   date: string;
   turnoverHrs: number;
   stayInHrs: number;
@@ -64,6 +65,7 @@ export type HKWeekResult = {
   dayHKs: number;             // peak day on-shift
   rolloverOverride: boolean;
   rolloverPeakHKs: number;    // peak rollover HKs for this week
+  rolloverBaselineHKs: number; // peak-day baseline before rollover override
   nightHKs: number;           // fixed, sum of building inputs
   supervisors: number;        // on-shift
 };

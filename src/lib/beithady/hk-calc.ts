@@ -103,13 +103,13 @@ export function calculateHKWeeks(base: HKBaseData, inputs: HKInputs): HKMonthRes
     const weekStarts = [1, 8, 15, 22];
     const weekEnds   = [7, 14, 21, 31];
     const start = weekStarts[w.week - 1];
-    const end   = weekEnds[w.week - 1];
-    const label = `W${w.week} (${start}–${end})`;
 
     if (pooled.length === 0) {
       const areasTotal = areasHrs * 7;
       const dayHKs = Math.ceil(areasTotal / 8);
       const totalHKs = dayHKs + nightHKs;
+      const end = weekEnds[w.week - 1];
+      const label = `W${w.week} (${start}–${end})`;
       return {
         week: w.week,
         label,
@@ -121,12 +121,14 @@ export function calculateHKWeeks(base: HKBaseData, inputs: HKInputs): HKMonthRes
         dayHKs,
         rolloverOverride: false,
         rolloverPeakHKs: 0,
+        rolloverBaselineHKs: dayHKs,
         nightHKs,
         supervisors: Math.ceil(totalHKs / 10),
       };
     }
 
     let peakDayHKs = 0;
+    let peakDayBaseline = 0;
     let peakRolloverOverride = false;
     let peakRolloverPeakHKs = 0;
     let weekTurnoverHrs = 0;
@@ -145,6 +147,7 @@ export function calculateHKWeeks(base: HKBaseData, inputs: HKInputs): HKMonthRes
 
       if (calc.finalDayHKs > peakDayHKs) {
         peakDayHKs = calc.finalDayHKs;
+        peakDayBaseline = Math.ceil(calc.totalHrs / 8);  // baseline before rollover override
         peakRolloverOverride = calc.rolloverOverride;
         peakRolloverPeakHKs = calc.rolloverPeakHKs;
       }
@@ -152,6 +155,10 @@ export function calculateHKWeeks(base: HKBaseData, inputs: HKInputs): HKMonthRes
 
     const totalHKsOnShift = peakDayHKs + nightHKs;
     const supervisors = Math.ceil(totalHKsOnShift / 10);
+
+    // Derive actual week-end day from the last date in the pooled set
+    const actualEnd = parseInt(pooled[pooled.length - 1].date.slice(8, 10), 10);
+    const label = `W${w.week} (${start}–${actualEnd})`;
 
     return {
       week: w.week,
@@ -164,6 +171,7 @@ export function calculateHKWeeks(base: HKBaseData, inputs: HKInputs): HKMonthRes
       dayHKs: peakDayHKs,
       rolloverOverride: peakRolloverOverride,
       rolloverPeakHKs: peakRolloverPeakHKs,
+      rolloverBaselineHKs: peakDayBaseline,
       nightHKs,
       supervisors,
     };

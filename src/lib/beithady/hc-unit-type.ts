@@ -25,6 +25,7 @@ export function resolveUnitType(listingId: string): UnitTypeKey | null {
   return null;
 }
 
+// available for consumers that need to classify unit size directly
 export function isLargeUnit(type: UnitTypeKey): boolean {
   return type === 'twoBR' || type === 'threeBR' || type === 'fourBR';
 }

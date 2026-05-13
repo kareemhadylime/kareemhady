@@ -41,7 +41,7 @@ export function HKWeeklyTable({ result }: { result: HKMonthResult }) {
                 {w.rolloverOverride ? (
                   <span
                     className="text-amber-600 font-bold cursor-help"
-                    title={`${Math.round(w.projectedRollovers)} same-day rollovers require ${w.rolloverPeakHKs} concurrent HKs in the 11 AM–3 PM window (overrides daily average of ${Math.ceil(w.totalHrs / 8)})`}
+                    title={`${Math.round(w.projectedRollovers)} same-day rollovers require ${w.rolloverPeakHKs} concurrent HKs in the 11 AM–3 PM window (overrides peak-day baseline of ${w.rolloverBaselineHKs})`}
                   >
                     ⚠️
                   </span>
