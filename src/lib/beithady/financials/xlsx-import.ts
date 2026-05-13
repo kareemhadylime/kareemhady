@@ -126,3 +126,61 @@ export function classifyParsedRows(
     account_code: ctx.account_code,
   };
 }
+
+import { supabaseAdmin } from '@/lib/supabase';
+
+export async function commitClassifiedRows(params: {
+  snapshot_id: string;
+  classified: ClassifyResult;
+}): Promise<void> {
+  const sb = supabaseAdmin();
+  const partnerRows = params.classified.rows.map((r) => ({
+    snapshot_id: params.snapshot_id,
+    account_code: r.account_code,
+    partner_kind: r.partner_kind,
+    partner_id: r.partner_id,
+    partner_name_raw: r.raw,
+    partner_name_normalized: r.normalized,
+    opening_balance: r.balance,
+    is_synthetic: false,
+    match_confidence: r.confidence,
+    match_score: r.score,
+    match_warnings: [] as string[],
+  }));
+
+  // Insert real partner rows.
+  const { error: errPartners } = await sb
+    .from('bh_balance_snapshot_partners')
+    .insert(partnerRows);
+  if (errPartners) throw new Error(`commitClassifiedRows partners: ${errPartners.message}`);
+
+  // Insert synthetic __UNALLOCATED row when variance != 0.
+  if (params.classified.variance !== null && params.classified.variance !== 0) {
+    const { error: errSynth } = await sb.from('bh_balance_snapshot_partners').insert([
+      {
+        snapshot_id: params.snapshot_id,
+        account_code: params.classified.account_code,
+        partner_kind: 'unallocated',
+        partner_id: null,
+        partner_name_raw: `__UNALLOCATED_${params.classified.account_code}`,
+        partner_name_normalized: null,
+        opening_balance: params.classified.variance,
+        is_synthetic: true,
+        match_confidence: 'synthetic',
+        match_score: null,
+        match_warnings: ['auto-generated to reconcile partner_total vs account_total'],
+      },
+    ]);
+    if (errSynth) throw new Error(`commitClassifiedRows synthetic: ${errSynth.message}`);
+  }
+
+  // Update account's cached partner_total to the ledger total (so variance recomputes).
+  if (params.classified.account_total !== null) {
+    const { error: errAcct } = await sb
+      .from('bh_balance_snapshot_accounts')
+      .update({ partner_total: params.classified.ledger_total })
+      .eq('snapshot_id', params.snapshot_id)
+      .eq('account_code', params.classified.account_code);
+    if (errAcct) throw new Error(`commitClassifiedRows account: ${errAcct.message}`);
+  }
+}

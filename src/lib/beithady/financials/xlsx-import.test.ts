@@ -1,6 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+const mockFrom = vi.fn();
+vi.mock('@/lib/supabase', () => ({
+  supabaseAdmin: () => ({ from: mockFrom }),
+}));
+
 import { parsePartnerLedgerXlsx } from './xlsx-import';
 
 const SUPPLIERS = resolve(__dirname, '__fixtures__/suppliers-2025-12-31.xlsx');
@@ -55,5 +61,53 @@ describe('classifyParsedRows', () => {
       { account_code: '227002', partner_kind: 'supplier', odoo_partners: directory, account_opening_raw: -200 }
     );
     expect(out.variance).toBe(-100);
+  });
+});
+
+import { commitClassifiedRows } from './xlsx-import';
+
+describe('commitClassifiedRows', () => {
+  const mockInsert = vi.fn();
+  const mockUpdate = vi.fn();
+
+  beforeEach(() => {
+    mockInsert.mockReset().mockResolvedValue({ error: null });
+    mockUpdate.mockReset().mockResolvedValue({ error: null });
+    mockFrom.mockReset().mockImplementation((t: string) => {
+      if (t === 'bh_balance_snapshot_partners') return { insert: mockInsert };
+      if (t === 'bh_balance_snapshot_accounts')
+        return { update: () => ({ eq: () => ({ eq: mockUpdate }) }) };
+      throw new Error(`unexpected table: ${t}`);
+    });
+  });
+
+  it('inserts a synthetic __UNALLOCATED row when variance != 0', async () => {
+    await commitClassifiedRows({
+      snapshot_id: 'snap-1',
+      classified: {
+        rows: [
+          {
+            source_row: 4,
+            account_code: '227002',
+            partner_kind: 'supplier',
+            raw: 'X',
+            normalized: 'x',
+            balance: -100,
+            partner_id: 11,
+            matched_name: 'X',
+            confidence: 'exact',
+            score: 1,
+          },
+        ],
+        errors: [],
+        ledger_total: -100,
+        account_total: -200,
+        variance: -100,
+        partner_kind: 'supplier',
+        account_code: '227002',
+      },
+    });
+    // 1 real row + 1 synthetic = 2 inserts.
+    expect(mockInsert).toHaveBeenCalledTimes(2);
   });
 });
