@@ -1,3 +1,22 @@
+## 2026-05-14 IG Boost — 3-bug fix (WhatsApp error + wrong creative)
+
+**Status:** DONE — commit `edbb3de`
+
+**Root causes fixed:**
+1. Default destination was `ctwa` → FB Page not linked to WABA → error #2446880
+2. Non-CTWA fallback landing URL was `buildBhWaLink()` (wa.me) → ALSO triggered WhatsApp requirement even on "website link" path
+3. Non-CTWA creative used `object_story_spec.link_data` → created brand-new ad; Meta showed "Create ad" / no existing post image
+
+**Fixes:**
+- `boost-selector.tsx`: Default option → "Website link"; CTWA option notes WABA requirement
+- `boost-publish.ts`: non-CTWA landing URL fallback → `https://beithady.com`; adset gets `destination_type: 'WEBSITE'`; creative switched to `source_instagram_media_id + call_to_action: LEARN_MORE` (correct field for native IG posts)
+
+**Effect:** New boosts will show actual selected post image in Meta preview, no WhatsApp errors, likes/comments preserved.
+
+**CTWA:** Still blocked until Beithady FB Page is linked to WABA +20 15 01010103.
+
+---
+
 ## 2026-05-14 Task 3: Beithady HR Types File (hr-types.ts)
 
 **Status:** DONE
@@ -127,3 +146,29 @@
 - Trigger `hr_employees_touch` exists on table `hr_employees` ✓
 - All three allowance constraints exist and active ✓
 - Migration applied successfully to production schema ✓
+
+## 2026-05-14 Task 4: Egyptian NID Parser (TDD)
+
+**Status:** DONE
+
+**What was delivered:**
+- `src/lib/beithady/hr/hr-nid.test.ts` — 7 comprehensive tests (male NID, female NID, edge cases: short input, non-digits, invalid century, invalid month, empty string)
+- `src/lib/beithady/hr/hr-nid.ts` — `parseEgyptianNid()` function extracts DOB (YYYY-MM-DD) + gender (male/female) from 14-digit Egyptian National ID
+
+**Test results:**
+- Step 1–2 (write tests, run to fail): ✓ 0 tests, module not found (expected)
+- Step 3–4 (write implementation, run to pass): ✓ 7 passed
+- Step 5 (full suite): ✓ 89 test files passed (including new), 458 total tests passed, 22 skipped
+
+**Implementation notes:**
+- Parses century digit (2→1900, 3→2000) and YY to compute full year
+- Validates MM ∈ [1,12], DD ∈ [1,31]
+- Extracts gender from digit at index 12 (parity: odd=male, even=female)
+- Returns null for malformed input: non-14-digit, non-numeric, invalid century/month/day, empty string
+
+**Files changed:**
+- `/src/lib/beithady/hr/hr-nid.test.ts` (new, 35 lines)
+- `/src/lib/beithady/hr/hr-nid.ts` (new, 54 lines)
+
+**Commit:** `e98532d` (main)
+
