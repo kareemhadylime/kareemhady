@@ -8,8 +8,9 @@ import { PersonalInfoTab } from './personal-info-tab';
 import { ContractPayoutTab } from './contract-payout-tab';
 import { TimelineTab } from './timeline-tab';
 import { DocumentsTab } from './documents-tab';
+import { TrainingTab } from './training-tab';
 
-type Tab = 'personal' | 'contract' | 'timeline' | 'documents';
+type Tab = 'personal' | 'contract' | 'timeline' | 'documents' | 'training';
 
 type Props = {
   open: boolean;
@@ -162,6 +163,7 @@ export function AddEditMemberDialog({ open, onClose, employee, events = [] }: Pr
     { id: 'contract',  label: '📄 Contract & Payout' },
     { id: 'timeline',  label: '📅 Timeline' },
     { id: 'documents', label: '🗂 Documents' },
+    { id: 'training',  label: '🎓 Training' },
   ];
 
   return (
@@ -231,6 +233,14 @@ export function AddEditMemberDialog({ open, onClose, employee, events = [] }: Pr
           {tab === 'documents' && !employee?.id && (
             <p className="text-sm text-slate-500 dark:text-slate-400 py-4 italic">
               Save the employee first to manage documents.
+            </p>
+          )}
+          {tab === 'training' && employee?.id && (
+            <TrainingTab employeeId={employee.id} />
+          )}
+          {tab === 'training' && !employee?.id && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 py-4 italic">
+              Save the employee first to view training records.
             </p>
           )}
         </div>
