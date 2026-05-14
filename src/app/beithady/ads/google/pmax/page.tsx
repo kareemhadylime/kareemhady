@@ -1,11 +1,12 @@
 import Link from 'next/link';
-import { Sparkles, AlertCircle } from 'lucide-react';
+import { Sparkles, AlertCircle, Copy, Info } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
 import { publishGooglePMaxAction } from '../../actions';
 import { buildBhWaLink } from '@/lib/beithady/ads/platforms';
+import { buildPmaxDefaultsFromMetaCampaign, type PmaxDefaults } from '@/lib/beithady/ads/duplicate-to-google';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -13,7 +14,7 @@ export const maxDuration = 60;
 export default async function GooglePMaxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; from_meta?: string }>;
 }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
@@ -24,6 +25,23 @@ export default async function GooglePMaxPage({
     .eq('platform', 'google')
     .order('id');
   const accounts = (accountsRaw as Array<{ id: number; name: string; external_id: string; google_refresh_token: string | null; status: string }> | null) || [];
+
+  // If duplicating from a Meta campaign, pre-fill the form. The defaults
+  // function is best-effort — unknown fields fall back to Beithady defaults
+  // so the form is always submittable.
+  let prefill: PmaxDefaults | null = null;
+  const fromMetaId = Number.parseInt(sp.from_meta || '', 10);
+  if (Number.isFinite(fromMetaId) && fromMetaId > 0) {
+    prefill = await buildPmaxDefaultsFromMetaCampaign(fromMetaId);
+  }
+  const defaultFinalUrl = prefill?.finalUrl || buildBhWaLink('Hi Beit Hady — interested in a stay');
+  const defaultCampaignName = prefill?.campaignName || '';
+  const defaultBudget = prefill?.dailyBudgetUsd ?? 30;
+  const defaultCap = prefill?.monthlyBudgetCapUsd ?? '';
+  const defaultBuildings = (prefill?.buildingCodes || []).join(', ');
+  const defaultHeadlines = (prefill?.headlines || []).join('\n');
+  const defaultLongHeadlines = (prefill?.longHeadlines || []).join('\n');
+  const defaultDescriptions = (prefill?.descriptions || []).join('\n');
 
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'Google PMax' }]} containerClass="max-w-4xl">
@@ -39,6 +57,37 @@ export default async function GooglePMaxPage({
         <div className="ix-card border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm flex items-center gap-2">
           <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span className="font-mono text-xs">{sp.error}</span>
+        </div>
+      )}
+
+      {prefill?.found && (
+        <div className="ix-card border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950 p-4 text-sm space-y-2">
+          <div className="flex items-center gap-2">
+            <Copy size={14} className="text-violet-600 dark:text-violet-300 shrink-0" />
+            <strong>Duplicated from Meta campaign</strong>
+            <Link href={`/beithady/ads/campaigns/${fromMetaId}`} className="ix-link text-xs">view original →</Link>
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            Pre-filled headlines, descriptions, budget, locations, and landing URL from the Meta campaign. Review and edit before publishing — PMax has stricter character limits and accepts different audience signals.
+          </div>
+          {prefill.marketingImageUrl && (
+            <div className="flex items-start gap-3 mt-2 p-2 bg-white/40 dark:bg-slate-900/40 rounded">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={prefill.marketingImageUrl} alt="Meta ad creative" className="w-16 h-16 object-cover rounded shrink-0" />
+              <div className="text-[11px] text-slate-600 dark:text-slate-300">
+                Meta ad creative shown above. Google PMax does not upload images via API yet — after publishing, drop this image (and a square + logo variant) into the new asset group inside Google Ads.
+              </div>
+            </div>
+          )}
+          {prefill.notes.length > 0 && (
+            <ul className="text-[11px] text-amber-700 dark:text-amber-300 mt-2 space-y-1">
+              {prefill.notes.map((n, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <Info size={11} className="shrink-0 mt-0.5" /><span>{n}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -66,38 +115,38 @@ export default async function GooglePMaxPage({
               </select>
             </Field>
             <Field label="Campaign name (optional)" htmlFor="campaign_name">
-              <input id="campaign_name" name="campaign_name" className="ix-input" placeholder="Auto-generated if blank" />
+              <input id="campaign_name" name="campaign_name" className="ix-input" placeholder="Auto-generated if blank" defaultValue={defaultCampaignName} />
             </Field>
             <Field label="Daily budget (USD)" htmlFor="daily_budget_usd">
-              <input id="daily_budget_usd" name="daily_budget_usd" type="number" min="5" step="1" defaultValue="30" required className="ix-input" />
+              <input id="daily_budget_usd" name="daily_budget_usd" type="number" min="5" step="1" defaultValue={defaultBudget} required className="ix-input" />
             </Field>
             <Field label="Monthly cap (USD, optional)" htmlFor="monthly_budget_cap_usd">
-              <input id="monthly_budget_cap_usd" name="monthly_budget_cap_usd" type="number" min="1" step="10" className="ix-input" placeholder="1000" />
+              <input id="monthly_budget_cap_usd" name="monthly_budget_cap_usd" type="number" min="1" step="10" className="ix-input" placeholder="1000" defaultValue={defaultCap} />
             </Field>
             <Field label="Business name (≤25 chars)" htmlFor="business_name">
               <input id="business_name" name="business_name" maxLength={25} defaultValue="Beit Hady" className="ix-input" />
             </Field>
             <Field label="Final URL" htmlFor="final_url">
-              <input id="final_url" name="final_url" type="url" defaultValue={buildBhWaLink('Hi Beit Hady — interested in a stay')} className="ix-input font-mono text-xs" />
+              <input id="final_url" name="final_url" type="url" defaultValue={defaultFinalUrl} className="ix-input font-mono text-xs" />
             </Field>
             <Field label="Building codes (comma-separated)" htmlFor="building_codes" className="md:col-span-2">
-              <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" />
+              <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" defaultValue={defaultBuildings} />
             </Field>
           </div>
 
           <div className="space-y-1">
             <label htmlFor="headlines" className="text-xs font-semibold">Short headlines (3–15, one per line, ≤30 chars each)</label>
-            <textarea id="headlines" name="headlines" required rows={5} className="ix-input font-mono text-xs" placeholder={'Beit Hady Apartments\nLuxury Cairo Stays\nBook on WhatsApp'} />
+            <textarea id="headlines" name="headlines" required rows={5} className="ix-input font-mono text-xs" placeholder={'Beit Hady Apartments\nLuxury Cairo Stays\nBook on WhatsApp'} defaultValue={defaultHeadlines} />
           </div>
 
           <div className="space-y-1">
             <label htmlFor="long_headlines" className="text-xs font-semibold">Long headlines (1–5, one per line, ≤90 chars each)</label>
-            <textarea id="long_headlines" name="long_headlines" required rows={3} className="ix-input font-mono text-xs" placeholder={'Premium serviced apartments in Cairo — direct host, 24/7 concierge'} />
+            <textarea id="long_headlines" name="long_headlines" required rows={3} className="ix-input font-mono text-xs" placeholder={'Premium serviced apartments in Cairo — direct host, 24/7 concierge'} defaultValue={defaultLongHeadlines} />
           </div>
 
           <div className="space-y-1">
             <label htmlFor="descriptions" className="text-xs font-semibold">Descriptions (2–5, one per line, ≤90 chars each)</label>
-            <textarea id="descriptions" name="descriptions" required rows={4} className="ix-input font-mono text-xs" placeholder={'Premium furnishings, direct host, WhatsApp booking. Message us for live availability.'} />
+            <textarea id="descriptions" name="descriptions" required rows={4} className="ix-input font-mono text-xs" placeholder={'Premium furnishings, direct host, WhatsApp booking. Message us for live availability.'} defaultValue={defaultDescriptions} />
           </div>
 
           <div className="flex items-center justify-between">

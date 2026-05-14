@@ -72,6 +72,39 @@ export const DEFAULT_GEO_IDS = {
 // Default Google Ads language IDs (English + Arabic)
 export const DEFAULT_GOOGLE_LANGUAGE_IDS = ['1000', '1019'];
 
+// ISO alpha-2 → Google geoTargetConstant ID. Covers Beithady's primary markets
+// (Gulf + EU + NA). Add codes here as new targets get used.
+// Reference: https://developers.google.com/google-ads/api/data/geotargets
+export const ISO_TO_GOOGLE_GEO: Record<string, string> = {
+  // GCC + MENA
+  EG: '2818', SA: '2682', AE: '2784', OM: '2512', KW: '2414',
+  QA: '2634', BH: '2048', JO: '2400', LB: '2422', PS: '2275',
+  // Europe (Beithady frequent travellers / EU group)
+  FR: '2250', IT: '2380', NL: '2528', DE: '2276', ES: '2724',
+  GB: '2826', UK: '2826', IE: '2372', BE: '2056', CH: '2756',
+  AT: '2040', SE: '2752', NO: '2578', DK: '2208', FI: '2246',
+  PL: '2616', PT: '2620', GR: '2300', RU: '2643', UA: '2804',
+  TR: '2792',
+  // North America
+  US: '2840', CA: '2124', MX: '2484',
+  // Asia
+  IN: '2356', SG: '2702', MY: '2458', TH: '2764', ID: '2360',
+  // Misc frequent traveller countries
+  AU: '2036', NZ: '2554', ZA: '2710', BR: '2076',
+};
+
+// Resolve a list of ISO alpha-2 country codes → Google geoTargetConstant IDs.
+// Drops unknown codes silently (returns whatever matched; empty list if none).
+export function isoCountriesToGoogleGeo(codes: string[] | null | undefined): string[] {
+  if (!codes?.length) return [];
+  const out: string[] = [];
+  for (const c of codes) {
+    const k = (c || '').trim().toUpperCase();
+    if (ISO_TO_GOOGLE_GEO[k]) out.push(ISO_TO_GOOGLE_GEO[k]);
+  }
+  return out;
+}
+
 // Status badge classes (Tailwind) for any platform's campaign status
 export function statusBadgeClass(status: string | null | undefined): string {
   if (!status) return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';

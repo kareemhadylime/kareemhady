@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Pause, Play, ShieldAlert, ExternalLink, AlertCircle, Zap } from 'lucide-react';
+import { ChevronLeft, Pause, Play, ShieldAlert, ExternalLink, AlertCircle, Zap, Copy } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -224,15 +224,26 @@ export default async function CampaignDetailPage({
             <span className="text-xs text-slate-500">{PLATFORM_LABEL[camp.platform]} · account {account?.name || '—'}</span>
             {isDraft && <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">draft (db-only)</span>}
           </div>
-          {canFlip && (
-            <form action={setCampaignStatusActionUnified} className="inline">
-              <input type="hidden" name="campaign_id" value={camp.id} />
-              <input type="hidden" name="status" value={nextStatus} />
-              <button type="submit" className={nextStatus === 'PAUSED' ? 'ix-btn-secondary' : 'ix-btn-primary'}>
-                {nextStatus === 'PAUSED' ? <><Pause size={12} /> Pause</> : <><Play size={12} /> Activate</>}
-              </button>
-            </form>
-          )}
+          <div className="flex items-center gap-2">
+            {camp.platform === 'meta' && !isDraft && (
+              <Link
+                href={`/beithady/ads/google/pmax?from_meta=${camp.id}`}
+                className="ix-btn-secondary text-xs inline-flex items-center gap-1.5"
+                title="Pre-fill a new Google Performance Max campaign with this ad's content + audience"
+              >
+                <Copy size={12} /> Duplicate to Google PMax
+              </Link>
+            )}
+            {canFlip && (
+              <form action={setCampaignStatusActionUnified} className="inline">
+                <input type="hidden" name="campaign_id" value={camp.id} />
+                <input type="hidden" name="status" value={nextStatus} />
+                <button type="submit" className={nextStatus === 'PAUSED' ? 'ix-btn-secondary' : 'ix-btn-primary'}>
+                  {nextStatus === 'PAUSED' ? <><Pause size={12} /> Pause</> : <><Play size={12} /> Activate</>}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-xs">
