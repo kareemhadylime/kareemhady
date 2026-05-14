@@ -60,8 +60,6 @@ export default async function BeithadyHrPage() {
       description: 'Daily manpower by scope & role. Cross-references HC Estimator planned vs. actual.',
       icon: BarChart3,
       accent: 'slate',
-      disabled: true,
-      comingSoonLabel: 'Sprint 7',
     },
     {
       href: '/beithady/hr/documents',
