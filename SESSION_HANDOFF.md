@@ -285,3 +285,43 @@ Next: Task 3 (Leave request submission logic + API route).
 - **Files**: 2 new, 216 insertions (131 + 85 lines)
 
 **Sprint 6 Progress:** 4 tasks complete (Types, Actions, UI Dialogs); 2 remain (Queries, Page+Deploy).
+
+## 2026-05-14 · Task 7: Beithady HR Leave-OT LeaveTab Component
+
+**COMPLETED**: Task 7 of Beithady HR Sprint 6
+
+### What was built:
+- **`src/app/beithady/hr/leave-ot/_components/leave-tab.tsx`** (172 lines) — LeaveTab component:
+  - 'use client' component managing two sections:
+    1. **Pending Requests** — Lists pending leave requests with Approve/Reject buttons (hr:full only)
+       - Shows employee name, leave type (with colored badge), date range, days, reason (truncated)
+       - Amber styling: bg-amber-950/20, border-amber-700/20, text-amber-300 header
+       - Approve button: emerald-700, Reject button: red-800
+    2. **Balances Table** — Interactive table with inline-editable balance cells
+       - Headers: Name, BH-ID (violet chip), Annual, Sick, Emergency
+       - Year selector in header, "Add Request" button (rose-600)
+       - Inline edit: click any balance cell → number input, Enter/Escape to save/cancel
+       - Fetches used/total for annual & sick; emergency displays em-dash
+       - Balance cell color: red if used > total && total > 0
+  - Props: `pendingRequests`, `balances`, `canApprove`, `employees`, `year`, `onRefresh()`
+  - Integrates with `reviewLeaveRequestAction()` and `setLeaveBalanceAction()` server actions
+  - Opens `AddLeaveDialog` via "Add Request" button
+  - LEAVE_TYPE_COLORS constant for badge styling (annual/blue, sick/amber, emergency/red)
+
+### Pattern compliance:
+- Dark theme: bg-neutral-900, border-white/10, text-white, text-white/60, text-white/40
+- Tailwind v4 with rounded-xl, hover states, transition-colors
+- Lucide icons: CheckCircle2, XCircle, Plus
+- Proper async handling with onRefresh callback
+- Pending section only renders if pendingRequests.length > 0
+
+### Tests:
+- ✅ All 513 tests pass, 22 skipped
+- ✅ Full Vitest run: 3.83s
+
+### Commit:
+- **SHA**: `52db78c`
+- **Message**: `feat(hr): LeaveTab — pending requests + inline-editable balance table`
+- **Files**: 1 new, 172 insertions
+
+**Sprint 6 Progress:** 5 tasks complete (Types, Actions, UI Dialogs, LeaveTab); 1 remains (Page+Deploy).
