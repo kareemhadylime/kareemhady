@@ -268,21 +268,21 @@ export function BoostSelector({
                 Destination
               </label>
               <select id="destination" name="destination" className="ix-input">
-                <option value="ctwa">Click-to-WhatsApp (default)</option>
-                <option value="link">Website link</option>
+                <option value="link">Website link (default)</option>
+                <option value="ctwa">Click-to-WhatsApp (requires WABA linked to FB Page)</option>
               </select>
             </div>
 
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="landing_url" className="text-xs font-semibold">
-                Landing URL (only used when destination = link)
+                Landing URL <span className="text-slate-400 font-normal">(website link destination — leave blank for beithady.com)</span>
               </label>
               <input
                 id="landing_url"
                 name="landing_url"
                 type="url"
                 className="ix-input font-mono text-xs"
-                placeholder="https://app.limeinc.cc/stay/BH-435"
+                placeholder="https://beithady.com"
               />
             </div>
 

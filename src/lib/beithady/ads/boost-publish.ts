@@ -182,7 +182,13 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       );
     }
   }
-  const landingUrl = useCtwa ? buildBhWaLink(`Hi Beit Hady — interested in this post`) : (input.landingUrl || buildBhWaLink());
+  // For CTWA: wa.me link pre-filled with a greeting.
+  // For website: caller-supplied URL or the Beithady homepage (NOT wa.me —
+  // a wa.me link in link_data triggers Meta's CTWA validation even without
+  // destination_type=WHATSAPP, causing error #2446880).
+  const landingUrl = useCtwa
+    ? buildBhWaLink(`Hi Beit Hady — interested in this post`)
+    : (input.landingUrl || 'https://beithady.com');
   const adsetPayload: Record<string, unknown> = {
     name: `${campaignName} — adset`,
     campaign_id: campaignExternalId,
@@ -204,6 +210,8 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   if (useCtwa) {
     adsetPayload.destination_type = 'WHATSAPP';
     adsetPayload.promoted_object = { page_id: c.fbPageId };
+  } else {
+    adsetPayload.destination_type = 'WEBSITE';
   }
   if (input.durationDays && input.durationDays > 0) {
     adsetPayload.end_time = new Date(Date.now() + input.durationDays * 86_400_000).toISOString();
@@ -213,14 +221,15 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   const adsetExternalId = (adsetRes.data as { id: string }).id;
 
   // 3. Creative
-  // For website-link destination, use object_story_spec with link_data —
-  // diagnosed via direct Meta API testing that object_story_id with IG
-  // post ID consistently hits sub:1815813 ("Page not available") even
-  // with full permissions and Page Access Token. object_story_spec works.
+  // Non-CTWA: source_instagram_media_id tells Meta to use the existing native
+  // IG post as the ad creative — preserves all organic likes + comments and
+  // shows the actual post image in preview. This is the correct API field for
+  // native IG Business Account posts (object_story_id is for FB-Page-backed
+  // posts that are cross-posted to IG, which is a different code path and hits
+  // sub:1815813 for pure IG posts). A call_to_action drives clicks to the site.
   //
-  // Trade-off: creates a fresh ad creative (no organic likes/comments
-  // preserved). For CTWA we still try object_story_id to preserve social
-  // proof since CTWA uses a different code path with promoted_object.
+  // CTWA: still uses object_story_id + instagram_actor_id (CTWA creative path
+  // with destination_type=WHATSAPP requires FB Page linked to WABA first).
   const objectStoryId = `${input.igBusinessId}_${input.igMediaId}`;
   const creativePayload: Record<string, unknown> = useCtwa
     ? {
@@ -231,15 +240,9 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       }
     : {
         name: `${campaignName} — boost creative`,
-        object_story_spec: {
-          page_id: c.fbPageId,
-          instagram_user_id: input.igBusinessId,
-          link_data: {
-            link: landingUrl,
-            message: input.caption?.slice(0, 500) || `Beit Hady — discover our newest collection`,
-            ...(input.imageUrl ? { picture: input.imageUrl } : {}),
-          },
-        },
+        instagram_actor_id: input.igBusinessId,
+        source_instagram_media_id: input.igMediaId,
+        call_to_action: { type: 'LEARN_MORE', value: { link: landingUrl } },
       };
   console.log('[boost-publish] create_creative payload', JSON.stringify(creativePayload));
   const creativeRes = await metaPost<{ id: string }>(
