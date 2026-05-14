@@ -55,7 +55,7 @@ export type TikTokPublishStatus =
 // Beithady CTWA WABA number — used as the default landing URL for paid ads
 // that lack a custom final_url. Kept in one place so swapping the number
 // (e.g. when Q-C provisions a different WABA line) only edits this file.
-export const BH_WA_PHONE_E164 = '+201101300300';
+export const BH_WA_PHONE_E164 = '+201501010103';
 export function buildBhWaLink(prefilledText?: string): string {
   const digits = BH_WA_PHONE_E164.replace(/[^0-9]/g, '');
   const tail = prefilledText ? `?text=${encodeURIComponent(prefilledText)}` : '';

@@ -5,8 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
 import { publishGooglePMaxAction } from '../../actions';
-import { buildBhWaLink } from '@/lib/beithady/ads/platforms';
-import { buildPmaxDefaultsFromMetaCampaign, type PmaxDefaults } from '@/lib/beithady/ads/duplicate-to-google';
+import { buildPmaxDefaultsFromMetaCampaign, buildPmaxDefaultsFromIgMediaItem, type PmaxDefaults } from '@/lib/beithady/ads/duplicate-to-google';
+import { listIgMedia } from '@/lib/beithady/ads/meta-client';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,7 +14,7 @@ export const maxDuration = 60;
 export default async function GooglePMaxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; from_meta?: string }>;
+  searchParams: Promise<{ error?: string; from_meta?: string; from_ig?: string }>;
 }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
@@ -26,15 +26,22 @@ export default async function GooglePMaxPage({
     .order('id');
   const accounts = (accountsRaw as Array<{ id: number; name: string; external_id: string; google_refresh_token: string | null; status: string }> | null) || [];
 
-  // If duplicating from a Meta campaign, pre-fill the form. The defaults
-  // function is best-effort — unknown fields fall back to Beithady defaults
-  // so the form is always submittable.
+  // Fetch IG posts for the picker (best-effort, non-blocking)
+  const mediaResult = await listIgMedia('', 20).catch(() => null);
+
+  // Pre-fill from a Meta campaign or an IG post
   let prefill: PmaxDefaults | null = null;
   const fromMetaId = Number.parseInt(sp.from_meta || '', 10);
-  if (Number.isFinite(fromMetaId) && fromMetaId > 0) {
+  const fromIgId = sp.from_ig || null;
+
+  if (fromIgId && mediaResult?.ok) {
+    const post = mediaResult.media.find(m => m.id === fromIgId) ?? null;
+    if (post) prefill = await buildPmaxDefaultsFromIgMediaItem(post);
+  } else if (Number.isFinite(fromMetaId) && fromMetaId > 0) {
     prefill = await buildPmaxDefaultsFromMetaCampaign(fromMetaId);
   }
-  const defaultFinalUrl = prefill?.finalUrl || buildBhWaLink('Hi Beit Hady — interested in a stay');
+
+  const defaultFinalUrl = prefill?.finalUrl || 'https://beithady.com';
   const defaultCampaignName = prefill?.campaignName || '';
   const defaultBudget = prefill?.dailyBudgetUsd ?? 30;
   const defaultCap = prefill?.monthlyBudgetCapUsd ?? '';
@@ -60,15 +67,47 @@ export default async function GooglePMaxPage({
         </div>
       )}
 
+      {/* IG post picker */}
+      {mediaResult?.ok && mediaResult.media.length > 0 && (
+        <div className="ix-card p-3">
+          <p className="text-xs font-semibold mb-2 text-slate-500 dark:text-slate-400">Source from Instagram post — click to pre-fill copy + image</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {mediaResult.media.map(post => {
+              const thumb = post.thumbnail_url || post.media_url;
+              const selected = fromIgId === post.id;
+              return (
+                <a
+                  key={post.id}
+                  href={`?from_ig=${post.id}`}
+                  title={post.caption?.slice(0, 80) || ''}
+                  className={`shrink-0 rounded overflow-hidden border-2 transition-colors ${
+                    selected
+                      ? 'border-violet-500 ring-2 ring-violet-300 dark:ring-violet-700'
+                      : 'border-transparent hover:border-slate-400'
+                  }`}
+                >
+                  {thumb
+                    ? <img src={thumb} alt="" className="w-16 h-16 object-cover" />
+                    : <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] text-slate-500">no img</div>
+                  }
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {prefill?.found && (
         <div className="ix-card border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950 p-4 text-sm space-y-2">
           <div className="flex items-center gap-2">
             <Copy size={14} className="text-violet-600 dark:text-violet-300 shrink-0" />
-            <strong>Duplicated from Meta campaign</strong>
-            <Link href={`/beithady/ads/campaigns/${fromMetaId}`} className="ix-link text-xs">view original →</Link>
+            <strong>{fromIgId ? 'Sourced from Instagram post' : 'Duplicated from Meta campaign'}</strong>
+            {!fromIgId && <Link href={`/beithady/ads/campaigns/${fromMetaId}`} className="ix-link text-xs">view original →</Link>}
           </div>
           <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            Pre-filled headlines, descriptions, budget, locations, and landing URL from the Meta campaign. Review and edit before publishing — PMax has stricter character limits and accepts different audience signals.
+            {fromIgId
+              ? 'Headlines and descriptions mined from the post caption. Review before publishing — PMax has stricter character limits.'
+              : 'Pre-filled headlines, descriptions, budget, locations, and landing URL from the Meta campaign. Review and edit before publishing — PMax has stricter character limits and accepts different audience signals.'}
           </div>
           {prefill.marketingImageUrl && (
             <div className="flex items-start gap-3 mt-2 p-2 bg-white/40 dark:bg-slate-900/40 rounded">

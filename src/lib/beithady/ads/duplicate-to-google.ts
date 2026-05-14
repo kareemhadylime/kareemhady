@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isoCountriesToGoogleGeo } from './platforms';
+import type { IgMediaItem } from './meta-client';
 
 // Pulls a Meta campaign's content + targeting + budget and maps it onto the
 // fields Google Performance Max needs. Used to pre-fill the PMax publish form
@@ -104,7 +105,8 @@ function sanitiseFinalUrl(url: string | null): { final: string; note: string | n
 // Meta CDN URLs (scontent-*.cdninstagram.com) cannot be fetched server-side from Vercel
 // — Meta blocks hotlinking. Mirror the image to our own public bucket so the Google Ads
 // upload step (which also runs server-side) has a stable, always-accessible URL.
-async function mirrorMetaCreative(url: string, campaignId: number): Promise<string> {
+// keyBase: path without extension, e.g. "ads-creatives/42/creative"
+async function mirrorMetaCreative(url: string, keyBase: string): Promise<string> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return url;
@@ -112,7 +114,7 @@ async function mirrorMetaCreative(url: string, campaignId: number): Promise<stri
     const contentType = res.headers.get('content-type') || 'image/jpeg';
     const ext = contentType.includes('png') ? 'png' : 'jpg';
     const sb = supabaseAdmin();
-    const path = `ads-creatives/${campaignId}/creative.${ext}`;
+    const path = `${keyBase}.${ext}`;
     const { error } = await sb.storage
       .from('beithady-gallery-public')
       .upload(path, Buffer.from(buf), { contentType, upsert: true });
@@ -184,7 +186,9 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
 
   // Mirror the Meta CDN image to our own storage so the Google Ads upload step can fetch it.
   const rawCreativeUrl = adRow?.creative_url || null;
-  const marketingImageUrl = rawCreativeUrl ? await mirrorMetaCreative(rawCreativeUrl, camp.id) : null;
+  const marketingImageUrl = rawCreativeUrl
+    ? await mirrorMetaCreative(rawCreativeUrl, `ads-creatives/${camp.id}/creative`)
+    : null;
 
   const notes: string[] = [];
   if (urlNote) notes.push(urlNote);
@@ -208,5 +212,32 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
     descriptions: descs,
     locationIds: geo,
     notes,
+  };
+}
+
+// Build PMax defaults from a live Instagram media item (no Meta campaign needed).
+// The IG image is mirrored to Supabase so the Google Ads upload step can fetch it.
+export async function buildPmaxDefaultsFromIgMediaItem(item: IgMediaItem): Promise<PmaxDefaults> {
+  const { short, long, descs } = buildTextBuckets(item.caption || null, null);
+  const rawUrl = item.media_url || item.thumbnail_url || null;
+  const marketingImageUrl = rawUrl
+    ? await mirrorMetaCreative(rawUrl, `ig-media/${item.id}/creative`)
+    : null;
+  const dateStr = item.timestamp
+    ? new Date(item.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '';
+  return {
+    found: true,
+    campaignName: `[Beit Hady] PMax ${dateStr}`.trim(),
+    dailyBudgetUsd: 30,
+    monthlyBudgetCapUsd: null,
+    buildingCodes: [],
+    finalUrl: 'https://beithady.com',
+    marketingImageUrl,
+    headlines: short,
+    longHeadlines: long,
+    descriptions: descs,
+    locationIds: [],
+    notes: marketingImageUrl ? [] : ['No image for this post — upload assets manually in Google Ads UI.'],
   };
 }
