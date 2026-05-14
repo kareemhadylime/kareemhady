@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 // Daily insights pull from Meta Marketing API → ads_daily_metrics.
-// Runs 05:30 Cairo (after Beithady CRM sync) so by morning the
-// dashboard reflects yesterday's spend/impressions/leads/CPL.
+// Runs 05:30 Cairo (after Beithady CRM sync). Pulls yesterday + today
+// (time_increment=1) so the dashboard reflects same-day spend/clicks
+// without waiting another 24h for the next cron tick.
 //
 // No-op when credentials missing.
 
@@ -48,9 +49,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const today = new Date().toISOString().slice(0, 10);
     const yesterday = new Date(Date.now() - 86400e3).toISOString().slice(0, 10);
-    // Pull campaign-level insights for yesterday
-    const path = `${creds.creds.adAccountId}/insights?level=campaign&time_range=${encodeURIComponent(JSON.stringify({ since: yesterday, until: yesterday }))}&fields=campaign_id,impressions,clicks,spend,reach,actions&limit=200`;
+    // Pull campaign-level insights for yesterday + today (intraday refresh).
+    // time_increment=1 yields one row per day per campaign, with date_start used as metric_date.
+    const path = `${creds.creds.adAccountId}/insights?level=campaign&time_range=${encodeURIComponent(JSON.stringify({ since: yesterday, until: today }))}&time_increment=1&fields=campaign_id,impressions,clicks,spend,reach,actions,date_start&limit=200`;
     const r = await metaGet<{ data: Array<Record<string, unknown>> }>(path, creds.creds.token);
     if (!r.ok) {
       await sb.from('ads_sync_log').update({
@@ -79,11 +82,12 @@ export async function GET(req: NextRequest) {
       const actions = (it.actions as Array<{ action_type: string; value: string }> | undefined) || [];
       const leads = Number(actions.find(a => a.action_type === 'onsite_conversion.messaging_conversation_started_7d' || a.action_type === 'onsite_conversion.lead_grouped')?.value || 0);
       const spendMicros = Math.round(Number(it.spend || 0) * 1_000_000);
+      const metricDate = (it.date_start as string | undefined) || yesterday;
       await sb.from('ads_daily_metrics').upsert({
         account_id: cc.account_id,
         campaign_id: cc.id,
         platform: 'meta',
-        metric_date: yesterday,
+        metric_date: metricDate,
         impressions: Number(it.impressions || 0),
         clicks: Number(it.clicks || 0),
         spend_micros: spendMicros,
@@ -105,10 +109,10 @@ export async function GET(req: NextRequest) {
     await recordAudit({
       module: 'ads',
       action: 'insights_pulled',
-      metadata: { date: yesterday, rows: upserted, leads: totalLeads, started_at: startedAt },
+      metadata: { since: yesterday, until: today, rows: upserted, leads: totalLeads, started_at: startedAt },
     });
 
-    return NextResponse.json({ ok: true, date: yesterday, rows_upserted: upserted, leads: totalLeads });
+    return NextResponse.json({ ok: true, since: yesterday, until: today, rows_upserted: upserted, leads: totalLeads });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await sb.from('ads_sync_log').update({
