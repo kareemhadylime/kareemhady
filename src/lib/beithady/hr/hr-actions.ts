@@ -93,6 +93,7 @@ export async function addEmployeeAction(
         phone:              personal.phone.trim() || null,
         email:              personal.email.trim() || null,
         portrait_url:       personal.portrait_url || null,
+        payslip_language:   personal.payslip_language,
         incomplete_fields:  incompleteFields,
         created_by:         user.id,
       })
@@ -176,6 +177,7 @@ export async function editEmployeeAction(
         phone:              personal.phone.trim() || null,
         email:              personal.email.trim() || null,
         portrait_url:       personal.portrait_url || null,
+        payslip_language:   personal.payslip_language,
         incomplete_fields:  incompleteFields,
         // updated_at is auto-managed by trigger (0124 migration)
       })

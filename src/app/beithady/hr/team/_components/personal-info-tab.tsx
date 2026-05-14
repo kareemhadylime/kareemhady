@@ -176,6 +176,28 @@ export function PersonalInfoTab({ data, companyId, onChange, onPhotoUpload, uplo
           placeholder="email@..." />
       </Field>
 
+      {/* Payslip Language */}
+      <div className="space-y-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Payslip Language
+        </label>
+        <div className="flex gap-4">
+          {(['arabic', 'english'] as const).map(lang => (
+            <label key={lang} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="payslip_language"
+                value={lang}
+                checked={data.payslip_language === lang}
+                onChange={() => onChange({ payslip_language: lang })}
+                className="accent-violet-600"
+              />
+              <span className="text-sm text-slate-700 dark:text-slate-300 capitalize">{lang}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       {/* Company ID */}
       <Field label="Company ID (auto-generated)">
         <div className="ix-input bg-slate-50 dark:bg-slate-900 font-mono text-amber-600 dark:text-amber-400 cursor-default select-all">

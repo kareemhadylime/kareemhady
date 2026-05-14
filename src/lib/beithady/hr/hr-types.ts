@@ -111,6 +111,7 @@ export type HrEmployee = {
   email: string | null;
   portrait_url: string | null;
   incomplete_fields: string[];
+  payslip_language: 'arabic' | 'english';
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -173,6 +174,7 @@ export type PersonalInfoInput = {
   phone: string;
   email: string;
   portrait_url: string;
+  payslip_language: 'arabic' | 'english';
 };
 
 export type ContractInput = {

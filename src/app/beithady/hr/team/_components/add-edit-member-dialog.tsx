@@ -23,6 +23,7 @@ function emptyPersonal(): PersonalInfoInput {
     date_of_birth: '', gender: '', department: '', position: '',
     job_role: '', status: 'on_job', date_joined: '', date_terminated: '',
     termination_reason: '', phone: '', email: '', portrait_url: '',
+    payslip_language: 'arabic' as const,
   };
 }
 
@@ -53,6 +54,7 @@ function employeeToPersonal(emp: HrEmployeeRow): PersonalInfoInput {
     phone:              emp.phone ?? '',
     email:              emp.email ?? '',
     portrait_url:       emp.portrait_url ?? '',
+    payslip_language:   emp.payslip_language,
   };
 }
 
