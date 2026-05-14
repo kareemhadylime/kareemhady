@@ -53,8 +53,6 @@ export default async function BeithadyHrPage() {
       description: 'Leave requests · approval workflow · balances · overtime logging per employee.',
       icon: CalendarOff,
       accent: 'rose',
-      disabled: true,
-      comingSoonLabel: 'Sprint 6',
     },
     {
       href: '/beithady/hr/headcount',
