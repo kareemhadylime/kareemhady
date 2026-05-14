@@ -1,22 +1,82 @@
 # SESSION_HANDOFF.md
 
-## 2026-05-14 — Meta ad non-delivery diagnostic (advisory, no code)
+## 2026-05-14 — HR Sprint 9: Training & Certifications — Brainstorming IN PROGRESS
 
-**Status:** DONE (Q&A only — no code changes, no commits)
+**All design decisions confirmed:**
+- A: Combined table (`record_type`: 'training' | 'certification')
+- Minimal + attachment: type · title · date · expiry_date · file · notes
+- A: Extend existing `hr-documents-expiry` cron for expiry alerts
+- A: Mirror Sprint 8 layout — Expiring Soon banner + expandable employee list + Add/Edit modal
 
-**Context:** User shared screenshot of a Beit Hady boost ad ([Beit Hady] Boost 2026-05-14 05:53) showing Active status but $0.00 spent and "No activity during selected date range" after 12 hours. Asked whether the issue could be country count or audience filtering.
+**Data model approved:**
+```sql
+hr_training_records (id, employee_id, record_type, title, date, expiry_date, file_path, file_name, notes, created_by, created_at, updated_at)
+```
+Storage bucket: `hr-training` (private, signed-URL access)
 
-**Answer given:** Yes — both are common culprits. Provided ranked diagnostic list:
-1. Audience too narrow (estimated audience size needle in "Specific" red zone)
-2. Country/geo + language mismatch (recommended Egypt + GCC + EU feeders, EN+AR languages for Beit Hady STR)
-3. Bid/budget vs. competition (low daily budget into high-CPM countries)
-4. Ad in secondary review (Active status can mask "In Review" delivery state)
-5. Billing hold (declined card, threshold not reset, spending limit)
-6. Optimization event not firing (Pixel/CAPI event missing for conversions objective)
+**Page structure approved:**
+- Expiring Soon banner (same tiers: 🔴≤7d 🟡8-30d 🔵31-60d)
+- Expandable employee list with 🏅 Certification / 🎓 Training chips
+- Add/Edit modal (type toggle, title, date, expiry, file upload, notes)
+- Cron: extend `hr-documents-expiry` to include training records
 
-**Recommended 60s check:** Hover Active dot on the ad row (not campaign), check Audience definition panel needle, click "Why isn't this ad delivering?" ⓘ tooltip, verify Billing → Payment activity.
+**Spec written:** `docs/superpowers/specs/2026-05-14-beithady-hr-training-design.md` (commit `dd91c7a`)
 
-**Follow-up:** Asked user to share Delivery tooltip contents and audience size estimate to narrow down further.
+**Plan written:** `docs/superpowers/plans/2026-05-14-beithady-hr-training.md` (commit `8f4b74f`) — 12 tasks
+
+**Next step:** Execute plan (subagent-driven or inline)
+
+---
+
+## 2026-05-14 — HR Sprint 8: Documents & Compliance — COMPLETE ✅
+
+**All 12 tasks shipped to production.**
+
+**Commits:** `333a6d9` (migration) → `c3316c9` (types+TDD) → `1ada974` (queries) → `584e913` (actions) → `95eef1c` (upload-url) → `9ab3391` (cron+vercel) → `3b6b7bb` (ExpiringBanner) → `529ed0e` (AddDocumentDialog) → `844d04b` (EmployeeDocList) → `9606fa8` (page) → `a01419e` (team tab+by-employee) → `c321092` (activate+deploy)
+
+**What's live at /beithady/hr/documents:**
+- Expiring Soon banner (🔴 ≤7d · 🟡 8–30d · 🔵 31–60d)
+- Searchable expandable employee list with document type chips (color-coded by expiry)
+- Add/Edit modal with signed-URL file upload (PDF/JPG/PNG ≤10MB)
+- File download via 60s signed URLs + delete with storage cleanup
+- DST-safe 9 AM Cairo cron: HR WhatsApp digest + individual 25-30d/0-7d reminders
+- Documents tab added to employee profile drawer in /beithady/hr/team
+- 1 new DB table: `hr_employee_documents` + private `hr-documents` storage bucket
+- Sprint 8 hub tile activated · Tests: 527 passing
+
+**Next sprint (Sprint 9):** Training & Certifications
+
+---
+
+## 2026-05-14 — Meta ad non-delivery + sync diagnostic (advisory, no code)
+
+**Status:** DONE (Q&A only — no code changes, no commits). Awaiting user go-ahead to ship fix.
+
+**Thread 1 — Why Meta ad showed "Active" but $0 spent:**
+- Initial guess (wrong date filter, narrow audience, country mix) — turned out user was viewing wrong date range. After fixing, ad showed real numbers: **$7.61 spent, 615 link clicks, 15,479 impressions, 14,045 reach** on a $50/day budget. Ad was fine; user-side date-picker issue.
+- Earlier screenshots had shown "Unpublished edits" badge — flagged as likely cause; turned out moot since ad was actually delivering.
+
+**Thread 2 — Why those Meta numbers aren't showing in our app dashboard:**
+
+DB investigation via Supabase MCP:
+- ✅ Campaign IS registered: `ads_campaigns` id=2, external_id=`120247361245980114`, name `[Beit Hady] Boost 2026-05-14 05:53`, status ACTIVE
+- ✅ Today's sync (May 14 03:30 UTC) ran successfully — but `rows_upserted: 0`
+- ❌ Prior 4 sync runs (May 10–13) all failed with `error: missing_credentials` — credentials only restored before May 14 run
+- ❌ `ads_daily_metrics` for `platform='meta'` is **completely empty** (0 rows)
+
+**Root cause identified** in `src/app/api/cron/beithady-ads-insights/route.ts:51`:
+```ts
+const yesterday = new Date(Date.now() - 86400e3).toISOString().slice(0,10);
+// time_range = { since: yesterday, until: yesterday }
+```
+- Cron runs once daily at `30 3 * * *` (03:30 UTC / 05:30–06:30 Cairo)
+- Only pulls **yesterday's** data, never today's
+- When today's run fired, "yesterday" = May 13 → campaign was PAUSED → 0 rows
+- Today's actual $7.61 spend won't sync until May 15 03:30 UTC run
+
+**Bonus finding:** Meta token may have been short-lived user token (not system-user token) — caused 4 consecutive `missing_credentials` failures May 10–13. Worth verifying in Vercel env.
+
+**Recommendation proposed (Option C):** One-line fix — change `time_range` to `{ since: yesterday, until: today }` so the cron upserts both rows each run. `onConflict: 'campaign_id,metric_date'` already handles overwrites safely. User asked to confirm before shipping.
 
 **Repo state:** clean, no changes.
 
@@ -123,3 +183,47 @@ Next: HR Sprint 8 is complete—ready for activation and review.
 - Task 10: HcComparison ✅
 - Task 11: HeadcountMonthlyAvg picker + launch ✅
 - Task 12: Tile activation ✅
+
+---
+
+## 2026-05-14 — HR Sprint 9: Task 2 — Training types + formatTrainingDateRange — TDD
+
+**Status:** ✅ DONE
+
+**What was done:**
+- Created `src/lib/beithady/hr/hr-training-types.test.ts` with 4 test cases (TDD approach)
+  - `formatTrainingDateRange(null, null)` → `'—'`
+  - `formatTrainingDateRange('2026-03-01', null)` → `'Completed 2026-03-01'`
+  - `formatTrainingDateRange(null, '2027-06-30')` → `'Expires 2027-06-30'`
+  - `formatTrainingDateRange('2026-03-01', '2027-03-01')` → `'2026-03-01 → 2027-03-01'`
+- Created `src/lib/beithady/hr/hr-training-types.ts` with:
+  - Type definitions: `RecordType`, `HrTrainingRecord`, `HrTrainingRecordRow`, `EmployeeTrainingSummary`
+  - Form inputs: `AddTrainingInput`, `UpdateTrainingInput`
+  - Constants: `RECORD_TYPE_LABELS`, `RECORD_TYPE_ICONS`, `RECORD_TYPES`
+  - Helper: `formatTrainingDateRange(date, expiryDate)`
+
+**Test results:** 4/4 passing for new tests; full suite: 531 tests passing
+
+**Commit:** d1781078af463a09e21e8e58f49f18a78c8b3ea4 — `feat(hr): training types + formatTrainingDateRange helper — TDD`
+
+**Next step:** Task 3 — Queries for training records (getTrai, getEmployeeTrainingSummaries, getExpiringTrainingRecords)
+
+---
+
+## 2026-05-14 — HR Sprint 9: Task 3 — Training server-only queries
+
+**Status:** ✅ DONE
+
+**What was done:**
+- Created `src/lib/beithady/hr/hr-training-queries.ts` — server-only module with 3 async query functions:
+  - `getExpiringTrainingRecords(withinDays)` — fetch records expiring within N days; joins with `hr_employees` for name/phone; returns `HrTrainingRecordRow[]`
+  - `getAllEmployeeTrainingSummary()` — fetch all active employees (non-terminated) + their training records grouped; returns `EmployeeTrainingSummary[]`
+  - `getEmployeeTrainingRecords(employeeId)` — fetch all training records for one employee (team drawer); returns `HrTrainingRecord[]`
+- All functions use `supabaseAdmin()` service-role client; error handling via `.throw()`
+- Types imported from `hr-training-types.ts`
+
+**Tests:** All 531 passing (no regression)
+
+**Commit:** 5b6860c — `feat(hr): training server-only queries — getExpiringTrainingRecords, getAllEmployeeTrainingSummary, getEmployeeTrainingRecords`
+
+**Next step:** Task 4 — Server actions for add/edit/delete
