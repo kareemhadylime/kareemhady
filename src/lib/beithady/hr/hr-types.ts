@@ -113,6 +113,7 @@ export type HrEmployee = {
   incomplete_fields: string[];
   created_at: string;
   updated_at: string;
+  created_by: string | null;
 };
 
 export type HrContract = {
@@ -133,6 +134,7 @@ export type HrContract = {
   effective_from: string;
   effective_to: string | null;
   created_at: string;
+  created_by: string | null;
 };
 
 export type HrEvent = {
