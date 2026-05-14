@@ -215,6 +215,46 @@ export async function listIgMedia(
   return { ok: true, media: items };
 }
 
+// === IG Stories (current 24h window only) ===
+// Stories live for 24h on IG. The Graph API only returns currently active ones.
+// Used by the TikTok cross-post flow: pick a still-live story, mirror its video
+// to Supabase, publish to TikTok before the original IG story expires.
+//
+// Fields are a subset of IgMediaItem since stories never have like/comment counts.
+
+export type IgStoryItem = {
+  id: string;
+  media_type: 'IMAGE' | 'VIDEO';
+  permalink: string | null;
+  media_url: string | null;
+  thumbnail_url: string | null;
+  timestamp: string;
+};
+
+export async function listIgStories(
+  limit = 25
+): Promise<
+  | { ok: true; stories: IgStoryItem[] }
+  | { ok: false; error: string }
+> {
+  const creds = await loadMetaCredentials();
+  if (!creds.ok) return { ok: false, error: creds.error };
+
+  // Nested query: page → ig_business_account → stories
+  const storyFields = 'id,media_type,permalink,media_url,thumbnail_url,timestamp';
+  const fields = `instagram_business_account{stories.limit(${Math.min(50, Math.max(1, limit))}){${storyFields}}}`;
+
+  type PageResp = { instagram_business_account?: { stories?: { data: IgStoryItem[] } } };
+  const r = await metaGet<PageResp>(
+    `${creds.creds.fbPageId}?fields=${encodeURIComponent(fields)}`,
+    creds.creds.token
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+
+  const items = (r.data as PageResp)?.instagram_business_account?.stories?.data || [];
+  return { ok: true, stories: items };
+}
+
 // Probe — used by /admin/integrations to verify the token works.
 export async function pingMetaMarketing(): Promise<
   | { ok: true; ad_account_name: string; pages_count: number }

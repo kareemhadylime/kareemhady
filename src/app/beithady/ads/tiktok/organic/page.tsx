@@ -7,7 +7,7 @@ import { AdsTabs } from '../../_components/ads-tabs';
 import { publishTikTokReelAction, pollTikTokPostAction } from '../../actions';
 import { statusBadgeClass } from '@/lib/beithady/ads/platforms';
 import { fmtCairoDate } from '@/lib/fmt-date';
-import { listIgReelsForTikTok, buildTikTokDefaultsFromIgMediaItem, type IgReelDefaults } from '@/lib/beithady/ads/ig-to-tiktok';
+import { listIgPickerItems, buildTikTokDefaultsFromPickerItem, type IgReelDefaults } from '@/lib/beithady/ads/ig-to-tiktok';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -16,21 +16,25 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
-  const [{ data: accountsRaw }, { data: postsRaw }, igReels] = await Promise.all([
+  const [{ data: accountsRaw }, { data: postsRaw }, igPickerItems] = await Promise.all([
     sb.from('ads_accounts').select('id, name, tiktok_username, tiktok_refresh_token').eq('platform', 'tiktok').order('id'),
     sb.from('ads_tiktok_posts').select('id, video_url, caption, status, share_url, building_code, created_at, published_at').order('created_at', { ascending: false }).limit(25),
-    listIgReelsForTikTok(30),
+    listIgPickerItems(30),
   ]);
   const accounts = (accountsRaw as Array<{ id: number; name: string; tiktok_username: string | null; tiktok_refresh_token: string | null }> | null) || [];
   const connected = accounts.filter(a => !!a.tiktok_refresh_token);
   const posts = (postsRaw as Array<{ id: number; video_url: string; caption: string | null; status: string; share_url: string | null; building_code: string | null; created_at: string; published_at: string | null }> | null) || [];
 
-  // Pre-fill from a selected IG Reel — mirrors the video to Supabase so TikTok can fetch it.
+  // Pre-fill from a selected IG Reel or Story — mirrors the video to Supabase so TikTok can fetch it.
   let prefill: IgReelDefaults | null = null;
+  let prefillKind: 'reel' | 'story' | null = null;
   const fromIgId = sp.from_ig || null;
   if (fromIgId) {
-    const item = igReels.find(m => m.id === fromIgId);
-    if (item) prefill = await buildTikTokDefaultsFromIgMediaItem(item);
+    const item = igPickerItems.find(m => m.id === fromIgId);
+    if (item) {
+      prefill = await buildTikTokDefaultsFromPickerItem(item);
+      prefillKind = item.kind;
+    }
   }
 
   return (
@@ -50,22 +54,25 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
         </div>
       )}
 
-      {/* IG Reels picker — click a Reel to mirror it to Supabase and pre-fill the form */}
-      {igReels.length > 0 && (
+      {/* IG Reels + Stories picker — click any thumbnail to mirror it to Supabase and pre-fill the form */}
+      {igPickerItems.length > 0 && (
         <div className="ix-card p-3">
-          <p className="text-xs font-semibold mb-2 text-slate-500 dark:text-slate-400">Source from an existing Instagram Reel — click to mirror video + pre-fill caption</p>
+          <p className="text-xs font-semibold mb-2 text-slate-500 dark:text-slate-400">
+            Source from Instagram — <span className="text-violet-600 dark:text-violet-400">Reels</span> + currently-live <span className="text-rose-600 dark:text-rose-400">Stories</span> (click to mirror video + pre-fill)
+          </p>
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {igReels.map(reel => {
-              const thumb = reel.thumbnail_url || reel.media_url;
-              const selected = fromIgId === reel.id;
+            {igPickerItems.map(item => {
+              const thumb = item.thumbnail_url || item.media_url;
+              const selected = fromIgId === item.id;
+              const isStory = item.kind === 'story';
               return (
                 <a
-                  key={reel.id}
-                  href={`?from_ig=${reel.id}`}
-                  title={reel.caption?.slice(0, 80) || ''}
-                  className={`shrink-0 rounded overflow-hidden border-2 transition-colors ${
+                  key={item.id}
+                  href={`?from_ig=${item.id}`}
+                  title={isStory ? 'IG Story (live, 24h)' : (item.caption?.slice(0, 80) || 'IG Reel')}
+                  className={`relative shrink-0 rounded overflow-hidden border-2 transition-colors ${
                     selected
-                      ? 'border-violet-500 ring-2 ring-violet-300 dark:ring-violet-700'
+                      ? (isStory ? 'border-rose-500 ring-2 ring-rose-300 dark:ring-rose-700' : 'border-violet-500 ring-2 ring-violet-300 dark:ring-violet-700')
                       : 'border-transparent hover:border-slate-400'
                   }`}
                 >
@@ -73,6 +80,9 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
                     ? <img src={thumb} alt="" className="w-16 h-24 object-cover" />
                     : <div className="w-16 h-24 bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] text-slate-500">no img</div>
                   }
+                  {isStory && (
+                    <span className="absolute top-0.5 left-0.5 text-[9px] font-semibold bg-rose-500 text-white px-1 rounded">STORY</span>
+                  )}
                 </a>
               );
             })}
@@ -81,10 +91,10 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
       )}
 
       {prefill?.found && (
-        <div className="ix-card border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950 p-4 text-sm space-y-2">
+        <div className={`ix-card p-4 text-sm space-y-2 ${prefillKind === 'story' ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950' : 'border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950'}`}>
           <div className="flex items-center gap-2">
-            <Copy size={14} className="text-violet-600 dark:text-violet-300 shrink-0" />
-            <strong>Sourced from Instagram Reel</strong>
+            <Copy size={14} className={`shrink-0 ${prefillKind === 'story' ? 'text-rose-600 dark:text-rose-300' : 'text-violet-600 dark:text-violet-300'}`} />
+            <strong>Sourced from Instagram {prefillKind === 'story' ? 'Story' : 'Reel'}</strong>
             {prefill.permalink && <a href={prefill.permalink} target="_blank" rel="noreferrer" className="ix-link text-xs">view on IG →</a>}
           </div>
           <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
