@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Pause, Play, ShieldAlert, ExternalLink, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Pause, Play, ShieldAlert, ExternalLink, AlertCircle, Zap } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -9,7 +9,7 @@ import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { convertToUsd } from '@/lib/fx-rates';
 import { fmtCairoDateTime, fmtCairoDate } from '@/lib/fmt-date';
 import { setCampaignStatusActionUnified } from '../../actions';
-import { loadMetaCredentials, fetchMetaEntityStatusBatch, type MetaLiveStatus } from '@/lib/beithady/ads/meta-client';
+import { loadMetaCredentials, fetchMetaEntityStatusBatch, fetchMetaCampaignInsights, type MetaLiveStatus, type MetaInsightsSnapshot } from '@/lib/beithady/ads/meta-client';
 import { MetaStatusBadge, MetaIssuesList } from './meta-status-badge';
 
 export const dynamic = 'force-dynamic';
@@ -123,9 +123,10 @@ export default async function CampaignDetailPage({
   }
   const roas = totalSpend > 0 ? attributedRevenueUsd / totalSpend : null;
 
-  // Live Meta delivery status (effective_status + issues_info) — only for
-  // Meta campaigns with non-draft external IDs. Batched parallel fetch.
+  // Live Meta delivery status + real-time insights — only for Meta campaigns
+  // with non-draft external IDs. Both fetched in parallel.
   let liveStatuses: Map<string, MetaLiveStatus> = new Map();
+  let liveInsights: MetaInsightsSnapshot | null = null;
   if (camp.platform === 'meta' && !camp.external_id.startsWith('draft_')) {
     const creds = await loadMetaCredentials();
     if (creds.ok) {
@@ -134,7 +135,12 @@ export default async function CampaignDetailPage({
         ...adSets.map(s => s.external_id).filter(Boolean),
         ...ads.map(a => a.external_id).filter(Boolean),
       ];
-      liveStatuses = await fetchMetaEntityStatusBatch(externalIds, creds.creds.token);
+      const [statusMap, insightsResult] = await Promise.all([
+        fetchMetaEntityStatusBatch(externalIds, creds.creds.token),
+        fetchMetaCampaignInsights(camp.external_id, creds.creds.token),
+      ]);
+      liveStatuses = statusMap;
+      if (insightsResult.ok) liveInsights = insightsResult.data;
     }
   }
   const campLive = liveStatuses.get(camp.external_id) || null;
@@ -264,6 +270,35 @@ export default async function CampaignDetailPage({
           </div>
         )}
       </section>
+
+      {/* Live Meta Insights — real-time from Meta Insights API */}
+      {camp.platform === 'meta' && liveInsights && (
+        <section className="ix-card p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="text-sm font-semibold flex items-center gap-1.5">
+              <Zap size={14} className="text-amber-500" />
+              Live from Meta
+              <span className="text-[10px] font-normal text-slate-400 ml-1">lifetime · pulled {fmtCairoDateTime(liveInsights.fetched_at)}</span>
+            </h2>
+            <span className="text-[10px] text-slate-400 italic">
+              Not from our DB — direct Meta Insights API
+            </span>
+          </div>
+          {liveInsights.impressions === 0 && liveInsights.spend === 0 ? (
+            <p className="text-xs text-slate-500">No spend or impressions yet — campaign may be brand new or hasn&apos;t started delivering.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
+              <Stat label="Spend (live)" value={`$${liveInsights.spend.toFixed(2)}`} />
+              <Stat label="Impressions" value={liveInsights.impressions.toLocaleString()} />
+              <Stat label="Clicks" value={liveInsights.clicks.toLocaleString()} />
+              <Stat label="Reach" value={liveInsights.reach.toLocaleString()} />
+              {liveInsights.cpm != null && <Stat label="CPM" value={`$${liveInsights.cpm.toFixed(2)}`} />}
+              {liveInsights.cpc != null && <Stat label="CPC" value={`$${liveInsights.cpc.toFixed(2)}`} />}
+              {liveInsights.ctr != null && <Stat label="CTR" value={`${liveInsights.ctr.toFixed(2)}%`} accent="cyan" />}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Daily metrics sparkline */}
       {chartDays.length > 0 && (

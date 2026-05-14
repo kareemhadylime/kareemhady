@@ -403,6 +403,79 @@ export async function fetchMetaEntityStatusBatch(
   return out;
 }
 
+// === Campaign real-time insights ===
+// Calls /{campaign_id}/insights?date_preset=lifetime — returns whatever Meta
+// has billed/counted so far (spend, impressions, clicks, reach, CPM, CPC,
+// CTR). Meta returns numbers as strings; we parse them here. Empty data[]
+// means the campaign has no spend yet (new / never delivered).
+
+export type MetaInsightsSnapshot = {
+  spend: number;          // USD float
+  impressions: number;
+  clicks: number;
+  reach: number;
+  cpm: number | null;     // cost per mille (USD)
+  cpc: number | null;     // cost per click (USD)
+  ctr: number | null;     // click-through rate %
+  fetched_at: string;     // ISO timestamp of when we fetched
+};
+
+export async function fetchMetaCampaignInsights(
+  campaignId: string,
+  token: string
+): Promise<
+  | { ok: true; data: MetaInsightsSnapshot }
+  | { ok: false; error: string }
+> {
+  if (!campaignId || campaignId.startsWith('draft_')) {
+    return { ok: false, error: 'draft_campaign' };
+  }
+  const fields = 'spend,impressions,clicks,reach,cpm,cpc,ctr';
+  const url =
+    `${GRAPH}/${campaignId}/insights` +
+    `?fields=${encodeURIComponent(fields)}` +
+    `&date_preset=lifetime` +
+    `&access_token=${encodeURIComponent(token)}`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!r.ok || j.error) {
+      const msg = (j.error as { message?: string } | undefined)?.message || `http_${r.status}`;
+      return { ok: false, error: msg };
+    }
+    const rows = (j.data as Array<Record<string, unknown>>) || [];
+    const d = rows[0];
+    if (!d) {
+      // No rows = campaign has never delivered — return zeroed snapshot
+      return {
+        ok: true,
+        data: { spend: 0, impressions: 0, clicks: 0, reach: 0, cpm: null, cpc: null, ctr: null, fetched_at: new Date().toISOString() },
+      };
+    }
+    const pf = (key: string): number | null => {
+      const v = d[key];
+      if (v == null || v === '') return null;
+      const n = parseFloat(String(v));
+      return isNaN(n) ? null : n;
+    };
+    return {
+      ok: true,
+      data: {
+        spend:       pf('spend') ?? 0,
+        impressions: parseInt(String(d.impressions ?? '0'), 10) || 0,
+        clicks:      parseInt(String(d.clicks ?? '0'), 10) || 0,
+        reach:       parseInt(String(d.reach ?? '0'), 10) || 0,
+        cpm:         pf('cpm'),
+        cpc:         pf('cpc'),
+        ctr:         pf('ctr'),
+        fetched_at:  new Date().toISOString(),
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // === Ad-account recommendations (Opportunity Score) ===
 // Meta's Advantage+ panel surfaces ML-driven optimization suggestions. The
 // /act_<id>?fields=recommendations,opportunity_score endpoint returns the

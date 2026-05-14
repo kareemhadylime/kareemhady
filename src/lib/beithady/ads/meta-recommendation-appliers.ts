@@ -60,8 +60,9 @@ async function applyAdvantagePlusCreative(): Promise<ApplyResult> {
     else errors.push(`${c.id}: ${r.error}`);
   }
 
+  if (applied === 0) return { ok: false, reason: errors.length ? errors[0] : 'no_creatives_updated' };
   return {
-    ok: applied > 0,
+    ok: true,
     applied,
     details:
       errors.length === 0
@@ -95,8 +96,9 @@ async function applyAdvantagePlusAudience(): Promise<ApplyResult> {
     if (r.ok) applied += 1;
   }
 
+  if (applied === 0) return { ok: false, reason: 'no_adsets_updated' };
   return {
-    ok: applied > 0,
+    ok: true,
     applied,
     details: `Enabled on ${applied} ad set${applied === 1 ? '' : 's'}`,
   };
@@ -133,8 +135,9 @@ async function applyAdvantagePlusPlacements(): Promise<ApplyResult> {
     if (r.ok) applied += 1;
   }
 
+  if (applied === 0) return { ok: false, reason: 'no_adsets_updated' };
   return {
-    ok: applied > 0,
+    ok: true,
     applied,
     details: `Expanded placements on ${applied} ad set${applied === 1 ? '' : 's'}`,
   };
