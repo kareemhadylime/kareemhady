@@ -1,3 +1,30 @@
+## 2026-05-14 Task 3: Beithady HR Types File (hr-types.ts)
+
+**Status:** DONE
+
+**Completed:**
+- Created `src/lib/beithady/hr/hr-types.ts` — pure types + enum constants, zero imports
+- 9 const enums with their label records:
+  - `DEPARTMENTS` (13 values: executive, finance, reservations, ...) + `DEPARTMENT_LABELS`
+  - `JOB_ROLES` (15 values: owner_director, manager, ...) + `JOB_ROLE_LABELS`
+  - `EMPLOYEE_STATUSES` (5 values: on_job, probation, ...) + `STATUS_LABELS`
+  - `BUILDING_CODES` (6 values: BH-26, BH-73, ...) + `BUILDING_LABELS`
+  - `CONTRACT_TYPES` (permanent, fixed_term, hourly)
+  - `PAYMENT_METHODS` (bank, cash)
+  - `EVENT_TYPES` (6 audit events)
+- 3 DB row shapes: `HrEmployee`, `HrContract`, `HrEvent`, `HrEmployeeRow` (joined view)
+- 3 form input shapes: `PersonalInfoInput`, `ContractInput`
+- 2 import shapes: `ImportRow`, `ImportPreviewResult`
+- TypeScript strict mode: **no errors** (verified with `npx tsc --noEmit`)
+- Committed: `b9840c1` — "feat(hr): create hr-types.ts with shared TypeScript types + enums (Task 2, Sprint 1)"
+
+**Files Changed:**
+- `src/lib/beithady/hr/hr-types.ts` (new, 213 lines)
+
+**Next:** Task 4 (HR DB actions layer) — awaits this types foundation.
+
+---
+
 ## 2026-05-14 Task 2: Live Meta Insights on Campaign Detail Page
 
 **Status:** DONE
@@ -54,6 +81,21 @@
 - `C:\kareemhady\supabase\migrations\0080_hr_team_members.sql` (new, 100 lines)
 
 **Next:** Task 2 (HR API endpoints) — awaits this migration foundation.
+
+---
+
+## 2026-05-14 — Small Fix: Add Missing created_by Fields to HR Types
+
+**Task:** The DB schema has `created_by uuid references accounts(id)` on both `hr_employees` and `hr_employee_contracts` tables, but the TypeScript types were missing this field.
+
+**Completed:**
+- ✅ Added `created_by: string | null;` to `HrEmployee` type (after `updated_at`)
+- ✅ Added `created_by: string | null;` to `HrContract` type (after `created_at`)
+- ✅ TypeScript verification: `npx tsc --noEmit` — no errors
+- ✅ Committed: `f3197cd` — "fix(hr): add missing created_by field to HrEmployee + HrContract types"
+
+**Files Changed:**
+- `src/lib/beithady/hr/hr-types.ts` (2 insertions)
 
 ---
 
