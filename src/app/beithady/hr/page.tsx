@@ -41,13 +41,11 @@ export default async function BeithadyHrPage() {
       accent: 'cyan',
     },
     {
-      href: '/beithady/hr/biometric',
+      href: '/beithady/hr/attendance',
       title: 'Biometric Upload',
       description: 'Upload fingerprint device .xlsx → PM review → finalize. Replaces manual attendance entry.',
       icon: Fingerprint,
       accent: 'indigo',
-      disabled: true,
-      comingSoonLabel: 'Sprint 5',
     },
     {
       href: '/beithady/hr/leave-ot',

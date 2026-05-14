@@ -2,11 +2,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Upload, CheckCircle2, Clock } from 'lucide-react';
+import { Download, Upload, CheckCircle2, Clock, Fingerprint } from 'lucide-react';
 import { ImportAttendanceDialog } from './import-attendance-dialog';
 import { approveAttendanceAction, approveAttendanceRowAction } from '@/lib/beithady/hr/hr-attendance-actions';
 import { BUILDING_CODES, BUILDING_LABELS, DEPARTMENTS, DEPARTMENT_LABELS } from '@/lib/beithady/hr/hr-types';
-import type { AttendanceRow } from '@/lib/beithady/hr/hr-attendance-types';
+import type { AttendanceRow, AttendanceSource } from '@/lib/beithady/hr/hr-attendance-types';
 import type { BuildingCode, Department } from '@/lib/beithady/hr/hr-types';
 
 type Props = {
@@ -20,7 +20,8 @@ export function AttendanceBoard({ initialRows, initialDate, canApprove }: Props)
   const [date, setDate]               = useState(initialDate);
   const [filterBuilding, setBuilding] = useState('');
   const [filterDept, setDept]         = useState('');
-  const [importOpen, setImportOpen]   = useState(false);
+  const [importOpen, setImportOpen]     = useState(false);
+  const [biometricOpen, setBiometricOpen] = useState(false);
   const [approving, setApproving]     = useState(false);
 
   async function fetchRows(d: string, b: string, dept: string) {
@@ -114,6 +115,13 @@ export function AttendanceBoard({ initialRows, initialDate, canApprove }: Props)
             <Upload className="w-4 h-4" />
             Import
           </button>
+          <button
+            onClick={() => setBiometricOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+          >
+            <Fingerprint className="w-4 h-4" />
+            Biometric Upload
+          </button>
         </div>
       </div>
 
@@ -127,13 +135,14 @@ export function AttendanceBoard({ initialRows, initialDate, canApprove }: Props)
               <th className="px-4 py-3">Department</th>
               <th className="px-4 py-3">Building</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Source</th>
               <th className="px-4 py-3">State</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-white/30 italic">
+                <td colSpan={7} className="px-4 py-8 text-center text-white/30 italic">
                   No active employees for this filter.
                 </td>
               </tr>
@@ -165,6 +174,17 @@ export function AttendanceBoard({ initialRows, initialDate, canApprove }: Props)
                       <span className="text-xs px-2 py-0.5 rounded-full bg-red-900/50 text-red-300">❌ Absent</span>
                     )}
                     {r.status === null && <span className="text-xs text-white/25">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {r.source === 'biometric' && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-900/50 text-indigo-300">Bio</span>
+                    )}
+                    {r.source === 'manual' && (
+                      <span className="text-xs text-white/30">Manual</span>
+                    )}
+                    {r.source === null && (
+                      <span className="text-xs text-white/20">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     {r.approval_state === 'approved' && (
@@ -207,7 +227,15 @@ export function AttendanceBoard({ initialRows, initialDate, canApprove }: Props)
       <ImportAttendanceDialog
         open={importOpen}
         defaultDate={date}
+        source="manual"
         onClose={() => setImportOpen(false)}
+        onSaved={() => fetchRows(date, filterBuilding, filterDept)}
+      />
+      <ImportAttendanceDialog
+        open={biometricOpen}
+        defaultDate={date}
+        source="biometric"
+        onClose={() => setBiometricOpen(false)}
         onSaved={() => fetchRows(date, filterBuilding, filterDept)}
       />
     </div>
