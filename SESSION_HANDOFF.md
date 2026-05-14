@@ -1,5 +1,19 @@
 # SESSION_HANDOFF.md
 
+## 2026-05-14 — Ads: Fix Google Ads credential chain (3 bugs) (DONE)
+
+**Commits:** `1f64fe1`, `f675400`, `5212f8f`
+
+**Bug 1:** `loadGoogleAdsCredentials()` looked for `refresh_token` in `integration_credentials` (not there) → `missing_credentials` → draft mode. Fix: accepts `accountRefreshToken` override; all callers pass `ads_accounts.google_refresh_token`.
+
+**Bug 2:** `ads_accounts.google_refresh_token` is AES-256-GCM encrypted via `crypto.ts`. Was passing cipher bytes to Google's OAuth endpoint. Fix: `decrypt()` in `loadGoogleAdsCredentials` before use (try-catch for safety).
+
+**Bug 3:** Error on form redirect was just `"step: error_code"` with no Google response detail. Fix: `result.raw` included in audit log + redirect URL. Error banner now scrolls into view automatically.
+
+**Status:** All 3 fixes deployed (READY). User's last confirmed attempt was at 09:38 before any fix. Next attempt should succeed or show exact Google error in the banner.
+
+---
+
 ## 2026-05-14 — Ads: PMax full flow polish (DONE)
 
 **Commits:** `65d69c7`, `b12ff38`
@@ -28,21 +42,29 @@
 
 ---
 
-## 2026-05-14 — HR Sprint 5: Biometric Upload — Plan DONE, ready to execute
+## 2026-05-14 — HR Sprint 6: Leave & Overtime — Plan DONE, ready to execute
 
-**Status:** Design approved. Spec written and committed (`0575e58`). Awaiting user review before writing plan.
+**Spec:** `docs/superpowers/specs/2026-05-14-beithady-hr-leave-ot-design.md` (commit `36195e2`)
 
-**Spec:** `docs/superpowers/specs/2026-05-14-beithady-hr-biometric-design.md`
+**Design:** Single page `/beithady/hr/leave-ot` with two tabs:
+- **Leave tab:** Year/employee filter · Pending requests (Approve/Reject, hr:full) · Balances table (Annual/Sick/Emergency, inline edit total_days)
+- **OT tab:** Month/employee filter · Pending OT (Approve/Reject) · Approved history
 
-**What Sprint 5 adds (thin sprint — reuses Sprint 4 entirely):**
-- Migration `0129_hr_attendance_source.sql` — add `source text default 'manual' check ('manual'|'biometric')` to `hr_attendance_records`
-- `AttendanceSource = 'manual' | 'biometric'` type + `source` field on `AttendanceRow`
-- `confirmAttendanceAction` gains optional `source` param (default 'manual')
-- `ImportAttendanceDialog` gains `source` prop — title changes to "Biometric Upload" when source='biometric'
-- `AttendanceBoard` gets a "🔬 Biometric Upload" button + source column (violet "Bio" chip) in table
-- Sprint 5 hub tile `href` → `/beithady/hr/attendance` (no separate /biometric page)
+**3 new tables:** `hr_leave_balances` (employee/year/type/total/used) · `hr_leave_requests` · `hr_overtime_records`
+**Balance logic:** Approving annual/sick deducts days_count from used_days; emergency = no deduction
+**5 server actions:** addLeaveRequest, reviewLeaveRequest, setLeaveBalance, logOvertime, reviewOvertime
 
-**Files to modify:** hr-attendance-types.ts, hr-attendance-actions.ts, hr-attendance-queries.ts, import-attendance-dialog.tsx, attendance-board.tsx, hr/page.tsx
+**Next step:** User reviews spec → approve → invoke writing-plans
+
+---
+
+## 2026-05-14 — HR Sprint 5: Biometric Upload — COMPLETE ✅
+
+**Commits:** `96dcd7a` (migration) → `3c4834c` (types+queries) → `292e60a` (action) → `1e46763` (dialog) → `527eda8` (board+tile+deploy)
+
+**What's live:** `hr_attendance_records.source` column ('manual'|'biometric') · "Biometric Upload" button on attendance board (indigo, Fingerprint icon) → same 3-step wizard with "Biometric Upload" title · Source column in table ("Bio" chip / "Manual" text) · Sprint 5 hub tile → /beithady/hr/attendance · 508 tests passing
+
+**Next sprint (Sprint 6):** Leave & Overtime
 
 ---
 
@@ -131,3 +153,94 @@
 - GitHub → Vercel auto-integration will finalize the deployment
 
 **Sprint 4 Status:** COMPLETE — all tasks delivered (Team Members, Monthly Payroll, Salary Access, Daily Attendance)
+
+---
+## 2026-05-14 · Task 2: Beithady HR Leave-OT Types (TDD)
+
+**COMPLETED**: Task 2 of Beithady HR Sprint 6
+
+### What was built:
+- **`src/lib/beithady/hr/hr-leave-ot-types.ts`** — Pure types + helpers:
+  - `LeaveType`, `ReviewStatus`, `LeaveBalance`, `LeaveRequest`, `OvertimeRecord` types
+  - `LeaveRequestRow`, `OvertimeRecordRow`, `LeaveBalanceRow` row types
+  - `AddLeaveInput`, `LogOtInput` input types
+  - `LEAVE_TYPE_LABELS`, `REVIEW_STATUS_LABELS` constants
+  - **`calcLeaveDays(start, end)`** — calendar-day calculator (inclusive range)
+
+- **`src/lib/beithady/hr/hr-leave-ot-types.test.ts`** — 5 TDD tests:
+  - Single day returns 1
+  - Consecutive days inclusive
+  - 4-day range
+  - End before start returns 0
+  - Month boundary (cross-month inclusive)
+
+### TDD workflow followed:
+1. ✅ Test file written first
+2. ✅ Tests run → FAIL (module not found)
+3. ✅ Implementation written
+4. ✅ Tests run → PASS (all 5)
+5. ✅ Full suite run → PASS (513 tests, 22 skipped)
+
+### Commit:
+- **SHA**: `5d5bd19`
+- **Message**: `feat(hr): leave-ot types + calcLeaveDays helper — TDD`
+- **Files**: 2 new, 121 insertions
+
+Next: Task 3 (Leave request submission logic + API route).
+
+
+## 2026-05-14 · Task 4: Beithady HR Leave-OT Actions (Server Actions)
+
+**COMPLETED**: Task 4 of Beithady HR Sprint 6
+
+### What was built:
+- **`src/lib/beithady/hr/hr-leave-ot-actions.ts`** (190 lines) — Five server actions:
+
+  1. **`addLeaveRequestAction(input: AddLeaveInput)`** — Submit a leave request
+     - Auth: `getCurrentUser()` (hr:read level)
+     - Validates: employee_id, dates, days_count > 0
+     - Inserts into `hr_leave_requests` with status 'pending', submitted_by, submitted_at
+     - Revalidates: `/beithady/hr/leave-ot`
+
+  2. **`reviewLeaveRequestAction(requestId, decision: 'approved'|'rejected')`** — Manager approval/rejection
+     - Auth: `requireBeithadyPermission('hr', 'full')` (hr:full level)
+     - Fetches request, checks status != 'pending', updates with decision + reviewed_by/at
+     - **Balance logic:** If approved + leave_type != 'emergency':
+       - Extract year from start_date
+       - Fetch `hr_leave_balances` row for (employee, year, leave_type)
+       - If exists: increment `used_days` by days_count
+       - If not exists: insert with total_days=0, used_days=days_count
+
+  3. **`setLeaveBalanceAction(employeeId, year, leaveType, totalDays)`** — Allocate annual allotment
+     - Auth: hr:full
+     - Validates: totalDays ≥ 0
+     - UPSERT on (employee_id, year, leave_type): set total_days
+     - Used for HR initialization of annual/sick/emergency caps
+
+  4. **`logOvertimeAction(input: LogOtInput)`** — Submit overtime log
+     - Auth: getCurrentUser() (hr:read)
+     - Validates: employee_id, date, hours > 0
+     - Inserts into `hr_overtime_records` with status 'pending'
+
+  5. **`reviewOvertimeAction(recordId, decision)`** — Approve/reject OT
+     - Auth: hr:full
+     - Updates status + reviewed_by/at, only if status == 'pending'
+
+### Implementation pattern:
+- `'use server';` at top
+- Imports: revalidatePath, supabaseAdmin, getCurrentUser, requireBeithadyPermission, types
+- All return `{ ok: boolean; error?: string }` for consistent error handling
+- Type-safe queries via `.eq()`, `.single()`, `.maybeSingle()`, `.upsert()`
+- Audit trail: submitted_by, submitted_at, reviewed_by, reviewed_at captured
+- No calls to hr-leave-ot-queries.ts (queries are server-only, actions are direct DB)
+
+### Tests:
+- ✅ All 513 tests pass, 22 skipped (no new test files in this task)
+- ✅ Full Vitest run: 4.19s
+
+### Commit:
+- **SHA**: `28fec59`
+- **Message**: `feat(hr): leave-ot server actions — add/review leave, set balance, log/review OT`
+- **Files**: 1 new, 190 insertions
+
+**Sprint 6 Progress:** 2 tasks complete (Types, Actions); 3 remain (Queries, UI, Deploy).
