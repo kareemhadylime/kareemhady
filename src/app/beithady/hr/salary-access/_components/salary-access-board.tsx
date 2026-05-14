@@ -4,8 +4,8 @@
 import { useState } from 'react';
 import { Lock, Eye } from 'lucide-react';
 import { TierChip } from './tier-chip';
-import { SALARY_TIERS } from '@/lib/beithady/hr/hr-salary-access-queries';
-import type { SalaryAccessUser, SalaryTier } from '@/lib/beithady/hr/hr-salary-access-queries';
+import { SALARY_TIERS } from '@/lib/beithady/hr/hr-salary-access-types';
+import type { SalaryAccessUser, SalaryTier } from '@/lib/beithady/hr/hr-salary-access-types';
 
 type Props = {
   initialUsers: SalaryAccessUser[];

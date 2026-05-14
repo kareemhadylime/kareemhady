@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import type { SalaryAccessUser, SalaryTier } from '@/lib/beithady/hr/hr-salary-access-queries';
-import { SALARY_TIERS } from '@/lib/beithady/hr/hr-salary-access-queries';
+import type { SalaryAccessUser, SalaryTier } from '@/lib/beithady/hr/hr-salary-access-types';
+import { SALARY_TIERS } from '@/lib/beithady/hr/hr-salary-access-types';
 import { setSalaryAccessTierAction } from '@/lib/beithady/hr/hr-salary-access-actions';
 
 type Props = {
