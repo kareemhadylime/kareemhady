@@ -1,3 +1,24 @@
+## 2026-05-14 — Ads: Campaign Status Auto-Sync + IG Boost Fixes (DONE)
+
+**Commits this mini-session:**
+- `2f1b8d3` — Auto-sync Meta campaign statuses on campaigns list page load: on every visit to `/beithady/ads/campaigns`, fetches `effective_status` from Meta for all active/paused Meta campaigns, patches DB where statuses differ, mutates in-memory array so render reflects correct status immediately. Non-fatal (try/catch).
+- `d90adb3` — Enable Advantage+ audience (`advantage_audience: 1`) on all new IG boosts
+- `a24d6a1` — Drop `instagram_actor_id` from `source_instagram_media_id` creative (the fix that made IG boost work — Meta infers actor from media ID)
+- `59bee71` — Use `/instagram_accounts` endpoint for ig_actor_id resolution
+- `59b703d` — Resolve ig_actor_id fresh from Meta API at boost time
+- `edbb3de` — IG boost 3-bug fix (default→website link, wa.me fallback removed, source_instagram_media_id)
+- `c1c23f6` — Live Meta Insights card on campaign detail page
+
+**Current working state:**
+- IG Boost: `source_instagram_media_id` (no `instagram_actor_id`), `destination_type: WEBSITE`, landing URL defaults to `https://beithady.com`, Advantage+ audience ON
+- CTWA: WhatsApp connected to Beithady FB Page (+20 15 01010103), available via Destination dropdown
+- Campaigns list: auto-syncs Meta status on every page load — stale ACTIVE rows get corrected to PAUSED/DELETED automatically
+- Campaign "[Beit Hady] Boost 2026-05-14 05:53": ACTIVE · DELIVERING on Meta
+
+**Deferred:** Google Ads account setup (original session request, never started)
+
+---
+
 ## 2026-05-14 — BEITHADY HR MODULE SPRINT 1: COMPLETE ✅
 
 ### All 18 tasks shipped to production
@@ -31,6 +52,42 @@
 **Next sprint (Sprint 2):** Monthly Payroll — Excel upload → parse → store → print payslips
 
 ---
+
+## 2026-05-14 — SPRINT 2 BRAINSTORM IN PROGRESS
+
+### Monthly Payroll — design questions answered so far:
+
+**Q1 — Linking payroll to employee master:** A — auto-match by name (fuzzy), unmatched rows still import + print  
+**Q2 — Payslip format:** A — Bilingual Arabic + English, @react-pdf/renderer (already installed)  
+**Q3 — Monthly data management:** A — Overwrite on re-upload  
+**Batch print:** Filter first (by building/dept) then print batch as one PDF  
+
+### Full design presented (awaiting user approval):
+
+**Section 1 — Page structure `/beithady/hr/payroll`:**
+- Month picker dropdown + "Upload New Month" button
+- Roster table: Name · BH-ID (matched/unmatched) · Position · Building · Net Salary · 🖨 per row
+- "Print Payslips ▾" → filter drawer (building/dept) → batch PDF download
+
+**Section 2 — Data model (2 new tables):**
+- `hr_payroll_months` (id, month_key UNIQUE e.g. "2026-04", label, uploaded_at, uploaded_by)
+- `hr_payroll_entries` (id, month_id FK, employee_id nullable FK, sheet_name, job_title, working_days, salary_package, ot, transport_allowance, bonus, travel_allowance, salary_in_advance, deduction, net_salary, building_code, analytic_raw, is_terminated, created_at, created_by)
+- Re-upload = delete entries for month_key + re-insert (overwrite)
+
+**Section 3 — Upload flow (3-step wizard):**
+- Step 1: Drop .xlsx, parse ALL salary sheet columns
+- Step 2: Preview with match status (✅ BH-ID matched / ⚠️ unmatched / 🔄 ambiguous dropdown / ❌ error)
+- Step 3: Done summary (X saved, Y matched, Z unmatched)
+
+**Section 4 — Payslip PDF (bilingual A4):**
+- Header: Beithady logo + "SALARY SLIP · كشف مرتب" + Month EN+AR
+- Employee section: Name, Position, BH-ID, Building, Working Days
+- Earnings table: Basic Salary, OT, Transport, Travel, Bonus → Total Earnings
+- Deductions table: Salary in Advance, Other → Total Deductions
+- NET SALARY bold footer
+- Signature lines: HR + Employee
+
+**Status: Waiting for user approval of full design before writing spec**
 
 ## 2026-05-14 — OLDER CONTENT BELOW
 
@@ -138,3 +195,32 @@ Created `src/app/beithady/hr/team/_components/contract-payout-tab.tsx`:
 - Passes salary history as props for audit trail
 
 Commit: `a196f86`
+
+---
+
+## 2026-05-14: Beithady HR Sprint 2 Task 1 — Payroll Migrations + Font (DONE)
+
+### Deliverables
+
+**Migrations**
+
+- **Migration 0125** (`supabase/migrations/0125_hr_payslip_language.sql`): Added `payslip_language` column to `hr_employees` table with default 'arabic' and check constraint (arabic|english).
+  
+- **Migration 0126** (`supabase/migrations/0126_hr_payroll_tables.sql`): Created two new tables:
+  - `hr_payroll_months`: Tracks uploaded payroll batches (id, month_key, label, uploaded_at, uploaded_by)
+  - `hr_payroll_entries`: Individual payroll records with columns for salary components, building/analytic mapping, termination flag, audit timestamps
+  - Added indexes on month_id and employee_id for query performance
+
+Both migrations applied successfully to Supabase project `bpjproljatbrbmszwbov`.
+
+**Verification** (via execute_sql):
+- `payslip_language` column confirmed in `hr_employees` with default value `'arabic'::text` ✓
+- Both `hr_payroll_months` and `hr_payroll_entries` tables present ✓
+
+**Font Asset**
+
+- Downloaded NotoSansArabic-Regular.ttf (variable font from GitHub raw) to `public/fonts/`
+- File size: 825KB (valid TrueType font, 21 tables)
+- Ready for Arabic payslip rendering in FMPLUS module
+
+**Commit:** `8e12f38` — feat(hr): migrations 0125+0126 — payslip_language + payroll tables; NotoSansArabic font
