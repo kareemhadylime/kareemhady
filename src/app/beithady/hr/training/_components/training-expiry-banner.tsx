@@ -4,27 +4,27 @@ import type { HrTrainingRecordRow, RecordType } from '@/lib/beithady/hr/hr-train
 
 type Props = { records: HrTrainingRecordRow[] };  // records expiring within 60 days
 
+function RecordRow({ r }: { r: HrTrainingRecordRow }) {
+  const days = daysUntilExpiry(r.expiry_date);
+  const label = days === null ? '' : days < 0 ? `expired ${Math.abs(days)}d ago` : days === 0 ? 'expires today' : `expires in ${days}d`;
+  const icon = RECORD_TYPE_ICONS[r.record_type as RecordType];
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="font-medium text-white">{r.employee_name}</span>
+      <span className="text-white/50">·</span>
+      <span className="text-white/70">{icon} {RECORD_TYPE_LABELS[r.record_type as RecordType]}: {r.title}</span>
+      <span className="text-white/50">·</span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export function TrainingExpiryBanner({ records }: Props) {
   if (records.length === 0) return null;
 
   const critical = records.filter(r => { const n = daysUntilExpiry(r.expiry_date); return n !== null && n <= 7; });
   const warning  = records.filter(r => { const n = daysUntilExpiry(r.expiry_date); return n !== null && n > 7 && n <= 30; });
   const upcoming = records.filter(r => { const n = daysUntilExpiry(r.expiry_date); return n !== null && n > 30 && n <= 60; });
-
-  function RecordRow({ r }: { r: HrTrainingRecordRow }) {
-    const days = daysUntilExpiry(r.expiry_date);
-    const label = days === null ? '' : days < 0 ? `expired ${Math.abs(days)}d ago` : days === 0 ? 'expires today' : `expires in ${days}d`;
-    const icon = RECORD_TYPE_ICONS[r.record_type as RecordType];
-    return (
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium text-white">{r.employee_name}</span>
-        <span className="text-white/50">·</span>
-        <span className="text-white/70">{icon} {RECORD_TYPE_LABELS[r.record_type as RecordType]}: {r.title}</span>
-        <span className="text-white/50">·</span>
-        <span>{label}</span>
-      </div>
-    );
-  }
 
   return (
     <div className="rounded-xl border border-amber-700/30 bg-amber-950/20 p-4 space-y-3">

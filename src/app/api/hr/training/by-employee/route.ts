@@ -12,6 +12,13 @@ export async function GET(request: NextRequest) {
   const employee_id = request.nextUrl.searchParams.get('employee_id');
   if (!employee_id) return NextResponse.json({ error: 'employee_id required' }, { status: 400 });
 
-  const records = await getEmployeeTrainingRecords(employee_id);
-  return NextResponse.json({ records });
+  try {
+    const records = await getEmployeeTrainingRecords(employee_id);
+    return NextResponse.json({ records });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Internal error' },
+      { status: 500 }
+    );
+  }
 }

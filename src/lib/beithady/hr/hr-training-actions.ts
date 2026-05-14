@@ -117,7 +117,7 @@ export async function setTrainingRecordFileAction(
   fileName: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requireBeithadyPermission('hr', 'read');
+    await requireBeithadyPermission('hr', 'full');
     const user = await getCurrentUser();
     if (!user) return { ok: false, error: 'Not authenticated' };
 
