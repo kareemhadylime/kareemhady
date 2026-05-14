@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth';
 import type {
   PersonalInfoInput, ContractInput,
   Department, JobRole, BuildingCode, ContractType, PaymentMethod, EmployeeStatus,
+  ImportRow,
 } from './hr-types';
 
 type ActionResult = { id?: string; error?: string };
@@ -291,4 +292,91 @@ export async function terminateEmployeeAction(
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Unknown error' };
   }
+}
+
+// ── importEmployeesAction ─────────────────────────────────────────────────
+
+export type ImportResult = {
+  imported: number;
+  skipped: number;
+  errors: { rowIndex: number; name: string; error: string }[];
+};
+
+export async function importEmployeesAction(rows: ImportRow[]): Promise<ImportResult> {
+  const user = await requireHrAccess();
+  const sb = supabaseAdmin();
+  const result: ImportResult = { imported: 0, skipped: 0, errors: [] };
+
+  for (const row of rows) {
+    if (row.validationState === 'error') { result.skipped++; continue; }
+
+    try {
+      const companyId = await generateCompanyId();
+      // Mark all required fields as incomplete (user fills via Edit dialog after import)
+      const incompleteFields: string[] = [
+        ...row.incompleteFields,
+        'national_id', 'phone', 'date_of_birth', 'date_joined',
+      ].filter((v, i, a) => a.indexOf(v) === i); // dedupe
+
+      const { data: emp, error: empErr } = await sb
+        .from('hr_employees')
+        .insert({
+          company_id:        companyId,
+          first_name:        row.first_name,
+          last_name:         null,
+          department:        'housekeeping',   // default; user updates via Edit
+          position:          row.position || 'Staff',
+          job_role:          'housekeeper',    // default; user updates via Edit
+          status:            row.status,
+          incomplete_fields: incompleteFields,
+          created_by:        user.id,
+        })
+        .select('id')
+        .single();
+
+      if (empErr) {
+        result.errors.push({ rowIndex: row.rowIndex, name: row.first_name, error: empErr.message });
+        continue;
+      }
+
+      const employeeId = emp.id as string;
+      const todayStr = today();
+
+      if (row.building_code) {
+        await sb.from('hr_employee_contracts').insert({
+          employee_id:         employeeId,
+          contract_type:       'permanent',
+          contract_start:      todayStr,
+          building_code:       row.building_code,
+          salary_package:      row.salary_package,
+          transport_allowance: row.transport_allowance,
+          travel_allowance:    0,
+          fixed_bonus:         row.fixed_bonus,
+          payment_method:      'bank',
+          effective_from:      todayStr,
+          effective_to:        null,
+          created_by:          user.id,
+        });
+      }
+
+      await sb.from('hr_employee_events').insert({
+        employee_id:  employeeId,
+        event_type:   'hired',
+        event_date:   todayStr,
+        description:  `Imported from salary sheet — ${row.position || 'Staff'}`,
+        created_by:   user.id,
+      });
+
+      result.imported++;
+    } catch (e) {
+      result.errors.push({
+        rowIndex: row.rowIndex,
+        name: row.first_name,
+        error: e instanceof Error ? e.message : 'Unknown error',
+      });
+    }
+  }
+
+  revalidatePath('/beithady/hr/team');
+  return result;
 }
