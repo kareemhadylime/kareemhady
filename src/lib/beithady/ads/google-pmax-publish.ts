@@ -12,6 +12,17 @@ import {
   DEFAULT_GOOGLE_LANGUAGE_IDS,
 } from './platforms';
 
+async function fetchImageBase64(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    return Buffer.from(buf).toString('base64');
+  } catch {
+    return null;
+  }
+}
+
 // Performance Max campaign creator. PMax is Google's hybrid campaign type
 // that runs Search + Display + YouTube + Discover + Gmail + Maps all
 // at once, with Google's AI optimizing the placement mix. For STR /
@@ -189,11 +200,6 @@ export async function publishGooglePerformanceMax(
   for (const d of descriptions) assetCreates.push({ create: { textAsset: { text: d } } });
   assetCreates.push({ create: { textAsset: { text: businessName } } });
   const assetsRes = await gadsMutate(customerId, 'assets', assetCreates, creds, accessToken);
-  // PMax requires images via the asset endpoint with an imageAsset payload; that path
-  // expects a base64-encoded byte stream of the JPEG. Since our gallery assets are
-  // public Supabase URLs, we delegate image attachment to the operator in the Google
-  // Ads UI — easier than implementing a fetch+base64 path here and Google's UI offers
-  // crop preview + asset performance ratings that we'd lose.
 
   if (assetsRes.ok && agResource) {
     const fieldTypeFor = (idx: number): string => {
@@ -216,6 +222,26 @@ export async function publishGooglePerformanceMax(
     if (linkOps.length) {
       const linkRes = await gadsMutate(customerId, 'assetGroupAssets', linkOps, creds, accessToken);
       if (!linkRes.ok) console.warn('[google-pmax] asset-group link failed:', linkRes.body);
+    }
+  }
+
+  // Upload marketing images: fetch each URL, base64-encode, create imageAsset, link as MARKETING_IMAGE.
+  // Failures are soft-warned — image upload issues don't abort the campaign creation.
+  const imgUrls = (input.marketingImageUrls || []).filter(Boolean).slice(0, 3);
+  if (imgUrls.length && agResource) {
+    for (const imgUrl of imgUrls) {
+      const b64 = await fetchImageBase64(imgUrl);
+      if (!b64) { console.warn('[google-pmax] could not fetch image:', imgUrl); continue; }
+      const imgAssetRes = await gadsMutate(customerId, 'assets', [{
+        create: { name: `mktg_img_${Date.now()}`, imageAsset: { data: b64 } },
+      }], creds, accessToken);
+      if (!imgAssetRes.ok) { console.warn('[google-pmax] image asset create failed:', imgAssetRes.body); continue; }
+      const imgResource = imgAssetRes.body.results?.[0]?.resourceName;
+      if (!imgResource) continue;
+      const imgLinkRes = await gadsMutate(customerId, 'assetGroupAssets', [{
+        create: { assetGroup: agResource, asset: imgResource, fieldType: 'MARKETING_IMAGE' },
+      }], creds, accessToken);
+      if (!imgLinkRes.ok) console.warn('[google-pmax] image asset link failed:', imgLinkRes.body);
     }
   }
 

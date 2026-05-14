@@ -250,6 +250,7 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
   const descriptions = String(formData.get('descriptions') || '').split('\n').map(s => s.trim()).filter(Boolean);
   const finalUrl = String(formData.get('final_url') || '').trim() || undefined;
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
+  const marketingImageUrl = String(formData.get('marketing_image_url') || '').trim() || null;
 
   if (!Number.isFinite(accountId)) redirect('/beithady/ads/google/pmax?error=missing_account');
 
@@ -264,6 +265,7 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
     descriptions,
     finalUrl,
     buildingCodes,
+    marketingImageUrls: marketingImageUrl ? [marketingImageUrl] : [],
   });
 
   if (!result.ok) {
