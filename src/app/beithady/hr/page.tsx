@@ -25,8 +25,6 @@ export default async function BeithadyHrPage() {
       description: 'Upload monthly Excel → parse → store → print payslips per employee or batch by building.',
       icon: Banknote,
       accent: 'emerald',
-      disabled: true,
-      comingSoonLabel: 'Sprint 2',
     },
     {
       href: '/beithady/hr/salary-access',
