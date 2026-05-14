@@ -238,10 +238,14 @@ export async function publishGooglePerformanceMax(
       if (!imgAssetRes.ok) { console.warn('[google-pmax] image asset create failed:', imgAssetRes.body); continue; }
       const imgResource = imgAssetRes.body.results?.[0]?.resourceName;
       if (!imgResource) continue;
-      const imgLinkRes = await gadsMutate(customerId, 'assetGroupAssets', [{
-        create: { assetGroup: agResource, asset: imgResource, fieldType: 'MARKETING_IMAGE' },
-      }], creds, accessToken);
-      if (!imgLinkRes.ok) console.warn('[google-pmax] image asset link failed:', imgLinkRes.body);
+      // Try both aspect-ratio slots — Google accepts whichever matches the actual image
+      // dimensions and rejects the other; we soft-warn the rejection.
+      for (const fieldType of ['MARKETING_IMAGE', 'SQUARE_MARKETING_IMAGE']) {
+        const imgLinkRes = await gadsMutate(customerId, 'assetGroupAssets', [{
+          create: { assetGroup: agResource, asset: imgResource, fieldType },
+        }], creds, accessToken);
+        if (!imgLinkRes.ok) console.warn(`[google-pmax] ${fieldType} link failed:`, imgLinkRes.body);
+      }
     }
   }
 

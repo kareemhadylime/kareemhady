@@ -101,6 +101,29 @@ function sanitiseFinalUrl(url: string | null): { final: string; note: string | n
   return { final: u, note: null };
 }
 
+// Meta CDN URLs (scontent-*.cdninstagram.com) cannot be fetched server-side from Vercel
+// — Meta blocks hotlinking. Mirror the image to our own public bucket so the Google Ads
+// upload step (which also runs server-side) has a stable, always-accessible URL.
+async function mirrorMetaCreative(url: string, campaignId: number): Promise<string> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return url;
+    const buf = await res.arrayBuffer();
+    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+    const sb = supabaseAdmin();
+    const path = `ads-creatives/${campaignId}/creative.${ext}`;
+    const { error } = await sb.storage
+      .from('beithady-gallery-public')
+      .upload(path, Buffer.from(buf), { contentType, upsert: true });
+    if (error) return url;
+    const { data: { publicUrl } } = sb.storage.from('beithady-gallery-public').getPublicUrl(path);
+    return publicUrl;
+  } catch {
+    return url;
+  }
+}
+
 export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number): Promise<PmaxDefaults> {
   const empty: PmaxDefaults = {
     found: false,
@@ -159,6 +182,10 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
   const { final, note: urlNote } = sanitiseFinalUrl(adRow?.landing_url || null);
   const geo = isoCountriesToGoogleGeo(targetCountries);
 
+  // Mirror the Meta CDN image to our own storage so the Google Ads upload step can fetch it.
+  const rawCreativeUrl = adRow?.creative_url || null;
+  const marketingImageUrl = rawCreativeUrl ? await mirrorMetaCreative(rawCreativeUrl, camp.id) : null;
+
   const notes: string[] = [];
   if (urlNote) notes.push(urlNote);
   if (targetCountries.length && !geo.length) notes.push(`No Google geo mapping for: ${targetCountries.join(', ')}. Targeting defaulted to Egypt — adjust in Google Ads UI.`);
@@ -166,7 +193,7 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
     const missing = targetCountries.filter(c => !geo.length || isoCountriesToGoogleGeo([c]).length === 0);
     if (missing.length) notes.push(`Dropped unmapped countries: ${missing.join(', ')}.`);
   }
-  if (!adRow?.creative_url) notes.push('No image from Meta ad — you will need to upload assets in Google Ads UI after publishing.');
+  if (!rawCreativeUrl) notes.push('No image from Meta ad — upload assets in Google Ads UI after publishing.');
 
   return {
     found: true,
@@ -175,7 +202,7 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
     monthlyBudgetCapUsd: camp.monthly_budget_cap_usd != null ? Number(camp.monthly_budget_cap_usd) : null,
     buildingCodes: camp.building_codes || [],
     finalUrl: final,
-    marketingImageUrl: adRow?.creative_url || null,
+    marketingImageUrl,
     headlines: short,
     longHeadlines: long,
     descriptions: descs,
