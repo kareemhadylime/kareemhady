@@ -1,6 +1,17 @@
 import 'server-only';
 import { getCredential, getProviderEnabled } from '@/lib/credentials';
 import { supabaseAdmin } from '@/lib/supabase';
+import { encrypt, decrypt } from '@/lib/crypto';
+
+// Stored tiktok_refresh_token is AES-256-GCM (CLAUDE.md rule #4). Try decrypt;
+// if it fails (legacy plaintext, edge cases), fall back to the original value.
+function unwrapStoredRefreshToken(stored: string): string {
+  try {
+    return decrypt(stored);
+  } catch {
+    return stored;
+  }
+}
 
 // TikTok Open API v2 (organic Content Posting + OAuth) + TikTok Business API v1.3 (paid ads).
 // Two different bases; one credential set for the app, plus per-account
@@ -51,11 +62,12 @@ export async function refreshTikTokAccessToken(
 > {
   const credsRes = await loadTikTokAppCredentials();
   if (!credsRes.ok) return { ok: false, error: credsRes.error };
+  const plainRefreshToken = unwrapStoredRefreshToken(refreshToken);
   const body = new URLSearchParams({
     client_key: credsRes.creds.app_id,
     client_secret: credsRes.creds.secret,
     grant_type: 'refresh_token',
-    refresh_token: refreshToken,
+    refresh_token: plainRefreshToken,
   });
   try {
     const r = await fetch(`${TT_OPEN_BASE}/v2/oauth/token/`, {
@@ -89,8 +101,12 @@ export async function refreshTikTokAccessToken(
     const accExpAt = j.expires_in ? new Date(now + Number(j.expires_in) * 1000).toISOString() : null;
     const refExpAt = j.refresh_expires_in ? new Date(now + Number(j.refresh_expires_in) * 1000).toISOString() : null;
     const sb = supabaseAdmin();
+    // Always store the refresh token encrypted (CLAUDE.md rule #4). If TikTok
+    // didn't rotate, re-encrypt the plaintext we just used so the row stays
+    // in a consistent encrypted state.
+    const newRefresh = (j.refresh_token as string) || plainRefreshToken;
     await sb.from('ads_accounts').update({
-      tiktok_refresh_token: (j.refresh_token as string) || refreshToken,
+      tiktok_refresh_token: encrypt(newRefresh),
       tiktok_token_expires_at: accExpAt,
       tiktok_refresh_expires_at: refExpAt,
       tiktok_open_id: (j.open_id as string) || undefined,
