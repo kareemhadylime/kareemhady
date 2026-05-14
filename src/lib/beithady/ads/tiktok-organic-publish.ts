@@ -8,8 +8,13 @@ import {
   buildTikTokTitle,
 } from './tiktok-client';
 
-// Publish an organic TikTok video via the Content Posting API (PULL_FROM_URL).
+// Publish an organic TikTok video via the Content Posting API (FILE_UPLOAD).
 // Ports C:\Voltauto-pricing\supabase\functions\ads-tiktok-publish\index.ts.
+//
+// Source: FILE_UPLOAD (server downloads the bytes, then PUTs them to TikTok's
+// upload_url). Switched from PULL_FROM_URL because the latter requires the
+// hosting domain to be verified in the TikTok Developer Portal, which we can't
+// do for shared third-party domains (e.g. Supabase storage).
 //
 // Two variants:
 //   - INBOX (default): /v2/post/publish/inbox/video/init/
@@ -23,6 +28,26 @@ import {
 
 const POLL_INTERVAL_MS = 4_000;
 const POLL_MAX_TRIES = 45;
+const PUT_TIMEOUT_MS = 120_000;
+const FETCH_TIMEOUT_MS = 60_000;
+
+// Fetch a video into memory + report size and content type for FILE_UPLOAD init.
+// Single-chunk path: TikTok permits chunk_size = video_size when total_chunk_count = 1
+// regardless of the 5 MB minimum that otherwise applies to multi-chunk uploads.
+async function fetchVideoBytes(url: string): Promise<
+  | { ok: true; bytes: ArrayBuffer; size: number; contentType: string }
+  | { ok: false; error: string }
+> {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!r.ok) return { ok: false, error: `fetch_${r.status}` };
+    const bytes = await r.arrayBuffer();
+    const contentType = r.headers.get('content-type') || 'video/mp4';
+    return { ok: true, bytes, size: bytes.byteLength, contentType };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 export type PrivacyLevel =
   | 'PUBLIC_TO_EVERYONE'
@@ -103,7 +128,17 @@ export async function publishTikTokReel(input: TikTokOrganicInput): Promise<TikT
     return { ok: false, post_id: postId, step: 'refresh_token', error: tok.error, raw: tok.raw };
   }
 
-  // Init upload
+  // Fetch video bytes (needed for FILE_UPLOAD init + the subsequent PUT)
+  const fetchRes = await fetchVideoBytes(input.videoUrl);
+  if (!fetchRes.ok) {
+    await sb.from('ads_tiktok_posts').update({
+      status: 'FAILED',
+      status_error: `fetch_video: ${fetchRes.error}`.slice(0, 2000),
+    }).eq('id', postId);
+    return { ok: false, post_id: postId, step: 'fetch_video', error: fetchRes.error };
+  }
+
+  // Init upload (FILE_UPLOAD source; single-chunk path)
   const initPath = input.directPost ? '/v2/post/publish/video/init/' : '/v2/post/publish/inbox/video/init/';
   const postInfo: Record<string, unknown> = { title, privacy_level: privacy };
   if (input.directPost) {
@@ -113,7 +148,12 @@ export async function publishTikTokReel(input: TikTokOrganicInput): Promise<TikT
     postInfo.video_cover_timestamp_ms = 0;
   }
   const initRes = await ttOpenPost(initPath, {
-    source_info: { source: 'PULL_FROM_URL', video_url: input.videoUrl },
+    source_info: {
+      source: 'FILE_UPLOAD',
+      video_size: fetchRes.size,
+      chunk_size: fetchRes.size,
+      total_chunk_count: 1,
+    },
     post_info: postInfo,
   }, tok.access_token);
 
@@ -125,12 +165,46 @@ export async function publishTikTokReel(input: TikTokOrganicInput): Promise<TikT
     return { ok: false, post_id: postId, step: 'init_upload', error: 'init_failed', raw: initRes.body };
   }
 
-  const publishId = String(((initRes.body as { data?: { publish_id?: string } }).data?.publish_id) || '');
-  if (!publishId) {
-    await sb.from('ads_tiktok_posts').update({ status: 'FAILED', status_error: 'no publish_id' }).eq('id', postId);
-    return { ok: false, post_id: postId, step: 'init_upload', error: 'no_publish_id', raw: initRes.body };
+  const initData = (initRes.body as { data?: { publish_id?: string; upload_url?: string } }).data || {};
+  const publishId = String(initData.publish_id || '');
+  const uploadUrl = String(initData.upload_url || '');
+  if (!publishId || !uploadUrl) {
+    await sb.from('ads_tiktok_posts').update({
+      status: 'FAILED',
+      status_error: `init_missing_fields publish_id=${!!publishId} upload_url=${!!uploadUrl}`,
+    }).eq('id', postId);
+    return { ok: false, post_id: postId, step: 'init_upload', error: 'missing_init_fields', raw: initRes.body };
   }
   await sb.from('ads_tiktok_posts').update({ publish_id: publishId, status: 'PROCESSING_UPLOAD' }).eq('id', postId);
+
+  // PUT video bytes to TikTok's upload_url
+  try {
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': fetchRes.contentType,
+        'Content-Length': String(fetchRes.size),
+        'Content-Range': `bytes 0-${fetchRes.size - 1}/${fetchRes.size}`,
+      },
+      body: fetchRes.bytes,
+      signal: AbortSignal.timeout(PUT_TIMEOUT_MS),
+    });
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => '');
+      await sb.from('ads_tiktok_posts').update({
+        status: 'FAILED',
+        status_error: `upload_put_${putRes.status}: ${text.slice(0, 1500)}`,
+      }).eq('id', postId);
+      return { ok: false, post_id: postId, step: 'upload_put', error: `put_${putRes.status}`, raw: text };
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await sb.from('ads_tiktok_posts').update({
+      status: 'FAILED',
+      status_error: `upload_put_exception: ${msg}`.slice(0, 2000),
+    }).eq('id', postId);
+    return { ok: false, post_id: postId, step: 'upload_put', error: msg };
+  }
 
   // Poll until terminal
   for (let i = 0; i < POLL_MAX_TRIES; i++) {
