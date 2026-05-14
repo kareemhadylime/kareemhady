@@ -6,6 +6,8 @@ import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell'
 import { AdsTabs } from '../_components/ads-tabs';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { setCampaignStatusActionUnified } from '../actions';
+import { supabaseAdmin } from '@/lib/supabase';
+import { loadMetaCredentials, fetchMetaEntityStatusBatch } from '@/lib/beithady/ads/meta-client';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,6 +16,45 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
   await requireBeithadyPermission('ads', 'read');
   const sp = await searchParams;
   const [all, budgetStates] = await Promise.all([listCampaigns(), listCampaignBudgetStates()]);
+
+  // ── Auto-sync Meta campaign statuses ──────────────────────────────────────
+  // Fetch live effective_status for all active Meta campaigns and patch the DB
+  // when they diverge (e.g. user paused/deleted a campaign directly in Meta).
+  // Runs in parallel with the filter/render logic below; any updated statuses
+  // are reflected immediately because we mutate the `all` array in-place.
+  try {
+    const sb = supabaseAdmin();
+    const creds = await loadMetaCredentials();
+    if (creds.ok) {
+      const { data: metaRows } = await sb
+        .from('ads_campaigns')
+        .select('id, external_id, status')
+        .eq('platform', 'meta')
+        .not('external_id', 'like', 'draft_%')
+        .in('status', ['ACTIVE', 'PAUSED']);
+      if (metaRows?.length) {
+        const extIds = metaRows.map(r => (r as { id: number; external_id: string; status: string }).external_id);
+        const liveMap = await fetchMetaEntityStatusBatch(extIds, creds.creds.token);
+        const SYNCABLE = new Set(['ACTIVE', 'PAUSED', 'DELETED', 'ARCHIVED']);
+        await Promise.all(
+          metaRows.map(async raw => {
+            const r = raw as { id: number; external_id: string; status: string };
+            const live = liveMap.get(r.external_id);
+            if (!live || live.error || live.not_found) return;
+            const liveStatus = live.effective_status.toUpperCase();
+            if (SYNCABLE.has(liveStatus) && liveStatus !== r.status.toUpperCase()) {
+              await sb.from('ads_campaigns').update({ status: liveStatus }).eq('id', r.id);
+              // Patch in-memory so the render below sees the corrected value immediately
+              const row = all.find(c => c.campaign_id === r.id);
+              if (row) row.campaign_status = liveStatus;
+            }
+          })
+        );
+      }
+    }
+  } catch {
+    // Non-fatal — best-effort sync; page renders with DB data if Meta is down
+  }
   const budgetByCampaign = new Map(budgetStates.map(b => [b.campaign_id, b]));
   const filtered = all.filter(c => {
     if (sp.platform && c.platform !== sp.platform) return false;
