@@ -244,3 +244,44 @@ Next: Task 3 (Leave request submission logic + API route).
 - **Files**: 1 new, 190 insertions
 
 **Sprint 6 Progress:** 2 tasks complete (Types, Actions); 3 remain (Queries, UI, Deploy).
+
+## 2026-05-14 · Task 6: Beithady HR Leave-OT UI Dialogs
+
+**COMPLETED**: Task 6 of Beithady HR Sprint 6
+
+### What was built:
+- **`src/app/beithady/hr/leave-ot/_components/add-leave-dialog.tsx`** (131 lines) — AddLeaveDialog modal:
+  - 'use client' component with useState + useTransition for async server action calls
+  - Employee selector, Leave Type buttons (annual/sick/emergency), start/end date inputs
+  - Displays day count when both dates selected (using `calcLeaveDays` helper)
+  - Optional reason textarea
+  - Form validation (employee + dates required, end date must be >= start date)
+  - Calls `addLeaveRequestAction(input)` on submit; resets form and closes on success
+  - Dark theme: rose-600 button, neutral-900/white border, error handling with red-400
+
+- **`src/app/beithady/hr/leave-ot/_components/log-ot-dialog.tsx`** (85 lines) — LogOtDialog modal:
+  - 'use client' component with useState + useTransition
+  - Employee selector, Date input (defaults to today), Hours input (0.5 step), optional reason
+  - Form validation (employee + date required, hours must be > 0)
+  - Calls `logOvertimeAction(input)` on submit; resets and closes on success
+  - Dark theme: orange-600 button (OT-specific color), neutral-900/white border, error handling
+
+### Pattern compliance:
+- Both follow ImportAttendanceDialog pattern (reset(), handleClose(), 'use client')
+- Fixed z-50 overlay with backdrop blur
+- Tailwind dark theme (bg-neutral-900, border-white/10, text-white, text-white/50, etc.)
+- Form inputs use 'ix-input' class
+- Error display in red-400
+- Modal returns null if !open (guard clause)
+- Both reset state on close and after successful save
+
+### Tests:
+- ✅ All 513 tests pass, 22 skipped
+- ✅ Full Vitest run: 4.04s
+
+### Commit:
+- **SHA**: `80d8726`
+- **Message**: `feat(hr): AddLeaveDialog + LogOtDialog modals`
+- **Files**: 2 new, 216 insertions (131 + 85 lines)
+
+**Sprint 6 Progress:** 4 tasks complete (Types, Actions, UI Dialogs); 2 remain (Queries, Page+Deploy).
