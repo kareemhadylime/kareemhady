@@ -121,7 +121,10 @@ export default async function AccountsPage() {
                           <Link href={`/api/auth/tiktok/start?account_id=${r.id}`} className="ix-link text-[11px]">Connect →</Link>
                         )}
                         {r.platform === 'tiktok' && r.tiktok_refresh_token && (
-                          <Link href="/beithady/ads/tiktok/accounts" className="ix-link text-[11px]">Configure →</Link>
+                          <span className="inline-flex items-center gap-2">
+                            <Link href="/beithady/ads/tiktok/accounts" className="ix-link text-[11px]">Configure →</Link>
+                            <Link href={`/api/auth/tiktok/start?account_id=${r.id}`} className="ix-link text-[11px] text-amber-600 dark:text-amber-400" title="Re-run OAuth — use if publish fails with refresh_failed">Reconnect</Link>
+                          </span>
                         )}
                       </td>
                     </tr>

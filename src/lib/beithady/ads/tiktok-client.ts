@@ -65,7 +65,23 @@ export async function refreshTikTokAccessToken(
       signal: AbortSignal.timeout(30_000),
     });
     const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!r.ok || j.error) return { ok: false, error: 'refresh_failed', raw: j };
+    if (!r.ok || j.error) {
+      // If TikTok says the refresh token itself is dead, clear it from the DB
+      // so the UI can surface a Reconnect link instead of repeatedly retrying
+      // with a stale token. (Refresh tokens rotate on every successful call;
+      // a lost-race or failed-write leaves us holding an invalidated token.)
+      const errCode = String(j.error || '');
+      if (errCode === 'invalid_grant' || errCode === 'invalid_token') {
+        const sb = supabaseAdmin();
+        await sb.from('ads_accounts').update({
+          tiktok_refresh_token: null,
+          tiktok_token_expires_at: null,
+          tiktok_refresh_expires_at: null,
+        }).eq('id', accountId);
+        console.warn('[tiktok] cleared dead refresh_token on account', { accountId, errCode, raw: j });
+      }
+      return { ok: false, error: 'refresh_failed', raw: j };
+    }
     const access = String(j.access_token || '');
     if (!access) return { ok: false, error: 'no_access_token', raw: j };
 

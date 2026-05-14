@@ -12,7 +12,7 @@ import { listIgPickerItems, buildTikTokDefaultsFromPickerItem, type IgReelDefaul
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export default async function TikTokOrganicPage({ searchParams }: { searchParams: Promise<{ error?: string; post?: string; status?: string; from_ig?: string }> }) {
+export default async function TikTokOrganicPage({ searchParams }: { searchParams: Promise<{ error?: string; post?: string; status?: string; from_ig?: string; account_id?: string }> }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
@@ -47,7 +47,31 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
 
       <AdsTabs active="tt-organic" />
 
-      {sp.error && <div className="ix-card border-rose-200 bg-rose-50 p-3 text-sm font-mono whitespace-pre-wrap break-all">{sp.error}</div>}
+      {sp.error && (() => {
+        // The account_id that failed is preserved through the error redirect so
+        // the Re-authenticate link still works after refreshTikTokAccessToken()
+        // clears the dead token from the DB (which empties `connected[]`).
+        const failedAccountId = Number.parseInt(sp.account_id || '', 10);
+        const failedAccount = accounts.find(a => a.id === failedAccountId) || accounts[0];
+        return (
+          <div className="ix-card border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950 p-3 text-sm space-y-2">
+            <div className="font-mono whitespace-pre-wrap break-all">{sp.error}</div>
+            {sp.error.includes('refresh_failed') && failedAccount && (
+              <div className="text-xs flex flex-wrap items-center gap-2 pt-1 border-t border-rose-200 dark:border-rose-800">
+                <span className="text-rose-700 dark:text-rose-300">
+                  TikTok rejected the stored refresh token (expired or revoked).
+                </span>
+                <Link
+                  href={`/api/auth/tiktok/start?account_id=${failedAccount.id}`}
+                  className="ix-link font-semibold"
+                >
+                  Re-authenticate {failedAccount.tiktok_username ? `@${failedAccount.tiktok_username}` : failedAccount.name} →
+                </Link>
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {sp.post && (
         <div className="ix-card border-emerald-200 bg-emerald-50 p-3 text-sm">
           Submitted post <code>#{sp.post}</code> — status: <strong>{sp.status}</strong>. Inbox posts finish via TikTok app.

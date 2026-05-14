@@ -444,7 +444,7 @@ export async function publishTikTokReelAction(formData: FormData): Promise<void>
   });
 
   if (!result.ok) {
-    redirect(`/beithady/ads/tiktok/organic?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+    redirect(`/beithady/ads/tiktok/organic?error=${encodeURIComponent(`${result.step}: ${result.error}`)}&account_id=${accountId}`);
   }
   revalidatePath('/beithady/ads/tiktok/organic');
   redirect(`/beithady/ads/tiktok/organic?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
