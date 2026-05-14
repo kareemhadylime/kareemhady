@@ -2,6 +2,7 @@ import {
   Calculator,
   TrendingUp,
   Users,
+  Users2,
   MessageCircle,
   Settings as SettingsIcon,
   Image as ImageIcon,
@@ -100,20 +101,22 @@ const CATEGORY_TILES: Record<BeithadyCategory, LauncherTile> = {
     accent: 'rose',
     badge: { label: 'Phase F', tone: 'gold' },
   },
+  hr: {
+    href: '/beithady/hr',
+    title: 'People',
+    description: 'Team roster · Payroll · Attendance · Compliance. FMPLUS-style workforce management for all Beithady staff.',
+    icon: Users2,
+    accent: 'violet',
+    badge: { label: 'New', tone: 'gold' },
+  },
 };
 
 // All categories now live — historical map kept for future phases.
 const PHASE_PENDING: Record<BeithadyCategory, string | undefined> = {
-  financial: undefined,
-  analytics: undefined,
-  crm: undefined,
-  communication: undefined,
-  settings: undefined,
-  gallery: undefined,
-  ads: undefined,
-  operations: undefined,
-  inventory: undefined,
-  fnb: undefined,
+  financial: undefined, analytics: undefined, crm: undefined,
+  communication: undefined, settings: undefined, gallery: undefined,
+  ads: undefined, operations: undefined, inventory: undefined,
+  fnb: undefined, hr: undefined,
 };
 
 export default async function BeithadyHome() {
@@ -121,18 +124,10 @@ export default async function BeithadyHome() {
   const roles = user ? await getEffectiveBeithadyRoles(user) : [];
   const visible = visibleCategoriesFor(roles);
 
-  // Order: Financial → Analytics → CRM → Communication → Operations → Inventory → F&B → Settings → Gallery → Ads
+  // Order: Financial → Analytics → CRM → Communication → Operations → People → Inventory → F&B → Settings → Gallery → Ads
   const order: BeithadyCategory[] = [
-    'financial',
-    'analytics',
-    'crm',
-    'communication',
-    'operations',
-    'inventory',
-    'fnb',
-    'settings',
-    'gallery',
-    'ads',
+    'financial', 'analytics', 'crm', 'communication',
+    'operations', 'hr', 'inventory', 'fnb', 'settings', 'gallery', 'ads',
   ];
   const tiles: LauncherTile[] = order
     .filter(c => visible.includes(c))
