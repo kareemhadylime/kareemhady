@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { parseAttendanceFile } from './hr-attendance-parser';
 import { getProtectedEmployeeIds } from './hr-attendance-queries';
-import type { AttendancePreviewResult, AttendancePreviewRow, AttendanceFilter } from './hr-attendance-types';
+import type { AttendancePreviewResult, AttendancePreviewRow, AttendanceFilter, AttendanceSource } from './hr-attendance-types';
 
 type EmployeeStubForAction = {
   id: string; company_id: string; first_name: string; last_name: string | null; building_code: string | null;
@@ -60,7 +60,8 @@ export async function previewAttendanceAction(
 
 export async function confirmAttendanceAction(
   date: string,
-  rows: AttendancePreviewRow[]
+  rows: AttendancePreviewRow[],
+  source: AttendanceSource = 'manual'
 ): Promise<{ saved: number; skipped: number; error?: string }> {
   try {
     const user = await getCurrentUser();
@@ -81,6 +82,7 @@ export async function confirmAttendanceAction(
           status:         r.status!,
           building_code:  r.building_code,
           approval_state: 'pending',
+          source,
           submitted_by:   user.id,
           submitted_at:   new Date().toISOString(),
         })),
