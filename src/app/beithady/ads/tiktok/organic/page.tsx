@@ -43,10 +43,62 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
 
       <AdsTabs active="tt-organic" />
 
-      {sp.error && <div className="ix-card border-rose-200 bg-rose-50 p-3 text-sm font-mono">{sp.error}</div>}
+      {sp.error && <div className="ix-card border-rose-200 bg-rose-50 p-3 text-sm font-mono whitespace-pre-wrap break-all">{sp.error}</div>}
       {sp.post && (
         <div className="ix-card border-emerald-200 bg-emerald-50 p-3 text-sm">
           Submitted post <code>#{sp.post}</code> — status: <strong>{sp.status}</strong>. Inbox posts finish via TikTok app.
+        </div>
+      )}
+
+      {/* IG Reels picker — click a Reel to mirror it to Supabase and pre-fill the form */}
+      {igReels.length > 0 && (
+        <div className="ix-card p-3">
+          <p className="text-xs font-semibold mb-2 text-slate-500 dark:text-slate-400">Source from an existing Instagram Reel — click to mirror video + pre-fill caption</p>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {igReels.map(reel => {
+              const thumb = reel.thumbnail_url || reel.media_url;
+              const selected = fromIgId === reel.id;
+              return (
+                <a
+                  key={reel.id}
+                  href={`?from_ig=${reel.id}`}
+                  title={reel.caption?.slice(0, 80) || ''}
+                  className={`shrink-0 rounded overflow-hidden border-2 transition-colors ${
+                    selected
+                      ? 'border-violet-500 ring-2 ring-violet-300 dark:ring-violet-700'
+                      : 'border-transparent hover:border-slate-400'
+                  }`}
+                >
+                  {thumb
+                    ? <img src={thumb} alt="" className="w-16 h-24 object-cover" />
+                    : <div className="w-16 h-24 bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] text-slate-500">no img</div>
+                  }
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {prefill?.found && (
+        <div className="ix-card border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950 p-4 text-sm space-y-2">
+          <div className="flex items-center gap-2">
+            <Copy size={14} className="text-violet-600 dark:text-violet-300 shrink-0" />
+            <strong>Sourced from Instagram Reel</strong>
+            {prefill.permalink && <a href={prefill.permalink} target="_blank" rel="noreferrer" className="ix-link text-xs">view on IG →</a>}
+          </div>
+          <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            Video mirrored to Supabase public storage so TikTok can fetch it server-side. Review caption + hashtags before publishing.
+          </div>
+          {prefill.notes.length > 0 && (
+            <ul className="text-[11px] text-amber-700 dark:text-amber-300 mt-2 space-y-1">
+              {prefill.notes.map((n, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <Info size={11} className="shrink-0 mt-0.5" /><span>{n}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -75,15 +127,15 @@ export default async function TikTokOrganicPage({ searchParams }: { searchParams
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="video_url" className="text-xs font-semibold">Video URL (public HTTPS)</label>
-              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" />
+              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" defaultValue={prefill?.videoUrl || ''} />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="caption" className="text-xs font-semibold">Caption</label>
-              <textarea id="caption" name="caption" rows={3} className="ix-input" />
+              <textarea id="caption" name="caption" rows={3} className="ix-input" defaultValue={prefill?.caption || ''} />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="hashtags" className="text-xs font-semibold">Hashtags (comma or newline separated, no # needed)</label>
-              <input id="hashtags" name="hashtags" className="ix-input" placeholder="BeitHady, Cairo, luxurystay" />
+              <input id="hashtags" name="hashtags" className="ix-input" placeholder="BeitHady, Cairo, luxurystay" defaultValue={(prefill?.hashtags || []).join(', ')} />
             </div>
             <div className="space-y-1">
               <label htmlFor="building_code" className="text-xs font-semibold">Building code</label>
