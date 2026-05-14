@@ -31,6 +31,14 @@ export async function testProvider(provider: ProviderId): Promise<TestResult> {
         };
       case 'scrapingbee':
         return await testScrapingBee();
+      case 'tiktok_ads':
+        return await testTikTokAds();
+      case 'google_ads':
+      case 'anthropic':
+      case 'stripe':
+      case 'gmail':
+      case 'meta_ads':
+        return { ok: true, detail: `${provider} credentials stored — no live ping implemented` };
       default:
         return { ok: false, error: `unknown_provider:${provider}` };
     }
@@ -161,6 +169,27 @@ async function testGreen(): Promise<TestResult> {
     ok: false,
     error: `stateInstance=${state} — credentials reached Green-API but the WhatsApp session is not authorized. Re-link in the console.`,
   };
+}
+
+// --- TikTok Ads / Content Posting ---
+// With only app_id + secret (no access token yet) we can't make a real API
+// call. Verify credentials are loaded and surface what's missing.
+async function testTikTokAds(): Promise<TestResult> {
+  const { loadTikTokAppCredentials } = await import('./beithady/ads/tiktok-client');
+  const credsRes = await loadTikTokAppCredentials();
+  if (!credsRes.ok) return { ok: false, error: `${credsRes.error}${credsRes.missing?.length ? ` (missing: ${credsRes.missing.join(', ')})` : ''}` };
+  const { creds } = credsRes;
+  if (creds.marketing_access_token) {
+    // Verify the marketing (Business API) token is valid
+    const res = await fetch(`https://business-api.tiktok.com/open_api/v1.3/user/info/`, {
+      headers: { 'Access-Token': creds.marketing_access_token, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const j = await res.json().catch(() => null) as { code?: number; message?: string; data?: { display_name?: string } } | null;
+    if (j?.code === 0) return { ok: true, detail: `Authenticated · ${j.data?.display_name || 'app_id: ' + creds.app_id}` };
+    return { ok: false, error: `Business API → code ${j?.code}: ${j?.message || 'unknown'}` };
+  }
+  return { ok: true, detail: `app_id set · no access token yet — complete OAuth to enable posting` };
 }
 
 // --- ScrapingBee ---
