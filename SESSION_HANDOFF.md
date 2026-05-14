@@ -325,3 +325,39 @@ Next: Task 3 (Leave request submission logic + API route).
 - **Files**: 1 new, 172 insertions
 
 **Sprint 6 Progress:** 5 tasks complete (Types, Actions, UI Dialogs, LeaveTab); 1 remains (Page+Deploy).
+
+
+---
+
+## 2026-05-14 — Task 9: LeaveOtBoard (Leave & Overtime Tab Switcher)
+
+**Scope:** Created `LeaveOtBoard` component — the root tab switcher for the leave-ot module.
+
+**File delivered:**
+- `src/app/beithady/hr/leave-ot/_components/leave-ot-board.tsx`
+
+**Features:**
+- Client-side tab toggle: Leave ↔ Overtime
+- Year filter (select dropdown) for Leave tab — fetches /api/hr/leave-ot/leave?year={year}
+- Month filter (HTML5 month input) for Overtime tab — fetches /api/hr/leave-ot/ot?month={YYYY-MM}
+- Auto-refetch on filter change (handleYearChange, handleMonthChange)
+- Manual refresh buttons passed to child tabs (refreshLeave, refreshOT)
+- Styling: Rose-500 active border, white/40 inactive text, smooth transitions
+- State management: activeTab, pendingLeave, balances, pendingOT, approvedOT, year, month
+
+**Props:**
+- Accepts initialPendingLeave, initialBalances, initialPendingOT, initialApprovedOT from parent
+- Accepts employees list + canApprove permission flag
+- Passes filtered state + refresh callbacks to LeaveTab & OtTab
+
+**Commit:** a4831ed (`feat(hr): LeaveOtBoard — tab switcher + year/month filter + refetch on change`)
+
+**Tests:** All 513 passing (94 test files, 3 skipped), no failures
+
+**Dependencies validated:**
+- LeaveTab & OtTab components imported and conditionally rendered
+- Types (LeaveRequestRow, LeaveBalanceRow, OvertimeRecordRow) from hr-leave-ot-types.ts
+- Fetch endpoints /api/hr/leave-ot/leave and /api/hr/leave-ot/ot expected to exist
+- Styling: ix-input class for selects/inputs, Tailwind spacing & borders
+
+**Next steps:** Task 10 (page.tsx tying all components together).
