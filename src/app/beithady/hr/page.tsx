@@ -67,8 +67,6 @@ export default async function BeithadyHrPage() {
       description: 'Contract files · IDs · tax forms · visa/contract expiry alerts.',
       icon: FileCheck,
       accent: 'gold',
-      disabled: true,
-      comingSoonLabel: 'Sprint 8',
     },
     {
       href: '/beithady/hr/training',
