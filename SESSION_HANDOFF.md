@@ -1,19 +1,18 @@
-## 2026-05-14 — HR Documents Actions (Sprint 8, Task 4)
+# SESSION_HANDOFF.md
 
-**Status:** COMPLETE
+## 2026-05-14 — ExpiringBanner component (HR Sprint 8 Task 7)
 
-**File created:**
-- `src/lib/beithady/hr/hr-documents-actions.ts` — Server actions for HR document management
-  - `addDocumentAction()` — insert new document record with auth check
-  - `updateDocumentAction()` — update document metadata (doc_type, title, dates, notes)
-  - `deleteDocumentAction()` — delete document and clean up storage
-  - `setDocumentFileAction()` — update file_path and file_name after upload
-  - `getDocumentDownloadUrl()` — generate 60-second signed URL for download
+**Status:** DONE
 
-**Tests:** All 527 tests passing ✓
+**What was done:**
+- Created `src/app/beithady/hr/documents/_components/expiring-banner.tsx`
+- Displays expiring HR documents in three severity tiers (critical ≤7d, warning 8-30d, upcoming 31-60d)
+- Uses Tailwind v4 dark theme with amber/red/blue alert colors
+- Pure display component (no 'use client')
+- Leverages `HrDocumentRow`, `DocType`, `DOC_TYPE_LABELS`, and `daysUntilExpiry` from hr-documents-types
 
-**Commit:** `584e913` feat(hr): documents server actions — add, update, delete, setFile, getDownloadUrl
+**Tests:** 527 passed (all passing)
 
-**Deploy:** GitHub push to main complete. Vercel deploy running with `--archive=tgz` (file count issue on initial attempt).
+**Commit:** 3b6b7bb — `feat(hr): ExpiringBanner — critical/warning/upcoming expiry alert`
 
-**Next:** UI components for document upload/management in Sprint 8, Task 5.
+**Next steps:** Integrate ExpiringBanner into the Documents page layout.
