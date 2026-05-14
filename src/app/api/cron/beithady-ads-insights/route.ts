@@ -83,10 +83,10 @@ export async function GET(req: NextRequest) {
       const leads = Number(actions.find(a => a.action_type === 'onsite_conversion.messaging_conversation_started_7d' || a.action_type === 'onsite_conversion.lead_grouped')?.value || 0);
       const spendMicros = Math.round(Number(it.spend || 0) * 1_000_000);
       const metricDate = (it.date_start as string | undefined) || yesterday;
-      await sb.from('ads_daily_metrics').upsert({
+      const row = {
         account_id: cc.account_id,
         campaign_id: cc.id,
-        platform: 'meta',
+        platform: 'meta' as const,
         metric_date: metricDate,
         impressions: Number(it.impressions || 0),
         clicks: Number(it.clicks || 0),
@@ -94,7 +94,35 @@ export async function GET(req: NextRequest) {
         reach: Number(it.reach || 0),
         leads,
         raw: it as object,
-      }, { onConflict: 'campaign_id,metric_date' });
+      };
+      // Manual upsert: the table's unique index on (campaign_id, metric_date) is
+      // PARTIAL (WHERE ad_id IS NULL AND ad_set_id IS NULL) — PostgREST's onConflict
+      // can't target partial indexes, so we look up + insert/update by id.
+      const { data: existing, error: selErr } = await sb
+        .from('ads_daily_metrics')
+        .select('id')
+        .eq('campaign_id', cc.id)
+        .eq('metric_date', metricDate)
+        .is('ad_set_id', null)
+        .is('ad_id', null)
+        .maybeSingle();
+      if (selErr) {
+        console.error('[cron beithady-ads-insights] select error', { campaign_id: cc.id, metricDate, err: selErr.message });
+        continue;
+      }
+      if (existing) {
+        const { error: updErr } = await sb.from('ads_daily_metrics').update(row).eq('id', (existing as { id: number }).id);
+        if (updErr) {
+          console.error('[cron beithady-ads-insights] update error', { id: (existing as { id: number }).id, err: updErr.message });
+          continue;
+        }
+      } else {
+        const { error: insErr } = await sb.from('ads_daily_metrics').insert(row);
+        if (insErr) {
+          console.error('[cron beithady-ads-insights] insert error', { campaign_id: cc.id, metricDate, err: insErr.message });
+          continue;
+        }
+      }
       upserted++;
       totalLeads += leads;
     }
