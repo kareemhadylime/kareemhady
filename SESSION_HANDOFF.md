@@ -1,3 +1,24 @@
+## 2026-05-14 — Google Ads: FULLY CONNECTED ✅
+
+End-to-end Google Ads integration is live. All credentials stored, OAuth refresh token saved (176 chars), per-account authorization complete. Performance Max campaign already running in the Beithady account is now reachable via the Google Ads API v24 client.
+
+**Final state:**
+- `integration_credentials` row for `google_ads`: developer_token + client_id + client_secret + login_customer_id (`3953044686`), enabled=true
+- `ads_accounts` row id=3: platform=google, external_id=`4243554501`, name=Beithady Google Ads, currency=USD, status=active, google_refresh_token saved
+- MCC: Beithady MCC (`395-304-4686`), Beithady standard account (`424-355-4501`) linked + approved
+
+**What user can do now:**
+- `/beithady/ads/google/accounts` → click Publish → create Search or PMax campaigns from dashboard
+- Existing PMax campaign (334K impressions, Jan→May 2026) is now accessible via API
+
+**Deferred (no auto-sync yet):**
+- No Google Ads daily metrics cron wired (Meta has one, Google doesn't yet). Would need a `src/app/api/cron/google-ads-sync/route.ts` similar to the Meta sync flow if daily metrics syncing is desired.
+- Auto-sync of Google campaign statuses on `/beithady/ads/campaigns` page load (similar to the Meta auto-sync we added in commit `2f1b8d3`) — not implemented for Google yet.
+
+**No code changes this session** — pure setup. All needed code (google-client.ts, google-sync.ts, google-publish.ts, google-pmax-publish.ts, OAuth routes, accounts page) was already in place.
+
+---
+
 ## 2026-05-14 — HR Sprint 2 Task 9: Batch Payslip PDF Route DONE
 
 **Commit:** `8a93daa` — feat(hr): batch payslip PDF route — POST /api/hr/payslips/batch + pdf-lib merge
