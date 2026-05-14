@@ -39,8 +39,6 @@ export default async function BeithadyHrPage() {
       description: 'Roll call · manual check-in/out by supervisor. Feeds Monthly Payroll working-days column.',
       icon: CalendarCheck,
       accent: 'cyan',
-      disabled: true,
-      comingSoonLabel: 'Sprint 4',
     },
     {
       href: '/beithady/hr/biometric',
