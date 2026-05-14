@@ -7,8 +7,9 @@ import type { HrEmployeeRow, PersonalInfoInput, ContractInput, HrEvent } from '@
 import { PersonalInfoTab } from './personal-info-tab';
 import { ContractPayoutTab } from './contract-payout-tab';
 import { TimelineTab } from './timeline-tab';
+import { DocumentsTab } from './documents-tab';
 
-type Tab = 'personal' | 'contract' | 'timeline';
+type Tab = 'personal' | 'contract' | 'timeline' | 'documents';
 
 type Props = {
   open: boolean;
@@ -160,6 +161,7 @@ export function AddEditMemberDialog({ open, onClose, employee, events = [] }: Pr
     { id: 'personal',  label: '👤 Personal Info' },
     { id: 'contract',  label: '📄 Contract & Payout' },
     { id: 'timeline',  label: '📅 Timeline' },
+    { id: 'documents', label: '🗂 Documents' },
   ];
 
   return (
@@ -219,6 +221,17 @@ export function AddEditMemberDialog({ open, onClose, employee, events = [] }: Pr
           )}
           {tab === 'timeline' && (
             <TimelineTab events={events} />
+          )}
+          {tab === 'documents' && employee?.id && (
+            <DocumentsTab
+              employeeId={employee.id}
+              canManage={false}
+            />
+          )}
+          {tab === 'documents' && !employee?.id && (
+            <p className="text-sm text-slate-500 dark:text-slate-400 py-4 italic">
+              Save the employee first to manage documents.
+            </p>
           )}
         </div>
 
