@@ -55,10 +55,10 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   // Get or create the Meta ads_accounts row
   const { data: accRow } = await sb
     .from('ads_accounts')
-    .select('id, external_id, fb_page_id, ig_business_id, name')
+    .select('id, external_id, fb_page_id, ig_business_id, ig_username, name')
     .eq('id', input.accountId)
     .maybeSingle();
-  const acc = accRow as { id: number; external_id: string; fb_page_id: string | null; ig_business_id: string | null; name: string } | null;
+  const acc = accRow as { id: number; external_id: string; fb_page_id: string | null; ig_business_id: string | null; ig_username: string | null; name: string } | null;
   if (!acc) return { ok: false, mode: isDraft ? 'draft' : 'live', step: 'load_account', error: 'account_not_found' };
   if (!acc.ig_business_id) return { ok: false, mode: isDraft ? 'draft' : 'live', step: 'load_account', error: 'ig_business_id_missing — run resolve_ig first' };
 
@@ -220,35 +220,38 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   if (!adsetRes.ok) return { ok: false, mode: 'live', step: 'create_adset', error: adsetRes.error, raw: adsetRes.raw };
   const adsetExternalId = (adsetRes.data as { id: string }).id;
 
-  // 3. Resolve the Instagram actor ID fresh from Meta API.
-  // The value in ads_accounts.ig_business_id may be stale (resolved under
-  // different creds) or the hidden form input may have been empty. Meta error
-  // (#100) "must be a valid Instagram account id" means we sent the wrong value.
-  // Always re-verify from the FB Page; backfill DB if it changed.
+  // 3. Resolve the correct Instagram actor ID for ad creative creation.
+  // IMPORTANT: instagram_business_account.id from the Page API is NOT the same
+  // node that Ads API accepts as instagram_actor_id. The correct IDs come from
+  // GET /{adAccount}/instagram_accounts — only those are authorised for creative
+  // creation on this ad account. Using the page-API ID causes error (#100).
+  type IgAcct = { id: string; username?: string; name?: string };
   let igActorId = input.igBusinessId;
-  {
-    type PageResp = { instagram_business_account?: { id: string } };
-    const pageRes = await metaGet<PageResp>(
-      `${c.fbPageId}?fields=instagram_business_account{id}`,
-      c.token
-    );
-    if (pageRes.ok) {
-      const freshId = (pageRes.data as PageResp)?.instagram_business_account?.id;
-      if (freshId) {
-        if (freshId !== igActorId) {
-          console.log(`[boost-publish] ig_actor_id mismatch: DB="${igActorId}" fresh="${freshId}" — using fresh, backfilling DB`);
-          igActorId = freshId;
-          await supabaseAdmin()
-            .from('ads_accounts')
-            .update({ ig_business_id: freshId })
-            .eq('id', input.accountId);
-        }
-      } else {
-        console.warn('[boost-publish] FB Page has no instagram_business_account — using DB value', igActorId);
+  const igAccountsRes = await metaGet<{ data: IgAcct[] }>(
+    `${adAccountPath}/instagram_accounts?fields=id,username,name&limit=25`,
+    c.token
+  );
+  if (igAccountsRes.ok) {
+    const igAccounts = ((igAccountsRes.data as { data?: IgAcct[] })?.data || []);
+    console.log('[boost-publish] ad_account instagram_accounts:', JSON.stringify(igAccounts.map(a => ({ id: a.id, username: a.username }))));
+    // Match by username stored in DB, fall back to first available
+    const match = igAccounts.find(a => a.username && acc.ig_username && a.username === acc.ig_username)
+      || igAccounts[0];
+    if (match?.id) {
+      if (match.id !== igActorId) {
+        console.log(`[boost-publish] ig_actor_id: DB="${igActorId}" → using "${match.id}" (${match.username}) from instagram_accounts`);
+        igActorId = match.id;
+        // Backfill DB so future requests skip this lookup
+        await supabaseAdmin()
+          .from('ads_accounts')
+          .update({ ig_business_id: match.id })
+          .eq('id', input.accountId);
       }
     } else {
-      console.warn('[boost-publish] could not resolve ig_actor_id from page, using DB value:', pageRes.error);
+      console.warn('[boost-publish] instagram_accounts returned 0 entries — ad account may not have an IG account connected. Using DB value:', igActorId);
     }
+  } else {
+    console.warn('[boost-publish] failed to fetch instagram_accounts:', igAccountsRes.error, '— using DB value:', igActorId);
   }
 
   // 4. Creative
