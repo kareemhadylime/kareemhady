@@ -1,3 +1,17 @@
+## 2026-05-14 — HR Sprint 2 Task 3: Payroll Excel Parser (TDD) DONE
+
+**Commit:** `c587954` — feat(hr): payroll Excel parser — all columns + name-matching (TDD, 9 tests)
+
+**Files created:**
+- `src/lib/beithady/hr/hr-payroll-parser.ts` — exports `normalizeForMatch`, `matchEmployeeName`, `parsePayrollFile`. Imports `mapAnalyticToBuilding` + `isRedFill` from `hr-import.ts` (no duplication). NOT server-only.
+- `src/lib/beithady/hr/hr-payroll-parser.test.ts` — 9 Vitest tests (4 normalizeForMatch, 5 matchEmployeeName)
+
+**TDD steps completed:** test-first (fail) → implement → all 9 pass → full suite 479 passed 0 new failures → tsc clean
+
+**Name matching strategy:** exact full-name → fuzzy (all employee words in sheet words) → first-name-only fallback (surfaces ambiguous) → unmatched
+
+---
+
 ## 2026-05-14 — Ads: Campaign Status Auto-Sync + IG Boost Fixes (DONE)
 
 **Commits this mini-session:**
