@@ -3,12 +3,13 @@
 import { useState, useTransition } from 'react';
 import { X, Upload, CheckCircle2 } from 'lucide-react';
 import { previewAttendanceAction, confirmAttendanceAction } from '@/lib/beithady/hr/hr-attendance-actions';
-import type { AttendancePreviewResult, AttendancePreviewRow } from '@/lib/beithady/hr/hr-attendance-types';
+import type { AttendancePreviewResult, AttendancePreviewRow, AttendanceSource } from '@/lib/beithady/hr/hr-attendance-types';
 
 type Step = 'upload' | 'preview' | 'done';
 type Props = {
   open: boolean;
   defaultDate: string;
+  source: AttendanceSource;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -20,7 +21,7 @@ const STATUS_PILL: Record<string, string> = {
   error:     'bg-red-900/50 text-red-300',
 };
 
-export function ImportAttendanceDialog({ open, defaultDate, onClose, onSaved }: Props) {
+export function ImportAttendanceDialog({ open, defaultDate, source, onClose, onSaved }: Props) {
   const [step, setStep]       = useState<Step>('upload');
   const [preview, setPreview] = useState<AttendancePreviewResult | null>(null);
   const [rows, setRows]       = useState<AttendancePreviewRow[]>([]);
@@ -53,7 +54,7 @@ export function ImportAttendanceDialog({ open, defaultDate, onClose, onSaved }: 
 
   async function handleConfirm() {
     startTransition(async () => {
-      const res = await confirmAttendanceAction(date, rows);
+      const res = await confirmAttendanceAction(date, rows, source);
       if (res.error) { setParseError(res.error); return; }
       setSavedCount(res.saved);
       setStep('done');
@@ -65,7 +66,9 @@ export function ImportAttendanceDialog({ open, defaultDate, onClose, onSaved }: 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h2 className="text-base font-semibold text-white">Import Attendance</h2>
+          <h2 className="text-base font-semibold text-white">
+            {source === 'biometric' ? 'Biometric Upload' : 'Import Attendance'}
+          </h2>
           <button onClick={handleClose} className="text-white/40 hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
