@@ -158,7 +158,8 @@ export type HcComparisonRow = {
 // getLiveHeadcount() — query hr_employees grouped by building_code + department
 // getHcComparison()  — query hr_employees for HK+Security counts; load most recent hc_estimator_snapshots
 //                      JSONB blob, run calculateHK() to get per-building planned totals
-// getHeadcountHistory(filters) — query hr_headcount_snapshots with date range + optional filters
+// getHeadcountHistory(filters)     — query hr_headcount_snapshots with date range + optional filters
+// getMonthlyAvgHeadcount(month)    — AVG(count) per building×dept for a given YYYY-MM month
 ```
 
 ---
@@ -175,9 +176,33 @@ export type HcComparisonRow = {
 | `src/app/beithady/hr/headcount/_components/headcount-grid.tsx` | Create | Live matrix (server component) |
 | `src/app/beithady/hr/headcount/_components/hc-comparison.tsx` | Create | HK+Security comparison table |
 | `src/app/beithady/hr/headcount/_components/headcount-history.tsx` | Create | 'use client' filtered history |
+| `src/app/beithady/hr/headcount/_components/headcount-monthly-avg.tsx` | Create | Section 4 monthly averages grid ('use client') |
+| `src/app/api/hr/headcount/monthly-avg/route.ts` | Create | GET monthly avg per building×dept |
 | `src/app/beithady/hr/headcount/page.tsx` | Create | Server page, auth-gated |
 | `src/app/beithady/hr/page.tsx` | Modify | Remove disabled + comingSoonLabel from Sprint 7 tile |
 | `vercel.json` | Modify | Add 2 cron entries for hr-headcount-snapshot |
+
+---
+
+## 9b. Section 4: Monthly Averages
+
+A fourth section below the Historical Log. Derived entirely from `hr_headcount_snapshots` — no new table needed.
+
+**Controls:** Month picker (default: current month)
+
+**Display:** Same buildings × departments matrix as Section 1, but each cell shows the **average daily headcount** for the selected month (`AVG(count)` across all snapshot rows for that building/dept in that month, rounded to 1 decimal place). Cells with 0 shown dimmed.
+
+**Totals:** Average total column (sum of row averages) and average total row (sum of column averages).
+
+**Coverage indicator:** Small note below the grid — "Based on N days of data" (count of distinct dates recorded in that month). If N = 0, show "No data recorded for this month."
+
+The month picker triggers a `GET /api/hr/headcount/monthly-avg?month=YYYY-MM` fetch. Response: `{ rows: { building_code, department, avg_count }[], days_recorded: number }`.
+
+New API route added: `src/app/api/hr/headcount/monthly-avg/route.ts`
+
+New query added to `hr-headcount-queries.ts`: `getMonthlyAvgHeadcount(month: string)`
+
+New component: `src/app/beithady/hr/headcount/_components/headcount-monthly-avg.tsx` (`'use client'`)
 
 ---
 
