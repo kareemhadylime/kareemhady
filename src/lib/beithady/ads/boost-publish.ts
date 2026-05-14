@@ -1,7 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { recordAudit } from '@/lib/beithady/audit';
-import { loadMetaCredentials, metaPost, buildMetaTargetingSpec } from './meta-client';
+import { loadMetaCredentials, metaPost, metaGet, buildMetaTargetingSpec } from './meta-client';
 import { buildBhWaLink } from './platforms';
 
 // "Boost existing post" flow for Instagram. Operator picks a Reel /
@@ -220,7 +220,38 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   if (!adsetRes.ok) return { ok: false, mode: 'live', step: 'create_adset', error: adsetRes.error, raw: adsetRes.raw };
   const adsetExternalId = (adsetRes.data as { id: string }).id;
 
-  // 3. Creative
+  // 3. Resolve the Instagram actor ID fresh from Meta API.
+  // The value in ads_accounts.ig_business_id may be stale (resolved under
+  // different creds) or the hidden form input may have been empty. Meta error
+  // (#100) "must be a valid Instagram account id" means we sent the wrong value.
+  // Always re-verify from the FB Page; backfill DB if it changed.
+  let igActorId = input.igBusinessId;
+  {
+    type PageResp = { instagram_business_account?: { id: string } };
+    const pageRes = await metaGet<PageResp>(
+      `${c.fbPageId}?fields=instagram_business_account{id}`,
+      c.token
+    );
+    if (pageRes.ok) {
+      const freshId = (pageRes.data as PageResp)?.instagram_business_account?.id;
+      if (freshId) {
+        if (freshId !== igActorId) {
+          console.log(`[boost-publish] ig_actor_id mismatch: DB="${igActorId}" fresh="${freshId}" — using fresh, backfilling DB`);
+          igActorId = freshId;
+          await supabaseAdmin()
+            .from('ads_accounts')
+            .update({ ig_business_id: freshId })
+            .eq('id', input.accountId);
+        }
+      } else {
+        console.warn('[boost-publish] FB Page has no instagram_business_account — using DB value', igActorId);
+      }
+    } else {
+      console.warn('[boost-publish] could not resolve ig_actor_id from page, using DB value:', pageRes.error);
+    }
+  }
+
+  // 4. Creative
   // Non-CTWA: source_instagram_media_id tells Meta to use the existing native
   // IG post as the ad creative — preserves all organic likes + comments and
   // shows the actual post image in preview. This is the correct API field for
@@ -230,17 +261,17 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
   //
   // CTWA: still uses object_story_id + instagram_actor_id (CTWA creative path
   // with destination_type=WHATSAPP requires FB Page linked to WABA first).
-  const objectStoryId = `${input.igBusinessId}_${input.igMediaId}`;
+  const objectStoryId = `${igActorId}_${input.igMediaId}`;
   const creativePayload: Record<string, unknown> = useCtwa
     ? {
         name: `${campaignName} — boost creative`,
         object_story_id: objectStoryId,
-        instagram_actor_id: input.igBusinessId,
-        instagram_user_id: input.igBusinessId,
+        instagram_actor_id: igActorId,
+        instagram_user_id: igActorId,
       }
     : {
         name: `${campaignName} — boost creative`,
-        instagram_actor_id: input.igBusinessId,
+        instagram_actor_id: igActorId,
         source_instagram_media_id: input.igMediaId,
         call_to_action: { type: 'LEARN_MORE', value: { link: landingUrl } },
       };
