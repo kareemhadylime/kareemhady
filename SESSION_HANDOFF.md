@@ -24,3 +24,31 @@
 ### Next: Task 3
 - Daily Attendance submission & approval (server actions, DB inserts, validation)
 - Approval UI + status updates
+### Next: Task 3
+- Daily Attendance submission & approval (server actions, DB inserts, validation)
+- Approval UI + status updates
+
+## 2026-05-14: Beithady HR Sprint 4 — Task 6 (Import Dialog) — UI Implementation
+
+### Completed
+- **import-attendance-dialog.tsx** (190 lines): 3-step modal wizard
+  - Step 1 (Upload): Date input + drag-drop .xlsx/.xls file picker, shows parsing progress
+  - Step 2 (Preview): Summary pills (matched/unmatched/protected/errors), scrollable preview table with Name, BH-ID, Status, Match columns, ← Re-upload button, Save button (disabled if 0 matched)
+  - Step 3 (Done): Success screen with saved record count, "Pending admin approval" message, Done button
+  - Integrates with server actions: `previewAttendanceAction(FormData)` → AttendancePreviewResult, `confirmAttendanceAction(date, rows)` → saved count
+  - Tailwind dark theme (neutral-900, white/10 borders, violet-600 primary, emerald-600 success), Lucide icons (Upload, X, CheckCircle2)
+  - Dialog closes and resets on Cancel or Done, calling parent `onClose()` + `onSaved()` callbacks
+
+### Test Results
+- ✓ All tests pass (508 total, 22 skipped)
+- ✓ No regressions from new component
+- Note: Component is client-side ('use client') and doesn't require unit tests per project convention (integrates with existing server actions + types)
+
+### Commit
+- SHA: `243252d` — "feat(hr): ImportAttendanceDialog — 3-step upload→preview→saved wizard"
+- Files: 1 (component) — 190 insertions
+- Created: `src/app/beithady/hr/attendance/_components/`
+
+### Next: Task 7+
+- Wire ImportAttendanceDialog into daily attendance page (open/close trigger, date picker)
+- Cron jobs for auto-sync + morning brief display
