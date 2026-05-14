@@ -4,6 +4,7 @@
 export type AttendanceStatus = 'present' | 'absent';
 export type AttendanceApprovalState = 'pending' | 'approved';
 export type AttendanceMatchStatus = 'matched' | 'unmatched' | 'protected' | 'error';
+export type AttendanceSource = 'manual' | 'biometric';
 
 export type AttendanceRecord = {
   id: string;
@@ -12,6 +13,7 @@ export type AttendanceRecord = {
   status: AttendanceStatus;
   building_code: string | null;
   approval_state: AttendanceApprovalState;
+  source: AttendanceSource;
   submitted_by: string | null;
   submitted_at: string;
   approved_by: string | null;
@@ -29,6 +31,7 @@ export type AttendanceRow = {
   record_id: string | null;
   status: AttendanceStatus | null;
   approval_state: AttendanceApprovalState | null;
+  source: AttendanceSource | null;
 };
 
 export type AttendancePreviewRow = {

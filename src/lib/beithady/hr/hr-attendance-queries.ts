@@ -1,12 +1,12 @@
 // src/lib/beithady/hr/hr-attendance-queries.ts
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
-import type { AttendanceRow, AttendanceApprovalState, AttendanceStatus } from './hr-attendance-types';
+import type { AttendanceRow, AttendanceApprovalState, AttendanceStatus, AttendanceSource } from './hr-attendance-types';
 import type { AttendanceEmployeeStub } from './hr-attendance-parser';
 
 type ContractRow = { employee_id: string; building_code: string };
 type EmpRow = { id: string; company_id: string; first_name: string; last_name: string | null; arabic_name: string | null; department: string };
-type RecordRow = { id: string; employee_id: string; status: string; approval_state: string };
+type RecordRow = { id: string; employee_id: string; status: string; approval_state: string; source: string };
 
 export async function getAttendanceDayView(
   date: string,
@@ -42,7 +42,7 @@ export async function getAttendanceDayView(
   const activeIds = (employees as EmpRow[]).map(e => e.id);
   const { data: records, error: rErr } = await sb
     .from('hr_attendance_records')
-    .select('id, employee_id, status, approval_state')
+    .select('id, employee_id, status, approval_state, source')
     .eq('date', date)
     .in('employee_id', activeIds);
   if (rErr) throw new Error(rErr.message);
@@ -66,6 +66,7 @@ export async function getAttendanceDayView(
       record_id:      rec?.id ?? null,
       status:         (rec?.status as AttendanceStatus) ?? null,
       approval_state: (rec?.approval_state as AttendanceApprovalState) ?? null,
+      source:         (rec?.source as AttendanceSource) ?? null,
     };
   });
 }
