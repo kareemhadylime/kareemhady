@@ -274,7 +274,9 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       }
     : {
         name: `${campaignName} — boost creative`,
-        instagram_actor_id: igActorId,
+        // instagram_actor_id omitted — source_instagram_media_id implies the
+        // actor from the media owner; adding it causes (#100) when the ID that
+        // Meta's own /instagram_accounts returns is still rejected as invalid.
         source_instagram_media_id: input.igMediaId,
         call_to_action: { type: 'LEARN_MORE', value: { link: landingUrl } },
       };
