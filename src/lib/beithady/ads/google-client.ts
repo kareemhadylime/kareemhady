@@ -1,5 +1,6 @@
 import 'server-only';
 import { getCredential, getProviderEnabled } from '@/lib/credentials';
+import { decrypt } from '@/lib/crypto';
 
 // Google Ads API v24 client — OAuth refresh + GAQL search + mutate.
 // Ports C:\Voltauto-pricing\supabase\functions\ads-google-sync + ads-google-publish
@@ -42,7 +43,11 @@ export async function loadGoogleAdsCredentials(accountRefreshToken?: string | nu
     getCredential('google_ads', 'refresh_token'),
     getCredential('google_ads', 'login_customer_id'),
   ]);
-  const refresh_token = refresh_token_db || accountRefreshToken || '';
+  // Tokens stored in ads_accounts are AES-256-GCM encrypted via crypto.ts.
+  // Tokens stored directly in integration_credentials are assumed plaintext.
+  const rawAccountToken = accountRefreshToken || '';
+  const decryptedAccountToken = rawAccountToken ? (() => { try { return decrypt(rawAccountToken); } catch { return rawAccountToken; } })() : '';
+  const refresh_token = refresh_token_db || decryptedAccountToken;
   const missing = [
     !developer_token && 'developer_token',
     !client_id && 'client_id',
