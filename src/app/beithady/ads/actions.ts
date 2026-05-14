@@ -269,13 +269,14 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
   });
 
   if (!result.ok) {
+    const rawDetail = result.raw ? ` | ${JSON.stringify(result.raw).slice(0, 200)}` : '';
     await recordAudit({
       actor_user_id: user.id,
       module: 'ads',
       action: 'google_pmax_publish_failed',
-      metadata: { step: result.step, error: result.error, mode: result.mode },
+      metadata: { step: result.step, error: result.error, raw: result.raw, mode: result.mode },
     });
-    redirect(`/beithady/ads/google/pmax?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+    redirect(`/beithady/ads/google/pmax?error=${encodeURIComponent(`${result.step}: ${result.error}${rawDetail}`)}`);
   }
 
   revalidatePath('/beithady/ads');

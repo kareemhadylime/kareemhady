@@ -61,9 +61,13 @@ export default async function GooglePMaxPage({
       <AdsTabs active="google" />
 
       {sp.error && (
-        <div className="ix-card border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm flex items-center gap-2">
-          <AlertCircle size={16} className="text-rose-600 shrink-0" />
-          <span className="font-mono text-xs">{sp.error}</span>
+        <div id="publish-error" className="ix-card border-rose-400 dark:border-rose-600 bg-rose-100 dark:bg-rose-950 p-4 text-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertCircle size={16} className="text-rose-600 shrink-0" />
+            <strong className="text-rose-700 dark:text-rose-300">Publish failed</strong>
+          </div>
+          <pre className="font-mono text-xs text-rose-800 dark:text-rose-200 whitespace-pre-wrap break-all">{sp.error}</pre>
+          <script dangerouslySetInnerHTML={{ __html: `document.getElementById('publish-error')?.scrollIntoView({behavior:'smooth'})` }} />
         </div>
       )}
 
