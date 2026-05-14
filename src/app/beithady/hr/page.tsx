@@ -74,8 +74,6 @@ export default async function BeithadyHrPage() {
       description: 'Training records · certifications · expiry tracking per employee.',
       icon: Award,
       accent: 'emerald',
-      disabled: true,
-      comingSoonLabel: 'Sprint 9',
     },
     {
       href: '/beithady/hr/onboarding',
