@@ -203,7 +203,7 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       publisher_platforms: ['instagram', 'facebook'],
       instagram_positions: ['stream', 'story', 'explore', 'reels'],
       facebook_positions: ['feed', 'story'],
-      targeting_automation: { advantage_audience: 0 },
+      targeting_automation: { advantage_audience: 1 },
     },
     start_time: new Date(Date.now() + 5 * 60_000).toISOString(),
   };
