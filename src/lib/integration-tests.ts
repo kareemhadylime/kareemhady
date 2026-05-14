@@ -34,10 +34,8 @@ export async function testProvider(provider: ProviderId): Promise<TestResult> {
       case 'tiktok_ads':
         return await testTikTokAds();
       case 'google_ads':
-      case 'anthropic':
-      case 'stripe':
-      case 'gmail':
-      case 'meta_ads':
+      case 'meta_marketing':
+      case 'meta_waba':
         return { ok: true, detail: `${provider} credentials stored — no live ping implemented` };
       default:
         return { ok: false, error: `unknown_provider:${provider}` };
