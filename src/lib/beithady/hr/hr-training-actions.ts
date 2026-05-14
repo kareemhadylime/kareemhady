@@ -117,6 +117,7 @@ export async function setTrainingRecordFileAction(
   fileName: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    await requireBeithadyPermission('hr', 'read');
     const user = await getCurrentUser();
     if (!user) return { ok: false, error: 'Not authenticated' };
 
@@ -140,6 +141,7 @@ export async function getTrainingRecordDownloadUrl(
   recordId: string
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   try {
+    await requireBeithadyPermission('hr', 'read');
     const user = await getCurrentUser();
     if (!user) return { ok: false, error: 'Not authenticated' };
 
