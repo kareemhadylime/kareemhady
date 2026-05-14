@@ -12,6 +12,12 @@ import {
   DEFAULT_GOOGLE_LANGUAGE_IDS,
 } from './platforms';
 
+// Beithady brand assets — uploaded once to beithady-gallery-public, reused as
+// default Google Ads assets so every PMax campaign is fully populated on create.
+const BH_LOGO_URL      = 'https://bpjproljatbrbmszwbov.supabase.co/storage/v1/object/public/beithady-gallery-public/brand/bh-logo.png';
+const BH_WORDMARK_URL  = 'https://bpjproljatbrbmszwbov.supabase.co/storage/v1/object/public/beithady-gallery-public/brand/bh-wordmark-landscape.png';
+const BH_STACKED_URL   = 'https://bpjproljatbrbmszwbov.supabase.co/storage/v1/object/public/beithady-gallery-public/brand/bh-logo-stacked.jpg';
+
 async function fetchImageBase64(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
@@ -225,26 +231,36 @@ export async function publishGooglePerformanceMax(
     }
   }
 
-  // Upload marketing images: fetch each URL, base64-encode, create imageAsset, link as MARKETING_IMAGE.
-  // Failures are soft-warned — image upload issues don't abort the campaign creation.
-  const imgUrls = (input.marketingImageUrls || []).filter(Boolean).slice(0, 3);
-  if (imgUrls.length && agResource) {
-    for (const imgUrl of imgUrls) {
-      const b64 = await fetchImageBase64(imgUrl);
-      if (!b64) { console.warn('[google-pmax] could not fetch image:', imgUrl); continue; }
+  // Upload images: Meta creative(s) + brand defaults.
+  // The Meta creative is tried as both MARKETING_IMAGE and SQUARE_MARKETING_IMAGE — Google
+  // accepts whichever matches the actual dimensions. Brand defaults guarantee all three
+  // required slots (landscape, square, logo) are always populated on first publish.
+  // All failures are soft-warned and never abort campaign creation.
+  if (agResource) {
+    type ImgJob = { url: string; fieldTypes: string[] };
+    const imgJobs: ImgJob[] = [
+      ...(input.marketingImageUrls || []).filter(Boolean).slice(0, 3).map(url => ({
+        url,
+        fieldTypes: ['MARKETING_IMAGE', 'SQUARE_MARKETING_IMAGE'],
+      })),
+      { url: BH_WORDMARK_URL, fieldTypes: ['MARKETING_IMAGE']        },
+      { url: BH_STACKED_URL,  fieldTypes: ['SQUARE_MARKETING_IMAGE'] },
+      { url: BH_LOGO_URL,     fieldTypes: ['LOGO']                   },
+    ];
+    for (const { url, fieldTypes } of imgJobs) {
+      const b64 = await fetchImageBase64(url);
+      if (!b64) { console.warn('[google-pmax] could not fetch image:', url); continue; }
       const imgAssetRes = await gadsMutate(customerId, 'assets', [{
-        create: { name: `mktg_img_${Date.now()}`, imageAsset: { data: b64 } },
+        create: { name: `img_${Date.now()}`, imageAsset: { data: b64 } },
       }], creds, accessToken);
       if (!imgAssetRes.ok) { console.warn('[google-pmax] image asset create failed:', imgAssetRes.body); continue; }
       const imgResource = imgAssetRes.body.results?.[0]?.resourceName;
       if (!imgResource) continue;
-      // Try both aspect-ratio slots — Google accepts whichever matches the actual image
-      // dimensions and rejects the other; we soft-warn the rejection.
-      for (const fieldType of ['MARKETING_IMAGE', 'SQUARE_MARKETING_IMAGE']) {
-        const imgLinkRes = await gadsMutate(customerId, 'assetGroupAssets', [{
+      for (const fieldType of fieldTypes) {
+        const linkRes = await gadsMutate(customerId, 'assetGroupAssets', [{
           create: { assetGroup: agResource, asset: imgResource, fieldType },
         }], creds, accessToken);
-        if (!imgLinkRes.ok) console.warn(`[google-pmax] ${fieldType} link failed:`, imgLinkRes.body);
+        if (!linkRes.ok) console.warn(`[google-pmax] ${fieldType} link failed:`, linkRes.body);
       }
     }
   }

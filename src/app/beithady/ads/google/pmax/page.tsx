@@ -75,7 +75,7 @@ export default async function GooglePMaxPage({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={prefill.marketingImageUrl} alt="Meta ad creative" className="w-16 h-16 object-cover rounded shrink-0" />
               <div className="text-[11px] text-slate-600 dark:text-slate-300">
-                Meta ad creative — auto-uploaded to Google Ads (landscape or square slot, whichever fits). Still needed: the opposite crop + logo in Google Ads UI.
+                Meta ad creative — auto-uploaded as square or landscape (whichever fits). BH wordmark, stacked logo, and BH icon uploaded automatically as the other slots.
               </div>
             </div>
           )}
@@ -93,7 +93,7 @@ export default async function GooglePMaxPage({
 
       <div className="ix-card p-3 border-cyan-200 bg-cyan-50 dark:bg-cyan-950 text-xs">
         After publishing, complete the campaign in Google Ads UI:<br/>
-        <strong>Text + Meta creative image</strong> are uploaded automatically. Still needed: <strong>opposite crop variant + logo</strong> — add in Google Ads UI.
+        <strong>All assets uploaded automatically:</strong> text, Meta creative image, BH wordmark (landscape), BH stacked logo (square), and BH icon (logo slot). No manual image uploads needed.
       </div>
 
       {accounts.length === 0 ? (
