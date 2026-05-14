@@ -67,6 +67,8 @@
     { "path": "/api/cron/beithady-fees-audit-sync", "schedule": "50 4 * * *" },
     { "path": "/api/cron/bh-financials-snapshot-reminder", "schedule": "0 6 * * 0" },
     { "path": "/api/cron/bh-financials-snapshot-reminder", "schedule": "0 7 * * 0" },
-    { "path": "/api/cron/hc-snapshot", "schedule": "0 6 15 * *" }
+    { "path": "/api/cron/hc-snapshot",              "schedule": "0 6 15 * *"  },
+    { "path": "/api/cron/hr-headcount-snapshot",     "schedule": "0 6 * * *"   },
+    { "path": "/api/cron/hr-headcount-snapshot",     "schedule": "0 7 * * *"   }
   ]
 }
