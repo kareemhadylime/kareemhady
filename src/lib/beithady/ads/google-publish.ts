@@ -117,7 +117,7 @@ export async function publishGoogleSearchCampaign(
   // Load account
   const { data: acc } = await sb
     .from('ads_accounts')
-    .select('id, platform, external_id, name')
+    .select('id, platform, external_id, name, google_refresh_token')
     .eq('id', input.accountId)
     .maybeSingle();
   if (!acc) return { ok: false, mode: 'live', step: 'load_account', error: 'account_not_found' };
@@ -128,7 +128,7 @@ export async function publishGoogleSearchCampaign(
   if (!customerId) return { ok: false, mode: 'live', step: 'load_account', error: 'external_id_empty' };
 
   // Load credentials. If missing → draft mode (DB-only).
-  const credsRes = await loadGoogleAdsCredentials();
+  const credsRes = await loadGoogleAdsCredentials((acc as { google_refresh_token?: string | null }).google_refresh_token);
   const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const campaignName = (input.campaignName || `[Beit Hady] Search ${stamp}`).trim();
   const adgroupName = `[Beit Hady] AdGroup ${stamp}`;
@@ -445,10 +445,10 @@ export async function setGoogleCampaignStatus(
     await sb.from('ads_campaigns').update({ status: status === 'ENABLED' ? 'ACTIVE' : 'PAUSED' }).eq('id', campaignDbId);
     return { ok: true };
   }
-  const { data: acc } = await sb.from('ads_accounts').select('external_id').eq('id', r.account_id).maybeSingle();
+  const { data: acc } = await sb.from('ads_accounts').select('external_id, google_refresh_token').eq('id', r.account_id).maybeSingle();
   const customerId = String((acc as { external_id?: string } | null)?.external_id || '').replace(/[^\d]/g, '');
   if (!customerId) return { ok: false, error: 'no_customer_id' };
-  const credsRes = await loadGoogleAdsCredentials();
+  const credsRes = await loadGoogleAdsCredentials((acc as { google_refresh_token?: string | null } | null)?.google_refresh_token);
   if (!credsRes.ok) return { ok: false, error: credsRes.error };
   const tokRes = await getGoogleAccessToken(credsRes.creds);
   if (!tokRes.ok) return { ok: false, error: tokRes.error };

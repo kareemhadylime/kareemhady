@@ -24,7 +24,10 @@ export async function syncGoogleAds(accountId?: number): Promise<SyncResult> {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
 
-  const credsRes = await loadGoogleAdsCredentials();
+  // Pre-load the per-account refresh token (authoritative source for OAuth tokens)
+  const { data: firstAccRaw } = await sb.from('ads_accounts').select('google_refresh_token').eq('platform', 'google').eq('status', 'active').limit(1).maybeSingle();
+  const accountRefreshToken = (firstAccRaw as { google_refresh_token?: string | null } | null)?.google_refresh_token;
+  const credsRes = await loadGoogleAdsCredentials(accountRefreshToken);
   if (!credsRes.ok) {
     await logSync(sb, startedAt, 0, [], 'error', `missing_credentials: ${credsRes.missing.join(', ')}`);
     return { ok: false, platform: 'google', job_name: JOB_NAME, rows_upserted: 0, leads_ingested: 0, duration_ms: Date.now() - t0, error: 'missing_credentials' };

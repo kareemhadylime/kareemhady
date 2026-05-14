@@ -26,19 +26,23 @@ export type GoogleAdsCredentials = {
   login_customer_id: string;        // MCC, may be empty
 };
 
-export async function loadGoogleAdsCredentials(): Promise<
+// accountRefreshToken: per-account OAuth token from ads_accounts.google_refresh_token.
+// Used as a fallback when integration_credentials doesn't carry the refresh_token
+// (our accounts table is the authoritative store for per-account OAuth tokens).
+export async function loadGoogleAdsCredentials(accountRefreshToken?: string | null): Promise<
   | { ok: true; creds: GoogleAdsCredentials }
   | { ok: false; error: string; missing: string[] }
 > {
   const enabled = await getProviderEnabled('google_ads');
   if (!enabled) return { ok: false, error: 'google_ads_disabled', missing: [] };
-  const [developer_token, client_id, client_secret, refresh_token, login_customer_id] = await Promise.all([
+  const [developer_token, client_id, client_secret, refresh_token_db, login_customer_id] = await Promise.all([
     getCredential('google_ads', 'developer_token'),
     getCredential('google_ads', 'client_id'),
     getCredential('google_ads', 'client_secret'),
     getCredential('google_ads', 'refresh_token'),
     getCredential('google_ads', 'login_customer_id'),
   ]);
+  const refresh_token = refresh_token_db || accountRefreshToken || '';
   const missing = [
     !developer_token && 'developer_token',
     !client_id && 'client_id',

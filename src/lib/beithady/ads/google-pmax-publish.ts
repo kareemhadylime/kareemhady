@@ -96,13 +96,15 @@ export async function publishGooglePerformanceMax(
   const finalUrl = (input.finalUrl || buildBhWaLink()).trim();
   if (!finalUrl.startsWith('https://')) return { ok: false, mode: 'live', step: 'validate', error: 'final_url must be https' };
 
-  const { data: acc } = await sb.from('ads_accounts').select('id, platform, external_id, name').eq('id', input.accountId).maybeSingle();
+  const { data: acc } = await sb.from('ads_accounts').select('id, platform, external_id, name, google_refresh_token').eq('id', input.accountId).maybeSingle();
   if (!acc) return { ok: false, mode: 'live', step: 'load_account', error: 'account_not_found' };
-  const account = acc as { id: number; platform: string; external_id: string; name: string };
+  const account = acc as { id: number; platform: string; external_id: string; name: string; google_refresh_token: string | null };
   if (account.platform !== 'google') return { ok: false, mode: 'live', step: 'load_account', error: 'account_not_google' };
   const customerId = String(account.external_id || '').replace(/[^\d]/g, '');
 
-  const credsRes = await loadGoogleAdsCredentials();
+  // Pass the per-account OAuth token so credentials resolve even if integration_credentials
+  // doesn't carry a global refresh_token (accounts table is the authoritative token store).
+  const credsRes = await loadGoogleAdsCredentials(account.google_refresh_token);
   const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const campaignName = (input.campaignName || `[Beit Hady] PMax ${stamp}`).trim();
   const assetGroupName = `[Beit Hady] AssetGroup ${stamp}`;
