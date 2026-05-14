@@ -1,6 +1,6 @@
 ## 2026-05-14 — Sprint 9: Training & Certifications — COMPLETE ✅
 
-**Status:** All 12 tasks done, code-reviewed, and deploying to production.
+**Status:** All 12 tasks done, code-reviewed, and deployed to production (Vercel dpl_83jLyerwWNXwHEJn3t9PVTnoghdf — READY).
 
 **Commits (T1–T12 + review fixes):**
 - `2d01b07` feat(hr): migration 0133 — hr_training_records table + hr-training storage bucket
