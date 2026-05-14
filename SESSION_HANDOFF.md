@@ -1,3 +1,75 @@
+## 2026-05-14 — HR Sprint 2 Task 9: Batch Payslip PDF Route DONE
+
+**Commit:** `8a93daa` — feat(hr): batch payslip PDF route — POST /api/hr/payslips/batch + pdf-lib merge
+
+**Files created (1):**
+- `src/app/api/hr/payslips/batch/route.ts` — `force-dynamic`, `maxDuration=120`, auth-gated, accepts `{ monthId, filters }` (building_codes, departments, exclude_terminated), fetches entries via `getMonthEntries` + `getPayrollMonth`, renders each payslip with `PayslipEn`/`PayslipAr` via `renderToBuffer` per `payslip_language`, merges all single-page PDFs into one document using `pdf-lib` `PDFDocument.copyPages`, returns `application/pdf` attachment named `payslips-{month}-{N}employees.pdf`.
+
+**Dependencies added (1):** `pdf-lib@1.17.1`
+
+**Verification:** tsc clean (0 errors) · 479 tests pass (1 pre-existing failure unrelated)
+
+---
+
+## 2026-05-14 — HR Sprint 2 Task 8: Individual Payslip PDF Route DONE
+
+**Commit:** `3726514` — feat(hr): individual payslip PDF route — GET /api/hr/payslip/[entryId]
+
+**Files created (1):**
+- `src/app/api/hr/payslip/[entryId]/route.ts` — `force-dynamic`, `maxDuration=60`, auth-gated (`getCurrentUser`), joins `hr_payroll_entries` + `hr_employees` to get `payslip_language`, calls `entryToPayslipData` + `getPayrollMonth`, renders `PayslipEn` or `PayslipAr` via `renderToBuffer`, returns `application/pdf` with content-disposition filename `payslip-{bh_id}-{month}.pdf`. Two TS fixes applied: `any` cast on element (react-pdf `DocumentProps` mismatch), `buffer as unknown as BodyInit` (same pattern as fmplus budget PDF route).
+
+**Verification:** tsc clean (0 errors) · 479 tests pass (1 pre-existing failure unrelated)
+
+---
+
+## 2026-05-14 — HR Sprint 2 Task 7: Bilingual Payslip PDF Templates DONE
+
+**Commit:** `3a5d1e7` — feat(hr): bilingual payslip PDF templates — EN (LTR Helvetica) + AR (RTL NotoSansArabic)
+
+**Files created (2):**
+- `src/app/beithady/hr/payroll/_components/payslip-en.tsx` — English LTR A4 payslip, Helvetica font, `server-only`, `@react-pdf/renderer`, `readFileSync` logo pattern
+- `src/app/beithady/hr/payroll/_components/payslip-ar.tsx` — Arabic RTL A4 payslip, NotoSansArabic font registration (`try/catch` silent degrade), `direction: 'rtl'`, `row-reverse` flex, Arabic labels + `ar-EG` number formatting
+
+**Verification:** tsc clean (0 errors) · 479 tests pass (1 pre-existing failure unrelated)
+
+---
+
+## 2026-05-14 — HR Sprint 1 Retrofix: payslip_language field wired DONE
+
+**Commit:** `61ed481` — feat(hr): Sprint 1 retrofix — payslip_language field on employee profile + Personal Info tab radio
+
+**Files changed (4):**
+- `src/lib/beithady/hr/hr-types.ts` — added `payslip_language: 'arabic' | 'english'` to `HrEmployee` and `PersonalInfoInput` types
+- `src/app/beithady/hr/team/_components/personal-info-tab.tsx` — added payslip language radio group between Email and Company ID fields
+- `src/app/beithady/hr/team/_components/add-edit-member-dialog.tsx` — `emptyPersonal()` defaults to `'arabic'`; `employeeToPersonal()` maps `emp.payslip_language`
+- `src/lib/beithady/hr/hr-actions.ts` — `payslip_language` included in both `addEmployeeAction` insert and `editEmployeeAction` update
+
+**Verification:** tsc clean (0 errors) · 479 tests pass (1 pre-existing failure unrelated)
+
+---
+
+## 2026-05-14 — HR Sprint 2 Task 5: Payroll Server Actions DONE
+
+**Commit:** `c1aa3b9` — feat(hr): payroll server actions — previewPayroll (no DB) + confirmPayroll (upsert+overwrite)
+
+**Files created:**
+- `src/lib/beithady/hr/hr-payroll-actions.ts` — `'use server'`. Exports: `previewPayrollAction` (parses Excel via `parsePayrollFile`, no DB writes) and `confirmPayrollAction` (upserts `hr_payroll_months` on `month_key`, overwrites `hr_payroll_entries` for that month, skips error rows, revalidates `/beithady/hr/payroll`).
+
+**Verification:** tsc clean (0 errors) · 479 tests pass (1 pre-existing failure unrelated)
+
+---
+
+## 2026-05-14 — HR Sprint 2 Task 4: Payroll Server-Only Query Layer DONE
+
+**Commit:** `c73e505` — feat(hr): payroll server-only queries — listMonths, getMonthEntries, entryToPayslipData
+
+**Files created:**
+- `src/lib/beithady/hr/hr-payroll-queries.ts` — server-only (`import 'server-only'`). Exports: `listPayrollMonths`, `getPayrollMonth`, `getMonthEntries` (with building/dept/terminated filters), `entryToPayslipData` (maps PayrollEntryRow → PayslipData for PDF templates).
+
+**Verification:** tsc clean (0 errors) · 479 tests pass (1 pre-existing failure in bh-financials-snapshot-reminder, unrelated)
+
+---
+
 ## 2026-05-14 — HR Sprint 2 Task 3: Payroll Excel Parser (TDD) DONE
 
 **Commit:** `c587954` — feat(hr): payroll Excel parser — all columns + name-matching (TDD, 9 tests)
