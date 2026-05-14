@@ -50,8 +50,9 @@ export async function GET(req: NextRequest) {
     || `${url.origin}/api/auth/tiktok/callback`;
   const ex = await exchangeTikTokOAuthCode(code, redirectUri);
   if (!ex.ok) {
+    const detail = ex.raw ? `${ex.error}: ${JSON.stringify(ex.raw).slice(0, 400)}` : ex.error;
     return NextResponse.redirect(
-      new URL(`/beithady/ads/tiktok/accounts?error=${encodeURIComponent(ex.error)}`, req.url)
+      new URL(`/beithady/ads/tiktok/accounts?error=${encodeURIComponent(detail)}`, req.url)
     );
   }
 
