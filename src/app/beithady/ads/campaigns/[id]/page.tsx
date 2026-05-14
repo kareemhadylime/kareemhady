@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft, Pause, Play, ShieldAlert, ExternalLink, AlertCircle, Zap, Copy } from 'lucide-react';
+import { ChevronLeft, Pause, Play, ShieldAlert, ExternalLink, AlertCircle, Zap, Copy, Sparkles } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -222,7 +222,12 @@ export default async function CampaignDetailPage({
               </span>
             )}
             <span className="text-xs text-slate-500">{PLATFORM_LABEL[camp.platform]} · account {account?.name || '—'}</span>
-            {isDraft && <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">draft (db-only)</span>}
+            {isDraft && (
+              <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                title="Never sent to the ad platform — credentials were missing at creation time. Use 'Publish to Google Ads' to create the live campaign.">
+                draft (db-only)
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {camp.platform === 'meta' && !isDraft && (
@@ -232,6 +237,15 @@ export default async function CampaignDetailPage({
                 title="Pre-fill a new Google Performance Max campaign with this ad's content + audience"
               >
                 <Copy size={12} /> Duplicate to Google PMax
+              </Link>
+            )}
+            {camp.platform === 'google' && isDraft && (
+              <Link
+                href="/beithady/ads/google/pmax"
+                className="ix-btn-primary text-xs inline-flex items-center gap-1.5"
+                title="This draft was never sent to Google — create a live campaign now"
+              >
+                <Sparkles size={12} /> Publish to Google Ads
               </Link>
             )}
             {canFlip && (
