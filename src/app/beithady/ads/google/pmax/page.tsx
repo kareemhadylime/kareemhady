@@ -46,6 +46,7 @@ export default async function GooglePMaxPage({
   const defaultBudget = prefill?.dailyBudgetUsd ?? 30;
   const defaultCap = prefill?.monthlyBudgetCapUsd ?? '';
   const defaultBuildings = (prefill?.buildingCodes || []).join(', ');
+  const defaultCountries = (prefill?.targetCountriesIso?.length ? prefill.targetCountriesIso : ['EG', 'SA', 'AE', 'KW', 'QA', 'BH', 'JO']).join(', ');
   const defaultHeadlines = (prefill?.headlines || []).join('\n');
   const defaultLongHeadlines = (prefill?.longHeadlines || []).join('\n');
   const defaultDescriptions = (prefill?.descriptions || []).join('\n');
@@ -174,8 +175,11 @@ export default async function GooglePMaxPage({
             <Field label="Final URL" htmlFor="final_url">
               <input id="final_url" name="final_url" type="url" defaultValue={defaultFinalUrl} className="ix-input font-mono text-xs" />
             </Field>
-            <Field label="Building codes (comma-separated)" htmlFor="building_codes" className="md:col-span-2">
+            <Field label="Building codes (comma-separated)" htmlFor="building_codes">
               <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" defaultValue={defaultBuildings} />
+            </Field>
+            <Field label="Target countries (ISO codes)" htmlFor="target_countries">
+              <input id="target_countries" name="target_countries" className="ix-input font-mono text-xs" placeholder="EG, SA, AE, KW" defaultValue={defaultCountries} />
             </Field>
           </div>
 

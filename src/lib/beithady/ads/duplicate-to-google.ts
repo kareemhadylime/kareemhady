@@ -25,12 +25,13 @@ export type PmaxDefaults = {
   monthlyBudgetCapUsd: number | null;
   buildingCodes: string[];
   finalUrl: string;
-  marketingImageUrl: string | null;   // first ad's creative_url (operator uploads to Google UI)
+  marketingImageUrl: string | null;
   headlines: string[];                 // ≤30 chars, ≥3
   longHeadlines: string[];             // ≤90 chars, ≥1
   descriptions: string[];              // ≤90 chars, ≥2
   locationIds: string[];               // Google geoTargetConstant IDs
-  notes: string[];                     // human-readable warnings shown above the form
+  targetCountriesIso: string[];        // ISO alpha-2 codes for the form display
+  notes: string[];
 };
 
 const DEFAULT_HEADLINES = ['Beit Hady Apartments', 'Luxury Cairo Stays', 'Book Direct With Host'];
@@ -139,6 +140,7 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
     longHeadlines: DEFAULT_LONG_HEADLINES,
     descriptions: DEFAULT_DESCRIPTIONS,
     locationIds: [],
+    targetCountriesIso: [],
     notes: [],
   };
 
@@ -211,6 +213,7 @@ export async function buildPmaxDefaultsFromMetaCampaign(metaCampaignId: number):
     longHeadlines: long,
     descriptions: descs,
     locationIds: geo,
+    targetCountriesIso: targetCountries,
     notes,
   };
 }
@@ -238,6 +241,7 @@ export async function buildPmaxDefaultsFromIgMediaItem(item: IgMediaItem): Promi
     longHeadlines: long,
     descriptions: descs,
     locationIds: [],
+    targetCountriesIso: [],
     notes: marketingImageUrl ? [] : ['No image for this post — upload assets manually in Google Ads UI.'],
   };
 }

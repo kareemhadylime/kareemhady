@@ -10,6 +10,7 @@ import { publishCtwaCampaign } from '@/lib/beithady/ads/publish';
 import { metaPost, loadMetaCredentials, resolveIgForAccount } from '@/lib/beithady/ads/meta-client';
 import { publishGoogleSearchCampaign, setGoogleCampaignStatus } from '@/lib/beithady/ads/google-publish';
 import { publishGooglePerformanceMax } from '@/lib/beithady/ads/google-pmax-publish';
+import { isoCountriesToGoogleGeo } from '@/lib/beithady/ads/platforms';
 import { setCampaignStatusUnified } from '@/lib/beithady/ads/status';
 import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers, listTikTokIdentities } from '@/lib/beithady/ads/tiktok-paid-publish';
 import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
@@ -251,6 +252,8 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
   const finalUrl = String(formData.get('final_url') || '').trim() || undefined;
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
   const marketingImageUrl = String(formData.get('marketing_image_url') || '').trim() || null;
+  const targetCountriesRaw = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+  const locationIds = isoCountriesToGoogleGeo(targetCountriesRaw);
 
   if (!Number.isFinite(accountId)) redirect('/beithady/ads/google/pmax?error=missing_account');
 
@@ -266,6 +269,7 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
     finalUrl,
     buildingCodes,
     marketingImageUrls: marketingImageUrl ? [marketingImageUrl] : [],
+    locationIds: locationIds.length ? locationIds : undefined,
   });
 
   if (!result.ok) {
