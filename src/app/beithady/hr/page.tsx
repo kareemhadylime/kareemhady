@@ -32,8 +32,6 @@ export default async function BeithadyHrPage() {
       description: 'Control who can see salary data — 5 tiers: No Access · ≤10K · ≤20K · ≤50K · Unlimited.',
       icon: ShieldCheck,
       accent: 'amber',
-      disabled: true,
-      comingSoonLabel: 'Sprint 3',
     },
     {
       href: '/beithady/hr/attendance',
