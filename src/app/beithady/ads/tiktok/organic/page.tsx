@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Music2, RefreshCw } from 'lucide-react';
+import { Music2, RefreshCw, Copy, Info } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
@@ -7,21 +7,31 @@ import { AdsTabs } from '../../_components/ads-tabs';
 import { publishTikTokReelAction, pollTikTokPostAction } from '../../actions';
 import { statusBadgeClass } from '@/lib/beithady/ads/platforms';
 import { fmtCairoDate } from '@/lib/fmt-date';
+import { listIgReelsForTikTok, buildTikTokDefaultsFromIgMediaItem, type IgReelDefaults } from '@/lib/beithady/ads/ig-to-tiktok';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export default async function TikTokOrganicPage({ searchParams }: { searchParams: Promise<{ error?: string; post?: string; status?: string }> }) {
+export default async function TikTokOrganicPage({ searchParams }: { searchParams: Promise<{ error?: string; post?: string; status?: string; from_ig?: string }> }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
-  const [{ data: accountsRaw }, { data: postsRaw }] = await Promise.all([
+  const [{ data: accountsRaw }, { data: postsRaw }, igReels] = await Promise.all([
     sb.from('ads_accounts').select('id, name, tiktok_username, tiktok_refresh_token').eq('platform', 'tiktok').order('id'),
     sb.from('ads_tiktok_posts').select('id, video_url, caption, status, share_url, building_code, created_at, published_at').order('created_at', { ascending: false }).limit(25),
+    listIgReelsForTikTok(30),
   ]);
   const accounts = (accountsRaw as Array<{ id: number; name: string; tiktok_username: string | null; tiktok_refresh_token: string | null }> | null) || [];
   const connected = accounts.filter(a => !!a.tiktok_refresh_token);
   const posts = (postsRaw as Array<{ id: number; video_url: string; caption: string | null; status: string; share_url: string | null; building_code: string | null; created_at: string; published_at: string | null }> | null) || [];
+
+  // Pre-fill from a selected IG Reel — mirrors the video to Supabase so TikTok can fetch it.
+  let prefill: IgReelDefaults | null = null;
+  const fromIgId = sp.from_ig || null;
+  if (fromIgId) {
+    const item = igReels.find(m => m.id === fromIgId);
+    if (item) prefill = await buildTikTokDefaultsFromIgMediaItem(item);
+  }
 
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'TikTok Reels' }]} containerClass="max-w-5xl">
