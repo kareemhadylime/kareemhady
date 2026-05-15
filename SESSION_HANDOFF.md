@@ -1,3 +1,28 @@
+## 2026-05-15 — Video-compress engine: 8/10 tasks done locally, awaiting user smoke test
+
+**9 commits queued locally, NOT YET PUSHED** (so prod not yet deployed):
+- `93f8a94` vendor @ffmpeg WASM core (~31MB to `public/ffmpeg/`) + 3 npm deps
+- `47e728b` `src/lib/media/probe-video.ts` (HTMLVideoElement metadata reader)
+- `1b60877` `video-compress.ts` bitrate math + resolution rung (11 TDD tests)
+- `80472ee` fast-path + `VideoCompressError` class (5 TDD tests)
+- `c0825d0` ffmpeg orchestration — 2-pass H.264 ABR, auto-downscale (4 TDD tests, 20/20 in suite)
+- `add051c` gallery-provider: new `'compressing'` job state, invokes engine for video >50MB
+- `865b06c` TS fix for BlobPart in TS 5.7+
+- `fcc1439` upload-tray: amber FileVideo icon + percent label, "Processing" header label
+- `ec5e297` uploader.tsx helper text: "large videos auto-compressed"
+
+**Verification done locally:** `npx tsc --noEmit` clean; `npm run test` → 556 pass / 0 fail / 22 skipped (no new failures); `npm run build` completes successfully.
+
+**Awaiting user (Task 9 of 10):** manual smoke test on local `npm run dev` — drag a >50MB video (e.g. the 94MB `Lime Investments Dashboard - Google Chrome 2026-05-15 09-21-14.mp4` from `C:\Users\karee\Videos\Captures\`) into the gallery uploader, watch the tray show `compressing %`, verify the upload completes. Also drop a <50MB video to confirm fast-path still works.
+
+**On smoke success:** push all 9 commits to `main` → GitHub auto-deploy to Vercel production. The push covers Task 10.
+
+**On smoke failure:** I fix and re-test before push. Push is gated on smoke pass.
+
+**Spec:** `docs/superpowers/specs/2026-05-15-video-compress-engine-design.md`. **Plan:** `docs/superpowers/plans/2026-05-15-video-compress-engine.md`.
+
+---
+
 ## 2026-05-15 — BH design audit spec drafted (paper deliverable, no code)
 
 **Status:** Spec committed `7b39435`, awaiting user review.
