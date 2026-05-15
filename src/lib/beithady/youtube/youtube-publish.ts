@@ -79,3 +79,41 @@ export async function initResumableSession(accountId: number, input: InitInput):
   if (!sessionUrl) throw new YouTubeUploadError('init_failed: no_session_url');
   return sessionUrl;
 }
+
+export async function publishSync(accountId: number, input: PublishInput): Promise<PublishedVideo> {
+  const bytes = await fetchVideoBytes(input.source_url);
+  if (bytes.byteLength !== input.file_size_bytes) {
+    throw new YouTubeUploadError(`size_mismatch: expected ${input.file_size_bytes} got ${bytes.byteLength}`);
+  }
+
+  const sessionUrl = await initResumableSession(accountId, {
+    title: input.title,
+    description: input.description ?? '',
+    tags: input.tags ?? [],
+    category_id: input.category_id,
+    privacy_status: input.privacy_status,
+    language: input.language,
+    file_size_bytes: input.file_size_bytes,
+  });
+
+  const uploadResp = await fetch(sessionUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Length': String(bytes.byteLength),
+      'Content-Range': `bytes 0-${bytes.byteLength - 1}/${bytes.byteLength}`,
+    },
+    body: bytes,
+  });
+
+  if (uploadResp.status === 401) throw new YouTubeAuthError('refresh_failed');
+  if (!uploadResp.ok) {
+    throw new YouTubeUploadError(`sync_put_failed: ${uploadResp.status} ${await uploadResp.text()}`);
+  }
+
+  const video = await uploadResp.json() as { id: string; status?: { uploadStatus?: string } };
+  return {
+    video_id: video.id,
+    watch_url: `https://youtu.be/${video.id}`,
+    upload_status: video.status?.uploadStatus,
+  };
+}
