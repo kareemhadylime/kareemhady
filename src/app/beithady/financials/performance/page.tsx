@@ -6,7 +6,7 @@ import {
   type CompanyScope,
 } from '@/lib/financials-pnl';
 import { PerformanceShell } from './_components/PerformanceShell';
-import { parseFinPerfState } from '../_hooks/use-perf-pnl-url-state';
+import { parseFinPerfState } from '../_hooks/perf-pnl-url-state';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;

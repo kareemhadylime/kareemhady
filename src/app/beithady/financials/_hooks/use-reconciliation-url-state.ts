@@ -1,42 +1,27 @@
 'use client';
-import { useBHUrlState, buildBHUrl } from '@/app/beithady/_components/dashboard-shell';
+import { useBHUrlState } from '@/app/beithady/_components/dashboard-shell';
+import {
+  RECONCILIATION_BASE_PATH,
+  RECONCILIATION_DEFAULTS,
+  parseFinReconciliationState,
+  serializeFinReconciliationState,
+  type FinReconciliationUrlState,
+} from './reconciliation-url-state';
 
-export type FinReconciliationUrlState = {
-  snapshot_id: string | undefined;
-};
-
-const BASE_PATH = '/beithady/financials/reconciliation';
-
-export function parseFinReconciliationState(search: URLSearchParams): FinReconciliationUrlState {
-  const raw = search.get('snapshot');
-  return { snapshot_id: raw ?? undefined };
-}
-
-export function serializeFinReconciliationState(state: FinReconciliationUrlState): URLSearchParams {
-  const params = new URLSearchParams();
-  if (state.snapshot_id) params.set('snapshot', state.snapshot_id);
-  return params;
-}
-
-export function buildFinReconciliationUrl(
-  current: FinReconciliationUrlState,
-  patch: Partial<FinReconciliationUrlState>,
-): string {
-  return buildBHUrl({
-    current,
-    patch,
-    serialize: serializeFinReconciliationState,
-    basePath: BASE_PATH,
-  });
-}
-
-const DEFAULTS: FinReconciliationUrlState = { snapshot_id: undefined };
+// Re-export pure helpers + types so consumers can keep importing from this
+// module path. Pure logic lives in `./reconciliation-url-state.ts`.
+export type { FinReconciliationUrlState } from './reconciliation-url-state';
+export {
+  parseFinReconciliationState,
+  serializeFinReconciliationState,
+  buildFinReconciliationUrl,
+} from './reconciliation-url-state';
 
 export function useReconciliationUrlState() {
   return useBHUrlState<FinReconciliationUrlState>({
-    defaults: DEFAULTS,
+    defaults: RECONCILIATION_DEFAULTS,
     parse: parseFinReconciliationState,
     serialize: serializeFinReconciliationState,
-    basePath: BASE_PATH,
+    basePath: RECONCILIATION_BASE_PATH,
   });
 }

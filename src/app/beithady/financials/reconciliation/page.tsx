@@ -3,7 +3,7 @@ import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell'
 import { buildReconciliation } from '@/lib/beithady/financials/reconciliation';
 import { supabaseAdmin } from '@/lib/supabase';
 import { ReconciliationShell } from './_components/ReconciliationShell';
-import { parseFinReconciliationState } from '../_hooks/use-reconciliation-url-state';
+import { parseFinReconciliationState } from '../_hooks/reconciliation-url-state';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;

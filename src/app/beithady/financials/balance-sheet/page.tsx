@@ -5,7 +5,7 @@ import {
   type CompanyScope,
 } from '@/lib/financials-pnl';
 import { BalanceSheetShell } from './_components/BalanceSheetShell';
-import { parseFinBSState } from '../_hooks/use-bs-url-state';
+import { parseFinBSState } from '../_hooks/bs-url-state';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;

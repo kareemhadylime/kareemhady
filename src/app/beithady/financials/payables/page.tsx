@@ -5,7 +5,7 @@ import {
   type CompanyScope,
 } from '@/lib/financials-pnl';
 import { PayablesShell } from './_components/PayablesShell';
-import { parseFinPayablesState } from '../_hooks/use-payables-url-state';
+import { parseFinPayablesState } from '../_hooks/payables-url-state';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;

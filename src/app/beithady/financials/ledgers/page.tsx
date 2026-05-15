@@ -1,7 +1,7 @@
 import { buildLedgerReport } from '@/lib/beithady/financials/ledgers';
 import type { CompanyScope, PartnerKind } from '@/lib/beithady/financials/types';
 import { LedgersShell } from './_components/LedgersShell';
-import { parseFinLedgersState } from '../_hooks/use-ledgers-url-state';
+import { parseFinLedgersState } from '../_hooks/ledgers-url-state';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
