@@ -297,10 +297,18 @@ Prepend a new dated section to the top of `SESSION_HANDOFF.md` summarising what 
 ## Future work (out of scope for this plan)
 
 If kareem picks "full removal" (audit §9 Q1, the more aggressive path):
-1. Remove `'a1'` from the `CompanyScope` union in `src/lib/financials-pnl.ts` and `src/lib/beithady/financials/types.ts`.
-2. Remove `'a1'` from `isCompanyScope()` guards in: `financials/performance/page.tsx`, `balance-sheet/page.tsx`, `payables/page.tsx`, `ledgers/page.tsx`, `import/page.tsx`.
-3. Remove the `a1` case from `scopeCompanyIds()` and any switches in `financials-pnl.ts` / `actions.ts`.
-4. Decide what happens when `?scope=a1` is supplied: fall back to `consolidated` (silent), 404, or redirect.
-5. Add a separate test asserting `isCompanyScope('a1') === false`.
+1. **Consolidate the six duplicate `isCompanyScope()` copies** in `financials/performance/page.tsx`, `balance-sheet/page.tsx`, `payables/page.tsx`, `ledgers/page.tsx`, `import/page.tsx`, and `actions.ts` into a single shared export in `src/lib/beithady/financials/types.ts` (or `src/lib/financials-pnl.ts`). Six identical functions today; one change tomorrow.
+2. Remove `'a1'` from the `CompanyScope` union in `src/lib/financials-pnl.ts` and `src/lib/beithady/financials/types.ts`.
+3. Remove `'a1'` from the now-single `isCompanyScope()` guard (and any other switches that still branch on it).
+4. Remove the `a1` case from `scopeCompanyIds()` in `financials-pnl.ts`.
+5. Decide what happens when `?scope=a1` is supplied: fall back to `consolidated` (silent), 404, or redirect.
+6. Add a separate test asserting `isCompanyScope('a1') === false`.
+7. Audit `'custom'` variant divergence: `src/lib/financials-pnl.ts` `CompanyScope` includes `'custom'`, but the local type in `FinancialsFilterStrip.tsx` and all six page-level guards omit it — silent fallback to `consolidated` when `?scope=custom` is hit. Decide whether `'custom'` is supported (extend guards + scope filter) or remove from the canonical type.
 
 That's a separate plan because it touches 7+ files and changes a public URL contract.
+
+## Addendum (2026-05-15)
+
+After commit `2e3060d` shipped, the final code review caught a missed UI surface: the import wizard at `src/app/beithady/financials/import/page.tsx` rendered a separate `<select>` with `<option value="a1">A1</option>` that this plan's Task 1 Step 2 grep (`id: 'a1'`) didn't match (pattern was SCOPES-array shape only, not HTML attribute shape). Patched in follow-up commit `6f970a9` — UI-hide only, consistent with the rest of P0-1.
+
+**Lesson for future audit plans:** the pre-condition grep should use a broader regex covering both `id: 'a1'`, `value="a1"`, and `>A1<` (text node) to catch every UI surface.

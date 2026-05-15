@@ -1,6 +1,6 @@
-## 2026-05-15 — BH audit P0-1 SHIPPED: A1 pill removed from BH financials scope filter
+## 2026-05-15 — BH audit P0-1 SHIPPED + addendum: A1 fully removed from BH financials UI
 
-**Status:** Pushed `2e3060d` → main, Vercel auto-deploy in flight. All 5 plan tasks complete.
+**Status:** Pushed `2e3060d` (FinancialsFilterStrip) + `6f970a9` (import-page select fix) → main, Vercel auto-deploy in flight. Final reviewer caught the import-page miss; addendum landed inside this session.
 
 **What landed:**
 - [`FinancialsFilterStrip.tsx`](src/app/beithady/financials/_components/FinancialsFilterStrip.tsx) — dropped `{ id: 'a1', label: 'A1' }` from the SCOPES array; clarified inline comment to distinguish what the type accepts (still includes `'a1'` for backward-compat) vs what the strip renders (Consolidated/Egypt/Dubai only).
