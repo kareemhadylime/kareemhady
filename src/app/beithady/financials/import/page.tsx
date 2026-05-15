@@ -1,7 +1,5 @@
-import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { TopNav } from '@/app/_components/brand';
 import { supabaseAdmin } from '@/lib/supabase';
+import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { uploadXlsx } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -42,34 +40,14 @@ export default async function ImportPage() {
   );
 
   return (
-    <>
-      <TopNav>
-        <Link href="/beithady" className="ix-link">
-          BEITHADY
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <Link href="/beithady/financials" className="ix-link">
-          Financials
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <span>Import</span>
-      </TopNav>
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6 flex-1">
-        <Link
-          href="/beithady/financials"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
-        >
-          <ChevronLeft className="h-4 w-4" /> Back to Financials
-        </Link>
+    <BeithadyShell breadcrumbs={[{label: 'Financials', href: '/beithady/financials'}, {label: 'Import'}]}>
+      <BeithadyHeader
+        eyebrow="Beit Hady · Financials"
+        title="Import ledgers"
+        subtitle={snap ? `Target snapshot: ${snap.period_end}` : 'No frozen snapshot — import will create one'}
+      />
 
-        <header>
-          <h1 className="text-2xl font-bold">Import partner ledgers</h1>
-          <p className="text-sm text-slate-500">
-            Upload an Odoo xlsx partner-ledger export to populate the balance snapshot.
-          </p>
-        </header>
-
-        <form action={uploadXlsx} className="border border-slate-200 rounded-lg p-4 space-y-3">
+      <form action={uploadXlsx} className="border border-slate-200 rounded-lg p-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
             <label className="block">
               <div className="text-xs text-slate-500 mb-1">Account code</div>
@@ -147,7 +125,6 @@ export default async function ImportPage() {
             })}
           </div>
         </section>
-      </main>
-    </>
+    </BeithadyShell>
   );
 }

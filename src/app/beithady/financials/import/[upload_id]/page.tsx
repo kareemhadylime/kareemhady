@@ -1,8 +1,7 @@
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { TopNav } from '@/app/_components/brand';
 import { supabaseAdmin } from '@/lib/supabase';
+import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import {
   classifyParsedRows,
   type ParseResult,
@@ -93,40 +92,12 @@ export default async function UploadReviewPage({
   );
 
   return (
-    <>
-      <TopNav>
-        <Link href="/beithady" className="ix-link">
-          BEITHADY
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <Link href="/beithady/financials" className="ix-link">
-          Financials
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <Link href="/beithady/financials/import" className="ix-link">
-          Import
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <span className="truncate max-w-[200px]">{up.filename as string}</span>
-      </TopNav>
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6 flex-1">
-        <Link
-          href="/beithady/financials/import"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
-        >
-          <ChevronLeft className="h-4 w-4" /> Back to Import
-        </Link>
-
-        <header>
-          <h1 className="text-2xl font-bold">{up.filename as string}</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Target: snapshot {up.period_end as string} ·{' '}
-            {up.company_scope as string} · account{' '}
-            {up.account_code as string} · {rows.length} partners · ledger
-            total{' '}
-            <strong>{Math.round(total).toLocaleString('en-US')} EGP</strong>
-          </p>
-        </header>
+    <BeithadyShell breadcrumbs={[{label: 'Financials', href: '/beithady/financials'}, {label: 'Import', href: '/beithady/financials/import'}, {label: upload_id.slice(0, 8) + '…'}]}>
+      <BeithadyHeader
+        eyebrow="Beit Hady · Financials"
+        title={`Review · ${up.account_code as string}`}
+        subtitle={`Account ${up.account_code as string} · ${rows.length} rows`}
+      />
 
         {errors.length > 0 ? (
           <div className="rounded border border-red-300 bg-red-50 p-3 text-xs">
@@ -280,8 +251,7 @@ export default async function UploadReviewPage({
             </table>
           </div>
         </section>
-      </main>
-    </>
+    </BeithadyShell>
   );
 }
 
