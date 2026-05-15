@@ -7,11 +7,14 @@ import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-she
 import { AdsTabs } from '../../_components/ads-tabs';
 import { publishTikTokPaidAction } from '../../actions';
 import { buildBhWaLink } from '@/lib/beithady/ads/platforms';
+import { listPickerVideos } from '@/lib/beithady/youtube/picker';
+import { EmbeddedPicker } from '@/app/beithady/gallery/youtube/picker/_components/embedded-picker';
+import { YouTubeSourceBanner } from '@/app/beithady/gallery/youtube/picker/_components/youtube-source-banner';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export default async function TikTokPaidPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function TikTokPaidPage({ searchParams }: { searchParams: Promise<{ error?: string; yt_video_id?: string; ads_yt_video_id?: string; source?: string }> }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
@@ -32,6 +35,58 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
   const ready = accounts.filter(a => a.status === 'active' && a.tiktok_advertiser_id && a.tiktok_identity_id);
   const suggestedCountries = (signalsRaw as Array<{ origin_country: string; delta_pct: number | null }> | null) || [];
 
+  // V1.2 cross-post: optional YouTube source pre-fill via ?yt_video_id=…
+  const ytVideoIdParam = sp.yt_video_id ?? null;
+  const adsYtVideoIdParam = sp.ads_yt_video_id ? Number(sp.ads_yt_video_id) : null;
+
+  let ytSource: null | {
+    yt_video_id: string;
+    title: string;
+    duration_seconds: number | null;
+    is_shorts: boolean;
+    view_count: number;
+    building_code: string | null;
+    source_url: string | null;
+  } = null;
+
+  if (ytVideoIdParam) {
+    const { data: ytRow } = await sb.from('ads_youtube_videos')
+      .select('id, youtube_video_id, title, duration_seconds, is_shorts, view_count, building_code, source_url')
+      .eq('youtube_video_id', ytVideoIdParam).maybeSingle();
+    if (ytRow) {
+      const r = ytRow as Record<string, unknown>;
+      ytSource = {
+        yt_video_id: String(r.youtube_video_id),
+        title: String(r.title),
+        duration_seconds: r.duration_seconds == null ? null : Number(r.duration_seconds),
+        is_shorts: Boolean(r.is_shorts),
+        view_count: Number(r.view_count ?? 0),
+        building_code: (r.building_code as string | null) ?? null,
+        source_url: (r.source_url as string | null) ?? null,
+      };
+    } else {
+      ytSource = {
+        yt_video_id: ytVideoIdParam,
+        title: ytVideoIdParam,
+        duration_seconds: null,
+        is_shorts: false,
+        view_count: 0,
+        building_code: null,
+        source_url: null,
+      };
+    }
+  }
+
+  // Load YouTube picker items (only if YT account connected)
+  const { data: ytAccount } = await sb.from('ads_accounts')
+    .select('id').eq('platform', 'youtube').limit(1).maybeSingle();
+  const pickerItems = ytAccount
+    ? await listPickerVideos((ytAccount as { id: number }).id).catch(() => [])
+    : [];
+
+  const defaultVideoUrl = ytSource?.source_url ?? '';
+  const defaultBuildingCodes = ytSource?.building_code ?? '';
+
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'TikTok paid' }]} containerClass="max-w-4xl">
       <BeithadyHeader
@@ -42,11 +97,34 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
 
       <AdsTabs active="tiktok-paid" />
 
+      {ytSource && (
+        <YouTubeSourceBanner
+          ytVideoId={ytSource.yt_video_id}
+          title={ytSource.title}
+          durationSeconds={ytSource.duration_seconds}
+          isShorts={ytSource.is_shorts}
+          viewCount={ytSource.view_count}
+          publishPagePath="/beithady/ads/tiktok/paid"
+        />
+      )}
+
       {sp.error && (
         <div className="ix-card border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950 p-3 text-sm flex items-center gap-2">
           <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span className="font-mono text-xs">{sp.error}</span>
         </div>
+      )}
+
+      {/* YouTube source picker (V1.2 cross-post) */}
+      {pickerItems.length > 0 && !ytSource && (
+        <section className="ix-card p-5 space-y-3">
+          <h2 className="text-sm font-semibold">Or pick from YouTube</h2>
+          <EmbeddedPicker
+            items={pickerItems}
+            platform="tiktok_paid"
+            publishPagePath="/beithady/ads/tiktok/paid"
+          />
+        </section>
       )}
 
       {suggestedCountries.length > 0 && (
@@ -73,6 +151,8 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
         </div>
       ) : (
         <form action={publishTikTokPaidAction} className="ix-card p-5 space-y-4">
+          <input type="hidden" name="yt_video_id" value={ytVideoIdParam ?? ''} />
+          <input type="hidden" name="ads_yt_video_id" value={adsYtVideoIdParam ?? ''} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div className="space-y-1">
               <label htmlFor="account_id" className="text-xs font-semibold">Account</label>
@@ -90,7 +170,7 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="video_url" className="text-xs font-semibold">Video URL (public HTTPS)</label>
-              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" placeholder="https://..." />
+              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" placeholder="https://..." defaultValue={defaultVideoUrl} />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="ad_text" className="text-xs font-semibold">Ad text (≤100 chars)</label>
@@ -109,7 +189,7 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="building_codes" className="text-xs font-semibold">Building codes (comma-separated)</label>
-              <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" />
+              <input id="building_codes" name="building_codes" className="ix-input font-mono text-xs" placeholder="BH-435, BH-26" defaultValue={defaultBuildingCodes} />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="monthly_budget_cap_usd" className="text-xs font-semibold">Monthly cap (USD, optional)</label>
