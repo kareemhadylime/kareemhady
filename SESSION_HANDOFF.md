@@ -1,3 +1,24 @@
+## 2026-05-15 — BH Financials import: dual-kind 227002 auto-split shipped (Approach B)
+
+**Status:** Shipped in commit `5dddb15`. User picked Approach B (one xlsx per account → auto-split by Odoo flags).
+
+**What landed:**
+- [`src/lib/beithady/financials/account-kinds.ts`](src/lib/beithady/financials/account-kinds.ts) (new) — per-account rules. `227002` is `mode='multi'` with `is_owner=true` winning over `supplier_rank>0` (all 21 owners in `odoo_partners` are also flagged supplier_rank>0, so the tiebreak is load-bearing). Single-kind accounts (`122001`/`113002`/`124005`/`124006`/`223001`/`221001`) route every matched row to one fixed kind, with optional Odoo-flag pool filter.
+- [`src/lib/beithady/financials/xlsx-import.ts`](src/lib/beithady/financials/xlsx-import.ts) — `classifyParsedRows` drops the required `partner_kind` input, accepts `OdooPartnerWithFlags[]`, derives kind per-row, returns `breakdown: KindBreakdown` for the review UI.
+- [`src/app/beithady/financials/import/[upload_id]/page.tsx`](src/app/beithady/financials/import/[upload_id]/page.tsx) — kind dropdown REMOVED. Now shows colored per-kind chips (count + EGP) auto-detected from the xlsx + Commit button labeled `"Commit N rows (85 suppliers + 6 owners)"`. Unmatched rows highlighted yellow and routed to the account's fallback kind.
+- [`src/app/beithady/financials/import/[upload_id]/actions.ts`](src/app/beithady/financials/import/[upload_id]/actions.ts) — drops `partner_kind` form input, fetches full `odoo_partners` directory with flags.
+- 7 new vitest cases for kind routing on 227002 / single-kind accounts / unmatched fallback / breakdown rounding. **540/562 tests pass, 0 regressions** (22 pre-existing skips).
+
+**No migration needed.** Auto-split keeps one commit per account, so the existing `(snapshot_id, account_code, partner_name_raw)` unique index is still satisfied. The cross-kind wipe bug becomes a non-issue because there's no second commit per account.
+
+**Pushed `5dddb15` → main, Vercel auto-deploy.** Type-check clean.
+
+**Earlier in this turn:** also shipped formatted xlsx export for Snapshots + Reconciliation (commit `c61d04f` — Lime header band, frozen header rows, autofilter, EGP number format, red variance, totals).
+
+**Still pending from earlier:** the Partner Ledgers empty-state fix — pick between (a) clone v1 → import 7 xlsx files (one per unique account, now that 227002 covers both kinds) → freeze v2, or (b) harden `bh_freeze_snapshot` to refuse freezing when partner-bearing accounts have no imports.
+
+---
+
 ## 2026-05-15 — BH Financials import: dual-kind 227002 (Suppliers vs Owner Payables) bug surfaced, awaiting fix-approach choice
 
 **User question:** "In Import to the same account, how will we differentiate between Suppliers & Owner?" — both target tiles share account code `227002` ([import/page.tsx:9-19](src/app/beithady/financials/import/page.tsx:9)).
