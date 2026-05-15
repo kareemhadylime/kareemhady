@@ -127,7 +127,12 @@ export async function compressVideoToFit(
   }
 
   // 3. Compute target bitrate + resolution.
-  const { videoBps } = computeTargetBitrate({ maxBytes, durationSec: meta.durationSec });
+  // The 0.88 factor compensates for 1-pass ABR's typical 10-15% overshoot
+  // so the final file still lands under maxBytes. Two-pass would hit the
+  // target precisely but is 4-8x slower on single-threaded WASM and has a
+  // dead zone between passes that looks like a hang to the user.
+  const { videoBps: rawVideoBps } = computeTargetBitrate({ maxBytes, durationSec: meta.durationSec });
+  const videoBps = Math.max(100_000, Math.floor(rawVideoBps * 0.88));
   const { width, height } = pickResolutionRung({
     videoBps,
     srcWidth: meta.width,
@@ -135,62 +140,49 @@ export async function compressVideoToFit(
   });
   const needsScale = width !== meta.width || height !== meta.height;
 
-  // 4. Two-pass encode.
+  // 4. Single-pass encode with veryfast preset.
+  // Veryfast is ~8-10x faster than medium on WASM at the cost of ~5-10%
+  // worse compression efficiency — fine for our use case since the
+  // bitrate budget is the binding constraint, not codec efficiency.
   const inputName = 'in' + extOf(file.name);
   const outputName = 'out.mp4';
-  const passLog = 'ffmpeg2pass';
 
   try {
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-    let currentPass: 1 | 2 = 1;
     const handleProgress = ({ progress }: { progress: number }) => {
       onProgress({
         phase: 'encoding',
-        pass: currentPass,
+        pass: 1,
         percent: Math.max(0, Math.min(100, Math.round(progress * 100))),
       });
     };
     ffmpeg.on('progress', handleProgress);
 
-    const baseArgs = [
+    const args = [
       '-y',
       '-i', inputName,
       '-c:v', 'libx264',
-      '-preset', 'medium',
+      '-preset', 'veryfast',
       '-b:v', String(videoBps),
+      // Cap peak bitrate at 1.5x average to prevent quality spikes from
+      // blowing the size budget on bursty scenes.
+      '-maxrate', String(Math.floor(videoBps * 1.5)),
+      '-bufsize', String(videoBps * 2),
       '-pix_fmt', 'yuv420p',
-    ];
-    if (needsScale) {
-      baseArgs.push('-vf', `scale=${width}:${height}`);
-    }
-
-    // Pass 1: video-only, no output file.
-    currentPass = 1;
-    onProgress({ phase: 'encoding', pass: 1, percent: 0 });
-    await ffmpeg.exec([
-      ...baseArgs,
-      '-pass', '1',
-      '-passlogfile', passLog,
-      '-an',
-      '-f', 'null',
-      'NUL',
-    ]);
-
-    if (signal?.aborted) throw new VideoCompressError('aborted', 'aborted');
-
-    // Pass 2: write final mp4.
-    currentPass = 2;
-    onProgress({ phase: 'encoding', pass: 2, percent: 0 });
-    await ffmpeg.exec([
-      ...baseArgs,
-      '-pass', '2',
-      '-passlogfile', passLog,
       '-c:a', 'aac',
       '-b:a', String(AUDIO_RESERVE_BPS),
       '-movflags', '+faststart',
-      outputName,
-    ]);
+    ];
+    if (needsScale) {
+      args.push('-vf', `scale=${width}:${height}`);
+    }
+    args.push(outputName);
+
+    onProgress({ phase: 'encoding', pass: 1, percent: 0 });
+    await ffmpeg.exec(args);
+
+    if (signal?.aborted) throw new VideoCompressError('aborted', 'aborted');
 
     const data = await ffmpeg.readFile(outputName);
     const rawBytes = typeof data === 'string'
@@ -201,7 +193,7 @@ export async function compressVideoToFit(
     const bytes = new Uint8Array(rawBytes);
 
     // Clean up scratch files; ignore errors.
-    for (const f of [inputName, outputName, `${passLog}-0.log`, `${passLog}-0.log.mbtree`]) {
+    for (const f of [inputName, outputName]) {
       try { await ffmpeg.deleteFile(f); } catch { /* ignore */ }
     }
     ffmpeg.terminate?.();

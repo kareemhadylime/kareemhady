@@ -115,10 +115,8 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
           fileToUpload = await compressVideoToFit(next.file, {
             onProgress: (p) => {
               if (p.phase === 'encoding') {
-                // Smooth two-pass progress: pass 1 = 0–50%, pass 2 = 50–100%.
-                const overall = p.pass === 1 ? p.percent / 2 : 50 + p.percent / 2;
                 setJobs(prev => prev.map(j => j.id === next.id
-                  ? { ...j, compressPercent: Math.round(overall) }
+                  ? { ...j, compressPercent: p.percent }
                   : j));
               }
             },
