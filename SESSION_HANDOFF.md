@@ -1,3 +1,28 @@
+## 2026-05-15 — BH audit P0-2 brainstorm in progress: BHDashboardShell extraction (option 2 picked)
+
+**Status:** Brainstorming, no code yet. Picked up after P0-1 shipped.
+
+**Key finding:** `analytics/reports/fees-audit/_components/Sidebar.tsx` is NOT just a filter rail like `analytics/performance/_components/left-rail.tsx`. It combines (1) date+window filter, (2) buildings/channels/price-mode filters, AND (3) a 9-group fee-category navigation tree that drives the dashboard content via `onSelect(cat)`. Plus unusual UX: auto-collapse 2s after mouse-leave, open-on-hover after 250ms. The audit spec called convergence "non-trivial" — it's actually two structurally different patterns. The architectural call: composition wins — shared OUTER shell (grid layout, TitleBar, MobileFilterSheet, CustomizeDrawer), each page provides its own rail via a JSX slot.
+
+**User picked option 2** for scope: extraction + fees-audit "outer shell" adoption. Analytics Performance migrates to consume the shared primitives (no behavior change). Fees-audit adopts the shared OUTER shell while keeping its bespoke Sidebar as a custom `rail` slot. Proves the composition model on a page with a different rail.
+
+**Brainstorm progress:**
+- ✅ Scope: option 2 (extraction + fees-audit outer-shell adoption).
+- ✅ Architecture approach: **A** picked — composition + optional URL-state helper. `<BHDashboardShell>` is a layout-only wrapper; each page provides `titleBar`/`rail`/`mobileFilterSheet` as JSX slots. `useBHUrlState<T>` is a separate optional hook for pages that want shareable URLs (perf yes, fees-audit no).
+- ✅ § 1 (package layout) — confirmed. Package at `src/app/beithady/_components/dashboard-shell/`, 8 files + colocated tests.
+- ✅ § 2 (component & hook APIs) — confirmed. `<BHDashboardShell>` (layout slots), `<BHTitleBar>` (title + eyebrow + chips + actions slot, mobile filter button), `<BHLeftRail>` (raw section array), `<BHRailPill>` (pill helper), `<BHMobileFilterSheet>` (bottom sheet), `<BHCustomizeDrawer>` (right overlay), `useBHUrlState<T>(defaults, parse, serialize, basePath)`, `useRailCollapse()`.
+- ✅ § 3 (data flow), § 4 (error handling), § 5 (testing strategy) — presented in one message. Awaiting kareem's confirmation before writing the spec.
+
+**Two design judgement calls flagged in § 2:** (1) `BHLeftRail` doesn't know about specific filters — takes raw section array, consumers compose with `BHRailPill`; (2) `BHTitleBar` doesn't include Export PDF / Customize buttons — those go in `actions` slot, since they're page-specific.
+
+**Testing baseline:** 559 pass / 22 skipped (post-P0-1). Target after this work: baseline + new unit tests for the shared package; zero regressions on existing suite. Behavior preservation on analytics/performance is the primary risk — DOM must stay near-identical post-migration.
+
+**Next step on kareem's nod:** write spec to `docs/superpowers/specs/2026-05-15-bh-dashboard-shell-design.md`, run self-review, present for user review gate, then invoke writing-plans.
+
+**No commits this session beyond P0-1** (handoff edits aside).
+
+---
+
 ## 2026-05-15 — BH audit P0-1 SHIPPED + addendum: A1 fully removed from BH financials UI
 
 **Status:** Pushed `2e3060d` (FinancialsFilterStrip) + `6f970a9` (import-page select fix) → main, Vercel auto-deploy in flight. Final reviewer caught the import-page miss; addendum landed inside this session.
