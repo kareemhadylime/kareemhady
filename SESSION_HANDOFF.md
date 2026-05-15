@@ -1,3 +1,56 @@
+## 2026-05-15 — YouTube V1.1 (Upload-out) — ALL 25 CODE TASKS SHIPPED
+
+**Status:** All 25 code tasks done + pushed. Vercel auto-deploy in flight. 5 remaining tasks (26-30) are **manual operator steps** for kareem (Google Cloud setup + OAuth + 3 smoke tests).
+
+**Verification:** Full test suite **617 passing / 22 skipped** (baseline 585 + 32 new YouTube tests, includes Tasks 3, 4-5, 9, 10, 14). 0 regressions. `tsc --noEmit` clean.
+
+**All commit SHAs (in order pushed to main):**
+1. `986ab74` Task 1 — migration 0134 (renumbered from 0123 — slot taken)
+2. `5823d36` Task 2 — types.ts (Zod + error classes)
+3. `35dbfc4` Task 3 — templates.ts + 8 templates
+4. `0564610` Task 4 — youtube-client.ts (token refresh + cache)
+5. `1ee1c61` Task 5 — invalid_grant test
+6. `8c0fe05` Task 6 — OAuth start route
+7. `f5a2b2d` Task 7 — OAuth callback route
+8. `c0bbb32` Task 8 — accounts page YouTube row
+9. `896a9c3` Task 9 — ai-metadata.ts (Claude vision)
+10. `7c74bc6` Task 10 — publish helpers + initResumableSession
+11. `a135aea` Task 11 — publishSync (sync path)
+12. `43e75bd` Task 12 — sendChunksUntilBudget (chunk loop)
+13. `aa09069` Task 13 — pollProcessing
+14. `89d91c6` Task 14 — computeNextRetry + tests
+15. `db1256c` Task 15 — cron youtube-uploader
+16. `7c9f6c6` Task 16 — cron youtube-stats-sync
+17. `06dcf7a` Task 17 — vercel.json (2 new schedules)
+18. `7c2425f` Task 18 — VideoSourcePicker
+19. `71be8ad` Task 19 — AIAssistButton
+20. `4c5bf42` Task 20 — server actions (publish + generateMetadata + retry)
+21. `11c07a0` Task 21 — PublishForm
+22. `4c20077` Task 22 — RecentUploadsTable
+23. `f66aec3` Task 23 — publish page
+24. `cad3614` Task 24 — Gallery landing tile
+25. `e1c0259` Task 25 — asset modal Publish-to-YouTube button
+
+**Deviations from plan (all defensible):**
+- Migration `0123` → `0134` (slot already used by HR work)
+- FK `users(id)` → `auth.users(id)` (matches Supabase Auth)
+- FK `bh_gallery_assets(id)` → `beithady_gallery_assets(id)` (correct table name)
+- Lucide `Youtube` icon → `Video` (lucide-react@1.8.0 doesn't ship `Youtube`)
+- Server action `generateMetadataAction` widened to accept `building_code: string | null` for PublishForm prop compat
+- Added `'youtube'` to `AD_PLATFORMS` + `ORGANIC_PLATFORMS` arrays in `platforms.ts` for Record type satisfaction
+
+**What's NOT done yet (Tasks 26-30 — kareem's manual work):**
+- **Task 26:** Google Cloud Console — Enable YouTube Data API v3 + add OAuth redirect URI `https://app.limeinc.cc/api/auth/google-youtube/callback` to the existing OAuth client
+- **Task 27:** Open `/beithady/ads/accounts` → click Connect on the YouTube row → grant consent → verify channel info appears
+- **Task 28:** Upload a ≤60s vertical clip via `/beithady/gallery/youtube/` (sync path smoke)
+- **Task 29:** Upload a ~3min long-form via same page (async path smoke — verify cron picks it up)
+- **Task 30:** Wait 6h, verify view/like counts populate (stats-sync cron)
+
+**Spec:** [`docs/superpowers/specs/2026-05-15-youtube-v1.1-upload-out-design.md`](docs/superpowers/specs/2026-05-15-youtube-v1.1-upload-out-design.md)
+**Plan:** [`docs/superpowers/plans/2026-05-15-youtube-v1.1-upload-out.md`](docs/superpowers/plans/2026-05-15-youtube-v1.1-upload-out.md)
+
+---
+
 ## 2026-05-15 — BH audit P0-2 SHIPPED: BHDashboardShell extracted, Analytics Performance + Fees Audit migrated
 
 **Status:** All 15 plan tasks complete, pushed to main (latest commit `c2c9bb2` + parallel YouTube work brought HEAD to `7c74bc6`). Vercel auto-deploy in flight.
