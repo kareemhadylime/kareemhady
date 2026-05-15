@@ -1,3 +1,79 @@
+## 2026-05-15 — BH audit P2 financials cleanup SHIPPED: 7 pages migrated + FinancialsFilterStrip deleted
+
+**Status:** All 11 tasks complete. 8 commits pushed to main (`35813e9` → `e7f1c06`). Vercel auto-deploy in flight.
+
+**What landed:**
+- **Phase 1** (`35813e9`): extracted `FinScope` + `VALID_FIN_SCOPES` to `src/app/beithady/financials/_hooks/url-state-types.ts`. Updated `use-perf-pnl-url-state.ts` + `use-bs-url-state.ts` to import from shared module (kept `FinPerfScope`/`FinBSScope` aliases for backward-compat).
+- **Phase 2 — Payables** (`c3ee8bf`): `usePayablesUrlState` (4 vitest assertions) + `PayablesShell.tsx` + page rewrite. Rail: Scope + As-of date. **Last consumer of `FinancialsFilterStrip` migrated.**
+- **Phase 3 — Ledgers** (`307484a`): `useLedgersUrlState` (6 assertions covering kind defaults + invalid-kind fallback) + `LedgersShell.tsx` + page rewrite. Rail: Scope + Kind (7 pills: supplier/owner/customer/landlord/employee/noteholder/all) + As-of date. Promoted `LedgerReport` from inline return type to named export in `src/lib/beithady/financials/ledgers.ts`.
+- **Phase 4 — Reconciliation** (`8167233`): `useReconciliationUrlState` (3 assertions) + `ReconciliationShell.tsx` + page rewrite. Rail: single-section Snapshot dropdown picker. Empty-state branch (no frozen snapshot) uses `BeithadyShell` (not dashboard chrome). `ReconciliationReport` was already exported.
+- **Phase 5 — Snapshots** (`3953937`): list + [id] detail shell swaps. Status pill colors inlined as semantic hex literals (frozen=green / draft=amber / other=neutral). Detail page's existing Export-xlsx action button relocated to `BeithadyHeader right=` slot.
+- **Phase 6 — Import** (`c9e00ed`): wizard + [upload_id] detail shell swaps. Body content preserved verbatim (TARGET_ACCOUNTS, upload form, KIND_LABEL/KIND_COLOR semantic palette, kind chips, commit form). Plan referenced `parseResult.target_account_code` but correct field is `up.account_code` — implementer adapted correctly.
+- **Phase 7** (`e7f1c06`): deleted `FinancialsFilterStrip.tsx` + `.test.tsx` (−152 lines). All callers migrated.
+
+**Verification:** Final suite 657 passing / 22 skipped (Phase 4 hit 660; Phase 5/6 unchanged; Phase 7 dropped 3 strip-test assertions). `tsc --noEmit` clean. `npm run build` succeeds.
+
+**Architecture milestone:** 10/12 audit "wrong-shell offenders" resolved. Only `/setup` and `/pricing` remain (P3, low traffic). `BHDashboardShell` (P0-2) now has 7 consumers — Analytics Performance, Fees Audit, Financials Performance, Balance Sheet, Payables, Ledgers, Reconciliation. `useBHUrlState<T>` (P0-2) has 5 typed consumers.
+
+**Audit progress:** P0-1 ✅ (A1 removal) + P0-2 ✅ (BHDashboardShell + 2 consumers) + P1 ✅ (Financials landing/Performance/Balance Sheet) + P2 ✅ (remaining 7 financials + strip deletion). Remaining audit backlog: P2 §8 rows #7–12 (non-financials data dashboards — analytics/calendar-heatmap, market-intel, inventory dashboards, ads/performance, ops surfaces, hr dashboards, communication inbox) + §7.2 brand-var sweep + P3 setup/pricing.
+
+---
+
+## 2026-05-15 — BH Financials P2 Phase 6 (Task 9): Import wizard + detail → BeithadyShell
+
+**Status:** DONE. Commit `c9e00ed`. Not pushed (per plan instructions).
+
+**What landed:**
+- `src/app/beithady/financials/import/page.tsx` — shell-swap only. Removed `TopNav`, `ChevronLeft`, `ChevronRight`, `Link` imports; added `BeithadyShell` + `BeithadyHeader`. `TARGET_ACCOUNTS` const, Supabase queries (snap + existing + haveSet), target-account picker grid, upload form, submit button all preserved verbatim. Subtitle is dynamic: shows `Target snapshot: ${snap.period_end}` when frozen snap exists, else `No frozen snapshot — import will create one`.
+- `src/app/beithady/financials/import/[upload_id]/page.tsx` — shell-swap only. Removed `TopNav`, `ChevronLeft`, `ChevronRight` imports (kept `Link` — used in committed-state body for Reconciliation/Ledgers links). Added `BeithadyShell` + `BeithadyHeader`. Breadcrumb includes `upload_id.slice(0, 8) + '…'` label. `KIND_LABEL`, `KIND_COLOR`, classification logic, kind chips, unmatched-row yellow highlighting, commit form with kind breakdown, parsed rows table all preserved verbatim. KIND_COLOR semantic palette (blue/purple/emerald/amber/cyan/rose/slate) left intact per plan spec.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors
+- `npx vitest run` → 660 passed (no new tests, no regressions)
+- `npm run build` → succeeded
+
+**Deviations from plan:** None. Note: plan spec referenced `parseResult.target_account_code` / `target_account_name` fields that don't exist on the upload row — used `up.account_code` (the actual DB field) for title/subtitle, which is correct.
+
+---
+
+## 2026-05-15 — BH Financials P2 Phase 5 (Task 8): Snapshots list + detail → BeithadyShell
+
+**Status:** DONE. Commit `3953937`. Not pushed (per plan instructions).
+
+**What landed:**
+- `src/app/beithady/financials/snapshots/page.tsx` — shell-swap only. Removed `TopNav`, `ChevronLeft`, `ChevronRight` imports; added `BeithadyShell` + `BeithadyHeader`. Status pill colors inlined as hex literals (`#dcfce7`/`#166534` frozen-green, `#fef3c7`/`#854d0e` draft-amber, `var(--bh-cream)`/`var(--bh-steel)` other). `byPeriod` grouping + list body preserved verbatim.
+- `src/app/beithady/financials/snapshots/[id]/page.tsx` — shell-swap only. Removed `TopNav`, `ChevronLeft`, `ChevronRight`, `Link` imports; added `BeithadyShell` + `BeithadyHeader`. Action button (Export xlsx with `Download` icon) preserved via `right=` prop on `BeithadyHeader`. Breadcrumb includes `{period_end} v{version}` label. Accounts table, partners table, all body logic preserved verbatim.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors
+- `npx vitest run` → 660 passed (no new tests, no regressions — matches Phase 4 baseline exactly)
+- `npm run build` → succeeded
+
+**Deviations from plan:** None.
+
+---
+
+## 2026-05-15 — BH Financials P2 Phase 4 (Tasks 6-7): Reconciliation → BHDashboardShell
+
+**Status:** DONE. Commit `8167233`. Not pushed (per plan instructions).
+
+**What landed:**
+- `src/app/beithady/financials/_hooks/use-reconciliation-url-state.ts` — TDD hook: exports `FinReconciliationUrlState` (`snapshot_id: string | undefined`), `parseFinReconciliationState`, `serializeFinReconciliationState`, `buildFinReconciliationUrl`, `useReconciliationUrlState`. URL param name is `snapshot` (matches existing contract).
+- `src/app/beithady/financials/_hooks/use-reconciliation-url-state.test.ts` — 3 assertions (omits ?snapshot= when undefined, writes ?snapshot=<id>, parse handles missing param). All 3 pass.
+- `src/app/beithady/financials/reconciliation/_components/ReconciliationShell.tsx` — `'use client'` shell. Single-section rail (Snapshot `<select>`). Threads rail state to BOTH `<BHDashboardShell>` AND `<BHLeftRail>` per P0-2 contract. Title bar: title="Reconciliation", subtitle="Account balance vs. partner ledger totals", Snowflake chip. Actions: Export xlsx + Back to Financials. Body: BH-var-themed summary chips (green/red semantic) + variance table (preserved logic from original).
+- `src/app/beithady/financials/reconciliation/page.tsx` — server component rewrite. Fetches all frozen consolidated snapshots for rail picker. Resolves: explicit URL → use it; else latest frozen. Empty-state (no snapshot) uses `<BeithadyShell>` not BHDashboardShell. Otherwise renders `<ReconciliationShell>`.
+
+**`ReconciliationReport` export needed?** No — already exported at line 15 of `src/lib/beithady/financials/reconciliation.ts`.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors
+- `npx vitest run` → 660 passed (660 vs ~657 baseline = +3 new hook tests)
+- `npm run build` → `✓ Compiled successfully`, `✓ Generating static pages (43/43)`, route `ƒ /beithady/financials/reconciliation` listed. (Windows Turbopack ENOENT on `.tmp` manifest rename is a known transient race; build output confirmed clean.)
+
+**Deviations from plan:** None.
+
+---
+
 ## 2026-05-15 — BH Ads · TikTok Reels (organic) replatformed from publish-out → embed-in
 
 **Status:** DONE. Pushing now.
