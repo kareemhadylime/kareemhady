@@ -1,8 +1,16 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { TitleBar } from './title-bar';
-import { LeftRail } from './left-rail';
-import { useRailCollapse } from '../_hooks/use-rail-collapse';
+import { useState } from 'react';
+import { Calendar, Building2, ArrowLeftRight, Settings } from 'lucide-react';
+import Link from 'next/link';
+import {
+  BHDashboardShell,
+  BHTitleBar,
+  BHLeftRail,
+  BHRailPill,
+  BHMobileFilterSheet,
+  BHCustomizeDrawer,
+  type BHRailSection,
+} from '@/app/beithady/_components/dashboard-shell';
 import { HeroKpi } from './panels/hero-kpi';
 import { BuildingsTable } from './panels/buildings-table';
 import { ChannelMixDonut } from './panels/channel-mix-donut';
@@ -23,41 +31,31 @@ import { MonthlyGoal } from './panels/monthly-goal';
 import { AIInsightsTray } from './panels/ai-insights-tray';
 import { DailyActivity } from './panels/daily-activity';
 import { SnapshotScrubber } from './panels/snapshot-scrubber';
-import { CustomizeDrawer } from './customize-drawer';
-import { MobileFilterSheet } from './mobile-filter-sheet';
 import { useVisibility } from '../_hooks/use-visibility';
-import { usePerfUrlState } from '../_hooks/use-url-state';
+import { usePerfUrlState, type CompareMode } from '../_hooks/use-url-state';
+import { PANELS, PANEL_GROUPS, type PanelGroupId } from '../_lib/panel-registry';
 import type { BuildingCode, DailyReportPayload } from '@/lib/beithady-daily-report/types';
-import type { CompareMode } from '../_hooks/use-url-state';
 
 const BUILDING_CODE_SET: ReadonlySet<string> = new Set([
-  'BH-26',
-  'BH-73',
-  'BH-435',
-  'BH-OK',
-  'OTHER',
+  'BH-26', 'BH-73', 'BH-435', 'BH-OK', 'OTHER',
 ]);
 
-type Props = {
-  payload: DailyReportPayload;
-  snapshotDate: string;
-  generatedAt: string;
-  initialBuilding: string;
-  initialCompare: CompareMode;
-  earliestDate: string | null;
-  /** Latest report_date in the snapshot table (upper bound for the date stepper). */
-  latestDate: string | null;
-  /** Snapshot to compare against (null when compare='none' or no prior snapshot exists in the ±3-day window). */
-  priorPayload: DailyReportPayload | null;
-  /** Actual date used for compare — may differ from priorTargetDate when the exact target had a NULL payload. */
-  priorDate: string | null;
-  /** Date the user's compare mode literally points at (e.g. 2026-04-30 for "vs last week" from 2026-05-07). */
-  priorTargetDate: string | null;
-  /** Signed days between target and actual (target − actual). Negative = actual is BEFORE target. 0 = exact match. */
-  priorOffsetDays: number;
-  /** UAE/DXB unit counts — available only when viewing today (live data). */
-  dxbCounts?: { check_ins_today: number; check_outs_today: number; turnovers_today: number; occupied_today: number };
-};
+const BUILDINGS = [
+  { value: 'all', label: 'All' },
+  { value: 'BH-26', label: 'BH-26' },
+  { value: 'BH-73', label: 'BH-73' },
+  { value: 'BH-435', label: 'BH-435' },
+  { value: 'BH-OK', label: 'BH-OK' },
+  { value: 'OTHER', label: 'Other' },
+] as const;
+
+const COMPARES = [
+  { value: 'yesterday', label: 'vs Yesterday' },
+  { value: 'last-week', label: 'vs Last Week' },
+  { value: 'last-month', label: 'vs Last Month' },
+  { value: 'last-year', label: 'vs Last Year' },
+  { value: 'none', label: 'None' },
+] as const;
 
 const COMPARE_LABEL: Record<CompareMode, string> = {
   yesterday: 'vs yesterday',
@@ -66,6 +64,45 @@ const COMPARE_LABEL: Record<CompareMode, string> = {
   'last-year': 'vs last year',
   none: '',
 };
+
+const BUILDING_LABEL: Record<string, string> = {
+  all: 'All buildings',
+  'BH-26': 'BH-26',
+  'BH-73': 'BH-73',
+  'BH-435': 'BH-435',
+  'BH-OK': 'BH-OK',
+  OTHER: 'Other',
+};
+
+const COMPARE_CHIP_LABEL: Record<CompareMode, string> = {
+  yesterday: 'vs Yesterday',
+  'last-week': 'vs Last Week',
+  'last-month': 'vs Last Month',
+  'last-year': 'vs Last Year',
+  none: 'No comparison',
+};
+
+type Props = {
+  payload: DailyReportPayload;
+  snapshotDate: string;
+  generatedAt: string;
+  initialBuilding: string;
+  initialCompare: CompareMode;
+  earliestDate: string | null;
+  latestDate: string | null;
+  priorPayload: DailyReportPayload | null;
+  priorDate: string | null;
+  priorTargetDate: string | null;
+  priorOffsetDays: number;
+  dxbCounts?: { check_ins_today: number; check_outs_today: number; turnovers_today: number; occupied_today: number };
+};
+
+function ymdMinusOne(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
 
 export function DashboardShell({
   payload,
@@ -84,24 +121,9 @@ export function DashboardShell({
   const { state, update } = usePerfUrlState();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const { visibility, setPanel, hiddenCount } = useVisibility();
-  const rail = useRailCollapse();
+  const { visibility, setPanel, hiddenCount, reset } = useVisibility();
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(max-width: 767px)');
-    const updateMobile = () => setIsMobile(mq.matches);
-    updateMobile();
-    mq.addEventListener('change', updateMobile);
-    return () => mq.removeEventListener('change', updateMobile);
-  }, []);
-
-  const railColWidth = isMobile ? 0 : (rail.collapsed ? 44 : 200);
-
-  // Active bucket: when the user picks a building from the rail, swap the
-  // headline numbers (Hero KPIs + Daily activity) from portfolio totals to
-  // that building's bucket. Falls back to portfolio when 'all' or unknown.
+  // ---- Bucket & filter derivations (unchanged from previous implementation) ----
   const buildingFilter: BuildingCode | 'all' =
     BUILDING_CODE_SET.has(state.building) ? (state.building as BuildingCode) : 'all';
   const bucket = buildingFilter === 'all' ? payload.all : payload.per_building[buildingFilter];
@@ -113,7 +135,6 @@ export function DashboardShell({
       ? payload.revpar.by_building[buildingFilter as BuildingCode] ?? null
       : payload.revpar?.all ?? null;
 
-  // Compare bucket — same building filter, but on the prior snapshot.
   const priorBucket =
     priorPayload && (buildingFilter === 'all' ? priorPayload.all : priorPayload.per_building[buildingFilter]);
   const priorRevpar = priorPayload?.revpar
@@ -124,8 +145,6 @@ export function DashboardShell({
   const compareLabel = COMPARE_LABEL[state.compare];
   const compareActive = state.compare !== 'none' && !!priorBucket;
 
-  // Delta builders — produce HeroKpi `delta` shapes.
-  // Convention: percentage points for occupancy, % change for revenue/RevPAR.
   function ppDelta(current: number, prior: number, fallback: string) {
     if (!compareActive || prior === undefined || prior === null) {
       return { direction: 'flat' as const, text: fallback };
@@ -161,427 +180,491 @@ export function DashboardShell({
     };
   }
 
-  return (
-    <>
-      {/* TitleBar — replaces old TopBar, navy gradient matching Fees Audit */}
-      <TitleBar
-        generatedAt={generatedAt}
-        reportDate={snapshotDate}
-        hiddenCount={hiddenCount}
-        currentDate={snapshotDate}
-        state={state}
-        onCustomizeClick={() => setDrawerOpen(true)}
-        onDateChange={(date) => update({ date })}
-        onFilterClick={() => setMobileFilterOpen(true)}
-      />
+  // ---- Rail content (Period / Building / Compare sections, used both on desktop + mobile) ----
+  const yesterdayYmd = ymdMinusOne(snapshotDate);
+  const isYesterday = state.date === yesterdayYmd;
+  const isToday = !state.date && !isYesterday;
+  const isOtherDate = !!state.date && !isYesterday;
 
-      {/* Body grid — rail + main content */}
-      <div
-        className="grid mt-6 transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
-        style={{ gridTemplateColumns: `${railColWidth}px 1fr` }}
-        onMouseEnter={isMobile ? undefined : rail.handleEnter}
-        onMouseLeave={isMobile ? undefined : rail.handleLeave}
+  const railSections: BHRailSection[] = [
+    {
+      title: 'Period',
+      children: (
+        <>
+          <BHRailPill active={isToday} onClick={() => update({ date: undefined })}>Today</BHRailPill>
+          <BHRailPill active={isYesterday} onClick={() => update({ date: yesterdayYmd })}>Yesterday</BHRailPill>
+          <BHRailPill disabled title="Weekly aggregate not yet supported — use the snapshot scrubber for historical days.">
+            This week <span style={{ opacity: 0.7 }}>· soon</span>
+          </BHRailPill>
+          {isOtherDate && (
+            <BHRailPill active onClick={() => update({ date: undefined })} title="Click to return to latest">
+              {state.date}
+            </BHRailPill>
+          )}
+        </>
+      ),
+    },
+    {
+      title: 'Building',
+      children: (
+        <>
+          {BUILDINGS.map((b) => (
+            <BHRailPill key={b.value} active={state.building === b.value} onClick={() => update({ building: b.value })}>
+              {b.label}
+            </BHRailPill>
+          ))}
+        </>
+      ),
+    },
+    {
+      title: 'Compare',
+      children: (
+        <>
+          {COMPARES.map((c) => (
+            <BHRailPill key={c.value} active={state.compare === c.value} onClick={() => update({ compare: c.value })}>
+              {c.label}
+            </BHRailPill>
+          ))}
+        </>
+      ),
+    },
+  ];
+
+  // ---- Title bar chips + actions ----
+  const cairoTime = new Date(generatedAt).toLocaleString('en-GB', {
+    timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit',
+  });
+  const dateLabel = new Date(snapshotDate + 'T00:00:00Z').toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+  const titleBarChips = [
+    { icon: Calendar, label: `Data as of ${cairoTime} Cairo` },
+    { icon: Building2, label: BUILDING_LABEL[state.building] ?? state.building },
+    { icon: ArrowLeftRight, label: COMPARE_CHIP_LABEL[state.compare] ?? state.compare },
+  ];
+
+  const titleBarActions = (
+    <>
+      <Link
+        href={`/api/beithady/perf/export-pdf${snapshotDate ? `?date=${snapshotDate}` : ''}`}
+        className="rounded-md border px-3 py-1.5 text-xs font-medium hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        style={{ background: 'transparent', color: 'var(--bh-gold)', borderColor: 'var(--bh-gold)' }}
+        aria-label="Export current snapshot as PDF"
       >
-        <div className={isMobile ? 'hidden' : ''}>
-          <LeftRail
-            state={state}
-            onChange={update}
+        ⤓ Export PDF
+      </Link>
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="rounded-md px-3 py-1.5 text-xs font-medium hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        style={{ background: 'var(--bh-gold)', color: 'var(--bh-ink)' }}
+      >
+        <Settings size={11} className="inline mr-1" />
+        Customize{hiddenCount > 0 ? ` (${hiddenCount} hidden)` : ''}
+      </button>
+    </>
+  );
+
+  // ---- Customize drawer content (panel checkboxes) ----
+  const groups = Object.keys(PANEL_GROUPS) as PanelGroupId[];
+  const customizeBody = (
+    <>
+      {groups.map((groupId) => {
+        const groupPanels = PANELS.filter((p) => p.group === groupId);
+        if (groupPanels.length === 0) return null;
+        return (
+          <section key={groupId} className="mb-5">
+            <h3 className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em]" style={{ color: 'var(--bh-steel)' }}>
+              {PANEL_GROUPS[groupId]}
+            </h3>
+            <ul className="flex flex-col gap-1.5">
+              {groupPanels.map((p) => (
+                <li key={p.id}>
+                  <label
+                    htmlFor={`vis-${p.id}`}
+                    className="flex items-center justify-between rounded-md border px-3 py-2 text-[12px] cursor-pointer hover:opacity-90"
+                    style={{ borderColor: 'var(--bh-mute)', background: 'var(--bh-cream)', color: 'var(--bh-ink)' }}
+                  >
+                    <span>{p.label}</span>
+                    <span className="relative inline-flex">
+                      <input
+                        id={`vis-${p.id}`}
+                        type="checkbox"
+                        checked={visibility[p.id]}
+                        onChange={(e) => setPanel(p.id, e.target.checked)}
+                        className="peer h-5 w-9 cursor-pointer appearance-none rounded-full bg-[#eae9f3] outline-none transition-colors motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-[#003462]/40 focus-visible:ring-offset-1 checked:bg-[#003462]"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform motion-reduce:transition-none peer-checked:translate-x-4"
+                      />
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </>
+  );
+
+  const customizeFooter = (
+    <>
+      <button
+        type="button"
+        onClick={reset}
+        className="rounded-md border px-3 py-1.5 text-xs hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        style={{ borderColor: 'var(--bh-mute)', background: 'var(--bh-cream)', color: 'var(--bh-ink)' }}
+      >
+        Reset to default
+      </button>
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(false)}
+        className="rounded-md px-3 py-1.5 text-xs font-medium hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        style={{ background: 'var(--bh-ink)', color: 'var(--bh-cream)' }}
+      >
+        Done
+      </button>
+    </>
+  );
+
+  return (
+    <BHDashboardShell
+      titleBar={
+        <BHTitleBar
+          eyebrow="Performance Dashboard"
+          title={`${dateLabel} · Snapshot`}
+          chips={titleBarChips}
+          actions={titleBarActions}
+          onMobileFilterClick={() => setMobileFilterOpen(true)}
+        />
+      }
+      rail={<BHLeftRail sections={railSections} />}
+      mobileFilterSheet={
+        <BHMobileFilterSheet open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)}>
+          <BHLeftRail sections={railSections} />
+        </BHMobileFilterSheet>
+      }
+      drawer={
+        <BHCustomizeDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          title="Customize"
+          footer={customizeFooter}
+        >
+          {customizeBody}
+        </BHCustomizeDrawer>
+      }
+    >
+      {/* === BANNERS === */}
+      {isFiltered && (
+        <div
+          className="col-span-12 rounded-md px-3 py-2 text-[11px]"
+          style={{ background: '#fdf3da', color: '#7a5300', border: '1px solid #f1d889' }}
+          role="status"
+        >
+          Filtered to <strong>{buildingFilter}</strong> — Hero KPIs and Daily activity show {buildingFilter} only.
+          Channel mix, payouts, reviews, and other portfolio panels show all-portfolio data.{' '}
+          <button
+            type="button"
+            onClick={() => update({ building: 'all' })}
+            className="underline hover:opacity-80"
+            style={{ color: '#7a5300' }}
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
+
+      {compareActive && priorDate && (
+        <div
+          className="col-span-12 rounded-md px-3 py-2 text-[11px]"
+          style={{ background: '#eef3fb', color: 'var(--bh-ink)', border: '1px solid var(--bh-mute)' }}
+          role="status"
+        >
+          Comparing <strong>{snapshotDate}</strong> {compareLabel} (<strong>{priorDate}</strong>
+          {priorOffsetDays !== 0 && priorTargetDate && (
+            <span style={{ color: 'var(--bh-steel)' }}>
+              {' '}— nearest available, {Math.abs(priorOffsetDays)} day{Math.abs(priorOffsetDays) === 1 ? '' : 's'}{' '}
+              {priorOffsetDays > 0 ? 'before' : 'after'} target {priorTargetDate}
+            </span>
+          )}
+          ) — Hero KPIs show ▲/▼ deltas.{' '}
+          <button
+            type="button"
+            onClick={() => update({ compare: 'none' })}
+            className="underline hover:opacity-80"
+            style={{ color: 'var(--bh-ink)' }}
+          >
+            Clear compare
+          </button>
+        </div>
+      )}
+      {state.compare !== 'none' && !priorPayload && priorTargetDate && (
+        <div
+          className="col-span-12 rounded-md px-3 py-2 text-[11px]"
+          style={{ background: '#fdecec', color: '#9a2828', border: '1px solid #f1bcbc' }}
+          role="status"
+        >
+          Compare {COMPARE_LABEL[state.compare]}: no well-formed snapshot in the ±3-day window around{' '}
+          <strong>{priorTargetDate}</strong> — deltas hidden.{' '}
+          <button
+            type="button"
+            onClick={() => update({ compare: 'none' })}
+            className="underline hover:opacity-80"
+            style={{ color: '#9a2828' }}
+          >
+            Clear compare
+          </button>
+        </div>
+      )}
+
+      {/* === PANELS === */}
+      {visibility['ai-insights'] && (
+        <div className="col-span-12">
+          <AIInsightsTray payload={payload} onHide={() => setPanel('ai-insights', false)} />
+        </div>
+      )}
+
+      {visibility['daily-activity'] && (
+        <div className="col-span-12">
+          <DailyActivity
+            payload={payload}
             snapshotDate={snapshotDate}
-            collapsed={rail.collapsed}
-            pinned={rail.pinned}
-            onTogglePin={rail.togglePinned}
+            buildingFilter={buildingFilter}
+            latestDate={latestDate}
+            dxbCounts={dxbCounts}
+            onDateChange={(d) =>
+              update({ date: latestDate && d === latestDate ? undefined : d })
+            }
+            onHide={() => setPanel('daily-activity', false)}
           />
         </div>
-        <main className="grid grid-cols-12 gap-3 sm:gap-4">
-          {isFiltered && (
-            <div
-              className="col-span-12 rounded-md px-3 py-2 text-[11px]"
-              style={{
-                background: '#fdf3da',
-                color: '#7a5300',
-                border: '1px solid #f1d889',
-              }}
-              role="status"
-            >
-              Filtered to <strong>{buildingFilter}</strong> — Hero KPIs and Daily activity show {buildingFilter} only.
-              Channel mix, payouts, reviews, and other portfolio panels show all-portfolio data.{' '}
-              <button
-                type="button"
-                onClick={() => update({ building: 'all' })}
-                className="underline hover:opacity-80"
-                style={{ color: '#7a5300' }}
-              >
-                Clear filter
-              </button>
-            </div>
-          )}
+      )}
 
-          {compareActive && priorDate && (
-            <div
-              className="col-span-12 rounded-md px-3 py-2 text-[11px]"
-              style={{
-                background: '#eef3fb',
-                color: 'var(--bh-ink)',
-                border: '1px solid var(--bh-mute)',
-              }}
-              role="status"
-            >
-              Comparing <strong>{snapshotDate}</strong> {compareLabel} (<strong>{priorDate}</strong>
-              {priorOffsetDays !== 0 && priorTargetDate && (
-                <span style={{ color: 'var(--bh-steel)' }}>
-                  {' '}— nearest available, {Math.abs(priorOffsetDays)} day{Math.abs(priorOffsetDays) === 1 ? '' : 's'}{' '}
-                  {priorOffsetDays > 0 ? 'before' : 'after'} target {priorTargetDate}
-                </span>
-              )}
-              ) — Hero KPIs show ▲/▼ deltas.{' '}
-              <button
-                type="button"
-                onClick={() => update({ compare: 'none' })}
-                className="underline hover:opacity-80"
-                style={{ color: 'var(--bh-ink)' }}
-              >
-                Clear compare
-              </button>
-            </div>
-          )}
-          {state.compare !== 'none' && !priorPayload && priorTargetDate && (
-            <div
-              className="col-span-12 rounded-md px-3 py-2 text-[11px]"
-              style={{
-                background: '#fdecec',
-                color: '#9a2828',
-                border: '1px solid #f1bcbc',
-              }}
-              role="status"
-            >
-              Compare {COMPARE_LABEL[state.compare]}: no well-formed snapshot in the ±3-day window around{' '}
-              <strong>{priorTargetDate}</strong> — deltas hidden.{' '}
-              <button
-                type="button"
-                onClick={() => update({ compare: 'none' })}
-                className="underline hover:opacity-80"
-                style={{ color: '#9a2828' }}
-              >
-                Clear compare
-              </button>
-            </div>
-          )}
-
-          {/* AI Insights tray (renders nothing when no insights) — full width */}
-          {visibility['ai-insights'] && (
-            <div className="col-span-12">
-              <AIInsightsTray payload={payload} onHide={() => setPanel('ai-insights', false)} />
-            </div>
-          )}
-
-          {/* Daily activity — top-of-fold operational strip (full width) */}
-          {visibility['daily-activity'] && (
-            <div className="col-span-12">
-              <DailyActivity
-                payload={payload}
-                snapshotDate={snapshotDate}
-                buildingFilter={buildingFilter}
-                latestDate={latestDate}
-                dxbCounts={dxbCounts}
-                onDateChange={(d) =>
-                  // Clearing back to "latest" uses URL absence rather than an
-                  // explicit ?date= so the latest-fallback path stays canonical.
-                  update({ date: latestDate && d === latestDate ? undefined : d })
-                }
-                onHide={() => setPanel('daily-activity', false)}
-              />
-            </div>
-          )}
-
-          {/* Hero KPI strip — 10 cards, 2 rows of 5 on xl, responsive down */}
-          <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
-            {visibility['hero-occupancy'] && (
-              <HeroKpi
-                label={`Occupancy today${filterSuffix}`}
-                value={`${bucket.occupancy_today_pct.toFixed(1)}%`}
-                delta={
-                  compareActive && priorBucket
-                    ? ppDelta(bucket.occupancy_today_pct, priorBucket.occupancy_today_pct, 'today')
-                    : { direction: 'flat', text: 'today' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.occupancy}
-                drillTo="/beithady/analytics/performance"
-                accent="ink"
-                onHide={() => setPanel('hero-occupancy', false)}
-              />
-            )}
-            {visibility['hero-mtd-occupancy'] && (
-              <HeroKpi
-                label={`MTD Occupancy${filterSuffix}`}
-                value={`${bucket.backward_occupancy_pct.toFixed(1)}%`}
-                delta={
-                  compareActive && priorBucket
-                    ? ppDelta(bucket.backward_occupancy_pct, priorBucket.backward_occupancy_pct, '1st → today')
-                    : { direction: 'flat', text: '1st → today' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.mtd_occupancy}
-                drillTo="/beithady/analytics/performance?metric=backward-occupancy"
-                accent="steel"
-                onHide={() => setPanel('hero-mtd-occupancy', false)}
-              />
-            )}
-            {visibility['hero-month-to-end-occupancy'] && (
-              <HeroKpi
-                label={`Month-to-End Occupancy${filterSuffix}`}
-                value={`${bucket.forward_occupancy_pct.toFixed(1)}%`}
-                delta={
-                  compareActive && priorBucket
-                    ? ppDelta(bucket.forward_occupancy_pct, priorBucket.forward_occupancy_pct, 'today → EOM, OTB')
-                    : { direction: 'flat', text: 'today → EOM, OTB' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.month_to_end_occupancy}
-                drillTo="/beithady/analytics/performance?metric=forward-occupancy"
-                accent="steel"
-                onHide={() => setPanel('hero-month-to-end-occupancy', false)}
-              />
-            )}
-            {visibility['hero-month-occupancy'] && (
-              <HeroKpi
-                label={`Month Occupancy${filterSuffix}`}
-                value={`${(bucket.month_occupancy_pct ?? 0).toFixed(1)}%`}
-                delta={
-                  compareActive && priorBucket
-                    ? ppDelta((bucket.month_occupancy_pct ?? 0), (priorBucket.month_occupancy_pct ?? 0), 'whole month, OTB')
-                    : { direction: 'flat', text: 'whole month, OTB' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.month_occupancy}
-                drillTo="/beithady/analytics/performance?metric=month-occupancy"
-                accent="gold"
-                onHide={() => setPanel('hero-month-occupancy', false)}
-              />
-            )}
-            {visibility['hero-pace'] && (
-              <HeroKpi
-                label={`Pace${filterSuffix}`}
-                value={`${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}%`}
-                delta={
-                  compareActive && priorBucket
-                    ? ppDelta(bucket.pickup_vs_prior_month_pct, priorBucket.pickup_vs_prior_month_pct, 'vs prior month')
-                    : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.pace}
-                drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
-                accent={paceAccent as 'green' | 'red'}
-                onHide={() => setPanel('hero-pace', false)}
-              />
-            )}
-            {visibility['hero-mtd-revenue-actual'] && (
-              <HeroKpi
-                label={`MTD Revenue${filterSuffix}`}
-                value={`$${((bucket.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
-                delta={
-                  compareActive && priorBucket
-                    ? pctDelta((bucket.revenue_mtd_actual_usd ?? 0), (priorBucket.revenue_mtd_actual_usd ?? 0), 'check-ins so far')
-                    : { direction: 'flat', text: 'check-ins so far' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue_actual}
-                drillTo="/beithady/financials?period=mtd-actual"
-                accent="gold"
-                onHide={() => setPanel('hero-mtd-revenue-actual', false)}
-              />
-            )}
-            {visibility['hero-mtd-revenue'] && (
-              <HeroKpi
-                label={`Month Revenue (OTB)${filterSuffix}`}
-                value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
-                delta={
-                  compareActive && priorBucket
-                    ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'incl. confirmed → EOM')
-                    : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'incl. confirmed → EOM' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
-                drillTo="/beithady/financials?period=month-otb"
-                accent="gold"
-                onHide={() => setPanel('hero-mtd-revenue', false)}
-              />
-            )}
-            {visibility['hero-revpar'] && (
-              <HeroKpi
-                label={`RevPAR${filterSuffix}`}
-                value={revparValue != null ? `$${revparValue.toFixed(2)}` : `$${bucket.adr_mtd_usd.toFixed(0)}`}
-                delta={
-                  compareActive && revparValue != null && priorRevpar != null
-                    ? pctDelta(revparValue, priorRevpar, 'rev / available night')
-                    : revparValue != null
-                      ? { direction: 'flat', text: 'rev / available night' }
-                      : { direction: 'flat', text: 'ADR (RevPAR pending)' }
-                }
-                spark={isFiltered ? undefined : payload.sparklines?.revpar}
-                drillTo="/beithady/financials?metric=revpar"
-                accent="steel"
-                onHide={() => setPanel('hero-revpar', false)}
-              />
-            )}
-            {visibility['hero-reviews-avg'] && (
-              <HeroKpi
-                label="Reviews avg"
-                value={`${payload.reviews.avg_rating_mtd.toFixed(1)}★`}
-                delta={
-                  compareActive && priorPayload
-                    ? absDelta(
-                        payload.reviews.avg_rating_mtd,
-                        priorPayload.reviews.avg_rating_mtd,
-                        '★',
-                        `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`,
-                      )
-                    : { direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }
-                }
-                spark={payload.sparklines?.reviews_avg}
-                drillTo="/beithady/analytics/reviews?period=mtd"
-                accent="amber"
-                onHide={() => setPanel('hero-reviews-avg', false)}
-              />
-            )}
-            {visibility['hero-response-time'] && (
-              <HeroKpi
-                label="Response time"
-                value={payload.conversations ? `${payload.conversations.yesterday.avg_response_minutes.toFixed(0)}m` : '—'}
-                delta={
-                  compareActive && payload.conversations && priorPayload?.conversations
-                    ? absDelta(
-                        payload.conversations.yesterday.avg_response_minutes,
-                        priorPayload.conversations.yesterday.avg_response_minutes,
-                        'm',
-                        `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m`,
-                        true, // invert: lower is better, so positive delta = down
-                      )
-                    : payload.conversations
-                      ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` }
-                      : undefined
-                }
-                spark={payload.sparklines?.response_time}
-                drillTo="/beithady/communication/unified?metric=response-time"
-                accent="steel"
-                onHide={() => setPanel('hero-response-time', false)}
-              />
-            )}
-          </div>
-
-          {/* Buildings table (col-span-8) + Channel mix donut (col-span-4) */}
-          {visibility['buildings-table'] && (
-            <div className="col-span-12 lg:col-span-8">
-              <BuildingsTable payload={payload} onHide={() => setPanel('buildings-table', false)} />
-            </div>
-          )}
-          {visibility['channel-mix'] && (
-            <div className="col-span-12 lg:col-span-4">
-              <ChannelMixDonut payload={payload} onHide={() => setPanel('channel-mix', false)} />
-            </div>
-          )}
-
-          {/* Payouts (col-span-4) + Reviews block (col-span-8) */}
-          {visibility['payouts'] && (
-            <div className="col-span-12 lg:col-span-4">
-              <Payouts payload={payload} onHide={() => setPanel('payouts', false)} />
-            </div>
-          )}
-          {visibility['reviews-block'] && (
-            <div className="col-span-12 lg:col-span-8">
-              <ReviewsBlock payload={payload} onHide={() => setPanel('reviews-block', false)} />
-            </div>
-          )}
-
-          {/* Cleaning (c3) + SLA buckets (c6) + Check-ins/Cancellations (c3) */}
-          {visibility['cleaning-turnovers'] && (
-            <div className="col-span-12 lg:col-span-3">
-              <CleaningTurnovers payload={payload} onHide={() => setPanel('cleaning-turnovers', false)} />
-            </div>
-          )}
-          {visibility['inquiry-sla'] && (
-            <div className="col-span-12 lg:col-span-6">
-              <InquirySlaBuckets payload={payload} onHide={() => setPanel('inquiry-sla', false)} />
-            </div>
-          )}
-          {(visibility['check-ins-payment'] || visibility['cancellations']) && (
-            <div className="col-span-12 lg:col-span-3 grid grid-rows-2 gap-3">
-              {visibility['check-ins-payment'] && (
-                <CheckInsPayment payload={payload} onHide={() => setPanel('check-ins-payment', false)} />
-              )}
-              {visibility['cancellations'] && (
-                <Cancellations payload={payload} onHide={() => setPanel('cancellations', false)} />
-              )}
-            </div>
-          )}
-
-          {/* Top movers ribbon (full width) */}
-          {visibility['top-movers'] && (
-            <div className="col-span-12">
-              <TopMoversRibbon payload={payload} onHide={() => setPanel('top-movers', false)} />
-            </div>
-          )}
-
-          {/* Forward occupancy (c4) + Cancel risk (c4) + Monthly goal (c4) */}
-          {visibility['forward-occupancy'] && (
-            <div className="col-span-12 lg:col-span-4">
-              <ForwardOccupancyBars payload={payload} onHide={() => setPanel('forward-occupancy', false)} />
-            </div>
-          )}
-          {visibility['cancel-risk'] && (
-            <div className="col-span-12 lg:col-span-4">
-              <CancelRisk payload={payload} onHide={() => setPanel('cancel-risk', false)} />
-            </div>
-          )}
-          {visibility['monthly-goal'] && (
-            <div className="col-span-12 lg:col-span-4">
-              <MonthlyGoal payload={payload} onHide={() => setPanel('monthly-goal', false)} />
-            </div>
-          )}
-
-          {/* Revenue concentration (c6) + Occupancy gap finder (c6) */}
-          {visibility['revenue-concentration'] && (
-            <div className="col-span-12 lg:col-span-6">
-              <RevenueConcentration payload={payload} onHide={() => setPanel('revenue-concentration', false)} />
-            </div>
-          )}
-          {visibility['occupancy-gap-finder'] && (
-            <div className="col-span-12 lg:col-span-6">
-              <OccupancyGapFinder payload={payload} onHide={() => setPanel('occupancy-gap-finder', false)} />
-            </div>
-          )}
-
-          {/* Revenue waterfall (c6) + STLY YoY (c6) */}
-          {visibility['revenue-waterfall'] && (
-            <div className="col-span-12 lg:col-span-6">
-              <RevenueWaterfall payload={payload} onHide={() => setPanel('revenue-waterfall', false)} />
-            </div>
-          )}
-          {visibility['stly-yoy'] && (
-            <div className="col-span-12 lg:col-span-6">
-              <StlyYoy payload={payload} onHide={() => setPanel('stly-yoy', false)} />
-            </div>
-          )}
-
-          {/* Snapshot scrubber — full width, off by default */}
-          {visibility['snapshot-scrubber'] && (
-            <div className="col-span-12">
-              <SnapshotScrubber
-                currentDate={snapshotDate}
-                earliestDate={earliestDate}
-                onHide={() => setPanel('snapshot-scrubber', false)}
-              />
-            </div>
-          )}
-        </main>
+      <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
+        {visibility['hero-occupancy'] && (
+          <HeroKpi
+            label={`Occupancy today${filterSuffix}`}
+            value={`${bucket.occupancy_today_pct.toFixed(1)}%`}
+            delta={compareActive && priorBucket ? ppDelta(bucket.occupancy_today_pct, priorBucket.occupancy_today_pct, 'today') : { direction: 'flat', text: 'today' }}
+            spark={isFiltered ? undefined : payload.sparklines?.occupancy}
+            drillTo="/beithady/analytics/performance"
+            accent="ink"
+            onHide={() => setPanel('hero-occupancy', false)}
+          />
+        )}
+        {visibility['hero-mtd-occupancy'] && (
+          <HeroKpi
+            label={`MTD Occupancy${filterSuffix}`}
+            value={`${bucket.backward_occupancy_pct.toFixed(1)}%`}
+            delta={compareActive && priorBucket ? ppDelta(bucket.backward_occupancy_pct, priorBucket.backward_occupancy_pct, '1st → today') : { direction: 'flat', text: '1st → today' }}
+            spark={isFiltered ? undefined : payload.sparklines?.mtd_occupancy}
+            drillTo="/beithady/analytics/performance?metric=backward-occupancy"
+            accent="steel"
+            onHide={() => setPanel('hero-mtd-occupancy', false)}
+          />
+        )}
+        {visibility['hero-month-to-end-occupancy'] && (
+          <HeroKpi
+            label={`Month-to-End Occupancy${filterSuffix}`}
+            value={`${bucket.forward_occupancy_pct.toFixed(1)}%`}
+            delta={compareActive && priorBucket ? ppDelta(bucket.forward_occupancy_pct, priorBucket.forward_occupancy_pct, 'today → EOM, OTB') : { direction: 'flat', text: 'today → EOM, OTB' }}
+            spark={isFiltered ? undefined : payload.sparklines?.month_to_end_occupancy}
+            drillTo="/beithady/analytics/performance?metric=forward-occupancy"
+            accent="steel"
+            onHide={() => setPanel('hero-month-to-end-occupancy', false)}
+          />
+        )}
+        {visibility['hero-month-occupancy'] && (
+          <HeroKpi
+            label={`Month Occupancy${filterSuffix}`}
+            value={`${(bucket.month_occupancy_pct ?? 0).toFixed(1)}%`}
+            delta={compareActive && priorBucket ? ppDelta((bucket.month_occupancy_pct ?? 0), (priorBucket.month_occupancy_pct ?? 0), 'whole month, OTB') : { direction: 'flat', text: 'whole month, OTB' }}
+            spark={isFiltered ? undefined : payload.sparklines?.month_occupancy}
+            drillTo="/beithady/analytics/performance?metric=month-occupancy"
+            accent="gold"
+            onHide={() => setPanel('hero-month-occupancy', false)}
+          />
+        )}
+        {visibility['hero-pace'] && (
+          <HeroKpi
+            label={`Pace${filterSuffix}`}
+            value={`${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}%`}
+            delta={compareActive && priorBucket ? ppDelta(bucket.pickup_vs_prior_month_pct, priorBucket.pickup_vs_prior_month_pct, 'vs prior month') : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
+            spark={isFiltered ? undefined : payload.sparklines?.pace}
+            drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
+            accent={paceAccent as 'green' | 'red'}
+            onHide={() => setPanel('hero-pace', false)}
+          />
+        )}
+        {visibility['hero-mtd-revenue-actual'] && (
+          <HeroKpi
+            label={`MTD Revenue${filterSuffix}`}
+            value={`$${((bucket.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
+            delta={compareActive && priorBucket ? pctDelta((bucket.revenue_mtd_actual_usd ?? 0), (priorBucket.revenue_mtd_actual_usd ?? 0), 'check-ins so far') : { direction: 'flat', text: 'check-ins so far' }}
+            spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue_actual}
+            drillTo="/beithady/financials?period=mtd-actual"
+            accent="gold"
+            onHide={() => setPanel('hero-mtd-revenue-actual', false)}
+          />
+        )}
+        {visibility['hero-mtd-revenue'] && (
+          <HeroKpi
+            label={`Month Revenue (OTB)${filterSuffix}`}
+            value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
+            delta={compareActive && priorBucket ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'incl. confirmed → EOM') : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'incl. confirmed → EOM' }}
+            spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
+            drillTo="/beithady/financials?period=month-otb"
+            accent="gold"
+            onHide={() => setPanel('hero-mtd-revenue', false)}
+          />
+        )}
+        {visibility['hero-revpar'] && (
+          <HeroKpi
+            label={`RevPAR${filterSuffix}`}
+            value={revparValue != null ? `$${revparValue.toFixed(2)}` : `$${bucket.adr_mtd_usd.toFixed(0)}`}
+            delta={
+              compareActive && revparValue != null && priorRevpar != null
+                ? pctDelta(revparValue, priorRevpar, 'rev / available night')
+                : revparValue != null
+                  ? { direction: 'flat', text: 'rev / available night' }
+                  : { direction: 'flat', text: 'ADR (RevPAR pending)' }
+            }
+            spark={isFiltered ? undefined : payload.sparklines?.revpar}
+            drillTo="/beithady/financials?metric=revpar"
+            accent="steel"
+            onHide={() => setPanel('hero-revpar', false)}
+          />
+        )}
+        {visibility['hero-reviews-avg'] && (
+          <HeroKpi
+            label="Reviews avg"
+            value={`${payload.reviews.avg_rating_mtd.toFixed(1)}★`}
+            delta={
+              compareActive && priorPayload
+                ? absDelta(payload.reviews.avg_rating_mtd, priorPayload.reviews.avg_rating_mtd, '★', `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`)
+                : { direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }
+            }
+            spark={payload.sparklines?.reviews_avg}
+            drillTo="/beithady/analytics/reviews?period=mtd"
+            accent="amber"
+            onHide={() => setPanel('hero-reviews-avg', false)}
+          />
+        )}
+        {visibility['hero-response-time'] && (
+          <HeroKpi
+            label="Response time"
+            value={payload.conversations ? `${payload.conversations.yesterday.avg_response_minutes.toFixed(0)}m` : '—'}
+            delta={
+              compareActive && payload.conversations && priorPayload?.conversations
+                ? absDelta(payload.conversations.yesterday.avg_response_minutes, priorPayload.conversations.yesterday.avg_response_minutes, 'm', `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m`, true)
+                : payload.conversations
+                  ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` }
+                  : undefined
+            }
+            spark={payload.sparklines?.response_time}
+            drillTo="/beithady/communication/unified?metric=response-time"
+            accent="steel"
+            onHide={() => setPanel('hero-response-time', false)}
+          />
+        )}
       </div>
 
-      {/* Drawers / modals */}
-      {drawerOpen && (
-        <CustomizeDrawer
-          onClose={() => setDrawerOpen(false)}
-        />
+      {visibility['buildings-table'] && (
+        <div className="col-span-12 lg:col-span-8">
+          <BuildingsTable payload={payload} onHide={() => setPanel('buildings-table', false)} />
+        </div>
       )}
-      <MobileFilterSheet
-        open={mobileFilterOpen}
-        onClose={() => setMobileFilterOpen(false)}
-        state={state}
-        onChange={update}
-        snapshotDate={snapshotDate}
-      />
-    </>
+      {visibility['channel-mix'] && (
+        <div className="col-span-12 lg:col-span-4">
+          <ChannelMixDonut payload={payload} onHide={() => setPanel('channel-mix', false)} />
+        </div>
+      )}
+
+      {visibility['payouts'] && (
+        <div className="col-span-12 lg:col-span-4">
+          <Payouts payload={payload} onHide={() => setPanel('payouts', false)} />
+        </div>
+      )}
+      {visibility['reviews-block'] && (
+        <div className="col-span-12 lg:col-span-8">
+          <ReviewsBlock payload={payload} onHide={() => setPanel('reviews-block', false)} />
+        </div>
+      )}
+
+      {visibility['cleaning-turnovers'] && (
+        <div className="col-span-12 lg:col-span-3">
+          <CleaningTurnovers payload={payload} onHide={() => setPanel('cleaning-turnovers', false)} />
+        </div>
+      )}
+      {visibility['inquiry-sla'] && (
+        <div className="col-span-12 lg:col-span-6">
+          <InquirySlaBuckets payload={payload} onHide={() => setPanel('inquiry-sla', false)} />
+        </div>
+      )}
+      {(visibility['check-ins-payment'] || visibility['cancellations']) && (
+        <div className="col-span-12 lg:col-span-3 grid grid-rows-2 gap-3">
+          {visibility['check-ins-payment'] && (
+            <CheckInsPayment payload={payload} onHide={() => setPanel('check-ins-payment', false)} />
+          )}
+          {visibility['cancellations'] && (
+            <Cancellations payload={payload} onHide={() => setPanel('cancellations', false)} />
+          )}
+        </div>
+      )}
+
+      {visibility['top-movers'] && (
+        <div className="col-span-12">
+          <TopMoversRibbon payload={payload} onHide={() => setPanel('top-movers', false)} />
+        </div>
+      )}
+
+      {visibility['forward-occupancy'] && (
+        <div className="col-span-12 lg:col-span-4">
+          <ForwardOccupancyBars payload={payload} onHide={() => setPanel('forward-occupancy', false)} />
+        </div>
+      )}
+      {visibility['cancel-risk'] && (
+        <div className="col-span-12 lg:col-span-4">
+          <CancelRisk payload={payload} onHide={() => setPanel('cancel-risk', false)} />
+        </div>
+      )}
+      {visibility['monthly-goal'] && (
+        <div className="col-span-12 lg:col-span-4">
+          <MonthlyGoal payload={payload} onHide={() => setPanel('monthly-goal', false)} />
+        </div>
+      )}
+
+      {visibility['revenue-concentration'] && (
+        <div className="col-span-12 lg:col-span-6">
+          <RevenueConcentration payload={payload} onHide={() => setPanel('revenue-concentration', false)} />
+        </div>
+      )}
+      {visibility['occupancy-gap-finder'] && (
+        <div className="col-span-12 lg:col-span-6">
+          <OccupancyGapFinder payload={payload} onHide={() => setPanel('occupancy-gap-finder', false)} />
+        </div>
+      )}
+
+      {visibility['revenue-waterfall'] && (
+        <div className="col-span-12 lg:col-span-6">
+          <RevenueWaterfall payload={payload} onHide={() => setPanel('revenue-waterfall', false)} />
+        </div>
+      )}
+      {visibility['stly-yoy'] && (
+        <div className="col-span-12 lg:col-span-6">
+          <StlyYoy payload={payload} onHide={() => setPanel('stly-yoy', false)} />
+        </div>
+      )}
+
+      {visibility['snapshot-scrubber'] && (
+        <div className="col-span-12">
+          <SnapshotScrubber currentDate={snapshotDate} earliestDate={earliestDate} onHide={() => setPanel('snapshot-scrubber', false)} />
+        </div>
+      )}
+    </BHDashboardShell>
   );
 }
