@@ -5,7 +5,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
-import { parseTikTokUrl } from '@/lib/beithady/tiktok-url';
+import { parseSocialUrl } from '@/lib/beithady/social-url';
+import { fetchTikTokOEmbed } from '@/lib/beithady/tiktok-oembed';
 
 const PAGE = '/beithady/ads/tiktok/organic';
 
@@ -33,20 +34,41 @@ export async function addReelAction(formData: FormData): Promise<void> {
   const sortOrderRaw = String(formData.get('sort_order') || '').trim();
   const sortOrder = sortOrderRaw && Number.isFinite(Number(sortOrderRaw)) ? Number(sortOrderRaw) : 0;
 
-  const parsed = parseTikTokUrl(rawUrl);
+  const parsed = parseSocialUrl(rawUrl);
   if (!parsed.ok) backWith({ error: parsed.message });
+
+  // Auto-fetch metadata (best-effort, ~5s timeout). TikTok has a public
+  // oEmbed endpoint; Instagram's oEmbed needs a Meta Graph token so we
+  // skip it in v1 and rely on the embed itself for caption rendering.
+  let title: string | null = null;
+  let authorName: string | null = null;
+  let authorUrl: string | null = null;
+  let thumbnailUrl: string | null = null;
+  if (parsed.platform === 'tiktok') {
+    const meta = await fetchTikTokOEmbed(parsed.canonicalUrl);
+    title = meta.title;
+    authorName = meta.author_name;
+    authorUrl = meta.author_url;
+    thumbnailUrl = meta.thumbnail_url;
+  } else if (parsed.platform === 'instagram') {
+    // No metadata fetch (requires Graph token); fall back to URL-derived author hint.
+    // Username isn't always in the IG canonical URL we store, so leave null.
+  }
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from('bh_marketing_reels')
     .insert({
-      platform: 'tiktok',
+      platform: parsed.platform,
       url: parsed.canonicalUrl,
-      external_id: parsed.videoId,
-      caption,
+      external_id: parsed.externalId,
+      caption: caption || title, // user-supplied wins over oEmbed
       building_code: buildingCode,
       sort_order: sortOrder,
       is_visible: true,
+      thumbnail_url: thumbnailUrl,
+      author_name: authorName,
+      author_url: authorUrl,
       created_by: user.id,
     })
     .select('id')
@@ -60,10 +82,15 @@ export async function addReelAction(formData: FormData): Promise<void> {
   await recordAudit({
     actor_user_id: user.id,
     module: 'ads',
-    action: 'tiktok_reel_added',
+    action: `${parsed.platform}_reel_added`,
     target_type: 'bh_marketing_reel',
     target_id: String((data as { id: number }).id),
-    metadata: { url: parsed.canonicalUrl, building_code: buildingCode },
+    metadata: {
+      platform: parsed.platform,
+      url: parsed.canonicalUrl,
+      building_code: buildingCode,
+      oembed_caption_used: !caption && !!title,
+    },
   });
 
   revalidatePath(PAGE);
@@ -96,7 +123,7 @@ export async function updateReelAction(formData: FormData): Promise<void> {
   await recordAudit({
     actor_user_id: user.id,
     module: 'ads',
-    action: 'tiktok_reel_updated',
+    action: 'marketing_reel_updated',
     target_type: 'bh_marketing_reel',
     target_id: String(id),
     metadata: { caption, building_code: buildingCode, sort_order: sortOrder },
@@ -129,7 +156,7 @@ export async function toggleReelVisibilityAction(formData: FormData): Promise<vo
   await recordAudit({
     actor_user_id: user.id,
     module: 'ads',
-    action: next ? 'tiktok_reel_shown' : 'tiktok_reel_hidden',
+    action: next ? 'marketing_reel_shown' : 'marketing_reel_hidden',
     target_type: 'bh_marketing_reel',
     target_id: String(id),
   });
@@ -156,7 +183,7 @@ export async function deleteReelAction(formData: FormData): Promise<void> {
   await recordAudit({
     actor_user_id: user.id,
     module: 'ads',
-    action: 'tiktok_reel_deleted',
+    action: 'marketing_reel_deleted',
     target_type: 'bh_marketing_reel',
     target_id: String(id),
     before: before ?? null,

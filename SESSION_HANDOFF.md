@@ -1,3 +1,40 @@
+## 2026-05-15 — BH Ads · Reels v1.1: Instagram support + TikTok oEmbed auto-fetch
+
+**Status:** DONE. Pushing now.
+
+**Builds on:** `982f263` (Reels v1.0, TikTok-only embed-in) + `d4e0627` (.vercelignore). This pass adds the two enhancements kareem picked off the "what's next" menu: Instagram reels (schema already supported it via `platform` col) and TikTok oEmbed auto-fetch (kills the "Loading TikTok…" flash with a thumbnail poster, defaults the caption).
+
+**What landed:**
+- `supabase/migrations/0136_bh_marketing_reels_metadata.sql` — adds `thumbnail_url`, `author_name`, `author_url` columns to `bh_marketing_reels` (idempotent `add column if not exists`). Applied to Supabase via MCP.
+- `src/lib/beithady/instagram-url.{ts,test.ts}` — parser for `/reel/{code}`, `/p/{code}`, `/tv/{code}`, and the newer `/{user}/reel/{code}` form. 15 tests.
+- `src/lib/beithady/social-url.{ts,test.ts}` — `parseSocialUrl(input)` dispatcher: detects tiktok.com vs instagram.com (incl. `m.` subdomains) and routes to the right parser. Returns a discriminated union (`platform: 'tiktok'|'instagram'`) so the action gets normalized fields (`externalId`, `canonicalUrl`, plus platform-specific extras). 7 tests.
+- `src/lib/beithady/tiktok-oembed.{ts,test.ts}` — server-only `fetchTikTokOEmbed(url)` calling `tiktok.com/oembed`. 5s AbortController timeout, swallows errors → empty fields (never blocks the insert). Returns `{ title, author_name, author_url, thumbnail_url }`. 5 tests with mocked fetch.
+- `actions.ts` — `addReelAction` now uses `parseSocialUrl`, dispatches metadata fetch by platform (TikTok only in v1; IG would need a Meta Graph token). User-supplied caption wins over oEmbed title. Audit `action` field is platform-aware on add (`tiktok_reel_added` / `instagram_reel_added`) and platform-agnostic on subsequent ops (`marketing_reel_updated`/`_shown`/`_hidden`/`_deleted`).
+- `_components/tiktok-embed.tsx` — accepts optional `thumbnailUrl` + `authorName`. Renders the thumbnail as a 9:16 poster inside the blockquote's `<section>` fallback so users see the right frame instantly; TikTok's embed.js swaps the whole blockquote for the iframe when ready.
+- `_components/instagram-embed.tsx` — IG's official blockquote (instagram-media class, data-instgrm-permalink with the required `?utm_source=ig_embed&utm_campaign=loading` suffix appended at render time).
+- `_components/social-embed.tsx` — server-side dispatcher: `<SocialEmbed reel={...} />` picks the right platform embed.
+- `_components/reel-card.tsx` — uses SocialEmbed, shows platform badge (Music2/Camera icon + label, rose/fuchsia accent), shows author_name on cards that have it, platform-aware "Open on X" tooltip + delete-confirm copy.
+- `page.tsx` — drops the hardcoded `platform: 'tiktok'` list filter; title is now "Curated Reels" with TikTok + IG subtitle. Adds a 3-button platform filter (All / TikTok / Instagram) preserving the `show_hidden` + `building` query params on switch. Loads both `tiktok.com/embed.js` AND `instagram.com/embed.js` via `next/script` (lazyOnload). URL stays at `/beithady/ads/tiktok/organic` for tab/bookmark compat.
+- `add-reel-form.tsx` — placeholder updated to "TikTok or Instagram URL" + tooltip with full examples.
+- `marketing-reels.ts` — `MarketingReel` row type extended with the new metadata fields.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors
+- `npx vitest run` (parser + oembed suite) → 42/42 passing (15 TT URL + 15 IG URL + 7 social-url + 5 oEmbed)
+
+**Known limitations (out of scope for v1):**
+- Instagram oEmbed not wired (requires Meta Graph access token). User can hand-fill caption; embed itself carries it anyway.
+- TikTok short URLs (`vm.tiktok.com`, `vt.tiktok.com`, `/t/`) and IG `/share/...` redirects still rejected with helpful messages — server-side HEAD-follow to resolve them not built.
+- No backfill action for existing TikTok rows added before this migration — their `thumbnail_url`/`author_*` cols are NULL until re-added. Cheap fix later: one-off SQL `update bh_marketing_reels set thumbnail_url = ... from (select ...)`. Not bothering since only test reels exist so far.
+
+**Files in this commit:**
+- New: `supabase/migrations/0136_*`, `src/lib/beithady/{instagram-url,social-url,tiktok-oembed}.{ts,test.ts}`, `_components/{instagram-embed,social-embed}.tsx`
+- Modified: `marketing-reels.ts`, `actions.ts`, `tiktok-embed.tsx`, `reel-card.tsx`, `page.tsx`, `add-reel-form.tsx`
+
+**Next:** Re-alias `app.limeinc.cc` once the new build is verified (currently still points at `lime-gfageuh9v` pre-IG). Smoke test: paste a real Beit Hady IG reel URL through the form, confirm the IG embed renders.
+
+---
+
 ## 2026-05-15 — BH audit P2 financials cleanup SHIPPED: 7 pages migrated + FinancialsFilterStrip deleted
 
 **Status:** All 11 tasks complete. 8 commits pushed to main (`35813e9` → `e7f1c06`). Vercel auto-deploy in flight.

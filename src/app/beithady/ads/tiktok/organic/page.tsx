@@ -1,16 +1,14 @@
 // src/app/beithady/ads/tiktok/organic/page.tsx
 //
-// TikTok Reels (organic): curated public TikTok URLs embedded inside the
-// /beithady dashboard via TikTok's official embed.js. No TikTok API access
-// required. Replaces the prior publish-out flow (blocked by TikTok
-// dev-app rejection in May 2026, "personal/internal company use not
-// supported"). Publish-out server code is retained in
-// src/lib/beithady/ads/tiktok-organic-publish.ts in case a future
-// re-application succeeds.
+// Curated social reels — TikTok + Instagram public URLs embedded inside
+// the /beithady dashboard via each platform's official embed.js. No
+// platform API access required. URL kept as /ads/tiktok/organic for
+// backward compat with AdsTabs + bookmarks; the page itself now serves
+// both platforms.
 import Script from 'next/script';
-import { Music2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { listMarketingReels } from '@/lib/beithady/marketing-reels';
+import { listMarketingReels, type MarketingReelPlatform } from '@/lib/beithady/marketing-reels';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
 import { AddReelForm } from './_components/add-reel-form';
@@ -21,6 +19,12 @@ import {
   toggleReelVisibilityAction,
   deleteReelAction,
 } from './actions';
+
+const PLATFORM_FILTERS: Array<{ id: MarketingReelPlatform | 'all'; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'instagram', label: 'Instagram' },
+];
 
 export const dynamic = 'force-dynamic';
 
@@ -34,29 +38,33 @@ export default async function TikTokOrganicReelsPage({
     deleted?: string;
     building?: string;
     show_hidden?: string;
+    platform?: string;
   }>;
 }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const showHidden = sp.show_hidden === '1';
+  const platformFilter: MarketingReelPlatform | undefined =
+    sp.platform === 'tiktok' || sp.platform === 'instagram' ? sp.platform : undefined;
   const reels = await listMarketingReels({
-    platform: 'tiktok',
+    platform: platformFilter,
     visibleOnly: !showHidden,
     building: sp.building || null,
   });
+  const activeFilterId = platformFilter ?? 'all';
 
   return (
     <BeithadyShell
       breadcrumbs={[
         { label: 'Ads', href: '/beithady/ads' },
-        { label: 'TikTok Reels' },
+        { label: 'Reels' },
       ]}
       containerClass="max-w-7xl"
     >
       <BeithadyHeader
-        eyebrow="Beit Hady · Ads · TikTok"
-        title="TikTok Reels"
-        subtitle="Curated public TikTok content embedded in the dashboard. Paste a TikTok video URL to add it — no API access required."
+        eyebrow="Beit Hady · Ads · Reels"
+        title="Curated Reels"
+        subtitle="TikTok + Instagram public URLs, embedded in the dashboard. TikTok captions, thumbnails, and author are auto-fetched via oEmbed; Instagram embeds carry their own caption."
       />
 
       <AdsTabs active="tt-organic" />
@@ -84,36 +92,69 @@ export default async function TikTokOrganicReelsPage({
 
       <section className="ix-card p-5 space-y-3">
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Music2 size={14} className="text-rose-600" />
-          Add a TikTok reel
+          <Sparkles size={14} className="text-rose-600" />
+          Add a reel
         </h2>
         <AddReelForm action={addReelAction} />
         <p className="text-xs text-slate-500">
-          Paste the full URL from the browser (e.g.{' '}
-          <code className="font-mono">https://www.tiktok.com/@beithady/video/72...</code>). Short
-          links (vm.tiktok.com / vt.tiktok.com) aren&apos;t supported — open them in a browser and
-          copy the long URL.
+          Paste the full URL from your browser. Examples:{' '}
+          <code className="font-mono">https://www.tiktok.com/@beithady/video/72...</code> or{' '}
+          <code className="font-mono">https://www.instagram.com/reel/Cxyz.../</code>. Short links
+          (<code className="font-mono">vm.tiktok.com</code>, <code className="font-mono">vt.tiktok.com</code>)
+          aren&apos;t supported — open them in a browser and copy the long URL.
         </p>
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2 text-xs text-slate-500">
+        <div className="flex items-center justify-between gap-2 text-xs text-slate-500 flex-wrap">
           <span>
             {reels.length} reel{reels.length === 1 ? '' : 's'}
+            {platformFilter ? ` (${platformFilter})` : ''}
             {sp.building ? ` for ${sp.building}` : ''}
             {showHidden ? ' (incl. hidden)' : ''}
           </span>
-          <a
-            href={`/beithady/ads/tiktok/organic${showHidden ? '' : '?show_hidden=1'}`}
-            className="ix-link"
-          >
-            {showHidden ? 'Hide hidden' : 'Show hidden'}
-          </a>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 p-0.5">
+              {PLATFORM_FILTERS.map((f) => {
+                const isActive = activeFilterId === f.id;
+                const params = new URLSearchParams();
+                if (f.id !== 'all') params.set('platform', f.id);
+                if (showHidden) params.set('show_hidden', '1');
+                if (sp.building) params.set('building', sp.building);
+                const href = `/beithady/ads/tiktok/organic${params.size ? `?${params.toString()}` : ''}`;
+                return (
+                  <a
+                    key={f.id}
+                    href={href}
+                    className={`px-2 py-0.5 rounded text-[11px] transition ${
+                      isActive
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {f.label}
+                  </a>
+                );
+              })}
+            </div>
+            <a
+              href={(() => {
+                const params = new URLSearchParams();
+                if (!showHidden) params.set('show_hidden', '1');
+                if (platformFilter) params.set('platform', platformFilter);
+                if (sp.building) params.set('building', sp.building);
+                return `/beithady/ads/tiktok/organic${params.size ? `?${params.toString()}` : ''}`;
+              })()}
+              className="ix-link"
+            >
+              {showHidden ? 'Hide hidden' : 'Show hidden'}
+            </a>
+          </div>
         </div>
 
         {reels.length === 0 ? (
           <div className="ix-card p-10 text-center text-sm text-slate-500">
-            No reels yet. Paste a TikTok URL above to add the first one.
+            No reels yet. Paste a TikTok or Instagram URL above to add the first one.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -133,6 +174,7 @@ export default async function TikTokOrganicReelsPage({
       </section>
 
       <Script src="https://www.tiktok.com/embed.js" strategy="lazyOnload" />
+      <Script src="https://www.instagram.com/embed.js" strategy="lazyOnload" />
     </BeithadyShell>
   );
 }

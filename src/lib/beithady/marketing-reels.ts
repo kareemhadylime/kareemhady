@@ -12,6 +12,9 @@ export type MarketingReel = {
   building_code: string | null;
   sort_order: number;
   is_visible: boolean;
+  thumbnail_url: string | null;
+  author_name: string | null;
+  author_url: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

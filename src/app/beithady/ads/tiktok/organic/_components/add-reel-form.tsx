@@ -28,7 +28,8 @@ export function AddReelForm({
         type="url"
         name="url"
         required
-        placeholder="https://www.tiktok.com/@beithady/video/72..."
+        placeholder="TikTok or Instagram URL"
+        title="https://www.tiktok.com/@user/video/... or https://www.instagram.com/reel/..."
         className="ix-input"
         autoComplete="off"
       />

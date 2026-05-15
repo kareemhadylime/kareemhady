@@ -1,8 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { Eye, EyeOff, Pencil, Trash2, ExternalLink, Building2, X, Check } from 'lucide-react';
-import { TikTokEmbed } from './tiktok-embed';
+import { Eye, EyeOff, Pencil, Trash2, ExternalLink, Building2, X, Check, Music2, Camera } from 'lucide-react';
+import { SocialEmbed } from './social-embed';
 import type { MarketingReel } from '@/lib/beithady/marketing-reels';
+
+const PLATFORM_LABEL: Record<MarketingReel['platform'], string> = {
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+};
 
 type Actions = {
   update: (formData: FormData) => Promise<void>;
@@ -13,14 +18,37 @@ type Actions = {
 export function ReelCard({ reel, actions }: { reel: MarketingReel; actions: Actions }) {
   const [editing, setEditing] = useState(false);
   const dimmed = !reel.is_visible;
+  const PlatformIcon = reel.platform === 'instagram' ? Camera : Music2;
+  const platformAccentClass =
+    reel.platform === 'instagram'
+      ? 'text-fuchsia-600 dark:text-fuchsia-400'
+      : 'text-rose-600 dark:text-rose-400';
 
   return (
     <article
       className={`ix-card p-3 space-y-3 ${dimmed ? 'opacity-60' : ''}`}
       data-reel-id={reel.id}
+      data-platform={reel.platform}
     >
+      <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+        <span className={`inline-flex items-center gap-1 ${platformAccentClass}`}>
+          <PlatformIcon size={11} />
+          <span className="font-medium">{PLATFORM_LABEL[reel.platform]}</span>
+        </span>
+        {reel.author_name && (
+          <a
+            href={reel.author_url ?? reel.url}
+            target="_blank"
+            rel="noreferrer"
+            className="truncate hover:text-slate-700 dark:hover:text-slate-200"
+            title={reel.author_name}
+          >
+            {reel.author_name}
+          </a>
+        )}
+      </div>
       <div className="flex justify-center">
-        <TikTokEmbed url={reel.url} videoId={reel.external_id} caption={reel.caption} />
+        <SocialEmbed reel={reel} />
       </div>
 
       {editing ? (
@@ -87,7 +115,7 @@ export function ReelCard({ reel, actions }: { reel: MarketingReel; actions: Acti
               target="_blank"
               rel="noreferrer"
               className="ix-link text-xs inline-flex items-center gap-1"
-              title="Open on TikTok"
+              title={`Open on ${PLATFORM_LABEL[reel.platform]}`}
             >
               <ExternalLink size={11} /> Open
             </a>
@@ -114,7 +142,7 @@ export function ReelCard({ reel, actions }: { reel: MarketingReel; actions: Acti
                 action={actions.remove}
                 className="inline"
                 onSubmit={(e) => {
-                  if (!confirm('Delete this reel? This only removes it from the dashboard — the original TikTok post is not affected.')) {
+                  if (!confirm(`Delete this reel? This only removes it from the dashboard — the original ${PLATFORM_LABEL[reel.platform]} post is not affected.`)) {
                     e.preventDefault();
                   }
                 }}
