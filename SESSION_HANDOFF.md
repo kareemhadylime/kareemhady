@@ -1,3 +1,203 @@
+## 2026-05-15 — Video-compress engine: design spec written, awaiting user review
+
+**Spec:** `docs/superpowers/specs/2026-05-15-video-compress-engine-design.md` — full design for client-side `compressVideoToFit(file, opts)` engine using `@ffmpeg/ffmpeg` v0.12 single-threaded WASM (avoids COOP/COEP, won't break Google OAuth or Stripe). 2-pass H.264 ABR targeting `maxBytes * 8 * 0.93 / duration_sec` minus 96 kbps AAC. Resolution ladder: keep source ≥2 Mbps, scale 720p between 800k–2M, scale 480p below. WASM core self-hosted under `public/ffmpeg/`, lazy-imported only when first oversized video lands, then service-worker cached.
+
+**User confirmed** in turn 4: always fit ≤50 MB at best quality; silent auto-compress (no warnings, no caps even for long videos); engine + gallery uploader as first consumer; resolution auto-downscale instead of failing.
+
+**Files in spec:** engine `src/lib/media/video-compress.ts` + colocated vitest test, public/ffmpeg/ vendored WASM, modifications to `gallery-provider.tsx` (new `compressing` job state), `uploader.tsx` (helper-text copy), `upload-tray.tsx` (render new state).
+
+**Status:** Spec committed. Awaiting user review before invoking `superpowers:writing-plans` to produce the implementation plan. No code changes to the app yet.
+
+---
+
+## 2026-05-15 — Real screen recording compressed for TikTok upload
+
+**User recorded** the publish flow with Xbox Game Bar (Win+G) — output saved as `C:\Users\karee\Videos\Captures\Lime Investments Dashboard - Google Chrome 2026-05-15 09-21-14.mp4`. TikTok portal rejected upload: file size 94 MB exceeds 50 MB cap.
+
+**ffprobe revealed** Game Bar had captured at 2288×1440 / 240 fps / 6.7 Mbps — way over-spec for a screen recording of static UI.
+
+**Compressed via ffmpeg** to `C:\Users\karee\Videos\Captures\tiktok-demo-compressed.mp4`:
+- Scale 2288×1440 → 1920×1208 (lanczos)
+- 240 fps → 30 fps
+- libx264 -preset slow -crf 26 -pix_fmt yuv420p
+- AAC 96k audio + +faststart
+- Result: **6.4 MB** (15× reduction), 1:52 duration preserved, perceptually lossless for screen UI content
+- Verified via ffprobe; Explorer opened with file selected for user
+
+**User to upload** `tiktok-demo-compressed.mp4` in the TikTok App Review form (replaces my earlier mock-UI `demo.mp4` — real screen recording is much safer for TikTok approval).
+
+**Offered followup:** cleanup of the original 94 MB recording. Awaiting user decision.
+
+---
+
+## 2026-05-15 — User asked where Windows screen recorder is
+
+User is on Win 11 trying to find screen-recorder for the TikTok demo. Pointed at: Win+G (Xbox Game Bar) → Capture widget; Win+Alt+R direct hotkey; output lands in `C:\Users\karee\Videos\Captures\`. Snipping Tool (Win 11 22H2+) record mode also works. No code changes.
+
+---
+
+## 2026-05-15 — TikTok Developer Portal: App details + App Review form filled (in progress)
+
+**Status:** No code changes. User is mid-submission in the TikTok Developer Portal "Beit Hady Dashboard" project. I gave paste-ready text for two screens.
+
+**Screen 1 — App details (Production tab → Draft):**
+- Description (≤120 chars): recommended `Internal CRM for Lime Investments' Beit Hady hospitality brand — publish marketing videos to our own TikTok account.` (117 chars). Two shorter alternatives offered.
+- Terms of Service URL: `https://app.limeinc.cc/legal/terms`
+- Privacy Policy URL: `https://app.limeinc.cc/legal/privacy`
+- Platforms: Web only (already checked)
+- Configure-for-Web panel: Web URL `https://app.limeinc.cc`, Redirect URI `https://app.limeinc.cc/api/auth/tiktok/callback`
+
+**Screen 2 — App review tab:**
+- Provided ~940-char explanation text mapping each scope to its actual usage:
+  - `user.info.basic` → OAuth + display @handle
+  - `video.upload` + `video.publish` → IG Reel mirror → FILE_UPLOAD init → PUT bytes → poll status
+- Explicitly mentioned `ads_tiktok_posts` audit logging + AES-256-GCM refresh-token storage in the explanation, since reviewers care about both.
+
+**Demo video honesty call (important):**
+TikTok's instructions on screen 2 say "showcase the website where features will actually be integrated" + "clearly show the user interface and user interactions". My auto-generated `demo.mp4` is mock UI, NOT real screenshots. Flagged this as medium-risk for rejection and recommended user record a real screen recording with **Win+G (Xbox Game Bar)** instead — gave them a 5-minute scripted recording walk-through (sign-in → navigate → publish → success banner). The demo.mp4 stays as fallback. Awaiting user decision on Path A (submit mock as-is) vs Path B (record real, recommended).
+
+---
+
+## 2026-05-15 — TikTok audit demo.mp4 generated + delivered ✅
+
+**Status:** Commit `47169c7` `feat(tiktok-audit): generate demo.mp4 from 10-scene storyboard`. Live in repo. User confirmed receipt after path-find help (Explorer popped open via `explorer.exe /select` from PowerShell).
+
+**User asked:** "use all available tools to create the video by using the detailed storyboard". Then asked what tools were available.
+
+**What I checked + what was on the system:**
+- ✅ FFmpeg 7.1.1 (gyan.dev essentials build)
+- ✅ Python 3.14.3 + Pillow 12.2.0
+- ✅ Node 24.14.1
+- ✅ Arial / Consolas fonts at C:/Windows/Fonts/
+- ❌ No ImageMagick, no Puppeteer in repo deps
+
+**Pipeline built:**
+1. `tools/build-tiktok-demo.py` — Pillow renders 10 mock-UI slides (1920×1080) matching the SUBMISSION.md scene script. Brand palette + URL-bar strip on every frame so reviewers see `app.limeinc.cc`. ~330 LOC.
+2. FFmpeg xfade chain (9s per scene + 1s crossfade between each) → `docs/tiktok-app-audit/demo.mp4`. H.264 yuv420p, 30 fps, CRF 20, 85 seconds, 5.18 MB. Verified mid-crossfade frame at 8.5s actually shows scene-1 fading into scene-2.
+
+**Files committed:**
+- `tools/build-tiktok-demo.py` — slide generator
+- `docs/tiktok-app-audit/demo.mp4` — final deliverable (5.2 MB)
+- `docs/tiktok-app-audit/build/.gitignore` — excludes derived PNGs
+- `docs/tiktok-app-audit/SUBMISSION.md` — section 4 now points at demo.mp4 as primary; old "what to record" script kept as section 4b fallback for if reviewers ask for real screen recording.
+
+**Honest caveats flagged to user:**
+- Mock UI (Pillow-drawn), not real screenshots. TikTok historically accepts this; if rejected, fall back to scripted real-screen recording.
+- No phone footage in scene 8 (mocked phone frame instead). Would need separate phone capture if reviewers insist.
+- No audio narration; captions on each scene carry the message.
+
+**Path issue resolved at end:** User reported "can not find this directory" for `C:\kareemhady\docs\tiktok-app-audit\demo.mp4`. PowerShell `Get-Item` confirmed the file at exactly that path (5,181,142 bytes, mtime 8:15 AM). Launched `explorer.exe /select` to surface it. Likely cause: Explorer cache not refreshed.
+
+**Next:** User uploads `demo.mp4` to TikTok Developer Portal along with URLs + justification text from SUBMISSION.md §1 + §3.
+
+---
+
+## 2026-05-15 — Gallery upload error diagnosed → video-compress engine brainstorm started (paused)
+
+**Diagnosis:** User reported `BH73-005.mp4` (60.2 MB) erroring in the Beithady gallery uploader for BH73-3BR-C-005. Confirmed cause: bucket cap is 50 MB (UI label at `src/app/beithady/gallery/_components/uploader.tsx:95`, Supabase Storage `file_size_limit` on the gallery bucket). Client uploads direct-to-Supabase via signed URL (`gallery-provider.tsx:101-107`), no pre-check, so it queues then fails on bucket reject.
+
+**Then:** User asked to "create the engine on app to compress videos under the limit". Started `superpowers:brainstorming` skill. Explored repo — no ffmpeg/MediaRecorder/compression code exists (`@ffmpeg/*` not in package.json; voice-recorder.tsx uses MediaRecorder for audio only). Proposed client-side `@ffmpeg/ffmpeg` single-threaded WASM (avoids COOP/COEP headers that could break OAuth/Stripe; saves Egypt-bandwidth by compressing before upload; ~30MB lazy-loaded WASM cached after first use). Presented client-vs-server tradeoff table.
+
+**Asked 3 AskUserQuestion clarifications** (UX trigger / scope / fallback behavior). **User dismissed all three with "do not proceed, wait for next instruction"** — paused.
+
+**Next session pick-up:** Either user gives direction on the three open questions, or tells me to pick defaults and build. Recommended defaults are: auto-compress silently on any video >50 MB, build reusable `src/lib/media/video-compress.ts` and wire only into gallery uploader for now, progressive degradation (1080p CRF 26 → 720p CRF 28 → fail with "trim it" guidance). No files written yet, no commits.
+
+## 2026-05-15 — TikTok Content Posting API audit pack — SHIPPED ✅
+
+**Status:** Two commits, both live. Awaiting user to record demo video + submit to TikTok Developer Portal.
+
+**Context:** First FILE_UPLOAD publish (post #6) succeeded with status `SEND_TO_USER_INBOX`. User asked why it lands in inbox vs auto-publishing → because `/v2/post/publish/inbox/video/init/` is the only endpoint available pre-audit. Direct Post (`/v2/post/publish/video/init/`) requires TikTok app audit. User asked me to prepare audit materials.
+
+**Files shipped (commit `f68cc1b` `feat(legal): privacy policy + terms pages, TikTok audit pack`):**
+- `src/app/legal/privacy/page.tsx` — 10-section policy. Section 3 dedicated to TikTok integration (open_id, username, encrypted refresh token; only writes to our own brand account; no third-party data reads). Static SSG, no auth wrapper.
+- `src/app/legal/terms/page.tsx` — 10-section ToS, governing law = Egypt (Cairo). Section 3 covers third-party platform compliance.
+- `docs/tiktok-app-audit/SUBMISSION.md` — operator playbook: URLs to paste, scopes to request (`user.info.basic`, `video.publish`, `video.upload`), justification text (paste verbatim into "Use case description"), 10-scene demo video script (~2 minutes, scenes timed 0:00–2:00), pre-submission checklist, post-approval code pointer (the `directPost` branching at `tiktok-organic-publish.ts:107` already exists).
+
+**Follow-up bug fixed (commit `13350c6` `fix(proxy): allow /legal/* through without auth`):**
+- First deploy returned 307 → `/login?next=/legal/privacy`. Root cause: Next 16 renamed `middleware.ts` → `proxy.ts` (commit `dee3863` from April). The proxy at `src/proxy.ts` gates everything except `PUBLIC_PREFIXES`. Added `/legal/` to the allow-list.
+
+**Verified:**
+```
+privacy: 200
+terms:   200
+```
+
+**URLs ready to paste into TikTok Developer Portal:**
+- Privacy Policy: `https://app.limeinc.cc/legal/privacy`
+- Terms of Service: `https://app.limeinc.cc/legal/terms`
+- App website: `https://limeinc.cc`
+- Support: `kareem.hady@gmail.com`
+
+**Outstanding (user actions, not Claude):**
+1. Record demo video per `SUBMISSION.md` §4 (10 scenes, OBS or macOS Screen Recording, 1080p MP4)
+2. Upload video to Vimeo / unlisted YouTube
+3. Open TikTok Developer Portal → app → App Review → Content Posting API → submit
+4. Confirm OAuth redirect URI in portal = `https://app.limeinc.cc/api/auth/tiktok/callback`
+
+After approval (5–10 business days), tick "Direct post?" checkbox on publish form to auto-publish.
+
+---
+
+## 2026-05-15 — TikTok organic publish: PULL_FROM_URL → FILE_UPLOAD — SHIPPED
+
+**Status:** Commit `5f875c4` `feat(tiktok): switch organic publish to FILE_UPLOAD source`. Live on production (deploy `lime-3p38u0h9j`, alias `app.limeinc.cc` already pointing to it). Awaiting user retry to confirm end-to-end.
+
+**Why:** With PULL_FROM_URL, TikTok requires the hosting domain to be verified as a trusted domain in the Developer Portal. Our IG-mirror videos live on `bpjproljatbrbmszwbov.supabase.co` — third-party host, can't verify. Init failed with `url_ownership_unverified` (post id=5 in `ads_tiktok_posts`). Per user choice (Option B from menu), switched to FILE_UPLOAD which has no domain requirement.
+
+**Code changes** in `src/lib/beithady/ads/tiktok-organic-publish.ts`:
+1. New `fetchVideoBytes(url)` helper — downloads video to ArrayBuffer, returns size + content-type. 60s timeout.
+2. Init body: was `{ source: 'PULL_FROM_URL', video_url }`. Now `{ source: 'FILE_UPLOAD', video_size, chunk_size: video_size, total_chunk_count: 1 }` (single-chunk path, fine for IG Reels typically <64 MB).
+3. Read `data.upload_url` from init response in addition to `publish_id`.
+4. New PUT step: `fetch(upload_url, { method:'PUT', headers:{Content-Type, Content-Length, Content-Range: 'bytes 0-N/total'}, body: ArrayBuffer })`. 120s timeout. Logs `upload_put_<status>` to `status_error` on failure.
+5. Status-poll loop unchanged after PUT.
+
+**Type quirk fixed:** Initial impl used `Uint8Array` for the body which TS rejected (`not assignable to BodyInit`). Switched to `ArrayBuffer` directly — works in Node fetch.
+
+**Limitation flagged for later:** Single-chunk only. If we ever mirror a >64 MB video, will need multi-chunk (5-64 MB per chunk except last).
+
+**Followup needed:**
+- User to click Publish on the TikTok Reels page; if it succeeds, video lands in `beit.hady` TikTok inbox.
+- If it fails, new error will be in `ads_tiktok_posts.status_error` — will diagnose from there.
+
+---
+
+## 2026-05-15 — TikTok crypto fix (decrypt-on-read, encrypt-on-rotate) — SHIPPED
+
+**Status:** Commit `913c195` `fix(tiktok): decrypt refresh_token on read, encrypt on rotate (CLAUDE.md #4)`. Live on production. DB cleared (`UPDATE ads_accounts SET tiktok_refresh_token=NULL WHERE id=4`).
+
+**Bug:** `/api/auth/tiktok/callback/route.ts:68` correctly encrypts `tiktok_refresh_token` before saving (per CLAUDE.md rule #4). But `refreshTikTokAccessToken()` in `tiktok-client.ts` was reading the column verbatim and POSTing AES-256-GCM ciphertext to TikTok as `refresh_token=…`. TikTok received base64 gibberish, returned `invalid_grant`. The earlier self-healing path (commit `115456f`) then cleared the (encrypted) token, putting the user in re-OAuth-then-fail loops.
+
+**Fix:** Added `unwrapStoredRefreshToken(stored)` — try `decrypt()`, fallback to as-is on throw (so legacy plaintext still works). Re-encrypt rotated/reused refresh_token before write so row stays in encrypted state.
+
+---
+
+## 2026-05-15 — TikTok publish "refresh_failed" self-healing UX — SHIPPED ✅
+
+**Status:** Commit `115456f` `fix(tiktok): self-healing refresh-failed UX`. Live on production.
+
+**Three-part fix in one commit:**
+- **A** Accounts page: TikTok rows always show "Reconnect" link beside Configure
+- **B** Publish page error banner: when error includes `refresh_failed`, renders inline "Re-authenticate @account →" link using `account_id` preserved through the error redirect
+- **C** `refreshTikTokAccessToken()`: on TikTok responding `invalid_grant`/`invalid_token`, clears the dead refresh_token + expiry columns + logs to stderr
+
+This was followed by the crypto fix (above) which addressed the underlying reason refresh kept failing.
+
+---
+
+## 2026-05-15 — Meta ad sync (cron + partial-index upsert) — SHIPPED ✅
+
+**Status:** Commits `d6422ff` (today+yesterday), `0bfc157` (manual upsert / partial-index workaround). Live on production. Verified `ads_daily_metrics` populated:
+- Campaign 1 (Boost 05-13 20:44): May 14 — 2,000 imp, 59 clicks, $0.93
+- Campaign 2 (Boost 05-14 05:53): May 14 — 15,944 imp, 564 clicks, $7.67
+
+**Two compounding bugs fixed:**
+1. Cron only requested yesterday's data → today's spend never asked for. Added `today` + `time_increment=1`.
+2. `.upsert()` silently failed because the table's unique index on `(campaign_id, metric_date)` is PARTIAL (`WHERE ad_id IS NULL AND ad_set_id IS NULL`) — PostgREST's `onConflict` can't carry the WHERE clause. Replaced with explicit select → insert/update by id, scoped to `ad_set_id IS NULL AND ad_id IS NULL`. Logs every error path so silent data loss can't recur.
+
+**Outstanding:** Verify Meta token in Vercel env is long-lived **system-user** token (4 prior cron runs failed `missing_credentials` May 10–13).
+
+---
+
 ## 2026-05-14 — Sprint 9: Training & Certifications — COMPLETE ✅
 
 **Status:** All 12 tasks done, code-reviewed, and deployed to production (Vercel dpl_83jLyerwWNXwHEJn3t9PVTnoghdf — READY).
