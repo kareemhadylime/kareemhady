@@ -16,6 +16,7 @@ import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers,
 import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
 import { publishInstagramReel, pollInstagramPostStatus } from '@/lib/beithady/ads/instagram-publish';
 import { boostInstagramPost } from '@/lib/beithady/ads/boost-publish';
+import { publishMetaVideoAd, type MetaVideoAdInput } from '@/lib/beithady/ads/meta-video-ad-publish';
 import { syncAllPlatforms } from '@/lib/beithady/ads/unified-sync';
 import { syncGoogleAds } from '@/lib/beithady/ads/google-sync';
 import { syncTikTokAds } from '@/lib/beithady/ads/tiktok-sync';
@@ -637,6 +638,77 @@ export async function pollInstagramPostAction(formData: FormData): Promise<void>
   if (!Number.isFinite(postId)) return;
   await pollInstagramPostStatus(postId);
   revalidatePath('/beithady/ads/instagram/reels');
+}
+
+// =====================================================================
+// Meta video ad publish (YouTube V1.2 cross-post — fresh creative from
+// raw video bytes, NOT a boost of an existing organic IG post)
+// =====================================================================
+export async function publishMetaVideoAdAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const ytVideoId = String(formData.get('yt_video_id') || '').trim() || null;
+  const adsYtVideoIdRaw = String(formData.get('ads_yt_video_id') || '').trim();
+  const adsYtVideoId = adsYtVideoIdRaw && Number.isFinite(Number(adsYtVideoIdRaw)) ? Number(adsYtVideoIdRaw) : null;
+  const videoUrl = String(formData.get('video_url') || '').trim();
+  const thumbnailUrlRaw = String(formData.get('thumbnail_url') || '').trim();
+  const title = String(formData.get('title') || '').trim();
+  const body = String(formData.get('body') || '').trim();
+  const callToAction = (String(formData.get('call_to_action') || 'LEARN_MORE') as 'LEARN_MORE' | 'BOOK_NOW' | 'SHOP_NOW' | 'CONTACT_US');
+  const landingUrl = String(formData.get('landing_url') || '').trim() || 'https://wa.me/201501010103';
+  const dailyBudgetUsdRaw = Number(formData.get('daily_budget_usd'));
+  const dailyBudgetUsd = Number.isFinite(dailyBudgetUsdRaw) && dailyBudgetUsdRaw > 0 ? dailyBudgetUsdRaw : 5;
+  const ageMinRaw = formData.get('age_min');
+  const ageMaxRaw = formData.get('age_max');
+
+  if (!Number.isFinite(accountId)) {
+    redirect('/beithady/ads/instagram/boost?error=missing_account');
+  }
+  if (!videoUrl || !title) {
+    redirect('/beithady/ads/instagram/boost?error=missing_required');
+  }
+
+  const input: MetaVideoAdInput = {
+    accountId,
+    videoUrl,
+    thumbnailUrl: thumbnailUrlRaw || null,
+    title,
+    description: body,
+    callToAction,
+    landingUrl,
+    dailyBudgetUsd,
+    ageMin: ageMinRaw ? Number(ageMinRaw) : undefined,
+    ageMax: ageMaxRaw ? Number(ageMaxRaw) : undefined,
+    createdBy: user.username || null,
+  };
+
+  const result = await publishMetaVideoAd(input);
+
+  if (!result.ok) {
+    await recordAudit({
+      actor_user_id: user.id,
+      module: 'ads',
+      action: 'meta_video_ad_publish_failed',
+      metadata: { step: result.step, error: result.error, mode: result.mode, yt_video_id: ytVideoId },
+    });
+    redirect(`/beithady/ads/instagram/boost?error=${encodeURIComponent(result.error)}&step=${encodeURIComponent(result.step)}`);
+  }
+
+  // V1.2 cross-post audit: write a row when a YouTube source was attached.
+  if (ytVideoId) {
+    await recordCrossPost({
+      ads_youtube_video_id: adsYtVideoId,
+      youtube_video_id: ytVideoId,
+      target_platform: 'meta_video_ad',
+      target_campaign_id: result.campaign_id,
+      status: 'published',
+      created_by_user_id: user.id ? String(user.id) : null,
+    });
+  }
+
+  revalidatePath('/beithady/ads');
+  revalidatePath('/beithady/ads/campaigns');
+  redirect(`/beithady/ads/campaigns/${result.campaign_id}?created=meta_video_ad`);
 }
 
 export async function resolveIgAccountAction(formData: FormData): Promise<void> {
