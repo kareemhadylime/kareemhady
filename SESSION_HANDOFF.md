@@ -1,3 +1,19 @@
+## 2026-05-15 — YouTube V1.2 · Task 16 — boost page Source: YouTube fork + publishMetaVideoAdAction
+
+**Status:** DONE. Commit `4e3bd2a` pushed to main. `tsc --noEmit` exit 0.
+
+**Files modified:**
+- `src/app/beithady/ads/instagram/boost/page.tsx` — Source: YouTube fork. When `?yt_video_id` is set + `?ads_yt_video_id` resolves a local `ads_youtube_videos` row, the page now renders the `YouTubeSourceBanner` + a brand-new "New Meta video ad from YouTube" form (title, body, daily budget, CTA, landing URL, age min/max) instead of the existing IG-boost selector. When no YT param is set, the page shows the existing `BoostSelector` PLUS an "Or pick a YouTube video to create a fresh video ad" embedded section using `EmbeddedPicker` with `platform="meta_video_ad"`. The `account_id` for the form comes from the existing `selectedAccount` (Meta IG-resolved account).
+- `src/app/beithady/ads/actions.ts` — Added `publishMetaVideoAdAction` server action: validates input, calls `publishMetaVideoAd` orchestrator, writes `recordCrossPost({ target_platform: 'meta_video_ad', target_campaign_id })` row BEFORE the success redirect, and redirects to `/beithady/ads/campaigns/{id}?created=meta_video_ad`. On failure, redirects back to boost page with `?error&step`. Imports `publishMetaVideoAd` + `MetaVideoAdInput` from `@/lib/beithady/ads/meta-video-ad-publish`.
+
+**Picker items loading:** mirrors the same `listPickerVideos(ytAccountId)` pattern used in IG Reels / TikTok pages — finds the first `ads_accounts` row with `platform='youtube'` and lists its videos.
+
+**Existing UI hidden when in ytMode:** the entire `BoostSelector` + embedded picker section is wrapped in `{!ytMode && (...)}`. Operator can return to default mode via the banner's "Switch source" link (which clears the query params). The account switcher remains visible in both modes.
+
+**No divergences from plan** beyond fully-qualified relative imports (e.g. `../../../gallery/youtube/picker/_components/...` since the page sits 3 deep under `src/app/beithady/`), and accepting `actor_user_id` as a number for `recordAudit` (matching the rest of the file) while passing `user.id ? String(user.id) : null` to `recordCrossPost` (which expects `string | null`).
+
+---
+
 ## 2026-05-15 — UX FIX: rail auto-collapse mouse handlers (BH dashboard shell)
 
 **Status:** Fix pushed in `7438ba6`. Vercel auto-deploy in flight. User reported: rail never auto-collapses on financials sub-pages even after a long idle.
