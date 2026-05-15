@@ -9,6 +9,7 @@ import {
   BHRailPill,
   BHMobileFilterSheet,
   BHCustomizeDrawer,
+  useRailCollapse,
   type BHRailSection,
 } from '@/app/beithady/_components/dashboard-shell';
 import { HeroKpi } from './panels/hero-kpi';
@@ -119,6 +120,7 @@ export function DashboardShell({
   dxbCounts,
 }: Props) {
   const { state, update } = usePerfUrlState();
+  const rail = useRailCollapse();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const { visibility, setPanel, hiddenCount, reset } = useVisibility();
@@ -230,6 +232,12 @@ export function DashboardShell({
     },
   ];
 
+  const railCollapsedIcons = [
+    { emoji: '📅', title: 'Period' },
+    { emoji: '🏢', title: `Building: ${state.building}` },
+    { emoji: '⇄', title: `Compare: ${state.compare}` },
+  ];
+
   // ---- Title bar chips + actions ----
   const cairoTime = new Date(generatedAt).toLocaleString('en-GB', {
     timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit',
@@ -332,6 +340,9 @@ export function DashboardShell({
 
   return (
     <BHDashboardShell
+      railCollapsed={rail.collapsed}
+      onRailEnter={rail.handleEnter}
+      onRailLeave={rail.handleLeave}
       titleBar={
         <BHTitleBar
           eyebrow="Performance Dashboard"
@@ -341,7 +352,15 @@ export function DashboardShell({
           onMobileFilterClick={() => setMobileFilterOpen(true)}
         />
       }
-      rail={<BHLeftRail sections={railSections} />}
+      rail={
+        <BHLeftRail
+          sections={railSections}
+          collapsed={rail.collapsed}
+          collapsedIcons={railCollapsedIcons}
+          pinned={rail.pinned}
+          onTogglePin={rail.togglePinned}
+        />
+      }
       mobileFilterSheet={
         <BHMobileFilterSheet open={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)}>
           <BHLeftRail sections={railSections} />
@@ -352,6 +371,7 @@ export function DashboardShell({
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           title="Customize"
+          ariaLabel="Customize dashboard"
           footer={customizeFooter}
         >
           {customizeBody}

@@ -8,6 +8,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   title?: string;
+  ariaLabel?: string;
   footer?: React.ReactNode;
   children: React.ReactNode;
 };
@@ -16,7 +17,7 @@ type Props = {
 // while open. Content is fully consumer-owned — this is just a chrome shell.
 // Perf dashboard uses it for panel-visibility toggles; other pages can use it
 // for any customization UI.
-export function BHCustomizeDrawer({ open, onClose, title = 'Customize', footer, children }: Props) {
+export function BHCustomizeDrawer({ open, onClose, title = 'Customize', ariaLabel, footer, children }: Props) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -39,7 +40,7 @@ export function BHCustomizeDrawer({ open, onClose, title = 'Customize', footer, 
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={ariaLabel ?? title}
       >
         <header
           className="flex items-center justify-between px-6 py-4"

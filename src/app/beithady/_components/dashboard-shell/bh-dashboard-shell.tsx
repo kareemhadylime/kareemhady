@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRailCollapse } from './use-rail-collapse';
 
 // Rail column widths in pixels — load-bearing constants shared with BHLeftRail
 // which renders a 44px icon-strip when collapsed and a ~200px expanded panel.
@@ -13,8 +12,9 @@ type Props = {
   mobileFilterSheet?: React.ReactNode;
   drawer?: React.ReactNode;
   children: React.ReactNode;
-  // Optional override for collapse state. If omitted, internal useRailCollapse
-  // governs hover-collapse + pinning behavior.
+  // Rail collapse state — consumer-owned so the same collapsed/pinned state can
+  // flow into the rail content (e.g. <BHLeftRail collapsed={...}>) for the pin
+  // toggle and collapsed-icon strip to render correctly.
   railCollapsed?: boolean;
   onRailEnter?: () => void;
   onRailLeave?: () => void;
@@ -24,17 +24,19 @@ type Props = {
 // in a left column, children in a right column. Switches to mobile layout
 // (rail hidden, mobileFilterSheet handles filters) under (max-width: 767px).
 // Drawer is rendered as a sibling so it can overlay everything.
+//
+// Rail-collapse state is consumer-owned (see useRailCollapse) so the same
+// collapsed/pinned state can flow into the rail content for the pin toggle.
 export function BHDashboardShell({
   titleBar,
   rail,
   mobileFilterSheet,
   drawer,
   children,
-  railCollapsed,
+  railCollapsed = false,
   onRailEnter,
   onRailLeave,
 }: Props) {
-  const internal = useRailCollapse();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -46,14 +48,7 @@ export function BHDashboardShell({
     return () => mq.removeEventListener('change', updateMobile);
   }, []);
 
-  // Caller controls collapse when railCollapsed is provided; otherwise the
-  // internal hook governs. Same for hover handlers — caller can opt out by
-  // passing onRailEnter/Leave={() => {}} or rely on the defaults.
-  const collapsed = railCollapsed ?? internal.collapsed;
-  const handleEnter = onRailEnter ?? internal.handleEnter;
-  const handleLeave = onRailLeave ?? internal.handleLeave;
-
-  const railColWidth = isMobile ? 0 : (collapsed ? RAIL_COLLAPSED_W : RAIL_EXPANDED_W);
+  const railColWidth = isMobile ? 0 : (railCollapsed ? RAIL_COLLAPSED_W : RAIL_EXPANDED_W);
 
   return (
     <>
@@ -61,8 +56,8 @@ export function BHDashboardShell({
       <div
         className="grid mt-6 transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
         style={{ gridTemplateColumns: `${railColWidth}px 1fr` }}
-        onMouseEnter={isMobile ? undefined : handleEnter}
-        onMouseLeave={isMobile ? undefined : handleLeave}
+        onMouseEnter={isMobile ? undefined : onRailEnter}
+        onMouseLeave={isMobile ? undefined : onRailLeave}
       >
         <div className={isMobile ? 'hidden' : ''}>{rail}</div>
         <main className="grid grid-cols-12 gap-3 sm:gap-4">{children}</main>
