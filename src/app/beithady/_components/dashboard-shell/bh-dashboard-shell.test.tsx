@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, test } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { beforeAll, describe, expect, test } from 'vitest';
+import { render } from '@testing-library/react';
 import { BHDashboardShell } from './bh-dashboard-shell';
 
 // jsdom does not implement matchMedia — stub it as desktop (matches: false for
@@ -20,8 +20,6 @@ beforeAll(() => {
     }),
   });
 });
-
-afterEach(cleanup);
 
 // jsdom default media query is desktop (>=768px). Sets the rail visible by
 // default. matchMedia('(max-width: 767px)') returns matches:false unless

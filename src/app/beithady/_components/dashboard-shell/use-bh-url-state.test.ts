@@ -13,6 +13,10 @@ function serialize(state: DemoState): URLSearchParams {
   return params;
 }
 
+// This test exercises only the pure URL builder. The hook layer (router.push +
+// scroll:false) is verified via manual smoke on the Analytics Performance page
+// after Phase B migration — mocking next/navigation in vitest is heavy enough
+// that the manual-smoke trade-off is intentional for this thin wrapper.
 describe('buildBHUrl', () => {
   it('returns basePath alone when all values are at defaults', () => {
     const url = buildBHUrl({

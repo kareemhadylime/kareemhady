@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { describe, expect, test, vi } from 'vitest';
+import { render, fireEvent } from '@testing-library/react';
 import { BHCustomizeDrawer } from './bh-customize-drawer';
-
-afterEach(cleanup);
 
 describe('BHCustomizeDrawer', () => {
   test('renders nothing when open=false', () => {

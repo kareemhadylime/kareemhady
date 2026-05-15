@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { describe, expect, test, vi } from 'vitest';
+import { render, fireEvent } from '@testing-library/react';
 import { Calendar } from 'lucide-react';
 import { BHTitleBar } from './bh-title-bar';
-
-afterEach(cleanup);
 
 describe('BHTitleBar', () => {
   test('renders title, eyebrow, and subtitle', () => {

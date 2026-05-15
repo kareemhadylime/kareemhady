@@ -36,7 +36,7 @@ export function useBHUrlState<T>(opts: BHUrlStateOpts<T>): {
   const router = useRouter();
   const search = useSearchParams();
 
-  const state = useMemo(() => opts.parse(search), [search, opts]);
+  const state = useMemo(() => opts.parse(search), [search, opts.parse]);
 
   const update = useCallback((patch: Partial<T>) => {
     const url = buildBHUrl({

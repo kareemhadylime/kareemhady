@@ -1,4 +1,7 @@
 'use client';
+// Note: hex literals (#003462, #6077a6) inherited byte-for-byte from the
+// original analytics/performance/_components/customize-drawer.tsx for DOM
+// preservation. Brand-var migration is in the audit §7.2 sweep follow-up.
 import { useEffect } from 'react';
 
 type Props = {

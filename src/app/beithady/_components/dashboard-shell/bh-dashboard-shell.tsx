@@ -2,6 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useRailCollapse } from './use-rail-collapse';
 
+// Rail column widths in pixels — load-bearing constants shared with BHLeftRail
+// which renders a 44px icon-strip when collapsed and a ~200px expanded panel.
+const RAIL_COLLAPSED_W = 44;
+const RAIL_EXPANDED_W = 200;
+
 type Props = {
   titleBar: React.ReactNode;
   rail: React.ReactNode;
@@ -11,7 +16,6 @@ type Props = {
   // Optional override for collapse state. If omitted, internal useRailCollapse
   // governs hover-collapse + pinning behavior.
   railCollapsed?: boolean;
-  railPinned?: boolean;
   onRailEnter?: () => void;
   onRailLeave?: () => void;
 };
@@ -27,7 +31,6 @@ export function BHDashboardShell({
   drawer,
   children,
   railCollapsed,
-  railPinned,
   onRailEnter,
   onRailLeave,
 }: Props) {
@@ -50,7 +53,7 @@ export function BHDashboardShell({
   const handleEnter = onRailEnter ?? internal.handleEnter;
   const handleLeave = onRailLeave ?? internal.handleLeave;
 
-  const railColWidth = isMobile ? 0 : (collapsed ? 44 : 200);
+  const railColWidth = isMobile ? 0 : (collapsed ? RAIL_COLLAPSED_W : RAIL_EXPANDED_W);
 
   return (
     <>

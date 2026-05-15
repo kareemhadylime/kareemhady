@@ -1,4 +1,6 @@
 'use client';
+// Note: hex literal #003462/40 inherited from the original mobile-filter-sheet.tsx
+// for DOM preservation. Brand-var migration in audit §7.2 sweep.
 import { useEffect } from 'react';
 
 type Props = {

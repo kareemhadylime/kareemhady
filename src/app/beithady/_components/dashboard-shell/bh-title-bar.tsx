@@ -1,4 +1,8 @@
 'use client';
+// Note: hex literals (#cbd5e1, #2c4d7a) inherited byte-for-byte from the
+// original analytics/performance/_components/title-bar.tsx to preserve the
+// DOM-equality gate on Task 11. Brand-var migration is tracked in the audit's
+// §7.2 brand-var sweep follow-up.
 import type { LucideIcon } from 'lucide-react';
 
 export type BHTitleBarChip = {

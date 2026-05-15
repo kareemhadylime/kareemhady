@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { describe, expect, test, vi } from 'vitest';
+import { render, fireEvent } from '@testing-library/react';
 import { BHLeftRail } from './bh-left-rail';
-
-afterEach(cleanup);
 
 describe('BHLeftRail', () => {
   test('renders supplied section titles and children', () => {

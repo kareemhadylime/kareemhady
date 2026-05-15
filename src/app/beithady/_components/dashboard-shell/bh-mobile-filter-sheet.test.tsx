@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, test, vi } from 'vitest';
-import { render, fireEvent, cleanup } from '@testing-library/react';
+import { describe, expect, test, vi } from 'vitest';
+import { render, fireEvent } from '@testing-library/react';
 import { BHMobileFilterSheet } from './bh-mobile-filter-sheet';
-
-afterEach(cleanup);
 
 describe('BHMobileFilterSheet', () => {
   test('renders nothing when open=false', () => {

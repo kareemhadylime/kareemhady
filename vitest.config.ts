@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
+    // Global cleanup after each test: replaces per-file afterEach(cleanup) calls.
+    // @testing-library/react normally auto-installs this when vitest globals are
+    // enabled; since we keep globals: false, we wire it here instead.
+    setupFiles: ['src/__mocks__/vitest-setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
   },
   resolve: {
