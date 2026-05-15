@@ -1,3 +1,23 @@
+## 2026-05-15 — BH Financials Partner Ledgers empty: diagnosed + Excel export feature requested
+
+**User report:** Partner Ledgers page (`/beithady/financials/ledgers`) shows "No partners — try a different kind or import the ledger." across every tab (Suppliers, Owners, etc.) on the consolidated 2025-12-31 v1 snapshot.
+
+**Root cause (verified via Supabase SQL):**
+- `bh_balance_snapshots` for consolidated/2025-12-31: 1 frozen row (v1, frozen 2026-05-12) ✓
+- `bh_balance_snapshot_accounts` for that snapshot: 87 rows ✓
+- `bh_balance_snapshot_partners` for that snapshot: **0 rows** ✗
+- `bh_balance_snapshot_partners` table-wide: **0 rows** (never populated for any snapshot)
+
+The partners table is only populated by `commitClassifiedRows` in [src/lib/beithady/financials/xlsx-import.ts](src/lib/beithady/financials/xlsx-import.ts) — i.e. via the per-account Odoo partner-ledger xlsx uploader at `/beithady/financials/import`. The freeze RPC `bh_freeze_snapshot` in [0119_bh_freeze_rpcs.sql](supabase/migrations/0119_bh_freeze_rpcs.sql) only enforces accounts has rows, not partners. So v1 was frozen prematurely without ever importing the 8 partner ledgers (227002 Suppliers, 227002 Owner Payables, 122001 Customers, 113002 Landlords, 124005/124006/223001 Employees, 221001 Noteholders).
+
+**Path forward presented to user (not yet executed):** (a) clone v1 via `bh_clone_snapshot_for_refreeze` to create v2 draft, upload the 8 xlsx files via `/beithady/financials/import`, freeze v2 (supersedes v1); or (b) harden `bh_freeze_snapshot` RPC to refuse freezing when partner-bearing accounts have zero imports.
+
+**Mid-turn pivot:** User then said "Need also the ability for Formatted Excel Export" with a screenshot of the Snapshots detail page (`/beithady/financials/snapshots/[id]`) showing the 87-account table. Awaiting clarification on scope (which surfaces — snapshots, ledgers, both, all of /financials/*?) before implementing. `exceljs` already in deps.
+
+**No code changes this turn. No DB writes.** Pure diagnosis + feature scoping.
+
+---
+
 ## 2026-05-15 — Video-compress engine: implementation plan ready, awaiting execution choice
 
 **Plan:** `docs/superpowers/plans/2026-05-15-video-compress-engine.md` — 10 tasks, full TDD where testable, exact diffs/code shown. Tasks: (1) install `@ffmpeg/ffmpeg@^0.12 @ffmpeg/util @ffmpeg/core` + vendor WASM core into `public/ffmpeg/`, (2) `probe-video.ts` (HTMLVideoElement metadata), (3) `bitrate-math + types` TDD with 11 pure-fn tests, (4) fast-path + `VideoCompressError` TDD with 5 tests, (5) ffmpeg orchestration with mocked deps (4 tests, 20 total in suite), (6) wire `'compressing'` state into `gallery-provider.tsx`, (7) render new state in `upload-tray.tsx` with amber `FileVideo` icon + percent, (8) update uploader helper text, (9) manual smoke test on dev server with real >50MB video, (10) ship.

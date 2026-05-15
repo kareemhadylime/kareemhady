@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 import { buildReconciliation } from '@/lib/beithady/financials/reconciliation';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -84,9 +84,17 @@ export default async function ReconciliationPage({
           <ChevronLeft className="h-4 w-4" /> Back to Financials
         </Link>
 
-        <header>
-          <h1 className="text-2xl font-bold">Reconciliation</h1>
-          <p className="text-sm text-slate-500">Account balance vs. partner ledger totals</p>
+        <header className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold">Reconciliation</h1>
+            <p className="text-sm text-slate-500">Account balance vs. partner ledger totals</p>
+          </div>
+          <a
+            href={`/api/beithady/financials/reconciliation/xlsx?snapshot=${snapshotId}`}
+            className="inline-flex items-center gap-1.5 rounded border border-lime-300 bg-lime-50 px-3 py-1.5 text-xs font-semibold text-lime-800 hover:bg-lime-100"
+          >
+            <Download className="h-3.5 w-3.5" /> Export xlsx
+          </a>
         </header>
 
         <div className="flex flex-wrap gap-3 text-xs">
