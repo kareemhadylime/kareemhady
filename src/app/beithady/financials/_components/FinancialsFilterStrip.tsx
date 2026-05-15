@@ -3,12 +3,14 @@ import Link from 'next/link';
 // Local type — accepts string from either of the two CompanyScope types
 // in the codebase (the BH-financials types module and the legacy
 // financials-pnl module both export a CompanyScope, with slightly different
-// shapes). The strip only renders the 4-scope set below.
+// shapes). The type keeps 'a1' so direct ?scope=a1 URL bookmarks still
+// resolve, but the SCOPES array below only renders consolidated/egypt/dubai
+// — A1 is partner ownership, not a Beithady operating scope.
 type CompanyScope = 'consolidated' | 'egypt' | 'dubai' | 'a1';
 
 // Minimal filter strip restored after the T15-T18 cockpit refactor dropped
 // the original CompanyTabs/PeriodFilter components. Covers the 90% case:
-// scope (consolidated/egypt/dubai/a1) + period preset. Building/LOB analytic
+// scope (consolidated/egypt/dubai) + period preset. Building/LOB analytic
 // filters are deferred — operators who need them currently set URL params
 // manually and we'll restore the analytic dropdowns when they're prioritised.
 
@@ -33,7 +35,6 @@ const SCOPES: Array<{ id: CompanyScope; label: string }> = [
   { id: 'consolidated', label: 'Consolidated' },
   { id: 'egypt', label: 'Egypt' },
   { id: 'dubai', label: 'Dubai' },
-  { id: 'a1', label: 'A1' },
 ];
 
 export function FinancialsFilterStrip(props: {
