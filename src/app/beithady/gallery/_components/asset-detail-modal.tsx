@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { X, Trash2, Tag, Megaphone, Sparkles, RotateCw, FileText, ExternalLink } from 'lucide-react';
+import { X, Trash2, Tag, Megaphone, Sparkles, RotateCw, FileText, ExternalLink, Video } from 'lucide-react';
 import { fmtBytes } from '@/lib/beithady/gallery/storage';
 import { signedUrlFor, publicUrlFor, type GalleryBucket } from '@/lib/beithady/gallery/storage';
 import type { GalleryAsset } from '@/lib/beithady/gallery/gallery-list';
@@ -124,6 +124,15 @@ export async function AssetDetailModal({
                   <RotateCw size={12} /> Re-label with AI
                 </button>
               </form>
+            )}
+
+            {asset.mime_type?.startsWith('video/') && (
+              <Link
+                href={`/beithady/gallery/youtube?asset=${asset.id}`}
+                className="ix-btn-secondary text-xs"
+              >
+                <Video size={12} /> Publish to YouTube
+              </Link>
             )}
 
             <form action={deleteAssetAction}>
