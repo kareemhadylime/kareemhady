@@ -489,6 +489,10 @@ export async function publishInstagramReelAction(formData: FormData): Promise<vo
   const alsoToFacebook = String(formData.get('also_to_facebook') || '') === '1';
   const galleryAssetId = String(formData.get('gallery_asset_id') || '').trim() || null;
   const buildingCode = String(formData.get('building_code') || '').trim() || null;
+  // V1.2 cross-post: optional YouTube source
+  const ytVideoId = String(formData.get('yt_video_id') || '').trim() || null;
+  const adsYtVideoIdRaw = String(formData.get('ads_yt_video_id') || '').trim();
+  const adsYtVideoId = adsYtVideoIdRaw && Number.isFinite(Number(adsYtVideoIdRaw)) ? Number(adsYtVideoIdRaw) : null;
 
   if (!Number.isFinite(accountId)) redirect('/beithady/ads/instagram/reels?error=missing_account');
 
@@ -507,6 +511,19 @@ export async function publishInstagramReelAction(formData: FormData): Promise<vo
   if (!result.ok) {
     redirect(`/beithady/ads/instagram/reels?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
   }
+
+  // V1.2 cross-post audit: write a row when a YouTube source was attached.
+  if (ytVideoId && result.ok) {
+    await recordCrossPost({
+      ads_youtube_video_id: adsYtVideoId,
+      youtube_video_id: ytVideoId,
+      target_platform: 'instagram_reel',
+      target_post_id: result.post_id,
+      status: 'published',
+      created_by_user_id: user.id ? String(user.id) : null,
+    });
+  }
+
   revalidatePath('/beithady/ads/instagram/reels');
   redirect(`/beithady/ads/instagram/reels?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
 }

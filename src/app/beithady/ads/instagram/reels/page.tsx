@@ -7,11 +7,14 @@ import { AdsTabs } from '../../_components/ads-tabs';
 import { publishInstagramReelAction, pollInstagramPostAction } from '../../actions';
 import { statusBadgeClass } from '@/lib/beithady/ads/platforms';
 import { fmtCairoDate } from '@/lib/fmt-date';
+import { listPickerVideos } from '@/lib/beithady/youtube/picker';
+import { EmbeddedPicker } from '@/app/beithady/gallery/youtube/picker/_components/embedded-picker';
+import { YouTubeSourceBanner } from '@/app/beithady/gallery/youtube/picker/_components/youtube-source-banner';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export default async function InstagramReelsPage({ searchParams }: { searchParams: Promise<{ error?: string; post?: string; status?: string }> }) {
+export default async function InstagramReelsPage({ searchParams }: { searchParams: Promise<{ error?: string; post?: string; status?: string; yt_video_id?: string; ads_yt_video_id?: string; source?: string }> }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
@@ -23,6 +26,69 @@ export default async function InstagramReelsPage({ searchParams }: { searchParam
   const ready = accounts.filter(a => !!a.ig_business_id);
   const posts = (postsRaw as Array<{ id: number; video_url: string; caption: string | null; status: string; permalink: string | null; fb_status: string | null; fb_permalink: string | null; building_code: string | null; created_at: string; published_at: string | null }> | null) || [];
 
+  // V1.2 cross-post: optional YouTube source pre-fill via ?yt_video_id=…
+  const ytVideoIdParam = sp.yt_video_id ?? null;
+  const adsYtVideoIdParam = sp.ads_yt_video_id ? Number(sp.ads_yt_video_id) : null;
+
+  let ytSource: null | {
+    yt_video_id: string;
+    title: string;
+    description: string | null;
+    tags: string[] | null;
+    duration_seconds: number | null;
+    is_shorts: boolean;
+    view_count: number;
+    building_code: string | null;
+    source_url: string | null;
+  } = null;
+
+  if (ytVideoIdParam) {
+    const { data: ytRow } = await sb.from('ads_youtube_videos')
+      .select('id, youtube_video_id, title, description, tags, duration_seconds, is_shorts, view_count, building_code, source_url')
+      .eq('youtube_video_id', ytVideoIdParam).maybeSingle();
+    if (ytRow) {
+      const r = ytRow as Record<string, unknown>;
+      ytSource = {
+        yt_video_id: String(r.youtube_video_id),
+        title: String(r.title),
+        description: (r.description as string | null) ?? null,
+        tags: (r.tags as string[] | null) ?? null,
+        duration_seconds: r.duration_seconds == null ? null : Number(r.duration_seconds),
+        is_shorts: Boolean(r.is_shorts),
+        view_count: Number(r.view_count ?? 0),
+        building_code: (r.building_code as string | null) ?? null,
+        source_url: (r.source_url as string | null) ?? null,
+      };
+    } else {
+      ytSource = {
+        yt_video_id: ytVideoIdParam,
+        title: ytVideoIdParam,
+        description: null,
+        tags: null,
+        duration_seconds: null,
+        is_shorts: false,
+        view_count: 0,
+        building_code: null,
+        source_url: null,
+      };
+    }
+  }
+
+  // Load YouTube picker items for the embedded source picker
+  const { data: ytAccount } = await sb.from('ads_accounts')
+    .select('id').eq('platform', 'youtube').limit(1).maybeSingle();
+  const pickerItems = ytAccount
+    ? await listPickerVideos((ytAccount as { id: number }).id).catch(() => [])
+    : [];
+
+  // Build pre-fill values
+  const defaultCaption = ytSource
+    ? [ytSource.title, (ytSource.description ?? '').slice(0, 200)].filter(Boolean).join('\n\n')
+    : '';
+  const defaultHashtags = ytSource?.tags ? ytSource.tags.join(', ') : '';
+  const defaultBuildingCode = ytSource?.building_code ?? '';
+  const defaultVideoUrl = ytSource?.source_url ?? '';
+
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'Instagram Reels' }]} containerClass="max-w-5xl">
       <BeithadyHeader
@@ -33,11 +99,34 @@ export default async function InstagramReelsPage({ searchParams }: { searchParam
 
       <AdsTabs active="reels" />
 
+      {ytSource && (
+        <YouTubeSourceBanner
+          ytVideoId={ytSource.yt_video_id}
+          title={ytSource.title}
+          durationSeconds={ytSource.duration_seconds}
+          isShorts={ytSource.is_shorts}
+          viewCount={ytSource.view_count}
+          publishPagePath="/beithady/ads/instagram/reels"
+        />
+      )}
+
       {sp.error && <div className="ix-card border-rose-200 bg-rose-50 p-3 text-sm font-mono">{sp.error}</div>}
       {sp.post && (
         <div className="ix-card border-emerald-200 bg-emerald-50 p-3 text-sm">
           Submitted post <code>#{sp.post}</code> — status: <strong>{sp.status}</strong>.
         </div>
+      )}
+
+      {/* YouTube source picker (V1.2 cross-post) */}
+      {pickerItems.length > 0 && !ytSource && (
+        <section className="ix-card p-5 space-y-3">
+          <h2 className="text-sm font-semibold">Or pick from YouTube</h2>
+          <EmbeddedPicker
+            items={pickerItems}
+            platform="instagram_reel"
+            publishPagePath="/beithady/ads/instagram/reels"
+          />
+        </section>
       )}
 
       {ready.length === 0 ? (
@@ -46,6 +135,8 @@ export default async function InstagramReelsPage({ searchParams }: { searchParam
         </div>
       ) : (
         <form action={publishInstagramReelAction} className="ix-card p-5 space-y-4">
+          <input type="hidden" name="yt_video_id" value={ytVideoIdParam ?? ''} />
+          <input type="hidden" name="ads_yt_video_id" value={adsYtVideoIdParam ?? ''} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div className="space-y-1">
               <label htmlFor="account_id" className="text-xs font-semibold">Account</label>
@@ -62,19 +153,19 @@ export default async function InstagramReelsPage({ searchParams }: { searchParam
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="video_url" className="text-xs font-semibold">Video URL (public HTTPS)</label>
-              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" />
+              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" defaultValue={defaultVideoUrl} />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="caption" className="text-xs font-semibold">Caption</label>
-              <textarea id="caption" name="caption" rows={3} className="ix-input" />
+              <textarea id="caption" name="caption" rows={3} className="ix-input" defaultValue={defaultCaption} />
             </div>
             <div className="space-y-1 md:col-span-2">
               <label htmlFor="hashtags" className="text-xs font-semibold">Hashtags (comma or newline separated, no # needed)</label>
-              <input id="hashtags" name="hashtags" className="ix-input" placeholder="BeitHady, Cairo, luxurystay" />
+              <input id="hashtags" name="hashtags" className="ix-input" placeholder="BeitHady, Cairo, luxurystay" defaultValue={defaultHashtags} />
             </div>
             <div className="space-y-1">
               <label htmlFor="building_code" className="text-xs font-semibold">Building code</label>
-              <input id="building_code" name="building_code" className="ix-input font-mono text-xs" placeholder="BH-435" />
+              <input id="building_code" name="building_code" className="ix-input font-mono text-xs" placeholder="BH-435" defaultValue={defaultBuildingCode} />
             </div>
           </div>
           <div className="flex justify-end">
