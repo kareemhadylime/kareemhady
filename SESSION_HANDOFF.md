@@ -23,6 +23,14 @@
 - Recommended path: bring existing FZCO Ads (424-355-4501) under Beithady MCC as a sub-account. MCC = billing + reporting + YouTube link umbrella; FZCO = actual campaigns. Channel and remarketing audiences propagate down automatically once linked.
 - Steps given: MCC → Admin → Account access → Sub-account settings → Link existing account → enter FZCO ID → approve from FZCO side. Alternative: create new sub-account under MCC if fresh start preferred.
 - For V1.2 cross-post pipeline, the actual API integration point will be the child account, not the MCC.
+- **DONE — FZCO is now a sub-account under Beithady MCC** (confirmed by Sub-account settings screenshot: Direct manager = "Beithady MCC (This manager) 395-304-4686", Active status). 4,533 impressions running today in FZCO.
+
+**Ads setup complete — final state:**
+- ✅ YouTube channel @beithady linked to BOTH FZCO (424-355-4501) and MCC (395-304-4686), permissions: View counts / Remarketing / Engagement.
+- ✅ FZCO is a child account under MCC (hierarchy: MCC → FZCO).
+- ✅ Stale channel links cleaned up (Promotions 109-284-9441 and Google Ads link 568-826-0497 unlinked earlier).
+- Campaigns continue running in FZCO; MCC has umbrella billing/reporting + channel audience access.
+- Ready for V1.2 cross-post pipeline when we ship it.
 
 **No new code beyond `0348528`. Test suite remains green.**
 
