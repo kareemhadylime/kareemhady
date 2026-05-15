@@ -1,3 +1,37 @@
+## 2026-05-15 — YouTube V1.2 (Picker / cross-post) brainstorm started
+
+**Status:** Brainstorming, no code yet. Context loaded.
+
+**Locked Q1:** Scope = **D — all three platforms**. Operator picks a published YouTube video and can:
+- Organic cross-post to IG Reel + TikTok (download YT bytes → re-upload via existing publish pipelines)
+- Add as video asset to Google Ads (PMax / Demand Gen — pass `youtube_video_id` directly, no download needed)
+- Create Meta paid video ad (boost or new video ad campaign)
+
+**Integration surface (5 existing publish pages):**
+- `/beithady/ads/instagram/reels` — organic IG (+ cross-post to TikTok flag)
+- `/beithady/ads/tiktok/organic` — organic TikTok
+- `/beithady/ads/instagram/boost` — paid Meta boost
+- `/beithady/ads/tiktok/paid` — paid TikTok
+- `/beithady/ads/google/pmax` — paid Google PMax (YT video as asset)
+
+**Open Q2 (awaiting kareem):** Where does picker UI live?
+- A. Embedded in each existing publish page (5 page edits)
+- B. Standalone picker at `/beithady/gallery/youtube/picker` → deep-link to publish pages with `?yt_video_id=<id>` (recommended — matches V1.1 asset-modal pattern)
+- C. Both
+
+**Remaining clarifying questions to cover before approaches:**
+- Filter scope of pickable videos (only @beithady channel? unlisted included? Shorts vs long-form filters?)
+- Format-compatibility gating (vertical videos to IG Reel/TikTok, horizontal to Google PMax, etc.)
+- Meta paid path: new video ad campaign vs boost-existing-organic-IG-post path
+- Google Ads target: new PMax campaign creation vs add-asset to existing campaign
+- Whether picker should also include channel videos not yet in `ads_youtube_videos` (i.e. videos uploaded directly to YouTube outside our app)
+
+**Files explored:** `ig-to-tiktok.ts`, `instagram-publish.ts`, `tiktok-organic-publish.ts`, `google-publish.ts`, `google-pmax-publish.ts`, `boost-publish.ts`, full list of publish pages.
+
+**Approach so far:** Picker will read from `ads_youtube_videos` WHERE status='published'. Per-action paths will branch on platform. For Google Ads, the `youtube_video_id` we already store from V1.1 is the direct input — no extra work. For IG/TikTok, we'll need to fetch bytes from the YT watch URL OR retain the original Supabase signed URL we stored.
+
+---
+
 ## 2026-05-15 — YouTube V1.1 — template polish + MCC linkage guidance (commit `0348528`)
 
 **Status:** Template enhancements shipped + pushed. MCC ↔ channel linkage is operator-action on Google's side.
