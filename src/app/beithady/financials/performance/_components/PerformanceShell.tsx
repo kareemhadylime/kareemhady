@@ -53,10 +53,13 @@ export function PerformanceShell({ pnl, scopeLbl, buildingCode, lobLabel, period
   const rail = useRailCollapse();
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  const monthValue = state.period.kind === 'month' ? state.period.ym : '';
-  const periodChipLabel = state.period.kind === 'month'
-    ? `Month: ${state.period.ym}`
-    : `Period: ${PRESETS.find((p) => p.id === (state.period as { kind: 'preset'; id: string }).id)?.label ?? (state.period as { kind: 'preset'; id: string }).id}`;
+  // Local destructure so TS narrows on `period.kind` reliably (chained
+  // `state.period.kind` reads lose the narrowing on each property access).
+  const period = state.period;
+  const monthValue = period.kind === 'month' ? period.ym : '';
+  const periodChipLabel = period.kind === 'month'
+    ? `Month: ${period.ym}`
+    : `Period: ${PRESETS.find((p) => p.id === period.id)?.label ?? period.id}`;
   const buildingChipLabel = state.building === 'all' ? 'All buildings' : state.building;
 
   const railSections: BHRailSection[] = [
