@@ -1,3 +1,22 @@
+## 2026-05-15 — YouTube V1.2 · Tasks 11/12/13 — publish-page wiring (IG Reels, TikTok organic, TikTok paid)
+
+**Status:** DONE_WITH_CONCERNS (Task 12 partial — see below). 3 commits pushed.
+
+**Commits (all `tsc --noEmit` exit 0):**
+- `773f02e` Task 11: `src/app/beithady/ads/instagram/reels/page.tsx` + `actions.ts` — `?yt_video_id` pre-fill (video_url, caption from title+desc, hashtags from tags, building_code), embedded YouTube picker section (hidden when source already selected), banner above form, hidden inputs (`yt_video_id` + `ads_yt_video_id`), `recordCrossPost({ target_platform: 'instagram_reel', target_post_id })` in `publishInstagramReelAction` before redirect.
+- `a84a51e` Task 12: `actions.ts` only (action-side audit on `publishTikTokReelAction`). **Page-side N/A:** `/beithady/ads/tiktok/organic` is a curated public-URL embed gallery (oEmbed-based — TikTok + Instagram URLs), NOT a TikTok-API publish form. The page uses `addReelAction` from `./actions` (single `url` field). `publishTikTokReelAction` lives in `actions.ts` but is currently not wired to any UI page. Action-side audit is in place so any future caller/UI gets V1.2 cross-post tracking for free.
+- `e6622ff` Task 13: `src/app/beithady/ads/tiktok/paid/page.tsx` + `actions.ts` — full pattern: `?yt_video_id` pre-fill (video_url, building_codes), embedded picker, banner, hidden inputs, `recordCrossPost({ target_platform: 'tiktok_paid', target_campaign_id })` in `publishTikTokPaidAction` before redirect.
+
+**V1.1 schema note (verified):** `ads_youtube_videos` (migration `0134`) has `source_url` only — no `storage_bucket`/`storage_path`. So no `signedUrlFor` re-signing — pages use `source_url` directly as the `video_url` default.
+
+**Push:** `git push origin main` → `77f8b9c..e6622ff main -> main`. Vercel auto-deploys.
+
+**Self-review:** 3 commits ✓ · 3 × `tsc --noEmit` exit 0 ✓ · pushed ✓ · banner + embedded picker render correctly on IG Reels + TikTok Paid · Task 12 page-side flagged (curated-URL page, not publish UI).
+
+**Task 12 follow-up needed (parent agent decision):** Either (a) restore the TikTok-API publish form at `/beithady/ads/tiktok/organic` (or a sibling route) wiring `publishTikTokReelAction`, or (b) accept that the "TikTok organic" V1.2 cross-post path is action-only and document the page is intentionally a curated-embed gallery.
+
+---
+
 ## 2026-05-15 — HOTFIX: BH financials sub-pages crashing on prod ('use client' boundary)
 
 **Status:** Fix pushed in `61554f7`. Vercel auto-deploy in flight. User reported "Something went wrong" (ref 1651615459 + variants) on every financials tile click; landing rendered fine.
