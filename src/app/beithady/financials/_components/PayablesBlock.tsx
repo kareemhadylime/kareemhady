@@ -1,6 +1,6 @@
 import React from 'react';
 import { Wrench, Users, Home as HomeIcon } from 'lucide-react';
-import { PayablesDetailButton } from './PayablesDetailModal';
+import { PayablesDetailButton, cleanPartnerName } from './PayablesDetailModal';
 import type { PayablesReport, PayablePartnerRow, CompanyScope } from '@/lib/financials-pnl';
 
 const fmt = (n: number | null | undefined): string => {
@@ -100,7 +100,7 @@ function PayablesCard({
               {data.partners.slice(0, 40).map(p => (
                 <tr key={p.partner_id} className="border-t border-slate-100">
                   <td className="px-2 py-1.5 truncate max-w-[200px]" title={p.partner_name}>
-                    {p.partner_name}
+                    {cleanPartnerName(p.partner_name)}
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{fmt(p.amount)}</td>
                 </tr>

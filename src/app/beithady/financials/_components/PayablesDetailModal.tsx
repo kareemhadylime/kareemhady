@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { X, Printer, Mail, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown, X, Printer, Mail, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { emailPayablesReport } from '../actions';
 import type { PayablePartnerRow } from '@/lib/financials-pnl';
 
@@ -18,6 +18,17 @@ type Props = {
 };
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
+
+// Strip leading "NNN." or "NNN. " prefix from partner names (e.g. "087. Volt
+// loan by Lime" → "Volt loan by Lime", "155.Aisha Head office Rent" →
+// "Aisha Head office Rent"). Names without the digit prefix pass through
+// unchanged (e.g. "STARSTORM", "A1 HOSPITALITY", "Laila Elwy").
+export function cleanPartnerName(raw: string): string {
+  return raw.replace(/^\d+\.\s*/, '').trim() || raw;
+}
+
+type SortKey = 'name' | 'total' | null;
+type SortDir = 'asc' | 'desc';
 
 function esc(s: string): string {
   return s
@@ -40,7 +51,7 @@ function buildPrintHtml(args: {
   const rows = args.partners
     .map(p => {
       return `<tr>
-        <td class="name">${esc(p.partner_name)}</td>
+        <td class="name">${esc(cleanPartnerName(p.partner_name))}</td>
         <td class="num">${fmt(p.aged_0_30)}</td>
         <td class="num">${fmt(p.aged_30_60)}</td>
         <td class="num">${fmt(p.aged_over_60)}</td>
@@ -231,6 +242,38 @@ function PayablesModal(props: Props & { onClose: () => void }) {
     | { ok: false; error: string; needs_reauth?: boolean }
   >(null);
 
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  function onHeaderClick(key: Exclude<SortKey, null>) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  }
+
+  const sortedPartners = useMemo(() => {
+    if (sortKey === null) return partners;
+    const copy = [...partners];
+    if (sortKey === 'name') {
+      copy.sort((a, b) => {
+        const cmp = cleanPartnerName(a.partner_name).localeCompare(
+          cleanPartnerName(b.partner_name),
+        );
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    } else {
+      // sort by |amount| so "biggest payable" surfaces regardless of sign
+      copy.sort((a, b) => {
+        const cmp = Math.abs(a.amount) - Math.abs(b.amount);
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return copy;
+  }, [partners, sortKey, sortDir]);
+
   const totals = partners.reduce(
     (acc, p) => ({
       a030: acc.a030 + p.aged_0_30,
@@ -255,7 +298,7 @@ function PayablesModal(props: Props & { onClose: () => void }) {
     const html = buildPrintHtml({
       title,
       subtitle,
-      partners,
+      partners: sortedPartners,
       total,
       docTitle: niceName,
     });
@@ -398,20 +441,46 @@ function PayablesModal(props: Props & { onClose: () => void }) {
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">Name</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => onHeaderClick('name')}
+                    className="inline-flex items-center gap-1 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                  >
+                    Name
+                    {sortKey === 'name' ? (
+                      sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                    ) : (
+                      <ArrowUpDown size={12} className="opacity-40" />
+                    )}
+                  </button>
+                </th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Aged 0–30</th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Aged 30–60</th>
                 <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Over 60</th>
-                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">Total</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => onHeaderClick('total')}
+                    className="inline-flex items-center gap-1 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ml-auto"
+                  >
+                    Total
+                    {sortKey === 'total' ? (
+                      sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                    ) : (
+                      <ArrowUpDown size={12} className="opacity-40" />
+                    )}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {partners.map(p => (
+              {sortedPartners.map(p => (
                 <tr
                   key={p.partner_id}
                   className="border-b border-slate-100 hover:bg-slate-50"
                 >
-                  <td className="px-4 py-2">{p.partner_name}</td>
+                  <td className="px-4 py-2" title={p.partner_name}>{cleanPartnerName(p.partner_name)}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-slate-700">
                     {fmt(p.aged_0_30)}
                   </td>
