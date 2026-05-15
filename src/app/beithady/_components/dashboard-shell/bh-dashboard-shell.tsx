@@ -56,10 +56,18 @@ export function BHDashboardShell({
       <div
         className="grid mt-6 transition-[grid-template-columns] duration-[250ms] ease motion-reduce:transition-none"
         style={{ gridTemplateColumns: `${railColWidth}px 1fr` }}
-        onMouseEnter={isMobile ? undefined : onRailEnter}
-        onMouseLeave={isMobile ? undefined : onRailLeave}
       >
-        <div className={isMobile ? 'hidden' : ''}>{rail}</div>
+        {/* Mouse handlers bound to the rail wrapper (NOT the whole grid) so
+            the idle-collapse timer starts when the cursor moves into the main
+            content area. Binding to the grid would only fire on full-page
+            exit, leaving the rail permanently expanded during normal use. */}
+        <div
+          className={isMobile ? 'hidden' : ''}
+          onMouseEnter={isMobile ? undefined : onRailEnter}
+          onMouseLeave={isMobile ? undefined : onRailLeave}
+        >
+          {rail}
+        </div>
         <main className="grid grid-cols-12 gap-3 sm:gap-4">{children}</main>
       </div>
       {drawer}
