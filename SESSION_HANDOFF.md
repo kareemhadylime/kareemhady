@@ -1,3 +1,18 @@
+## 2026-05-15 — BH Financials P2 Phase 2 (Tasks 2-3): Payables → BHDashboardShell
+
+**Status:** DONE. Commit `c3ee8bf`. NOT pushed (controller pushes at plan end).
+
+**What landed:**
+- Created `use-payables-url-state.ts` hook (TDD: test-first, 4/4 passing)
+- Created `use-payables-url-state.test.ts` (4 assertions: asof always written, scope omission, A1 compat, asof override)
+- Created `payables/_components/PayablesShell.tsx` — `'use client'` shell, rail state threaded to both `BHDashboardShell` and `BHLeftRail`, 2 rail sections (Scope + As of), Calendar chip, Back to Financials action
+- Rewrote `payables/page.tsx` as thin server component using `parseFinPayablesState`
+- Verification: tsc clean, 636/636 tests pass (+4 new in hooks folder = 15 total), build compiled successfully in 42s
+
+**Next:** Phase 2 Tasks 4–6 (Ledgers + Reconciliation) or controller-directed push
+
+---
+
 ## 2026-05-15 — YouTube V1.2 (Picker / cross-post) brainstorm started
 
 **Status:** Brainstorming, no code yet. Context loaded.
@@ -14,15 +29,22 @@
 - `/beithady/ads/tiktok/paid` — paid TikTok
 - `/beithady/ads/google/pmax` — paid Google PMax (YT video as asset)
 
-**Open Q2 (awaiting kareem):** Where does picker UI live?
-- A. Embedded in each existing publish page (5 page edits)
-- B. Standalone picker at `/beithady/gallery/youtube/picker` → deep-link to publish pages with `?yt_video_id=<id>` (recommended — matches V1.1 asset-modal pattern)
-- C. Both
+**All 4 clarifying questions answered:**
+- ✅ Q1 — Scope: **D (all three platforms)** — organic IG/TikTok + Google PMax + Meta paid video ad (folded TikTok paid in via the 5-publish-page surface).
+- ✅ Q2 — Picker location: **C (both standalone + embedded)** — standalone at `/beithady/gallery/youtube/picker`, embedded "Source: YouTube" tab on each of the 5 publish pages.
+- ✅ Q3 — Picker source: **B (hybrid)** — `ads_youtube_videos` rows merged with channel videos via `playlistItems.list` on stored `youtube_uploads_playlist_id`. Action availability auto-degrades for YT-only rows (no Supabase bytes → only Google PMax works).
+- ✅ Q4 — Format gating: **A (auto-hide incompatible)** — vertical Shorts get all 5 actions; horizontal long-form hides IG Reel + organic TikTok (keeps PMax + Meta paid + TikTok paid).
 
-**Remaining clarifying questions to cover before approaches:**
-- Filter scope of pickable videos (only @beithady channel? unlisted included? Shorts vs long-form filters?)
-- Format-compatibility gating (vertical videos to IG Reel/TikTok, horizontal to Google PMax, etc.)
-- Meta paid path: new video ad campaign vs boost-existing-organic-IG-post path
+**Approach picked: Approach 1 (per-platform deep-link, lightweight).** 5 publish pages each gain a ~30-line YT-source branch + embedded picker tab. One NEW lib `meta-video-ad-publish.ts` (Meta has no existing path for fresh video ad from arbitrary bytes; existing boost-publish.ts only boosts existing organic IG posts).
+
+**Design § 1 of 6 — Architecture overview — presented and awaiting kareem's approval.** Covers:
+- New files (8): picker lib, picker grid/row/embedded components, picker page, meta-video-ad pipeline, migration `0135_ads_youtube_cross_posts.sql`, optional channel-sync cron.
+- Modified files (5 publish pages ~30 LOC each + google-pmax-publish.ts extension).
+- New schema: `ads_youtube_cross_posts` audit table linking `yt_video_id → target_platform → target_post_id` with unique constraint for "already posted to X" UX hints.
+
+**Remaining sections to present:** § 2 picker module, § 3 cross-post flows per platform (5), § 4 UI structure, § 5 error handling, § 6 testing.
+
+**No code yet. Estimated total V1.2 scope: ~25 tasks (similar to V1.1).**
 - Google Ads target: new PMax campaign creation vs add-asset to existing campaign
 - Whether picker should also include channel videos not yet in `ads_youtube_videos` (i.e. videos uploaded directly to YouTube outside our app)
 
