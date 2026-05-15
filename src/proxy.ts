@@ -52,6 +52,7 @@ const PUBLIC_PREFIXES = [
   '/dine/',      // public guest F&B menu (token-gated server-side via validateDineToken)
   '/api/dine/',  // public guest F&B API (token-gated server-side)
   '/brand/',     // public brand assets (logos, OG previews)
+  '/legal/',     // public privacy policy + terms (linked from TikTok app review etc.)
   '/manifest.webmanifest',
   '/_next/',
   '/favicon',
