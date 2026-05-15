@@ -12,9 +12,14 @@ The partners table is only populated by `commitClassifiedRows` in [src/lib/beith
 
 **Path forward presented to user (not yet executed):** (a) clone v1 via `bh_clone_snapshot_for_refreeze` to create v2 draft, upload the 8 xlsx files via `/beithady/financials/import`, freeze v2 (supersedes v1); or (b) harden `bh_freeze_snapshot` RPC to refuse freezing when partner-bearing accounts have zero imports.
 
-**Mid-turn pivot:** User then said "Need also the ability for Formatted Excel Export" with a screenshot of the Snapshots detail page (`/beithady/financials/snapshots/[id]`) showing the 87-account table. Awaiting clarification on scope (which surfaces — snapshots, ledgers, both, all of /financials/*?) before implementing. `exceljs` already in deps.
+**Mid-turn pivot — shipped:** User then asked for a formatted Excel export, scoped it to **Snapshots + Reconciliation**. Shipped in commit `c61d04f`:
+- [`src/lib/beithady/financials/render-xlsx.ts`](src/lib/beithady/financials/render-xlsx.ts) — `renderSnapshotXlsx` (2 sheets: Accounts + Partners) and `renderReconciliationXlsx` (1 sheet). Lime header band, metadata block (period/scope/version/status/frozen-at/generated), bold frozen header row + autofilter, EGP number format `#,##0.00;[Red]-#,##0.00`, red bold variance on non-zero, light-red fill on synthetic / open-variance rows, bold tan totals row.
+- [`/api/beithady/financials/snapshots/[id]/xlsx`](src/app/api/beithady/financials/snapshots/[id]/xlsx/route.ts) + [`/api/beithady/financials/reconciliation/xlsx?snapshot=<id>`](src/app/api/beithady/financials/reconciliation/xlsx/route.ts) — both gated by `requireDomainAccess('beithady')`, return `attachment` with filename `beithady-{snapshot|reconciliation}-{period}-v{N}-{scope}.xlsx`.
+- "Export xlsx" buttons (Lime-green, `Download` icon) wired into [snapshot detail header](src/app/beithady/financials/snapshots/[id]/page.tsx) and [reconciliation header](src/app/beithady/financials/reconciliation/page.tsx).
 
-**No code changes this turn. No DB writes.** Pure diagnosis + feature scoping.
+Type-check clean. Pushed `c61d04f` → `main`, Vercel auto-deploy.
+
+**Still pending from earlier in the turn:** the Partner Ledgers empty-state fix — user has not yet chosen between (a) clone v1 → import 8 xlsx files → freeze v2, or (b) harden `bh_freeze_snapshot` to refuse freezing when partner-bearing accounts have no imports.
 
 ---
 
