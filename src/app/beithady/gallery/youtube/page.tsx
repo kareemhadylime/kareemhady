@@ -1,4 +1,5 @@
 // src/app/beithady/gallery/youtube/page.tsx
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Video as YouTubeIcon } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
@@ -110,6 +111,16 @@ export default async function YouTubePublishPage({
           generateAction={generateMetadataAction}
           publishAction={publishYouTubeVideoAction}
         />
+      </section>
+
+      <section className="ix-card p-3 flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="font-semibold text-sm">Cross-post to Meta / TikTok / Google</h3>
+          <p className="text-xs text-slate-500">Pick a published YouTube video and send it across all your ad channels.</p>
+        </div>
+        <Link href="/beithady/gallery/youtube/picker" className="ix-btn-primary text-sm">
+          Open picker →
+        </Link>
       </section>
 
       <section className="ix-card p-5 space-y-3">
