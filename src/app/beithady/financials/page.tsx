@@ -1,6 +1,4 @@
-import Link from 'next/link';
 import {
-  ChevronRight,
   BarChart3,
   FileText,
   Calendar,
@@ -9,10 +7,11 @@ import {
   Search,
   Upload,
 } from 'lucide-react';
-import { TopNav } from '@/app/_components/brand';
+import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
+import { BeithadyLauncher, type LauncherTile } from '../_components/beithady-launcher';
 import { supabaseAdmin } from '@/lib/supabase';
-import { CockpitTile } from './_components/CockpitTile';
 import { nextSnapshotDue } from '@/lib/beithady/financials/cadence';
+import { StatusPreStrip } from './_components/StatusPreStrip';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -54,131 +53,98 @@ async function loadCockpitData() {
   return { active, openVariance, openVarCount: openVarRows.length, next, reminders: reminders ?? [] };
 }
 
+const TILES: LauncherTile[] = [
+  {
+    href: '/beithady/financials/performance',
+    title: 'Performance',
+    description: 'P&L by period · analytic · LOB',
+    icon: BarChart3,
+    accent: 'slate',
+  },
+  {
+    href: '/beithady/financials/balance-sheet',
+    title: 'Balance Sheet',
+    description: 'Assets · liabilities · equity',
+    icon: FileText,
+    accent: 'slate',
+  },
+  {
+    href: '/beithady/financials/payables',
+    title: 'Payables Aging',
+    description: 'Open AP buckets by partner',
+    icon: Calendar,
+    accent: 'slate',
+  },
+  {
+    href: '/beithady/financials/ledgers',
+    title: 'Partner Ledgers',
+    description: 'Per-partner current balance',
+    icon: Users,
+    accent: 'emerald',
+    badge: { label: 'New', tone: 'gold' },
+  },
+  {
+    href: '/beithady/financials/snapshots',
+    title: 'Snapshots',
+    description: 'Frozen opening balances · versions',
+    icon: Snowflake,
+    accent: 'cyan',
+    badge: { label: 'New', tone: 'gold' },
+  },
+  {
+    href: '/beithady/financials/reconciliation',
+    title: 'Reconciliation',
+    description: 'Variance audit · account ↔ ledger',
+    icon: Search,
+    accent: 'rose',
+    badge: { label: 'Audit', tone: 'navy' },
+  },
+  {
+    href: '/beithady/financials/import',
+    title: 'Import',
+    description: 'Upload xlsx ledgers',
+    icon: Upload,
+    accent: 'amber',
+    badge: { label: 'New', tone: 'gold' },
+  },
+];
+
 export default async function FinancialsCockpit() {
   const { active, openVariance, openVarCount, next, reminders } = await loadCockpitData();
 
   return (
-    <>
-      <TopNav>
-        <Link href="/beithady" className="ix-link">
-          BEITHADY
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <span>Financials</span>
-      </TopNav>
+    <BeithadyShell breadcrumbs={[{ label: 'Financials' }]}>
+      <BeithadyHeader
+        eyebrow="Beit Hady · Financials"
+        title="Financials"
+        subtitle="Snapshots · Performance · Payables · Reconciliation"
+      />
 
-      <main className="max-w-6xl mx-auto px-6 py-10 flex-1">
-        <h1 className="text-2xl font-bold mb-6">Financials · Beithady</h1>
-
-        {reminders.length > 0 ? (
-          <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm">
-            🔴 <strong>Snapshot overdue:</strong>{' '}
-            {reminders.map((r) => `${r.period_end} (${r.company_scope})`).join(', ')}.{' '}
-            <a href="/beithady/financials/snapshots" className="underline ml-1">
-              Start draft →
-            </a>
-          </div>
-        ) : null}
-
-        {/* Status row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700 mb-1">
-              Active snapshot
-            </div>
-            <div className="text-base font-semibold">
-              {active
-                ? `${active.period_end} v${active.version}`
-                : 'No frozen snapshot'}
-            </div>
-            <div className="text-xs text-slate-500">
-              {active?.frozen_at
-                ? `Consolidated · frozen ${(active.frozen_at as string).slice(0, 10)}`
-                : '—'}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-red-200 bg-red-50/40 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-red-700 mb-1">
-              Open variance
-            </div>
-            <div className="text-base font-semibold">
-              {Math.round(openVariance).toLocaleString('en-US')} EGP
-            </div>
-            <div className="text-xs text-slate-500">
-              {openVarCount} account{openVarCount === 1 ? '' : 's'}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-yellow-200 bg-yellow-50/40 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-yellow-700 mb-1">
-              Next snapshot due
-            </div>
-            <div className="text-base font-semibold">
-              {next ? next.period_end : 'All current'}
-            </div>
-            <div className="text-xs text-slate-500">
-              {next
-                ? `${next.is_overdue ? 'Overdue · ' : ''}due by ${next.due_by}`
-                : '—'}
-            </div>
-          </div>
+      {reminders.length > 0 && (
+        <div
+          className="rounded-lg px-4 py-3 text-sm"
+          style={{
+            background: '#fdecec',
+            border: '1px solid #f1bcbc',
+            color: '#9a2828',
+          }}
+        >
+          🔴 <strong>Snapshot overdue:</strong>{' '}
+          {reminders.map((r) => `${r.period_end} (${r.company_scope})`).join(', ')}.{' '}
+          <a href="/beithady/financials/snapshots" className="underline ml-1">
+            Start draft →
+          </a>
         </div>
+      )}
 
-        {/* Tile grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <CockpitTile
-            href="/beithady/financials/performance"
-            icon={BarChart3}
-            title="Performance"
-            description="P&L by period · analytic · LOB"
-          />
-          <CockpitTile
-            href="/beithady/financials/balance-sheet"
-            icon={FileText}
-            title="Balance Sheet"
-            description="Assets · liabilities · equity"
-          />
-          <CockpitTile
-            href="/beithady/financials/payables"
-            icon={Calendar}
-            title="Payables Aging"
-            description="Open AP buckets by partner"
-          />
-          <CockpitTile
-            href="/beithady/financials/ledgers"
-            icon={Users}
-            title="Partner Ledgers"
-            description="Per-partner current balance"
-            badge="NEW"
-            variant="new"
-          />
-          <CockpitTile
-            href="/beithady/financials/snapshots"
-            icon={Snowflake}
-            title="Snapshots"
-            description="Frozen opening balances · versions"
-            badge="NEW"
-            variant="new"
-          />
-          <CockpitTile
-            href="/beithady/financials/reconciliation"
-            icon={Search}
-            title="Reconciliation"
-            description="Variance audit · account ↔ ledger"
-            badge="AUDIT"
-            variant="audit"
-          />
-          <CockpitTile
-            href="/beithady/financials/import"
-            icon={Upload}
-            title="Import"
-            description="Upload xlsx ledgers"
-            badge="NEW"
-            variant="new"
-          />
-        </div>
-      </main>
-    </>
+      <StatusPreStrip
+        active={active}
+        openVariance={openVariance}
+        openVarCount={openVarCount}
+        next={next}
+      />
+
+      <BeithadyLauncher tiles={TILES} columns={3} />
+    </BeithadyShell>
   );
 }
