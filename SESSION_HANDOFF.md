@@ -1,3 +1,116 @@
+## 2026-05-15 — BH audit P0-2 SHIPPED: BHDashboardShell extracted, Analytics Performance + Fees Audit migrated
+
+**Status:** All 15 plan tasks complete, pushed to main (latest commit `c2c9bb2` + parallel YouTube work brought HEAD to `7c74bc6`). Vercel auto-deploy in flight.
+
+**What landed:**
+- **Phase A** (4 commits): new shared package at `src/app/beithady/_components/dashboard-shell/` (8 component/hook files + 7 colocated tests + barrel). Exports `BHDashboardShell`, `BHTitleBar`, `BHLeftRail`, `BHRailPill`, `BHMobileFilterSheet`, `BHCustomizeDrawer`, `useBHUrlState<T>`, `useRailCollapse`. Added 26 new vitest assertions. Code review caught 4 Important issues (railPinned dead prop, useMemo dep bug, raw hex inheritance docs, name rail constants) — all fixed in `6f04597`. Plus a doc-only correction in `57cbb34`.
+- **Task 10** (`5a5a8ca`): `usePerfUrlState` rewritten as a 6-line wrapper around `useBHUrlState<PerfUrlState>`. Existing 3-assertion `use-url-state.test.ts` continues to pass unchanged.
+- **Task 11** (`ebadbf5` + `20cb197` fix): rewrote `analytics/performance/_components/dashboard-shell.tsx` to compose from the shared primitives. Final-review caught two DOM regressions (pin toggle + collapsed icon strip dropped because `BHDashboardShell` was internally owning `useRailCollapse`; `aria-label` drift on customize drawer). Fixed via consumer-owned rail state + new `ariaLabel` prop on `BHCustomizeDrawer`. Pin toggle restored, collapsed icons (📅 🏢 ⇄) visible again, aria-label preserved.
+- **Task 12** (`cf450aa`): deleted 6 obsolete shell files from `analytics/performance/_components/` + `_hooks/` (`title-bar.tsx`, `left-rail.tsx`, `mobile-filter-sheet.tsx`, `customize-drawer.tsx`, `top-bar.tsx`, `use-rail-collapse.ts`). −661 lines.
+- **Task 13** (`fcdd7a2`): migrated `FeeAuditDashboard.tsx` outer wrapper to `<BHDashboardShell titleBar={<BHTitleBar/>} rail={<Sidebar/>}>`. Sidebar internals UNCHANGED (preserves auto-collapse 2s + open-on-hover 250ms + 9-group fee-category nav + filters). All 4 modals (CellDrillThroughModal / ChannelCompareModal / VendorExportDialog / TaxStackTester) and the warnings block preserved.
+- **Task 14** (`c2c9bb2`): deleted fees-audit's bespoke `TitleBar.tsx` (replaced by `<BHTitleBar>`). −137 lines.
+
+**Verification:** 607 passing / 22 skipped (559 baseline + 26 Phase A + 8 Task 11-fix tests + ~14 from kareem's parallel YouTube work). `tsc --noEmit` clean. `npm run build` succeeds.
+
+**Composition wins.** Spec §3 picked composition over configuration. The architecture proves out: `<BHDashboardShell>` takes JSX slots (titleBar/rail/mobileFilterSheet/drawer/children), URL state is opt-in via `useBHUrlState<T>`. Analytics Performance uses the full happy path (BHLeftRail w/ Period/Building/Compare sections + `useBHUrlState` for shareable URLs). Fees Audit slots its bespoke Sidebar into `rail` unchanged and keeps its `useState`-based config. Same shell, two different rail patterns, zero compromise on either side.
+
+**Audit progress:** P0-1 (A1 removal) and P0-2 (BHDashboardShell extraction + 2-consumer migration) both done. Downstream consumers unblocked: P1 = Financials Performance / Balance Sheet / landing migration (next), then P2 = remaining data dashboards (calendar-heatmap, market-intel, inventory/dashboard, ads/performance, ops surfaces, hr dashboards, communication inbox).
+
+---
+
+## 2026-05-15 — Task 13: FeeAuditDashboard migrated to BHDashboardShell + BHTitleBar (commit fcdd7a2)
+
+**Status:** DONE.
+
+**What was done:**
+- Replaced bespoke `<div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-4">` layout with `<BHDashboardShell titleBar={...} rail={...}>`.
+- Removed local `<TitleBar>` import; wired `<BHTitleBar>` from the shared shell package with:
+  - `eyebrow="Booking-Channel Fee Audit"`
+  - `title` = `{windowDays}-day forward · {FEE_CATEGORY_LABEL[selectedFeeCategory]}`
+  - 4 chips: Calendar (date range), Building2 (buildings), Filter (channels), ToggleLeft (price mode)
+  - `actions` slot: RefreshCw spinner + physical_units counter
+- Added helper functions: `CHANNEL_LABEL`, `PRICE_MODE_LABEL`, `fmtDate`, `endDate`.
+- Added `FEE_CATEGORY_LABEL` import from `@/lib/beithady/fees-audit/types`.
+- Sidebar unchanged — plugs into `rail` slot as-is, including verbatim `onSelect` country-category logic.
+- All 4 modals (CellDrillThroughModal, ChannelCompareModal, VendorExportDialog, TaxStackTester) preserved outside the shell in a Fragment.
+- Warnings block (`data.warnings?.length`) preserved verbatim after AnomalyInspector.
+- Content wrapped in `<div className="col-span-12 space-y-4">` to fit the shell's `grid grid-cols-12` main area.
+
+**Verification:**
+- `npx tsc --noEmit`: clean (exit 0).
+- `npm run test`: 597 passed, 22 skipped — steady count, no regressions.
+- `npm run build`: compiled successfully in 72s, all pages generated.
+
+**Files modified:**
+- `src/app/beithady/analytics/reports/fees-audit/_components/FeeAuditDashboard.tsx` (240 lines → 291 lines, +184/-107)
+
+**Commit:** `fcdd7a2`
+
+---
+
+## 2026-05-15 — YouTube V1.1 Tasks 4 + 5: youtube-client (commits 0564610, 1ee1c61)
+
+**Status:** DONE.
+
+**What was done:**
+- **Task 4** (`0564610`): Created `src/lib/beithady/youtube/youtube-client.ts` + test. Exports `unwrapStoredRefreshToken(stored)` (decrypts with plaintext fallback for legacy unencrypted refresh tokens) and `getYouTubeAccessToken(accountId)` (loads from `ads_accounts`, returns cached access token if >60s from expiry, otherwise refreshes via `oauth2.googleapis.com/token`, re-encrypts and persists). On `invalid_grant` clears all three YT token columns and throws `YouTubeAuthError('refresh_failed')`. New refresh tokens (when Google returns one) are AES-256-GCM encrypted before write.
+- **Task 5** (`1ee1c61`): Appended fetch-mocked + supabase-mocked test that verifies the `invalid_grant` path nulls `youtube_refresh_token` and surfaces `reason: 'refresh_failed'`.
+
+**Verification:**
+- 4/4 tests pass in `youtube-client.test.ts`.
+- `npx tsc --noEmit`: clean (exit 0) after each step.
+- Pushed: `35dbfc4..1ee1c61 main -> main`.
+
+**Files added:**
+- `src/lib/beithady/youtube/youtube-client.ts` (93 lines)
+- `src/lib/beithady/youtube/youtube-client.test.ts` (73 lines combined)
+
+---
+
+## 2026-05-15 — Task 11 regression fixes: pin toggle + aria-label (commit 20cb197)
+
+**Status:** DONE.
+
+**What was done:** Fixed two regressions caught in the Task 11 code-quality review.
+
+1. **Issue 1 (pin toggle / collapsed icon strip):** `BHDashboardShell` was calling `useRailCollapse()` internally but never threading `collapsed/pinned/onTogglePin/collapsedIcons` down to `BHLeftRail`. The rail rendered a blank 44px column when collapsed. Fix: removed the internal hook call from `BHDashboardShell` (now layout-only, `railCollapsed` defaults to `false`, `onRailEnter`/`onRailLeave` pass straight through). The perf consumer now calls `useRailCollapse()` itself and threads all four props into `<BHLeftRail>` (desktop slot only; mobile sheet keeps a plain `<BHLeftRail sections={...} />`).
+
+2. **Issue 2 (aria-label drift):** Added `ariaLabel?: string` prop to `BHCustomizeDrawer` (defaults to `title` for backward compat). The perf consumer passes `ariaLabel="Customize dashboard"` to restore the original accessibility label.
+
+**Verification:**
+- `npx vitest run`: 593 passing / 22 skipped — all 4 `bh-dashboard-shell` tests still pass.
+- `npx tsc --noEmit`: clean.
+- `npm run build`: succeeded end-to-end.
+
+**Files modified:**
+- `src/app/beithady/_components/dashboard-shell/bh-dashboard-shell.tsx`
+- `src/app/beithady/_components/dashboard-shell/bh-customize-drawer.tsx`
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx`
+
+**NOT pushed** — controller handles push.
+
+---
+
+## 2026-05-15 — Task 11: analytics/performance dashboard-shell.tsx → shared package (commit ebadbf5)
+
+**Status:** DONE.
+
+**What was done:** Replaced the entire content of `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` with the plan's Task 11 Step 2 content verbatim. The file now imports layout/rail/title-bar/mobile-sheet/customize-drawer from `@/app/beithady/_components/dashboard-shell` (the shared package). Local imports of `TitleBar`, `LeftRail`, `CustomizeDrawer`, `MobileFilterSheet`, and `useRailCollapse` removed. `usePerfUrlState`, `useVisibility`, panel imports stay as local/consumer imports.
+
+**File size:** 670 lines (was 588). Note: the plan said ~470; the actual content from the plan's code block is 670 lines (line count reflects actual verbatim paste).
+
+**Verification:**
+- `npm run test`: 585 passing / 22 skipped — no regressions.
+- `npx tsc --noEmit`: clean.
+- `npm run build`: succeeded end-to-end.
+- `git diff --stat`: 1 file changed, 531 insertions(+), 448 deletions(-).
+
+**Files modified:** `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` only.
+
+**NOT pushed** — controller handles push.
+
+---
+
 ## 2026-05-15 — Task 10: usePerfUrlState → useBHUrlState wrapper (commit 5a5a8ca)
 
 **Status:** DONE.
