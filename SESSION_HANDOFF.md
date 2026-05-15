@@ -1,3 +1,41 @@
+## 2026-05-15 — BH audit P1 SHIPPED: Financials landing + Performance + Balance Sheet migrated
+
+**Status:** All 11 plan tasks complete. 5 commits pushed to main (`75e8f95` → `ca513bf`). Vercel auto-deploy in flight.
+
+**What landed:**
+- **Phase 1 — Landing** (`75e8f95`): `financials/page.tsx` migrated to `<BeithadyShell + BeithadyHeader + BeithadyLauncher>` matching analytics/operations/communication landings. New `StatusPreStrip.tsx` renders the 3 status cards with BH-themed chrome (Active snapshot in BH cream + gold; Open variance + Next snapshot due keep semantic red/amber as inherited hex literals tracked under audit §7.2 follow-up). Deleted bespoke `CockpitTile.tsx`. 7 launcher tiles preserved.
+- **Phase 2 — Performance** (`e0c3992` + `6faee70` type-narrowing cleanup): New typed URL hook `usePerfPnlUrlState` (7 vitest assertions covering preset/month/scope/building/lob/A1-backward-compat). New `PerformanceShell.tsx` client wrapper composing `<BHDashboardShell>` with three rail sections: Scope (3 pills) + Period (6 preset pills + `<input type="month">` styled with BH vars) + Building (6 pills). Page.tsx becomes a thin server component (parse search params → fetch → render shell). **Real month picker shipped** — user's loudest complaint from the original audit now resolved.
+- **Phase 3 — Balance Sheet** (`fee3920`): Same pattern. New typed URL hook `useBSUrlState` (4 vitest assertions). New `BalanceSheetShell.tsx` with rail sections: Scope + As-of date input + Building. `asof` is always written to URL so bookmarks reproduce day-of.
+- **Phase 4 — Cleanup** (`ca513bf`): Deleted obsolete `PeriodControls.tsx` (rail composition replaces it).
+
+**Verification:** 628 passing / 22 skipped (baseline 617 + 7 Perf hook + 4 BS hook = 628). Zero regressions. `tsc --noEmit` clean. `npm run build` succeeds.
+
+**Out of scope (untouched):** `FinancialsFilterStrip.tsx` stays alive (Payables still uses it — migration is P2 #6 in the audit). `PnlSection`, `BalanceSheetSection`, `PayablesBlock`, body components, data layer in `financials-pnl.ts` (including `CompanyScope` type with `'a1'` per P0-1 UI-hide-only strategy) all preserved.
+
+**Pattern reuse confirmed.** P0-2's composition-over-configuration architecture proves out a third time. Same `<BHDashboardShell>` shell now serves Analytics Performance + Fees Audit + Financials Performance + Financials Balance Sheet (4 consumers). Each page provides its own filter rail; URL state is opt-in via `useBHUrlState<T>`.
+
+**Audit progress:** P0-1 ✅ (A1 removal) + P0-2 ✅ (BHDashboardShell extraction + 2 consumers) + P1 ✅ (3 financials pages). Remaining backlog: **P2** — Payables/Ledgers/Snapshots/Reconciliation/Import migrations + non-financials data dashboards (calendar-heatmap, market-intel, inventory/dashboard, ads/performance, ops surfaces, hr dashboards, communication inbox).
+
+---
+
+## 2026-05-15 — BH audit P1 Tasks 7-9 DONE: Balance Sheet migrated to BHDashboardShell
+
+**Commit:** `fee3920` — `feat(bh-financials): migrate Balance Sheet to BHDashboardShell`
+
+**What shipped:**
+- Created `src/app/beithady/financials/_hooks/use-bs-url-state.ts` — typed URL hook with `useBSUrlState`, `parseFinBSState`, `serializeFinBSState`, `buildFinBSUrl`. State: `{ scope: FinBSScope, asof: 'YYYY-MM-DD', building: FinBSBuilding }`. Defaults: scope='consolidated', asof=today, building='all'. `asof` is ALWAYS written to URL (reproducible across days). A1 preserved in type for backward-compat, omitted from UI.
+- Created `src/app/beithady/financials/_hooks/use-bs-url-state.test.ts` — 4 assertions (TDD: red→green). Tests: asof always written, scope omission/inclusion, building inclusion, A1 backward-compat. All 4 pass.
+- Created `src/app/beithady/financials/balance-sheet/_components/BalanceSheetShell.tsx` — `'use client'` wrapper composing `<BHDashboardShell>`. Rail state threaded to BOTH `<BHDashboardShell>` (railCollapsed/onRailEnter/onRailLeave) AND `<BHLeftRail>` (collapsed/pinned/onTogglePin/collapsedIcons). Three rail sections: Scope (3 pills), As of (`<input type="date">`), Building (6 pills). Back-to-Financials link in title bar actions.
+- Replaced `src/app/beithady/financials/balance-sheet/page.tsx` — thin server component. Parses searchParams (Promise per Next.js 16) via `parseFinBSState()`. Calls `buildBalanceSheet({ asOf, companyIds })` unchanged. Renders `<BalanceSheetShell>`.
+
+**Verification:** tsc clean, 4/4 hook tests, 628/22 full suite (+4 new, no regressions), build succeeded.
+
+**NOT pushed** — controller pushes at end of full P1 (after Task 10 PeriodControls cleanup).
+
+**Next:** Task 10 — delete `PeriodControls.tsx` + Task 11 final push.
+
+---
+
 ## 2026-05-15 — BH audit P1 Tasks 4-6 DONE: Performance migrated to BHDashboardShell + month picker
 
 **Commit:** `e0c3992` — `feat(bh-financials): migrate Performance to BHDashboardShell + add month picker`
@@ -122,7 +160,23 @@ Expected: Test 1 succeeds, Test 2 fails → confirms restricted-scope verificati
 
 **Fixed by commit `dbd5713`:** dropped the `include_granted_scopes` parameter from `src/app/api/auth/google-youtube/start/route.ts`. The flag was non-essential — V1.1 doesn't do incremental authorization, there are no previously granted YouTube scopes to merge. Pushed to main → Vercel auto-deploying.
 
-**Final unblock:** wait ~2 min for Vercel auto-deploy, then retry Connect from `/beithady/ads/accounts`. Should mirror the working manual flow. After lands at `?connected=youtube`, Task 27 ✅, move to Task 28 (sync upload smoke with ≤60s vertical clip). Awaiting kareem's confirmation.
+**Round 3 fix didn't unblock either.** Retry from app still hit Access blocked even after `dbd5713` + alias update.
+
+**ACTUAL root cause finally found via Chrome DevTools Network tab:** the live `auth?client_id=...` request from our app had:
+```
+redirect_uri=https%3A%2F%2Fapp.limeinc.cc%0A%2Fapi%2Fauth%2Fgoogle-youtube%2Fcallback
+```
+`%0A` is URL-encoded **newline**. The Vercel env var `NEXT_PUBLIC_APP_URL` has a trailing `\n` (paste-from-clipboard hazard). Code did `${NEXT_PUBLIC_APP_URL}/api/auth/google-youtube/callback` → host\n/path → malformed URI → Google rejected as "doesn't comply with OAuth 2.0 policy".
+
+Also explains why manual paste-in-incognito Test 2 succeeded — kareem typed the URL by hand, no newline. The `secure-response-handling` policy link in the protobuf was a red herring; the actual rule violated was just **valid URI format**. The `include_granted_scopes` removal from `dbd5713` didn't matter for this bug but kept removed regardless (no business being there).
+
+**Round 4 fix shipped at `ab623f7`:** both `start/route.ts` and `callback/route.ts` now `.trim()` `NEXT_PUBLIC_APP_URL` before concatenating. Defensive code so trailing whitespace in env var can't break the flow. Pushed → Vercel built deploy `lime-fz7jyysew` → `vercel alias set` ran (per `vercel_lime_alias_quirk` memory).
+
+**Follow-up worth doing later (NOT V1.1 blocker):**
+- Fix the env var itself in Vercel (rm + add without trailing newline) so OTHER consumers of `NEXT_PUBLIC_APP_URL` don't trip on it. `grep -r NEXT_PUBLIC_APP_URL src/` to find all callsites.
+- Consider trimming all env vars at app boot or moving to a typed env loader.
+
+**Awaiting kareem's retry** — should mirror the working manual flow now. After lands at `?connected=youtube`, Task 27 ✅, move to Task 28 (sync upload smoke with ≤60s vertical clip).
 
 ---
 
