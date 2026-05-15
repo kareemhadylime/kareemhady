@@ -1,6 +1,3 @@
-import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { TopNav } from '@/app/_components/brand';
 import {
   buildPnlReport,
   resolveFinancePeriod,
@@ -8,8 +5,8 @@ import {
   scopeLabel,
   type CompanyScope,
 } from '@/lib/financials-pnl';
-import { PnlSection, UnclassifiedPanel } from '../_components/PnlSection';
-import { FinancialsFilterStrip } from '../_components/FinancialsFilterStrip';
+import { PerformanceShell } from './_components/PerformanceShell';
+import { parseFinPerfState } from '../_hooks/use-perf-pnl-url-state';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -32,12 +29,29 @@ export default async function PerformancePage({
   }>;
 }) {
   const sp = await searchParams;
-  const preset = sp.month ? `month:${sp.month}` : sp.preset || 'last_month';
-  const period = resolveFinancePeriod(preset, sp.from, sp.to);
-  const scope: CompanyScope = isCompanyScope(sp.scope) ? sp.scope : 'consolidated';
+
+  // Build a URLSearchParams to feed our typed parser. The parser is the source
+  // of truth for which params we honor and how — page.tsx just glues data fetch
+  // to the URL state.
+  const urlParams = new URLSearchParams();
+  if (sp.preset) urlParams.set('preset', sp.preset);
+  if (sp.month) urlParams.set('month', sp.month);
+  if (sp.scope) urlParams.set('scope', sp.scope);
+  if (sp.building) urlParams.set('building', sp.building);
+  if (sp.lob) urlParams.set('lob', sp.lob);
+  const state = parseFinPerfState(urlParams);
+
+  // Legacy ?from=&to= URL params still resolve via the existing helper. The
+  // shell UI never emits these, but old bookmarks continue to work.
+  const presetStr = state.period.kind === 'month'
+    ? `month:${state.period.ym}`
+    : state.period.id;
+  const period = resolveFinancePeriod(presetStr, sp.from, sp.to);
+
+  const scope: CompanyScope = isCompanyScope(state.scope) ? state.scope : 'consolidated';
   const companyIds = scopeCompanyIds(scope);
-  const buildingCode = sp.building && sp.building !== 'all' ? sp.building : undefined;
-  const lobLabel = sp.lob && sp.lob !== 'all' ? sp.lob : undefined;
+  const buildingCode = state.building !== 'all' ? state.building : undefined;
+  const lobLabel = state.lob && state.lob !== 'all' ? state.lob : undefined;
 
   const pnl = await buildPnlReport({
     fromDate: period.fromDate,
@@ -49,43 +63,12 @@ export default async function PerformancePage({
   });
 
   return (
-    <>
-      <TopNav>
-        <Link href="/beithady" className="ix-link">
-          BEITHADY
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <Link href="/beithady/financials" className="ix-link">
-          Financials
-        </Link>
-        <ChevronRight size={14} className="text-slate-400" />
-        <span>Performance</span>
-      </TopNav>
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8 flex-1">
-        <Link
-          href="/beithady/financials"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
-        >
-          <ChevronLeft className="h-4 w-4" /> Back to Financials
-        </Link>
-        <header>
-          <h1 className="text-2xl font-bold">Performance · {scopeLabel(scope)}</h1>
-          <p className="text-sm text-slate-500">{period.label}</p>
-        </header>
-        <FinancialsFilterStrip
-          basePath="/beithady/financials/performance"
-          activeScope={scope}
-          activePreset={preset.startsWith('month:') ? undefined : preset}
-          showPeriodPresets
-        />
-        <PnlSection
-          pnl={pnl}
-          scopeLbl={scopeLabel(scope)}
-          buildingCode={buildingCode}
-          lobLabel={lobLabel}
-        />
-        {pnl.unclassified.length > 0 && <UnclassifiedPanel pnl={pnl} />}
-      </main>
-    </>
+    <PerformanceShell
+      pnl={pnl}
+      scopeLbl={scopeLabel(scope)}
+      buildingCode={buildingCode}
+      lobLabel={lobLabel}
+      periodLabel={period.label}
+    />
   );
 }
