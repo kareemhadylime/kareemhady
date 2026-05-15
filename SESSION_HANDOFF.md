@@ -1,3 +1,19 @@
+## 2026-05-15 — BH design audit spec drafted (paper deliverable, no code)
+
+**Status:** Spec committed `7b39435`, awaiting user review.
+
+User flagged Financials tab as visibly drifting from Analytics: Performance page uses horizontal pill bar where Analytics Performance uses left filter rail; Financials cockpit uses raw indigo/red/yellow palette violating BH brand; A1 appears in Beithady scope filter (shouldn't). Asked to standardize across all BH modules.
+
+**Brainstorming outcome:** picked Spec B (drift audit first, migration plan), Beithady-only boundary, source-only inspection.
+
+**Spec written to** [`docs/superpowers/specs/2026-05-15-bh-design-audit-design.md`](docs/superpowers/specs/2026-05-15-bh-design-audit-design.md). Contains: 5-bucket page-type taxonomy, canonical pattern per type, drift severity rubric, inventory of all 124 BH page.tsx files (12 wrong-shell offenders = all 10 financials + setup + pricing; 1 canonical data dashboard = analytics/performance; 2 bespoke parallel implementations = analytics/performance + analytics/reports/fees-audit), 4 cross-cutting fixes (A1 removal, brand-var sweep, BHDashboardShell extraction, P&L month picker), prioritized 14-item migration backlog with P0–P3 ordering.
+
+**No code changes.** Each migration spawns its own spec/plan/PR. Waiting for kareem to review the spec + answer 6 open questions in §9 before proceeding to writing-plans.
+
+**Memory added:** `beithady_scope_filter_no_a1.md` (project), `feedback_beithady_brand_only.md` (feedback). Both indexed in MEMORY.md.
+
+---
+
 ## 2026-05-15 — BH Financials import: dual-kind 227002 auto-split shipped (Approach B)
 
 **Status:** Shipped in commit `5dddb15`. User picked Approach B (one xlsx per account → auto-split by Odoo flags).
