@@ -14,6 +14,13 @@
 
 **Composition wins.** Spec §3 picked composition over configuration. The architecture proves out: `<BHDashboardShell>` takes JSX slots (titleBar/rail/mobileFilterSheet/drawer/children), URL state is opt-in via `useBHUrlState<T>`. Analytics Performance uses the full happy path (BHLeftRail w/ Period/Building/Compare sections + `useBHUrlState` for shareable URLs). Fees Audit slots its bespoke Sidebar into `rail` unchanged and keeps its `useState`-based config. Same shell, two different rail patterns, zero compromise on either side.
 
+**Final-review pass** (after `c2c9bb2`): subagent code-reviewer returned READY TO MERGE with one Important + 2 Minor findings. Fixed inline in `096aba6`:
+- `useBHUrlState`: documented the stability contract (parse/serialize/basePath must be stable references — inline arrow functions cause continuous re-renders); added per-field JSDoc on `BHUrlStateOpts`; clarified `defaults` is passthrough not authoritative.
+- `bh-dashboard-shell.test.tsx`: restored `window.matchMedia` in `afterAll` so the jsdom stub doesn't leak to other test files in the same vitest worker.
+- Skipped: `BHCustomizeDrawer` ariaLabel test (low-value, can ride along with next test pass).
+
+**Final pushed HEAD on main:** `096aba6` (after kareem's parallel YouTube commits merged the actual remote HEAD past that to whatever's current).
+
 **Audit progress:** P0-1 (A1 removal) and P0-2 (BHDashboardShell extraction + 2-consumer migration) both done. Downstream consumers unblocked: P1 = Financials Performance / Balance Sheet / landing migration (next), then P2 = remaining data dashboards (calendar-heatmap, market-intel, inventory/dashboard, ads/performance, ops surfaces, hr dashboards, communication inbox).
 
 ---
