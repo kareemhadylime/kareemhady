@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
   }
   const accountId = Number(accountIdStr);
 
-  // 1. Exchange code for tokens
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.limeinc.cc'}/api/auth/google-youtube/callback`;
+  // 1. Exchange code for tokens. .trim() defends against trailing whitespace
+  // in the Vercel env var (must match exactly what the start route sent).
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.limeinc.cc').trim();
+  const redirectUri = `${appUrl}/api/auth/google-youtube/callback`;
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

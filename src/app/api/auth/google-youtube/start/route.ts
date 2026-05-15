@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
   const csrf = crypto.randomBytes(16).toString('hex');
   const state = `${csrf}.${accountIdParam}`;
 
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.limeinc.cc'}/api/auth/google-youtube/callback`;
+  // .trim() defends against trailing whitespace/newline in the Vercel env var
+  // (paste-from-clipboard hazard — caused %0A in redirect_uri on 2026-05-15).
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.limeinc.cc').trim();
+  const redirectUri = `${appUrl}/api/auth/google-youtube/callback`;
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authUrl.searchParams.set('client_id', process.env.GOOGLE_CLIENT_ID!);
   authUrl.searchParams.set('redirect_uri', redirectUri);
