@@ -275,9 +275,13 @@ function PayablesModal(props: Props & { onClose: () => void }) {
         return sortDir === 'asc' ? cmp : -cmp;
       });
     } else {
-      // sort by |amount| so "biggest payable" surfaces regardless of sign
+      // Signed comparison: a negative amount is a payable we owe the partner,
+      // a positive amount is a downpayment / credit balance the partner owes us.
+      // 'asc'  → most-negative first (biggest payable at top) — what an
+      //          operator on the Payables screen most often wants.
+      // 'desc' → largest positive first, most-negative last.
       copy.sort((a, b) => {
-        const cmp = Math.abs(a.amount) - Math.abs(b.amount);
+        const cmp = a.amount - b.amount;
         return sortDir === 'asc' ? cmp : -cmp;
       });
     }

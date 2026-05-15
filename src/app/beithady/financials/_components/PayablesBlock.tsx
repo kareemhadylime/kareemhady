@@ -108,8 +108,10 @@ function PayablesCard({
         return sortDir === 'asc' ? cmp : -cmp;
       });
     } else {
+      // Signed: negative = payable (we owe), positive = downpayment / credit
+      // (partner owes us). 'asc' surfaces biggest payable first.
       copy.sort((a, b) => {
-        const cmp = Math.abs(a.amount) - Math.abs(b.amount);
+        const cmp = a.amount - b.amount;
         return sortDir === 'asc' ? cmp : -cmp;
       });
     }
