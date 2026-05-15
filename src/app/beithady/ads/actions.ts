@@ -446,6 +446,10 @@ export async function publishTikTokReelAction(formData: FormData): Promise<void>
   const directPost = String(formData.get('direct_post') || '') === '1';
   const galleryAssetId = String(formData.get('gallery_asset_id') || '').trim() || null;
   const buildingCode = String(formData.get('building_code') || '').trim() || null;
+  // V1.2 cross-post: optional YouTube source
+  const ytVideoId = String(formData.get('yt_video_id') || '').trim() || null;
+  const adsYtVideoIdRaw = String(formData.get('ads_yt_video_id') || '').trim();
+  const adsYtVideoId = adsYtVideoIdRaw && Number.isFinite(Number(adsYtVideoIdRaw)) ? Number(adsYtVideoIdRaw) : null;
 
   if (!Number.isFinite(accountId)) redirect('/beithady/ads/tiktok/organic?error=missing_account');
 
@@ -464,6 +468,19 @@ export async function publishTikTokReelAction(formData: FormData): Promise<void>
   if (!result.ok) {
     redirect(`/beithady/ads/tiktok/organic?error=${encodeURIComponent(`${result.step}: ${result.error}`)}&account_id=${accountId}`);
   }
+
+  // V1.2 cross-post audit: write a row when a YouTube source was attached.
+  if (ytVideoId && result.ok) {
+    await recordCrossPost({
+      ads_youtube_video_id: adsYtVideoId,
+      youtube_video_id: ytVideoId,
+      target_platform: 'tiktok_organic',
+      target_post_id: result.post_id,
+      status: 'published',
+      created_by_user_id: user.id ? String(user.id) : null,
+    });
+  }
+
   revalidatePath('/beithady/ads/tiktok/organic');
   redirect(`/beithady/ads/tiktok/organic?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
 }
