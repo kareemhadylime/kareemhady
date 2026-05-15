@@ -2,8 +2,9 @@
 import { getYouTubeAccessToken } from './youtube-client';
 import {
   PublishInput, PublishedVideo, YouTubeUploadError, YouTubeAuthError, YouTubeQuotaError,
-  SYNC_DURATION_MAX_S, SYNC_SIZE_MAX_BYTES,
+  SYNC_DURATION_MAX_S, SYNC_SIZE_MAX_BYTES, CHUNK_SIZE_BYTES, CHUNK_BUDGET_MS,
 } from './types';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export function parseRangeEnd(headerValue: string | null): number {
   if (!headerValue) return -1;
@@ -116,4 +117,52 @@ export async function publishSync(accountId: number, input: PublishInput): Promi
     watch_url: `https://youtu.be/${video.id}`,
     upload_status: video.status?.uploadStatus,
   };
+}
+
+export type ChunkLoopRow = {
+  id: number;
+  source_url: string;
+  upload_session_url: string;
+  chunk_offset: number;
+  file_size_bytes: number;
+};
+
+export type ChunkLoopResult =
+  | { done: false; final_offset: number }
+  | { done: true; video_id: string };
+
+export async function sendChunksUntilBudget(row: ChunkLoopRow): Promise<ChunkLoopResult> {
+  const startMs = Date.now();
+  let offset = row.chunk_offset;
+  const total = row.file_size_bytes;
+  const sb = supabaseAdmin();
+
+  while (offset < total && Date.now() - startMs < CHUNK_BUDGET_MS) {
+    const end = Math.min(offset + CHUNK_SIZE_BYTES, total);
+    const chunkBytes = await fetchRangedBytes(row.source_url, offset, end - 1);
+
+    const resp = await fetch(row.upload_session_url, {
+      method: 'PUT',
+      headers: {
+        'Content-Length': String(end - offset),
+        'Content-Range': `bytes ${offset}-${end - 1}/${total}`,
+      },
+      body: chunkBytes,
+    });
+
+    if (resp.status === 308) {
+      const nextEnd = parseRangeEnd(resp.headers.get('Range'));
+      offset = nextEnd >= 0 ? nextEnd + 1 : end;
+      await sb.from('ads_youtube_videos').update({ chunk_offset: offset, updated_at: new Date().toISOString() }).eq('id', row.id);
+    } else if (resp.status === 200 || resp.status === 201) {
+      const video = await resp.json() as { id: string };
+      return { done: true, video_id: video.id };
+    } else if (resp.status === 401) {
+      throw new YouTubeAuthError('refresh_failed');
+    } else {
+      throw new YouTubeUploadError(`chunk_failed: ${resp.status} ${await resp.text()}`);
+    }
+  }
+
+  return { done: false, final_offset: offset };
 }
