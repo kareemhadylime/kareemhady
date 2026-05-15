@@ -19,12 +19,22 @@ type Props = {
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 
-// Strip leading "NNN." or "NNN. " prefix from partner names (e.g. "087. Volt
-// loan by Lime" → "Volt loan by Lime", "155.Aisha Head office Rent" →
-// "Aisha Head office Rent"). Names without the digit prefix pass through
-// unchanged (e.g. "STARSTORM", "A1 HOSPITALITY", "Laila Elwy").
+// Strip the internal-account-code prefix from partner names. The code can
+// appear at either end of the string depending on how the operator entered
+// it in Arabic vs Western contexts:
+//   - Leading:  "087. Volt loan by Lime"            → "Volt loan by Lime"
+//   - Leading:  "155.Aisha Head office Rent"        → "Aisha Head office Rent"
+//   - Trailing: "هيتيك (شيماء عبدالحكيم).145"        → "هيتيك (شيماء عبدالحكيم)"
+//   - Trailing: "ناتك لحلول معالجة المياه.143"       → "ناتك لحلول معالجة المياه"
+// Names without any digit prefix/suffix pass through unchanged (STARSTORM,
+// A1 HOSPITALITY, Laila Elwy, etc.). Both ends are tried so an entry like
+// "012.foo.345" reduces to "foo" cleanly.
 export function cleanPartnerName(raw: string): string {
-  return raw.replace(/^\d+\.\s*/, '').trim() || raw;
+  const cleaned = raw
+    .replace(/^\d+\.\s*/, '')        // strip leading "NNN. " or "NNN."
+    .replace(/\s*\.\d+\s*$/, '')      // strip trailing ".NNN"
+    .trim();
+  return cleaned || raw;
 }
 
 type SortKey = 'name' | 'total' | null;
