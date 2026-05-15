@@ -166,3 +166,31 @@ export async function sendChunksUntilBudget(row: ChunkLoopRow): Promise<ChunkLoo
 
   return { done: false, final_offset: offset };
 }
+
+export type ProcessingPoll =
+  | { status: 'processing' }
+  | { status: 'published'; thumbnail_url: string | null }
+  | { status: 'error'; reason: string };
+
+export async function pollProcessing(accountId: number, youtubeVideoId: string): Promise<ProcessingPoll> {
+  const accessToken = await getYouTubeAccessToken(accountId);
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/videos?id=${encodeURIComponent(youtubeVideoId)}&part=status,snippet`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (res.status === 401) throw new YouTubeAuthError('refresh_failed');
+  if (!res.ok) throw new YouTubeUploadError(`poll_failed: ${res.status}`);
+  const json = await res.json() as {
+    items?: Array<{
+      status?: { uploadStatus?: string; failureReason?: string };
+      snippet?: { thumbnails?: { high?: { url?: string } } };
+    }>;
+  };
+  const v = json.items?.[0];
+  if (!v) return { status: 'error', reason: 'video_not_found' };
+
+  const u = v.status?.uploadStatus;
+  if (u === 'processed') return { status: 'published', thumbnail_url: v.snippet?.thumbnails?.high?.url ?? null };
+  if (u === 'failed' || u === 'rejected') return { status: 'error', reason: v.status?.failureReason ?? u };
+  return { status: 'processing' };
+}
