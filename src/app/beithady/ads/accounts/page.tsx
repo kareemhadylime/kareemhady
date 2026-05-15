@@ -12,7 +12,7 @@ export const maxDuration = 60;
 
 type AdsAccountRow = {
   id: number;
-  platform: 'meta' | 'google' | 'tiktok';
+  platform: 'meta' | 'google' | 'tiktok' | 'youtube';
   external_id: string;
   name: string;
   currency: string;
@@ -29,6 +29,10 @@ type AdsAccountRow = {
   tiktok_identity_id: string | null;
   tiktok_username: string | null;
   tiktok_refresh_token: string | null;
+  youtube_channel_id: string | null;
+  youtube_channel_handle: string | null;
+  youtube_channel_name: string | null;
+  youtube_refresh_token: string | null;
 };
 
 export default async function AccountsPage() {
@@ -36,7 +40,7 @@ export default async function AccountsPage() {
   const sb = supabaseAdmin();
   const { data } = await sb
     .from('ads_accounts')
-    .select('id, platform, external_id, name, currency, timezone, status, fb_page_id, fb_page_name, ig_business_id, ig_username, google_customer_id, google_login_customer_id, google_refresh_token, tiktok_advertiser_id, tiktok_identity_id, tiktok_username, tiktok_refresh_token')
+    .select('id, platform, external_id, name, currency, timezone, status, fb_page_id, fb_page_name, ig_business_id, ig_username, google_customer_id, google_login_customer_id, google_refresh_token, tiktok_advertiser_id, tiktok_identity_id, tiktok_username, tiktok_refresh_token, youtube_channel_id, youtube_channel_handle, youtube_channel_name, youtube_refresh_token')
     .order('platform').order('id');
   const rows = (data as AdsAccountRow[] | null) || [];
 
@@ -45,7 +49,7 @@ export default async function AccountsPage() {
       <BeithadyHeader
         eyebrow="Beit Hady · Ads"
         title="Ad accounts"
-        subtitle="Connected ad accounts across Meta, Google, and TikTok. Connect or add a new account, then publish from the platform tabs."
+        subtitle="Connected ad accounts across Meta, Google, TikTok, and YouTube. Connect or add a new account, then publish from the platform tabs."
         right={
           <Link href="/admin/integrations" className="ix-btn-secondary">
             <KeyRound size={14} /> App-level credentials
@@ -81,11 +85,14 @@ export default async function AccountsPage() {
                   const isConnected =
                     (r.platform === 'meta' && !!r.fb_page_id) ||
                     (r.platform === 'google' && !!r.google_refresh_token) ||
-                    (r.platform === 'tiktok' && !!r.tiktok_refresh_token);
+                    (r.platform === 'tiktok' && !!r.tiktok_refresh_token) ||
+                    (r.platform === 'youtube' && !!r.youtube_refresh_token);
                   const identity =
                     r.platform === 'meta' ? (r.ig_username ? `@${r.ig_username}` : r.fb_page_name || '—')
                     : r.platform === 'google' ? (r.google_customer_id ? `cust ${r.google_customer_id}` : '—')
-                    : (r.tiktok_username ? `@${r.tiktok_username}` : '—');
+                    : r.platform === 'tiktok' ? (r.tiktok_username ? `@${r.tiktok_username}` : '—')
+                    : r.platform === 'youtube' ? (r.youtube_channel_handle || r.youtube_channel_name || '—')
+                    : '—';
                   return (
                     <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 align-middle">
                       <td className="py-2 pr-3 font-medium">{PLATFORM_LABEL[r.platform]}</td>
@@ -126,6 +133,15 @@ export default async function AccountsPage() {
                             <Link href={`/api/auth/tiktok/start?account_id=${r.id}`} className="ix-link text-[11px] text-amber-600 dark:text-amber-400" title="Re-run OAuth — use if publish fails with refresh_failed">Reconnect</Link>
                           </span>
                         )}
+                        {r.platform === 'youtube' && !r.youtube_refresh_token && (
+                          <Link href={`/api/auth/google-youtube/start?account_id=${r.id}`} className="ix-link text-[11px]">Connect →</Link>
+                        )}
+                        {r.platform === 'youtube' && r.youtube_refresh_token && (
+                          <span className="inline-flex items-center gap-2">
+                            <Link href="/beithady/gallery/youtube" className="ix-link text-[11px]">Configure →</Link>
+                            <Link href={`/api/auth/google-youtube/start?account_id=${r.id}`} className="ix-link text-[11px] text-amber-600 dark:text-amber-400" title="Re-run OAuth — use if publish fails with refresh_failed">Reconnect</Link>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -138,7 +154,7 @@ export default async function AccountsPage() {
 
       <section className="ix-card p-5 space-y-3 text-xs">
         <h3 className="font-semibold text-sm">Add a new account</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
           <PlatformAddCard
             label="Meta (Facebook + Instagram)"
             description="One row covers FB Pages + IG Business accounts + ads campaigns. Configure system-user token under integrations."
@@ -156,6 +172,12 @@ export default async function AccountsPage() {
             description="Add the advertiser ID + identity, then connect the TikTok OAuth flow for organic Reels publishing."
             primaryHref="/beithady/ads/tiktok/accounts"
             primaryLabel="Manage TikTok accounts"
+          />
+          <PlatformAddCard
+            label="YouTube"
+            description="Connect the @beithady channel to publish videos with metadata. Seed row created on first deploy."
+            primaryHref="/beithady/gallery/youtube"
+            primaryLabel="YouTube publish"
           />
         </div>
       </section>

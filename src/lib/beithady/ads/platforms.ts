@@ -1,13 +1,13 @@
 // Shared types + constants for the multi-platform BH Ads module.
 // Used by lib helpers and UI components alike.
 
-export const AD_PLATFORMS = ['meta', 'google', 'tiktok'] as const;
+export const AD_PLATFORMS = ['meta', 'google', 'tiktok', 'youtube'] as const;
 export type AdPlatform = (typeof AD_PLATFORMS)[number];
 
 export const PAID_PLATFORMS = ['meta', 'google', 'tiktok'] as const;
 export type PaidPlatform = (typeof PAID_PLATFORMS)[number];
 
-export const ORGANIC_PLATFORMS = ['instagram', 'tiktok', 'facebook'] as const;
+export const ORGANIC_PLATFORMS = ['instagram', 'tiktok', 'facebook', 'youtube'] as const;
 export type OrganicPlatform = (typeof ORGANIC_PLATFORMS)[number];
 
 export const PLATFORM_LABEL: Record<AdPlatform | OrganicPlatform, string> = {
@@ -16,6 +16,7 @@ export const PLATFORM_LABEL: Record<AdPlatform | OrganicPlatform, string> = {
   tiktok: 'TikTok',
   instagram: 'Instagram',
   facebook: 'Facebook',
+  youtube: 'YouTube',
 };
 
 // Status normalised across platforms — UI uses these uppercase values.
