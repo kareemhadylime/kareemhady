@@ -1,3 +1,25 @@
+## 2026-05-15 — UX FIX: rail auto-collapse mouse handlers (BH dashboard shell)
+
+**Status:** Fix pushed in `7438ba6`. Vercel auto-deploy in flight. User reported: rail never auto-collapses on financials sub-pages even after a long idle.
+
+**Root cause:** `bh-dashboard-shell.tsx` bound `onMouseEnter` / `onMouseLeave` to the outer GRID div (which spans rail + main content). Moving the cursor from the rail into the main content area kept it "inside" the grid bounds, so `onMouseLeave` never fired and the 3 s `useRailCollapse` idle timer never started. The behavior affected all 7 `<BHDashboardShell>` consumers (Analytics Performance, Fees Audit, Financials Performance, Balance Sheet, Payables, Ledgers, Reconciliation), but went unnoticed on Analytics Performance because operators move the cursor off-page often there.
+
+**Fix:** moved the handlers down one level — bound to the **rail wrapper div** itself rather than the parent grid. Now the timer starts when the cursor leaves the rail and enters the main content, matching the operator's expectation ("rail disappears ~3 s after I move off it, hover brings it back").
+
+**Verification:** all 26 dashboard-shell tests still pass. `tsc --noEmit` clean. 1 file changed, 11 ins / 3 del.
+
+**Lesson for future BHDashboardShell evolution:** mouse-tracking for rail UX belongs on the rail element, not the layout container. The container's only job is column-width math.
+
+---
+
+## 2026-05-15 — HOTFIX: BH financials sub-pages crashing on prod ('use client' boundary)
+
+Earlier this hour: server pages were calling `parseFinXState` from `'use client'` hook files, which Next.js 16 treats as illegal client→server invocation. Fix `61554f7` split each of the 5 typed URL hooks into a non-client pure-helpers sibling + a re-exporting client hook. All 5 server pages now import from the pure modules. 24 hook tests still pass.
+
+(See full entry below for details.)
+
+---
+
 ## 2026-05-15 — YouTube V1.2 · Tasks 11/12/13 — publish-page wiring (IG Reels, TikTok organic, TikTok paid)
 
 **Status:** DONE_WITH_CONCERNS (Task 12 partial — see below). 3 commits pushed.
