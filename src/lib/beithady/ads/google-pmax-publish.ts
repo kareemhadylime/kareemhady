@@ -63,6 +63,7 @@ export type GooglePMaxInput = {
   locationIds?: string[];
   languageIds?: string[];
   buildingCodes?: string[];
+  youtube_video_id?: string;       // optional — V1.2 cross-post: attach as YOUTUBE_VIDEO asset
 };
 
 export type GooglePMaxResult =
@@ -263,6 +264,30 @@ export async function publishGooglePerformanceMax(
           create: { assetGroup: agResource, asset: imgResource, fieldType },
         }], creds, accessToken);
         if (!linkRes.ok) console.warn(`[google-pmax] ${fieldType} link failed:`, linkRes.body);
+      }
+    }
+  }
+
+  // V1.2 cross-post: optionally attach a YouTube video as YOUTUBE_VIDEO asset.
+  // Soft-warns on failure — never aborts campaign creation.
+  if (input.youtube_video_id && agResource) {
+    // Step A — create the YouTube video asset
+    const ytAssetRes = await gadsMutate(customerId, 'assets', [{
+      create: {
+        name: `yt_${input.youtube_video_id}_${Date.now()}`,
+        youtubeVideoAsset: { youtubeVideoId: input.youtube_video_id },
+      },
+    }], creds, accessToken);
+    if (!ytAssetRes.ok) {
+      console.warn('[google-pmax] youtube_video asset create failed:', ytAssetRes.body);
+    } else {
+      const ytAssetResource = ytAssetRes.body.results?.[0]?.resourceName;
+      if (ytAssetResource) {
+        // Step B — link the YT asset to the asset group with fieldType=YOUTUBE_VIDEO
+        const linkRes = await gadsMutate(customerId, 'assetGroupAssets', [{
+          create: { assetGroup: agResource, asset: ytAssetResource, fieldType: 'YOUTUBE_VIDEO' },
+        }], creds, accessToken);
+        if (!linkRes.ok) console.warn('[google-pmax] YOUTUBE_VIDEO link failed:', linkRes.body);
       }
     }
   }
