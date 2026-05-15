@@ -16,6 +16,13 @@
 - Current state observed (screenshot): 3 linked accounts — Promotions 109-284-9441, Beithady Ads A... 424-355-4501, Google Ads link... 568-826-0497. None is the MCC.
 - Next steps for kareem: Unlink 424-355-4501 → Link account → paste 395-304-4686 → switch to MCC in Google Ads → approve pending request. Optional hygiene: unlink Promotions 109-284-9441 and 568-826-0497 if unrecognized.
 - This is unrelated to V1.1 (OAuth upload-only); it's setup for V1.2's cross-post / video ads pipeline.
+- **DONE — kareem confirmed MCC ↔ channel link is now Linked** with permissions: View counts / Remarketing / Engagement (since 2026-05-15, 1 channel / 23 subscribers / 23 videos).
+
+**Follow-up Q from kareem: "Can I do ads through this MCC account?"**
+- Answer: No — MCC accounts can't run ads directly. Manager-only. Campaigns live in child accounts.
+- Recommended path: bring existing FZCO Ads (424-355-4501) under Beithady MCC as a sub-account. MCC = billing + reporting + YouTube link umbrella; FZCO = actual campaigns. Channel and remarketing audiences propagate down automatically once linked.
+- Steps given: MCC → Admin → Account access → Sub-account settings → Link existing account → enter FZCO ID → approve from FZCO side. Alternative: create new sub-account under MCC if fresh start preferred.
+- For V1.2 cross-post pipeline, the actual API integration point will be the child account, not the MCC.
 
 **No new code beyond `0348528`. Test suite remains green.**
 
