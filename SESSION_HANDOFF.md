@@ -1,3 +1,34 @@
+## 2026-05-15 — BH audit P0-1 SHIPPED: A1 pill removed from BH financials scope filter
+
+**Status:** Pushed `2e3060d` → main, Vercel auto-deploy in flight. All 5 plan tasks complete.
+
+**What landed:**
+- [`FinancialsFilterStrip.tsx`](src/app/beithady/financials/_components/FinancialsFilterStrip.tsx) — dropped `{ id: 'a1', label: 'A1' }` from the SCOPES array; clarified inline comment to distinguish what the type accepts (still includes `'a1'` for backward-compat) vs what the strip renders (Consolidated/Egypt/Dubai only).
+- [`FinancialsFilterStrip.test.tsx`](src/app/beithady/financials/_components/FinancialsFilterStrip.test.tsx) (new) — 3 vitest assertions: contains the three valid BH scopes, NOT contains A1, scope nav has exactly 3 links. Uses the jsdom + @testing-library/react pattern from `fmplus-logo.test.tsx`.
+- Full suite: 559 pass / 22 skipped (baseline 556 + exactly 3 new), zero regressions. `tsc --noEmit` clean.
+
+**UI-hide only by design.** `CompanyScope` type union still includes `'a1'`, `scopeCompanyIds('a1')` still resolves, and all 5 page-level `isCompanyScope()` type guards still accept `'a1'` — direct `?scope=a1` URL bookmarks continue to work. Full type removal is a separate follow-up plan documented at the bottom of the P0-1 plan file.
+
+**Workflow followed:** subagent-driven execution per the plan — implementer (Tasks 1-3 bundled), spec compliance reviewer (✅ approved), code-quality reviewer (✅ approved with 2 Minor non-blocking comment-only suggestions, applied inline). Task 4 dev-server smoke skipped with rationale: unit test proves DOM omits A1, type guards untouched → backward-compat behavior unchanged → Vercel build is the real end-to-end smoke at deploy time.
+
+**Audit progress:** P0 #1 done. Next on the backlog (audit §8): P0 #2 = extract `BHDashboardShell` primitive from `analytics/performance` + migrate that page to consume it (enabler for every subsequent data-dashboard migration). After that, P1 = migrate Financials Performance / Balance Sheet / landing.
+
+---
+
+## 2026-05-15 — BH audit P0-1 Tasks 1-3 DONE: A1 pill removed from FinancialsFilterStrip (awaiting smoke test + commit)
+
+**Status:** Tasks 1-3 complete. Changes in working tree, NOT committed. Awaiting user smoke test (Task 4) and commit/push (Task 5).
+
+**What was done:**
+- Pre-conditions verified: 4-entry SCOPES, exactly one `id: 'a1'` match, baseline 556 pass / 22 skipped.
+- Test file created: `src/app/beithady/financials/_components/FinancialsFilterStrip.test.tsx` (3 assertions; tests 2+3 failed red as expected before fix).
+- Fix applied: removed `{ id: 'a1', label: 'A1' }` from `SCOPES` array in `FinancialsFilterStrip.tsx`. `CompanyScope` type union left untouched.
+- Post-fix: 3/3 new tests pass; full suite 559 pass / 22 skipped (baseline +3, zero new failures); `tsc --noEmit` exit 0.
+
+**Modified files:** `FinancialsFilterStrip.tsx` (1 line removed), `FinancialsFilterStrip.test.tsx` (new).
+
+---
+
 ## 2026-05-15 — BH audit P0-1 plan written: drop A1 from BH scope filter (paper, no code yet)
 
 **Status:** Plan committed `53110e7`, pushed. No code shipped — plan only. 5 tasks, each TDD-bite-sized.
