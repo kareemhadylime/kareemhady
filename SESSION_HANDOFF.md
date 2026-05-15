@@ -1,3 +1,55 @@
+## 2026-05-15 — BH Ads · TikTok Reels (organic) replatformed from publish-out → embed-in
+
+**Status:** DONE. Pushing now.
+
+**Why:** TikTok dev-app rejection — "Beit Hady Dashboard" was rejected for production with the reviewer note: *"App will not be approved for personal or company internal use… Not acceptable: Display posts from the TikTok account(s) you or your team manage on your website."* The original publish-out flow (Content Posting API → state machine in `ads_tiktok_posts`) is unreachable without a working dev app. Pivoted to embed-in using TikTok's public embed.js (no API access required).
+
+**What landed:**
+- `supabase/migrations/0135_bh_marketing_reels.sql` — new `bh_marketing_reels` table (platform check 'tiktok'/'instagram' for future IG support, `url`, `external_id`, optional caption/building_code/sort_order, `is_visible`, audit cols, RLS open with single-policy). UNIQUE(platform, external_id) prevents dup adds. Applied to Supabase via MCP.
+- `src/lib/beithady/tiktok-url.ts` + `tiktok-url.test.ts` — URL parser accepting canonical `tiktok.com/@user/video/{id}` (incl. `www`, `m.`, no-www, with trailing slash, query strings), rejects short links (`vm.tiktok.com`, `vt.tiktok.com`, `/t/`) with helpful messages. 15/15 tests pass.
+- `src/lib/beithady/marketing-reels.ts` — `listMarketingReels({ visibleOnly?, platform?, building? })` server-only helper.
+- `src/app/beithady/ads/tiktok/organic/page.tsx` — **rewritten**: was the broken publish-out form; now the embed-in gallery. Gated on `requireBeithadyPermission('ads','full')`. Shows AddReelForm + filterable grid of ReelCards; loads `tiktok.com/embed.js` once via `next/script` (lazyOnload).
+- `src/app/beithady/ads/tiktok/organic/actions.ts` — `addReelAction`/`updateReelAction`/`toggleReelVisibilityAction`/`deleteReelAction`. All gated on `'ads','full'`, all write to `beithady_audit_log` via `recordAudit`, all `revalidatePath` and redirect back with `?error=`/`?added=`/`?updated=`/`?deleted=`.
+- `_components/tiktok-embed.tsx` — official `<blockquote class="tiktok-embed">` markup (server-renderable).
+- `_components/add-reel-form.tsx` — client form with URL/caption/building/sort_order, optimistic disable while pending.
+- `_components/reel-card.tsx` — client card with embed + collapsible inline edit, Hide/Show toggle, Delete (with `confirm()`), Open-on-TikTok link.
+
+**Retained but now unused:** `publishTikTokReelAction`, `pollTikTokPostAction`, `src/lib/beithady/ads/tiktok-organic-publish.ts`, `ads_tiktok_posts` table — kept in case a future TikTok dev-app re-application (different angle) succeeds. AdsTabs `tt-organic` tab already pointed at this URL, so no nav changes needed.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors
+- `npx vitest run src/lib/beithady/tiktok-url.test.ts` → 15/15 pass
+- `npm run build` → blocked locally by Windows + Turbopack `.tmp` rename quirk (`ENOENT: no such file or directory, open '.next/static/…/_buildManifest.js.tmp.*'`); Vercel/Linux build expected clean.
+
+**Files committed in this session:**
+- `supabase/migrations/0135_bh_marketing_reels.sql`
+- `src/lib/beithady/{tiktok-url.ts, tiktok-url.test.ts, marketing-reels.ts}`
+- `src/app/beithady/ads/tiktok/organic/{page.tsx, actions.ts, _components/{tiktok-embed.tsx, add-reel-form.tsx, reel-card.tsx}}`
+
+Pre-existing dirty files (financials reconciliation page + hooks + components, YouTube V1.2 spec) deliberately left out — owned by other sessions.
+
+**Next:** Watch Vercel deploy on `limeinc.vercel.app`. Verify embed.js loads + at least one real Beit Hady TikTok URL renders in the gallery.
+
+---
+
+## 2026-05-15 — BH Financials P2 Phase 3 (Tasks 4-5): Ledgers → BHDashboardShell
+
+**Status:** DONE. Commit `307484a`. NOT pushed (controller pushes at plan end).
+
+**What landed:**
+- Created `use-ledgers-url-state.ts` hook (TDD: test-first fail confirmed, 6/6 passing after)
+- Created `use-ledgers-url-state.test.ts` (6 assertions: defaults omit scope+kind, kind round-trip, scope+kind combo, A1 compat, missing kind→supplier, invalid kind→supplier)
+- Created `ledgers/_components/LedgersShell.tsx` — `'use client'` shell, rail state threaded to both `BHDashboardShell` AND `BHLeftRail`, 3 rail sections (Scope + Kind + As of), 3 scope pills + 7 kind pills + date input, Calendar + Users chips
+- Rewrote `ledgers/page.tsx` as thin server component using `parseFinLedgersState`
+- Added `export type LedgerReport` to `src/lib/beithady/financials/ledgers.ts` (was inline return type only)
+- Verification: tsc clean (0 errors), 642/642 tests pass (+6 new = 21 total in hooks folder), build succeeded (ledgers route appears as `ƒ /beithady/financials/ledgers`)
+
+**LedgerReport export added:** YES
+
+**Next:** Phase 4 Tasks 6-7 (Reconciliation hook + shell) or controller-directed push
+
+---
+
 ## 2026-05-15 — BH Financials P2 Phase 2 (Tasks 2-3): Payables → BHDashboardShell
 
 **Status:** DONE. Commit `c3ee8bf`. NOT pushed (controller pushes at plan end).
