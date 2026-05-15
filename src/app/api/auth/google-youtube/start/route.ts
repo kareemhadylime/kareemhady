@@ -25,7 +25,11 @@ export async function GET(req: NextRequest) {
   authUrl.searchParams.set('scope', SCOPES);
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'consent');
-  authUrl.searchParams.set('include_granted_scopes', 'true');
+  // NOTE: include_granted_scopes intentionally omitted. Bundling restricted
+  // YouTube scopes with previously-granted Gmail/Google-Ads scopes on the
+  // same OAuth client trips Google's "secure-response-handling" policy and
+  // returns Access blocked / Error 400 invalid_request. The Connect flow
+  // works end-to-end without it (verified by manual repro 2026-05-15).
   authUrl.searchParams.set('state', state);
 
   const res = NextResponse.redirect(authUrl.toString());
