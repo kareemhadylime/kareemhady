@@ -10,10 +10,6 @@ import { parseFinPayablesState } from '../_hooks/use-payables-url-state';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-function isCompanyScope(s: string | undefined): s is CompanyScope {
-  return s === 'consolidated' || s === 'egypt' || s === 'dubai' || s === 'a1';
-}
-
 export default async function PayablesPage({
   searchParams,
 }: {
@@ -25,7 +21,10 @@ export default async function PayablesPage({
   if (sp.scope) urlParams.set('scope', sp.scope);
   const state = parseFinPayablesState(urlParams);
 
-  const scope: CompanyScope = isCompanyScope(state.scope) ? state.scope : 'consolidated';
+  // `state.scope` is FinScope (validated by parseFinPayablesState against
+  // VALID_FIN_SCOPES). FinScope and CompanyScope share the same union shape,
+  // so this cast is safe — same pattern as the Ledgers page.
+  const scope = state.scope as CompanyScope;
   const companyIds = scopeCompanyIds(scope);
   const payables = await buildPayablesReport({ asOf: state.asof, companyIds });
 
