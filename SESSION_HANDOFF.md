@@ -1,3 +1,68 @@
+## 2026-05-15 — BH audit P1 brainstorm in progress: Financials Performance + Balance Sheet + landing migration
+
+**Status:** Brainstorming, no code yet. Picks up the P1 block of the BH design audit after P0-2 shipped (`096aba6`).
+
+**Scope (confirmed):** Full P1 — migrate all THREE pages in one PR.
+1. **`/beithady/financials`** (landing) — swap raw TopNav for `<BeithadyShell + BeithadyHeader + BeithadyLauncher>` (matches analytics/operations/communication landings). Keep the 3-card status pre-strip (Active snapshot / Open variance / Next snapshot due) but re-theme with `--bh-*` brand vars (current `bg-indigo-50/40` etc. violate the brand-only rule).
+2. **`/beithady/financials/performance`** — adopt `<BHDashboardShell>` from P0-2. Rail sections: **Scope** (Consolidated/Egypt/Dubai) + **Period** (preset pills + month picker side-by-side) + **Building** (All/BH-26/BH-73/BH-435/BH-OK/Other). LOB stays URL-only (YAGNI). Typed URL state via `useBHUrlState<FinPerfUrlState>`. `period: { kind: 'preset'; id } | { kind: 'month'; ym }` discriminated union.
+3. **`/beithady/financials/balance-sheet`** — same shell. Rail sections: Scope + As-of date input + Building. Typed via `useBHUrlState<FinBSUrlState>`.
+
+**Out of scope:** Payables, Ledgers, Snapshots, Reconciliation, Import — they stay on `FinancialsFilterStrip` for now. Payables migration is P2 #6 in the audit backlog. We KEEP `FinancialsFilterStrip` alive (still used by Payables).
+
+**User decisions captured:**
+- Q1 scope: option 3 (full P1 sweep, all three pages in one PR).
+- Q2 month picker UX: option 1 (preset pills + month picker side-by-side — operators get fast common-case + arbitrary-month flexibility).
+- Q3 rail sections: option 2 (Scope + Period + Building — LOB stays URL-only as YAGNI).
+
+**Design progress (presented inline to user, awaiting nod between sections):**
+- ✅ § 1 — per-page architecture (presented, user said "1continue" = approved + advance).
+- ⏳ § 2 — URL state shapes (`FinPerfUrlState` discriminated period + `FinBSUrlState` as-of + stability contract reminder + adapter to existing `buildPnlReport` / `buildBalanceSheet` signatures). Presented, awaiting nod.
+- ⏳ § 3 — month picker styling (BH-themed `<input type="month">`).
+- ⏳ § 4 — cleanup (status card re-theme; FinancialsFilterStrip stays alive — only delete when Payables migrates in P2).
+- ⏳ § 5 — testing strategy.
+
+**Spec to write:** `docs/superpowers/specs/2026-05-15-bh-financials-p1-migration-design.md` (paper deliverable). Then writing-plans for the multi-task implementation plan.
+
+**Architectural reuse:** all three pages compose from the just-shipped `src/app/beithady/_components/dashboard-shell/` package (P0-2). Performance + Balance Sheet use `BHDashboardShell + BHTitleBar + BHLeftRail + BHRailPill + BHMobileFilterSheet`. Landing uses `BeithadyShell + BeithadyHeader + BeithadyLauncher` (pre-existing primitives that were never in the financials cockpit).
+
+**No commits this session beyond the prior P0-2 work** (`0782d29` was the last handoff commit). This entry is the only artifact so far.
+
+---
+
+## 2026-05-15 — YouTube V1.1 — OAuth smoke (Task 27) BLOCKED on Google Cloud config
+
+**Status:** Code is live (commits up through `7ad28cd`). Kareem hit "Access blocked: Authorization Error / Error 400 invalid_request" on first Connect attempt at `/beithady/ads/accounts`. App name in dialog shows **"InboxOps"** (original Phase-1 brand on the reused OAuth client). User was signed in as kareem.hady@gmail.com, so it's not a test-user/sign-in issue — it's a request-validation rejection.
+
+**Diagnosis sent to kareem (most likely → least likely):**
+1. **OAuth consent screen missing the new YouTube scopes** — the reused OAuth client was originally declared for Gmail + Google Ads scopes only. Adding `youtube.upload` + `youtube.readonly` requires editing the consent screen → Scopes → Add or Remove → check both → Update. Without this, Google rejects the auth request with invalid_request.
+2. **YouTube Data API v3 not enabled** on the project (precondition for declaring the scopes).
+3. **Redirect URI not yet added** — `https://app.limeinc.cc/api/auth/google-youtube/callback` must be in the OAuth client's Authorized Redirect URIs list, exact match.
+
+**Asked kareem to:** click the **error details** link on the dialog to see the exact rule that failed (typically `invalid_scope`, `redirect_uri_mismatch`, or `app not configured for scope`), and report back the text so I can confirm which of (1)/(2)/(3) it is.
+
+**No code changes this turn.** Plan-side issue, fixable in Google Cloud Console.
+
+**Progress on the unblock (multi-turn):**
+- ✅ YouTube Data API v3 enabled on the `kareemhady-inboxops` project (status: Enabled, service `youtube.googleapis.com`).
+- ✅ Scopes added via the new **Google Auth Platform → Data Access** page (replaces the old OAuth consent screen wizard — Google moved the UI; "Edit App" no longer exists, scopes now live as a standalone sidebar item). Kareem added `youtube.upload`, `youtube.readonly` (the two our code requests) plus several extras (`youtube`, `youtube.force-ssl`, `youtubepartner`, `youtubepartner-channel-audit`, `youtube.channel-memberships.creator`, `youtube.third-party-link.creator`) — extras are harmless since our OAuth start route only requests `youtube.upload` + `youtube.readonly`.
+- ⏳ Still to verify: redirect URI `https://app.limeinc.cc/api/auth/google-youtube/callback` is in the OAuth client's Authorized redirect URIs (left sidebar → **Clients** → InboxOps OAuth client). Asked kareem to confirm/add this.
+- ⏳ Then retry Connect from `/beithady/ads/accounts`.
+
+**UI mapping note for future-Claude:** Google migrated `OAuth consent screen` UI to a new "Google Auth Platform" surface. Mapping:
+- Old "App information" step → **Branding** sidebar item
+- Old "Scopes" step → **Data Access** sidebar item
+- Old "Test users" step → **Audience** sidebar item
+- Old `Credentials → OAuth 2.0 Client IDs` → **Clients** sidebar item (still also accessible under APIs & Services → Credentials)
+- No more "Edit App" wizard — each settings group is its own page now.
+
+**Detour (recoverable):** Kareem clicked "Create client" instead of editing the existing one and created a duplicate OAuth client. He saw the secret-once dialog, closed it without copying, then deleted that new client. Existing InboxOps web client (Client ID `593051355315-b4g0...`, Apr 19 2026) is the only client now and is the one our app's `GOOGLE_CLIENT_ID` env var points to — good.
+
+**Side effect of the detour:** the redirect URI was added to the new (now-deleted) client, NOT to the existing InboxOps web client. So Google's `invalid_request` returned on retry with details: `redirect_uri=https://app.limeinc.cc/api/auth/google-youtube/callback` — Google is rejecting it as unauthorized because the URI is missing from the existing client's Authorized redirect URIs list.
+
+**Final unblock asked:** open Clients → InboxOps web → add `https://app.limeinc.cc/api/auth/google-youtube/callback` to Authorized redirect URIs → save → retry Connect. Existing Gmail + Google Ads redirect URIs on that client must stay. Awaiting kareem's confirmation.
+
+---
+
 ## 2026-05-15 — YouTube V1.1 (Upload-out) — ALL 25 CODE TASKS SHIPPED
 
 **Status:** All 25 code tasks done + pushed. Vercel auto-deploy in flight. 5 remaining tasks (26-30) are **manual operator steps** for kareem (Google Cloud setup + OAuth + 3 smoke tests).
