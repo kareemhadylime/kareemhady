@@ -1,3 +1,26 @@
+## 2026-05-15 — YouTube V1.1 — template polish + MCC linkage guidance (commit `0348528`)
+
+**Status:** Template enhancements shipped + pushed. MCC ↔ channel linkage is operator-action on Google's side.
+
+**Template patch — `0348528` "always include Beithady in title + WhatsApp URL in description":**
+- All 8 title_templates now prefixed `Beithady · ...`. Internal-staff-intro changed `Beit Hady team` → `Beithady team`.
+- Both `SHORTS_DESC` + `LONGFORM_DESC` helpers + internal-staff-intro description now render `📞 Reserve on WhatsApp → {whatsapp_url}` followed by `🌐 Book direct → {booking_url}`.
+- New `WHATSAPP_URL` constant in `ai-metadata.ts` = `https://wa.me/201501010103?text=Hi%20I%27d%20like%20to%20book%20at%20Beithady`. WhatsApp +20-150-10-10-10-3 prefilled with booking message.
+- Renamed `substituteBookingUrl` → `substitutePlaceholders` (now does both URLs in one pass). Old name kept as alias.
+- AI prompt updated: Claude must keep "Beithady" verbatim in titles and preserve BOTH placeholders verbatim in descriptions.
+- `bh26-longform-tour` feature.max_length lowered 60 → 50 to keep total under YouTube 100-char cap after new prefix.
+- Tests: 22/22 pass. New assertions: every title contains "Beithady", every description contains `{whatsapp_url}`, `substitutePlaceholders` replaces both in one pass.
+
+**Operator-action — switch @beithady channel's linked Google Ads account from personal FZCO (424-355-4501) to Beithady MCC (395-304-4686):**
+- Guided kareem through YouTube Studio → Settings → Channel → Advanced → Google Ads account linking.
+- Current state observed (screenshot): 3 linked accounts — Promotions 109-284-9441, Beithady Ads A... 424-355-4501, Google Ads link... 568-826-0497. None is the MCC.
+- Next steps for kareem: Unlink 424-355-4501 → Link account → paste 395-304-4686 → switch to MCC in Google Ads → approve pending request. Optional hygiene: unlink Promotions 109-284-9441 and 568-826-0497 if unrecognized.
+- This is unrelated to V1.1 (OAuth upload-only); it's setup for V1.2's cross-post / video ads pipeline.
+
+**No new code beyond `0348528`. Test suite remains green.**
+
+---
+
 ## 2026-05-15 — BH audit P2 financials brainstorm in progress (full block: 7 page.tsx files)
 
 **Status:** Brainstorming, no code yet. Picks up after P1 final-review cleanups (`2e57ffc`).
