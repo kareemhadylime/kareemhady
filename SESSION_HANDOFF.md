@@ -1,3 +1,23 @@
+## 2026-05-15 — YouTube V1.2 · Picker UI components (Tasks 5–8)
+
+**Status:** DONE. Pushed.
+
+**What landed (6 new files, 4 commits, all `tsc --noEmit` clean):**
+- `54520e6` Task 5: `src/app/beithady/gallery/youtube/picker/_components/picker-filters.tsx` — client component, URL-state-driven format / building / search / sort controls. Mutates `useSearchParams` via `router.push` with `scroll: false`.
+- `b1d0ca7` Task 6: `src/app/beithady/gallery/youtube/picker/_components/picker-row.tsx` — thumbnail + metadata + 5 per-platform action buttons. Disabled buttons render with `⊗` glyph + `title` tooltip carrying the `reason` from `computeActions()`. `already_cross_posted` summary line.
+- `f40db48` Task 7: `picker-grid.tsx` + `page.tsx` (standalone picker route at `/beithady/gallery/youtube/picker`). `requireBeithadyPermission('ads', 'full')`. Looks up the singleton `ads_accounts` row where `platform='youtube'`, redirects to `/beithady/ads/accounts?need_connect=youtube` if absent. **Lucide-react v1.8.0 has no `Youtube` export — used `Video as YouTubeIcon`** as the plan specified (V1.1 hit the same).
+- `d283c61` Task 8: `embedded-picker.tsx` + `youtube-source-banner.tsx` — reusable across publish pages (filtering by `actions[platform].available` to only show compatible items; banner renders source attribution + "Switch source" / "Open on YouTube" links).
+
+**Imports verified before write:** `PickerItem`, `listPickerVideos`, `TargetPlatform`, `requireBeithadyPermission('ads', 'full')`, `supabaseAdmin`, `fmtCairoDate`, `BeithadyShell` + `BeithadyHeader` all resolved cleanly.
+
+**Push:** `git push origin main` → `34931f7..d283c61 main -> main`. Vercel auto-deploys on push.
+
+**Self-review:** 4 commits ✓ · 4 × `tsc --noEmit` exit 0 ✓ · 6 files created ✓ · pushed ✓.
+
+**Next (queued, not started by this session):** YouTube V1.2 plan continues with Tasks 9-21 (publish-page integration, audit hookups, cron entry, etc.). Owned by parent agent.
+
+---
+
 ## 2026-05-15 — BH Ads · Reels post-ship: alias re-pointed, backfill skipped
 
 **Status:** DONE. No new code.
