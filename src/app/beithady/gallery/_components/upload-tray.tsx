@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Upload, ChevronUp, ChevronDown, X, RotateCw, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, ChevronUp, ChevronDown, X, RotateCw, Loader2, CheckCircle2, AlertTriangle, FileVideo } from 'lucide-react';
 import { useGallery, type UploadJob } from './gallery-provider';
 
 const AUTO_COLLAPSE_MS = 30_000;
@@ -18,9 +18,10 @@ export function UploadTray() {
 
   const total = jobs.length;
   const inFlight = jobs.filter(j => j.status === 'uploading').length;
+  const compressing = jobs.filter(j => j.status === 'compressing').length;
   const queued = jobs.filter(j => j.status === 'queued').length;
   const errors = jobs.filter(j => j.status === 'error').length;
-  const active = inFlight + queued;
+  const active = inFlight + queued + compressing;
   const allDone = total > 0 && active === 0;
 
   useEffect(() => {
@@ -61,7 +62,11 @@ export function UploadTray() {
             <div className="flex items-center gap-2">
               <Upload size={14} className={active > 0 ? 'text-blue-500 animate-pulse' : 'text-slate-400'} />
               <span className="text-xs font-semibold">
-                {active > 0 ? `Uploading ${active} of ${total}` : `${total} ${total === 1 ? 'job' : 'jobs'}`}
+                {active > 0
+                  ? compressing > 0
+                    ? `Processing ${active} of ${total}`
+                    : `Uploading ${active} of ${total}`
+                  : `${total} ${total === 1 ? 'job' : 'jobs'}`}
               </span>
               {errors > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">{errors} error{errors === 1 ? '' : 's'}</span>}
             </div>
@@ -87,12 +92,20 @@ export function UploadTray() {
                   <div className="space-y-0.5">
                     {list.map(j => (
                       <div key={j.id} className="flex items-center gap-2 text-xs py-0.5">
-                        <span className="flex-1 truncate" title={j.file.name}>{j.file.name}</span>
+                        <span className="flex-1 truncate" title={j.file.name}>
+                          {j.file.name}
+                          {j.status === 'compressing' && (
+                            <span className="ml-1 text-[10px] text-slate-500">
+                              · compressing {j.compressPercent ?? 0}%
+                            </span>
+                          )}
+                        </span>
                         <span className="text-slate-400 tabular-nums text-[10px] w-14 text-right">
                           {(j.file.size / 1024 / 1024).toFixed(1)} MB
                         </span>
                         <span className="w-6 text-right">
                           {j.status === 'queued' && <span className="text-slate-400 text-[10px]">…</span>}
+                          {j.status === 'compressing' && <FileVideo size={11} className="inline text-amber-500 animate-pulse" />}
                           {j.status === 'uploading' && <Loader2 size={11} className="inline animate-spin text-blue-500" />}
                           {j.status === 'done' && <CheckCircle2 size={11} className="text-emerald-600 inline" />}
                           {j.status === 'error' && <AlertTriangle size={11} className="text-rose-600 inline" />}
