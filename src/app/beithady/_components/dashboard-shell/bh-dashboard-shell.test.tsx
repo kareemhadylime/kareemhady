@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { render } from '@testing-library/react';
 import { BHDashboardShell } from './bh-dashboard-shell';
 
 // jsdom does not implement matchMedia — stub it as desktop (matches: false for
-// the mobile query) so the component's useEffect doesn't throw.
+// the mobile query) so the component's useEffect doesn't throw. Restore after
+// the suite so the stub doesn't leak to other test files in the same worker.
+const originalMatchMedia = window.matchMedia;
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
     writable: true,
     value: (query: string) => ({
       matches: false,
@@ -19,6 +22,18 @@ beforeAll(() => {
       dispatchEvent: () => false,
     }),
   });
+});
+afterAll(() => {
+  if (originalMatchMedia) {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: originalMatchMedia,
+    });
+  } else {
+    // @ts-expect-error — deliberately remove the stub when jsdom had no native one
+    delete (window as Window & { matchMedia?: unknown }).matchMedia;
+  }
 });
 
 // jsdom default media query is desktop (>=768px). Sets the rail visible by
