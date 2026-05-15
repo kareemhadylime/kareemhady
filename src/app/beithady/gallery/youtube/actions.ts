@@ -5,14 +5,26 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
-import { generateYouTubeMetadata, type GenerateInput } from '@/lib/beithady/youtube/ai-metadata';
+import { generateYouTubeMetadata } from '@/lib/beithady/youtube/ai-metadata';
 import { decideUploadPath, publishSync } from '@/lib/beithady/youtube/youtube-publish';
 import { PublishInputSchema, type PublishInput } from '@/lib/beithady/youtube/types';
 
-export async function generateMetadataAction(input: GenerateInput) {
+export async function generateMetadataAction(input: {
+  template_id: string;
+  building_code: string | null;
+  is_shorts: boolean;
+  user_brief: string;
+  midpoint_frame_dataurl: string;
+}) {
   await requireBeithadyPermission('ads', 'full');
   try {
-    const result = await generateYouTubeMetadata(input);
+    const result = await generateYouTubeMetadata({
+      template_id: input.template_id,
+      building_code: input.building_code ?? undefined,
+      is_shorts: input.is_shorts,
+      user_brief: input.user_brief || undefined,
+      midpoint_frame_dataurl: input.midpoint_frame_dataurl,
+    });
     return {
       title: result.title,
       description: result.description,
