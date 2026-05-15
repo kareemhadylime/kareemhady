@@ -19,6 +19,7 @@ import { boostInstagramPost } from '@/lib/beithady/ads/boost-publish';
 import { syncAllPlatforms } from '@/lib/beithady/ads/unified-sync';
 import { syncGoogleAds } from '@/lib/beithady/ads/google-sync';
 import { syncTikTokAds } from '@/lib/beithady/ads/tiktok-sync';
+import { recordCrossPost } from '@/lib/beithady/youtube/cross-post-audit';
 
 async function requireFull() {
   const user = await getCurrentUser();
@@ -254,6 +255,10 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
   const marketingImageUrl = String(formData.get('marketing_image_url') || '').trim() || null;
   const targetCountriesRaw = String(formData.get('target_countries') || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
   const locationIds = isoCountriesToGoogleGeo(targetCountriesRaw);
+  // V1.2 cross-post: optional YouTube source
+  const ytVideoId = String(formData.get('youtube_video_id') || '').trim() || null;
+  const adsYtVideoIdRaw = String(formData.get('ads_yt_video_id') || '').trim();
+  const adsYtVideoId = adsYtVideoIdRaw && Number.isFinite(Number(adsYtVideoIdRaw)) ? Number(adsYtVideoIdRaw) : null;
 
   if (!Number.isFinite(accountId)) redirect('/beithady/ads/google/pmax?error=missing_account');
 
@@ -270,6 +275,7 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
     buildingCodes,
     marketingImageUrls: marketingImageUrl ? [marketingImageUrl] : [],
     locationIds: locationIds.length ? locationIds : undefined,
+    youtube_video_id: ytVideoId ?? undefined,
   });
 
   if (!result.ok) {
@@ -281,6 +287,18 @@ export async function publishGooglePMaxAction(formData: FormData): Promise<void>
       metadata: { step: result.step, error: result.error, raw: result.raw, mode: result.mode },
     });
     redirect(`/beithady/ads/google/pmax?error=${encodeURIComponent(`${result.step}: ${result.error}${rawDetail}`)}`);
+  }
+
+  // V1.2 cross-post audit: write a row when a YouTube source was attached.
+  if (ytVideoId && result.ok) {
+    await recordCrossPost({
+      ads_youtube_video_id: adsYtVideoId,
+      youtube_video_id: ytVideoId,
+      target_platform: 'google_pmax',
+      target_campaign_id: result.campaign_id,
+      status: 'published',
+      created_by_user_id: user.id ? String(user.id) : null,
+    });
   }
 
   revalidatePath('/beithady/ads');

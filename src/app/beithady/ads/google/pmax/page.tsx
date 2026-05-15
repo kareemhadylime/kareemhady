@@ -7,6 +7,9 @@ import { AdsTabs } from '../../_components/ads-tabs';
 import { publishGooglePMaxAction } from '../../actions';
 import { buildPmaxDefaultsFromMetaCampaign, buildPmaxDefaultsFromIgMediaItem, type PmaxDefaults } from '@/lib/beithady/ads/duplicate-to-google';
 import { listIgMedia } from '@/lib/beithady/ads/meta-client';
+import { listPickerVideos } from '@/lib/beithady/youtube/picker';
+import { EmbeddedPicker } from '@/app/beithady/gallery/youtube/picker/_components/embedded-picker';
+import { YouTubeSourceBanner } from '@/app/beithady/gallery/youtube/picker/_components/youtube-source-banner';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,7 +17,7 @@ export const maxDuration = 60;
 export default async function GooglePMaxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; from_meta?: string; from_ig?: string }>;
+  searchParams: Promise<{ error?: string; from_meta?: string; from_ig?: string; yt_video_id?: string; ads_yt_video_id?: string; source?: string }>;
 }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
@@ -25,6 +28,45 @@ export default async function GooglePMaxPage({
     .eq('platform', 'google')
     .order('id');
   const accounts = (accountsRaw as Array<{ id: number; name: string; external_id: string; google_refresh_token: string | null; status: string }> | null) || [];
+
+  // V1.2 cross-post: optional YouTube source pre-fill via ?yt_video_id=…
+  const ytVideoIdParam = sp.yt_video_id ?? null;
+  const adsYtVideoIdParam = sp.ads_yt_video_id ? Number(sp.ads_yt_video_id) : null;
+
+  let ytSource: null | { yt_video_id: string; title: string; duration_seconds: number | null; is_shorts: boolean; view_count: number } = null;
+  if (ytVideoIdParam) {
+    // Look up the YouTube video in local DB to populate banner
+    const { data: ytRow } = await sb.from('ads_youtube_videos')
+      .select('id, youtube_video_id, title, duration_seconds, is_shorts, view_count')
+      .eq('youtube_video_id', ytVideoIdParam).maybeSingle();
+    if (ytRow) {
+      const r = ytRow as Record<string, unknown>;
+      ytSource = {
+        yt_video_id: ytVideoIdParam,
+        title: String(r.title),
+        duration_seconds: r.duration_seconds == null ? null : Number(r.duration_seconds),
+        is_shorts: Boolean(r.is_shorts),
+        view_count: Number(r.view_count ?? 0),
+      };
+    } else {
+      // YT-only video — not in our DB. Banner uses just the ID.
+      ytSource = {
+        yt_video_id: ytVideoIdParam,
+        title: ytVideoIdParam,
+        duration_seconds: null,
+        is_shorts: false,
+        view_count: 0,
+      };
+    }
+  }
+
+  // Load YouTube picker items for the embedded source picker (best-effort,
+  // cached 5min in listPickerVideos). Only load if a YouTube ads account exists.
+  const { data: ytAccount } = await sb.from('ads_accounts')
+    .select('id').eq('platform', 'youtube').limit(1).maybeSingle();
+  const pickerItems = ytAccount
+    ? await listPickerVideos((ytAccount as { id: number }).id).catch(() => [])
+    : [];
 
   // Fetch IG posts for the picker (best-effort, non-blocking)
   const mediaResult = await listIgMedia('', 20).catch(() => null);
@@ -61,6 +103,17 @@ export default async function GooglePMaxPage({
 
       <AdsTabs active="google" />
 
+      {ytSource && (
+        <YouTubeSourceBanner
+          ytVideoId={ytSource.yt_video_id}
+          title={ytSource.title}
+          durationSeconds={ytSource.duration_seconds}
+          isShorts={ytSource.is_shorts}
+          viewCount={ytSource.view_count}
+          publishPagePath="/beithady/ads/google/pmax"
+        />
+      )}
+
       {sp.error && (
         <div id="publish-error" className="ix-card border-rose-400 dark:border-rose-600 bg-rose-100 dark:bg-rose-950 p-4 text-sm">
           <div className="flex items-center gap-2 mb-1">
@@ -70,6 +123,18 @@ export default async function GooglePMaxPage({
           <pre className="font-mono text-xs text-rose-800 dark:text-rose-200 whitespace-pre-wrap break-all">{sp.error}</pre>
           <script dangerouslySetInnerHTML={{ __html: `document.getElementById('publish-error')?.scrollIntoView({behavior:'smooth'})` }} />
         </div>
+      )}
+
+      {/* YouTube source picker (V1.2 cross-post) */}
+      {pickerItems.length > 0 && !ytSource && (
+        <section className="ix-card p-5 space-y-3">
+          <h2 className="text-sm font-semibold">Or pick from YouTube</h2>
+          <EmbeddedPicker
+            items={pickerItems}
+            platform="google_pmax"
+            publishPagePath="/beithady/ads/google/pmax"
+          />
+        </section>
       )}
 
       {/* IG post picker */}
@@ -150,6 +215,8 @@ export default async function GooglePMaxPage({
           {prefill?.marketingImageUrl && (
             <input type="hidden" name="marketing_image_url" value={prefill.marketingImageUrl} />
           )}
+          <input type="hidden" name="youtube_video_id" value={ytSource?.yt_video_id ?? ''} />
+          <input type="hidden" name="ads_yt_video_id" value={adsYtVideoIdParam ?? ''} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <Field label="Account" htmlFor="account_id">
               <select id="account_id" name="account_id" required className="ix-input">
