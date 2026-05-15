@@ -1,3 +1,13 @@
+## 2026-05-15 — BH audit P0-1 plan written: drop A1 from BH scope filter (paper, no code yet)
+
+**Status:** Plan committed `53110e7`, pushed. No code shipped — plan only. 5 tasks, each TDD-bite-sized.
+
+[docs/superpowers/plans/2026-05-15-bh-audit-p0-1-remove-a1-from-filters.md](docs/superpowers/plans/2026-05-15-bh-audit-p0-1-remove-a1-from-filters.md) executes audit §8 row #1. UI-hide-only path (the safer default per audit §9 Q1): drops the A1 entry from `SCOPES` in `FinancialsFilterStrip.tsx`, leaves the `CompanyScope` type union + `scopeCompanyIds('a1')` + 5 type guards untouched so `?scope=a1` URLs still resolve. Plan includes a 3-assertion vitest at `FinancialsFilterStrip.test.tsx` using the jsdom + @testing-library/react pattern from `fmplus-logo.test.tsx`. Future "full type removal" path documented at the bottom of the plan for later.
+
+**Next action (awaiting user):** pick subagent-driven or inline execution of this plan, or just say "execute" and I'll run it inline.
+
+---
+
 ## 2026-05-15 — Video-compress engine: 8/10 tasks done locally, awaiting user smoke test
 
 **9 commits queued locally, NOT YET PUSHED** (so prod not yet deployed):
