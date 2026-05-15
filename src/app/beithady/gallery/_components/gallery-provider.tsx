@@ -17,10 +17,11 @@ export type UploadJob = {
   building: string | null;
   listingId: string | null;
   category: UploadJobCategory;
-  status: 'queued' | 'uploading' | 'done' | 'error';
+  status: 'queued' | 'compressing' | 'uploading' | 'done' | 'error';
   error?: string;
   startedAt?: number;
   finishedAt?: number;
+  compressPercent?: number; // 0–100 when status === 'compressing'
 };
 
 type GalleryContextValue = {
@@ -76,20 +77,45 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
   //   2. supabaseBrowser().storage.uploadToSignedUrl(...) → bytes go straight to Supabase
   //   3. registerGalleryUploadAction → server inserts the DB row + queues AI label
   useEffect(() => {
-    const inFlight = jobs.filter(j => j.status === 'uploading').length;
+    const inFlight = jobs.filter(j => j.status === 'uploading' || j.status === 'compressing').length;
     if (inFlight >= MAX_CONCURRENT) return;
     const next = jobs.find(j => j.status === 'queued');
     if (!next) return;
 
+    const isVideo = (next.file.type || '').startsWith('video/');
+    const needsCompress = isVideo && next.file.size > 50_000_000;
+
+    // Move to the right starting state.
     setJobs(prev => prev.map(j => j.id === next.id
-      ? { ...j, status: 'uploading' as const, startedAt: Date.now() }
+      ? { ...j, status: needsCompress ? 'compressing' as const : 'uploading' as const, startedAt: Date.now(), compressPercent: needsCompress ? 0 : undefined }
       : j));
 
     (async () => {
       try {
-        const mime = next.file.type || 'application/octet-stream';
+        let fileToUpload = next.file;
+
+        if (needsCompress) {
+          const { compressVideoToFit } = await import('@/lib/media/video-compress');
+          fileToUpload = await compressVideoToFit(next.file, {
+            onProgress: (p) => {
+              if (p.phase === 'encoding') {
+                // Smooth two-pass progress: pass 1 = 0–50%, pass 2 = 50–100%.
+                const overall = p.pass === 1 ? p.percent / 2 : 50 + p.percent / 2;
+                setJobs(prev => prev.map(j => j.id === next.id
+                  ? { ...j, compressPercent: Math.round(overall) }
+                  : j));
+              }
+            },
+          });
+          // Transition to uploading.
+          setJobs(prev => prev.map(j => j.id === next.id
+            ? { ...j, status: 'uploading' as const, compressPercent: undefined, file: fileToUpload }
+            : j));
+        }
+
+        const mime = fileToUpload.type || 'application/octet-stream';
         const signed = await signGalleryUploadAction({
-          fileName: next.file.name,
+          fileName: fileToUpload.name,
           mime,
           building: next.building,
           listingId: next.listingId,
@@ -100,7 +126,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
         const sb = supabaseBrowser();
         const { error: upErr } = await sb.storage
           .from(signed.bucket)
-          .uploadToSignedUrl(signed.path, signed.token, next.file, {
+          .uploadToSignedUrl(signed.path, signed.token, fileToUpload, {
             contentType: mime,
             upsert: false,
           });
@@ -109,9 +135,9 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
         const reg = await registerGalleryUploadAction({
           path: signed.path,
           bucket: signed.bucket,
-          fileName: next.file.name,
+          fileName: fileToUpload.name,
           mime,
-          sizeBytes: next.file.size,
+          sizeBytes: fileToUpload.size,
           building: next.building,
           listingId: next.listingId,
           category: next.category,
