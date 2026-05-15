@@ -1,3 +1,36 @@
+## 2026-05-15 — Task 10: usePerfUrlState → useBHUrlState wrapper (commit 5a5a8ca)
+
+**Status:** DONE.
+
+**What was done:** Rewrote `src/app/beithady/analytics/performance/_hooks/use-url-state.ts` so `usePerfUrlState` is a thin wrapper around `useBHUrlState<PerfUrlState>` from `@/app/beithady/_components/dashboard-shell`. Kept `buildPerfUrl` as a named export (delegates to `buildBHUrl`) so the existing 3-assertion test passes unchanged. Dropped the direct `useRouter`/`useSearchParams` imports — now fully delegated to the shared package.
+
+**Verification:** 3/3 targeted tests pass, 585/585 full suite pass, `tsc --noEmit` clean.
+
+**Files modified:** `src/app/beithady/analytics/performance/_hooks/use-url-state.ts` only (1 file, 38 insertions, 19 deletions).
+
+**NOT pushed** — controller handles push.
+
+---
+
+## 2026-05-15 — BH Dashboard Shell Phase A — code-review fixes (commit 6f04597)
+
+**Status:** DONE.
+
+**What was done:** Applied all 6 Phase A code-review fixes on top of `35d0249`.
+
+1. Removed dead `railPinned` prop from `BHDashboardShell` (type + destructuring).
+2. Fixed `useBHUrlState` `useMemo` dep from `[search, opts]` to `[search, opts.parse]`.
+3. Removed `afterEach(cleanup)` from 6 jsdom test files; wired global cleanup via new `src/__mocks__/vitest-setup.ts` + `setupFiles` in `vitest.config.ts` so removal is safe with `globals: false`.
+4. Named `RAIL_COLLAPSED_W = 44` / `RAIL_EXPANDED_W = 200` constants.
+5. Added hex-color inheritance comments to `bh-title-bar.tsx`, `bh-customize-drawer.tsx`, `bh-mobile-filter-sheet.tsx`.
+6. Added hook-layer docstring to `use-bh-url-state.test.ts`.
+
+**Verification:** 26/26 targeted, 585 passing / 22 skipped full suite, `tsc --noEmit` clean.
+
+**NOT pushed** — controller handles push.
+
+---
+
 ## 2026-05-15 — BH Dashboard Shell Phase A — accessibility fix (commit 35d0249)
 
 **Status:** DONE.
@@ -91,13 +124,30 @@ Each phase gets its own spec → plan → implementation cycle.
   - **Operator UX**: form has Template dropdown → optional brief → ⚡ Generate button → pre-fills all metadata fields (editable) → Publish. Regenerate button replaces Generate after first run.
   - **Fallback**: if AI fails or returns invalid JSON, form falls back to template defaults with literal `{variables}` placeholders; toast says "AI assist unavailable; using template defaults".
   - **Cost tracking**: `ai_generated`, `ai_cost_usd` on row. Aggregate cost dashboard deferred to V1.4.
-- ⏳ § 6 — UI structure + error handling + testing strategy (final section).
+- ✅ § 6 — UI structure + error handling + testing strategy:
+  - **Surface map**: Gallery landing tile (4th cross-cutting), asset-modal "Publish to YouTube" button on video assets, standalone `/beithady/gallery/youtube/` page with Publish + Recent uploads tabs, accounts page Connect/Configure/Reconnect on YT row.
+  - **Recent uploads table** shows Views + Likes columns via `Intl.NumberFormat` (`1.2K`).
+  - **Permissions**: `requireBeithadyPermission('ads', 'full')` for the publish page (matches IG/TikTok pattern).
+  - **Error categories**: form validation, OAuth `invalid_grant`, AI generation failed, sync upload network error, async cron transient/terminal, YouTube content rejected, quota exceeded, refresh failed mid-upload. Each maps to specific operator action.
+  - **Typed error classes**: `YouTubeAuthError`, `YouTubeUploadError`, `YouTubeQuotaError`, `YouTubeRejectedError` (terminal, do-not-retry).
+  - **Testing**: 6 colocated `*.test.ts` files covering token refresh, sync/async branching, state machine, AI fallback, template parsing, cron auth + backoff math. All mocked fetch, no live API in CI. Target: 615+ passing post-V1.1 (baseline 585).
+  - **Manual smoke checklist** documented in deployment ordering (OAuth round-trip, sync upload, async upload, AI metadata, stats sync at 6h).
 
-**Existing infrastructure to reuse:** Google OAuth already wired (`src/app/api/auth/google/start/route.ts`) — YouTube needs separate scope set so we'll add `/api/auth/google-youtube/start` + callback; `ads_accounts` already multi-platform-multi-row; gallery landing has 3 cross-cutting library tiles where a YT tile fits; `ai-copy.ts` for AI metadata; `tiktok-organic-publish.ts` provides the FILE_UPLOAD pattern (PUT chunk with `Content-Range`) that YouTube's resumable upload API mirrors closely.
+**Spec written + committed `e2e559e` and pushed to main.** `docs/superpowers/specs/2026-05-15-youtube-v1.1-upload-out-design.md` (~1000 lines). Self-review applied 3 fixes: migration seeds `@beithady` placeholder row, sync vs async row-lifecycle clarification, template list expanded from "...7 more" to explicit names.
 
-**Next step:** present § 3 (OAuth scopes + flow) → § 4 → § 5 → § 6 → spec at `docs/superpowers/specs/2026-05-15-youtube-v1.1-upload-out-design.md` → user review gate → invoke writing-plans skill. No code yet.
+**Plan written + committed `5eb165e` and pushed to main.** `docs/superpowers/plans/2026-05-15-youtube-v1.1-upload-out.md` (~3000 lines, 30 TDD-sized tasks). Self-review fix: removed dead-end disk-upload mode from VideoSourcePicker (V1.1 is Gallery-only via existing uploader + asset-modal `?asset=<uuid>` deep-link). Phases A (foundation 1-3), B (OAuth 4-8), C (AI metadata 9), D (upload pipeline 10-14), E (crons 15-17), F (UI 18-25), G (smoke/ship 26-30).
 
-**No commits this session.**
+**Existing infrastructure reused:** Google OAuth (`src/app/api/auth/google/start/route.ts`) — YT adds separate scope set at `/api/auth/google-youtube/`; `ads_accounts` multi-platform-multi-row; gallery landing has 3 cross-cutting library tiles where YT tile fits; `ai-label.ts` Claude vision pattern; `tiktok-organic-publish.ts` FILE_UPLOAD `Content-Range` chunking pattern; hardened `tiktok-client.ts` refresh-token pattern (decrypt-with-fallback + clear-dead-on-invalid_grant).
+
+**Next step:** **awaiting kareem's review of the spec** at `docs/superpowers/specs/2026-05-15-youtube-v1.1-upload-out-design.md`. On approval → invoke writing-plans skill to break spec into TDD-bite-sized implementation plan.
+
+**Commits this session:** 2 (paper only) — `e2e559e` (spec) + `5eb165e` (plan) pushed to main. No code yet.
+
+**Awaiting kareem's pick** between execution modes:
+- (1) Subagent-driven — dispatch fresh agent per task with review between
+- (2) Inline execution — batch run tasks in this session with checkpoints
+
+Either way the next concrete steps are Task 1 (apply migration `0123_bh_ads_youtube.sql` via Supabase MCP) → Task 2 (types) → Task 3 (templates). Heavy code lift is Tasks 4-25; Tasks 26-30 are deploy/smoke verification once @beithady is OAuth-connected.
 
 ---
 
