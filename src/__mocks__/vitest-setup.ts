@@ -2,8 +2,9 @@ import '@testing-library/react/pure';
 import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
-// Auto-cleanup: @testing-library/react's cleanup normally runs automatically
-// when vitest globals are enabled. This project uses globals: false, so we
-// install it here via setupFiles instead — making per-file afterEach(cleanup)
-// calls redundant (project convention per Phase A code-review).
+// Belt-and-suspenders cleanup: @testing-library/react installs its own
+// afterEach(cleanup) hook automatically when vitest is detected, so this is
+// technically redundant. We make it explicit here so per-file afterEach(cleanup)
+// calls are clearly unnecessary — add new jsdom component tests without one
+// and rely on this global instead (project convention per Phase A code-review).
 afterEach(cleanup);
