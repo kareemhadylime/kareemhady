@@ -59,7 +59,34 @@ Use this in the "Use case description" / "Why do you need this scope?" field:
 
 ---
 
-## 4. Demo video — what to record
+## 4. Demo video
+
+### Auto-generated animated walkthrough — `demo.mp4`
+
+A ready-to-submit MP4 has been pre-generated at [`docs/tiktok-app-audit/demo.mp4`](demo.mp4):
+
+- 1920×1080 H.264, 30 fps, 85 seconds, ~5 MB.
+- 10 mock-UI slides matching the scene script below, with crossfade transitions.
+- Each slide carries the `app.limeinc.cc` URL bar so reviewers can confirm domain.
+
+This is acceptable as a first submission. **To regenerate after edits to scenes:**
+
+```bash
+python tools/build-tiktok-demo.py     # writes 10 PNGs to docs/tiktok-app-audit/build/
+ffmpeg ...                             # see tools/build-tiktok-demo.py header for the FFmpeg invocation
+```
+
+### When you'd want a real screen recording instead
+
+The auto-generated demo uses mock UI (clean, on-brand, but not pixel-identical to the live app).
+If TikTok rejects the first submission with a request for a real screen recording, follow the
+scene-by-scene script below — it's calibrated for OBS / macOS Screen Recording at 1080p.
+
+---
+
+## 4b. Real-screen-recording script (only if reviewers ask for it)
+
+### What to record
 
 TikTok wants a screen recording (1–3 minutes is ideal) showing the publish flow end-to-end. Record on the desktop app — `app.limeinc.cc` — with one of the test IG reels in the picker.
 
