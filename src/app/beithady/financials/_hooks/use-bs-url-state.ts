@@ -1,7 +1,10 @@
 'use client';
 import { useBHUrlState, buildBHUrl } from '@/app/beithady/_components/dashboard-shell';
+import type { FinScope } from './url-state-types';
+import { VALID_FIN_SCOPES } from './url-state-types';
 
-export type FinBSScope = 'consolidated' | 'egypt' | 'dubai' | 'a1';
+// Backward-compat alias; `FinScope` from shared types is the source of truth.
+export type FinBSScope = FinScope;
 
 export type FinBSBuilding = 'all' | 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'OTHER';
 
@@ -13,7 +16,6 @@ export type FinBSUrlState = {
 
 const BASE_PATH = '/beithady/financials/balance-sheet';
 
-const VALID_SCOPES = new Set(['consolidated', 'egypt', 'dubai', 'a1']);
 const VALID_BUILDINGS = new Set(['all', 'BH-26', 'BH-73', 'BH-435', 'BH-OK', 'OTHER']);
 const ASOF_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -23,7 +25,7 @@ function todayYmd(): string {
 
 export function parseFinBSState(search: URLSearchParams): FinBSUrlState {
   const scopeRaw = search.get('scope');
-  const scope: FinBSScope = scopeRaw && VALID_SCOPES.has(scopeRaw)
+  const scope: FinBSScope = scopeRaw && VALID_FIN_SCOPES.has(scopeRaw)
     ? (scopeRaw as FinBSScope)
     : 'consolidated';
 

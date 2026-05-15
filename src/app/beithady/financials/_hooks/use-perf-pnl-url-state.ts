@@ -1,5 +1,7 @@
 'use client';
 import { useBHUrlState, buildBHUrl } from '@/app/beithady/_components/dashboard-shell';
+import type { FinScope } from './url-state-types';
+import { VALID_FIN_SCOPES } from './url-state-types';
 
 export type FinPerfPresetId =
   | 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year';
@@ -8,7 +10,8 @@ export type FinPerfPeriod =
   | { kind: 'preset'; id: FinPerfPresetId }
   | { kind: 'month'; ym: string };
 
-export type FinPerfScope = 'consolidated' | 'egypt' | 'dubai' | 'a1';
+// Backward-compat alias; `FinScope` from shared types is the source of truth.
+export type FinPerfScope = FinScope;
 
 export type FinPerfBuilding = 'all' | 'BH-26' | 'BH-73' | 'BH-435' | 'BH-OK' | 'OTHER';
 
@@ -31,12 +34,11 @@ const VALID_PRESETS = new Set([
   'this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year',
 ]);
 
-const VALID_SCOPES = new Set(['consolidated', 'egypt', 'dubai', 'a1']);
 const VALID_BUILDINGS = new Set(['all', 'BH-26', 'BH-73', 'BH-435', 'BH-OK', 'OTHER']);
 
 export function parseFinPerfState(search: URLSearchParams): FinPerfUrlState {
   const scopeRaw = search.get('scope');
-  const scope: FinPerfScope = scopeRaw && VALID_SCOPES.has(scopeRaw)
+  const scope: FinPerfScope = scopeRaw && VALID_FIN_SCOPES.has(scopeRaw)
     ? (scopeRaw as FinPerfScope)
     : 'consolidated';
 
