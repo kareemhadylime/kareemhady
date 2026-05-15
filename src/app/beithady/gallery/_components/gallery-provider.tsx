@@ -79,7 +79,23 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const inFlight = jobs.filter(j => j.status === 'uploading' || j.status === 'compressing').length;
     if (inFlight >= MAX_CONCURRENT) return;
-    const next = jobs.find(j => j.status === 'queued');
+
+    // Compressions are SERIALIZED: only one ffmpeg.wasm worker at a time.
+    // Two concurrent 31MB-WASM workers + their working memory blow past
+    // browser heap caps on a 60MB+ video and the first worker dies.
+    // Image uploads and small-video uploads still go in parallel up to
+    // MAX_CONCURRENT — only the compress step is exclusive.
+    const isCompressInFlight = jobs.some(j => j.status === 'compressing');
+
+    const next = jobs.find(j => {
+      if (j.status !== 'queued') return false;
+      const jobIsVideo = (j.file.type || '').startsWith('video/');
+      const jobNeedsCompress = jobIsVideo && j.file.size > 50_000_000;
+      // Skip queued compress jobs while another compression runs;
+      // we'll pick them up when the current compress slot frees.
+      if (jobNeedsCompress && isCompressInFlight) return false;
+      return true;
+    });
     if (!next) return;
 
     const isVideo = (next.file.type || '').startsWith('video/');
