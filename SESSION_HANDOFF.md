@@ -1,3 +1,29 @@
+## 2026-05-15 — UX FIXES: Payables modal + preview list — sortable + clean names
+
+**Status:** Two commits shipped (`9e43b6d`, `baf5c83`). Vercel auto-deploying.
+
+**User requests (in order):**
+1. **Sort by name / total due** on the Payables aging modal.
+2. **Strip leading "NNN."** prefixes from vendor + owner names.
+3. **Sort on the main screen** (preview cards on `/beithady/financials/payables`), not just the modal.
+4. Some Arabic names still showed prefixes after first deploy — turns out the digit code is typed at the END of Arabic strings ("هيتيك (شيماء عبدالحكيم).145"), so the trailing strip was missing.
+
+**Commit `9e43b6d` — sortable Payables modal + leading prefix strip:**
+- Added `cleanPartnerName(raw)` helper in `PayablesDetailModal.tsx`. Initially stripped only leading `^\d+\.\s*`.
+- Applied to (a) modal table body, (b) print HTML, (c) the 40-row preview list in `PayablesBlock.tsx`. Hover `title` attr keeps the original raw name.
+- Added `sortKey: 'name' | 'total' | null` + `sortDir: 'asc' | 'desc'` state in the modal. Clickable Name + Total headers with `ArrowUp` / `ArrowDown` / `ArrowUpDown` indicators. Default order unchanged (parent-supplied, `|amount|` desc). Print/email use the current sort order.
+- Sort by total = `|amount|` (biggest payable surfaces regardless of sign). Sort by name = `localeCompare` on the cleaned name.
+
+**Commit `baf5c83` — trailing suffix strip + sort on preview list:**
+- `cleanPartnerName` now also strips trailing `\s*\.\d+\s*$` (catches Arabic names where the code lives at the end of the string in memory, regardless of how RTL bidi renders it). Both passes run, defensively. Result with empty string falls back to raw.
+- `PayablesBlock.tsx` becomes `'use client'`; added the same sort state + arrow headers to the on-page preview list (the 3 Vendors / Employee / Owners cards). UX matches the modal: click Name to sort A→Z, click Amount to sort by `|amount|`, second click toggles direction.
+
+**Verification:** `tsc --noEmit` clean. Full suite 704 / 22 skipped (no regressions). No data-layer changes.
+
+**Heads-up to user:** if the leading prefixes still appear after deploy, it's likely browser cache — hard refresh (Ctrl+Shift+R).
+
+---
+
 ## 2026-05-15 — YouTube V1.2 · Task 16 — boost page Source: YouTube fork + publishMetaVideoAdAction
 
 **Status:** DONE. Commit `4e3bd2a` pushed to main. `tsc --noEmit` exit 0.
