@@ -91,6 +91,7 @@ export function BHLeftRail({
           <button
             type="button"
             onClick={onTogglePin}
+            aria-label={pinned ? 'Unpin filters rail (allow auto-collapse)' : 'Pin filters rail open'}
             aria-pressed={pinned}
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
             style={

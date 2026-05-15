@@ -43,7 +43,7 @@ describe('BHLeftRail', () => {
         onTogglePin={onTogglePin}
       />,
     );
-    fireEvent.click(getByRole('button', { name: /Pin rail/i }));
+    fireEvent.click(getByRole('button', { name: /Pin filters rail/i }));
     expect(onTogglePin).toHaveBeenCalledOnce();
   });
 });
