@@ -17,6 +17,13 @@
 
 **Audit progress:** P0-1 ✅ (A1 removal) + P0-2 ✅ (BHDashboardShell + 2 consumers) + P1 ✅ (Financials landing/Performance/Balance Sheet) + P2 ✅ (remaining 7 financials + strip deletion). Remaining audit backlog: P2 §8 rows #7–12 (non-financials data dashboards — analytics/calendar-heatmap, market-intel, inventory dashboards, ads/performance, ops surfaces, hr dashboards, communication inbox) + §7.2 brand-var sweep + P3 setup/pricing.
 
+**Final reviewer outcome:** ✅ READY TO SHIP. 2 Important + 4 Minor non-blocking findings:
+- **I1 (deferred-as-documented):** Payables + Ledgers hooks use a `makeXDefaults()` factory function rather than the spec's "module-scope const DEFAULTS" pattern. Defensible — `asof` must reflect today at hook invocation, not module load. The Reconciliation hook (which has no date) correctly uses a static const. Inline comments in both Payables + Ledgers hooks document the rationale. Spec wording should be updated to allow factory defaults for time-sensitive state.
+- **I2 (attempted, reverted by user):** Redundant `isCompanyScope` guard at line 13–14 of `financials/payables/page.tsx`. Reviewer flagged it as duplicated validation work that `parseFinPayablesState` already does. Controller attempted an inline cleanup (replace with `state.scope as CompanyScope`, matching Ledgers pattern); user/linter reverted the edit, keeping the guard. Harmless duplication, kept as-is per the revert signal.
+- **Minors (deferred to follow-up):** Reconciliation empty-state branch uses BeithadyShell vs happy-path BHDashboardShell (chrome inconsistency); `MatchConf` type declared at bottom of import detail page; spec test-count target was ~639 but actual is 657; minor breadcrumb formatting style. None block production.
+
+**Working-tree state at end of session:** `git status` shows kareem's parallel TikTok/Instagram/Reels work in progress (unrelated to P2 — `parseTikTokUrl` ImportError in `tiktok/organic/actions.ts`, plus new untracked files for instagram-url, social-url, tiktok-oembed, youtube/picker-errors, migration 0136). One local-only commit `6d007a6` (kareem's YouTube migration 0137 cross-posts audit table). NONE of this is from my P2 work; my P2 commits all pushed cleanly. The TikTok tsc error does not affect any of my pushed migrations.
+
 ---
 
 ## 2026-05-15 — BH Financials P2 Phase 6 (Task 9): Import wizard + detail → BeithadyShell
