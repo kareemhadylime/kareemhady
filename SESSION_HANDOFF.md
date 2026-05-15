@@ -1,3 +1,32 @@
+## 2026-05-15 — HOTFIX: BH financials sub-pages crashing on prod ('use client' boundary)
+
+**Status:** Fix pushed in `61554f7`. Vercel auto-deploy in flight. User reported "Something went wrong" (ref 1651615459 + variants) on every financials tile click; landing rendered fine.
+
+**Root cause (Next.js 16 strict boundary):** Every export from a `'use client'` module is treated as a client reference. The P1 + P2 server `page.tsx` files imported and CALLED `parseFinXState()` from `'use client'`-marked hook files. `npm run build` did NOT catch this; it threw at runtime: `Error: Attempted to call parseFinPerfState() from the server but ...` Vercel runtime logs confirmed on `/beithady/financials/performance` (and presumably all sibling sub-pages by extension).
+
+**Fix:** Split each typed URL hook into two files:
+- `<feature>-url-state.ts` (no `'use client'`) — pure types, `parseFinXState`, `serializeFinXState`, `buildFinXUrl`, defaults. **Server pages import from here.**
+- `use-<feature>-url-state.ts` (`'use client'`) — re-exports the pure helpers + adds the React `useXUrlState()` hook. **Client Shells import from here.**
+
+Five hooks split (per audit P1 + P2):
+1. `perf-pnl-url-state.ts` + `use-perf-pnl-url-state.ts`
+2. `bs-url-state.ts` + `use-bs-url-state.ts`
+3. `payables-url-state.ts` + `use-payables-url-state.ts`
+4. `ledgers-url-state.ts` + `use-ledgers-url-state.ts`
+5. `reconciliation-url-state.ts` + `use-reconciliation-url-state.ts`
+
+Five server `page.tsx` files (performance, balance-sheet, payables, ledgers, reconciliation) updated to import `parseFinXState` from the pure modules.
+
+**Test files untouched** — they keep importing from the `use-*` hook files which re-export everything. All 24 hook tests still pass.
+
+**Verification:** `tsc --noEmit` clean. `vitest run src/app/beithady/financials/_hooks/` → 24/24 pass. `npm run build` succeeds. Backward-compat preserved: same parse behavior, same URL contract, same A1 handling.
+
+**Lesson for future migrations:** when adding a typed URL hook for a new dashboard page, declare the pure helpers in a non-client file from the start. The hook file ONLY contains `'use client'` + `useXUrlState()` + a re-export of pure helpers. Document this in the BHDashboardShell spec under "URL state hook setup" so the pattern propagates to downstream consumers (analytics/calendar-heatmap, market-intel, inventory dashboards, ads/performance, ops, hr, communication inbox migrations still ahead).
+
+**Diff:** 15 files changed (5 new pure modules + 5 rewritten hook re-exports + 5 page imports), 434 ins / 318 del.
+
+---
+
 ## 2026-05-15 — YouTube V1.2 · Picker UI components (Tasks 5–8)
 
 **Status:** DONE. Pushed.
