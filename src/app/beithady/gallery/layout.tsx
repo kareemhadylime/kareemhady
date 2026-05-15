@@ -1,17 +1,9 @@
 import type { ReactNode } from 'react';
-import { GalleryProvider } from './_components/gallery-provider';
-import { UploadTray } from './_components/upload-tray';
 
-// This layout wraps every /beithady/gallery/** route.
-// GalleryProvider holds the upload queue + selection state, so it
-// survives intra-gallery navigation (between buildings, units,
-// general-area). It tears down only when the user leaves the
-// /beithady/gallery section entirely.
+// GalleryProvider + UploadTray are mounted one level up in
+// /beithady/layout.tsx so the upload queue and any in-flight
+// compression survive when the operator navigates out of /gallery
+// to elsewhere in /beithady. This layout is a passthrough.
 export default function GalleryLayout({ children }: { children: ReactNode }) {
-  return (
-    <GalleryProvider>
-      {children}
-      <UploadTray />
-    </GalleryProvider>
-  );
+  return <>{children}</>;
 }
