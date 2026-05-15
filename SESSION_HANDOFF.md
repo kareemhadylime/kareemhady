@@ -1,3 +1,21 @@
+## 2026-05-15 — BH Financials import: dual-kind 227002 (Suppliers vs Owner Payables) bug surfaced, awaiting fix-approach choice
+
+**User question:** "In Import to the same account, how will we differentiate between Suppliers & Owner?" — both target tiles share account code `227002` ([import/page.tsx:9-19](src/app/beithady/financials/import/page.tsx:9)).
+
+**Current flow:** kind is picked AFTER upload, on review page `/beithady/financials/import/[upload_id]` via a dropdown ([import/[upload_id]/page.tsx:100](src/app/beithady/financials/import/[upload_id]/page.tsx:100)). Commit ([import/[upload_id]/actions.ts:60](src/app/beithady/financials/import/[upload_id]/actions.ts:60)) filters Odoo partner pool by `supplier_rank > 0` / `is_owner = true` / `is_employee = true` accordingly.
+
+**Bug #1:** [`commitClassifiedRows`](src/lib/beithady/financials/xlsx-import.ts:157) deletes prior rows by `(snapshot_id, account_code)` only — second commit on 227002-owner wipes the just-committed 227002-supplier rows.
+
+**Bug #2:** Unique index `(snapshot_id, account_code, partner_name_raw)` means the synthetic `__UNALLOCATED_227002` row can't coexist for both kinds. Need to rename to `__UNALLOCATED_<code>_<kind>` and widen index to include `partner_kind`.
+
+**Two fix approaches presented to user (awaiting choice):**
+- **(A) Minimal** — fix delete scope + relax unique index + rename synthetic. Operator runs Odoo Partner Ledger twice with a Vendor / Owner filter, uploads each xlsx, commits with the matching kind. ~40 lines + 1 migration.
+- **(B) Full** — same fixes + rewrite `classifyParsedRows` to auto-split by Odoo flags (one xlsx → supplier rows + owner rows). Tiebreak needed for `is_owner=true AND supplier_rank>0` partners. UX changes the commit form from "pick kind" dropdown to "Detected: X suppliers, Y owners — confirm".
+
+**No code changes this turn. No DB writes.** Pure diagnosis + scoping. Waiting for user to pick A or B.
+
+---
+
 ## 2026-05-15 — BH Financials Partner Ledgers empty: diagnosed + Excel export feature requested
 
 **User report:** Partner Ledgers page (`/beithady/financials/ledgers`) shows "No partners — try a different kind or import the ledger." across every tab (Suppliers, Owners, etc.) on the consolidated 2025-12-31 v1 snapshot.
