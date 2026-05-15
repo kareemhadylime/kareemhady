@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeTargetBitrate, pickResolutionRung } from './video-compress';
+import { computeTargetBitrate, pickResolutionRung, compressVideoToFit, VideoCompressError } from './video-compress';
 
 describe('computeTargetBitrate', () => {
   it('targets fit-to-size with 7% container headroom and 96kbps audio reserved', () => {
@@ -66,5 +66,41 @@ describe('pickResolutionRung', () => {
   it('never upscales a tiny source', () => {
     const r = pickResolutionRung({ videoBps: 5_000_000, srcWidth: 640, srcHeight: 360 });
     expect(r).toEqual({ width: 640, height: 360 });
+  });
+});
+
+describe('compressVideoToFit fast-path', () => {
+  it('returns the same File instance when file.size <= maxBytes', async () => {
+    const small = new File([new Uint8Array(1_000_000)], 'small.mp4', { type: 'video/mp4' });
+    const result = await compressVideoToFit(small);
+    expect(result).toBe(small);
+  });
+
+  it('returns the same File instance for non-video MIMEs even when oversized', async () => {
+    const big = new File([new Uint8Array(60_000_000)], 'huge.pdf', { type: 'application/pdf' });
+    const result = await compressVideoToFit(big);
+    expect(result).toBe(big);
+  });
+
+  it('honors a custom maxBytes', async () => {
+    const file = new File([new Uint8Array(2_000_000)], 'clip.mp4', { type: 'video/mp4' });
+    const result = await compressVideoToFit(file, { maxBytes: 3_000_000 });
+    expect(result).toBe(file);
+  });
+
+  it('emits a done progress event on the fast-path', async () => {
+    const file = new File([new Uint8Array(1_000)], 'tiny.mp4', { type: 'video/mp4' });
+    const seen: string[] = [];
+    await compressVideoToFit(file, { onProgress: (p) => seen.push(p.phase) });
+    expect(seen).toContain('done');
+  });
+});
+
+describe('VideoCompressError', () => {
+  it('preserves code and name', () => {
+    const err = new VideoCompressError('boom', 'encode_failed');
+    expect(err.code).toBe('encode_failed');
+    expect(err.name).toBe('VideoCompressError');
+    expect(err.message).toBe('boom');
   });
 });

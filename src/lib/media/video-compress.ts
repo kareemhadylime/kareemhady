@@ -64,3 +64,21 @@ export function pickResolutionRung(args: {
 function makeEven(n: number): number {
   return n % 2 === 0 ? n : n - 1;
 }
+
+export async function compressVideoToFit(
+  file: File,
+  opts: CompressOptions = {},
+): Promise<File> {
+  const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  const onProgress = opts.onProgress ?? (() => {});
+
+  // Fast-path: already under cap, or not a video.
+  const isVideo = (file.type || '').startsWith('video/');
+  if (!isVideo || file.size <= maxBytes) {
+    onProgress({ phase: 'done' });
+    return file;
+  }
+
+  // Slow-path: actual transcoding. Implemented in Task 5.
+  throw new VideoCompressError('not implemented', 'encode_failed');
+}
