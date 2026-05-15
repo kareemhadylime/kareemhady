@@ -22,11 +22,17 @@ export type LedgerRow = {
   last_move_date: string | null;
 };
 
+export type LedgerReport = {
+  rows: LedgerRow[];
+  snapshot_id: string | null;
+  opening_period_end: string | null;
+};
+
 export async function buildLedgerReport(params: {
   kind: PartnerKind | 'all';
   scope: CompanyScope;
   as_of: string;
-}): Promise<{ rows: LedgerRow[]; snapshot_id: string | null; opening_period_end: string | null }> {
+}): Promise<LedgerReport> {
   const sb = supabaseAdmin();
 
   // 1. Latest frozen snapshot for scope at or before as_of.
