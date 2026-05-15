@@ -1,6 +1,6 @@
 // src/lib/beithady/youtube/ai-metadata.test.ts
 import { describe, it, expect } from 'vitest';
-import { parseAiJson, clampTitle, clampTags, substituteBookingUrl } from './ai-metadata';
+import { parseAiJson, clampTitle, clampTags, substituteBookingUrl, substitutePlaceholders } from './ai-metadata';
 
 describe('parseAiJson', () => {
   it('parses raw JSON', () => {
@@ -50,5 +50,21 @@ describe('substituteBookingUrl', () => {
 
   it('handles strings without the placeholder', () => {
     expect(substituteBookingUrl('no placeholder here')).toBe('no placeholder here');
+  });
+});
+
+describe('substitutePlaceholders', () => {
+  it('replaces {whatsapp_url} with the wa.me URL', () => {
+    const result = substitutePlaceholders('Reserve → {whatsapp_url}');
+    expect(result).toContain('wa.me');
+    expect(result).toContain('201501010103');
+  });
+
+  it('replaces BOTH {booking_url} and {whatsapp_url} in one pass', () => {
+    const result = substitutePlaceholders('Book {booking_url} or WA {whatsapp_url}');
+    expect(result).toContain('beithady.com');
+    expect(result).toContain('wa.me');
+    expect(result).not.toContain('{booking_url}');
+    expect(result).not.toContain('{whatsapp_url}');
   });
 });

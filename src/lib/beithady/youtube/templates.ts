@@ -18,11 +18,13 @@ export type YouTubeTemplate = {
   }>;
 };
 
+// Every description ends with Beithady's reservation channels. Both placeholders
+// are substituted at AI-response time (see ai-metadata.ts).
 const SHORTS_DESC = (intro: string) =>
-  `#Shorts\n\n${intro}\n\nBook direct → {booking_url}\n\n#BeitHady #Cairo #ShortTermRental`;
+  `#Shorts\n\n${intro}\n\n📞 Reserve on WhatsApp → {whatsapp_url}\n🌐 Book direct → {booking_url}\n\n#Beithady #Cairo #ShortTermRental`;
 
 const LONGFORM_DESC = (intro: string) =>
-  `${intro}\n\nBook direct → {booking_url}\n\n#BeitHady #Cairo #LuxuryStay`;
+  `${intro}\n\n📞 Reserve on WhatsApp → {whatsapp_url}\n🌐 Book direct → {booking_url}\n\n#Beithady #Cairo #LuxuryStay`;
 
 export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
   {
@@ -30,7 +32,7 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'BH-26 · Shorts tour',
     applies_to: 'shorts',
     building_code: 'BH-26',
-    title_template: 'BH-26 Cairo · {scene}',
+    title_template: 'Beithady · BH-26 Cairo · {scene}',
     description_template: SHORTS_DESC('A quick look inside one of our most-booked apartments at 26 Cleopatra, Cairo.'),
     default_tags: ['beithady', 'cairo', 'shortterm rental', 'cleopatra'],
     default_privacy: 'unlisted',
@@ -43,7 +45,7 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'BH-73 · Shorts tour',
     applies_to: 'shorts',
     building_code: 'BH-73',
-    title_template: 'BH-73 Cairo · {scene}',
+    title_template: 'Beithady · BH-73 Cairo · {scene}',
     description_template: SHORTS_DESC('Step inside our serviced apartment at 73 Cleopatra, Cairo.'),
     default_tags: ['beithady', 'cairo', 'shortterm rental', 'cleopatra'],
     default_privacy: 'unlisted',
@@ -56,7 +58,7 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'BH-435 · A1 Shorts tour',
     applies_to: 'shorts',
     building_code: 'BH-435',
-    title_template: 'BH-435 A1 · {scene}',
+    title_template: 'Beithady · BH-435 A1 · {scene}',
     description_template: SHORTS_DESC('A peek at our A1 Hospitality building, Cairo.'),
     default_tags: ['beithady', 'a1hospitality', 'cairo', 'shortterm rental'],
     default_privacy: 'unlisted',
@@ -69,7 +71,7 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'BH-OK · OKAT Shorts tour',
     applies_to: 'shorts',
     building_code: 'BH-OK',
-    title_template: 'OKAT Cairo · {scene}',
+    title_template: 'Beithady · OKAT Cairo · {scene}',
     description_template: SHORTS_DESC('A look inside our OKAT building, Cairo.'),
     default_tags: ['beithady', 'okat', 'cairo', 'shortterm rental'],
     default_privacy: 'unlisted',
@@ -82,7 +84,7 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'BH-34 · Shorts tour',
     applies_to: 'shorts',
     building_code: 'BH-34',
-    title_template: 'BH-34 Cairo · {scene}',
+    title_template: 'Beithady · BH-34 Cairo · {scene}',
     description_template: SHORTS_DESC('Inside our apartment at 34 Cleopatra, Cairo.'),
     default_tags: ['beithady', 'cairo', 'shortterm rental', 'cleopatra'],
     default_privacy: 'unlisted',
@@ -95,16 +97,18 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'BH-26 · Long-form property tour',
     applies_to: 'long-form',
     building_code: 'BH-26',
-    title_template: 'Full tour: BH-26 Cleopatra Cairo · {feature}',
+    title_template: 'Beithady · BH-26 Cleopatra Cairo · {feature}',
     description_template: LONGFORM_DESC(
-      'Welcome to BH-26 — one of our most-booked serviced apartments at 26 Cleopatra Street, Cairo. {body}\n\nWhat you will see: {feature}.'
+      'Welcome to Beithady BH-26 — one of our most-booked serviced apartments at 26 Cleopatra Street, Cairo. {body}\n\nWhat you will see: {feature}.'
     ),
     default_tags: ['beithady', 'cairo', 'shortterm rental', 'cleopatra', 'apartmenttour', 'walkthrough'],
     default_privacy: 'unlisted',
     default_language: 'en',
     default_category_id: 19,
     variables: [
-      { name: 'feature', prompt_for_ai: 'One-line summary of the standout amenity or view shown.', max_length: 60 },
+      // max_length lowered from 60 → 50 to keep the title under YouTube's 100-char cap
+      // after the new "Beithady · " prefix (44 chars fixed + 50 var = 94).
+      { name: 'feature', prompt_for_ai: 'One-line summary of the standout amenity or view shown.', max_length: 50 },
       { name: 'body',    prompt_for_ai: 'A 2-3 sentence description of what is shown in the tour.', max_length: 400 },
     ],
   },
@@ -113,9 +117,9 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'Area guide · Cairo (generic, no building)',
     applies_to: 'long-form',
     building_code: null,
-    title_template: 'Cairo guide · {area}',
+    title_template: 'Beithady · Cairo guide · {area}',
     description_template: LONGFORM_DESC(
-      'A short Cairo guide from the Beit Hady team. {body}\n\nFeatured: {area}.'
+      'A short Cairo guide from the Beithady team. {body}\n\nFeatured: {area}.'
     ),
     default_tags: ['beithady', 'cairo', 'travelguide', 'cairoguide', 'egypt'],
     default_privacy: 'public',
@@ -131,8 +135,8 @@ export const YOUTUBE_TEMPLATES: YouTubeTemplate[] = [
     label: 'Internal · Staff intro (default private)',
     applies_to: 'long-form',
     building_code: null,
-    title_template: 'Beit Hady team · {role}',
-    description_template: 'Internal team intro. {body}\n\nMeet: {role}.\n\nMore at {booking_url}',
+    title_template: 'Beithady team · {role}',
+    description_template: 'Beithady internal team intro. {body}\n\nMeet: {role}.\n\n📞 Reserve on WhatsApp → {whatsapp_url}\n🌐 Book direct → {booking_url}',
     default_tags: ['beithady', 'team'],
     default_privacy: 'private',
     default_language: 'en',

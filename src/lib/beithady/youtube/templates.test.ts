@@ -25,6 +25,18 @@ describe('YOUTUBE_TEMPLATES', () => {
     }
   });
 
+  it('every description_template contains {whatsapp_url} placeholder', () => {
+    for (const t of YOUTUBE_TEMPLATES) {
+      expect(t.description_template, `template ${t.id} missing {whatsapp_url}`).toContain('{whatsapp_url}');
+    }
+  });
+
+  it('every title_template contains "Beithady"', () => {
+    for (const t of YOUTUBE_TEMPLATES) {
+      expect(t.title_template, `template ${t.id} missing "Beithady"`).toContain('Beithady');
+    }
+  });
+
   it('Shorts templates include "#Shorts" in description_template', () => {
     for (const t of YOUTUBE_TEMPLATES.filter(x => x.applies_to === 'shorts')) {
       expect(t.description_template, `Shorts template ${t.id} missing #Shorts`).toContain('#Shorts');

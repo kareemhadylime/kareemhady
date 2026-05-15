@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { findTemplate } from './templates';
 
 const BOOKING_URL = 'https://beithady.com';
+const WHATSAPP_URL = 'https://wa.me/201501010103?text=Hi%20I%27d%20like%20to%20book%20at%20Beithady';
 
 export type GeneratedMetadata = {
   title: string;
@@ -48,9 +49,14 @@ export function clampTags(input: string[], totalMaxChars: number): string[] {
   return out;
 }
 
-export function substituteBookingUrl(input: string): string {
-  return input.replace(/\{booking_url\}/g, BOOKING_URL);
+export function substitutePlaceholders(input: string): string {
+  return input
+    .replace(/\{booking_url\}/g, BOOKING_URL)
+    .replace(/\{whatsapp_url\}/g, WHATSAPP_URL);
 }
+
+// Backward-compat alias — older callers still import the old name.
+export const substituteBookingUrl = substitutePlaceholders;
 
 export type GenerateInput = {
   template_id: string;
@@ -79,14 +85,16 @@ Template scaffolding (do not deviate from structure; fill {variables}):
   BASE TAGS:   ${tmpl.default_tags.join(', ')}
 
 Return JSON ONLY with these fields, respecting YouTube limits:
-- title (<=100 chars)
-- description (<=2000 chars; include {booking_url} literally, our app substitutes)
+- title (<=100 chars; MUST contain the word "Beithady" verbatim — typically as the leading prefix from the template)
+- description (<=2000 chars; MUST include BOTH {booking_url} AND {whatsapp_url} placeholders verbatim — our app substitutes them)
 - tags (array of 5-15 strings, each <=30 chars, total <=500 chars; INCLUDE the base tags)
 - language ('en' or 'ar' based on visual cues; default 'en')
 - variables_filled (key-value map of template variables you filled)
 
 Rules:
 - For Shorts, the description's first line must be "#Shorts".
+- Title MUST contain "Beithady" (one word, matching the channel handle @beithady).
+- Description MUST keep both {booking_url} and {whatsapp_url} placeholders verbatim — DO NOT replace them with real URLs, our app does that.
 - Be SPECIFIC about what's VISIBLE in the frame. Do NOT fabricate amenities you can't see.
 - Tags must be SEO-friendly for hospitality / short-term rentals / Cairo.
 - Match the description's language to the 'language' field.`;
@@ -111,7 +119,7 @@ Rules:
   if (!parsed) throw new Error('invalid_json_response');
 
   const title = clampTitle(String(parsed.title ?? ''), 100);
-  const description = substituteBookingUrl(clampDescription(String(parsed.description ?? ''), 5000));
+  const description = substitutePlaceholders(clampDescription(String(parsed.description ?? ''), 5000));
   const tags = clampTags(Array.isArray(parsed.tags) ? parsed.tags.map(String) : [], 500);
   const language = String(parsed.language ?? tmpl.default_language);
   const variables_filled = (parsed.variables_filled && typeof parsed.variables_filled === 'object')
