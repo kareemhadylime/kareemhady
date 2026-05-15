@@ -23,3 +23,51 @@ describe('unwrapStoredRefreshToken', () => {
     expect(unwrapStoredRefreshToken(null)).toBe('');
   });
 });
+
+import { getYouTubeAccessToken } from './youtube-client';
+
+const supabaseUpdates: Array<{ table: string; update: Record<string, unknown>; eqId: number }> = [];
+
+vi.mock('@/lib/supabase', () => ({
+  supabaseAdmin: () => ({
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({
+            data: {
+              id: 42,
+              youtube_refresh_token: 'enc:1//AbCdEf',
+              youtube_access_token: null,
+              youtube_access_token_expires_at: null,
+            },
+            error: null,
+          }),
+        }),
+      }),
+      update: (update: Record<string, unknown>) => ({
+        eq: (_col: string, eqId: number) => {
+          supabaseUpdates.push({ table, update, eqId });
+          return Promise.resolve({ error: null });
+        },
+      }),
+    }),
+  }),
+}));
+
+beforeEach(() => {
+  supabaseUpdates.length = 0;
+  process.env.GOOGLE_CLIENT_ID = 'fake';
+  process.env.GOOGLE_CLIENT_SECRET = 'fake';
+});
+
+describe('getYouTubeAccessToken — invalid_grant clears dead token', () => {
+  it('clears youtube_refresh_token and throws refresh_failed when Google returns invalid_grant', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({ error: 'invalid_grant' }),
+    }) as unknown as typeof fetch;
+
+    await expect(getYouTubeAccessToken(42)).rejects.toMatchObject({ reason: 'refresh_failed' });
+    const cleared = supabaseUpdates.find(u => u.update.youtube_refresh_token === null);
+    expect(cleared).toBeDefined();
+  });
+});
