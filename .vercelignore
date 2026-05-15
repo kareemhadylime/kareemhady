@@ -1,0 +1,43 @@
+# Files NOT to upload via `vercel --prod` from the CLI.
+# Vercel builds from package.json/package-lock.json on its side,
+# so node_modules / build outputs / VCS state are pure waste —
+# leaving them in produced a 4.1 GB archive that hit Vercel's
+# 15k-file cap and the upload endpoint's payload limit.
+
+node_modules
+.next
+.next-build-cache
+.turbo
+.vercel
+
+.git
+
+# Worktrees & local Claude scratch state
+.claude/worktrees
+.claude/cache
+.claude-cache
+
+# Local logs and one-off build outputs
+*.log
+build.log
+vercel-deploy.log
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+
+# Local env files (Vercel pulls real env from project settings)
+.env
+.env.local
+.env.development
+.env.production
+.env.production.local
+
+# Test outputs
+coverage
+.vitest-cache
+
+# PDF/Excel fixtures and large generated assets in repo root
+*.pdf
+*.xlsx
+*.zip
