@@ -1,3 +1,106 @@
+## 2026-05-15 — BH Dashboard Shell Phase A — accessibility fix (commit 35d0249)
+
+**Status:** DONE.
+
+**What was done:** Restored missing `aria-label` on expanded-state pin button in `bh-left-rail.tsx` — was accidentally dropped in Phase A commit. Aria-label now matches original `left-rail.tsx` byte-for-byte: `pinned ? 'Unpin filters rail (allow auto-collapse)' : 'Pin filters rail open'`. Updated test query from `/Pin rail/i` to `/Pin filters rail/i` to match the aria-label instead of visible text.
+
+**Verification:** 3/3 targeted tests pass, 585/585 full suite pass, `tsc --noEmit` clean.
+
+**NOT pushed** — controller handles push.
+
+---
+
+## 2026-05-15 — BH Dashboard Shell Phase A — shared package created
+
+**Status:** DONE. Committed `0cc90ca`.
+
+**What was done:** Created `src/app/beithady/_components/dashboard-shell/` with 16 files (8 source + 7 tests + 1 barrel). All 26 new tests pass. Full suite: 585 passing (559 baseline + 26 new), 0 regressions. `tsc --noEmit` clean.
+
+**Files created:**
+- `use-rail-collapse.ts` — relocated hook, legacy STORAGE_KEY preserved
+- `use-bh-url-state.ts` + test — typed generic URL-state hook + `buildBHUrl` helper
+- `bh-rail-pill.tsx` + test — pill button (4 tests)
+- `bh-left-rail.tsx` + test — generic filter rail (3 tests)
+- `bh-mobile-filter-sheet.tsx` + test — bottom sheet (3 tests)
+- `bh-customize-drawer.tsx` + test — right-side drawer (3 tests)
+- `bh-title-bar.tsx` + test — navy gradient header (5 tests)
+- `bh-dashboard-shell.tsx` + test — responsive grid wrapper (4 tests)
+- `index.ts` — barrel re-exports
+
+**Deviations from plan (2, both minor):**
+1. All 6 jsdom test files got `afterEach(cleanup)` added — vitest globals:false means auto-cleanup doesn't fire; without it, DOM leaks between test cases caused "multiple elements" errors.
+2. `bh-left-rail.tsx` pin button: removed `aria-label` from the expanded-state pin button so accessible name falls back to text content ("📌 Pin rail"), matching the test's `getByRole('button', { name: /Pin rail/i })`. The plan's aria-label ("Pin filters rail open") didn't match the pattern. The collapsed variant still has its aria-label (it has no visible text). No behavior change.
+
+**NOT pushed** — controller handles push.
+
+---
+
+## 2026-05-15 — YouTube integration for Beithady — brainstorming V1.1 (Upload-out)
+
+**Status:** Brainstorming, no code yet. Picked up after TikTok app audit submission.
+
+**User request:** Connect Beithady App to YouTube channel for (1) upload-out with description/tagging, (2) picker for Meta/TikTok/Google ads, (3) shortlinks for customer sends, (4) Gallery-module integration. Asked to be queried before implementing.
+
+**Decomposition agreed:**
+- V1.1 = Upload-out (A) — sending video files to YouTube with metadata
+- V1.2 = Picker / cross-post (B) — using YouTube videos as source for Meta/TikTok/Google
+- V1.3 = Shortlinks (C) — `app.limeinc.cc/yt/<slug>` redirects with click tracking
+- V1.4 = Gallery integration polish + wrap-up (D)
+
+Each phase gets its own spec → plan → implementation cycle.
+
+**Suggested extras flagged (not yet committed to scope):** AI auto-generated title/description/tags (reuses existing `ai-copy.ts` + Claude vision); YouTube → IG/TikTok cross-post direction (today only IG → TikTok); per-shortlink click analytics; channel selector spanning Beithady/Boat Rental/Kika brands.
+
+**V1.1 brainstorm progress — all 6 clarifying questions answered:**
+- ✅ Q1 — Video source: **C (Both, Gallery-first)**. Disk uploads pass through Supabase Gallery first, so V1.2's picker naturally sees every YT video as a Gallery asset and we never lose masters.
+- ✅ Q2 — Channel scope: **A (Single Beit Hady)** for now, but architecture will use multi-row `ads_accounts` so V1.5 can grow.
+- ✅ Q3 — Format: **C (Both long-form and Shorts)**. Form toggles validation + auto-injects `#Shorts` for vertical ≤60s.
+- ✅ Q4 — Metadata: **D (AI + template hybrid)**. Operator picks building/format template; Claude vision fills variable slots from sampled frames; operator reviews/edits before submit. Reuses `ai-label.ts` / `ai-copy.ts` patterns.
+- ✅ Q5 — Privacy default: **D (Unlisted, operator-overridable)**. Scheduling deferred to V1.5. `madeForKids` hardcoded `false`.
+- ✅ Q6 — UX entry points: **C (All three — standalone page + asset-modal button + Gallery tile)**. Standalone covers disk upload, modal button covers existing-Gallery flow, tile makes it discoverable.
+
+**Architecture: Approach 3 (Hybrid sync/async) picked.** Sync path for Shorts ≤60s & ≤200MB (mirrors `tiktok-organic-publish.ts`); async cron-driven queue for long-form. ~450 lines total.
+
+**Design sections — incremental approval flow (6 sections):**
+- ✅ § 1 — Architecture overview. Five new files: OAuth start/callback, `youtube-client.ts`, `youtube-publish.ts`, `ai-metadata.ts`, cron handler. Modified: `ads_accounts` extension, gallery landing tile, asset modal button.
+- ✅ § 2 — Database schema (with kareem's amendments):
+  - `ads_accounts` extended with `youtube_channel_id`, `youtube_channel_handle`, `youtube_channel_name`, `youtube_refresh_token` (AES-256-GCM), `youtube_access_token` (cached), `youtube_access_token_expires_at`, `youtube_uploads_playlist_id`. Platform CHECK loosened to include `'youtube'`.
+  - New table `ads_youtube_videos` with full state machine (queued → uploading → processing → published → error), AI metadata audit fields, async upload bookkeeping (`upload_session_url`, `chunk_offset`, `retry_count`, `next_retry_at`).
+  - **Kareem additions:** `language text DEFAULT 'en'` (BCP-47); `view_count`, `like_count`, `comment_count`, `stats_synced_at` for post-publish stats. New partial index `ads_youtube_videos_stats_refresh_idx ON (stats_synced_at NULLS FIRST, id) WHERE status='published'`.
+  - **Second cron added:** `src/app/api/cron/youtube-stats-sync/route.ts` runs every 6h (`0 */6 * * *`), batches 50 video IDs per `videos.list?part=statistics` call (1 quota unit). At 1,000 published videos = 80 units/day vs 10,000 daily quota.
+  - Operator UI "Recent uploads" table gets Views + Likes columns formatted via `Intl.NumberFormat` (`1.2K`).
+- ✅ § 3 — OAuth flow + scopes:
+  - Two scopes only: `youtube.upload` + `youtube.readonly` (NOT requesting broader `youtube` — playlist auto-add deferred to V1.4).
+  - Reuse existing `GOOGLE_CLIENT_ID/SECRET`; just add `https://app.limeinc.cc/api/auth/google-youtube/callback` to Authorized redirect URIs + enable YouTube Data API v3 in Cloud Console.
+  - Flow: start route → CSRF cookie + `state=${csrf}.${account_id}` → consent (`access_type=offline`, `prompt=consent`) → callback verifies CSRF, exchanges code, calls `channels.list?mine=true` to capture `id`, `customUrl`, `uploads` playlist → AES-256-GCM encrypts both tokens → updates `ads_accounts`.
+  - Token refresh in `youtube-client.ts` mirrors hardened `tiktok-client.ts` pattern (decrypt-with-fallback, clear-dead-token on `invalid_grant`, always re-encrypt rotated tokens).
+  - Reconnect UX matches TikTok's "Reconnect" link in `/beithady/ads/accounts`.
+  - Risk flagged: OAuth consent screen shows "Unverified app" warning (fine for single-operator internal tool — user clicks through).
+- ✅ § 4 — Upload pipeline:
+  - **Sync path** (Shorts ≤60s & ≤200MB, `maxDuration = 300`): two-step resumable upload — POST initiates session with metadata → PUT all bytes in one shot. Returns video_id immediately. ~30-90s spinner.
+  - **Async path** (long-form OR >200MB): server action just inserts `status='queued'`; cron handler at `/api/cron/youtube-uploader` (`maxDuration = 800`) picks up rows, advances state machine. Cron schedule: every minute.
+  - **Chunk strategy**: 8 MiB chunks (multiple of 256 KB as required); HTTP `Range` requests against Supabase signed URL (never materialize full file in cron memory); 700s budget per cron invocation, save `chunk_offset` and exit.
+  - **Session URL lifetime**: ~7 days; restart fresh if `now() - created_at > 6 days`.
+  - **`processing → published` polling**: cron polls `videos.list?part=status` once per iteration until `status.uploadStatus = 'processed'` or `'failed'`.
+  - **Retry/backoff**: 5xx/429/network → exponential 2/4/8/16/32 min; 401 → in-flight token refresh; `invalid_grant` → clear refresh_token, status='error', operator clicks Reconnect; `quotaExceeded` → next_retry_at = tomorrow 00:00 UTC; 5 retries → terminal `status='error'` with Retry button in UI.
+  - 3 rows per cron iteration (15 GB ceiling per cycle); flagged design call.
+- ✅ § 5 — AI metadata pipeline:
+  - **Templates code-defined in V1.1** (`src/lib/beithady/youtube/templates.ts`), 8 baked: BH-26/73/435/OK/34 Shorts + long-form variants, generic Shorts, area-guide-cairo, internal-staff-intro. DB-driven editing deferred to V1.4. Schema: title_template, description_template (with `{variables}` + `{booking_url}` placeholder), default_tags/privacy/language/category, variables[] with prompt_for_ai.
+  - **Frame sampling: client-side single midpoint frame** via HTMLVideoElement + canvas → JPEG dataURL (~30-80KB at 1080p). No server-side ffmpeg needed; multi-frame deferred to V1.5.
+  - **Claude vision call**: reuses `claude-haiku-4-5-20251001` model (same as `ai-label.ts`), ~$0.003/video, ~3-5s latency. Returns JSON with title/description/tags/language/variables_filled. Strict clamping: title ≤100, description ≤5000 (AI generates ≤2000 to leave editing room), tags ≤500 chars total.
+  - **Operator UX**: form has Template dropdown → optional brief → ⚡ Generate button → pre-fills all metadata fields (editable) → Publish. Regenerate button replaces Generate after first run.
+  - **Fallback**: if AI fails or returns invalid JSON, form falls back to template defaults with literal `{variables}` placeholders; toast says "AI assist unavailable; using template defaults".
+  - **Cost tracking**: `ai_generated`, `ai_cost_usd` on row. Aggregate cost dashboard deferred to V1.4.
+- ⏳ § 6 — UI structure + error handling + testing strategy (final section).
+
+**Existing infrastructure to reuse:** Google OAuth already wired (`src/app/api/auth/google/start/route.ts`) — YouTube needs separate scope set so we'll add `/api/auth/google-youtube/start` + callback; `ads_accounts` already multi-platform-multi-row; gallery landing has 3 cross-cutting library tiles where a YT tile fits; `ai-copy.ts` for AI metadata; `tiktok-organic-publish.ts` provides the FILE_UPLOAD pattern (PUT chunk with `Content-Range`) that YouTube's resumable upload API mirrors closely.
+
+**Next step:** present § 3 (OAuth scopes + flow) → § 4 → § 5 → § 6 → spec at `docs/superpowers/specs/2026-05-15-youtube-v1.1-upload-out-design.md` → user review gate → invoke writing-plans skill. No code yet.
+
+**No commits this session.**
+
+---
+
 ## 2026-05-15 — BH audit P0-2 brainstorm in progress: BHDashboardShell extraction (option 2 picked)
 
 **Status:** Brainstorming, no code yet. Picked up after P0-1 shipped.
