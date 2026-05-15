@@ -1,3 +1,20 @@
+## 2026-05-15 — BH Ads · Reels post-ship: alias re-pointed, backfill skipped
+
+**Status:** DONE. No new code.
+
+**What happened in this turn:**
+- Confirmed GitHub→Vercel auto-deploy of `3cbfe24` (origin/main HEAD) succeeded at 18:11 UTC. Latest Ready prod deploy is `https://lime-cu1sg25dt-lime-investments.vercel.app`. Includes reels v1.1, financials final-review fix (`isCompanyScope` guard removal in Payables), and the YouTube picker module from the other session.
+- **Re-aliased `app.limeinc.cc` → `lime-cu1sg25dt-...vercel.app`** via `vercel alias set`. Prior alias was `lime-gfageuh9v` (reels v1.0, TikTok-only). The lime project doesn't auto-update the custom-domain alias on deploy — has to be manual each time (existing known quirk; saved memory).
+- **Backfill action: not needed.** Queried `bh_marketing_reels` via SQL: 0 rows. The planned "refresh metadata for pre-0136 rows" task was hypothetical — no test reels were actually added during v1.0. Skipped building the admin action since it'd be dead code today. If real reels accumulate later and a `thumbnail_url`-is-null row appears, the simplest fix is delete + re-add through the form (action runs oEmbed at insert). A bulk `Refresh metadata` admin action can be added on demand.
+
+**Smoke test still pending the operator:** paste a real Beit Hady TikTok and a real Beit Hady IG reel URL through the add form at `/beithady/ads/tiktok/organic`. Confirm:
+1. TikTok: thumbnail poster shows immediately, caption auto-populates from oEmbed if left blank, author handle appears on the card.
+2. Instagram: blockquote hydrates into the IG iframe via `instagram.com/embed.js`.
+
+**Next (queued, not started):** none. The reels feature thread is closed pending real-content smoke test. Open follow-ups elsewhere in the repo (YouTube V1.2 § 1 approval, P3 setup/pricing shells, P2 §8 non-financials data dashboards) are owned by other sessions.
+
+---
+
 ## 2026-05-15 — BH Ads · Reels v1.1: Instagram support + TikTok oEmbed auto-fetch
 
 **Status:** DONE. Pushing now.
