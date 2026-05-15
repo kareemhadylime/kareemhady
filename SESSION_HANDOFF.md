@@ -1,3 +1,40 @@
+## 2026-05-15 — BH audit P1 Tasks 4-6 DONE: Performance migrated to BHDashboardShell + month picker
+
+**Commit:** `e0c3992` — `feat(bh-financials): migrate Performance to BHDashboardShell + add month picker`
+
+**What shipped:**
+- Created `src/app/beithady/financials/_hooks/use-perf-pnl-url-state.ts` — typed URL hook with `usePerfPnlUrlState`, `parseFinPerfState`, `serializeFinPerfState`, `buildFinPerfUrl`. Discriminated union `FinPerfPeriod = { kind:'preset'; id } | { kind:'month'; ym }`. Defaults: scope='consolidated', period=last_month, building='all'. A1 preserved in type for URL backward-compat, omitted from UI.
+- Created `src/app/beithady/financials/_hooks/use-perf-pnl-url-state.test.ts` — 7 assertions (TDD: red first, then green). Tests: defaults, preset serialization, month serialization, scope+building+lob combo, A1 backward-compat, parse defaults, parse-prefer-month-over-preset. All 7 pass.
+- Created `src/app/beithady/financials/performance/_components/PerformanceShell.tsx` — `'use client'` wrapper composing `<BHDashboardShell>`. Rail state threaded to BOTH `<BHDashboardShell>` (railCollapsed/onRailEnter/onRailLeave) AND `<BHLeftRail>` (collapsed/pinned/onTogglePin/collapsedIcons) — P0-2 regression prevention. Three rail sections: Scope (3 pills), Period (6 preset pills + month input), Building (6 pills). One type-narrowing fix needed for `state.period.id` access (cast to preset variant).
+- Replaced `src/app/beithady/financials/performance/page.tsx` — thin server component. Parses searchParams via `parseFinPerfState()`. Legacy `?from=&to=` still works via `resolveFinancePeriod`. Renders `<PerformanceShell>`.
+
+**Verification:** tsc clean, 7/7 hook tests, 624/22 full suite (no regressions), build succeeded.
+
+**Did NOT need to add type exports:** `PnlReport` and `BalanceSheetReport` were already exported from `src/lib/financials-pnl.ts`.
+
+**NOT pushed** — controller pushes at end of full P1 (after Tasks 7-10 in Phase 3).
+
+**Next:** Phase 3 (Tasks 7-9) — `useBSUrlState` hook + `BalanceSheetShell.tsx` + balance-sheet/page.tsx rewrite.
+
+---
+
+## 2026-05-15 — BH audit P1 Tasks 1-3 DONE: Financials landing migrated to BeithadyShell + BeithadyLauncher
+
+**Commit:** `75e8f95` — `feat(bh-financials): migrate landing to BeithadyShell + BeithadyLauncher; re-theme status cards`
+
+**What shipped:**
+- Created `src/app/beithady/financials/_components/StatusPreStrip.tsx` — 3-card status row (Active snapshot / Open variance / Next snapshot due) using BH brand vars (`--bh-cream`, `--bh-mute`, `--bh-ink`, `--bh-gold`, `--bh-steel`) on chrome; semantic red/amber hex literals preserved on variance+due cards per §7.2 follow-up.
+- Replaced `src/app/beithady/financials/page.tsx` — raw `<TopNav>` + bespoke `<CockpitTile>` grid swapped for `<BeithadyShell + BeithadyHeader + BeithadyLauncher>` canonical pattern. `loadCockpitData()` preserved byte-for-byte. 7 `LauncherTile[]` entries with matching hrefs/titles/icons/badges.
+- Deleted `src/app/beithady/financials/_components/CockpitTile.tsx` — confirmed zero remaining references before removal.
+
+**Verification:** tsc clean, 617/22 passing (no regressions), build succeeded.
+
+**NOT pushed** — controller pushes at end of Phase 4.
+
+**Next:** Phase 2 (Tasks 4-6) — `usePerfPnlUrlState` hook + `PerformanceShell.tsx` + performance/page.tsx rewrite.
+
+---
+
 ## 2026-05-15 — BH audit P1 brainstorm in progress: Financials Performance + Balance Sheet + landing migration
 
 **Status:** Brainstorming, no code yet. Picks up the P1 block of the BH design audit after P0-2 shipped (`096aba6`).
@@ -59,7 +96,33 @@
 
 **Side effect of the detour:** the redirect URI was added to the new (now-deleted) client, NOT to the existing InboxOps web client. So Google's `invalid_request` returned on retry with details: `redirect_uri=https://app.limeinc.cc/api/auth/google-youtube/callback` — Google is rejecting it as unauthorized because the URI is missing from the existing client's Authorized redirect URIs list.
 
-**Final unblock asked:** open Clients → InboxOps web → add `https://app.limeinc.cc/api/auth/google-youtube/callback` to Authorized redirect URIs → save → retry Connect. Existing Gmail + Google Ads redirect URIs on that client must stay. Awaiting kareem's confirmation.
+**Round 1 unblock asked:** open Clients → InboxOps web → add `https://app.limeinc.cc/api/auth/google-youtube/callback` to Authorized redirect URIs → save → retry Connect.
+
+**Done by kareem:** redirect URI added to InboxOps web client. URIs 1-3 now: localhost gmail, limeinc.vercel.app gmail, app.limeinc.cc google-youtube. "OAuth client saved" toast confirmed.
+
+**Verified:** Audience → Test users already contains `kareem.hady@gmail.com` + `kareem@fmplusme.com` + `kareem@limeinc.cc` (3/100 cap, Testing mode). YouTube account picker confirms `kareem.hady@gmail.com` owns @Beithady brand channel (23 subs) + personal "Kareem Hady" + VOLTAUTO EV CARS — same Google account, multiple brand channels.
+
+**Still blocked:** retry (even in incognito) → same "Access blocked / Error 400 invalid_request". Decoded the `authError=` protobuf in the URL → Google's error links to https://developers.google.com/identity/protocols/oauth2/policies#secure-response-handling and identifies the failing field as `redirect_uri`. Per that policy, the **registrable domain `limeinc.cc`** must be in the OAuth consent screen's **Authorized domains** list, separate from the client's per-redirect-URI list. Google auto-adds it for new clients but NOT reliably for edits to existing clients — that's the suspected hole.
+
+**Round 2 unblock asked:** open https://console.cloud.google.com/auth/branding?project=kareemhady-inboxops → scroll to "Authorized domains" → add `limeinc.cc` (registrable domain only, NOT `app.limeinc.cc`) → save → retry Connect.
+
+**Done by kareem (round 2):** added `limeinc.cc` as Authorized domain 3 (now: kareemhady.vercel.app, limeinc.vercel.app, limeinc.cc). Also filled in App home page (`https://app.limeinc.cc`), privacy (`https://app.limeinc.cc/legal/privacy`), terms (`https://app.limeinc.cc/legal/terms`) — those legal pages exist from last week's TikTok audit work. Saved.
+
+**Still blocked round 2:** read Google's redirect URI validation rules (HTTPS only, no raw IP, public-suffix TLD, no userinfo, no path traversal, no fragment, no wildcards) — our URI passes ALL of them cleanly. Conclusion: the failure isn't about URI shape; it's almost certainly that **`youtube.upload` is classified as a Restricted scope** and Google quietly requires app verification even for test users (despite their docs saying otherwise).
+
+**Round 3 diagnosis:** gave kareem two pre-built incognito OAuth URLs to isolate the issue:
+- Test 1 — `scope=youtube.readonly` only (sensitive, NOT restricted)
+- Test 2 — both scopes (the restricted `youtube.upload` + `youtube.readonly`)
+
+Expected: Test 1 succeeds, Test 2 fails → confirms restricted-scope verification is the blocker.
+
+**Test 2 result: SUCCESS** (unexpected/lucky). Kareem's incognito paste of Test 2 (with `youtube.upload`) went all the way through — brand-account picker showed Beithady Hospitality + Kareem Hady + VOLTAUTO, "Google hasn't verified" warning → Continue, consent screen with both scopes pre-checked → Continue, callback hit our `/api/auth/google-youtube/callback` and returned `{"error":"invalid_state"}` (correct — manually-crafted `state=test` doesn't match a CSRF cookie). So the OAuth flow works end-to-end. Restricted scope is NOT the blocker.
+
+**Real culprit identified:** the ONLY difference between the working test URL and our app's URL was **`include_granted_scopes=true`** in our start route. Google rejects the combo of `include_granted_scopes=true` + restricted YouTube scopes when the same OAuth client has previously granted unrelated scopes (Gmail/Google-Ads) to the user. The bundling trips the "secure-response-handling" policy and surfaces as Access blocked / invalid_request.
+
+**Fixed by commit `dbd5713`:** dropped the `include_granted_scopes` parameter from `src/app/api/auth/google-youtube/start/route.ts`. The flag was non-essential — V1.1 doesn't do incremental authorization, there are no previously granted YouTube scopes to merge. Pushed to main → Vercel auto-deploying.
+
+**Final unblock:** wait ~2 min for Vercel auto-deploy, then retry Connect from `/beithady/ads/accounts`. Should mirror the working manual flow. After lands at `?connected=youtube`, Task 27 ✅, move to Task 28 (sync upload smoke with ≤60s vertical clip). Awaiting kareem's confirmation.
 
 ---
 
