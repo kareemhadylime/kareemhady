@@ -1,3 +1,21 @@
+## 2026-05-15 — FEATURE: KIKA Executive — clickable order numbers open detail modal
+
+**Status:** Pending commit + push (auto-deploy via GitHub→Vercel).
+
+**User request:** "In KIKA module, need to be able to click the order number to get a popup with all order details."
+
+**Surfaces touched:** [src/app/emails/kika/exec/page.tsx](src/app/emails/kika/exec/page.tsx) — the two tables on the KIKA Executive page that list order numbers (the focus drill-down `FocusDrilldown` for Undelivered / Delayed / Refunded / Cancelled, and the "Most delayed orders" mini-table). Both now wrap `o.name` in a `<OrderNumberButton>` instead of plain text.
+
+**New components / route:**
+- `src/app/api/kika/orders/[id]/route.ts` — GETs a single order. Pulls `shopify_orders` (header + `raw` jsonb) and `shopify_line_items` in parallel, projects to a stable `KikaOrderDetail` JSON shape (totals breakdown, shipping address from raw, line items with computed line totals, fulfillments with tracking, discount codes, payment gateways, note). Gated through `requireDomainAccess('kika')`.
+- `src/app/emails/kika/exec/_components/order-detail-types.ts` — Shared `KikaOrderDetail` + `ShopifyAddress` types. Lives in a neutral module so the client modal can import the types without dragging the `server-only` route into the client bundle.
+- `src/app/emails/kika/exec/_components/order-detail-modal.tsx` — Client slide-over modal (`fixed inset-0 z-50`, backdrop click + ESC to close, body-scroll lock). Fetches `/api/kika/orders/{id}` on open with `cache: 'no-store'`. Renders: status pills + tags, customer card (name / email / phone with mailto+tel links), shipping-address card, line items table with qty × price − discount → line total, totals breakdown card (subtotal, discounts, shipping, tax, total, refunded), discount codes + payment gateways, fulfillment list with tracking links, customer note. Has loading + error states. Direct "Open in Shopify admin" link.
+- `src/app/emails/kika/exec/_components/order-number-button.tsx` — Tiny client button that renders the order name as an indigo underlined link and toggles the modal open state. Used in both tables on the exec page.
+
+**Verification:** `npx next build` is green; new route emitted under `.next/server/app/api/kika/orders/[id]`. tsc clean.
+
+---
+
 ## 2026-05-15 — UX FIX: signed Total sort on Payables (downpayment vs payable)
 
 **Status:** `84c3950` pushed.

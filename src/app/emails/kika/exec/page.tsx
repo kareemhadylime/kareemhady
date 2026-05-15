@@ -20,6 +20,7 @@ import { SyncPills } from '@/app/_components/sync-pills';
 import { buildKikaExecReport, type KikaExecReport } from '@/lib/kika-exec';
 import { buildKikaAbandonedReport } from '@/lib/kika-abandoned-checkouts';
 import { getSyncFreshness } from '@/lib/sync-freshness';
+import { OrderNumberButton } from './_components/order-number-button';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -419,7 +420,9 @@ export default async function KikaExecPage({
                           : null;
                       return (
                         <tr key={o.id} className="border-t border-slate-100">
-                          <td className="py-1 font-medium">{o.name}</td>
+                          <td className="py-1 font-medium">
+                            <OrderNumberButton orderId={o.id} orderName={o.name} />
+                          </td>
                           <td className="py-1 truncate max-w-[160px]" title={o.customer_name || ''}>
                             {o.customer_name || '—'}
                           </td>
@@ -838,7 +841,9 @@ function FocusDrilldown({
             <tbody>
               {orders.map(o => (
                 <tr key={o.id} className="border-t border-slate-100">
-                  <td className="px-4 py-1.5 font-medium">{o.name}</td>
+                  <td className="px-4 py-1.5 font-medium">
+                    <OrderNumberButton orderId={o.id} orderName={o.name} />
+                  </td>
                   <td className="px-4 py-1.5 truncate max-w-[220px]">
                     <div className="truncate" title={o.customer_name || ''}>
                       {o.customer_name || o.email || '—'}
