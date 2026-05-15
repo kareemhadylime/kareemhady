@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { computeTargetBitrate, pickResolutionRung, compressVideoToFit, VideoCompressError } from './video-compress';
 
 describe('computeTargetBitrate', () => {
@@ -102,5 +102,107 @@ describe('VideoCompressError', () => {
     expect(err.code).toBe('encode_failed');
     expect(err.name).toBe('VideoCompressError');
     expect(err.message).toBe('boom');
+  });
+});
+
+vi.mock('./probe-video', () => ({
+  probeVideo: vi.fn(),
+}));
+
+// Build a fake FFmpeg instance with the v0.12 API surface we use.
+function makeFakeFFmpeg(opts: { runOutputBytes: number; throwOnExec?: boolean } = { runOutputBytes: 5_000_000 }) {
+  const progressHandlers: Array<(e: { progress: number }) => void> = [];
+  return {
+    load: vi.fn(async () => undefined),
+    on: vi.fn((event: string, handler: (e: { progress: number }) => void) => {
+      if (event === 'progress') progressHandlers.push(handler);
+    }),
+    off: vi.fn(),
+    writeFile: vi.fn(async () => undefined),
+    readFile: vi.fn(async () => new Uint8Array(opts.runOutputBytes)),
+    deleteFile: vi.fn(async () => undefined),
+    exec: vi.fn(async () => {
+      if (opts.throwOnExec) throw new Error('ffmpeg crashed');
+      // Simulate halfway progress
+      for (const h of progressHandlers) h({ progress: 0.5 });
+      return 0;
+    }),
+    terminate: vi.fn(),
+  };
+}
+
+vi.mock('@ffmpeg/ffmpeg', () => ({
+  FFmpeg: class {
+    load = vi.fn(async () => undefined);
+    on = vi.fn((event: string, handler: (e: { progress: number }) => void) => {
+      if (event === 'progress') {
+        // store handler so exec can fire it
+        (this as { _progressHandlers?: typeof handler[] })._progressHandlers ??= [];
+        (this as { _progressHandlers?: typeof handler[] })._progressHandlers!.push(handler);
+      }
+    });
+    off = vi.fn();
+    writeFile = vi.fn(async () => undefined);
+    readFile = vi.fn(async () => new Uint8Array(5_000_000));
+    deleteFile = vi.fn(async () => undefined);
+    exec = vi.fn(async () => {
+      const self = this as { _progressHandlers?: Array<(e: { progress: number }) => void> };
+      for (const h of self._progressHandlers ?? []) h({ progress: 0.5 });
+      return 0;
+    });
+    terminate = vi.fn();
+  },
+}));
+
+vi.mock('@ffmpeg/util', () => ({
+  fetchFile: vi.fn(async (f: File) => new Uint8Array(await f.arrayBuffer())),
+  toBlobURL: vi.fn(async (url: string) => `blob:${url}`),
+}));
+
+import { probeVideo } from './probe-video';
+
+describe('compressVideoToFit transcoding path', () => {
+  beforeEach(() => {
+    vi.mocked(probeVideo).mockReset();
+  });
+
+  it('returns a new File when input exceeds maxBytes', async () => {
+    vi.mocked(probeVideo).mockResolvedValue({ durationSec: 120, width: 1920, height: 1080 });
+    const big = new File([new Uint8Array(60_000_000)], 'huge.mp4', { type: 'video/mp4' });
+    const result = await compressVideoToFit(big);
+    expect(result).not.toBe(big);
+    expect(result.name).toBe('huge-compressed.mp4');
+    expect(result.type).toBe('video/mp4');
+    expect(result.size).toBe(5_000_000); // from fake ffmpeg
+  });
+
+  it('emits phase progression: loading-engine → probing → encoding → done', async () => {
+    vi.mocked(probeVideo).mockResolvedValue({ durationSec: 120, width: 1920, height: 1080 });
+    const big = new File([new Uint8Array(60_000_000)], 'x.mp4', { type: 'video/mp4' });
+    const phases: string[] = [];
+    await compressVideoToFit(big, { onProgress: (p) => phases.push(p.phase) });
+    expect(phases[0]).toBe('loading-engine');
+    expect(phases).toContain('probing');
+    expect(phases).toContain('encoding');
+    expect(phases[phases.length - 1]).toBe('done');
+  });
+
+  it('wraps a probe failure as VideoCompressError(probe_failed)', async () => {
+    vi.mocked(probeVideo).mockRejectedValue(new Error('no codec'));
+    const big = new File([new Uint8Array(60_000_000)], 'x.mp4', { type: 'video/mp4' });
+    await expect(compressVideoToFit(big)).rejects.toMatchObject({
+      name: 'VideoCompressError',
+      code: 'probe_failed',
+    });
+  });
+
+  it('respects AbortSignal before starting', async () => {
+    vi.mocked(probeVideo).mockResolvedValue({ durationSec: 120, width: 1920, height: 1080 });
+    const big = new File([new Uint8Array(60_000_000)], 'x.mp4', { type: 'video/mp4' });
+    const ctrl = new AbortController();
+    ctrl.abort();
+    await expect(compressVideoToFit(big, { signal: ctrl.signal })).rejects.toMatchObject({
+      code: 'aborted',
+    });
   });
 });
