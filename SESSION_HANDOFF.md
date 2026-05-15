@@ -1,3 +1,13 @@
+## 2026-05-15 — Video-compress engine: implementation plan ready, awaiting execution choice
+
+**Plan:** `docs/superpowers/plans/2026-05-15-video-compress-engine.md` — 10 tasks, full TDD where testable, exact diffs/code shown. Tasks: (1) install `@ffmpeg/ffmpeg@^0.12 @ffmpeg/util @ffmpeg/core` + vendor WASM core into `public/ffmpeg/`, (2) `probe-video.ts` (HTMLVideoElement metadata), (3) `bitrate-math + types` TDD with 11 pure-fn tests, (4) fast-path + `VideoCompressError` TDD with 5 tests, (5) ffmpeg orchestration with mocked deps (4 tests, 20 total in suite), (6) wire `'compressing'` state into `gallery-provider.tsx`, (7) render new state in `upload-tray.tsx` with amber `FileVideo` icon + percent, (8) update uploader helper text, (9) manual smoke test on dev server with real >50MB video, (10) ship.
+
+**User approved the design spec** with "continue". Spec at `docs/superpowers/specs/2026-05-15-video-compress-engine-design.md`, commit `1b69314`.
+
+**Awaiting:** User choice — subagent-driven (fresh agent per task with review checkpoints) vs inline execution. No code touched yet.
+
+---
+
 ## 2026-05-15 — Video-compress engine: design spec written, awaiting user review
 
 **Spec:** `docs/superpowers/specs/2026-05-15-video-compress-engine-design.md` — full design for client-side `compressVideoToFit(file, opts)` engine using `@ffmpeg/ffmpeg` v0.12 single-threaded WASM (avoids COOP/COEP, won't break Google OAuth or Stripe). 2-pass H.264 ABR targeting `maxBytes * 8 * 0.93 / duration_sec` minus 96 kbps AAC. Resolution ladder: keep source ≥2 Mbps, scale 720p between 800k–2M, scale 480p below. WASM core self-hosted under `public/ffmpeg/`, lazy-imported only when first oversized video lands, then service-worker cached.
