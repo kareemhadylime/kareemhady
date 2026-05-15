@@ -193,9 +193,12 @@ export async function compressVideoToFit(
     ]);
 
     const data = await ffmpeg.readFile(outputName);
-    const bytes = typeof data === 'string'
+    const rawBytes = typeof data === 'string'
       ? new TextEncoder().encode(data)
       : (data as Uint8Array);
+    // Re-wrap to ensure the underlying buffer is ArrayBuffer (not SharedArrayBuffer),
+    // which the File constructor's BlobPart type requires in TS 5.7+.
+    const bytes = new Uint8Array(rawBytes);
 
     // Clean up scratch files; ignore errors.
     for (const f of [inputName, outputName, `${passLog}-0.log`, `${passLog}-0.log.mbtree`]) {
