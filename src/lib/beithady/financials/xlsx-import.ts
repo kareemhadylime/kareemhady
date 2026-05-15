@@ -76,6 +76,11 @@ export async function parsePartnerLedgerXlsx(buffer: Buffer | ArrayBuffer): Prom
 
 import { matchPartners, type MatchResult } from './partner-match';
 import type { PartnerKind } from './types';
+import {
+  partnerPoolFilter,
+  resolveKindForPartner,
+  type OdooPartnerWithFlags,
+} from './account-kinds';
 
 export type ClassifiedRow = MatchResult & {
   source_row: number;
@@ -83,35 +88,67 @@ export type ClassifiedRow = MatchResult & {
   partner_kind: PartnerKind;
 };
 
+// Per-kind summary for the post-upload review screen.
+export type KindBreakdown = Partial<
+  Record<PartnerKind, { count: number; total: number }>
+>;
+
 export type ClassifyResult = {
   rows: ClassifiedRow[];
   errors: Array<{ row: number; error: string }>;
   ledger_total: number;
   account_total: number | null;
   variance: number | null;
-  partner_kind: PartnerKind;
   account_code: string;
+  breakdown: KindBreakdown;
 };
 
+/**
+ * Match each xlsx row against Odoo partners and derive a per-row
+ * `partner_kind` from the account's rule. For shared accounts (e.g.
+ * 227002) this routes Owners and Suppliers from a single export to
+ * the correct buckets via the `is_owner` flag (see account-kinds.ts).
+ */
 export function classifyParsedRows(
   parsed: ParseResult,
   ctx: {
     account_code: string;
-    partner_kind: PartnerKind;
-    odoo_partners: Array<{ id: number; name: string }>;
+    odoo_partners: OdooPartnerWithFlags[];
     account_opening_raw?: number;
   },
 ): ClassifyResult {
+  const pool = ctx.odoo_partners.filter(partnerPoolFilter(ctx.account_code));
   const matched = matchPartners(
     parsed.rows.map((r) => ({ raw: r.partner_name_raw, balance: r.balance })),
-    ctx.odoo_partners,
+    pool,
   );
-  const rows: ClassifiedRow[] = parsed.rows.map((r, i) => ({
-    ...matched[i],
-    source_row: r.source_row,
-    account_code: ctx.account_code,
-    partner_kind: ctx.partner_kind,
-  }));
+  const byId = new Map(pool.map((p) => [p.id, p]));
+
+  const rows: ClassifiedRow[] = parsed.rows.map((r, i) => {
+    const m = matched[i];
+    const flagged =
+      m.partner_id != null ? (byId.get(m.partner_id) ?? null) : null;
+    return {
+      ...m,
+      source_row: r.source_row,
+      account_code: ctx.account_code,
+      partner_kind: resolveKindForPartner(ctx.account_code, flagged),
+    };
+  });
+
+  const breakdown: KindBreakdown = {};
+  for (const r of rows) {
+    const cur = breakdown[r.partner_kind] ?? { count: 0, total: 0 };
+    cur.count += 1;
+    cur.total += r.balance;
+    breakdown[r.partner_kind] = cur;
+  }
+  // Round each kind's total to defeat floating-point drift in the UI.
+  for (const k of Object.keys(breakdown) as PartnerKind[]) {
+    const b = breakdown[k];
+    if (b) b.total = Math.round(b.total * 100) / 100;
+  }
+
   const account_total =
     typeof ctx.account_opening_raw === 'number' ? ctx.account_opening_raw : null;
   const variance =
@@ -124,8 +161,8 @@ export function classifyParsedRows(
     ledger_total: parsed.total,
     account_total,
     variance,
-    partner_kind: ctx.partner_kind,
     account_code: ctx.account_code,
+    breakdown,
   };
 }
 

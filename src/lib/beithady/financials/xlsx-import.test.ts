@@ -40,27 +40,120 @@ describe('parsePartnerLedgerXlsx — owners fixture', () => {
 });
 
 import { classifyParsedRows } from './xlsx-import';
+import type { OdooPartnerWithFlags } from './account-kinds';
 
 describe('classifyParsedRows', () => {
-  const directory = [
-    { id: 11, name: 'B.Tech' },
-    { id: 12, name: 'Amazon' },
-    { id: 13, name: 'Adel Fathy IT Industrial' },
+  // Mix of suppliers, an owner-and-supplier, an owner-only, a customer,
+  // and an employee. is_owner=true wins over supplier_rank>0 on 227002.
+  const directory: OdooPartnerWithFlags[] = [
+    { id: 11, name: 'B.Tech', supplier_rank: 5, customer_rank: 0, is_owner: false, is_employee: false },
+    { id: 12, name: 'Amazon', supplier_rank: 3, customer_rank: 0, is_owner: false, is_employee: false },
+    { id: 13, name: 'Adel Fathy IT Industrial', supplier_rank: 2, customer_rank: 0, is_owner: false, is_employee: false },
+    { id: 21, name: 'Owner Mohamed', supplier_rank: 1, customer_rank: 0, is_owner: true, is_employee: false },
+    { id: 22, name: 'Owner Ahmed', supplier_rank: 0, customer_rank: 0, is_owner: true, is_employee: false },
+    { id: 31, name: 'Acme Customer Co', supplier_rank: 0, customer_rank: 1, is_owner: false, is_employee: false },
+    { id: 41, name: 'Khaled Employee', supplier_rank: 0, customer_rank: 0, is_owner: false, is_employee: true },
   ];
-  it('assigns exact matches', () => {
+
+  it('assigns exact matches and routes to supplier on 227002 when not an owner', () => {
     const out = classifyParsedRows(
-      { rows: [{ source_row: 4, partner_name_raw: '020. B.Tech', balance: -1911052.06 }], errors: [], total: -1911052.06 },
-      { account_code: '227002', partner_kind: 'supplier', odoo_partners: directory }
+      {
+        rows: [{ source_row: 4, partner_name_raw: '020. B.Tech', balance: -1911052.06 }],
+        errors: [],
+        total: -1911052.06,
+      },
+      { account_code: '227002', odoo_partners: directory },
     );
     expect(out.rows[0].partner_id).toBe(11);
     expect(out.rows[0].confidence).toBe('exact');
+    expect(out.rows[0].partner_kind).toBe('supplier');
   });
+
+  it('routes is_owner partners to owner kind on shared 227002, even when supplier_rank>0', () => {
+    const out = classifyParsedRows(
+      {
+        rows: [
+          { source_row: 4, partner_name_raw: 'Owner Mohamed', balance: -500_000 },
+          { source_row: 5, partner_name_raw: 'B.Tech', balance: -100_000 },
+        ],
+        errors: [],
+        total: -600_000,
+      },
+      { account_code: '227002', odoo_partners: directory },
+    );
+    expect(out.rows[0].partner_kind).toBe('owner');
+    expect(out.rows[1].partner_kind).toBe('supplier');
+    expect(out.breakdown.owner?.count).toBe(1);
+    expect(out.breakdown.supplier?.count).toBe(1);
+  });
+
+  it('routes unmatched rows on 227002 to fallback supplier', () => {
+    const out = classifyParsedRows(
+      {
+        rows: [{ source_row: 4, partner_name_raw: 'Totally Unknown Partner', balance: -1000 }],
+        errors: [],
+        total: -1000,
+      },
+      { account_code: '227002', odoo_partners: directory },
+    );
+    expect(out.rows[0].partner_id).toBeNull();
+    expect(out.rows[0].partner_kind).toBe('supplier');
+  });
+
+  it('routes all rows to single kind on customer account 122001', () => {
+    const out = classifyParsedRows(
+      {
+        rows: [
+          { source_row: 4, partner_name_raw: 'Acme Customer Co', balance: 5000 },
+          { source_row: 5, partner_name_raw: 'Unknown Customer', balance: 2000 },
+        ],
+        errors: [],
+        total: 7000,
+      },
+      { account_code: '122001', odoo_partners: directory },
+    );
+    expect(out.rows[0].partner_kind).toBe('customer');
+    expect(out.rows[1].partner_kind).toBe('customer');
+  });
+
+  it('routes all rows to landlord on 113002 regardless of Odoo flags', () => {
+    const out = classifyParsedRows(
+      {
+        rows: [{ source_row: 4, partner_name_raw: 'B.Tech', balance: -1000 }],
+        errors: [],
+        total: -1000,
+      },
+      { account_code: '113002', odoo_partners: directory },
+    );
+    expect(out.rows[0].partner_kind).toBe('landlord');
+  });
+
   it('computes variance against an account-level total', () => {
     const out = classifyParsedRows(
-      { rows: [{ source_row: 4, partner_name_raw: '020. B.Tech', balance: -100 }], errors: [], total: -100 },
-      { account_code: '227002', partner_kind: 'supplier', odoo_partners: directory, account_opening_raw: -200 }
+      {
+        rows: [{ source_row: 4, partner_name_raw: '020. B.Tech', balance: -100 }],
+        errors: [],
+        total: -100,
+      },
+      { account_code: '227002', odoo_partners: directory, account_opening_raw: -200 },
     );
     expect(out.variance).toBe(-100);
+  });
+
+  it('populates per-kind breakdown with rounded totals', () => {
+    const out = classifyParsedRows(
+      {
+        rows: [
+          { source_row: 4, partner_name_raw: 'B.Tech', balance: -100.001 },
+          { source_row: 5, partner_name_raw: 'Owner Mohamed', balance: -200.006 },
+        ],
+        errors: [],
+        total: -300.007,
+      },
+      { account_code: '227002', odoo_partners: directory },
+    );
+    expect(out.breakdown.supplier).toEqual({ count: 1, total: -100 });
+    expect(out.breakdown.owner).toEqual({ count: 1, total: -200.01 });
   });
 });
 
@@ -110,8 +203,8 @@ describe('commitClassifiedRows', () => {
         ledger_total: -100,
         account_total: -200,
         variance: -100,
-        partner_kind: 'supplier',
         account_code: '227002',
+        breakdown: { supplier: { count: 1, total: -100 } },
       },
     });
     // 1 real row + 1 synthetic = 2 inserts.
@@ -153,8 +246,8 @@ describe('commitClassifiedRows', () => {
         ledger_total: -200,
         account_total: -200,
         variance: 0,
-        partner_kind: 'supplier',
         account_code: '227002',
+        breakdown: { supplier: { count: 1, total: -200 } },
       },
     });
     // 1 real row, no synthetic = exactly 1 insert.
@@ -183,8 +276,8 @@ describe('commitClassifiedRows', () => {
         ledger_total: -100,
         account_total: -100,
         variance: 0,
-        partner_kind: 'supplier',
         account_code: '227002',
+        breakdown: { supplier: { count: 1, total: -100 } },
       },
     });
     expect(mockUpdate).toHaveBeenCalled();

@@ -8,11 +8,10 @@ import {
   commitClassifiedRows,
   type ParseResult,
 } from '@/lib/beithady/financials/xlsx-import';
-import type { PartnerKind } from '@/lib/beithady/financials/types';
+import type { OdooPartnerWithFlags } from '@/lib/beithady/financials/account-kinds';
 
 export async function commitUpload(formData: FormData) {
   const uploadId = String(formData.get('upload_id'));
-  const partnerKind = String(formData.get('partner_kind')) as PartnerKind;
   const sb = supabaseAdmin();
 
   const { data: up, error: upErr } = await sb
@@ -20,11 +19,12 @@ export async function commitUpload(formData: FormData) {
     .select('*')
     .eq('id', uploadId)
     .maybeSingle();
-  if (upErr || !up) throw new Error(`commitUpload load: ${upErr?.message ?? 'not found'}`);
+  if (upErr || !up) {
+    throw new Error(`commitUpload load: ${upErr?.message ?? 'not found'}`);
+  }
 
   // Prefer a DRAFT snapshot for this (period, scope) — that's the re-freeze
-  // workflow target. Fall back to FROZEN for the additive seed-day flow where
-  // operator is fleshing out partner-level rows on the initial frozen seed.
+  // workflow target. Fall back to FROZEN for the additive seed-day flow.
   const { data: snapDraft } = await sb
     .from('bh_balance_snapshots')
     .select('id')
@@ -47,7 +47,11 @@ export async function commitUpload(formData: FormData) {
       .maybeSingle();
     snap = snapFrozen;
   }
-  if (!snap) throw new Error('commitUpload: no draft or frozen snapshot for this period+scope');
+  if (!snap) {
+    throw new Error(
+      'commitUpload: no draft or frozen snapshot for this period+scope',
+    );
+  }
 
   const { data: acct } = await sb
     .from('bh_balance_snapshot_accounts')
@@ -56,11 +60,11 @@ export async function commitUpload(formData: FormData) {
     .eq('account_code', up.account_code)
     .maybeSingle();
 
-  let q = sb.from('odoo_partners').select('id, name');
-  if (partnerKind === 'supplier') q = q.gt('supplier_rank', 0);
-  else if (partnerKind === 'owner') q = q.eq('is_owner', true);
-  else if (partnerKind === 'employee') q = q.eq('is_employee', true);
-  const { data: partners } = await q;
+  // Fetch all partner flags; classifyParsedRows filters down by account rule
+  // and derives partner_kind per-row (handles shared 227002 auto-split).
+  const { data: partners } = await sb
+    .from('odoo_partners')
+    .select('id, name, supplier_rank, customer_rank, is_owner, is_employee');
 
   const parsed: ParseResult = {
     rows:
@@ -69,7 +73,8 @@ export async function commitUpload(formData: FormData) {
         partner_name_raw: string;
         balance: number;
       }>) ?? [],
-    errors: (up.parse_errors as Array<{ row: number; error: string }>) ?? [],
+    errors:
+      (up.parse_errors as Array<{ row: number; error: string }>) ?? [],
     total: 0,
   };
   parsed.total =
@@ -77,8 +82,7 @@ export async function commitUpload(formData: FormData) {
 
   const classified = classifyParsedRows(parsed, {
     account_code: up.account_code as string,
-    partner_kind: partnerKind,
-    odoo_partners: (partners ?? []) as Array<{ id: number; name: string }>,
+    odoo_partners: (partners ?? []) as OdooPartnerWithFlags[],
     account_opening_raw: acct ? Number(acct.opening_raw) : undefined,
   });
 
