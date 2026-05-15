@@ -59,9 +59,18 @@ export function buildFinBSUrl(
   });
 }
 
+// `defaults` is built per-call (NOT module-scope) so `asof` reflects today
+// at hook invocation, not at module load. `useBHUrlState` only reads
+// `opts.parse`/`opts.serialize`/`opts.basePath` for memo dependencies, so the
+// per-call object is harmless. `parseFinBSState` is the authoritative source
+// of defaults (it falls back to `todayYmd()` when `asof` is absent).
+function makeBSDefaults(): FinBSUrlState {
+  return { scope: 'consolidated', asof: todayYmd(), building: 'all' };
+}
+
 export function useBSUrlState() {
   return useBHUrlState<FinBSUrlState>({
-    defaults: { scope: 'consolidated', asof: todayYmd(), building: 'all' },
+    defaults: makeBSDefaults(),
     parse: parseFinBSState,
     serialize: serializeFinBSState,
     basePath: BASE_PATH,

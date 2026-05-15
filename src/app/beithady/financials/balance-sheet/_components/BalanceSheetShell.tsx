@@ -71,7 +71,7 @@ export function BalanceSheetShell({ bs, scopeLbl, asOf }: Props) {
               update({ asof: e.target.value });
             }
           }}
-          className="rounded-md border px-2.5 py-1.5 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+          className="rounded-md border px-2.5 py-1.5 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 motion-reduce:transition-none"
           style={{
             background: 'transparent',
             color: 'var(--bh-ink)',

@@ -1,8 +1,11 @@
 'use client';
 import { useBHUrlState, buildBHUrl } from '@/app/beithady/_components/dashboard-shell';
 
+export type FinPerfPresetId =
+  | 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year';
+
 export type FinPerfPeriod =
-  | { kind: 'preset'; id: 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year' }
+  | { kind: 'preset'; id: FinPerfPresetId }
   | { kind: 'month'; ym: string };
 
 export type FinPerfScope = 'consolidated' | 'egypt' | 'dubai' | 'a1';
@@ -45,7 +48,7 @@ export function parseFinPerfState(search: URLSearchParams): FinPerfUrlState {
   } else {
     const preset = search.get('preset');
     period = preset && VALID_PRESETS.has(preset)
-      ? { kind: 'preset', id: preset as FinPerfPeriod extends { kind: 'preset'; id: infer K } ? K : never }
+      ? { kind: 'preset', id: preset as FinPerfPresetId }
       : { kind: 'preset', id: 'last_month' };
   }
 

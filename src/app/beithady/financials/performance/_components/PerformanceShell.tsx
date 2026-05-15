@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Calendar, Building2, Target } from 'lucide-react';
+import { Calendar, Building2 } from 'lucide-react';
 import {
   BHDashboardShell,
   BHTitleBar,
@@ -186,8 +186,6 @@ export function PerformanceShell({ pnl, scopeLbl, buildingCode, lobLabel, period
         />
         {pnl.unclassified.length > 0 && <UnclassifiedPanel pnl={pnl} />}
       </div>
-      {/* Suppress unused-import lint for Target — kept for parity with eyebrow icon use elsewhere */}
-      <Target style={{ display: 'none' }} />
     </BHDashboardShell>
   );
 }
