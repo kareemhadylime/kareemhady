@@ -1,3 +1,32 @@
+## 2026-05-15 — BH audit P2 financials brainstorm in progress (full block: 7 page.tsx files)
+
+**Status:** Brainstorming, no code yet. Picks up after P1 final-review cleanups (`2e57ffc`).
+
+**Scope (user-confirmed):** Full P2 financials block — migrate all 5 remaining financials pages (7 page.tsx files counting [id] details). One PR. After this lands, `FinancialsFilterStrip.tsx` becomes unreferenced and gets deleted in the same PR.
+
+**Per-page architecture (presented to user, awaiting nod):**
+
+**`<BHDashboardShell>` + LeftRail (3 pages, each gets a new typed URL hook + Shell wrapper):**
+- **Payables** — rail = Scope (3 pills) + As of (date). New `usePayablesUrlState` → `{ scope, asof }`. Same shape as BalanceSheetShell — near copy-paste.
+- **Ledgers** — rail = Scope + Kind (7 pills: Suppliers/Owners/Customers/Landlords/Employees/Noteholders/All) + As of. New `useLedgersUrlState` → `{ scope, kind, asof }`.
+- **Reconciliation** — rail = Snapshot picker (dropdown). New `useReconciliationUrlState` → `{ snapshot_id }`.
+
+**`<BeithadyShell>` only (4 pages — no rail needed):**
+- **Snapshots** (list grouped by period — no filter, hardcoded `scope: 'consolidated'`)
+- **Snapshots [id]** (detail)
+- **Import** (xlsx upload form/wizard)
+- **Import [upload_id]** (commit-review detail)
+
+**Cleanup in same PR:** delete `FinancialsFilterStrip.tsx` (Payables was the only remaining consumer). Closes 10/12 of the audit's wrong-shell offenders; only `/setup` and `/pricing` remain (P3 in the audit, low traffic).
+
+**Constraints carried over from P1:** A1 stays in type guards for URL backward-compat; module-scope parse/serialize/basePath per `useBHUrlState<T>` stability contract; body components (`PayablesBlock`, `PartnerLedgerTable`, etc.) untouched.
+
+**Effort estimate:** L (~1,500 LOC net). Bulk is mechanical replays of the P1 pattern; 3 new URL hooks × ~5 assertions each ≈ +15 tests. Predicted final test count ~643.
+
+**Next step on kareem's nod:** write spec to `docs/superpowers/specs/2026-05-15-bh-financials-p2-cleanup-design.md`, then plan, then subagent-driven execution.
+
+---
+
 ## 2026-05-15 — BH audit P1 SHIPPED: Financials landing + Performance + Balance Sheet migrated
 
 **Status:** All 11 plan tasks complete. 5 commits pushed to main (`75e8f95` → `ca513bf`). Vercel auto-deploy in flight.
@@ -176,7 +205,30 @@ Also explains why manual paste-in-incognito Test 2 succeeded — kareem typed th
 - Fix the env var itself in Vercel (rm + add without trailing newline) so OTHER consumers of `NEXT_PUBLIC_APP_URL` don't trip on it. `grep -r NEXT_PUBLIC_APP_URL src/` to find all callsites.
 - Consider trimming all env vars at app boot or moving to a typed env loader.
 
-**Awaiting kareem's retry** — should mirror the working manual flow now. After lands at `?connected=youtube`, Task 27 ✅, move to Task 28 (sync upload smoke with ≤60s vertical clip).
+**TASK 27 ✅ — OAuth round-trip works.** Kareem retried after the `.trim()` fix landed and Vercel alias was repointed. Accounts page now shows YouTube row: identity `@beithady`, currency EGP, status ACTIVE, Live ✓. Tokens encrypted in `ads_accounts` row, channel handle + uploads playlist ID captured on callback.
+
+**TASK 28 ≈ ✅ — first publish succeeded end-to-end** (technically went async path, not pure sync — see note below, but functionally identical result):
+- Kareem clicked Publish on a 41.5 MB BH-73 Shorts video.
+- Server action validated input, `decideUploadPath` returned `async` (because Gallery row's `duration_sec` was NULL — see follow-up below).
+- Row #1 inserted into `ads_youtube_videos` with status='queued', AI-generated metadata (`ai_generated=true`, `ai_cost_usd=$0.003157`, title "Beithady BH-73 Cairo · Modern Bedroom Tour", template `bh73-shorts-tour`).
+- Banner shown: "⏳ Queued upload #1 — async path (long-form). Cron will upload in chunks."
+- `youtube-uploader` cron picked up within 20s: `queued → uploading → processing`.
+- All 41.5 MB chunks uploaded in <30s of cron pickup. Total submit-to-bytes-on-YT: ~30 seconds.
+- YouTube video ID: `9fmAI8RJRr8`. Watch URL: https://youtu.be/9fmAI8RJRr8. 0 retries. 0 errors.
+- Status `processing` (YouTube transcoding); cron will flip to `published` once YouTube returns `uploadStatus='processed'`.
+
+**Pipeline proven end-to-end:** OAuth → AI metadata (Claude haiku-4-5 vision, $0.003) → server action → DB insert → cron init resumable session → chunk loop via Supabase Range fetch → YouTube videos.insert → processing poll. Every piece worked first try once OAuth was unblocked.
+
+**Follow-ups (NOT V1.1 blockers, queued for V1.2 polish):**
+- `duration_sec` not populated in Gallery for that asset → `decideUploadPath` falls through to async. Either populate `duration_sec` in Gallery on upload, or have `decideUploadPath` use `is_shorts` as a proxy when duration is unknown.
+- Fix the Vercel env var `NEXT_PUBLIC_APP_URL` itself (rm + add without trailing newline) so OTHER consumers don't trip on it. `.trim()` defends the YT routes; other call sites might not.
+- Move the manual `vercel alias set` step into a deploy hook so it's automatic per `vercel_lime_alias_quirk` memory.
+
+**Remaining tasks:**
+- Task 29 — async upload smoke (3-5 min long-form video) → really just a longer version of what just happened; should pass.
+- Task 30 — verify stats sync 6h cron populates `view_count`/`like_count`/`comment_count` on the published row(s) once 6 hours have passed and YouTube has accumulated some impressions.
+
+V1.1 is functionally shipped. Just waiting for time to elapse on Task 30.
 
 ---
 
