@@ -1,3 +1,21 @@
+## 2026-05-15 — UX FIX: signed Total sort on Payables (downpayment vs payable)
+
+**Status:** `84c3950` pushed.
+
+**User feedback:** Sorting Total by `Math.abs(amount)` mixed positive entries (downpayments TO a vendor — partner owes us, asset-like) with negative entries (we owe the vendor — actual liability) by magnitude. That's meaningless on a Payables view where +/- has clear business semantics.
+
+**Fix:** Both `PayablesDetailModal` and `PayablesBlock` now sort Total by SIGNED amount (`a.amount - b.amount`) instead of `|amount|`.
+- `'asc'` = most-negative at top = biggest payable first (typical operator intent on Payables).
+- `'desc'` = largest positive at top, most-negative last.
+
+Click convention unchanged (first click sets desc, second click toggles to asc). Arrow icons unambiguously reflect the numeric direction. Applied to vendors / owners / employees cards on both the on-page preview AND their modals.
+
+Verification: `tsc --noEmit` clean. 704 / 22 skipped. No data-layer changes.
+
+**Open question for kareem:** should the default first-click on Total on the Payables screen flip to `asc` (most-payable-first) since that's the most common operator intent? Currently first click = desc (positives at top), consistent across the codebase. If they want screen-specific override, will revisit.
+
+---
+
 ## 2026-05-15 — UX FIXES: Payables modal + preview list — sortable + clean names
 
 **Status:** Two commits shipped (`9e43b6d`, `baf5c83`). Vercel auto-deploying.
