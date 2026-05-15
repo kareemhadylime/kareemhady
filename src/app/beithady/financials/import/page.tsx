@@ -100,7 +100,6 @@ export default async function ImportPage() {
                 <option value="consolidated">Consolidated</option>
                 <option value="egypt">Egypt</option>
                 <option value="dubai">Dubai</option>
-                <option value="a1">A1</option>
               </select>
             </label>
           </div>
