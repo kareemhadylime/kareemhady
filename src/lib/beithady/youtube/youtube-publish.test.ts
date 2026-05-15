@@ -32,3 +32,22 @@ describe('decideUploadPath', () => {
     expect(decideUploadPath({ duration_seconds: undefined, file_size_bytes: 10 * 1024 * 1024 })).toBe('async');
   });
 });
+
+import { computeNextRetry } from './youtube-publish';
+
+describe('computeNextRetry', () => {
+  it('retry 1 → 2 min', () => {
+    const r = computeNextRetry(0);
+    expect(r.terminal).toBe(false);
+    expect(r.delayMs).toBe(2 * 60_000);
+  });
+  it('retry 5 → 32 min', () => {
+    const r = computeNextRetry(4);
+    expect(r.terminal).toBe(false);
+    expect(r.delayMs).toBe(32 * 60_000);
+  });
+  it('retry 6 → terminal', () => {
+    const r = computeNextRetry(5);
+    expect(r.terminal).toBe(true);
+  });
+});

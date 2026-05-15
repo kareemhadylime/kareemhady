@@ -194,3 +194,10 @@ export async function pollProcessing(accountId: number, youtubeVideoId: string):
   if (u === 'failed' || u === 'rejected') return { status: 'error', reason: v.status?.failureReason ?? u };
   return { status: 'processing' };
 }
+
+export function computeNextRetry(currentRetryCount: number): { terminal: boolean; delayMs: number } {
+  const newCount = currentRetryCount + 1;
+  if (newCount > 5) return { terminal: true, delayMs: 0 };
+  const delayMs = Math.pow(2, newCount) * 60_000;  // 2, 4, 8, 16, 32 minutes
+  return { terminal: false, delayMs };
+}
