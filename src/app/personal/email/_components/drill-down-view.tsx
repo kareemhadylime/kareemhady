@@ -25,6 +25,7 @@ import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow, SelectedEmail } from '@/lib/personal-email/inbox-query';
 import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, isLowPriority, markerTier } from '@/lib/personal-email/email-helpers';
+import { sanitizeBodyExcerptForDisplay } from '@/lib/personal-email/sanitize-body-excerpt';
 
 // User-pickable secondary sort (priority tier still floats to top).
 type SortMode = 'date-desc' | 'date-asc' | 'sender-asc' | 'sender-desc';
@@ -643,7 +644,7 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
           Body excerpt
         </div>
         <pre className="whitespace-pre-wrap text-[12px] text-slate-700 dark:text-slate-200 font-sans leading-relaxed">
-          {email.body_excerpt ?? '(no body cached — open in Gmail)'}
+          {sanitizeBodyExcerptForDisplay(email.body_excerpt) || '(no body cached — open in Gmail)'}
         </pre>
       </div>
     </div>
