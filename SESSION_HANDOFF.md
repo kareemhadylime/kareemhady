@@ -15,7 +15,29 @@
 - NO new tables — all existing data sources (`ads_daily_metrics`, `ads_leads`, `ads_lead_funnel` view, `ads_campaigns`, `bh_reservations`).
 - Estimated ~20 TDD tasks (vs V1's 25).
 
-**Next:** Kareem replies to § 1 — then § 2 covers the actual data queries per feature (funnel stage joins, attribution function, FRT percentile calc, cohort matrix shape).
+**✅ § 1 approved** (kareem: "move on").
+
+**§ 2 presented — per-feature data queries:**
+- **C1 Funnel:** 5 stages (impressions/reach/clicks/leads/bookings), each a focused query against existing tables. Per-building filter applies to leads/bookings only.
+- **C2 Lead quality:** `ads_lead_funnel` joined to `ads_campaigns`, grouped by campaign_id. `quality_pct = booked/leads * 100`.
+- **C3 FRT:** Pulls `created_at + first_response_at` from `ads_leads`. Computes median/p95/over-1h-pct in TS. 1h SLA threshold.
+- **C4 Per-building attribution helper:** `matched_reservation.building_code ?? lead.building_interest ?? 'Unattributed'`. Spend share uses `campaign.building_codes` proportional split.
+- **C5 Cohort:** 6 rolling Cairo-local ISO-week cohorts × 5 lag columns (W+1 through W+5plus). Cell colors slate→emerald by % bucket.
+
+**✅ § 2 approved** (kareem: "next").
+
+**§ 3 presented — UI structure:**
+- `<FrtCard />` compact card on `/beithady/ads` main (median/p95/over-1h-SLA, hides when no leads).
+- `<PerBuildingFilter />` chip row on main + audience page (URL `?building=BH-26`, emerald active).
+- Funnel tab: server-rendered SVG horizontal bars + drop-off labels + summary table.
+- Quality tab: two stacked tables (lead quality % per campaign with delta badge + response speed per campaign with cell-tinted SLA col).
+- Cohort tab: 6×5 matrix (no date filter — inherently rolling).
+- Tab nav extended: `[Geo][Demo][Device][Funnel][Quality][Cohort]` (emerald active).
+
+**Awaiting:** Kareem's response on § 3 — then § 4 covers testing strategy + done criteria (short), then write spec to `docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md`, self-review, then kareem reviews spec, then invoke writing-plans skill.
+
+**Spec destination (planned):** `docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md`
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md)
 
 **Spec destination (planned):** `docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md`
 **Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md)
