@@ -1,3 +1,37 @@
+## 2026-05-16 — SHIPPED: BH Ads Insights V3 (19/19 tasks) ✅
+
+**Scope:** Time/patterns (D1 heatmap, D2 pacing, D3 period delta) + Optimization (E1 top-ads, E2 top-assets, E3 anomaly banner, E4 AI narrative). Spec [docs/superpowers/specs/2026-05-16-bh-ads-v3-time-optimize-design.md](docs/superpowers/specs/2026-05-16-bh-ads-v3-time-optimize-design.md), plan [docs/superpowers/plans/2026-05-16-bh-ads-insights-v3.md](docs/superpowers/plans/2026-05-16-bh-ads-insights-v3.md). Executed task-by-task via subagent-driven-development (implementer + spec reviewer + code-quality reviewer per task).
+
+**What landed on `/beithady/ads/`:**
+- **Main page (`/beithady/ads`)**: `<AiSummaryCard />` at top (Generate-button gated to 20 calls/day, renders 3-paragraph Claude narrative), `<AnomalyBanner />` after per-building filter (auto-hides when no anomalies, amber/rose by severity), `<SpendPacingCard />` after FRT card (SVG sparkline + per-campaign EGP cap bars + EOM projection warnings), and `<PeriodDeltaBadge />` on Spend/Leads/CPL/Bookings/Revenue KPI cards (current vs prior comparison).
+- **Audience page (`/beithady/ads/audience`)**: two new tabs — **Time** (7×24 day×hour heatmap with Lead-density / Meta-hourly-spend URL-toggle) and **Optimize** (top-ads sortable table by leads/CTR/CPL + top-creative-assets table with thumbnails).
+
+**Infrastructure:**
+- Migration **0140** `ads_hourly_metrics` (campaign × date × hour) applied. Table empty until next insights cron run populates it from Meta `hourly_stats_aggregated_by_advertiser_time_zone` breakdown.
+- Cron `beithady-ads-insights` extended with per-campaign Meta hourly fetch (wrapped in own try/catch — failure here does NOT break daily flow).
+- Cron `beithady-ads-anomaly-alert` refactored to call shared `detectAnomalies()` from new `src/lib/beithady/ads/anomalies.ts` — behavior identical, dedup metadata preserved.
+- New libs: `hourly.ts`, `pacing.ts`, `top-ads.ts`, `top-assets.ts`, `anomalies.ts`, `ai-summary.ts`. New `getDashboardKpisWithCompare()` in `reporting.ts` returns `{current, prior|null}` for D3 delta.
+- AI summary uses `@/lib/anthropic` SDK wrapper with `HAIKU = 'claude-haiku-4-5-20251001'`, on-demand only (no cron), ~$0.01/call, 20/day cap via `beithady_audit_log` count.
+
+**Commit chain** (18 V3 commits + 1 final handoff, all on `origin/main`, all auto-deployed):
+`e72e6d2` migration · `8edc81f` hourly.ts · `1a58ac0` extend insights cron · `eedb1ca` anomalies.ts · `170d808` refactor anomaly cron · `28934e7` pacing.ts · `6b9b681` top-ads.ts · `fa3cd13` top-assets.ts · `05b6211` ai-summary.ts · `c7b34b3` reporting.compare · `7297234` generateAiSummaryAction · `5fa5a24` AnomalyBanner · `67804a5`+`a611976` SpendPacingCard · `4b07a87` AiSummaryCard · `960c046` TimeTab · `c5f89aa` OptimizeTab · `f1af1d2` wire main page · `c3771e8` wire audience page.
+
+**Verification:** `npx vitest run` → **922 passed / 22 skipped / 0 failed** (+73 new tests vs V2's 849). `npx tsc --noEmit` → clean. Migration 0140 present in `schema_migrations` (version `20260516133547`).
+
+**Smoke checklist for kareem (manual UI):**
+- [ ] Open `/beithady/ads` — confirm AI summary card renders (will show "Generate AI summary" button; first click costs ~$0.01).
+- [ ] Confirm Spend pacing card shows sparkline + per-campaign cap bars (will be empty if no `ads_campaigns.monthly_budget_cap_usd` set — that's expected, not a bug).
+- [ ] Confirm PeriodDeltaBadge appears on KPI cards (only when prior period has data).
+- [ ] Open `/beithady/ads/audience?tab=time` — confirm 7×24 heatmap renders with Lead density default, toggle to Meta spend.
+- [ ] Open `/beithady/ads/audience?tab=optimize` — confirm top-ads sortable + top-assets thumbnails.
+- [ ] Wait for next `beithady-ads-insights` cron tick (Cairo 8am) to populate `ads_hourly_metrics` so the Meta-spend heatmap mode has data.
+
+**Known followups (not blocking V3):**
+- Per-building filter on V1's geo/demo/device rollups uses campaign-level approximation (filters to campaigns with attributable leads to that building, not row-level attribution). Documented in V2 spec § "limitations".
+- Anomaly cron now calls shared `detectAnomalies()` but still maintains legacy `{kind, detail}` metadata shape for dedup compatibility with existing `bh_ads_alerts` rows.
+
+---
+
 ## 2026-05-16 — Session wrap (3 things shipped, 1 user task pending)
 
 This session's full sequence (newest at top below):
