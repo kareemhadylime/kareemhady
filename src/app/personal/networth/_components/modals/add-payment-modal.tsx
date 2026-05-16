@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 type Category =
   | 'loan_payment'
@@ -38,10 +39,6 @@ const CATEGORIES: { value: Category; label: string }[] = [
 
 const CURRENCIES: Currency[] = ['EGP', 'USD', 'EUR', 'SAR', 'AED'];
 
-function cairoToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
-}
-
 export function AddPaymentModal({
   open,
   onClose,
@@ -53,7 +50,7 @@ export function AddPaymentModal({
   onSaved: () => void;
   liabilities: PaymentLiabilityOption[];
 }) {
-  const [occurredOn, setOccurredOn] = useState(cairoToday());
+  const [occurredOn, setOccurredOn] = useState(cairoTodayIso());
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState<Currency>('EGP');
   const [category, setCategory] = useState<Category>('other');
@@ -64,7 +61,7 @@ export function AddPaymentModal({
 
   useEffect(() => {
     if (!open) return;
-    setOccurredOn(cairoToday());
+    setOccurredOn(cairoTodayIso());
     setAmount('');
     setCurrency('EGP');
     setCategory('other');

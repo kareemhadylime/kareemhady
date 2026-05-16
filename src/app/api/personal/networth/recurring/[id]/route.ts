@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { computeNextRunDate, type RecurringFrequency } from '@/lib/recurring';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,12 +37,6 @@ const PatchRecurringBody = z.object({
   liabilityId: z.string().uuid().nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
 });
-
-function cairoToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(
-    new Date(),
-  );
-}
 
 export async function PATCH(
   req: Request,
@@ -111,7 +106,7 @@ export async function PATCH(
         effFreq,
         effDay,
         effMonth,
-        cairoToday(),
+        cairoTodayIso(),
       );
     } catch (e) {
       return NextResponse.json(

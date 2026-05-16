@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 type UpcomingRow = {
   source: 'schedule' | 'recurring';
@@ -18,7 +19,7 @@ export function UpcomingPayments({ rows }: { rows: UpcomingRow[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const cairoToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+  const cairoToday = cairoTodayIso();
 
   async function markPaid(row: UpcomingRow) {
     if (row.source !== 'schedule' || !row.liabilityId) {

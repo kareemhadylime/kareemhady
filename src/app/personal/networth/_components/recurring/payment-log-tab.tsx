@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Plus, Filter, Trash2 } from 'lucide-react';
 import { AddPaymentModal } from '../modals/add-payment-modal';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 type Category =
   | 'loan_payment'
@@ -51,10 +52,6 @@ const CATEGORY_LABEL: Record<Category, string> = Object.fromEntries(
   CATEGORIES.map(c => [c.value, c.label]),
 ) as Record<Category, string>;
 
-function cairoToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
-}
-
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -76,7 +73,7 @@ function fmtAmount(amount: number, currency: string) {
 export function PaymentLogTab() {
   // Filter state — applied to fetch only on "Apply filters".
   const [from, setFrom] = useState(isoDaysAgo(30));
-  const [to, setTo] = useState(cairoToday());
+  const [to, setTo] = useState(cairoTodayIso());
   const [category, setCategory] = useState<'' | Category>('');
   const [liabilityId, setLiabilityId] = useState('');
   const [search, setSearch] = useState('');

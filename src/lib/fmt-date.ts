@@ -41,3 +41,22 @@ export function fmtCairoDate(
     day: 'numeric',
   });
 }
+
+// Today as YYYY-MM-DD anchored to Africa/Cairo. The Vercel server runs in UTC,
+// so a plain `new Date().toISOString().slice(0,10)` returns the prior day for
+// roughly the first 2-3 hours of Cairo wall-clock time, which would call
+// fx_lookup / set occurred_on with yesterday's date.
+//
+// Safe for both server and client use (relies only on Intl.DateTimeFormat).
+export function cairoTodayIso(d: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CAIRO_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find(p => p.type === 'year')!.value;
+  const m = parts.find(p => p.type === 'month')!.value;
+  const day = parts.find(p => p.type === 'day')!.value;
+  return `${y}-${m}-${day}`;
+}

@@ -86,12 +86,47 @@ export async function recordPaymentForRecurringTemplate(
     throw new Error(`recordPaymentForRecurringTemplate: template not found: ${error?.message ?? templateId}`);
   }
 
-  const paymentId = await recordPayment({
-    appUserId: tpl.app_user_id, occurredOn,
-    amount: Number(tpl.amount), currency: tpl.currency,
-    category: tpl.category, liabilityId: tpl.liability_id,
-    recurringTemplateId: tpl.id,
-  });
+  // Idempotency fast-path: if a payment already exists for this template +
+  // occurred_on (e.g., cron and manual run-now firing within seconds), return
+  // the existing id and skip the insert + side effects. The partial unique
+  // index `idx_uniq_payments_recurring_per_day` (migration 0141) is the
+  // safety net for the microsecond-wide race window between SELECT and INSERT.
+  const { data: existing, error: existErr } = await sb
+    .from('personal_networth_payments')
+    .select('id')
+    .eq('recurring_template_id', templateId)
+    .eq('occurred_on', occurredOn)
+    .maybeSingle();
+  if (existErr) {
+    throw new Error(`recordPaymentForRecurringTemplate: idempotency lookup failed: ${existErr.message}`);
+  }
+  if (existing) {
+    return existing.id;
+  }
+
+  let paymentId: string;
+  try {
+    paymentId = await recordPayment({
+      appUserId: tpl.app_user_id, occurredOn,
+      amount: Number(tpl.amount), currency: tpl.currency,
+      category: tpl.category, liabilityId: tpl.liability_id,
+      recurringTemplateId: tpl.id,
+    });
+  } catch (e) {
+    // 23505 from idx_uniq_payments_recurring_per_day means another caller
+    // won the insert race. Re-fetch the winning row and return its id.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('idx_uniq_payments_recurring_per_day') || msg.includes('23505')) {
+      const { data: raced } = await sb
+        .from('personal_networth_payments')
+        .select('id')
+        .eq('recurring_template_id', templateId)
+        .eq('occurred_on', occurredOn)
+        .maybeSingle();
+      if (raced) return raced.id;
+    }
+    throw e;
+  }
 
   // If template links a loan, also mark its next unpaid schedule row paid
   if (tpl.liability_id) {

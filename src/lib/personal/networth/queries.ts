@@ -1,18 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase';
-
-// Today as YYYY-MM-DD anchored to Africa/Cairo. The Vercel server runs in UTC,
-// so a plain `new Date().toISOString().slice(0,10)` returns the prior day for
-// roughly the first 2-3 hours of Cairo wall-clock time, which would call
-// fx_lookup with yesterday's rate.
-function cairoTodayIso(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date());
-  const y = parts.find(p => p.type === 'year')!.value;
-  const m = parts.find(p => p.type === 'month')!.value;
-  const d = parts.find(p => p.type === 'day')!.value;
-  return `${y}-${m}-${d}`;
-}
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 export type OverviewKpis = {
   totalAssetsEgp: number;
@@ -116,13 +103,27 @@ export async function getCharityYtd(appUserId: string): Promise<CharityYtd> {
   return { totalEgp, monthlyAvg, yearlyGoalEgp: goal, progressPct };
 }
 
-export type MixSlice = {
-  label: string;
+// MixSlice variants: the donut chart consumers narrow each `label` to the
+// closed enum of kinds (plus the synthetic 'stocks_pipe' for assets), so a
+// missing case in any switch on the label gets caught at compile time.
+import type { AssetKind, LiabilityKind } from '@/lib/personal/networth/types';
+
+export type AssetMixSlice = {
+  label: AssetKind | 'stocks_pipe';
   amountEgp: number;
   pct: number;
 };
 
-export async function getAssetMix(appUserId: string): Promise<MixSlice[]> {
+export type LiabilityMixSlice = {
+  label: LiabilityKind;
+  amountEgp: number;
+  pct: number;
+};
+
+// Generic alias kept around for any caller that doesn't need the discriminator.
+export type MixSlice = AssetMixSlice | LiabilityMixSlice;
+
+export async function getAssetMix(appUserId: string): Promise<AssetMixSlice[]> {
   const sb = supabaseAdmin();
   const today = cairoTodayIso();
   const [assetsRes, stocksRes] = await Promise.all([
@@ -143,12 +144,13 @@ export async function getAssetMix(appUserId: string): Promise<MixSlice[]> {
   if (stocksEgp > 0) bucket['stocks_pipe'] = stocksEgp;
   const total = Object.values(bucket).reduce((s, v) => s + v, 0);
   return Object.entries(bucket).map(([label, amount]) => ({
-    label, amountEgp: Math.round(amount * 100) / 100,
+    label: label as AssetKind | 'stocks_pipe',
+    amountEgp: Math.round(amount * 100) / 100,
     pct: total > 0 ? Math.round((amount / total) * 10000) / 100 : 0,
   }));
 }
 
-export async function getLiabilityMix(appUserId: string): Promise<MixSlice[]> {
+export async function getLiabilityMix(appUserId: string): Promise<LiabilityMixSlice[]> {
   const sb = supabaseAdmin();
   const today = cairoTodayIso();
   const { data, error } = await sb.from('personal_networth_liabilities')
@@ -162,7 +164,8 @@ export async function getLiabilityMix(appUserId: string): Promise<MixSlice[]> {
   }
   const total = Object.values(bucket).reduce((s, v) => s + v, 0);
   return Object.entries(bucket).map(([label, amount]) => ({
-    label, amountEgp: Math.round(amount * 100) / 100,
+    label: label as LiabilityKind,
+    amountEgp: Math.round(amount * 100) / 100,
     pct: total > 0 ? Math.round((amount / total) * 10000) / 100 : 0,
   }));
 }

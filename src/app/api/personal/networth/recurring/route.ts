@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { computeNextRunDate, type RecurringFrequency } from '@/lib/recurring';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,12 +37,6 @@ const CreateRecurringBody = z.object({
   notes: z.string().max(500).optional(),
   startFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
-
-function cairoToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(
-    new Date(),
-  );
-}
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -86,7 +81,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const startFrom = body.startFrom ?? cairoToday();
+  const startFrom = body.startFrom ?? cairoTodayIso();
   let nextRun: string;
   try {
     nextRun = computeNextRunDate(

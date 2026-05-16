@@ -1,16 +1,23 @@
 'use client';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import type { LiabilityMixSlice } from '@/lib/personal/networth/queries';
+import type { LiabilityKind } from '@/lib/personal/networth/types';
 
 const COLORS = ['#ef4444', '#f97316', '#a855f7', '#0ea5e9', '#94a3b8'];
-const LABEL_OVERRIDES: Record<string, string> = {
-  amortizing_loan: 'Loans',
-  bnpl: 'BNPL',
-  credit_card: 'Cards',
-  overdraft: 'Overdraft',
-  other: 'Other',
-};
 
-type Slice = { label: string; amountEgp: number; pct: number };
+// Exhaustive label resolver for LiabilityKind. TypeScript catches a missing
+// case if a new kind is added without updating this switch.
+function liabilityLabel(key: LiabilityKind): string {
+  switch (key) {
+    case 'amortizing_loan': return 'Loans';
+    case 'bnpl': return 'BNPL';
+    case 'credit_card': return 'Cards';
+    case 'overdraft': return 'Overdraft';
+    case 'other': return 'Other';
+  }
+}
+
+type Slice = LiabilityMixSlice;
 
 export function LiabilityMixDonut({ slices }: { slices: Slice[] }) {
   if (slices.length === 0) {
@@ -22,7 +29,7 @@ export function LiabilityMixDonut({ slices }: { slices: Slice[] }) {
     );
   }
   const data = slices.map(s => ({
-    name: LABEL_OVERRIDES[s.label] ?? s.label,
+    name: liabilityLabel(s.label),
     value: s.amountEgp,
     pct: s.pct,
   }));

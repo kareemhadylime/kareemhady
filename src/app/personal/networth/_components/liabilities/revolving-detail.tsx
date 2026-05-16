@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PayCardModal } from '../modals/pay-card-modal';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 type Liability = {
   id: string;
@@ -31,12 +32,6 @@ function fmt(n: number) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function cairoToday(): { iso: string; day: number } {
-  const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(
-    new Date(),
-  );
-  return { iso, day: Number(iso.slice(8, 10)) };
-}
 
 // Rough "days until due" without dragging in a date library — fine for the
 // V1 timeline strip; we use 30 as the cycle approximation.
@@ -66,7 +61,7 @@ export function RevolvingDetail({
         ? 'text-amber-600 dark:text-amber-400'
         : 'text-red-600 dark:text-red-400';
 
-  const { day: todayDay } = cairoToday();
+  const todayDay = Number(cairoTodayIso().slice(8, 10));
   const dueDay = liability.due_day ?? 0;
   const daysUntilDue = dueDay > 0 ? daysUntilDueRough(todayDay, dueDay) : null;
 

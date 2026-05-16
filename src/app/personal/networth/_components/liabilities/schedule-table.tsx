@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 type ScheduleRow = {
   id: string;
@@ -23,10 +24,6 @@ function fmtAmount(amount: number, currency: string) {
   } catch {
     return `${currency} ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
   }
-}
-
-function cairoTodayStr(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
 }
 
 function statusOf(row: ScheduleRow, today: string): 'paid' | 'overdue' | 'upcoming' {
@@ -67,7 +64,7 @@ export function ScheduleTable({
   currency: string;
 }) {
   const router = useRouter();
-  const today = cairoTodayStr();
+  const today = cairoTodayIso();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

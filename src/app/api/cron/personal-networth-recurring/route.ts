@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { recordPaymentForRecurringTemplate } from '@/lib/personal/networth/payment';
+import { cairoTodayIso } from '@/lib/fmt-date';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -10,12 +11,6 @@ function cairoHour(): number {
     new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', hour12: false })
       .format(new Date())
   );
-}
-
-function cairoToday(): string {
-  // YYYY-MM-DD in Africa/Cairo. en-CA gives ISO-style date formatting.
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' })
-    .format(new Date());
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -30,7 +25,7 @@ export async function GET(req: Request): Promise<Response> {
     return NextResponse.json({ ok: true, skipped: true, reason: 'not 9am Cairo' });
   }
 
-  const today = cairoToday();
+  const today = cairoTodayIso();
   const sb = supabaseAdmin();
   const { data: due, error } = await sb
     .from('personal_networth_recurring_templates')
