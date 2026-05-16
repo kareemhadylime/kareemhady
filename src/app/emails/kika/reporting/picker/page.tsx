@@ -24,14 +24,18 @@ const SCOPES: Array<{ id: PickerScope; label: string }> = [
   { id: 'this_week', label: 'This week only' },
 ];
 
+const SCOPE_IDS = new Set<string>(SCOPES.map(s => s.id));
 function isScope(v: string | undefined): v is PickerScope {
-  return !!v && (SCOPES.map(s => s.id) as string[]).includes(v);
+  return !!v && SCOPE_IDS.has(v);
 }
 
 const fmt = (n: number | null | undefined): string =>
   n == null || !Number.isFinite(Number(n))
     ? '—'
     : Number(n).toLocaleString('en-US');
+
+const fmtAge = (d: number | null | undefined): string =>
+  d == null ? '—' : d > 365 ? '365+d' : `${d}d`;
 
 export default async function KikaPickerPage({
   searchParams,
@@ -86,6 +90,7 @@ export default async function KikaPickerPage({
               <Link
                 key={s.id}
                 href={s.id === 'all' ? '/emails/kika/reporting/picker' : `?scope=${s.id}`}
+                aria-current={scope === s.id ? 'true' : undefined}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
                   scope === s.id
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -120,7 +125,7 @@ export default async function KikaPickerPage({
           />
           <BigStat
             label="Oldest backlog"
-            value={report.totals.oldest_age_days != null ? `${report.totals.oldest_age_days}d` : '—'}
+            value={fmtAge(report.totals.oldest_age_days)}
             sub="since earliest open order"
             icon={<AlertTriangle size={18} className="text-rose-600" />}
           />
@@ -152,7 +157,7 @@ function BigStat({
     <div className="ix-card p-4 space-y-1">
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500 font-medium">{label}</p>
-        {icon}
+        <span aria-hidden="true">{icon}</span>
       </div>
       <p className="text-3xl font-bold tabular-nums text-slate-900">{value}</p>
       <p className="text-[11px] text-slate-500">{sub}</p>
