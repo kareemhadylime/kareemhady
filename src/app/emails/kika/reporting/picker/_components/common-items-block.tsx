@@ -79,8 +79,7 @@ export function CommonItemsBlock({ items }: { items: PickerCommonItem[] }) {
                       <div className="font-medium text-slate-900">{p.product_title}</div>
                       {p.short_description && (
                         <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 max-w-[460px]">
-                          {p.short_description.slice(0, 140)}
-                          {p.short_description.length > 140 ? '…' : ''}
+                          {p.short_description}
                         </div>
                       )}
                     </td>
@@ -129,7 +128,7 @@ function Thumb({ src, alt }: { src: string | null; alt: string }) {
   if (!src) {
     return (
       <div
-        className="w-10 h-10 rounded-md bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-slate-400"
+        className="w-10 h-10 rounded-md bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 flex items-center justify-center text-slate-400"
         aria-hidden="true"
       >
         <Package size={14} />
@@ -144,7 +143,7 @@ function Thumb({ src, alt }: { src: string | null; alt: string }) {
       width={40}
       height={40}
       loading="lazy"
-      className="w-10 h-10 rounded-md object-cover ring-1 ring-slate-200 bg-slate-50"
+      className="w-10 h-10 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700 bg-slate-50"
     />
   );
 }
