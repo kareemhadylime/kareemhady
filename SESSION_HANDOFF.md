@@ -1,3 +1,37 @@
+## 2026-05-17 — Net Worth donuts: split broker positions/cash/margin + add back link 🔧
+
+Kareem opened `/personal/networth` and screenshot showed two real defects after the mig-0143 view rewrite landed:
+
+1. **Donut/KPI desync.** Total Liabilities KPI read `EGP 1,912,837.64` (correct — the new view rolls broker margin into the liability side) but the Liability Mix donut said "No liabilities yet — you're debt-free!". Same gap on the asset side: `v_personal_networth_stocks_breakdown` already had `positions_egp` / `cash_egp` / `margin_egp` columns, but `getAssetMix()` still emitted a single netted `stocks_pipe` slice (and skipped it when ≤ 0, which it always is right now with -1.9M net), and `getLiabilityMix()` only read the `personal_networth_liabilities` table — so the donuts never saw any broker components.
+
+2. **No back navigation.** `NetWorthHeader` had a tab strip but no escape hatch to `/personal`.
+
+**Live DB state verified via MCP (`bpjproljatbrbmszwbov`):**
+- `v_personal_networth_current` for the lone user `d0a600f5-…`: `total_assets_egp=179,000,000 / total_liabilities_egp=1,912,837.6402 / net_worth_egp=177,087,162.36 / stocks_pipe_egp=-1,912,837.6402`.
+- Breakdown: `positions_egp=0 / cash_egp=0 / margin_egp=1,912,837.6402`. Positions are 0 because `personal_stock_current_prices` has **zero rows** — kareem has 3 holdings (ACT Financial ×2 lots = 1,431,100 qty, Beltone Financial ×86,600 qty) but no current price entered yet, so qty×NULL→NULL→sum 0. Cash is 0 because net broker cash is negative; that's where the 1.9M margin came from.
+- Migration `0143_personal_networth_stocks_breakdown.sql` was already applied to prod DB but **untracked in git** — bundled into this commit.
+
+**Code changes (commit `97f24afd`):**
+- `src/lib/personal/networth/queries.ts` — `getAssetMix()` now reads `positions_egp + cash_egp` from `v_personal_networth_stocks_breakdown` and emits `stocks_positions` + `broker_cash` as separate slices (each gated on > 0). `getLiabilityMix()` adds a `broker_margin` slice from the same view. Removed the single `stocks_pipe` synthetic label on the asset side; the snapshot writer still uses `stocks_pipe_egp` from `v_personal_networth_current` (back-compat column the view still exposes), so snapshot history is unchanged.
+- `_components/overview/asset-mix-donut.tsx` — switch resolver updated for `stocks_positions` ("Stocks") + `broker_cash` ("Broker Cash"); dropped `stocks_pipe`.
+- `_components/overview/liability-mix-donut.tsx` — added `broker_margin` ("Broker Margin") case.
+- `_components/networth-shell.tsx` — added a `<Link href="/personal">← Back to Personal</Link>` row above the eyebrow.
+- `supabase/migrations/0143_personal_networth_stocks_breakdown.sql` — committed (already applied to live DB).
+
+**Verification:**
+- `npx vitest run src/lib/personal/networth/queries.test.ts` — 2/2 pass (smoke tests on exports).
+- `npx tsc --noEmit` clean for all touched files. Pre-existing TS errors in `beithady-daily-report` test fixtures only (unrelated to this change).
+- Pushed `97f24afd → main`, rebased onto fresh `origin/main`, deployed via `vercel --prod` → `lime-izizi3ynf-lime-investments.vercel.app` ready. GitHub→Vercel autodeploy also fired.
+
+**Expected user-visible result on next refresh of `/personal/networth`:**
+- Header now shows "← Back to Personal" link above the wallet icon, linking to `/personal`.
+- Liability Mix donut shows a single "Broker Margin" slice = EGP 1,912,838 (100% of liab mix), matching the KPI row.
+- Asset Mix donut still shows only "Real Estate" 100% — because positions=0 (no prices entered) and broker cash=0 (net negative). Stocks slice will populate as soon as kareem enters at least one current price at `/personal/stocks/prices`. Once a price is recorded, both the total-assets KPI AND the Asset Mix donut will reflect it.
+
+**Caveat unchanged:** `app.limeinc.cc` does NOT auto-update on deploy per memory `vercel_lime_alias_quirk.md`. `limeinc.vercel.app/personal/networth` reflects the fix immediately.
+
+---
+
 ## 2026-05-16 — Net Worth overview: KPIs-stuck-at-0 + donut value labels 🔧
 
 After the 500 fix landed, kareem refreshed `/personal/networth` and saw the page render — but every KPI showed "EGP 0" and the Asset Mix donut had a "Real Estate" slice with no numeric value next to it. Two real bugs surfaced from the first live-data test:
