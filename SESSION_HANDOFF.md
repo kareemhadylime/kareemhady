@@ -1,3 +1,198 @@
+## 2026-05-16 — SHIPPED: BH Ads Insights V1 (25/25 tasks complete) ✅
+
+**Status:** All 25 plan tasks shipped to `main`. Vercel auto-deploys via GitHub integration. Migration `0138` applied to Supabase (project `bpjproljatbrbmszwbov`). Cron `beithady-ads-breakdowns` registered, runs every 6h. Tests: **795 passing / 22 skipped / 0 failures** (up from 704 baseline → +91 new tests). `tsc --noEmit` clean.
+
+**Spec:** [docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md](docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md)
+**Plan:** [docs/superpowers/plans/2026-05-16-bh-ads-insights-v1.md](docs/superpowers/plans/2026-05-16-bh-ads-insights-v1.md)
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md) (V1/V2/V3/V4 phases)
+
+### What's live
+
+- **Migration `0138`:** three new tables — `ads_insights_geo` (15 cols), `ads_insights_demo` (14), `ads_insights_device` (15). NULLS NOT DISTINCT unique indexes per spec spine + per-campaign+date and per-account+date supporting indexes.
+- **Platform fetchers:** `fetchMetaInsightsBreakdown` (meta-client.ts), `fetchGoogleGeoView` / `fetchGoogleDemoView` / `fetchGoogleDeviceView` (google-client.ts), `fetchTikTokIntegratedReport` (tiktok-client.ts) — all paginated, all unit-tested with mocked fetch.
+- **Per-dimension libs** (`insights-{geo,demo,device}.ts`): platform normalizers + Supabase upsert (using `NULLS NOT DISTINCT` onConflict) + rollup query helpers. Throw typed `InsightsBreakdownFetchError` / `InsightsUpsertError`.
+- **Cron `/api/cron/beithady-ads-breakdowns`:** rolling 7-day window every 6h. Per-campaign isolation (one failure doesn't abort the batch). `maxDuration=800`. Audit logged via `recordAudit({ module:'ads', action:'breakdowns_cron' })`.
+- **Admin Backfill 90d button** on `/admin/integrations` — same-host POST to the cron with `?force=1&secret=$CRON_SECRET&from=…&to=…`.
+- **Reporting layer:** `getDashboardKpis()` + `listOverviewByDay()` now accept `RangeArg = number | { from, to }` (backward compat). New `normalizeRangeArg()` helper.
+- **UI primitives:** `<PeriodDeltaBadge />` (emerald/rose/slate tones, `reverseColor` for CPL-style metrics), `<DateRangeFilter />` (preset chips + custom range + compare toggle, URL-state driven), `<AudienceSummaryWidget />` (server component, top-3 per dimension card with optional `campaignId` filter).
+- **Main `/beithady/ads/` page:** Audience tab added to `<AdsTabs />`; date filter + audience widget wired in; `getDashboardKpis` consumes the range.
+- **`/beithady/ads/campaigns/[id]/`:** date filter + per-campaign audience widget.
+- **`/beithady/ads/performance/`:** date filter.
+- **`/beithady/ads/audience/` (NEW page):** `<BeithadyShell>` + `<BeithadyHeader>` + 3 sub-tabs (Geo / Demographics / Device & Placement).
+  - **Geo tab:** Country rollup table with impressions/clicks/CTR/spend (EGP)/leads + Δ-clicks column when `?compare=1`.
+  - **Demo tab:** Age × Gender horizontal stacked bars (emerald female / slate male) + detail table.
+  - **Device tab:** Device stacked bar (emerald-to-slate graduated) + Meta-only placements list + per-platform detail table.
+
+### UI conventions held
+
+Every BH ads page wraps in `<BeithadyShell>` + `<BeithadyHeader>` + `<AdsTabs />`. Cards = `ix-card`. Buttons = `ix-btn-primary|secondary|ghost`. Inputs = `ix-input`. **Active state = emerald only** (matches `ads-tabs.tsx`); everything else stays slate. No raw Tailwind palette outside that sanctioned color (per kareem's memory note: BH surfaces must theme through ix-* utilities + emerald accent).
+
+### Commits (25, in order)
+
+| # | SHA | Task |
+|---|---|---|
+| 1 | `63da355` | Migration 0138 (geo/demo/device tables) |
+| 2 | `f10d7d0` | date-range.ts |
+| 3 | `a7a5261` | period-delta.ts |
+| 4 | `c3e9218` | insights-errors.ts |
+| 5 | `a4e9f6d` | fetchMetaInsightsBreakdown |
+| 6 | `b5ff53c` | fetchGoogleGeoView |
+| 7 | `82a1a75` | fetchGoogleDemoView |
+| 8 | `da85f53` | fetchGoogleDeviceView |
+| 9 | `62e1ffa` | fetchTikTokIntegratedReport |
+| 10 | `56945f2` | insights-geo.ts (normalize/upsert/rollup) |
+| 11 | `367e1bc` | insights-demo.ts |
+| 12 | `a85d027` | insights-device.ts |
+| 13 | `efa8e33` | cron beithady-ads-breakdowns + vercel.json |
+| 14 | `5798d4f` | admin Backfill 90d button + action |
+| 15 | `5c3aaa1` | reporting.ts `{from,to}` refactor |
+| 16 | `0febe0f` | <PeriodDeltaBadge /> |
+| 17 | `8eb6bca` | <DateRangeFilter /> |
+| 18 | `d48a2ef` | <AudienceSummaryWidget /> |
+| 19 | `6256742` | wire main /beithady/ads + Audience tab |
+| 20 | `1ce1fd7` | wire campaigns/[id] + performance |
+| 21 | `ea04a9f` | <AudienceFilters /> |
+| 22 | `34f9583` | audience page shell + GeoTab + tab stubs |
+| 23 | `f6cab5f` | DemoTab real |
+| 24 | `2d08c1c` | DeviceTab real |
+| 25 | (this) | smoke + handoff |
+
+### Verification
+
+- `npm run test` → **795 passing / 22 skipped / 0 failures** (141 test files)
+- `npx tsc --noEmit` → 0 errors
+- DB tables verified live via MCP execute_sql
+- vercel.json cron entry confirmed at line 34: `0 */6 * * *`
+
+### Manual smoke (operator action required)
+
+The new tables are EMPTY until the cron runs (next quarter-hour mark) OR until kareem clicks **Backfill 90d ads breakdowns** on `/admin/integrations`. Recommended first action:
+
+1. Visit `/admin/integrations` → click "Backfill 90d ads breakdowns" → wait ~60s
+2. Verify rows landed via Supabase MCP: `select platform, count(*) from ads_insights_geo group by platform;`
+3. Visit `/beithady/ads/?preset=7d` → confirm date filter chips work, audience widget renders top-3
+4. Visit `/beithady/ads/audience` → switch Geo/Demo/Device tabs
+5. Toggle `?compare=1` → confirm delta badges appear in geo+demo+device tables
+
+If kareem hits `app.limeinc.cc` and sees stale code, re-alias: `vercel alias set <new-deploy-url> app.limeinc.cc` (per memory: this alias does NOT auto-update on the lime project).
+
+### Roadmap progress
+
+V1 ✅ shipped. Next per roadmap: **V2 (Funnel + Quality)** — funnel chart, lead quality %, WhatsApp first-response time, per-building breakdown, lead→booking cohort attribution. Estimated ~15 TDD tasks. Waiting on kareem's go-ahead.
+
+---
+
+## 2026-05-16 — Beithady Guesty implementation: Step 1 ✅ DONE, Step 2 in progress
+
+**Step 1: Schema — COMPLETE ✅**
+- Custom LodgingBusiness + AggregateRating (4.85★ × 1500) JSON-LD pasted in Home → Header HTML
+- Guesty native LocalBusiness schema fixed:
+  - Address: Dubai → **El Shrefen Street, Cairo, EG** ✅
+  - Geo: Dubai coords → **Cairo coords (30.047558, 31.241106)** ✅
+  - Phone: malformed → **+201501010103** ✅
+  - areaServed: Egypt, Cairo, New Cairo, Sheikh Zayed, Dubai ✅
+  - Hours: 24/7 added ✅
+  - priceRange: 30-200$ ✅
+- Rich Results Test: **2 valid items, Local businesses = clean (no errors)** ✅
+
+**Step 2: Meta titles + descriptions — IN PROGRESS**
+- Problem: Homepage title is "Airbnb Rental | Beithady Hospitality | Egypt, Dubai, SA" — positions as Airbnb listing, not a direct brand. Description is generic, no Cairo/Gouna keywords, no trust signals.
+- Awaiting kareem to update Home page meta:
+  - **New title:** `Serviced Apartments in Cairo & Gouna | Beit Hady` (49 chars)
+  - **New description:** `4.85★ from 1,500+ guests. Boutique serviced apartments in New Cairo, Kattameya, El Gouna & Dubai. Hotel comfort, home privacy. WhatsApp us to book.` (148 chars)
+- Path: Pages → Home → ··· → Page Settings → Page SEO → manually paste (do NOT use AI generate)
+- After Home confirmed, will give remaining 11 pages in one batch
+
+**Steps 3-8 still queued:**
+- Step 3: Fix misspelled URLs `/2-badroom`, `/3-badroom`, `/4-badroom` → `bedroom` + auto-301
+- Step 4: GTM + GA4 + Search Console
+- Step 5: WhatsApp click → Meta `Lead` event
+- Step 6: UTM `wa.me` redirector page
+- Step 7: Domain Not Unified DNS fix
+- Step 8: Dynamic Pages for 79 properties
+- ✅ AggregateRating (4.85★ × 1500) confirmed absent from Guesty native schema → custom JSON-LD is essential, keep it
+
+**Guesty native Local Business Schema — issues found & fixes pending:**
+- Type: `LocalBusiness` → needs to change to `LodgingBusiness` (if field allows in Business Info)
+- Address: `Khalid Bin Al Waleed Street, Dubai, AE` → **wrong** — primary market is Egypt; change to `One Kattameya, New Cairo, Cairo Governorate, Egypt`
+- Phone: `+20 150-10-10-10-3` → **malformed** — change to `+201501010103`
+- sameAs missing: TikTok, LinkedIn, Snapchat (only has YouTube, Facebook, Instagram)
+- **Location**: CMS → Business Data → **Business Info** tab (not Business Text where kareem accidentally navigated)
+
+**Awaiting kareem:** navigate to CMS → Business Data → Business Info → fix phone + address + type → republish → confirm
+
+**Step 2 queued (meta descriptions):** once Step 1 confirmed done
+- Homepage title: "Airbnb Rental | Beithady Hospitality | Egypt, Dubai, SA" → rewrite to remove "Airbnb", add Cairo/Gouna/Dubai + 4.85★ × 1500
+- 12 pages total (site has 12, not 9 as originally estimated — News page exists)
+- Path: Pages → [page] → ··· → Page Settings → Page SEO → title + description fields
+
+**Steps 3-8 queued (in order):**
+- Step 3: Fix misspelled URLs `/2-badroom`, `/3-badroom`, `/4-badroom` → `bedroom` with auto-301
+- Step 4: GTM container setup + GA4 + Search Console verification meta tag
+- Step 5: WhatsApp click → Meta `Lead` event in GTM
+- Step 6: UTM-tagged `wa.me` redirector page
+- Step 7: Domain Not Unified — DNS fix
+- Step 8: Dynamic Pages for 79 properties (biggest unlock — one template → 79 indexed URLs)
+
+---
+
+## 2026-05-16 — Beithady.com SEO/ads/reservations audit + Guesty implementation playbook (no code change)
+
+**Scope:** kareem asked for a deep audit of beithady.com for reservations, ads readiness, SEO; compare vs Prime Hospitality + other Egypt competitors. Then asked to implement every action item via Guesty Websites UI. Step-by-step with confirmations.
+
+**Audit findings (live fetch via WebFetch + WebSearch):**
+- beithady.com is a 9-URL brochure on Guesty Websites (Advanced plan, published, "Domain Not Unified")
+- **0 individual property pages** (79 PMS units, none on public site)
+- Missing: viewport meta, `lang=`, canonical, schema (LodgingBusiness/AggregateRating), GA4, GTM, TikTok/Snapchat pixels
+- Meta Pixel installed (ID `1649553085729228`) but fires only `PageView` — no `Lead`/`ViewContent`/`InitiateCheckout`
+- **Misspelled URLs**: `/2-badroom`, `/3-badroom`, `/4-badroom` (should be `bedroom`)
+- Single conversion path: WhatsApp deep-link to +20-1501010103
+- 4.85★ × 1500 guests headline stat is real — schema goldmine, unused
+
+**Competitor benchmarks (Egypt):**
+- [stayatprime.com](https://stayatprime.com) — same SEO gaps, but 30+ property pages, 9-destination nav, OTA partner badges (Agoda/TripAdvisor/Flipkey), 5 brand tiers
+- [hostprimeeg.com](https://hostprimeeg.com) — package bundles (Premium/Value/Standard) + Egypt excursions
+- [theblueground.com Cairo](https://www.theblueground.com/furnished-apartments-cairo-egypt) — international corporate benchmark (8 langs, filter UX, price-behind-dates)
+- [thesqua.re](https://www.thesqua.re/cairo/serviced-apartments), [silverdoor.com](https://www.silverdoor.com), Booking/Airbnb aggregators
+
+**Action plan delivered in chat (not file):**
+- §5.1 Quick wins (today, ~8hr): schema, meta descriptions, viewport, fix misspelled URLs, OG, GTM+GA4+pixels, WhatsApp `Lead` event, UTM `wa.me` redirector
+- §5.2 Medium (30d): Dynamic Pages (auto property pages from PMS), neighborhood pages, Arabic i18n, Booking Engine widget, CTWA campaigns, Meta CAPI, newsletter, OTA badges
+- §5.3 Strategic (90d): blog content engine, package bundles, B2B page, owner-acquisition revamp, programmatic SEO, close-the-loop attribution via Guesty webhook → Meta/Google CAPI, GBP per building
+
+**Guesty Advanced Website capabilities confirmed:**
+- Native: GA4, GTM, Meta Pixel fields; SEO/AEO panel (Site Audit, Page SEO, Image Alt Text, Internal/External Links, Blog SEO); per-page Header HTML; Dynamic Pages from PMS collections; Booking Engine widget; IndexNow auto-submission; multi-language (30 langs incl Arabic via Google Translate); AI SEO generator (sparkle icon); auto LocalBusiness schema; auto OG image
+- Custom code: Head HTML, Body End HTML (global) + per-page Header HTML
+- Limits: TikTok/Snapchat via GTM only; no native Meta CAPI (use Stape.io); multi-language edits don't sync across langs (translate last)
+
+**Step 1 (in progress):** Add LodgingBusiness + AggregateRating JSON-LD to homepage Header HTML.
+- kareem pasted the JSON-LD block (Guesty Header HTML editor confirms it's in)
+- Discovered Guesty already auto-enables LocalBusiness schema + meta tags + OG image (Site Audit screenshot)
+- **Awaiting kareem**: (A) click "View Details" on Local Business Schema in Site Audit — report whether it exposes editable AggregateRating fields; (B) republish + Rich Results Test screenshot
+
+**Next steps queued:**
+- Step 2: rewrite meta descriptions for 12 pages (current Guesty auto-version says "Airbnb rentals" — bad for direct-brand positioning; need to inject Cairo/Gouna/Dubai + 4.85★ × 1500)
+- Step 3: fix `/2-badroom` → `/2-bedroom` slugs (×3) with auto-301
+- Step 4: GTM + GA4 + Search Console verification
+- Step 5: WhatsApp `Lead` event in GTM
+- Step 6: Dynamic Pages template for 79 properties (biggest unlock)
+
+---
+
+## 2026-05-16 — STYLE: KIKA nav pages now max-w-[1800px] for ultrawide displays
+
+**User report:** Reporting page still looked narrow after the earlier `max-w-6xl → max-w-7xl` bump. kareem appears to be on a ~2597px-wide display (likely a 5K monitor scaled), where even 1280px (`max-w-7xl`) leaves ~50% of the viewport as side-margin.
+
+**Fix:** Bumped all 7 KIKA nav pages from `max-w-7xl` (1280px) to arbitrary `max-w-[1800px]`. Commit `f9c1e66`.
+- Pages: exec, sales, financials, inventory, inventory/raw-materials, reporting, reporting/picker
+- On the 2597px viewport: content utilization goes from 49% → 69%
+- On laptop screens (≤1800px), nothing changes — the cap never kicks in
+- Setup and history pages still use `max-w-5xl` (different `<div>` shells, less data-dense)
+
+If 1800 still feels narrow, options noted to kareem: `max-w-[2000px]` (77%), `max-w-[2200px]` (85%), or `max-w-full` (100% / full-bleed). Awaiting confirmation post-deploy.
+
+---
+
 ## 2026-05-16 — Task 14: Admin Backfill 90d ads breakdowns button
 
 **Commit:** `5798d4f`
@@ -74,6 +269,36 @@ Vercel auto-deploying.
 - [src/app/api/kika/manufacturing-report/route.ts](src/app/api/kika/manufacturing-report/route.ts) — reads `sort`/`dir` from query string, validates with the two guards, and applies `sortManufacturingRows` to `report.rows` before handing off to the PDF.
 
 **Verification:** `tsc --noEmit` clean. No new tests (pure refactor of existing comparator + 3-line route addition).
+
+---
+
+## 2026-05-16 — Task 19: Wire DateRangeFilter + AudienceSummaryWidget into /beithady/ads
+
+**Commit:** `6256742`
+
+**Files changed:**
+- `src/app/beithady/ads/_components/ads-tabs.tsx` — added `Globe2` to lucide-react imports; inserted `{ slug: 'audience', label: 'Audience', href: '/beithady/ads/audience', icon: Globe2, group: 'main' }` after the `performance` tab.
+- `src/app/beithady/ads/page.tsx` — added `DateRangeFilter`, `AudienceSummaryWidget`, `parseDateRange` imports; extended `searchParams` type to include `from/to/preset/compare`; added `parseDateRange()` call after `const sp = await searchParams;`; changed `getDashboardKpis(30)` → `getDashboardKpis({ from: range.from, to: range.to })`; rendered `<DateRangeFilter />` immediately after `<AdsTabs active="overview" />`; rendered `<AudienceSummaryWidget range={...} />` between the platform-status section and the KPI grid.
+
+**Verification:** `tsc --noEmit` — 0 errors. Full suite: 789 passed / 22 skipped (140 test files).
+
+**Widget placement:** `<AudienceSummaryWidget />` sits between `</section>` (platform-status row) and the KPI `<section>` grid — after the gap/no-platform banners, before the spend/leads/CPL stats.
+
+---
+
+## 2026-05-16 — Task 20: Wire date filter into campaign detail + performance pages
+
+**Commit:** `1ce1fd7`
+
+**Files changed:**
+- `src/app/beithady/ads/campaigns/[id]/page.tsx` — added `DateRangeFilter`, `AudienceSummaryWidget`, `parseDateRange` imports; extended `searchParams` type to include `from/to/preset/compare`; added `parseDateRange()` call after `const sp = await searchParams;`; rendered `<DateRangeFilter />` immediately after `<AdsTabs active="campaigns" />`; rendered `<AudienceSummaryWidget campaignId={campaignId} range={range} />` between the closing KPI section and the Live Meta insights section.
+- `src/app/beithady/ads/performance/page.tsx` — added `DateRangeFilter`, `parseDateRange` imports; extended `searchParams` type to include `from/to/preset/compare`; added `parseDateRange()` call; changed `getDashboardKpis(days)` → `getDashboardKpis({ from: range.from, to: range.to })` and `listOverviewByDay(days)` → `listOverviewByDay({ from: range.from, to: range.to })`; rendered `<DateRangeFilter />` immediately after `<AdsTabs active="performance" />`.
+
+**Widget placements:**
+- Campaign detail: `<DateRangeFilter />` below `<AdsTabs>`, `<AudienceSummaryWidget>` between KPI section and Live Meta insights section.
+- Performance: `<DateRangeFilter />` below `<AdsTabs>`, no audience widget (not per-campaign context).
+
+**Verification:** `tsc --noEmit` — 0 errors. Full suite: 789 passed / 22 skipped (140 test files).
 
 ---
 
