@@ -211,11 +211,7 @@ export function ManufacturingDrilldown({
                     {r.sku || '—'}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmt(r.open_qty)}</td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      r.in_stock < 0 ? 'text-rose-600' : 'text-slate-500'
-                    }`}
-                  >
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
                     {fmt(r.in_stock)}
                   </td>
                   <td

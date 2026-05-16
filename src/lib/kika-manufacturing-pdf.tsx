@@ -276,15 +276,7 @@ export function KikaManufacturingPdf({
                   {r.sku || '—'}
                 </Text>
                 <Text style={[styles.td, styles.colOpen]}>{fmt(r.open_qty)}</Text>
-                <Text
-                  style={[
-                    styles.td,
-                    styles.colStock,
-                    r.in_stock < 0 ? { color: PALETTE.warn } : {},
-                  ]}
-                >
-                  {fmt(r.in_stock)}
-                </Text>
+                <Text style={[styles.td, styles.colStock]}>{fmt(r.in_stock)}</Text>
                 <Text style={[styles.td, styles.colNet, styles.netCell]}>
                   {fmt(r.net_to_make)}
                 </Text>

@@ -121,7 +121,12 @@ function pickVariantStock(
   const v = variants.find(x => Number(x['id']) === variantId);
   if (!v) return 0;
   const qty = Number(v['inventory_quantity']);
-  return Number.isFinite(qty) ? qty : 0;
+  if (!Number.isFinite(qty)) return 0;
+  // Negative inventory_quantity in Shopify usually means "oversold past zero"
+  // — those units are already represented inside Open qty (Shopify decrements
+  // inventory_quantity on order placement, not on fulfillment). Clamping to 0
+  // here prevents double-counting the same demand twice in net_to_make.
+  return Math.max(0, qty);
 }
 
 export async function buildKikaManufacturingReport(params: {

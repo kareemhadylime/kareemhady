@@ -1,3 +1,43 @@
+## 2026-05-16 — FIX: KIKA Mfg report — clamp negative stock to zero
+
+**Status:** Pending commit + push.
+
+**Decision:** kareem chose "consider all stock below zero to be zero, don't count negative quantities" — which is option (1) from the Q&A I posted last turn. The current formula was double-counting demand because Shopify decrements `inventory_quantity` on order placement (not fulfillment), so a negative stock value is usually the same units already living inside Open qty.
+
+**Change:** [src/lib/kika-manufacturing.ts](src/lib/kika-manufacturing.ts) — `pickVariantStock()` now returns `Math.max(0, inventory_quantity)`. That single helper feeds both the `in_stock` field on the response rows AND the `net_to_make = max(0, open - in_stock)` computation, so clamping in one place fixes both. With the new behaviour:
+
+- Black Luna Dress · SMALL · open=4, raw stock=−5 → reported stock=0, net to make=4 (was 9).
+- Sunset Goddess · MEDIUM · open=3, raw stock=−10 → reported stock=0, net to make=3 (was 13).
+- Sunset Goddess · SMALL · open=3, raw stock=−9 → reported stock=0, net to make=3 (was 12).
+
+Also dropped the now-dead `in_stock < 0` styling branches in [manufacturing-drilldown.tsx](src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx) (rose text) and [kika-manufacturing-pdf.tsx](src/lib/kika-manufacturing-pdf.tsx) (warn colour), since stock can no longer be negative.
+
+**Verification:** `tsc --noEmit` clean. No data-layer changes (pure projection-layer fix).
+
+---
+
+## 2026-05-16 — Q&A: explained Mfg formula, flagged it's likely double-counting
+
+**Status:** No code change this turn. Answered kareem's question about how Open / In stock / Net to make are computed in the new KIKA Manufacturing drill-down.
+
+**What I explained:**
+- **Open qty** = sum of `quantity` over line items belonging to open orders (not cancelled, not voided, fulfillment_status null/unfulfilled/partial) in the dashboard period.
+- **In stock** = `shopify_products.raw.variants[i].inventory_quantity` — same value Shopify Admin shows. Can go negative when oversold past zero.
+- **Net to make** today: `max(0, open_qty − in_stock)`. With Black Luna SMALL (open=4, in_stock=−5) this yields 9.
+
+**Gotcha I flagged:** Shopify decrements `inventory_quantity` on order placement (not on fulfillment). So when In stock goes negative, those oversold units are usually **already inside Open qty**, meaning the current formula double-counts them. The cleaner formula is `max(0, open − max(0, in_stock))` → Black Luna SMALL would become 4, not 9.
+
+**Open decision for kareem to make next turn:**
+1. Switch to `net = max(0, open − max(0, in_stock))` + add a small "oversold by N" cue when in_stock < 0 (my recommendation — probably matches their reality).
+2. Keep current formula (only right if they manually rebuild negative inventory_quantity to zero after restocking).
+3. Show both numbers side-by-side.
+
+**Also flagged for future:** today's calc doesn't subtract `fulfilled_quantity` on partials. If a line item is partially fulfilled, the whole line item qty counts as Open. Doesn't matter for KIKA's current operating pattern (mostly all-or-nothing orders).
+
+Nothing committed or deployed this turn.
+
+---
+
 ## 2026-05-16 — FEATURE: KIKA modal parity + thumbnails + Manufacturing tile/report
 
 **Status:** Pending commit + push.
