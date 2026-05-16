@@ -136,6 +136,7 @@ export type DemoRollupRow = {
 export async function queryDemoRollup(opts: {
   campaignId?: number; accountId?: number; from: string; to: string;
   platforms?: Array<'meta' | 'google' | 'tiktok'>;
+  buildingCode?: string;
 }): Promise<DemoRollupRow[]> {
   const sb = supabaseAdmin();
   let q = sb.from('ads_insights_demo')
@@ -144,6 +145,12 @@ export async function queryDemoRollup(opts: {
   if (opts.campaignId) q = q.eq('campaign_id', opts.campaignId);
   if (opts.accountId) q = q.eq('account_id', opts.accountId);
   if (opts.platforms?.length) q = q.in('platform', opts.platforms);
+  if (opts.buildingCode) {
+    // Find campaigns whose leads attribute to this building within the window.
+    const campaignIds = await campaignsAttributableToBuilding({ from: opts.from, to: opts.to, buildingCode: opts.buildingCode });
+    if (campaignIds.length === 0) return [];
+    q = q.in('campaign_id', campaignIds);
+  }
   const { data } = await q;
   const byKey = new Map<string, DemoRollupRow>();
   for (const r of (data as Array<DemoRollupRow & { age_range: string; gender: string }> | null) ?? []) {
@@ -159,4 +166,26 @@ export async function queryDemoRollup(opts: {
     byKey.set(k, cur);
   }
   return Array.from(byKey.values()).sort((a, b) => b.clicks - a.clicks);
+}
+
+async function campaignsAttributableToBuilding(opts: {
+  from: string; to: string; buildingCode: string;
+}): Promise<number[]> {
+  const sb = supabaseAdmin();
+  const { attributeLeadToBuilding } = await import('./per-building');
+  const { buildingMapForLeads } = await import('./funnel');
+  const { data: leads } = await sb.from('ads_leads')
+    .select('id, campaign_id, matched_reservation_id, building_interest')
+    .gte('created_at', opts.from).lte('created_at', opts.to + 'T23:59:59');
+  const leadRows = (leads as Array<{ id: number; campaign_id: number | null; matched_reservation_id: string | null; building_interest: string | null }> | null) ?? [];
+  const buildingByReservation = await buildingMapForLeads(sb, leadRows);
+  const set = new Set<number>();
+  for (const l of leadRows) {
+    if (l.campaign_id == null) continue;
+    const bookedBuilding = l.matched_reservation_id ? buildingByReservation.get(l.matched_reservation_id) ?? null : null;
+    if (attributeLeadToBuilding({ matched_reservation_building: bookedBuilding, building_interest: l.building_interest }) === opts.buildingCode) {
+      set.add(l.campaign_id);
+    }
+  }
+  return Array.from(set);
 }

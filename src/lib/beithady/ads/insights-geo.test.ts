@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeMetaGeoRows, normalizeGoogleGeoRows, normalizeTikTokGeoRows,
+  queryGeoRollup,
 } from './insights-geo';
 
 const CTX = { accountId: 1, campaignId: 5, adSetId: null as number | null, platform: 'meta' as const };
@@ -61,5 +62,15 @@ describe('normalizeTikTokGeoRows', () => {
       metrics: { impressions: '1', clicks: '0', spend: '0' },
     }], T_CTX);
     expect(out).toHaveLength(0);
+  });
+});
+
+describe('queryGeoRollup buildingCode filter (shape only)', () => {
+  it('accepts buildingCode in opts type', () => {
+    // Type-level check: this should compile.
+    const _shape: Parameters<typeof queryGeoRollup>[0] = {
+      from: '2026-05-01', to: '2026-05-16', buildingCode: 'BH-26',
+    };
+    expect(_shape.buildingCode).toBe('BH-26');
   });
 });
