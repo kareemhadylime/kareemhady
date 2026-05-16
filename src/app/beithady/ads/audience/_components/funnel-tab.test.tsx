@@ -22,7 +22,8 @@ describe('FunnelTab', () => {
     expect(screen.getAllByText(/Impressions/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/124,500/)).toBeTruthy();
     expect(screen.getByText(/89,200/)).toBeTruthy();
-    expect(screen.getByText(/71.6%/)).toBeTruthy();
+    // 71.6% appears twice (drop-off label + table cell) — assert at least one match
+    expect(screen.getAllByText(/71.6%/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows hint when buildingCode is active', async () => {

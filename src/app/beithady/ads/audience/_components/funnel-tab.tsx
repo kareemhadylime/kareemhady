@@ -42,7 +42,7 @@ export async function FunnelTab({
             {i < stages.length - 1 && stages[i + 1].conversion_pct_from_prev != null && (
               <div className="grid grid-cols-[120px_1fr] gap-3 text-[10px] text-slate-400 my-0.5">
                 <span />
-                <span className="text-center">↓ {stages[i + 1].conversion_pct_from_prev} %</span>
+                <span className="text-center">↓ {stages[i + 1].conversion_pct_from_prev}%</span>
               </div>
             )}
           </div>
