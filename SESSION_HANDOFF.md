@@ -1,3 +1,67 @@
+## 2026-05-16 — Task 14: Admin Backfill 90d ads breakdowns button
+
+**Commit:** `5798d4f`
+
+**Files:**
+- Created `src/app/admin/integrations/backfill-ads-breakdowns-action.ts` — `'use server'` action that issues same-host GET to `/api/cron/beithady-ads-breakdowns?force=1&secret=…&from=…&to=…` (90-day window), then revalidates `/admin/integrations`, `/beithady/ads`, `/beithady/ads/audience`.
+- Created `src/app/admin/integrations/backfill-ads-breakdowns-action.test.ts` — 1 test, 1 PASS.
+- Modified `src/app/admin/integrations/page.tsx` — added "Backfill 90d ads breakdowns" button in the page header alongside "Seed from env vars", wrapped in `<form action={…}>`.
+- Created `src/__mocks__/next-cache.ts` — shim for `next/cache` in Vitest (revalidatePath/revalidateTag are no-ops outside Next.js context).
+- Modified `vitest.config.ts` — added `'next/cache'` alias pointing at the shim.
+
+**Status:** DONE. 1/1 tests pass, tsc clean, pushed to main.
+
+---
+
+## 2026-05-16 — BRAINSTORM IN PROGRESS: Personal Net Worth module
+
+**User request:** Add a 4th tile to the `/personal` cockpit for net-worth tracking — assets / liabilities / loans / credit cards / cars / overdraft / Valu, loan details (principal, term, interest, monthly payment), monthly charity, payment report, recurring payments, dashboards.
+
+**Status:** Brainstorming skill invoked, project context explored, visual-companion offer surfaced. Awaiting user response on visual companion before first clarifying question.
+
+**Context gathered:**
+- Existing personal tiles live in [src/app/personal/page.tsx](src/app/personal/page.tsx) — adding a 4th tile is trivial (one entry in `TILES` array).
+- Closest pattern for recurring payments: [src/lib/boat-rental/recurring.ts](src/lib/boat-rental/recurring.ts) + migration [supabase/migrations/0070_boat_recurring_expense_templates.sql](supabase/migrations/0070_boat_recurring_expense_templates.sql) — daily cron picks rows where `next_run_date <= today`, inserts a payment, advances `next_run_date`.
+- Closest pattern for personal module schema: [supabase/migrations/0116_personal_stock_investment.sql](supabase/migrations/0116_personal_stock_investment.sql) — `personal_*` table prefix, EGP default currency, lookup + audit + core table structure.
+- Next migration slot: `0139_personal_networth_*` (last was 0138).
+- Spec destination once approved: `docs/superpowers/specs/2026-05-16-personal-networth-design.md`.
+
+**Open questions (not yet asked, in priority order):**
+1. Visual companion yes/no (currently pending).
+2. Currency scope — EGP only, or multi-currency (USD overdraft, foreign cards)?
+3. Integration with existing `/personal/stocks` — pipe holdings in as an asset automatically, or enter "stocks balance" manually?
+4. Scope — log+snapshot tool, or personal-CFO with debt-payoff projections / forecasts?
+5. Loan model — full amortization schedule auto-generated, or just track current outstanding balance?
+6. Auto net-worth snapshots (monthly) vs live SQL view.
+7. Single-user (Kareem) or per-user (other Lime users)?
+
+---
+
+## 2026-05-16 — STYLE: widen all KIKA nav pages to max-w-7xl
+
+**User report:** Sales page looked too narrow on wide screens — lots of unused whitespace on the right.
+
+**Cause:** Every KIKA nav page used `max-w-6xl` (1152px), leaving ~25% of a wide viewport as side-margin.
+
+**Fix:** Bumped all 7 nav pages to `max-w-7xl` (1280px) in one commit (`8e9a232`):
+- [exec](src/app/emails/kika/exec/page.tsx) · [sales](src/app/emails/kika/sales/page.tsx) · [financials](src/app/emails/kika/financials/page.tsx) · [inventory](src/app/emails/kika/inventory/page.tsx) · [inventory/raw-materials](src/app/emails/kika/inventory/raw-materials/page.tsx) · [reporting](src/app/emails/kika/reporting/page.tsx) · [reporting/picker](src/app/emails/kika/reporting/picker/page.tsx)
+
+**Left untouched:** `/emails/kika/setup` and `/emails/kika/history` still use `max-w-5xl` — they're settings/admin pages with `<div>` shells rather than `<main>`, less data-dense. Can bump on request.
+
+Vercel auto-deploying.
+
+---
+
+## 2026-05-16 — STYLE: widen KIKA Reporting hub to match sibling pages
+
+**User report:** The new `/emails/kika/reporting` hub looked too narrow next to the rest of KIKA — content was wrapping early.
+
+**Cause:** The hub was using `max-w-5xl` (1024px) while every other KIKA page — Exec, Sales, Picker — uses `max-w-6xl` (1152px). The Task 3 code-quality reviewer had flagged this as a Minor inconsistency at the time; the visible mismatch made it worth fixing now.
+
+**Fix:** [src/app/emails/kika/reporting/page.tsx](src/app/emails/kika/reporting/page.tsx) — one-character change, `max-w-5xl` → `max-w-6xl`. Commit `d156a66`, pushed to main, auto-deploying via Vercel.
+
+---
+
 ## 2026-05-16 — FIX: Manufacturing PDF now preserves the on-screen sort
 
 **User report:** Sorted by Product name on the on-screen Manufacturing drill-down, exported the PDF, and the PDF came back in the default order (net_to_make desc).
@@ -2218,3 +2282,39 @@ ads_insights_geo
 **Git commit SHA:** `63da355`
 
 **Next:** Task 2 will hydrate these tables via Meta/Google/TikTok API syncs.
+
+## [2026-05-16] Tasks 10–12: BH Ads Insights V1 — Per-Dimension Normalizer Libs
+
+**Status:** PASS
+
+**Tests & compilation:**
+- `vitest run` across all three test files: **16/16 tests PASS** (6 + 5 + 5)
+  - Task 10 (geo): 6 tests covering Meta/Google/TikTok normalizers + unknown drops
+  - Task 11 (demo): 5 tests covering age-range parsing + gender enum mapping + cross-product joins
+  - Task 12 (device): 5 tests covering device enums + placement pass-through + Meta/Google normalization
+- `tsc --noEmit`: **0 TypeScript errors**
+- Commits: **2 files per commit** (source + test), exactly as expected
+  - Task 10: `56945f2` — insights-geo.ts + test
+  - Task 11: `367e1bc` — insights-demo.ts + test
+  - Task 12: `a85d027` — insights-device.ts + test
+
+**Verification checklist:**
+- ✅ `import 'server-only'` at top of each file (non-negotiable)
+- ✅ All required exports present per pattern:
+  - `XRow`, `XCtx`, three normalizers (Meta/Google/TikTok), `upsertXRows()`, `XRollupRow`, `queryXRollup()`
+- ✅ `onConflict` strings match migration 0138 unique indexes exactly:
+  - geo: `'campaign_id,ad_set_id,metric_date,platform,country_code,region,city'`
+  - demo: `'campaign_id,ad_set_id,metric_date,platform,age_range,gender'`
+  - device: `'campaign_id,ad_set_id,metric_date,platform,device_platform,publisher_platform,placement'`
+- ✅ Sort order in `query*Rollup()`: `.sort((a,b) => b.clicks - a.clicks)` descending on all three
+- ✅ No unused imports (all three files: `'server-only'`, supabaseAdmin, InsightsUpsertError)
+- ✅ Tests cover happy path + edge cases (missing fields, unknown enums, drops)
+- ✅ `'server-only'` imports don't break tests (verified by test pass)
+
+**Code quality observations:**
+- `asInt()` and `asMicros()` helpers duplicated across three files (geo, demo, device). Minor DRY opportunity but justified by module isolation; extracting to shared util would add coupling for ~30 lines of logic. **Not a blocker.**
+- insights-demo.ts has inline helper functions (`normGender`, `normAge`) scoped to the module; geo and device have inline normalizers too. Consistent pattern.
+- All files follow identical structure: types → helpers → three normalizers → upsert → rollup query. Highly predictable.
+- No dead code, minimal imports, tight cohesion per file.
+
+**Summary:** All three per-dimension libraries pass full spec. Ready for integration into cron ingest pipeline.
