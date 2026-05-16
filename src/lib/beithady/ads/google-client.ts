@@ -188,6 +188,46 @@ export async function fetchGoogleGeoView(opts: GoogleBreakdownOpts): Promise<Gaq
   return gaqlSearch<GoogleGeoRow>(opts.customerId, q, opts.creds, opts.accessToken);
 }
 
+export type GoogleDemoGenderRow = {
+  segments?: { date?: string; gender?: string };
+  metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
+  campaign?: { id?: string };
+};
+
+export type GoogleDemoAgeRow = {
+  segments?: { date?: string; ageRange?: string };
+  metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
+  campaign?: { id?: string };
+};
+
+export type GoogleDemoResult =
+  | { ok: true; gender: GoogleDemoGenderRow[]; ageRange: GoogleDemoAgeRow[] }
+  | { ok: false; status: number; error: unknown };
+
+export async function fetchGoogleDemoView(opts: GoogleBreakdownOpts): Promise<GoogleDemoResult> {
+  const qGender = `
+    SELECT segments.date, segments.gender,
+           metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions,
+           campaign.id
+    FROM gender_view
+    WHERE campaign.id = ${Number(opts.campaignId)}
+      AND segments.date BETWEEN '${opts.fromDate}' AND '${opts.toDate}'
+  `;
+  const qAge = `
+    SELECT segments.date, segments.age_range,
+           metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions,
+           campaign.id
+    FROM age_range_view
+    WHERE campaign.id = ${Number(opts.campaignId)}
+      AND segments.date BETWEEN '${opts.fromDate}' AND '${opts.toDate}'
+  `;
+  const g = await gaqlSearch<GoogleDemoGenderRow>(opts.customerId, qGender, opts.creds, opts.accessToken);
+  if (!g.ok) return { ok: false, status: g.status, error: g.error };
+  const a = await gaqlSearch<GoogleDemoAgeRow>(opts.customerId, qAge, opts.creds, opts.accessToken);
+  if (!a.ok) return { ok: false, status: a.status, error: a.error };
+  return { ok: true, gender: g.rows, ageRange: a.rows };
+}
+
 // Ping — used by /admin/integrations to verify credentials work.
 export async function pingGoogleAds(): Promise<
   | { ok: true; customer_descriptive_name: string | null; currency_code: string | null }
