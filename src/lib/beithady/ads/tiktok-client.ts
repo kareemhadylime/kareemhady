@@ -290,3 +290,60 @@ export function buildTikTokTitle(caption?: string, hashtags?: string[]): string 
   const tagBlock = tags.length ? '\n\n' + tags.join(' ') : '';
   return ((caption || '').trim() + tagBlock).slice(0, 2200);
 }
+
+// === Integrated report — audience breakdowns (BH Ads V1) ===
+
+export type TikTokIntegratedDim = 'country_code' | 'gender' | 'age' | 'placement';
+
+export type TikTokIntegratedOpts = {
+  advertiserId: string;
+  campaignIds: string[];                                            // external campaign ids
+  dimensions: TikTokIntegratedDim[];
+  fromDate: string;
+  toDate: string;
+  marketingToken: string;
+};
+
+export type TikTokIntegratedRow = {
+  dimensions?: Record<string, string>;
+  metrics?: Record<string, string>;
+};
+
+export type TikTokIntegratedResult =
+  | { ok: true; rows: TikTokIntegratedRow[] }
+  | { ok: false; status: number; error: string; raw: unknown };
+
+export async function fetchTikTokIntegratedReport(
+  opts: TikTokIntegratedOpts
+): Promise<TikTokIntegratedResult> {
+  const rows: TikTokIntegratedRow[] = [];
+  let page = 1;
+  let safety = 0;
+  while (safety < 20) {
+    safety += 1;
+    const body = {
+      advertiser_id: opts.advertiserId,
+      report_type: 'AUDIENCE',
+      data_level: 'AUCTION_CAMPAIGN',
+      dimensions: ['campaign_id', ...opts.dimensions],
+      metrics: ['impressions', 'clicks', 'spend', 'reach', 'conversion'],
+      start_date: opts.fromDate,
+      end_date: opts.toDate,
+      filters: opts.campaignIds.length
+        ? [{ field_name: 'campaign_ids', filter_type: 'IN', filter_value: JSON.stringify(opts.campaignIds) }]
+        : [],
+      page,
+      page_size: 1000,
+    };
+    const r = await ttBizPost('/report/integrated/get/', body, opts.marketingToken);
+    if (!r.ok) {
+      const msg = (r.body as { message?: string }).message || `tiktok_http_${r.status}`;
+      return { ok: false, status: r.status, error: msg, raw: r.body };
+    }
+    const data = (r.body as { data?: { list?: TikTokIntegratedRow[]; page_info?: { has_more?: boolean } } }).data || {};
+    if (Array.isArray(data.list)) rows.push(...data.list);
+    if (!data.page_info?.has_more) break;
+    page += 1;
+  }
+  return { ok: true, rows };
+}
