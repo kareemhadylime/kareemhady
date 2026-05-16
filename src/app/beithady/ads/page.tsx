@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Megaphone, Plus, Users, DollarSign, Activity, BarChart3, AlertTriangle, Globe2, RefreshCw } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
-import { getDashboardKpis, listCampaigns, listLeadFunnel } from '@/lib/beithady/ads/reporting';
+import { getDashboardKpisWithCompare, listCampaigns, listLeadFunnel } from '@/lib/beithady/ads/reporting';
 import { convertManyToEgp } from '@/lib/fx-rates';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
@@ -14,6 +14,11 @@ import { AudienceSummaryWidget } from './_components/audience-summary-widget';
 import { parseDateRange } from '@/lib/beithady/ads/date-range';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { syncAllAction } from './actions';
+import { AiSummaryCard } from './_components/ai-summary-card';
+import { AnomalyBanner } from './_components/anomaly-banner';
+import { SpendPacingCard } from './_components/spend-pacing-card';
+import { PeriodDeltaBadge } from './_components/period-delta-badge';
+import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -30,8 +35,28 @@ export default async function AdsLandingPage({
   const sp = await searchParams;
   const range = parseDateRange({ from: sp.from, to: sp.to, preset: sp.preset, compare: sp.compare });
 
+  const sb = supabaseAdmin();
+  const { data: recentSummaryRow } = await sb
+    .from('beithady_audit_log')
+    .select('metadata, created_at')
+    .eq('module', 'ads').eq('action', 'ai_summary_generated')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const recentSummary = (recentSummaryRow as Array<{ metadata: Record<string, unknown>; created_at: string }> | null)?.[0];
+  const summaryRange = recentSummary?.metadata?.range as { from?: string; to?: string } | undefined;
+  const summaryForThisRange = summaryRange?.from === range.from && summaryRange?.to === range.to
+    ? (recentSummary!.metadata.summary as string | undefined) ?? null
+    : null;
+
+  const cairoToday = new Date().toLocaleString('en-CA', { timeZone: 'Africa/Cairo' }).slice(0, 10);
+  const sinceIso = new Date(cairoToday + 'T00:00:00+03:00').toISOString();
+  const { count: usedToday } = await sb.from('beithady_audit_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('module', 'ads').eq('action', 'ai_summary_generated')
+    .gte('created_at', sinceIso);
+
   const [
-    kpis,
+    kpisCompare,
     campaigns,
     recentLeads,
     metaEnabled,
@@ -41,7 +66,7 @@ export default async function AdsLandingPage({
     tiktokEnabled,
     tiktokStatus,
   ] = await Promise.all([
-    getDashboardKpis({ from: range.from, to: range.to }),
+    getDashboardKpisWithCompare({ range: { from: range.from, to: range.to }, compare: range.compare }),
     listCampaigns(),
     listLeadFunnel({ limit: 10 }),
     getProviderEnabled('meta_marketing'),
@@ -51,6 +76,8 @@ export default async function AdsLandingPage({
     getProviderEnabled('tiktok_ads'),
     getProviderStatus('tiktok_ads'),
   ]);
+  const kpis = kpisCompare.current;
+  const priorKpis = kpisCompare.prior;
   const metaConfigured = metaEnabled && (metaStatus.config_keys_set.length >= 4 || metaStatus.has_env_fallback.length >= 4);
   const googleConfigured = googleEnabled && (googleStatus.config_keys_set.length >= 4 || googleStatus.has_env_fallback.length >= 4);
   const tiktokConfigured = tiktokEnabled && (tiktokStatus.config_keys_set.length >= 2 || tiktokStatus.has_env_fallback.length >= 2);
@@ -100,9 +127,15 @@ export default async function AdsLandingPage({
         }
       />
 
+      <AiSummaryCard
+        range={{ from: range.from, to: range.to }}
+        summary={summaryForThisRange}
+        usedToday={usedToday ?? 0}
+      />
       <AdsTabs active="overview" />
       <DateRangeFilter />
       <PerBuildingFilter />
+      <AnomalyBanner />
 
       {/* Per-platform connection status row */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -136,16 +169,34 @@ export default async function AdsLandingPage({
         range={{ from: range.from, to: range.to }}
         buildingCode={sp.building}
       />
+      <SpendPacingCard range={{ from: range.from, to: range.to }} />
 
       <AudienceSummaryWidget range={{ from: range.from, to: range.to }} />
 
       {/* KPIs for the selected date range */}
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-        <Stat label={`Spend (${range.preset === 'custom' ? `${range.from}—${range.to}` : range.preset})`} value={`EGP ${kpis.spend.toLocaleString()}`} icon={DollarSign} />
-        <Stat label={`Leads (${range.preset === 'custom' ? `${range.from}—${range.to}` : range.preset})`} value={kpis.leads.toLocaleString()} icon={Users} accent="cyan" />
-        <Stat label="CPL" value={kpis.cpl == null ? '—' : `EGP ${kpis.cpl.toFixed(2)}`} accent="amber" />
-        <Stat label="Bookings attributed" value={kpis.bookings.toLocaleString()} accent="emerald" />
-        <Stat label="Revenue (EGP)" value={`EGP ${kpis.attributed_revenue.toLocaleString()}`} accent="emerald" />
+        <Stat label={`Spend (${range.preset === 'custom' ? `${range.from}—${range.to}` : range.preset})`}
+              value={`EGP ${kpis.spend.toLocaleString()}`}
+              delta={priorKpis ? { current: kpis.spend, prior: priorKpis.spend } : undefined}
+              icon={DollarSign} />
+        <Stat label={`Leads (${range.preset === 'custom' ? `${range.from}—${range.to}` : range.preset})`}
+              value={kpis.leads.toLocaleString()}
+              delta={priorKpis ? { current: kpis.leads, prior: priorKpis.leads } : undefined}
+              icon={Users} accent="cyan" />
+        <Stat label="CPL"
+              value={kpis.cpl == null ? '—' : `EGP ${kpis.cpl.toFixed(2)}`}
+              delta={priorKpis && kpis.cpl != null && priorKpis.cpl != null
+                ? { current: kpis.cpl, prior: priorKpis.cpl, reverseColor: true }
+                : undefined}
+              accent="amber" />
+        <Stat label="Bookings attributed"
+              value={kpis.bookings.toLocaleString()}
+              delta={priorKpis ? { current: kpis.bookings, prior: priorKpis.bookings } : undefined}
+              accent="emerald" />
+        <Stat label="Revenue (EGP)"
+              value={`EGP ${kpis.attributed_revenue.toLocaleString()}`}
+              delta={priorKpis ? { current: kpis.attributed_revenue, prior: priorKpis.attributed_revenue } : undefined}
+              accent="emerald" />
         <Stat label="Active" value={kpis.active_campaigns.toLocaleString()} icon={Activity} />
         <Stat label="Drafts" value={kpis.draft_campaigns.toLocaleString()} accent="slate" />
       </section>
@@ -285,7 +336,13 @@ function PlatformStatusCard({
   );
 }
 
-function Stat({ label, value, accent, icon: Icon }: { label: string; value: string; accent?: 'cyan' | 'amber' | 'emerald' | 'slate'; icon?: React.ComponentType<{ size?: number; className?: string }> }) {
+function Stat({ label, value, accent, icon: Icon, delta }: {
+  label: string;
+  value: string;
+  accent?: 'cyan' | 'amber' | 'emerald' | 'slate';
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  delta?: { current: number; prior: number; reverseColor?: boolean };
+}) {
   const cls = accent === 'cyan'
     ? 'text-cyan-700 dark:text-cyan-300'
     : accent === 'amber'
@@ -302,6 +359,11 @@ function Stat({ label, value, accent, icon: Icon }: { label: string; value: stri
         {label}
       </div>
       <div className={`text-lg font-bold tabular-nums ${cls}`}>{value}</div>
+      {delta && (
+        <div className="flex justify-center mt-0.5">
+          <PeriodDeltaBadge current={delta.current} prior={delta.prior} reverseColor={delta.reverseColor} />
+        </div>
+      )}
     </div>
   );
 }
