@@ -105,8 +105,27 @@ describe('earlyPayoffProjection', () => {
       principal: 12000, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
     });
     const r = earlyPayoffProjection(schedule, 0, 100, 12);
-    expect(r.monthsSaved).toBeGreaterThan(0);
-    expect(r.totalInterestSaved).toBeGreaterThan(0);
+    expect(r.monthsSaved).toBe(1);
+    expect(r.newPayoffDate).toBe('2026-12-01');
+    // exact interest saved depends on rounding; bound it tightly
+    expect(r.totalInterestSaved).toBeGreaterThan(60);
+    expect(r.totalInterestSaved).toBeLessThan(75);
+  });
+
+  it('throws on negative extraMonthlyAmount', () => {
+    const schedule = generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
+    });
+    expect(() => earlyPayoffProjection(schedule, 0, -1, 12))
+      .toThrow(/must be >= 0/);
+  });
+
+  it('throws on negative paidInstallmentCount', () => {
+    const schedule = generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
+    });
+    expect(() => earlyPayoffProjection(schedule, -1, 0, 12))
+      .toThrow(/must be >= 0/);
   });
 
   it('already paid installments are not re-counted', () => {

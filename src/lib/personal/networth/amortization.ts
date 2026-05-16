@@ -64,6 +64,12 @@ export function earlyPayoffProjection(
   extraMonthlyAmount: number,
   aprPct: number
 ): EarlyPayoffResult {
+  if (extraMonthlyAmount < 0) {
+    throw new Error(`extraMonthlyAmount must be >= 0, got ${extraMonthlyAmount}`);
+  }
+  if (paidInstallmentCount < 0) {
+    throw new Error(`paidInstallmentCount must be >= 0, got ${paidInstallmentCount}`);
+  }
   const r = aprPct / 100 / 12;
   const remaining = schedule.slice(paidInstallmentCount);
   if (remaining.length === 0) {
