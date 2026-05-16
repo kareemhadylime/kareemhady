@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
-import { decrypt } from './crypto';
+import { decrypt, encrypt } from './crypto';
+import { supabaseAdmin } from './supabase';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -41,6 +42,28 @@ export async function getGmailClientFromRefresh(refreshTokenEncrypted: string) {
   client.setCredentials({ refresh_token });
   const { credentials } = await client.refreshAccessToken();
   client.setCredentials(credentials);
+
+  // If Google rotated the refresh token during this exchange, persist
+  // the new one. Default OAuth2 web-server clients don't rotate today,
+  // but the setting can be enabled per-client and could become default
+  // in the future — without persistence, every successful refresh
+  // silently revokes the stored value and the very next call would
+  // start failing with invalid_grant (the exact symptom we saw on
+  // 2026-05-11). Lookup keys off the exact ciphertext the caller
+  // passed in, which by construction equals what's in the DB row.
+  const rotated = credentials.refresh_token;
+  if (rotated && rotated !== refresh_token) {
+    try {
+      const sb = supabaseAdmin();
+      await sb
+        .from('accounts')
+        .update({ oauth_refresh_token_encrypted: encrypt(rotated) })
+        .eq('oauth_refresh_token_encrypted', refreshTokenEncrypted);
+    } catch (e) {
+      console.error('[gmail] persist_rotated_refresh_token_failed:', e);
+    }
+  }
+
   return google.gmail({ version: 'v1', auth: client });
 }
 
