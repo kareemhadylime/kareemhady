@@ -1,3 +1,44 @@
+## 2026-05-16 — BH Ads V3 brainstorm: § 2 per-feature design awaiting approval
+
+**Status:** Mid-brainstorm. § 1 ✅ approved (kareem: "ok"). § 2 (per-feature data queries + AI prompt) just presented, awaiting kareem's response before § 3 (UI structure + testing).
+
+**§ 2 covered the actual queries per feature:**
+- **D1 hourly heatmap:** Two functions in `hourly.ts` — `getLeadDensityHeatmap` (Cairo-local day×hour aggregation on `ads_leads.created_at`) + `getMetaHourlyHeatmap` (reads new `ads_hourly_metrics` table). Cron extension fetches `hourly_stats_aggregated_by_advertiser_time_zone` for last 24h per Meta campaign.
+- **D2 spend pacing:** `getSpendPacing({range})` → `{ daily: sparkline, campaigns: per-campaign bars with monthly_budget_cap_egp, projected_egp_eom, pct_of_cap, auto_paused }`. Highlights >80% cap.
+- **D3 period-delta on KPIs:** Add `getDashboardKpisWithCompare()` to `reporting.ts` — calls `getDashboardKpis()` twice when `?compare=1`. Main page wraps each `<Stat>` with V1's existing `<PeriodDeltaBadge />` (reverseColor for CPL).
+- **E1 top ads:** `getTopAds({sortBy: 'cpl'|'ctr'|'leads'})` joins `ads_ads × ads_daily_metrics` filtered by `ad_id IS NOT NULL`, EGP-converted.
+- **E2 top assets:** Thin wrapper over existing V1 `ads_asset_performance` view + optional `buildingCode` filter.
+- **E3 anomaly:** Extract from existing `beithady-ads-anomaly-alert` cron into shared `anomalies.ts` lib (`detectAnomalies({today, lookbackDays})` returns spend_spike / zero_leads / low_roas events). Cron handler refactors to call the new lib. Banner returns null when empty.
+- **E4 AI narrative:** Claude haiku-4-5 wrapper. Prompt = "You are an ad-ops analyst for Beit Hady…3 paragraphs: what's working / what's not / one action." Audit-logged per call. Daily cap = 20 calls (~$0.20/day).
+
+**Locked design decisions (running):**
+- Q1 scope = all 7 V3 features
+- Q2 D1 = lead density now + Meta hourly cron + new ads_hourly_metrics table (migration 0140)
+- Q3 E4 = on-demand button only (Claude haiku-4-5)
+- Q4 E3 = re-compute at page load via shared `anomalies.ts` (no new table)
+- Approach 2 = cluster into 2 new audience tabs (?tab=time, ?tab=optimize) + 3 main-dashboard cards + KPI delta extension
+
+**Next:** Kareem replies to § 2 → § 3 (UI mockups for each new surface + testing strategy) → write spec → kareem reviews → writing-plans skill.
+
+**Spec destination:** `docs/superpowers/specs/2026-05-16-bh-ads-v3-time-optimize-design.md`
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md)
+**V1 + V2 shipped:** Both complete (849 tests passing).
+
+---
+
+## 2026-05-16 — Personal NetWorth Task 6: amortization.ts TDD (DONE)
+
+**Commit:** 34c3fbd — `feat(networth): generateSchedule amortization with full test coverage`
+
+**Files created:**
+- `src/lib/personal/networth/types.ts` — 6 exported types: `LiabilityKind`, `AssetKind`, `PaymentCategory`, `AmortizationInput`, `ScheduleRow`, `EarlyPayoffResult`
+- `src/lib/personal/networth/amortization.test.ts` — 7 vitest specs (TDD: written before implementation, confirmed failing, then passing)
+- `src/lib/personal/networth/amortization.ts` — `generateSchedule(input: AmortizationInput): ScheduleRow[]` with `round2` and `addMonths` helpers
+
+**Results:** 7/7 tests pass, `tsc --noEmit` clean, strict TypeScript, no `any`.
+
+---
+
 ## 2026-05-16 — BH Ads V3 brainstorm: § 1 architecture awaiting approval
 
 **Status:** Mid-brainstorm. § 1 (architecture + file structure) just presented, awaiting kareem's response before § 2 (per-feature data design + AI prompt).
