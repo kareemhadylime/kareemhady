@@ -261,11 +261,11 @@ export default async function CampaignDetailPage({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-xs">
-          <Stat label="Spend (60d)" value={`$${Math.round(totalSpend).toLocaleString()}`} />
+          <Stat label="Spend (60d)" value={`EGP ${Math.round(totalSpend).toLocaleString()}`} />
           <Stat label="Impressions" value={totalImp.toLocaleString()} />
           <Stat label="Clicks" value={totalClicks.toLocaleString()} />
           <Stat label="Leads" value={totalLeads.toLocaleString()} accent="cyan" />
-          <Stat label="Bookings revenue (USD)" value={`$${Math.round(attributedRevenueUsd).toLocaleString()}`} accent="emerald" />
+          <Stat label="Bookings revenue (EGP)" value={`EGP ${Math.round(attributedRevenueUsd).toLocaleString()}`} accent="emerald" />
           <Stat label="ROAS" value={roas == null ? '—' : `${roas.toFixed(2)}x`} accent={roas != null && roas >= 1 ? 'emerald' : 'amber'} />
         </div>
 
@@ -277,7 +277,7 @@ export default async function CampaignDetailPage({
             {cap != null && (
               <div className="border border-slate-200 dark:border-slate-700 rounded-md p-3">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Monthly cap</div>
-                <div className="font-semibold tabular-nums">${cap.toLocaleString()}</div>
+                <div className="font-semibold tabular-nums">EGP {cap.toLocaleString()}</div>
                 {capPct != null && (
                   <div className="mt-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                     <div className={`h-full ${capPct >= 100 ? 'bg-rose-500' : capPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, capPct)}%` }} />
@@ -313,12 +313,12 @@ export default async function CampaignDetailPage({
             <p className="text-xs text-slate-500">No spend or impressions yet — campaign may be brand new or hasn&apos;t started delivering.</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
-              <Stat label="Spend (live)" value={`$${liveInsights.spend.toFixed(2)}`} />
+              <Stat label="Spend (live)" value={`EGP ${liveInsights.spend.toFixed(2)}`} />
               <Stat label="Impressions" value={liveInsights.impressions.toLocaleString()} />
               <Stat label="Clicks" value={liveInsights.clicks.toLocaleString()} />
               <Stat label="Reach" value={liveInsights.reach.toLocaleString()} />
-              {liveInsights.cpm != null && <Stat label="CPM" value={`$${liveInsights.cpm.toFixed(2)}`} />}
-              {liveInsights.cpc != null && <Stat label="CPC" value={`$${liveInsights.cpc.toFixed(2)}`} />}
+              {liveInsights.cpm != null && <Stat label="CPM" value={`EGP ${liveInsights.cpm.toFixed(2)}`} />}
+              {liveInsights.cpc != null && <Stat label="CPC" value={`EGP ${liveInsights.cpc.toFixed(2)}`} />}
               {liveInsights.ctr != null && <Stat label="CTR" value={`${liveInsights.ctr.toFixed(2)}%`} accent="cyan" />}
             </div>
           )}
@@ -333,7 +333,7 @@ export default async function CampaignDetailPage({
             {chartDays.map((d, i) => {
               const h = maxSpend > 0 ? Math.max(2, (Number(d.spend_micros) / maxSpend) * 96) : 2;
               return (
-                <div key={`${d.metric_date}-${i}`} className="flex-1 bg-emerald-400 dark:bg-emerald-600 rounded-t" style={{ height: `${h}px` }} title={`${d.metric_date}: $${(Number(d.spend_micros) / 1_000_000).toFixed(2)}`} />
+                <div key={`${d.metric_date}-${i}`} className="flex-1 bg-emerald-400 dark:bg-emerald-600 rounded-t" style={{ height: `${h}px` }} title={`${d.metric_date}: EGP ${(Number(d.spend_micros) / 1_000_000).toFixed(2)}`} />
               );
             })}
           </div>
@@ -372,7 +372,7 @@ export default async function CampaignDetailPage({
                     <td className="py-2 pr-3"><MetaStatusBadge status={sLive} /></td>
                   )}
                   <td className="py-2 pr-3">{s.optimization_goal || '—'}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{s.daily_budget_micros ? `$${(s.daily_budget_micros / 1_000_000).toFixed(2)}` : '—'}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{s.daily_budget_micros ? `EGP ${(s.daily_budget_micros / 1_000_000).toFixed(2)}` : '—'}</td>
                   <td className="py-2 pr-3 text-[10px]">
                     {(s.target_countries || []).join(', ') || '—'}
                     {(s.age_min || s.age_max) && <span className="text-slate-500"> · age {s.age_min || '?'}–{s.age_max || '?'}</span>}

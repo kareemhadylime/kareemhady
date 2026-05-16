@@ -64,9 +64,9 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       <AdsTabs active="performance" />
 
       <section className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-        <Stat icon={DollarSign} label={`Spend (${days}d)`} value={`$${kpis.spend.toLocaleString()}`} />
+        <Stat icon={DollarSign} label={`Spend (${days}d)`} value={`EGP ${kpis.spend.toLocaleString()}`} />
         <Stat icon={Users} label={`Leads (${days}d)`} value={kpis.leads.toLocaleString()} accent="cyan" />
-        <Stat icon={TrendingUp} label="CPL" value={kpis.cpl == null ? '—' : `$${kpis.cpl.toFixed(2)}`} accent="amber" />
+        <Stat icon={TrendingUp} label="CPL" value={kpis.cpl == null ? '—' : `EGP ${kpis.cpl.toFixed(2)}`} accent="amber" />
         <Stat icon={BarChart3} label="Bookings" value={kpis.bookings.toLocaleString()} accent="emerald" />
         <Stat icon={Wallet} label="ROAS" value={kpis.roas == null ? '—' : `${kpis.roas.toFixed(2)}x`} accent="emerald" />
       </section>
@@ -93,12 +93,12 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
               return (
                 <tr key={p} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="py-2 pr-3 font-medium">{PLATFORM_LABEL[p]}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">${Math.round(r.spend).toLocaleString()}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(r.spend).toLocaleString()}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{r.impressions.toLocaleString()}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{r.clicks.toLocaleString()}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{r.leads.toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{cpl == null ? '—' : `$${cpl.toFixed(2)}`}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{cpc == null ? '—' : `$${cpc.toFixed(2)}`}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{cpl == null ? '—' : `EGP ${cpl.toFixed(2)}`}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{cpc == null ? '—' : `EGP ${cpc.toFixed(2)}`}</td>
                 </tr>
               );
             })}
@@ -126,9 +126,9 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                 return (
                   <tr key={code} className="border-b border-slate-100 dark:border-slate-800">
                     <td className="py-2 pr-3 font-mono">{code}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">${Math.round(r.spend).toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(r.spend).toLocaleString()}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{r.leads.toLocaleString()}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{cpl == null ? '—' : `$${cpl.toFixed(2)}`}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{cpl == null ? '—' : `EGP ${cpl.toFixed(2)}`}</td>
                   </tr>
                 );
               })}
@@ -162,10 +162,10 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                   <tr key={r.campaign_id} className="border-b border-slate-100 dark:border-slate-800">
                     <td className="py-2 pr-3 font-medium truncate max-w-xs">{r.campaign_name}</td>
                     <td className="py-2 pr-3">{PLATFORM_LABEL[r.platform as keyof typeof PLATFORM_LABEL] || r.platform}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">${Math.round(r.spend).toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(r.spend).toLocaleString()}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{r.leads.toLocaleString()}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{r.bookings.toLocaleString()}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">${r.attributed_revenue.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">EGP {r.attributed_revenue.toLocaleString()}</td>
                     <td className={`py-2 pr-3 text-right tabular-nums font-semibold ${r.roas != null && r.roas >= 1 ? 'text-emerald-700 dark:text-emerald-300' : r.roas != null ? 'text-amber-700 dark:text-amber-300' : 'text-slate-400'}`}>
                       {r.roas == null ? '—' : `${r.roas.toFixed(2)}x`}
                     </td>
@@ -200,9 +200,9 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
                   <td className="py-2 pr-3">{PLATFORM_LABEL[d.platform as keyof typeof PLATFORM_LABEL] || d.platform}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{Number(d.impressions).toLocaleString()}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{Number(d.clicks).toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">${Math.round(Number(d.spend)).toLocaleString()}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(Number(d.spend)).toLocaleString()}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{Number(d.leads).toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{d.cpl == null ? '—' : `$${d.cpl.toFixed(2)}`}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{d.cpl == null ? '—' : `EGP ${d.cpl.toFixed(2)}`}</td>
                 </tr>
               ))}
             </tbody>

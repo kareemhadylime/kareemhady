@@ -115,11 +115,11 @@ export default async function AdsLandingPage({
 
       {/* KPIs (last 30 days) */}
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-        <Stat label="Spend (30d)" value={`$${kpis.spend.toLocaleString()}`} icon={DollarSign} />
+        <Stat label="Spend (30d)" value={`EGP ${kpis.spend.toLocaleString()}`} icon={DollarSign} />
         <Stat label="Leads (30d)" value={kpis.leads.toLocaleString()} icon={Users} accent="cyan" />
-        <Stat label="CPL" value={kpis.cpl == null ? '—' : `$${kpis.cpl.toFixed(2)}`} accent="amber" />
+        <Stat label="CPL" value={kpis.cpl == null ? '—' : `EGP ${kpis.cpl.toFixed(2)}`} accent="amber" />
         <Stat label="Bookings attributed" value={kpis.bookings.toLocaleString()} accent="emerald" />
-        <Stat label="Revenue (USD)" value={`$${kpis.attributed_revenue.toLocaleString()}`} accent="emerald" />
+        <Stat label="Revenue (EGP)" value={`EGP ${kpis.attributed_revenue.toLocaleString()}`} accent="emerald" />
         <Stat label="Active" value={kpis.active_campaigns.toLocaleString()} icon={Activity} />
         <Stat label="Drafts" value={kpis.draft_campaigns.toLocaleString()} accent="slate" />
       </section>
@@ -166,9 +166,9 @@ export default async function AdsLandingPage({
                       <td className="py-2 pr-3 text-[11px]">
                         {(c.building_codes || []).join(' · ') || '—'}
                       </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">${Math.round(c.spend).toLocaleString()}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(c.spend).toLocaleString()}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{c.leads.toLocaleString()}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `$${c.cpl.toFixed(2)}`}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `EGP ${c.cpl.toFixed(2)}`}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{c.ctr_pct == null ? '—' : `${c.ctr_pct.toFixed(2)}%`}</td>
                     </tr>
                   ))}
@@ -244,7 +244,7 @@ function PlatformStatusCard({
         )}
       </div>
       <div className="grid grid-cols-4 gap-2 mt-2 text-[10px] text-slate-500">
-        <div><div className="font-bold tabular-nums text-sm text-slate-700 dark:text-slate-200">${Math.round(stats.spend).toLocaleString()}</div>Spend</div>
+        <div><div className="font-bold tabular-nums text-sm text-slate-700 dark:text-slate-200">EGP {Math.round(stats.spend).toLocaleString()}</div>Spend</div>
         <div><div className="font-bold tabular-nums text-sm text-slate-700 dark:text-slate-200">{stats.leads}</div>Leads</div>
         <div><div className="font-bold tabular-nums text-sm text-emerald-700">{stats.active}</div>Active</div>
         <div><div className="font-bold tabular-nums text-sm text-slate-500">{stats.drafts}</div>Drafts</div>

@@ -133,15 +133,15 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
                     <td className="py-2 pr-3">{PLATFORM_LABEL[c.platform as keyof typeof PLATFORM_LABEL] || c.platform}</td>
                     <td className="py-2 pr-3"><span className={`text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded ${statusBadgeClass(c.campaign_status)}`}>{c.campaign_status || '—'}</span></td>
                     <td className="py-2 pr-3 text-[11px]">{(c.building_codes || []).join(' · ') || '—'}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">${Math.round(c.spend).toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(c.spend).toLocaleString()}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{c.clicks.toLocaleString()}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{c.leads.toLocaleString()}</td>
-                    <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `$${c.cpl.toFixed(2)}`}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `EGP ${c.cpl.toFixed(2)}`}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">{c.ctr_pct == null ? '—' : `${c.ctr_pct.toFixed(2)}%`}</td>
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {cap == null ? '—' : (
                         <>
-                          ${cap.toLocaleString()}
+                          EGP {cap.toLocaleString()}
                           {pctUsed != null && (
                             <div className={`text-[9px] ${pctUsed >= 100 ? 'text-rose-600' : pctUsed >= 80 ? 'text-amber-600' : 'text-slate-400'}`}>
                               {pctUsed.toFixed(0)}% used
