@@ -44,7 +44,7 @@ describe('resolveScope', () => {
     expect(result.fromDate).toBe('2026-05-11T00:00:00+03:00');
   });
 
-  it('handles the Cairo-UTC offset edge case: 01:00 Cairo on Monday is still this week (not last)', () => {
+  it('handles the Cairo-UTC offset: 00:30 Cairo on Monday is this week, not last', () => {
     // 2026-05-11 22:00 UTC = 2026-05-12 01:00 Cairo (Tuesday).
     // Wait — that's Tuesday. The edge case we care about is:
     // 2026-05-11 00:30 Cairo = 2026-05-10 21:30 UTC (still Sunday in UTC).

@@ -114,7 +114,10 @@ function cairoMondayIso(now: Date): string {
   const WEEKDAY_INDEX: Record<string, number> = {
     Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
   };
-  const daysSinceMonday = WEEKDAY_INDEX[weekday] ?? 0;
+  const daysSinceMonday = WEEKDAY_INDEX[weekday];
+  if (daysSinceMonday === undefined) {
+    throw new Error(`cairoMondayIso: unrecognized weekday abbreviation "${weekday}"`);
+  }
   // Build the Monday date in UTC space first (purely arithmetic).
   const mondayUtc = new Date(Date.UTC(year, month - 1, day - daysSinceMonday));
   const isoDate = `${mondayUtc.getUTCFullYear()}-${pad(mondayUtc.getUTCMonth() + 1)}-${pad(mondayUtc.getUTCDate())}`;
