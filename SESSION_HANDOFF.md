@@ -1,3 +1,28 @@
+## 2026-05-16 — V1 brainstorm Q1+Q2 locked; Q3 awaiting
+
+**Locked decisions:**
+- Q1: UI placement — main dashboard shows audience SUMMARY; clicking opens dedicated `/beithady/ads/audience/` page with full breakdowns + filters
+- Q2: Platform coverage — ALL THREE (Meta + Google + TikTok). V1 task count rises to ~20.
+
+**Q3 awaiting:** Date filter UX
+- A. Presets only (7d/30d/90d/Lifetime)
+- B. (Recommended) Presets + custom range picker
+- C. Calendar only
+- D. Presets + custom + period comparison (folds V3's D3 into V1)
+
+URL pattern: `?from=YYYY-MM-DD&to=YYYY-MM-DD` for shareable/bookmarkable links.
+
+**Remaining V1 questions:**
+- Q4: Data storage strategy — new `ads_insights_breakdowns` table vs JSONB column vs per-dimension tables
+- Q5: Cron refresh cadence — daily vs hourly vs on-demand
+- Q6: Drill-down level — campaign → adset → ad? Or just campaign?
+- Q7: Chart types per dimension — pie/bar/treemap/map
+- Q8: Historical backfill — 90d on V1 deploy?
+
+After clarifying questions: propose 2-3 approaches, present design sections, write V1 spec, then writing-plans.
+
+---
+
 ## 2026-05-16 — BH ads insights roadmap committed; V1 brainstorm starting
 
 **Status:** Roadmap doc committed `684c0ce`. V1 clarifying questions started.
