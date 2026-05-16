@@ -294,6 +294,22 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 
 ---
 
+## 2026-05-16 — EG scope on tiles + MoM backfill (DONE)
+
+User feedback after the gross-card / 4-col grid landed:
+1. Tiles didn't communicate that they're Egypt-only. DXB is excluded from `all` (see `units.ts:isExcludedFromReport`) and surfaces separately as the "+2 DXB" pill, but the Hero KPI labels gave no indication. Added "· EG" suffix to every all-scope Hero KPI label on both landing-pulse and Performance dashboard. Per-building view label becomes "... · BH-26 · EG" since all BH operating buildings are in Egypt.
+2. MoM sub-lines (added in 31b70770) weren't appearing. Root cause: the `daily_report_snapshots` table only had history back to **2026-04-26**. For any May date ≤ 25, the same-day-last-month target falls before that, and even with the ±5-day tolerance window we couldn't find a neighbor. Needed backfill.
+
+**Backfill mechanism:** added `?date=YYYY-MM-DD` (+ `?skip_dist=1`) to the `/api/cron/beithady-daily-report` endpoint, mapping to the existing `runDailyReport({ dateOverride, skipDistribution })` signature. Combined with the earlier `?rebuild=1`, the cron route is now an idempotent historical backfill tool — `curl -H "Bearer …" ".../api/cron/beithady-daily-report?date=2026-04-16&rebuild=1&skip_dist=1"` rebuilds any past date.
+
+**Backfilled April 1-25** in chunks (each build ≈ 30-60s, total ≈ 15-20 min). Critical date 2026-04-16 confirmed in DB with full payload including new `revenue_mtd_gross_usd` field. Today's May 16 MoM now resolves: Occupancy +29.8pp ▲, Revenue (OTB) -13.9% ▼, Revenue (Gross) -11.6% ▼.
+
+**Operational note:** Going forward, the daily cron writes one new snapshot per day, so MoM remains populated automatically as long as the cron doesn't miss a tick.
+
+**Commit:** 069394f0.
+
+---
+
 ## 2026-05-16 — BH Analytics Performance redesign (DONE)
 
 Implemented the four follow-ups to the gross-revenue card work:
