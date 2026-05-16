@@ -1,3 +1,40 @@
+## 2026-05-16 — V1 PLAN WRITTEN: BH Ads Insights V1 (date filter + audience breakdowns)
+
+**Status:** Spec approved by kareem. Implementation plan written + committed (`48b01ed`). Awaiting kareem's choice on execution mode (subagent-driven vs inline).
+
+**Plan:** [docs/superpowers/plans/2026-05-16-bh-ads-insights-v1.md](docs/superpowers/plans/2026-05-16-bh-ads-insights-v1.md) — 25 TDD-sized tasks, ~3,944 lines
+**Spec:** [docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md](docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md) (511 lines)
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md) (V1-V4 phases)
+
+**V1 task summary (25 tasks):**
+1. Migration 0138 — `ads_insights_{geo,demo,device}` tables
+2-4. Pure helpers — `date-range.ts`, `period-delta.ts`, `insights-errors.ts`
+5. Meta — `fetchMetaInsightsBreakdown`
+6-8. Google — `fetchGoogleGeoView` / `fetchGoogleDemoView` / `fetchGoogleDeviceView`
+9. TikTok — `fetchTikTokIntegratedReport`
+10-12. Per-dimension libs — `insights-geo.ts` / `insights-demo.ts` / `insights-device.ts` (normalize + upsert + rollup)
+13. Cron `beithady-ads-breakdowns` (every 6h, maxDuration 800) + `vercel.json`
+14. Admin Backfill 90d button + server action
+15. `reporting.ts` refactor to `{ from, to }` overload
+16. `<PeriodDeltaBadge />` inline tone badge (jsdom)
+17. `<DateRangeFilter />` client component (presets + custom + compare)
+18. `<AudienceSummaryWidget />` server component
+19. Wire date filter + widget into `/beithady/ads/` + add Audience tab
+20. Wire date filter into `/campaigns/[id]` + `/performance`
+21. Audience page shell + `<AudienceFilters />`
+22. `<GeoTab />` + ship audience page + stub other tabs
+23. `<DemoTab />` real implementation
+24. `<DeviceTab />` real implementation
+25. Manual smoke (7 checks) + final handoff
+
+**UI conventions baked into plan:** Every UI task uses `ix-card` / `ix-btn-*` / `ix-input` / `ix-link` (BH theme utilities) wrapped in `<BeithadyShell>` + `<BeithadyHeader>` + `<AdsTabs />`. Active state = emerald (matches existing `ads-tabs.tsx` pattern). NO raw Tailwind palette outside that one sanctioned color.
+
+**Test target:** +72 new tests → ~765 passing / 22 skipped, 0 regressions. `tsc --noEmit` clean.
+
+**Next:** kareem picks subagent-driven (recommended) or inline execution → first task ships migration 0138.
+
+---
+
 ## 2026-05-16 — SHIPPED: KIKA Reporting module + Picker Report (8/8 tasks complete)
 
 **Status:** Feature complete. All 8 tasks landed on `main`. Pushing to origin in this same turn — Vercel auto-deploys via the GitHub integration.
