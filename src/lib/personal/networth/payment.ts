@@ -105,13 +105,21 @@ export async function recordPaymentForRecurringTemplate(
     }
   }
 
-  // Advance the template
+  // Advance the template. This MUST succeed — silent failure here would cause
+  // the cron to re-process the same template on its next tick, creating a
+  // duplicate payment row.
   const nextRun = computeNextRunDate(
     tpl.frequency, tpl.day_of_period, tpl.month_of_year, occurredOn,
   );
-  await sb.from('personal_networth_recurring_templates')
+  const { error: tplErr } = await sb
+    .from('personal_networth_recurring_templates')
     .update({ next_run_date: nextRun, last_run_date: occurredOn })
     .eq('id', templateId);
+  if (tplErr) {
+    throw new Error(
+      `recordPaymentForRecurringTemplate: failed to advance template ${templateId}: ${tplErr.message}`,
+    );
+  }
   return paymentId;
 }
 
@@ -131,7 +139,12 @@ export async function recordCardPayment(
   let amount: number;
   switch (preset) {
     case 'min':
-      amount = Math.round((Number(li.current_balance) * Number(li.min_payment_pct ?? 5) / 100) * 100) / 100;
+      if (li.min_payment_pct == null) {
+        throw new Error(
+          `recordCardPayment: min_payment_pct not set for liability ${liabilityId}; cannot compute minimum payment`,
+        );
+      }
+      amount = Math.round((Number(li.current_balance) * Number(li.min_payment_pct) / 100) * 100) / 100;
       break;
     case 'statement':
     case 'full':
