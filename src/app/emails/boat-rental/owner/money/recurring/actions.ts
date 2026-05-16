@@ -9,7 +9,7 @@ import {
   logAudit,
 } from '@/lib/boat-rental/server-helpers';
 import { getOwnedOwnerIds } from '@/lib/boat-rental/auth';
-import { computeNextRunDate, type RecurringFrequency } from '@/lib/boat-rental/recurring';
+import { computeNextRunDate, type RecurringFrequency } from '@/lib/recurring';
 
 const VALID_CATEGORIES = [
   'amenities',

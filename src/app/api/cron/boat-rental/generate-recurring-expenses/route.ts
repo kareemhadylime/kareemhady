@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { computeNextRunDate, type RecurringFrequency } from '@/lib/boat-rental/recurring';
+import { computeNextRunDate, type RecurringFrequency } from '@/lib/recurring';
 import { logAudit } from '@/lib/boat-rental/server-helpers';
 import {
   enqueueNotification,
