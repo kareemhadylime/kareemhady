@@ -1,3 +1,36 @@
+## 2026-05-16 — Personal email category drill-down: select-all-in-category + sort dropdown (DONE)
+
+**User asked for two things on `/personal/email?category=<slug>`:**
+1. A way to act on every email in the category, not just the visible 500.
+2. Sort by sender or date in either direction.
+
+**Implementation:**
+- `loadCategoryTotal({accountId, category})` added to [src/lib/personal-email/inbox-query.ts](src/lib/personal-email/inbox-query.ts) — count query mirroring loadInbox's default filters (personal domain, INBOX-only).
+- 3 new server actions in [src/app/personal/email/actions.ts](src/app/personal/email/actions.ts): `archiveAllInCategory`, `markAllReadInCategory`, `moveAllInCategory`. Shared `resolveCategoryRows` helper groups by account-token; Gmail batchModify chunked at 1000. `moveAllInCategory` skips auto-rule creation (bulk gesture would spawn N from_domain rules — moveEmail single-row path still creates them).
+- [src/app/personal/email/page.tsx](src/app/personal/email/page.tsx) `CategoryFlatView` fetches totalCount in parallel and passes it + accountId to DrillDownView.
+- [src/app/personal/email/_components/drill-down-view.tsx](src/app/personal/email/_components/drill-down-view.tsx):
+  - Gmail-style "Select all N in <Category>" banner appears when page checkbox selects all 500 AND `totalCount > rows.length`. Clicking switches to selectAllInCategory mode where the bulk actions call the new server actions.
+  - BulkBar count label disambiguates ("1,847 selected · all in Beithady").
+  - SortDropdown (compact native `<select>`) at the right of the header bar. Modes: Date ↓/↑, Sender A→Z/Z→A. Priority-tier-on-top behavior preserved — sort applies as within-tier tiebreaker.
+- Sender sort key: display-name when present, falls back to email; case-insensitive.
+
+`npx tsc --noEmit` clean. needs-review surface unaffected (omits totalCount → banner doesn't render).
+
+---
+
+## 2026-05-16 — BH Ads V3 Task 17: Wire 3 new cards + D3 delta into main page (DONE, commit f1af1d2e)
+
+**Changes to `src/app/beithady/ads/page.tsx`:**
+- Added imports: `AiSummaryCard`, `AnomalyBanner`, `SpendPacingCard`, `PeriodDeltaBadge`, `getDashboardKpisWithCompare`, `supabaseAdmin`
+- Switched KPIs fetch from `getDashboardKpis` to `getDashboardKpisWithCompare` (returns `{ current, prior }`)
+- Added Supabase queries for most-recent AI summary row + daily call count for `<AiSummaryCard />` usage gate
+- Rendered `<AiSummaryCard />` at very top (above `<AdsTabs />`)
+- Rendered `<AnomalyBanner />` after `<PerBuildingFilter />` (before platform-status row)
+- Rendered `<SpendPacingCard />` after `<FrtCard />` and before `<AudienceSummaryWidget />`
+- Extended inline `Stat` component to accept `delta?: { current, prior, reverseColor? }` and renders `<PeriodDeltaBadge />` when present
+- Applied delta to Spend, Leads, CPL (reverseColor), Bookings, Revenue KPI cards; Active + Drafts left unchanged (snapshots, not period totals)
+- tsc: 0 errors. Test suite: 918 passed, 22 skipped, 0 failed. Pushed to origin main.
+
 ## 2026-05-16 — Personal-email mailboxes all showing "refresh token invalid — reconnect" (DIAGNOSIS ONLY, no code change)
 
 **User asked why the 3 personal mailboxes (FM+, GMAIL, LIME) all show the reconnect badge.**

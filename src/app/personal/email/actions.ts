@@ -4,9 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { syncLabelChange } from '@/lib/personal-email/label-sync';
+import { loadLabelMap } from '@/lib/personal-email/label-sync-db';
+import { ensureLabelsForAccount } from '@/lib/personal-email/label-sync';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import { ingestPersonalEmails } from '@/lib/personal-email/ingest';
-import { markMessagesAsRead } from '@/lib/gmail';
+import { getGmailClientFromRefresh, markMessagesAsRead } from '@/lib/gmail';
 import { parseFromDomain } from '@/lib/personal-email/feature-extractor';
 
 async function requireAdmin() {
@@ -213,6 +215,172 @@ async function stripLabelLocally(emailLogIds: string[], label: string) {
     if (next.length === arr.length) continue; // nothing to strip
     await sb.from('email_logs').update({ label_ids: next }).eq('id', r.id);
   }
+}
+
+// === "Select all in category" bulk actions =================================
+//
+// These act on EVERY email_logs row matching (category, accountId, INBOX)
+// — not just the IDs the UI page rendered. The drill-down list caps at
+// 500 rows, but the user can have thousands in a category and wants to
+// archive / mark-read / move them in one click.
+//
+// Implementation: resolve matching rows server-side (one query), group by
+// account-token (since Gmail batchModify is per-account), chunk to 1000
+// per Gmail call (Gmail's batchModify cap), and mirror the change in the
+// local email_logs.label_ids array so the UI updates without waiting for
+// the next ingest tick.
+
+type ResolvedAccount = {
+  account_id: string;
+  refresh_token: string;
+  emailLogIds: string[];
+  gmailIds: string[];
+};
+
+async function resolveCategoryRows(
+  category: CategorySlug,
+  accountId: string | undefined,
+): Promise<ResolvedAccount[]> {
+  const sb = supabaseAdmin();
+  let q = sb
+    .from('email_logs')
+    .select('id, account_id, gmail_message_id, accounts!inner(domain, oauth_refresh_token_encrypted)')
+    .eq('accounts.domain', 'personal')
+    .eq('category', category)
+    .contains('label_ids', ['INBOX']);
+  if (accountId) q = q.eq('account_id', accountId);
+  const { data, error } = await q;
+  if (error) throw new Error(`resolve_category_rows_failed: ${error.message}`);
+  const byAccount = new Map<string, ResolvedAccount>();
+  for (const r of (data ?? []) as any[]) {
+    const tok = r.accounts?.oauth_refresh_token_encrypted;
+    if (!tok) continue;
+    const entry: ResolvedAccount = byAccount.get(r.account_id) ?? {
+      account_id: r.account_id,
+      refresh_token: tok,
+      emailLogIds: [],
+      gmailIds: [],
+    };
+    entry.emailLogIds.push(r.id);
+    entry.gmailIds.push(r.gmail_message_id);
+    byAccount.set(r.account_id, entry);
+  }
+  return [...byAccount.values()];
+}
+
+// Gmail batchModify caps at 1000 ids per call.
+const BATCH_MODIFY_CHUNK = 1000;
+
+export async function archiveAllInCategory(
+  category: CategorySlug,
+  accountId?: string,
+): Promise<{ archived: number }> {
+  await requireAdmin();
+  const groups = await resolveCategoryRows(category, accountId);
+  let archived = 0;
+  for (const g of groups) {
+    const gmail = await getGmailClientFromRefresh(g.refresh_token);
+    for (let i = 0; i < g.gmailIds.length; i += BATCH_MODIFY_CHUNK) {
+      const chunk = g.gmailIds.slice(i, i + BATCH_MODIFY_CHUNK);
+      await gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: { ids: chunk, removeLabelIds: ['INBOX'] },
+      });
+      archived += chunk.length;
+    }
+    await stripLabelLocally(g.emailLogIds, 'INBOX');
+  }
+  revalidatePath('/personal/email');
+  return { archived };
+}
+
+export async function markAllReadInCategory(
+  category: CategorySlug,
+  accountId?: string,
+): Promise<{ marked: number }> {
+  await requireAdmin();
+  const groups = await resolveCategoryRows(category, accountId);
+  let marked = 0;
+  for (const g of groups) {
+    // markMessagesAsRead already chunks internally; just pass the lot.
+    const r = await markMessagesAsRead(g.refresh_token, g.gmailIds);
+    marked += r.marked;
+    await stripLabelLocally(g.emailLogIds, 'UNREAD');
+  }
+  revalidatePath('/personal/email');
+  return { marked };
+}
+
+export async function moveAllInCategory(
+  category: CategorySlug,
+  targetCategory: CategorySlug,
+  accountId?: string,
+): Promise<{ moved: number }> {
+  await requireAdmin();
+  if (category === targetCategory) return { moved: 0 };
+  const user = await getCurrentUser();
+  const groups = await resolveCategoryRows(category, accountId);
+  const sb = supabaseAdmin();
+  let moved = 0;
+
+  for (const g of groups) {
+    // Per-account label map. Self-heal target label if missing.
+    let map = await loadLabelMap(g.account_id);
+    if (!map[targetCategory]) {
+      const { data: acc } = await sb
+        .from('accounts')
+        .select('id, email, oauth_refresh_token_encrypted')
+        .eq('id', g.account_id)
+        .single();
+      if (acc) {
+        await ensureLabelsForAccount(acc as any);
+        map = await loadLabelMap(g.account_id);
+      }
+    }
+    const addId = map[targetCategory];
+    if (!addId) {
+      console.error('[moveAllInCategory] no_label_for_target', { account: g.account_id, target: targetCategory });
+      continue;
+    }
+    const removeIds = map[category] ? [map[category]!] : [];
+
+    const gmail = await getGmailClientFromRefresh(g.refresh_token);
+    for (let i = 0; i < g.gmailIds.length; i += BATCH_MODIFY_CHUNK) {
+      const chunk = g.gmailIds.slice(i, i + BATCH_MODIFY_CHUNK);
+      await gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: { ids: chunk, removeLabelIds: removeIds, addLabelIds: [addId] },
+      });
+    }
+
+    // Update DB rows in chunks (Supabase .in() caps around 1000).
+    const nowIso = new Date().toISOString();
+    for (let i = 0; i < g.emailLogIds.length; i += BATCH_MODIFY_CHUNK) {
+      const chunk = g.emailLogIds.slice(i, i + BATCH_MODIFY_CHUNK);
+      await sb.from('email_logs').update({
+        category: targetCategory,
+        category_method: 'manual',
+        category_reason: 'user_bulk_moved',
+        needs_review: false,
+        last_classified_at: nowIso,
+      }).in('id', chunk);
+      // Audit rows — one per email.
+      await sb.from('personal_email_corrections').insert(
+        chunk.map(id => ({
+          email_log_id: id,
+          old_category: category,
+          new_category: targetCategory,
+          created_by_user_id: user?.id ?? null,
+        })),
+      );
+      moved += chunk.length;
+    }
+    // No auto-rule creation for bulk moves: a single user gesture covering
+    // 100s of senders should not spawn 100s of from_domain rules. moveEmail
+    // (single-row path) keeps creating rules; this is the bulk exception.
+  }
+  revalidatePath('/personal/email');
+  return { moved };
 }
 
 export async function manualRefresh(): Promise<void> {

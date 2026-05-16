@@ -17,11 +17,36 @@ import {
   archiveInGmail,
   markAsRead,
   moveEmail,
+  archiveAllInCategory,
+  markAllReadInCategory,
+  moveAllInCategory,
 } from '../actions';
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import type { InboxRow, SelectedEmail } from '@/lib/personal-email/inbox-query';
 import { isNewReservation, isImmediateIntervention, isInvoiceToBePaid, isLowPriority, markerTier } from '@/lib/personal-email/email-helpers';
+
+// User-pickable secondary sort (priority tier still floats to top).
+type SortMode = 'date-desc' | 'date-asc' | 'sender-asc' | 'sender-desc';
+
+const SORT_LABELS: Record<SortMode, string> = {
+  'date-desc': 'Date ↓ Newest',
+  'date-asc':  'Date ↑ Oldest',
+  'sender-asc':  'Sender A→Z',
+  'sender-desc': 'Sender Z→A',
+};
+
+// Sort key for the "Sender" sorts. Strip the angle-bracket-wrapped
+// email when a display name is present ("John Doe <j@d.com>" → "John
+// Doe"); otherwise fall back to the bare address so unnamed senders
+// still order deterministically. Case-insensitive.
+function senderSortKey(fromAddress: string | null): string {
+  if (!fromAddress) return '';
+  const namePart = fromAddress.split('<')[0].trim();
+  if (namePart) return namePart.toLowerCase();
+  const inAngles = fromAddress.match(/<([^>]+)>/);
+  return (inAngles?.[1] ?? fromAddress).toLowerCase();
+}
 
 // Re-export for back-compat with existing callers (page.tsx imports
 // `SelectedEmail` from this module).
@@ -36,6 +61,8 @@ export function DrillDownView({
   rows,
   selected,
   category,
+  totalCount,
+  accountId,
 }: {
   rows: InboxRow[];
   selected: SelectedEmail | null;
@@ -44,6 +71,15 @@ export function DrillDownView({
   // /personal/email/needs-review where rows span many categories, leave
   // it undefined so the dropdown shows everything.
   category?: CategorySlug;
+  // Optional. Total emails in this category (possibly > rows.length
+  // since the list caps at 500). Drives the Gmail-style "Select all N
+  // in <Category>" banner that escalates a page-select into an action
+  // covering every row in the category.
+  totalCount?: number;
+  // Optional. Current account filter ("All", or a single mailbox id)
+  // passed through to the bulk-all server actions so they stay scoped
+  // to whatever the user is looking at.
+  accountId?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,6 +88,11 @@ export function DrillDownView({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
   const [moveOpen, setMoveOpen] = useState(false);
+  // "Select all in <Category>" escalation. When true, bulk actions
+  // ignore `checked` and instead call the *-AllInCategory server
+  // actions that match (category, accountId) on the server.
+  const [selectAllInCategory, setSelectAllInCategory] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>('date-desc');
 
   // Refs for scroll-position preservation. The list `<ul>` keeps its
   // own internal scroll (max-h-[70vh] overflow-y-auto). Without these
@@ -69,6 +110,10 @@ export function DrillDownView({
   // an action yet (not read, not archived, not manually moved). Once
   // the user reads/archives/moves, the row drops to natural date
   // order on next refresh.
+  //
+  // Priority tier ALWAYS wins. Within a tier, the user-picked sortMode
+  // decides ordering — defaults to date-desc which is the historical
+  // behavior.
   const sortedRows = useMemo(() => {
     const scored = rows.map(r => ({
       r,
@@ -82,17 +127,34 @@ export function DrillDownView({
         account_email: r.account_email,
       }),
       ts: r.received_at ? Date.parse(r.received_at) : 0,
+      sender: senderSortKey(r.from_address),
     }));
     scored.sort((a, b) => {
       // Lower tier number = higher precedence (urgent=0 wins over to-pay=1).
       if (a.tier !== b.tier) return a.tier - b.tier;
-      return b.ts - a.ts;
+      switch (sortMode) {
+        case 'date-desc': return b.ts - a.ts;
+        case 'date-asc':  return a.ts - b.ts;
+        case 'sender-asc':  return a.sender.localeCompare(b.sender);
+        case 'sender-desc': return b.sender.localeCompare(a.sender);
+      }
     });
     return scored.map(s => s.r);
-  }, [rows]);
+  }, [rows, sortMode]);
 
   const allChecked = sortedRows.length > 0 && sortedRows.every(r => checked.has(r.id));
-  const anyChecked = checked.size > 0;
+  const anyChecked = checked.size > 0 || selectAllInCategory;
+  // Show the Gmail-style "Select all N in <Category>" banner only when
+  // the user has selected every row on this page AND the category has
+  // more rows than this page can show AND they haven't already
+  // escalated. Requires a known category + totalCount (the surfaces
+  // that don't pass them, like needs-review, get no banner).
+  const canEscalateSelectAll =
+    !!category &&
+    typeof totalCount === 'number' &&
+    allChecked &&
+    !selectAllInCategory &&
+    totalCount > sortedRows.length;
 
   function navTo(id: string | null) {
     // Snapshot the list's internal scroll BEFORE the navigation kicks
@@ -150,9 +212,17 @@ export function DrillDownView({
 
   function clearSelection() {
     setChecked(new Set());
+    setSelectAllInCategory(false);
   }
 
   function onArchive() {
+    if (selectAllInCategory && category) {
+      start(async () => {
+        await archiveAllInCategory(category, accountId);
+        clearSelection();
+      });
+      return;
+    }
     const ids = [...checked];
     if (!ids.length) return;
     start(async () => {
@@ -162,6 +232,13 @@ export function DrillDownView({
   }
 
   function onMarkRead() {
+    if (selectAllInCategory && category) {
+      start(async () => {
+        await markAllReadInCategory(category, accountId);
+        clearSelection();
+      });
+      return;
+    }
     const ids = [...checked];
     if (!ids.length) return;
     start(async () => {
@@ -171,9 +248,16 @@ export function DrillDownView({
   }
 
   function onMoveTo(target: CategorySlug) {
+    setMoveOpen(false);
+    if (selectAllInCategory && category) {
+      start(async () => {
+        await moveAllInCategory(category, target, accountId);
+        clearSelection();
+      });
+      return;
+    }
     const ids = [...checked];
     if (!ids.length) return;
-    setMoveOpen(false);
     start(async () => {
       // Server action moveEmail takes one ID at a time; loop client-side.
       for (const id of ids) {
@@ -197,7 +281,8 @@ export function DrillDownView({
           />
           {anyChecked ? (
             <BulkBar
-              count={checked.size}
+              count={selectAllInCategory ? (totalCount ?? checked.size) : checked.size}
+              countLabel={selectAllInCategory ? `all in ${categoryDisplayName(category)}` : null}
               pending={pending}
               onArchive={onArchive}
               onMarkRead={onMarkRead}
@@ -209,10 +294,28 @@ export function DrillDownView({
             />
           ) : (
             <span className="text-xs text-slate-600 dark:text-slate-300">
-              {rows.length} email{rows.length === 1 ? '' : 's'}
+              {typeof totalCount === 'number' && totalCount > rows.length
+                ? `${rows.length} of ${totalCount.toLocaleString()} email${totalCount === 1 ? '' : 's'}`
+                : `${rows.length} email${rows.length === 1 ? '' : 's'}`}
             </span>
           )}
+          <SortDropdown sortMode={sortMode} setSortMode={setSortMode} />
         </div>
+
+        {canEscalateSelectAll && (
+          <div className="px-3 py-1.5 border-b border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/30 text-[11px] flex items-center justify-center gap-2 flex-wrap text-indigo-900 dark:text-indigo-100">
+            <span>
+              All <span className="font-mono tabular-nums">{sortedRows.length}</span> on this page are selected.
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectAllInCategory(true)}
+              className="font-semibold underline underline-offset-2 hover:text-indigo-700 dark:hover:text-indigo-200"
+            >
+              Select all {totalCount!.toLocaleString()} in {categoryDisplayName(category)}
+            </button>
+          </div>
+        )}
 
         <ul ref={listRef} className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[70vh] overflow-y-auto">
           {sortedRows.map(r => {
@@ -336,10 +439,14 @@ export function DrillDownView({
 }
 
 function BulkBar({
-  count, pending, onArchive, onMarkRead, onClear,
+  count, countLabel, pending, onArchive, onMarkRead, onClear,
   moveOpen, setMoveOpen, onMoveTo, currentCategory,
 }: {
   count: number;
+  // When set, appended to the count — e.g. "1,847 selected · all in
+  // Beithady" — so the user can never confuse a page-select with a
+  // whole-category select while the destructive action is one click away.
+  countLabel?: string | null;
   pending: boolean;
   onArchive: () => void;
   onMarkRead: () => void;
@@ -352,7 +459,7 @@ function BulkBar({
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs">
       <span className="font-semibold text-slate-700 dark:text-slate-200">
-        {count} selected
+        {count.toLocaleString()} selected{countLabel ? ` · ${countLabel}` : ''}
       </span>
       <button
         onClick={onMarkRead}
@@ -402,6 +509,40 @@ function BulkBar({
       )}
     </div>
   );
+}
+
+// Compact sort picker rendered at the right edge of the list header.
+// Native <select> on purpose — pulling in a custom Combobox just for
+// four options would dwarf the rest of the bar and break keyboard nav.
+function SortDropdown({
+  sortMode, setSortMode,
+}: {
+  sortMode: SortMode;
+  setSortMode: (m: SortMode) => void;
+}) {
+  return (
+    <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+      <span className="uppercase tracking-wide font-semibold">Sort</span>
+      <select
+        value={sortMode}
+        onChange={e => setSortMode(e.target.value as SortMode)}
+        className="text-[11px] px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 cursor-pointer hover:border-slate-400 dark:hover:border-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+      >
+        {(Object.keys(SORT_LABELS) as SortMode[]).map(m => (
+          <option key={m} value={m}>{SORT_LABELS[m]}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// Looks up the user-visible category name for the banner / count label.
+// Falls back to the raw slug if the category was deleted from the
+// CATEGORIES registry but rows still reference it (rare; defensive).
+function categoryDisplayName(slug: CategorySlug | undefined): string {
+  if (!slug) return 'this category';
+  const cat = CATEGORIES.find(c => c.slug === slug);
+  return cat?.displayName ?? slug;
 }
 
 function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => void }) {

@@ -65,6 +65,29 @@ export async function loadInbox(filters: InboxFilters = {}): Promise<InboxRow[]>
   }));
 }
 
+// Total row count for a single category drill-down, scoped to the same
+// filters loadInbox uses by default (personal domain, INBOX-only). The
+// drill-down page loads up to 500 rows for the list, but needs the true
+// total so the "Select all N in <Category>" banner can offer a bulk
+// action that spans beyond the visible page.
+export async function loadCategoryTotal(filters: {
+  accountId?: string;
+  category: CategorySlug;
+  includeArchived?: boolean;
+}): Promise<number> {
+  const sb = supabaseAdmin();
+  let q = sb
+    .from('email_logs')
+    .select('id, accounts!inner(domain)', { count: 'exact', head: true })
+    .eq('accounts.domain', 'personal')
+    .eq('category', filters.category);
+  if (filters.accountId) q = q.eq('account_id', filters.accountId);
+  if (!filters.includeArchived) q = q.contains('label_ids', ['INBOX']);
+  const { count, error } = await q;
+  if (error) throw new Error(`category_total_failed: ${error.message}`);
+  return count ?? 0;
+}
+
 export type CategoryCount = { category: CategorySlug; count: number };
 
 export async function loadCategoryCounts(accountId?: string): Promise<CategoryCount[]> {

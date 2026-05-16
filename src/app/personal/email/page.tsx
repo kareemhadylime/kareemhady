@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Mail, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
 import { CATEGORIES, getCategoriesByTier } from '@/lib/personal-email/categories';
-import { loadInbox, loadCategoryCounts, loadSelectedEmail } from '@/lib/personal-email/inbox-query';
+import { loadInbox, loadCategoryCounts, loadSelectedEmail, loadCategoryTotal } from '@/lib/personal-email/inbox-query';
 import type { CategorySlug } from '@/lib/personal-email/types';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PersonalShell, PersonalHeader } from '../_components/personal-shell';
@@ -203,9 +203,10 @@ async function CategoryFlatView({
   category: CategorySlug;
   selectedMsgId?: string;
 }) {
-  const [rows, selected] = await Promise.all([
+  const [rows, selected, totalCount] = await Promise.all([
     loadInbox({ accountId, category, limit: 500 }),
     selectedMsgId ? loadSelectedEmail(selectedMsgId) : Promise.resolve(null),
+    loadCategoryTotal({ accountId, category }),
   ]);
   const cat = CATEGORIES.find(c => c.slug === category);
   return (
@@ -225,7 +226,13 @@ async function CategoryFlatView({
         }
       />
 
-      <DrillDownView rows={rows} selected={selected} category={category} />
+      <DrillDownView
+        rows={rows}
+        selected={selected}
+        category={category}
+        totalCount={totalCount}
+        accountId={accountId}
+      />
     </PersonalShell>
   );
 }
