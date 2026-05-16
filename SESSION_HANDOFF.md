@@ -1,3 +1,34 @@
+## 2026-05-16 — FEATURE: KIKA modal parity + thumbnails + Manufacturing tile/report
+
+**Status:** Pending commit + push.
+
+**User asks (3 things in one turn):**
+1. "Make the two the same" — i.e. retire the old Sales-page modal and have everything reuse the cleaner Exec modal I built yesterday.
+2. Add product thumbnails to the line-items table in that modal.
+3. Add a 5th tile on the Exec dashboard for "products in unfulfilled orders" with a sortable drill-down + A4 PDF export.
+
+User chose, via clarifying questions: both **Open qty + Net to make** columns side-by-side (subtracting current Shopify inventory), description column = **variant + SKU + short description**, tile metric = **total units to manufacture**, time scope = **matches dashboard period filter**.
+
+**Phase 1 — modal merge + thumbnails:**
+- Extended [src/app/emails/kika/exec/_components/order-detail-types.ts](src/app/emails/kika/exec/_components/order-detail-types.ts) `KikaOrderDetail.line_items[]` with `product_id`, `variant_id`, `variant_title`, `image_url`, `product_description`.
+- [src/app/api/kika/orders/[id]/route.ts](src/app/api/kika/orders/[id]/route.ts) now joins related `shopify_products` rows by line-item product_id, resolves the best image (variant `image_id` → product's `raw.images[]`, falls back to `raw.image`), pulls variant title from option1/2/3 or pre-built variant `title`, and strips `body_html` to plain text for the description column. New helpers: `stripHtml`, `pickLineItemImage`, `pickVariantTitle`.
+- [src/app/emails/kika/exec/_components/order-detail-modal.tsx](src/app/emails/kika/exec/_components/order-detail-modal.tsx) renders a 40×40 `<Thumb>` per line item (plain `<img loading="lazy">` — Shopify CDN already serves right-sized images; skipping `next/image` saves ~150ms first-paint per row at 40px). Product cell now shows title (bold) + `Variant · SKU` line + 2-line truncated description.
+- [next.config.ts](next.config.ts) `images.remotePatterns` extended to allow `cdn.shopify.com` and `cdn.shopifycdn.net` (future-proof if someone switches the modal to `<Image>`).
+- [src/app/emails/kika/sales/page.tsx](src/app/emails/kika/sales/page.tsx) retired the inline 313-line URL-driven `OrderDetailModal` (+ `TotRow` + `MetaRow`). `RecentOrdersBlock` now just drops `<OrderNumberButton orderId orderName>` into the order cell. Removed `?order=ID` plumbing from `searchParams`, `buildQs`, and the data fetch (`fetchKikaOrderDetail` still exists in `kika-sales.ts` but is now unreferenced — left for safe rollback).
+
+**Phase 2 — Manufacturing tile + drill-down + PDF:**
+- [src/lib/kika-manufacturing.ts](src/lib/kika-manufacturing.ts) — `buildKikaManufacturingReport({fromDate, toDate, label})` aggregates per (product_id, variant_id) across open unfulfilled non-cancelled orders in the window. Pulls `inventory_quantity` from `shopify_products.raw.variants[].inventory_quantity`, computes `net_to_make = max(0, open_qty - in_stock)`. Returns rows + totals (`total_open_units`, `total_net_to_make`, `distinct_variants`, `distinct_products`, `open_order_count`). Default sort = net_to_make desc, then oldest_age_days desc.
+- [src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx](src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx) — client component. Sortable headers (Product / Variant / SKU / Open qty / In stock / Net to make / Orders / Oldest age). Renders thumbnail + bold product title + 2-line description, variant pill, SKU mono. "Export A4 PDF" button links to the new PDF route. Default sort = net_to_make desc; click toggles direction.
+- [src/lib/kika-manufacturing-pdf.tsx](src/lib/kika-manufacturing-pdf.tsx) — `@react-pdf/renderer` A4 layout with KIKA-branded header strip, 4-card totals row, full sortable-by-builder table (#/Product/Variant/SKU/Open/Stock/Net/Oldest), and fixed footer with auto page numbers (`render={({pageNumber,totalPages})=>...}`).
+- [src/app/api/kika/manufacturing-report/route.ts](src/app/api/kika/manufacturing-report/route.ts) — GETs `from=YYYY-MM-DD&to=YYYY-MM-DD&label=...`, rebuilds the report server-side, streams `application/pdf` via `renderToBuffer`. Auth = `requireDomainAccess('kika')`.
+- [src/app/emails/kika/exec/page.tsx](src/app/emails/kika/exec/page.tsx) — widened `Focus` union to include `'manufacturing'`, narrowed `FocusDrilldown` prop to `Exclude<Focus,'manufacturing'>` so it doesn't need a stub for the new case. Row 4 grid is now `md:grid-cols-3 lg:grid-cols-5` to fit the 5th tile. New tile uses indigo accent + `Factory` icon, shows total_net_to_make as the headline and "across N variants" as sub. Page-level Promise.all now fetches manufacturing report in parallel.
+
+**Improvements baked in (user asked me to suggest):** variant-level granularity (not product-level), oldest backlog age column for prioritisation, cancelled/voided excluded from rollup, A4 PDF includes branded header + totals strip + page numbers.
+
+**Verification:** `npx next build` green; `.next/server/app/api/kika/{orders,manufacturing-report}` both emitted. tsc clean.
+
+---
+
 ## 2026-05-15 — FEATURE: KIKA Executive — clickable order numbers open detail modal
 
 **Status:** Pending commit + push (auto-deploy via GitHub→Vercel).

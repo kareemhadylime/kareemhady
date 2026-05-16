@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
         hostname: 'bpjproljatbrbmszwbov.supabase.co',
         pathname: '/storage/v1/object/**',
       },
+      // Shopify product images for KIKA. cdn.shopify.com is the Shopify-wide
+      // image CDN; cdn.shopifycdn.net is the alt host that some store regions
+      // get served through.
+      { protocol: 'https', hostname: 'cdn.shopify.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'cdn.shopifycdn.net', pathname: '/**' },
     ],
   },
   // Backward-compat redirects after pulling Beit Hady out of the

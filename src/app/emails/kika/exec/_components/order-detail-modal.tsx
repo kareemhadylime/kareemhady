@@ -257,6 +257,7 @@ export function OrderDetailModal({ open, onClose, orderId, orderName }: Props) {
                     <table className="w-full text-sm">
                       <thead className="text-[10px] uppercase tracking-wide text-slate-500">
                         <tr>
+                          <th className="text-left py-1 w-12"></th>
                           <th className="text-left py-1">Product</th>
                           <th className="text-right py-1">Qty</th>
                           <th className="text-right py-1">Price</th>
@@ -264,28 +265,45 @@ export function OrderDetailModal({ open, onClose, orderId, orderName }: Props) {
                         </tr>
                       </thead>
                       <tbody>
-                        {data.line_items.map(li => (
-                          <tr key={li.id} className="border-t border-slate-100 dark:border-slate-800 align-top">
-                            <td className="py-1.5 pr-2">
-                              <div className="font-medium text-slate-900 dark:text-slate-100">
-                                {li.title || li.name || '—'}
-                              </div>
-                              {li.name && li.title && li.name !== li.title && (
-                                <div className="text-[11px] text-slate-500">{li.name}</div>
-                              )}
-                              {li.sku && (
-                                <div className="text-[11px] text-slate-400 font-mono">SKU {li.sku}</div>
-                              )}
-                            </td>
-                            <td className="py-1.5 text-right tabular-nums">{li.quantity ?? '—'}</td>
-                            <td className="py-1.5 text-right tabular-nums text-slate-500">
-                              {li.price != null ? fmt(li.price) : '—'}
-                            </td>
-                            <td className="py-1.5 text-right tabular-nums font-medium">
-                              {li.line_total != null ? fmt(li.line_total) : '—'}
-                            </td>
-                          </tr>
-                        ))}
+                        {data.line_items.map(li => {
+                          const shortDesc = li.product_description
+                            ? li.product_description.replace(/\s+/g, ' ').slice(0, 140)
+                            : null;
+                          return (
+                            <tr key={li.id} className="border-t border-slate-100 dark:border-slate-800 align-top">
+                              <td className="py-1.5 pr-2">
+                                <Thumb src={li.image_url} alt={li.title || li.name || ''} />
+                              </td>
+                              <td className="py-1.5 pr-2">
+                                <div className="font-medium text-slate-900 dark:text-slate-100">
+                                  {li.title || li.name || '—'}
+                                </div>
+                                {(li.variant_title || li.sku) && (
+                                  <div className="text-[11px] text-slate-500">
+                                    {li.variant_title && <span>{li.variant_title}</span>}
+                                    {li.variant_title && li.sku && <span> · </span>}
+                                    {li.sku && (
+                                      <span className="font-mono text-slate-400">SKU {li.sku}</span>
+                                    )}
+                                  </div>
+                                )}
+                                {shortDesc && (
+                                  <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                                    {shortDesc}
+                                    {li.product_description && li.product_description.length > 140 && '…'}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-1.5 text-right tabular-nums">{li.quantity ?? '—'}</td>
+                              <td className="py-1.5 text-right tabular-nums text-slate-500">
+                                {li.price != null ? fmt(li.price) : '—'}
+                              </td>
+                              <td className="py-1.5 text-right tabular-nums font-medium">
+                                {li.line_total != null ? fmt(li.line_total) : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -398,6 +416,33 @@ export function OrderDetailModal({ open, onClose, orderId, orderName }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+function Thumb({ src, alt }: { src: string | null; alt: string }) {
+  if (!src) {
+    return (
+      <div
+        className="w-10 h-10 rounded-md bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 flex items-center justify-center text-slate-400"
+        aria-hidden="true"
+      >
+        <Package size={14} />
+      </div>
+    );
+  }
+  // Plain <img> here on purpose — Shopify CDN URLs are already perfectly
+  // sized for thumbnails, and using <Image> would route through next/image
+  // and add ~150ms per row of CDN cold start with no real win at 40px.
+  // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <img
+      src={src}
+      alt={alt}
+      width={40}
+      height={40}
+      loading="lazy"
+      className="w-10 h-10 rounded-md object-cover ring-1 ring-slate-200 dark:ring-slate-700 bg-slate-50"
+    />
   );
 }
 

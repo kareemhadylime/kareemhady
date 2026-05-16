@@ -26,6 +26,72 @@ function numOrNull(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function stripHtml(html: string | null | undefined): string | null {
+  if (!html) return null;
+  // Plain-text projection: drop tags, decode the small set of HTML entities
+  // we see in Shopify descriptions, collapse whitespace.
+  const text = html
+    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return text || null;
+}
+
+/** Picks the best image URL for a line item: variant-specific if the variant
+ * has an image_id we can resolve back to raw.images[], otherwise the product's
+ * primary image. Returns null if there's no product or no images at all. */
+function pickLineItemImage(
+  productRaw: Record<string, unknown> | null,
+  variantId: number | null
+): string | null {
+  if (!productRaw) return null;
+  const images = (productRaw['images'] as Array<Record<string, unknown>> | null) || [];
+  // Variant → image_id lookup.
+  if (variantId) {
+    const variants = (productRaw['variants'] as Array<Record<string, unknown>> | null) || [];
+    const v = variants.find(x => Number(x['id']) === variantId);
+    const imageId = v && v['image_id'] != null ? Number(v['image_id']) : null;
+    if (imageId) {
+      const match = images.find(im => Number(im['id']) === imageId);
+      const src = match && typeof match['src'] === 'string' ? (match['src'] as string) : null;
+      if (src) return src;
+    }
+  }
+  // Fall back to product primary.
+  const primary =
+    (productRaw['image'] as Record<string, unknown> | null) || images[0] || null;
+  if (primary && typeof primary['src'] === 'string') {
+    return primary['src'] as string;
+  }
+  return null;
+}
+
+function pickVariantTitle(
+  productRaw: Record<string, unknown> | null,
+  variantId: number | null
+): string | null {
+  if (!productRaw || !variantId) return null;
+  const variants = (productRaw['variants'] as Array<Record<string, unknown>> | null) || [];
+  const v = variants.find(x => Number(x['id']) === variantId);
+  if (!v) return null;
+  // Shopify pre-builds a 'title' like "Beige / MEDIUM". If that's missing or
+  // generic ("Default Title"), reconstruct from option1/option2/option3.
+  const t = typeof v['title'] === 'string' ? (v['title'] as string) : null;
+  if (t && t.toLowerCase() !== 'default title') return t;
+  const opts = [v['option1'], v['option2'], v['option3']]
+    .filter(o => typeof o === 'string' && o)
+    .map(o => o as string);
+  return opts.length > 0 ? opts.join(' / ') : null;
+}
+
 interface Ctx {
   params: Promise<{ id: string }>;
 }
@@ -49,7 +115,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       .maybeSingle(),
     sb
       .from('shopify_line_items')
-      .select('id, title, name, sku, vendor, quantity, price, total_discount')
+      .select('id, product_id, variant_id, title, name, sku, vendor, quantity, price, total_discount')
       .eq('order_id', id)
       .order('id', { ascending: true }),
   ]);
@@ -59,6 +125,33 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   }
   if (!orderRes.data) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  // Pull related product rows so we can attach a thumbnail + variant title +
+  // description to each line item. Same primary-image rules as the inventory
+  // page: prefer raw.image, fall back to first of raw.images[]. For variants,
+  // try matching the variant's image_id back to raw.images[].
+  type ProductRow = {
+    id: number;
+    title: string | null;
+    raw: Record<string, unknown> | null;
+  };
+  const productIds = Array.from(
+    new Set(
+      (linesRes.data ?? [])
+        .map(l => l.product_id)
+        .filter((p): p is number => typeof p === 'number' && p > 0)
+    )
+  );
+  const productMap = new Map<number, ProductRow>();
+  if (productIds.length > 0) {
+    const { data: prodRows } = await sb
+      .from('shopify_products')
+      .select('id, title, raw')
+      .in('id', productIds);
+    for (const p of (prodRows ?? []) as ProductRow[]) {
+      productMap.set(p.id, p);
+    }
   }
 
   const raw = (orderRes.data.raw || {}) as ShopifyRaw;
@@ -116,8 +209,15 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       const qty = numOrNull(l.quantity) ?? 0;
       const price = numOrNull(l.price) ?? 0;
       const disc = numOrNull(l.total_discount) ?? 0;
+      const product = l.product_id ? productMap.get(l.product_id) : undefined;
+      const productRaw = (product?.raw ?? null) as Record<string, unknown> | null;
+      const bodyHtml = productRaw && typeof productRaw['body_html'] === 'string'
+        ? (productRaw['body_html'] as string)
+        : null;
       return {
         id: l.id as number,
+        product_id: l.product_id ?? null,
+        variant_id: l.variant_id ?? null,
         title: l.title ?? null,
         name: l.name ?? null,
         sku: l.sku ?? null,
@@ -126,6 +226,9 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
         price: numOrNull(l.price),
         total_discount: numOrNull(l.total_discount),
         line_total: qty > 0 ? qty * price - disc : null,
+        variant_title: pickVariantTitle(productRaw, l.variant_id ?? null),
+        image_url: pickLineItemImage(productRaw, l.variant_id ?? null),
+        product_description: stripHtml(bodyHtml),
       };
     }),
   };

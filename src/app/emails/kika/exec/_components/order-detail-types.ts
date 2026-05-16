@@ -54,6 +54,8 @@ export type KikaOrderDetail = {
   }>;
   line_items: Array<{
     id: number;
+    product_id: number | null;
+    variant_id: number | null;
     title: string | null;
     name: string | null;
     sku: string | null;
@@ -62,5 +64,11 @@ export type KikaOrderDetail = {
     price: number | null;
     total_discount: number | null;
     line_total: number | null;
+    /** Variant title from Shopify (e.g. "Beige / MEDIUM"). */
+    variant_title: string | null;
+    /** Variant or product image src. */
+    image_url: string | null;
+    /** Plain-text product description, stripped of HTML. May be long. */
+    product_description: string | null;
   }>;
 };

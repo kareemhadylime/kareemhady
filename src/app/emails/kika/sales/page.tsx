@@ -14,12 +14,11 @@ import { TopNav } from '@/app/_components/brand';
 import { SyncPills } from '@/app/_components/sync-pills';
 import {
   buildKikaSalesReport,
-  fetchKikaOrderDetail,
   type KikaSalesReport,
-  type KikaOrderDetail,
 } from '@/lib/kika-sales';
 import { getSyncFreshness } from '@/lib/sync-freshness';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
+import { OrderNumberButton } from '@/app/emails/kika/exec/_components/order-number-button';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -82,8 +81,8 @@ const fmt = (n: number | null | undefined): string =>
     : Math.round(Number(n)).toLocaleString('en-US');
 
 function buildQs(
-  current: { preset?: string; from?: string; to?: string; order?: string },
-  next: Partial<{ preset: string; from: string; to: string; order: string | null }>
+  current: { preset?: string; from?: string; to?: string },
+  next: Partial<{ preset: string; from: string; to: string }>
 ): string {
   const merged: Record<string, string> = {};
   for (const [k, v] of Object.entries(current)) {
@@ -104,19 +103,17 @@ export default async function KikaSalesPage({
     preset?: string;
     from?: string;
     to?: string;
-    order?: string;
   }>;
 }) {
   const sp = await searchParams;
   const period = resolvePeriod(sp.preset, sp.from, sp.to);
-  const [report, pills, orderDetail] = await Promise.all([
+  const [report, pills] = await Promise.all([
     buildKikaSalesReport({
       fromDate: period.from,
       toDate: period.to,
       label: period.label,
     }),
     getSyncFreshness(['shopify']),
-    sp.order ? fetchKikaOrderDetail(sp.order) : Promise.resolve(null),
   ]);
 
   return (
@@ -182,10 +179,7 @@ export default async function KikaSalesPage({
 
         <StatusBreakdownBlock report={report} />
 
-        <RecentOrdersBlock
-          orders={report.recent_orders}
-          openHref={id => buildQs(sp, { order: String(id) })}
-        />
+        <RecentOrdersBlock orders={report.recent_orders} />
 
         <footer className="text-[11px] text-slate-400 border-t border-slate-200 pt-4">
           {report.totals.orders} orders aggregated · {period.from} → {period.to}.
@@ -193,13 +187,6 @@ export default async function KikaSalesPage({
           <code className="text-[10px]">/api/shopify/run-now</code>.
         </footer>
       </main>
-
-      {orderDetail && (
-        <OrderDetailModal
-          order={orderDetail}
-          closeHref={buildQs(sp, { order: null })}
-        />
-      )}
     </>
   );
 }
@@ -517,10 +504,8 @@ function StatusBreakdownBlock({ report }: { report: KikaSalesReport }) {
 
 function RecentOrdersBlock({
   orders,
-  openHref,
 }: {
   orders: KikaSalesReport['recent_orders'];
-  openHref: (id: number) => string;
 }) {
   if (orders.length === 0) return null;
   return (
@@ -543,33 +528,18 @@ function RecentOrdersBlock({
           </thead>
           <tbody>
             {orders.map(o => (
-              <tr
-                key={o.id}
-                className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition group"
-              >
+              <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50 transition">
                 <td className="px-3 py-1.5 font-medium">
-                  <Link
-                    href={openHref(o.id)}
-                    scroll={false}
-                    className="block text-inherit group-hover:text-indigo-700"
-                  >
-                    {o.name}
-                  </Link>
+                  <OrderNumberButton orderId={o.id} orderName={o.name} />
                 </td>
                 <td className="px-3 py-1.5 truncate max-w-[200px]">
-                  <Link href={openHref(o.id)} scroll={false} className="block">
-                    {o.customer_name || o.email || '—'}
-                  </Link>
+                  {o.customer_name || o.email || '—'}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums">
-                  <Link href={openHref(o.id)} scroll={false} className="block">
-                    {o.line_item_count ?? 0}
-                  </Link>
+                  {o.line_item_count ?? 0}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums font-medium">
-                  <Link href={openHref(o.id)} scroll={false} className="block">
-                    {fmt(o.total)}
-                  </Link>
+                  {fmt(o.total)}
                 </td>
                 <td className="px-3 py-1.5 text-[11px]">
                   <StatusPill status={o.financial_status} />
@@ -617,320 +587,5 @@ function StatusPill({ status }: { status: string | null }) {
     >
       {(status || 'unknown').replace(/_/g, ' ')}
     </span>
-  );
-}
-
-function OrderDetailModal({
-  order,
-  closeHref,
-}: {
-  order: KikaOrderDetail;
-  closeHref: string;
-}) {
-  const raw = (order.raw || {}) as Record<string, unknown>;
-  const shipping =
-    (raw['shipping_address'] as Record<string, unknown> | null) || null;
-  const billing =
-    (raw['billing_address'] as Record<string, unknown> | null) || null;
-  const note = (raw['note'] as string | null) || null;
-  const phone =
-    (raw['phone'] as string | null) ||
-    (shipping?.['phone'] as string | null) ||
-    null;
-  const isCancelled =
-    !!order.cancelled_at ||
-    order.financial_status === 'voided' ||
-    order.fulfillment_status === 'cancelled';
-  return (
-    <>
-      {/* Backdrop — clicking it closes the modal */}
-      <Link
-        href={closeHref || '/emails/kika/sales'}
-        scroll={false}
-        aria-label="Close order details"
-        className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-[1px]"
-      />
-      {/* Panel */}
-      <div
-        role="dialog"
-        aria-label={`Order ${order.name || order.id}`}
-        className="fixed inset-0 z-50 pointer-events-none flex items-start justify-center p-4 sm:p-8 overflow-y-auto"
-      >
-        <div className="pointer-events-auto w-full max-w-3xl bg-white rounded-2xl shadow-xl my-4">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-3 flex-wrap sticky top-0 bg-white rounded-t-2xl">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg font-bold tracking-tight">
-                  Order {order.name || `#${order.id}`}
-                </h2>
-                <StatusPill status={order.financial_status} />
-                <StatusPill
-                  status={
-                    isCancelled
-                      ? 'cancelled'
-                      : order.fulfillment_status || 'unfulfilled'
-                  }
-                />
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Created{' '}
-                {order.created_at
-                  ? new Date(order.created_at).toLocaleString('en-US')
-                  : '—'}
-                {order.cancelled_at && (
-                  <>
-                    {' '}
-                    · Cancelled {new Date(order.cancelled_at).toLocaleString('en-US')}
-                  </>
-                )}
-                {order.first_fulfilled_at && (
-                  <>
-                    {' '}
-                    · Fulfilled{' '}
-                    {new Date(order.first_fulfilled_at).toLocaleString('en-US')}
-                  </>
-                )}
-              </p>
-            </div>
-            <Link
-              href={closeHref || '/emails/kika/sales'}
-              scroll={false}
-              className="text-slate-500 hover:text-slate-900 text-sm border border-slate-200 rounded-full px-3 py-1 hover:bg-slate-50"
-            >
-              Close ×
-            </Link>
-          </div>
-
-          {/* Body */}
-          <div className="px-6 py-5 space-y-5 text-sm">
-            {/* Customer */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                  Customer
-                </p>
-                <p className="font-medium mt-1">
-                  {order.customer_name || '—'}
-                </p>
-                {order.email && (
-                  <p className="text-[11px] text-slate-500">{order.email}</p>
-                )}
-                {phone && (
-                  <p className="text-[11px] text-slate-500">{phone}</p>
-                )}
-              </div>
-              {shipping && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                    Shipping address
-                  </p>
-                  <p className="text-[12px] mt-1 whitespace-pre-wrap">
-                    {[
-                      shipping.name,
-                      shipping.address1,
-                      shipping.address2,
-                      [shipping.city, shipping.province, shipping.zip]
-                        .filter(Boolean)
-                        .join(', '),
-                      shipping.country,
-                    ]
-                      .filter(Boolean)
-                      .join('\n') || '—'}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Line items */}
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium mb-2">
-                Line items ({order.line_items.length})
-              </p>
-              {order.line_items.length === 0 ? (
-                <p className="text-slate-500 text-[12px]">—</p>
-              ) : (
-                <div className="overflow-x-auto border border-slate-100 rounded-lg">
-                  <table className="w-full text-[12px]">
-                    <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="text-left px-3 py-1.5">Product</th>
-                        <th className="text-left px-3 py-1.5">SKU</th>
-                        <th className="text-right px-3 py-1.5">Qty</th>
-                        <th className="text-right px-3 py-1.5">Price</th>
-                        <th className="text-right px-3 py-1.5">Discount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {order.line_items.map(li => (
-                        <tr key={li.id} className="border-t border-slate-100">
-                          <td className="px-3 py-1.5 truncate max-w-[280px]">
-                            <div className="font-medium truncate">
-                              {li.title || li.name || '—'}
-                            </div>
-                            {li.vendor && (
-                              <div className="text-[10px] text-slate-500">
-                                {li.vendor}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5 text-[10px] text-slate-500 font-mono">
-                            {li.sku || '—'}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
-                            {li.quantity ?? '—'}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
-                            {li.price != null ? fmt(li.price) : '—'}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-rose-600">
-                            {li.total_discount && li.total_discount > 0
-                              ? `−${fmt(li.total_discount)}`
-                              : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Totals */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                  Totals (EGP)
-                </p>
-                <dl className="text-[12px] space-y-0.5">
-                  <TotRow label="Subtotal" value={order.subtotal} />
-                  <TotRow label="Discount" value={order.total_discounts} negative />
-                  <TotRow label="Shipping" value={order.total_shipping} />
-                  <TotRow label="Tax" value={order.total_tax} />
-                  <TotRow
-                    label="Total"
-                    value={order.total}
-                    bold
-                  />
-                  {order.refunded_amount != null && order.refunded_amount > 0 && (
-                    <TotRow
-                      label="Refunded"
-                      value={order.refunded_amount}
-                      negative
-                    />
-                  )}
-                </dl>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                  Meta
-                </p>
-                <dl className="text-[12px] space-y-0.5">
-                  <MetaRow label="Order ID" value={String(order.id)} mono />
-                  <MetaRow label="Currency" value={order.currency || 'EGP'} />
-                  <MetaRow
-                    label="Line items"
-                    value={String(order.line_item_count ?? order.line_items.length)}
-                  />
-                  {order.hours_to_fulfill != null && (
-                    <MetaRow
-                      label="Fulfill time"
-                      value={`${order.hours_to_fulfill.toFixed(1)} hrs`}
-                    />
-                  )}
-                  {Array.isArray(order.tags) && order.tags.length > 0 && (
-                    <MetaRow label="Tags" value={order.tags.join(', ')} />
-                  )}
-                </dl>
-              </div>
-            </div>
-
-            {note && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                  Customer note
-                </p>
-                <p className="text-[12px] mt-1 whitespace-pre-wrap bg-slate-50 rounded-lg p-3">
-                  {note}
-                </p>
-              </div>
-            )}
-
-            {billing && billing !== shipping && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">
-                  Billing address
-                </p>
-                <p className="text-[12px] mt-1 whitespace-pre-wrap">
-                  {[
-                    billing.name,
-                    billing.address1,
-                    billing.address2,
-                    [billing.city, billing.province, billing.zip]
-                      .filter(Boolean)
-                      .join(', '),
-                    billing.country,
-                  ]
-                    .filter(Boolean)
-                    .join('\n') || '—'}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function TotRow({
-  label,
-  value,
-  negative,
-  bold,
-}: {
-  label: string;
-  value: number | null;
-  negative?: boolean;
-  bold?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between ${
-        bold ? 'border-t border-slate-100 pt-1 font-semibold' : ''
-      }`}
-    >
-      <dt className="text-slate-500">{label}</dt>
-      <dd
-        className={`tabular-nums ${negative && value ? 'text-rose-600' : ''}`}
-      >
-        {value != null
-          ? `${negative && value > 0 ? '−' : ''}${fmt(value)}`
-          : '—'}
-      </dd>
-    </div>
-  );
-}
-
-function MetaRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-slate-500">{label}</dt>
-      <dd
-        className={`tabular-nums text-right truncate max-w-[200px] ${
-          mono ? 'font-mono text-[11px]' : ''
-        }`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }

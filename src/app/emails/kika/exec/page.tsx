@@ -19,8 +19,11 @@ import { TopNav } from '@/app/_components/brand';
 import { SyncPills } from '@/app/_components/sync-pills';
 import { buildKikaExecReport, type KikaExecReport } from '@/lib/kika-exec';
 import { buildKikaAbandonedReport } from '@/lib/kika-abandoned-checkouts';
+import { buildKikaManufacturingReport } from '@/lib/kika-manufacturing';
 import { getSyncFreshness } from '@/lib/sync-freshness';
 import { OrderNumberButton } from './_components/order-number-button';
+import { ManufacturingDrilldown } from './_components/manufacturing-drilldown';
+import { Factory } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -93,8 +96,8 @@ const fmtHours = (h: number | null | undefined): string => {
   return `${(abs / 24).toFixed(1)} days`;
 };
 
-type Focus = 'cancelled' | 'unfulfilled' | 'delayed' | 'refunded';
-const FOCUS_IDS: Focus[] = ['cancelled', 'unfulfilled', 'delayed', 'refunded'];
+type Focus = 'cancelled' | 'unfulfilled' | 'delayed' | 'refunded' | 'manufacturing';
+const FOCUS_IDS: Focus[] = ['cancelled', 'unfulfilled', 'delayed', 'refunded', 'manufacturing'];
 function isFocus(v: string | undefined): v is Focus {
   return !!v && (FOCUS_IDS as string[]).includes(v);
 }
@@ -127,7 +130,7 @@ export default async function KikaExecPage({
   const sp = await searchParams;
   const period = resolvePeriod(sp.preset, sp.from, sp.to);
   const activeFocus: Focus | null = isFocus(sp.focus) ? sp.focus : null;
-  const [r, abandoned, pills] = await Promise.all([
+  const [r, abandoned, pills, manufacturing] = await Promise.all([
     buildKikaExecReport({
       fromDate: period.from,
       toDate: period.to,
@@ -139,6 +142,11 @@ export default async function KikaExecPage({
       label: period.label,
     }),
     getSyncFreshness(['shopify']),
+    buildKikaManufacturingReport({
+      fromDate: period.from,
+      toDate: period.to,
+      label: period.label,
+    }),
   ]);
 
   return (
@@ -270,8 +278,9 @@ export default async function KikaExecPage({
         {/* Row 4: CLICKABLE ORDER-STATE CHIPS — each opens a drill-down list
             below. All percentages are relative to total orders in the period
             so the four chips plus the implied 'Fulfilled / Other' always sum
-            cleanly against the Orders total. */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            cleanly against the Orders total. The fifth tile is a different
+            kind (an action, not a state) so it gets the indigo accent. */}
+        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <ClickableStateCard
             id="unfulfilled"
             active={activeFocus === 'unfulfilled'}
@@ -328,14 +337,41 @@ export default async function KikaExecPage({
               focus: activeFocus === 'cancelled' ? null : 'cancelled',
             })}
           />
+          <ClickableStateCard
+            id="manufacturing"
+            active={activeFocus === 'manufacturing'}
+            icon={<Factory size={16} />}
+            iconTone="text-indigo-600"
+            accent="indigo"
+            label="To manufacture"
+            count={manufacturing.totals.total_net_to_make}
+            pct={null}
+            pctLabel={`across ${fmt(manufacturing.totals.distinct_variants)} variant${
+              manufacturing.totals.distinct_variants === 1 ? '' : 's'
+            }`}
+            href={buildSearchString(sp, {
+              focus: activeFocus === 'manufacturing' ? null : 'manufacturing',
+            })}
+          />
         </section>
 
-        {activeFocus && (
+        {activeFocus && activeFocus !== 'manufacturing' && (
           <FocusDrilldown
             focus={activeFocus}
             orders={r.focus_lists[activeFocus]}
             totalRefund={r.refunds.refunds_amount_total}
             totalCancelledAmount={r.cancelled.amount_total}
+            closeHref={buildSearchString(sp, { focus: null })}
+          />
+        )}
+
+        {activeFocus === 'manufacturing' && (
+          <ManufacturingDrilldown
+            rows={manufacturing.rows}
+            totals={manufacturing.totals}
+            fromDate={period.from}
+            toDate={period.to}
+            label={period.label}
             closeHref={buildSearchString(sp, { focus: null })}
           />
         )}
@@ -697,7 +733,7 @@ function ClickableStateCard({
   active: boolean;
   icon: React.ReactNode;
   iconTone: string;
-  accent: 'amber' | 'rose' | 'slate';
+  accent: 'amber' | 'rose' | 'slate' | 'indigo';
   label: string;
   count: number;
   pct: number | null;
@@ -709,13 +745,17 @@ function ClickableStateCard({
       ? 'ring-amber-400'
       : accent === 'rose'
         ? 'ring-rose-400'
-        : 'ring-slate-400';
+        : accent === 'indigo'
+          ? 'ring-indigo-400'
+          : 'ring-slate-400';
   const valueTone =
     accent === 'amber'
       ? 'text-amber-700'
       : accent === 'rose'
         ? 'text-rose-700'
-        : 'text-slate-700';
+        : accent === 'indigo'
+          ? 'text-indigo-700'
+          : 'text-slate-700';
   return (
     <Link
       href={href || '#'}
@@ -749,6 +789,10 @@ function ClickableStateCard({
   );
 }
 
+// FocusDrilldown only renders the four order-state buckets. The
+// 'manufacturing' focus has its own component (ManufacturingDrilldown), so we
+// narrow the prop type here to exclude it.
+type OrderFocus = Exclude<Focus, 'manufacturing'>;
 function FocusDrilldown({
   focus,
   orders,
@@ -756,14 +800,14 @@ function FocusDrilldown({
   totalCancelledAmount,
   closeHref,
 }: {
-  focus: Focus;
+  focus: OrderFocus;
   orders: import('@/lib/kika-exec').FocusOrder[];
   totalRefund: number;
   totalCancelledAmount: number;
   closeHref: string;
 }) {
   const FOCUS_META: Record<
-    Focus,
+    OrderFocus,
     { title: string; tone: string; extraSummary?: string }
   > = {
     cancelled: {
