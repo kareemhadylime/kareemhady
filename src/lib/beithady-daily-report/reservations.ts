@@ -23,9 +23,11 @@ export type ReservationRow = {
   check_out_date: string | null;
   nights: number | null;
   currency: string | null;
-  host_payout_usd: number | null;     // converted
+  host_payout_usd: number | null;     // converted — net (after channel commissions)
   host_payout_raw: number | null;     // original
   guest_paid_usd: number | null;      // converted (for payment-on-checkin check)
+  fare_accommodation_usd: number | null;  // converted — gross accommodation fare,
+                                          // matches Guesty Analytics "Revenue" tile
   created_at_iso: string | null;      // Guesty createdAt
   updated_at_iso: string | null;
   cancelled_at_iso: string | null;    // Guesty cancelledAt — preferred for cancellations bucketing
@@ -87,7 +89,7 @@ async function _loadAllRowsRaw(
         `id, confirmation_code, status, source, listing_id, listing_nickname,
          guest_name, guest_email,
          check_in_date, check_out_date, nights, currency,
-         host_payout, guest_paid,
+         host_payout, guest_paid, fare_accommodation,
          created_at_odoo, updated_at_odoo, cancelled_at,
          listing:guesty_listings!left(building_code)`
       )
@@ -114,7 +116,7 @@ async function _loadAllRowsRaw(
         `id, confirmation_code, status, source, listing_id, listing_nickname,
          guest_name, guest_email,
          check_in_date, check_out_date, nights, currency,
-         host_payout, guest_paid,
+         host_payout, guest_paid, fare_accommodation,
          created_at_odoo, updated_at_odoo, cancelled_at,
          listing:guesty_listings!left(building_code)`
       )
@@ -197,6 +199,17 @@ async function _loadAllRowsRaw(
       (r.currency as string | null) || 'USD',
     );
 
+    // Gross accommodation fare — matches Guesty Analytics → General
+    // Overview "Revenue" tile. Differs from host_payout by channel
+    // commission (~6% on Airbnb/Booking) + cleaning fee allocation.
+    const fareRaw = r.fare_accommodation as number | string | null;
+    const fareNum =
+      typeof fareRaw === 'string' ? Number(fareRaw) : fareRaw;
+    const fareUsd = convertSync(
+      typeof fareNum === 'number' && Number.isFinite(fareNum) ? fareNum : null,
+      (r.currency as string | null) || 'USD',
+    );
+
     const cancelledAt = (r.cancelled_at as string | null) || null;
     const updatedAt = (r.updated_at_odoo as string | null) || null;
     const effectiveCancel = cancelledAt || updatedAt;
@@ -221,6 +234,7 @@ async function _loadAllRowsRaw(
           ? payoutNum
           : null,
       guest_paid_usd: guestPaidUsd,
+      fare_accommodation_usd: fareUsd,
       created_at_iso: (r.created_at_odoo as string | null) || null,
       updated_at_iso: updatedAt,
       cancelled_at_iso: cancelledAt,

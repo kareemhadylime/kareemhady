@@ -1,3 +1,25 @@
+## 2026-05-16 — Revenue reconciliation BH dashboard ↔ Guesty Analytics (DIAGNOSED, in progress)
+
+**User report:** BH "Month Revenue (OTB)" = $55.3k vs Guesty Analytics "Revenue" = $59,061 (This Month, Egypt). Couldn't reconcile.
+
+**Root cause** (verified against `guesty_reservations`, May 2026, confirmed, check-in attribution):
+
+| Metric | Value | Source field |
+|---|---|---|
+| Guesty Analytics Revenue | $60,302 (computed) ≈ $59,061 (shown) | `fare_accommodation` (gross — what guests paid) |
+| BH "Month Revenue (OTB)" | $56,723 (computed) ≈ $55.3k (shown) | `host_payout` (net — after channel fees) |
+| Gap | $3,579 (~6%) | OTA/channel commissions |
+
+Both share the same attribution (check-in in calendar month, confirmed status, Egypt buildings). Small drift between computed and shown values comes from FX rate variance (we use fallback `EGP=0.0203, AED=0.2723`) and intraday status changes.
+
+**Code reference:** `src/lib/beithady-daily-report/build-buildings.ts:206` uses `r.host_payout_usd`. The 2026-05-04 fix (in the same file, lines 193-205) switched timing from accrual to check-in attribution to match Guesty's "This Month" tile but didn't address gross-vs-net.
+
+**Decision pending:** User asked between (1) switch to gross to match Guesty, (2) keep net + add a second "Gross Revenue" card, (3) document only. Awaiting reply.
+
+**Diagnostic SQL recorded** so anyone who picks this up can re-verify with the same query set.
+
+---
+
 ## 2026-05-16 — Closed both deferred follow-ups (rotation persistence + GCP redirect URI) ✅
 
 **Task 1: refresh-token rotation persistence (commit `ee5db106`)** — [src/lib/gmail.ts:38](src/lib/gmail.ts:38) `getGmailClientFromRefresh` now diffs `credentials.refresh_token` against the pre-refresh value and, when Google rotates, writes `encrypt(new)` back to `accounts.oauth_refresh_token_encrypted` keyed off the exact ciphertext that came in. Lookup-by-ciphertext means no callsite changes (none of the ~6 callers pass an account id). Dormant today (Google's default OAuth2 web-server clients don't rotate), but if rotation is ever enabled per-client or becomes default, this avoids the silent self-revoke pattern that would have caused another 2026-05-11-style mass `invalid_grant`.
@@ -140,6 +162,35 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 - `src/lib/personal/networth/payment.test.ts` — smoke test (1/1 pass).
 
 **TDD:** red → green confirmed. `tsc --noEmit` clean on payment files (2 pre-existing unrelated errors in `insights-demo.test.ts`). Added `ScheduleWithLiability` local type to handle Supabase join result inference. Commit `7e1117c`.
+
+---
+
+## 2026-05-16 — Reconcile BH dashboard revenue with Guesty Analytics (DONE)
+
+**User question:** "I can't match the Analytic Revenues between BH app & guesty" — Guesty Analytics → General Overview showed $59,061 for May 2026 / Egypt; Today's Pulse "Month Revenue (OTB)" showed $55.3k.
+
+**Root cause:** BH dashboard sums `host_payout` (net of channel commissions). Guesty Analytics "Revenue" tile sums `fare_accommodation` (gross — what guests paid for accommodation). Verified directly via Supabase for May 2026, confirmed-only, check-in attribution, Egypt scope:
+- host_payout sum = $56,723 ≈ BH's $55.3k (residual drift = today's cancellations/inquiries flipping)
+- fare_accommodation sum = $60,302 ≈ Guesty's $59,061 (residual drift = FX rate differences)
+- The ~6% gap = OTA commissions on Airbnb/Booking.com
+
+Side-by-side per-building check-in / confirmed-only, May 2026:
+| Bld | n | host_payout | fare_accom |
+|---|---:|---:|---:|
+| BH-26 | 67 | $22,807 | $24,845 |
+| BH-73 | 48 | $14,473 | $15,050 |
+| BH-435 | 34 | $11,785 | $11,788 |
+| BH-OK | 14 | $4,171 | $4,258 |
+| Other | 12 | $3,487 | $4,361 |
+| **Egypt total** | **175** | **$56,723** | **$60,302** |
+
+**Fix (option 2 — keep net + add gross card):**
+- `src/lib/beithady-daily-report/reservations.ts`: load `fare_accommodation` from Guesty, convert to USD via fx_rates_usd
+- `src/lib/beithady-daily-report/types.ts`: optional `revenue_mtd_gross_usd?` / `revenue_mtd_gross_actual_usd?` on BuildingBucket (older snapshots → undefined → 0)
+- `src/lib/beithady-daily-report/build-buildings.ts`: sum fare_accommodation into accumulator alongside host_payout; emit gross fields per-building + accAll
+- `src/app/beithady/_components/landing-pulse.tsx`: add "Month Revenue (Gross)" hero KPI card next to the existing net "Month Revenue (OTB)" card; relabeled net card sub-text to "net payout · incl. confirmed → EOM" for clarity
+
+**Status:** Build clean. Code shipped; the new card will read `0` until the next morning-cron snapshot runs (or we manually re-trigger). Existing snapshots have no `revenue_mtd_gross_*` fields, so the card stays at $0 until refresh.
 
 ---
 

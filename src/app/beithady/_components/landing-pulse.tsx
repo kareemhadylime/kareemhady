@@ -181,9 +181,19 @@ export async function LandingPulse() {
           value={`$${(all.revenue_mtd_usd / 1000).toFixed(1)}k`}
           delta={{
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
-            text: 'incl. confirmed → EOM',
+            text: 'net payout · incl. confirmed → EOM',
           }}
           spark={payload.sparklines?.mtd_revenue}
+          drillTo="/beithady/financials?period=month-otb"
+          accent="gold"
+        />
+        <HeroKpi
+          label="Month Revenue (Gross)"
+          value={`$${((all.revenue_mtd_gross_usd ?? 0) / 1000).toFixed(1)}k`}
+          delta={{
+            direction: 'flat',
+            text: 'gross · matches Guesty Analytics',
+          }}
           drillTo="/beithady/financials?period=month-otb"
           accent="gold"
         />

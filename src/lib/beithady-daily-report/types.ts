@@ -56,6 +56,13 @@ export type BuildingBucket = {
   revenue_mtd_usd: number;
   revenue_mtd_actual_usd: number;  // added 2026-05-12; undefined in older snapshots → 0
   revenue_created_mtd_usd: number;
+  // Gross-revenue twins (added 2026-05-16). Same attribution as the
+  // host_payout fields above but summed on fare_accommodation — what
+  // guests actually paid for accommodation. Matches Guesty Analytics →
+  // General Overview "Revenue" tile (Egypt + active listings). Optional
+  // because older snapshots predate this field.
+  revenue_mtd_gross_usd?: number;
+  revenue_mtd_gross_actual_usd?: number;
   forward_occupancy_pct: number;   // today → end of month, on-the-books
   backward_occupancy_pct: number;  // start-of-month → today, classic %
   month_occupancy_pct: number;     // 0..100, whole-month OTB (formula above); added 2026-05-12 → 0

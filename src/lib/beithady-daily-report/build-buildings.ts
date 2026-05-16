@@ -54,6 +54,8 @@ type Accumulator = {
   revenue_usd: number;                      // host_payout, check-in attribution — month OTB (incl. future)
   revenue_actual_usd: number;               // host_payout, check-in attribution — past only ([start, today])
   revenue_created_mtd_usd: number;          // host_payout for reservations CREATED in month (Guesty Analytics parity)
+  revenue_gross_usd: number;                // fare_accommodation, check-in attribution — month OTB (gross of channel fees)
+  revenue_gross_actual_usd: number;         // fare_accommodation, check-in attribution — past only
   nights_mtd: number;                       // nights between [start, today]
   forward_nights_booked: number;            // nights between (today, end]
   backward_nights_started_in_month: number; // user's literal-formula numerator
@@ -77,6 +79,8 @@ function emptyAcc(): Accumulator {
     revenue_usd: 0,
     revenue_actual_usd: 0,
     revenue_created_mtd_usd: 0,
+    revenue_gross_usd: 0,
+    revenue_gross_actual_usd: 0,
     nights_mtd: 0,
     forward_nights_booked: 0,
     backward_nights_started_in_month: 0,
@@ -204,15 +208,20 @@ export function buildBuildingsTable(
     // month's revenue. Reservations spanning month boundaries: their
     // revenue lands in the check-in month only.
     const usd = r.host_payout_usd || 0;
+    const grossUsd = r.fare_accommodation_usd || 0;
     const totalNights = r.nights || 0;
     const nightsThisMonth = nightsInRange(r, monthStart, monthEnd);
     if (r.check_in_date && r.check_in_date >= monthStart && r.check_in_date <= monthEnd) {
       acc.revenue_usd += usd;
       accAll.revenue_usd += usd;
+      acc.revenue_gross_usd += grossUsd;
+      accAll.revenue_gross_usd += grossUsd;
     }
     if (r.check_in_date && r.check_in_date >= monthStart && r.check_in_date <= today) {
       acc.revenue_actual_usd += usd;
       accAll.revenue_actual_usd += usd;
+      acc.revenue_gross_actual_usd += grossUsd;
+      accAll.revenue_gross_actual_usd += grossUsd;
     }
 
     const nightsMtdElapsed = nightsInRange(r, monthStart, today);
@@ -302,6 +311,8 @@ export function buildBuildingsTable(
       revenue_mtd_usd: round2(acc.revenue_usd),
       revenue_mtd_actual_usd: round2(acc.revenue_actual_usd),
       revenue_created_mtd_usd: round2(acc.revenue_created_mtd_usd),
+      revenue_mtd_gross_usd: round2(acc.revenue_gross_usd),
+      revenue_mtd_gross_actual_usd: round2(acc.revenue_gross_actual_usd),
       forward_occupancy_pct: pct(acc.forward_nights_booked, fwd_avail),
       backward_occupancy_pct: pct(acc.nights_mtd, ctx.days_elapsed * units),
       month_occupancy_pct: pct(
@@ -374,6 +385,8 @@ export function buildBuildingsTable(
     revenue_mtd_usd: round2(accAll.revenue_usd),
     revenue_mtd_actual_usd: round2(accAll.revenue_actual_usd),
     revenue_created_mtd_usd: round2(accAll.revenue_created_mtd_usd),
+    revenue_mtd_gross_usd: round2(accAll.revenue_gross_usd),
+    revenue_mtd_gross_actual_usd: round2(accAll.revenue_gross_actual_usd),
     forward_occupancy_pct: pct(accAll.forward_nights_booked, fwd_avail_all),
     backward_occupancy_pct: pct(accAll.nights_mtd, ctx.days_elapsed * totalUnits),
     month_occupancy_pct: pct(
