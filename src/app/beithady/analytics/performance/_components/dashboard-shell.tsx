@@ -139,7 +139,12 @@ export function DashboardShell({
     BUILDING_CODE_SET.has(state.building) ? (state.building as BuildingCode) : 'all';
   const bucket = buildingFilter === 'all' ? payload.all : payload.per_building[buildingFilter];
   const isFiltered = buildingFilter !== 'all';
-  const filterSuffix = isFiltered ? ` · ${buildingFilter}` : '';
+  // All Beit Hady operating buildings (BH-26 / BH-73 / BH-435 / BH-OK / OTHER)
+  // are in Egypt — DXB is excluded from the `all` bucket upstream (see
+  // units.ts:isExcludedFromReport). The " · EG" suffix makes the scope
+  // explicit on every Hero KPI so it's clear these don't include the Dubai
+  // listings (which surface separately in the "+2 DXB" pill).
+  const filterSuffix = isFiltered ? ` · ${buildingFilter} · EG` : ' · EG';
   const paceAccent = bucket.pickup_vs_prior_month_pct >= 0 ? 'green' : 'red';
   const revparValue =
     isFiltered && payload.revpar?.by_building

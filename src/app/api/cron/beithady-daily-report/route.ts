@@ -23,12 +23,21 @@ export async function GET(req: NextRequest) {
   // without this you'd have to wait until the next morning for the field
   // to populate. Authorized callers only (same Bearer check above).
   const rebuild = req.nextUrl.searchParams.get('rebuild') === '1';
+  // ?date=YYYY-MM-DD forces the run to build a snapshot for a past date.
+  // Used for backfilling historical days (e.g. to populate the MoM sub-line
+  // on the dashboard, which needs same-day-last-month snapshots to exist).
+  // Combined with rebuild=1 + skip_dist=1 it's a no-op idempotent backfill.
+  const dateParam = req.nextUrl.searchParams.get('date');
+  const skipDist = req.nextUrl.searchParams.get('skip_dist') === '1';
+  const dateOverride = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
 
   try {
     const result = await runDailyReport({
-      trigger: force ? 'force' : 'cron',
-      forceTimeGate: force,
-      forceRebuild: rebuild,
+      trigger: dateOverride ? 'backfill' : force ? 'force' : 'cron',
+      forceTimeGate: force || !!dateOverride,
+      forceRebuild: rebuild || !!dateOverride,
+      skipDistribution: skipDist || !!dateOverride,
+      dateOverride,
     });
     return NextResponse.json(result, {
       status: result.ok ? 200 : 500,

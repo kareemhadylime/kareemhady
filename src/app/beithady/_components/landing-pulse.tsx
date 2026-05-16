@@ -174,7 +174,7 @@ export async function LandingPulse() {
         aria-label="Hero KPIs"
       >
         <HeroKpi
-          label="Occupancy today"
+          label="Occupancy today · EG"
           value={`${all.occupancy_today_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'today' }}
           mom={momPp(all.occupancy_today_pct, lastMonthAll?.occupancy_today_pct)}
@@ -183,7 +183,7 @@ export async function LandingPulse() {
           accent="ink"
         />
         <HeroKpi
-          label="MTD Occupancy"
+          label="MTD Occupancy · EG"
           value={`${all.backward_occupancy_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: '1st → today' }}
           mom={momPp(all.backward_occupancy_pct, lastMonthAll?.backward_occupancy_pct)}
@@ -192,7 +192,7 @@ export async function LandingPulse() {
           accent="steel"
         />
         <HeroKpi
-          label="Month-to-End Occupancy"
+          label="Month-to-End Occupancy · EG"
           value={`${all.forward_occupancy_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'today → EOM, OTB' }}
           mom={momPp(all.forward_occupancy_pct, lastMonthAll?.forward_occupancy_pct)}
@@ -201,7 +201,7 @@ export async function LandingPulse() {
           accent="steel"
         />
         <HeroKpi
-          label="Month Occupancy"
+          label="Month Occupancy · EG"
           value={`${(all.month_occupancy_pct ?? 0).toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'whole month, OTB' }}
           mom={momPp(all.month_occupancy_pct ?? 0, lastMonthAll?.month_occupancy_pct)}
@@ -210,7 +210,7 @@ export async function LandingPulse() {
           accent="gold"
         />
         <HeroKpi
-          label="Pace"
+          label="Pace · EG"
           value={`${all.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${all.pickup_vs_prior_month_pct.toFixed(1)}%`}
           delta={{
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
@@ -222,7 +222,7 @@ export async function LandingPulse() {
           accent={paceAccent}
         />
         <HeroKpi
-          label="MTD Revenue"
+          label="MTD Revenue · EG"
           value={`$${((all.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
           delta={{ direction: 'flat', text: 'check-ins so far' }}
           mom={momPct(all.revenue_mtd_actual_usd ?? 0, lastMonthAll?.revenue_mtd_actual_usd)}
@@ -231,7 +231,7 @@ export async function LandingPulse() {
           accent="gold"
         />
         <HeroKpi
-          label="Month Revenue (OTB)"
+          label="Month Revenue (OTB) · EG"
           value={`$${(all.revenue_mtd_usd / 1000).toFixed(1)}k`}
           delta={{
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
@@ -243,7 +243,7 @@ export async function LandingPulse() {
           accent="gold"
         />
         <HeroKpi
-          label="Month Revenue (Gross)"
+          label="Month Revenue (Gross) · EG"
           value={`$${((all.revenue_mtd_gross_usd ?? 0) / 1000).toFixed(1)}k`}
           delta={{
             direction: 'flat',
@@ -254,7 +254,7 @@ export async function LandingPulse() {
           accent="gold"
         />
         <HeroKpi
-          label="RevPAR"
+          label="RevPAR · EG"
           value={
             payload.revpar?.all != null
               ? `$${payload.revpar.all.toFixed(2)}`
