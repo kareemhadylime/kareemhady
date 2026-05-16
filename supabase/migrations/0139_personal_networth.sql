@@ -286,15 +286,20 @@ create view v_personal_networth_current as
     group by app_user_id
   )
   select
-    coalesce(a.app_user_id, l.app_user_id)              as app_user_id,
-    coalesce(a.amount_egp, 0) + coalesce(s.amount_egp, 0) as total_assets_egp,
-    coalesce(l.amount_egp, 0)                            as total_liabilities_egp,
-    coalesce(a.amount_egp, 0) + coalesce(s.amount_egp, 0)
-      - coalesce(l.amount_egp, 0)                        as net_worth_egp,
-    coalesce(s.amount_egp, 0)                            as stocks_pipe_egp
-  from assets_total a
-  full outer join liabilities_total l on l.app_user_id = a.app_user_id
-  cross join stocks_value s;
+    st.app_user_id,
+    coalesce(a.amount_egp, 0) + coalesce(sv.amount_egp, 0) as total_assets_egp,
+    coalesce(l.amount_egp, 0)                              as total_liabilities_egp,
+    coalesce(a.amount_egp, 0) + coalesce(sv.amount_egp, 0)
+      - coalesce(l.amount_egp, 0)                          as net_worth_egp,
+    coalesce(sv.amount_egp, 0)                             as stocks_pipe_egp
+  -- Anchored on settings so every user with a settings row gets a row here,
+  -- even before they have entered any assets or liabilities. Stocks-pipe value
+  -- is broadcast via CROSS JOIN because the stocks module is single-user
+  -- (all AOLB accounts belong to one app_user_id in the current design).
+  from personal_networth_settings st
+  left join assets_total      a on a.app_user_id = st.app_user_id
+  left join liabilities_total l on l.app_user_id = st.app_user_id
+  cross join stocks_value sv;
 
 create view v_personal_networth_loan_summary as
   select
@@ -338,6 +343,7 @@ create view v_personal_networth_upcoming as
   join personal_networth_liabilities li on li.id = sch.liability_id
   where sch.paid_on is null
     and sch.due_date <= current_date + interval '30 days'
+    and li.kind in ('amortizing_loan','bnpl')
   union all
   select
     'recurring'::text                      as source,
