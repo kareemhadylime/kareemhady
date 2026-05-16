@@ -1,3 +1,22 @@
+## 2026-05-16 — BH Ads V2: plan written, awaiting execution-mode choice
+
+**Status:** V2 spec ✅ + plan ✅ both committed and pushed. Awaiting kareem's execution-mode choice (subagent-driven vs inline) before shipping.
+
+**Spec:** [docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md](docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md) — commit `55f02e5`, 446 lines
+**Plan:** [docs/superpowers/plans/2026-05-16-bh-ads-insights-v2.md](docs/superpowers/plans/2026-05-16-bh-ads-insights-v2.md) — commit `80aa12b`, 2637 lines, 17 TDD tasks
+
+**V2 features (5):** C1 funnel, C2 lead-quality %, C3 WhatsApp FRT, C4 per-building breakdown, C5 lead→booking cohort matrix. Per Q1-Q4 locked decisions: 3 new audience sub-tabs (`?tab=funnel|quality|cohort`) + FRT card on main + per-building chip row everywhere. NO new tables/crons/migrations.
+
+**Per-building attribution rule:** `matched_reservation_building (via lead→reservation→listing→building_code TS join) ?? lead.building_interest ?? 'Unattributed'`.
+
+**V1 polish closed inline:** MIN-1 (extract `asInt`/`asMicros` to `insights-utils.ts`), MIN-2 (backfill action checks `res.ok`), MIN-3 (rollups log Supabase errors).
+
+**Test target:** +51 new tests → ~846 passing / 22 skipped, zero regressions, `tsc --noEmit` clean.
+
+**Next:** Kareem picks execution mode. First task ships `buildings.ts` (single source of truth for BH-* codes).
+
+---
+
 ## 2026-05-16 — Personal Net Worth module — spec written, awaiting review
 
 **Status:** Brainstorming session for the new `/personal/networth` module is complete. Design spec written to `docs/superpowers/specs/2026-05-16-personal-networth-design.md` and self-reviewed (0 placeholders, charity goal disambiguated to absolute EGP/year target, stocks pipe-in SQL resolved against existing 0117 views). **Awaiting kareem's review of the written spec** before invoking `writing-plans` for the implementation plan.
