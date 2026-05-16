@@ -119,7 +119,8 @@ export async function GET(req: NextRequest) {
         // effective customers, upsert whichever returns rows, and stop on
         // the first non-empty response. For a leaf, this loop runs once.
         let geoOk = false, demoOk = false, devOk = false;
-        let lastErr: string | null = null;
+        const errs: string[] = [];
+        const shortErr = (e: unknown): string => typeof e === 'string' ? e : JSON.stringify(e).slice(0, 500);
         for (const customerId of effectiveIds) {
           const [geo, demo, dev] = await Promise.all([
             fetchGoogleGeoView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: googleCredsRes.creds, accessToken: googleTokRes.access_token }),
@@ -127,12 +128,18 @@ export async function GET(req: NextRequest) {
             fetchGoogleDeviceView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: googleCredsRes.creds, accessToken: googleTokRes.access_token }),
           ]);
           if (geo.ok && geo.rows.length) { await upsertGeoRows(normalizeGoogleGeoRows(geo.rows, ctx)); geoOk = true; }
+          else if (!geo.ok) errs.push(`geo: ${shortErr(geo.error)}`);
           if (demo.ok && (demo.gender.length || demo.ageRange.length)) { await upsertDemoRows(normalizeGoogleDemoRows({ gender: demo.gender, ageRange: demo.ageRange }, ctx)); demoOk = true; }
+          else if (!demo.ok) errs.push(`demo: ${shortErr(demo.error)}`);
           if (dev.ok && dev.rows.length) { await upsertDeviceRows(normalizeGoogleDeviceRows(dev.rows, ctx)); devOk = true; }
-          if (!geo.ok) lastErr = typeof geo.error === 'string' ? geo.error : JSON.stringify(geo.error).slice(0, 1500);
+          else if (!dev.ok) errs.push(`device: ${shortErr(dev.error)}`);
           if (geoOk || demoOk || devOk) break;
         }
-        summary.push({ campaignId: c.id, platform: 'google', ok: geoOk || demoOk || devOk, ...(geoOk || demoOk || devOk ? {} : { error: lastErr || 'no_rows_any_customer' }) });
+        const anyOk = geoOk || demoOk || devOk;
+        summary.push({
+          campaignId: c.id, platform: 'google', ok: anyOk,
+          ...(anyOk ? {} : { error: errs.length ? errs.join(' | ').slice(0, 1500) : 'no_rows_any_customer' }),
+        });
       } else if (c.platform === 'tiktok') {
         const creds = await loadTikTokAppCredentials();
         if (!creds.ok) { summary.push({ campaignId: c.id, platform: 'tiktok', ok: false, error: creds.error }); continue; }

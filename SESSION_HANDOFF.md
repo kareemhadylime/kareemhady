@@ -51,22 +51,28 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 
 ---
 
-## 2026-05-16 — Google audience breakdowns cron — fix missing_credentials + MCC expansion (DONE)
+## 2026-05-16 — Google audience breakdowns: end-to-end fix (DONE)
 
-**Bug:** Campaign-detail Audience snapshot showed "No data yet" for all three breakdowns (countries / demographics / device) on Google campaigns. `ads_insights_geo|demo|device` had **zero** Google rows.
+**Bug:** Campaign-detail Audience snapshot showed "No data yet" for all three breakdowns on Google campaigns. `ads_insights_geo|demo|device` had **zero** Google rows.
 
-**Root cause:** `beithady-ads-breakdowns` cron logged `total: 4, failed: 4` at 12:00 UTC. Manual trigger returned `error: "missing_credentials"` for every Google campaign. The cron called `loadGoogleAdsCredentials()` without the per-account refresh-token fallback — but `integration_credentials.google_ads.config` has `refresh_token` absent; the only Google OAuth token lives on `ads_accounts.google_refresh_token` (which the spend-sync already passes through).
+**Five distinct issues uncovered by iterative cron triggering:**
 
-**Secondary issue:** cron used `acct.google_login_customer_id || creds.login_customer_id` as the URL path customer — but that's the MCC parent, not the leaf that owns the campaign. Google Ads queries against the wrong customer return zero rows.
+1. **missing_credentials** — cron called `loadGoogleAdsCredentials()` without the per-account refresh-token fallback. `integration_credentials.google_ads.config` has no `refresh_token`; the only Google OAuth token lives on `ads_accounts.google_refresh_token` (which spend-sync already passes through).
+2. **Wrong URL-path customer** — cron used `acct.google_login_customer_id || creds.login_customer_id` (MCC parent), not the leaf customer that owns the campaign.
+3. **BAD_NUMBER for drafts** — draft `external_id="draft_..."` → NaN in `campaign.id = NaN`.
+4. **PROHIBITED_SEGMENT_IN_SELECT_OR_WHERE_CLAUSE** — GAQL used `segments.geo_target_country/city`, `segments.gender`, `segments.age_range` — Google v24 rejects these for geographic_view / gender_view / age_range_view. Correct fields: `geographic_view.country_criterion_id`, `ad_group_criterion.gender.type`, `ad_group_criterion.age_range.type`.
+5. **Postgres "ON CONFLICT DO UPDATE cannot affect row a second time"** — geographic_view emits one row per (date, country, location_type ∈ {LOCATION_OF_PRESENCE, AREA_OF_INTEREST}). Both share the (campaign, date, country) upsert key. Filtered query to `location_type = 'LOCATION_OF_PRESENCE'` — also fixes double-counting.
 
-**Fixes:**
-- `src/lib/beithady/ads/google-client.ts`: new `getEffectiveGoogleCustomerIds(rootCustomerId, creds, accessToken)` helper — detects manager vs leaf and enumerates non-manager children at level ≤ 2
-- `src/app/api/cron/beithady-ads-breakdowns/route.ts`:
-  - Hoist `loadGoogleAdsCredentials(googleAccountRefreshToken)` + `getGoogleAccessToken` + per-account effective-customer-ID resolution out of the per-campaign loop
-  - Per Google campaign: iterate effective customer IDs, upsert whichever returns rows (handles both leaf accounts and MCCs), break on first hit
-  - Audit log `metadata.failures[]` now includes `{ campaignId, platform, error }` for future diagnostics
+**Files changed:**
+- `src/lib/beithady/ads/google-client.ts` — new `getEffectiveGoogleCustomerIds()` helper; fixed geo/gender/age GAQL; LOCATION_OF_PRESENCE filter
+- `src/lib/beithady/ads/insights-geo.ts` — `normalizeGoogleGeoRows` reads `geographicView.countryCriterionId`
+- `src/lib/beithady/ads/insights-demo.ts` — `normalizeGoogleDemoRows` reads `adGroupCriterion.{gender,ageRange}.type`
+- `src/lib/beithady/ads/insights-geo.test.ts` + `insights-demo.test.ts` — fixtures updated, 12 tests pass
+- `src/app/api/cron/beithady-ads-breakdowns/route.ts` — credentials hoisted with refresh-token fallback; MCC expansion; skip drafts; iterate effective customers; capture geo+demo+device errors (not just geo); audit log records per-campaign `failures[]`
 
-**Verification:** `npm run build` clean. Manual trigger after deploy will populate `ads_insights_*` for Google for the last 7d window.
+**Verification:** Manual cron trigger returned `{campaignId:4, ok:true}`. DB now has 24 rows in `ads_insights_geo` for Google campaign 4 — all SA (3,976 clicks / 69,378 imps over 24 days). Demo + device returned 0 rows; this Search campaign doesn't have explicit demographic targeting (gender/age views also unavailable for PMax). Error-capture improved so future failures will surface in the audit log without redeploys.
+
+**Commits:** f35c567, 1876f03, 0ee84997, 79e551fe.
 
 ---
 
