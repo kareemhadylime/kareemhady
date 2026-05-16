@@ -153,6 +153,41 @@ export async function gadsMutate(
   }
 }
 
+// === Insights breakdown queries (BH Ads V1) ===
+
+export type GoogleGeoRow = {
+  segments?: { date?: string; geoTargetCountry?: string | null; geoTargetCity?: string | null };
+  metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
+  campaign?: { id?: string };
+};
+
+export type GoogleBreakdownOpts = {
+  customerId: string;
+  campaignId: string;       // external_id (numeric)
+  fromDate: string;
+  toDate: string;
+  creds: GoogleAdsCredentials;
+  accessToken: string;
+};
+
+export async function fetchGoogleGeoView(opts: GoogleBreakdownOpts): Promise<GaqlResult<GoogleGeoRow>> {
+  const q = `
+    SELECT
+      segments.date,
+      segments.geo_target_country,
+      segments.geo_target_city,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions,
+      campaign.id
+    FROM geographic_view
+    WHERE campaign.id = ${Number(opts.campaignId)}
+      AND segments.date BETWEEN '${opts.fromDate}' AND '${opts.toDate}'
+  `;
+  return gaqlSearch<GoogleGeoRow>(opts.customerId, q, opts.creds, opts.accessToken);
+}
+
 // Ping — used by /admin/integrations to verify credentials work.
 export async function pingGoogleAds(): Promise<
   | { ok: true; customer_descriptive_name: string | null; currency_code: string | null }
