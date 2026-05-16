@@ -78,6 +78,8 @@
     { "path": "/api/cron/personal-networth-snapshot",  "schedule": "0 6 1 * *" },
     { "path": "/api/cron/personal-networth-snapshot",  "schedule": "0 7 1 * *" },
     { "path": "/api/cron/personal-networth-recurring", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/personal-networth-recurring", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/personal-networth-recurring", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/personal-stock-prices", "schedule": "0 14 * * 0-4" },
+    { "path": "/api/cron/personal-stock-prices", "schedule": "0 15 * * 0-4" }
   ]
 }
