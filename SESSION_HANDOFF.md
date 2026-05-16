@@ -1,3 +1,35 @@
+## 2026-05-16 — Net Worth overview: KPIs-stuck-at-0 + donut value labels 🔧
+
+After the 500 fix landed, kareem refreshed `/personal/networth` and saw the page render — but every KPI showed "EGP 0" and the Asset Mix donut had a "Real Estate" slice with no numeric value next to it. Two real bugs surfaced from the first live-data test:
+
+**Bug A — view returned zero rows because anchor table was empty.**
+- Kareem has 2 active real_estate assets totaling **EGP 179M** (Elgouna Tawila T3-2D EGP 29M + Reyna 36 Villa EGP 150M), verified via direct SQL.
+- `v_personal_networth_current` was anchored on `personal_networth_settings` (the original Task 4 fix). Kareem hadn't visited /setup yet, so no settings row existed → the view returned zero rows → `currentRes.data` was null in the page → all 4 KPIs (Net Worth, Total Assets, Total Liabilities, plus the stocks pipe) coalesced to `0`.
+- The Asset Mix donut DID show "Real Estate" because `getAssetMix()` queries `personal_networth_assets` directly, not via the view. So the chart's left half worked while the right half lied.
+
+**Migration `0142_personal_networth_current_anchor_union.sql`** (applied to live `bpjproljatbrbmszwbov`):
+- Rewrote the view to anchor on a UNION across `personal_networth_settings`, active `personal_networth_assets`, and active `personal_networth_liabilities`. The view now returns a row as soon as ANY personal-networth presence exists for the user.
+- Verified post-apply: query returns `total_assets_egp = 177,087,162`, `total_liabilities_egp = 0`, `net_worth_egp = 177,087,162`, `stocks_pipe_egp = -1,912,838` (margin position). Stocks pipe being negative is intentional per the spec ("Hybrid stocks pipe in for dashboard") — it draws total assets down by the margin debt.
+- Saved as `supabase/migrations/0142_*.sql` for repo provenance.
+
+**Bug B — donut had no visible values, only colored dots in the legend.**
+- `AssetMixDonut` and `LiabilityMixDonut` rendered a recharts `<Legend />` showing just `● Real Estate` with no amount.
+- Reworked both components: replaced the bottom `<Legend />` with a sidebar value list. Layout is now `grid-cols-1 sm:grid-cols-[1fr_1fr]` — donut on the left, list on the right (mobile stacks). Each list item shows:
+  ```
+  ● <Label>
+    EGP X,XXX,XXX · YY%
+  ```
+- Slices sorted descending by amount (largest first). Tooltip on hover still shows EGP + %.
+- `Math.round()` on the EGP value to drop fractional pennies in the headline display.
+
+**Commit `56566294`** — both fixes in one push. `tsc --noEmit` clean. GitHub→Vercel auto-deploys.
+
+**Stale alias caveat (still applies):** `app.limeinc.cc` does NOT auto-update on push per [vercel_lime_alias_quirk.md](file://C:/Users/karee/.claude/projects/C--kareemhady/memory/vercel_lime_alias_quirk.md). After the deploy lands kareem needs `vercel alias set <new-deploy-url> app.limeinc.cc` to see the fix on `app.limeinc.cc`. The fix is live on `limeinc.vercel.app` immediately.
+
+**Open watch-item:** the stocks pipe is currently `-1.9M EGP` (margin position). Recharts may render a negative slice oddly. The MixSlice's `pct` math also goes weird with mixed positive + negative values: total = 177M but real estate alone is 179M, so its `pct = 179M / 177M ≈ 101%`. Donut may look fine visually since recharts uses absolute values for sector sizing, but the "101%" label is wrong. Flagged for follow-up if kareem confirms it looks broken after the deploy. Likely fix: when mix totals contain negatives, suppress percentages and show only absolute EGP amounts.
+
+---
+
 ## 2026-05-16 — Net Worth overview 500 fix (prod live-test surface) 🔧
 
 **User-reported:** `app.limeinc.cc/personal/networth` returned "This page couldn't load — A server error occurred." Browser showed dark page + reload button. Tile (Task 19) routes there but the page (Task 29) was crashing on render.
