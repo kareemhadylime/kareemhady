@@ -5,15 +5,16 @@ import type { LiabilityKind } from '@/lib/personal/networth/types';
 
 const COLORS = ['#ef4444', '#f97316', '#a855f7', '#0ea5e9', '#94a3b8'];
 
-// Exhaustive label resolver for LiabilityKind. TypeScript catches a missing
-// case if a new kind is added without updating this switch.
-function liabilityLabel(key: LiabilityKind): string {
+// Exhaustive label resolver for LiabilityKind | 'broker_margin'. TypeScript
+// catches a missing case if a new kind is added without updating this switch.
+function liabilityLabel(key: LiabilityKind | 'broker_margin'): string {
   switch (key) {
     case 'amortizing_loan': return 'Loans';
     case 'bnpl': return 'BNPL';
     case 'credit_card': return 'Cards';
     case 'overdraft': return 'Overdraft';
     case 'other': return 'Other';
+    case 'broker_margin': return 'Broker Margin';
   }
 }
 

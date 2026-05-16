@@ -5,17 +5,18 @@ import type { AssetKind } from '@/lib/personal/networth/types';
 
 const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#06b6d4', '#94a3b8'];
 
-// Exhaustive label resolver for AssetKind | 'stocks_pipe'.
+// Exhaustive label resolver for AssetKind | 'stocks_positions' | 'broker_cash'.
 // TypeScript will fail to compile if a new asset kind is added without a
 // matching case here.
-function assetLabel(key: AssetKind | 'stocks_pipe'): string {
+function assetLabel(key: AssetKind | 'stocks_positions' | 'broker_cash'): string {
   switch (key) {
     case 'cash': return 'Cash';
     case 'real_estate': return 'Real Estate';
     case 'vehicle': return 'Vehicles';
     case 'gold_jewelry': return 'Gold / Jewelry';
     case 'other': return 'Other';
-    case 'stocks_pipe': return 'Stocks';
+    case 'stocks_positions': return 'Stocks';
+    case 'broker_cash': return 'Broker Cash';
   }
 }
 

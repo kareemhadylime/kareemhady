@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { Wallet, type LucideIcon } from 'lucide-react';
+import { Wallet, ChevronLeft, type LucideIcon } from 'lucide-react';
 
 export function NetWorthShell({ children }: { children: ReactNode }) {
   return (
@@ -33,6 +33,13 @@ export function NetWorthHeader({
     : pathname?.startsWith(href);
   return (
     <header className="flex flex-col gap-4">
+      <Link
+        href="/personal"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-700 dark:hover:text-indigo-300 self-start"
+      >
+        <ChevronLeft size={16} />
+        Back to Personal
+      </Link>
       <div className="flex items-start gap-4">
         <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950 inline-flex items-center justify-center">
           <Icon size={28} className="text-indigo-700 dark:text-indigo-300" />

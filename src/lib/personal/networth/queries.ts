@@ -109,13 +109,19 @@ export async function getCharityYtd(appUserId: string): Promise<CharityYtd> {
 import type { AssetKind, LiabilityKind } from '@/lib/personal/networth/types';
 
 export type AssetMixSlice = {
-  label: AssetKind | 'stocks_pipe';
+  // 'stocks_positions' + 'broker_cash' are synthetic kinds sourced from
+  // v_personal_networth_stocks_breakdown — stocks debt (margin) stays on the
+  // liability side, so the donut shows three distinct broker components
+  // instead of one netted "stocks_pipe" slice that hid margin under assets.
+  label: AssetKind | 'stocks_positions' | 'broker_cash';
   amountEgp: number;
   pct: number;
 };
 
 export type LiabilityMixSlice = {
-  label: LiabilityKind;
+  // 'broker_margin' is the synthetic liability surfaced when net broker cash
+  // goes negative (i.e. the user is borrowing on margin from the broker).
+  label: LiabilityKind | 'broker_margin';
   amountEgp: number;
   pct: number;
 };
@@ -126,25 +132,27 @@ export type MixSlice = AssetMixSlice | LiabilityMixSlice;
 export async function getAssetMix(appUserId: string): Promise<AssetMixSlice[]> {
   const sb = supabaseAdmin();
   const today = cairoTodayIso();
-  const [assetsRes, stocksRes] = await Promise.all([
+  const [assetsRes, brokerRes] = await Promise.all([
     sb.from('personal_networth_assets')
       .select('kind, currency, balance').eq('app_user_id', appUserId).eq('active', true),
-    sb.from('v_personal_networth_current')
-      .select('stocks_pipe_egp').eq('app_user_id', appUserId).maybeSingle(),
+    sb.from('v_personal_networth_stocks_breakdown')
+      .select('positions_egp, cash_egp').maybeSingle(),
   ]);
   if (assetsRes.error) throw new Error(`getAssetMix: assets read failed: ${assetsRes.error.message}`);
-  if (stocksRes.error) throw new Error(`getAssetMix: stocks pipe read failed: ${stocksRes.error.message}`);
+  if (brokerRes.error) throw new Error(`getAssetMix: stocks breakdown read failed: ${brokerRes.error.message}`);
   const bucket: Record<string, number> = {};
   for (const a of assetsRes.data ?? []) {
     const { data: rate, error: rateErr } = await sb.rpc('fx_lookup', { p_currency: a.currency, p_as_of: today });
     if (rateErr) throw new Error(`getAssetMix: fx_lookup failed for ${a.currency}@${today}: ${rateErr.message}`);
     bucket[a.kind] = (bucket[a.kind] ?? 0) + Number(a.balance) * Number(rate ?? 1);
   }
-  const stocksEgp = Number(stocksRes.data?.stocks_pipe_egp ?? 0);
-  if (stocksEgp > 0) bucket['stocks_pipe'] = stocksEgp;
+  const positionsEgp = Number(brokerRes.data?.positions_egp ?? 0);
+  const cashEgp = Number(brokerRes.data?.cash_egp ?? 0);
+  if (positionsEgp > 0) bucket['stocks_positions'] = positionsEgp;
+  if (cashEgp > 0) bucket['broker_cash'] = cashEgp;
   const total = Object.values(bucket).reduce((s, v) => s + v, 0);
   return Object.entries(bucket).map(([label, amount]) => ({
-    label: label as AssetKind | 'stocks_pipe',
+    label: label as AssetKind | 'stocks_positions' | 'broker_cash',
     amountEgp: Math.round(amount * 100) / 100,
     pct: total > 0 ? Math.round((amount / total) * 10000) / 100 : 0,
   }));
@@ -153,18 +161,25 @@ export async function getAssetMix(appUserId: string): Promise<AssetMixSlice[]> {
 export async function getLiabilityMix(appUserId: string): Promise<LiabilityMixSlice[]> {
   const sb = supabaseAdmin();
   const today = cairoTodayIso();
-  const { data, error } = await sb.from('personal_networth_liabilities')
-    .select('kind, currency, current_balance').eq('app_user_id', appUserId).eq('active', true);
-  if (error) throw new Error(`getLiabilityMix: liabilities read failed: ${error.message}`);
+  const [liabRes, brokerRes] = await Promise.all([
+    sb.from('personal_networth_liabilities')
+      .select('kind, currency, current_balance').eq('app_user_id', appUserId).eq('active', true),
+    sb.from('v_personal_networth_stocks_breakdown')
+      .select('margin_egp').maybeSingle(),
+  ]);
+  if (liabRes.error) throw new Error(`getLiabilityMix: liabilities read failed: ${liabRes.error.message}`);
+  if (brokerRes.error) throw new Error(`getLiabilityMix: stocks breakdown read failed: ${brokerRes.error.message}`);
   const bucket: Record<string, number> = {};
-  for (const l of data ?? []) {
+  for (const l of liabRes.data ?? []) {
     const { data: rate, error: rateErr } = await sb.rpc('fx_lookup', { p_currency: l.currency, p_as_of: today });
     if (rateErr) throw new Error(`getLiabilityMix: fx_lookup failed for ${l.currency}@${today}: ${rateErr.message}`);
     bucket[l.kind] = (bucket[l.kind] ?? 0) + Number(l.current_balance) * Number(rate ?? 1);
   }
+  const marginEgp = Number(brokerRes.data?.margin_egp ?? 0);
+  if (marginEgp > 0) bucket['broker_margin'] = marginEgp;
   const total = Object.values(bucket).reduce((s, v) => s + v, 0);
   return Object.entries(bucket).map(([label, amount]) => ({
-    label: label as LiabilityKind,
+    label: label as LiabilityKind | 'broker_margin',
     amountEgp: Math.round(amount * 100) / 100,
     pct: total > 0 ? Math.round((amount / total) * 10000) / 100 : 0,
   }));
