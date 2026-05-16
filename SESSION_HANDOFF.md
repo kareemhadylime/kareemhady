@@ -1,3 +1,35 @@
+## 2026-05-16 — Net Worth post-ship gap analysis (asked: "anything missing?") 🔍
+
+**Scope:** Honest audit after declaring 32/32 done. User asked what's missing. Inspected the code and migration to verify a handful of claims, then surfaced real gaps the smoke pass had glossed over.
+
+**Verified intact (false alarms ruled out):**
+- `v_personal_networth_loan_summary` view DOES include `name` (migration 0139, `li.name` in the SELECT) — `LoanPayoff` component will render fine.
+- All 11 networth tables + 3 views + `liability_id` column on `v_personal_networth_upcoming` are live in production (`bpjproljatbrbmszwbov`).
+- `npx tsc --noEmit` clean for all networth files; 924/924 tests passing.
+
+**Real gaps surfaced (NOT in the deferred list — these are net-new findings):**
+
+1. **KPI "Monthly outflow" undercounts card minimums** — `src/app/personal/networth/liabilities/page.tsx:50` does `liabilities.reduce((s, l) => s + Number(l.monthly_payment ?? 0), 0)`. Credit cards + overdrafts have `monthly_payment = null`, so they contribute **zero** to the monthly outflow KPI. Should add `min_payment_pct × current_balance / 100` for revolving kinds. Same gap in `liability-table.tsx` per-currency subtotals.
+2. **No DELETE endpoint for `personal_networth_payments`** — `/api/personal/networth/payments/route.ts` has GET + POST only. A wrong-entry charity amount or category requires raw SQL to fix.
+3. **`PatchLiabilityBody` Zod schema doesn't allowlist `name`** — `src/app/api/personal/networth/liabilities/[id]/route.ts` covers `monthly_payment, min_payment_pct, statement_day, due_day, credit_limit, notes, apr_pct` only. Renaming "Car Loan" → "Honda Civic 2024" requires SQL.
+4. **Zero `*.test.ts` files under `src/app/api/personal/networth/`** — only the 2 cron routes had tests (Tasks 15/16). The 11 networth API routes (assets, liabilities CRUD, mark-paid, pay-card, recurring CRUD + toggle, payments + CSV, reports + PDF, setup × 3) have no route-level test coverage. The lib layer has 5 test files; the routes themselves don't.
+
+**Decided not to fix in this turn** (user hasn't approved yet, asked "want me to ship those 3?"). Offered to ship #1 / #2 / #3 as a polish commit if user says yes.
+
+**Carried forward to backlog (4 existing deferred items + 4 new from this audit):**
+- (Existing) DRY `cairoTodayIso()` into `src/lib/fmt-date.ts`
+- (Existing) Narrow `MixSlice.label` to `AssetKind | 'stocks_pipe'` / `LiabilityKind` unions
+- (Existing) `recordPaymentForRecurringTemplate` idempotency via partial unique index on `(recurring_template_id, occurred_on)`
+- (Existing) Swap `window.confirm` / `alert` for proper confirm dialogs
+- (NEW) KPI monthly outflow — add min-payment fallback for revolving kinds
+- (NEW) Add `DELETE /api/personal/networth/payments/[id]` endpoint + Delete row action in `PaymentLogTab`
+- (NEW) Add `name` to `PatchLiabilityBody` allowlist + name input in `EditLiabilityModal`
+- (NEW) Add API route tests for the 11 networth handlers — at minimum smoke tests for auth + happy path on the high-value mutation routes (`assets POST`, `liabilities POST`, `mark-paid POST`, `pay-card POST`, `payments POST`)
+
+**No code changes this turn — verification + audit only. Pending user decision on whether to ship the 3 quick fixes.**
+
+---
+
 ## 2026-05-16 — Net Worth MODULE COMPLETE (Task 32: end-to-end smoke pass) ✅
 
 **Scope:** Final verification of the Personal Net Worth module. All 32 tasks across the 32-task plan are now landed on `origin/main`. No new code in this task — verification only.
