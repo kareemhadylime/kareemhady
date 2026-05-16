@@ -1,6 +1,7 @@
 import { NetWorthShell, NetWorthHeader } from '../../_components/networth-shell';
 import { ScheduleTable } from '../../_components/liabilities/schedule-table';
 import { EarlyPayoffCalc } from '../../_components/liabilities/early-payoff-calc';
+import { RevolvingDetail } from '../../_components/liabilities/revolving-detail';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
@@ -15,7 +16,21 @@ type LiabilityRow = {
   currency: string;
   current_balance: number | string;
   apr_pct: number | string | null;
+  credit_limit: number | string | null;
+  statement_day: number | null;
+  due_day: number | null;
+  min_payment_pct: number | string | null;
   personal_networth_lenders: { name: string } | null;
+};
+
+type PaymentHistoryRow = {
+  id: string;
+  occurred_on: string;
+  amount: number | string;
+  currency: string;
+  notes: string | null;
+  recurring_template_id: string | null;
+  loan_schedule_id: string | null;
 };
 
 type ScheduleRow = {
@@ -59,27 +74,32 @@ export default async function LiabilityDetailPage({
   const lenderName = liability.personal_networth_lenders?.name ?? 'No lender';
   const currentBalance = Number(liability.current_balance);
 
-  // Revolving stub — Task 24 replaces with real RevolvingDetail.
+  // Revolving (credit card / overdraft): utilization, statement timeline,
+  // pay-card modal, and payment history.
   if (liability.kind === 'credit_card' || liability.kind === 'overdraft') {
+    const { data: history, error: histErr } = await sb
+      .from('personal_networth_payments')
+      .select(
+        'id, occurred_on, amount, currency, notes, recurring_template_id, loan_schedule_id',
+      )
+      .eq('liability_id', id)
+      .order('occurred_on', { ascending: false })
+      .limit(50);
+    if (histErr) {
+      throw new Error(`payment history fetch failed: ${histErr.message}`);
+    }
+    const paymentHistory = (history ?? []) as PaymentHistoryRow[];
     return (
       <NetWorthShell>
         <NetWorthHeader
           eyebrow="Net Worth · Liability"
           title={liability.name}
-          subtitle={`${liability.kind} · revolving detail coming in Task 24`}
+          subtitle={`${liability.kind} · ${lenderName}`}
         />
-        <div className="ix-card p-6 space-y-2">
-          <p className="text-sm text-slate-700 dark:text-slate-200">
-            Balance:{' '}
-            <span className="font-semibold tabular-nums">
-              {liability.currency} {currentBalance.toLocaleString()}
-            </span>
-          </p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Revolving features (utilization, statement timeline, pay-card) land in
-            Task 24.
-          </p>
-        </div>
+        <RevolvingDetail
+          liability={liability}
+          paymentHistory={paymentHistory}
+        />
       </NetWorthShell>
     );
   }

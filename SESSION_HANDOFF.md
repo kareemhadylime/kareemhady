@@ -1,3 +1,21 @@
+## 2026-05-16 — Net Worth Task 24: revolving liability detail (credit card / overdraft) ✅
+
+**Scope:** Real detail page for revolving liabilities — utilization gauge with color tier, statement-timeline strip, pay-card modal with 4 presets (Minimum / Statement / Full / Custom), and a 50-row payment history table.
+
+**Files:**
+- New `src/app/api/personal/networth/liabilities/[id]/pay-card/route.ts` — POST handler, Zod-validated body `{ preset: enum, customAmount?: number }`, `getCurrentUser` + `is_admin` gate, `dynamic = 'force-dynamic'` + `runtime = 'nodejs'`. Public API uses `'minimum'`; route translates to `'min'` for `recordCardPayment`.
+- New `src/app/personal/networth/_components/liabilities/revolving-detail.tsx` — client component, 4 KPI cards, statement timeline, Pay card button, payment history table. Util color: <30% emerald, 30-70% amber, >70% red.
+- New `src/app/personal/networth/_components/modals/pay-card-modal.tsx` — backdrop + `ix-card` modal, 4 preset buttons (active state highlighted indigo), preview "Will pay: …" before submit, error inline.
+- Modified `src/app/personal/networth/liabilities/[id]/page.tsx` — replaced revolving stub with real `<RevolvingDetail>`; fetches last 50 payments from `personal_networth_payments`.
+
+**Confirmed `recordCardPayment` signature** at `src/lib/personal/networth/payment.ts:126` — `(liabilityId, appUserId, preset: 'min'|'statement'|'full'|'custom', customAmount?)`. Spec's preset enum used `'minimum'` (the public-API name); I translate in the API route since the lib uses `'min'`.
+
+**Schema note:** Spec referenced `liability_schedule_id` on the payments table, but actual column is `loan_schedule_id` (see `supabase/migrations/0139_personal_networth.sql:148`). Adjusted both the page query and the component prop type accordingly.
+
+**`npx tsc --noEmit`** — clean for all new/modified files. Pre-existing errors in `beithady-daily-report/build-dxb-section.test.ts` + `build-yesterday-summary.test.ts` are unrelated (`fare_accommodation_usd` test fixtures, from the other working-tree changes).
+
+---
+
 ## 2026-05-16 — Revenue reconciliation BH dashboard ↔ Guesty Analytics (DIAGNOSED, in progress)
 
 **User report:** BH "Month Revenue (OTB)" = $55.3k vs Guesty Analytics "Revenue" = $59,061 (This Month, Egypt). Couldn't reconcile.
