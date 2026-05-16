@@ -8,15 +8,22 @@ import { AudienceFilters } from './_components/audience-filters';
 import { GeoTab } from './_components/geo-tab';
 import { DemoTab } from './_components/demo-tab';
 import { DeviceTab } from './_components/device-tab';
+import { FunnelTab } from './_components/funnel-tab';
+import { QualityTab } from './_components/quality-tab';
+import { CohortTab } from './_components/cohort-tab';
+import { PerBuildingFilter } from '../_components/per-building-filter';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const TABS: Array<{ key: 'geo' | 'demo' | 'device'; label: string }> = [
+const TABS: Array<{ key: 'geo' | 'demo' | 'device' | 'funnel' | 'quality' | 'cohort'; label: string }> = [
   { key: 'geo', label: 'Geo' },
   { key: 'demo', label: 'Demographics' },
   { key: 'device', label: 'Device & Placement' },
+  { key: 'funnel', label: 'Funnel' },
+  { key: 'quality', label: 'Quality' },
+  { key: 'cohort', label: 'Cohort' },
 ];
 
 const ACTIVE = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800';
@@ -27,15 +34,16 @@ export default async function AdsAudiencePage({
 }: {
   searchParams: Promise<{
     tab?: string; from?: string; to?: string; preset?: string; compare?: string;
-    campaign?: string; platforms?: string;
+    campaign?: string; platforms?: string; building?: string;
   }>;
 }) {
   await requireBeithadyPermission('ads', 'read');
   const sp = await searchParams;
   const range = parseDateRange({ from: sp.from, to: sp.to, preset: sp.preset, compare: sp.compare });
-  const tab = (sp.tab as 'geo' | 'demo' | 'device') ?? 'geo';
+  const tab = (sp.tab as 'geo' | 'demo' | 'device' | 'funnel' | 'quality' | 'cohort') ?? 'geo';
   const campaignId = sp.campaign ? Number(sp.campaign) : undefined;
   const platforms = (sp.platforms ?? '').split(',').filter(Boolean) as Array<'meta' | 'google' | 'tiktok'>;
+  const buildingCode = sp.building || undefined;
 
   const sb = supabaseAdmin();
   const { data: campaignRows } = await sb.from('ads_campaigns')
@@ -49,6 +57,7 @@ export default async function AdsAudiencePage({
   if (sp.compare) baseQs.set('compare', sp.compare);
   if (sp.campaign) baseQs.set('campaign', sp.campaign);
   if (sp.platforms) baseQs.set('platforms', sp.platforms);
+  if (sp.building) baseQs.set('building', sp.building);
 
   function tabHref(key: string): string {
     const q = new URLSearchParams(baseQs);
@@ -66,6 +75,7 @@ export default async function AdsAudiencePage({
       <AdsTabs active="audience" />
       <DateRangeFilter />
       <AudienceFilters campaigns={campaigns} />
+      <PerBuildingFilter />
       <div className="ix-card p-2 flex flex-wrap items-center gap-2 text-xs">
         {TABS.map(t => (
           <Link key={t.key} href={tabHref(t.key)}
@@ -74,9 +84,12 @@ export default async function AdsAudiencePage({
           </Link>
         ))}
       </div>
-      {tab === 'geo' && <GeoTab range={range} campaignId={campaignId} platforms={platforms} />}
-      {tab === 'demo' && <DemoTab range={range} campaignId={campaignId} platforms={platforms} />}
-      {tab === 'device' && <DeviceTab range={range} campaignId={campaignId} platforms={platforms} />}
+      {tab === 'geo' && <GeoTab range={range} campaignId={campaignId} platforms={platforms} buildingCode={buildingCode} />}
+      {tab === 'demo' && <DemoTab range={range} campaignId={campaignId} platforms={platforms} buildingCode={buildingCode} />}
+      {tab === 'device' && <DeviceTab range={range} campaignId={campaignId} platforms={platforms} buildingCode={buildingCode} />}
+      {tab === 'funnel' && <FunnelTab range={range} campaignId={campaignId} buildingCode={buildingCode} />}
+      {tab === 'quality' && <QualityTab range={range} campaignId={campaignId} platforms={platforms} buildingCode={buildingCode} />}
+      {tab === 'cohort' && <CohortTab range={range} campaignId={campaignId} platforms={platforms} buildingCode={buildingCode} />}
     </BeithadyShell>
   );
 }

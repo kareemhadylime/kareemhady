@@ -21,15 +21,16 @@ function sumBy<K extends string>(rows: DeviceRollupRow[], keyFn: (r: DeviceRollu
 }
 
 export async function DeviceTab({
-  range, campaignId, platforms,
+  range, campaignId, platforms, buildingCode,
 }: {
   range: { from: string; to: string; preset: string; compare: boolean };
   campaignId?: number;
   platforms?: Array<'meta' | 'google' | 'tiktok'>;
+  buildingCode?: string;
 }) {
   const [current, prior] = await Promise.all([
-    queryDeviceRollup({ from: range.from, to: range.to, campaignId, platforms }),
-    range.compare ? queryDeviceRollup({ ...derivePriorPeriod(range), campaignId, platforms }) : Promise.resolve([]),
+    queryDeviceRollup({ from: range.from, to: range.to, campaignId, platforms, buildingCode }),
+    range.compare ? queryDeviceRollup({ ...derivePriorPeriod(range), campaignId, platforms, buildingCode }) : Promise.resolve([]),
   ]);
 
   if (current.length === 0) {

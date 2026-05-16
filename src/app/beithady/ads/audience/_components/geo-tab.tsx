@@ -3,16 +3,17 @@ import { derivePriorPeriod } from '@/lib/beithady/ads/date-range';
 import { PeriodDeltaBadge } from '../../_components/period-delta-badge';
 
 export async function GeoTab({
-  range, campaignId, platforms,
+  range, campaignId, platforms, buildingCode,
 }: {
   range: { from: string; to: string; preset: string; compare: boolean };
   campaignId?: number;
   platforms?: Array<'meta' | 'google' | 'tiktok'>;
+  buildingCode?: string;
 }) {
   const [current, prior] = await Promise.all([
-    queryGeoRollup({ from: range.from, to: range.to, campaignId, platforms }),
+    queryGeoRollup({ from: range.from, to: range.to, campaignId, platforms, buildingCode }),
     range.compare
-      ? queryGeoRollup({ ...derivePriorPeriod(range), campaignId, platforms })
+      ? queryGeoRollup({ ...derivePriorPeriod(range), campaignId, platforms, buildingCode })
       : Promise.resolve([]),
   ]);
   const priorByCountry = new Map(prior.map(r => [r.country_code, r]));

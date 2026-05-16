@@ -13,15 +13,16 @@ function findRow(rows: DemoRollupRow[], age: string, gender: string): DemoRollup
 }
 
 export async function DemoTab({
-  range, campaignId, platforms,
+  range, campaignId, platforms, buildingCode,
 }: {
   range: { from: string; to: string; preset: string; compare: boolean };
   campaignId?: number;
   platforms?: Array<'meta' | 'google' | 'tiktok'>;
+  buildingCode?: string;
 }) {
   const [current, prior] = await Promise.all([
-    queryDemoRollup({ from: range.from, to: range.to, campaignId, platforms }),
-    range.compare ? queryDemoRollup({ ...derivePriorPeriod(range), campaignId, platforms }) : Promise.resolve([]),
+    queryDemoRollup({ from: range.from, to: range.to, campaignId, platforms, buildingCode }),
+    range.compare ? queryDemoRollup({ ...derivePriorPeriod(range), campaignId, platforms, buildingCode }) : Promise.resolve([]),
   ]);
 
   if (current.length === 0) {
