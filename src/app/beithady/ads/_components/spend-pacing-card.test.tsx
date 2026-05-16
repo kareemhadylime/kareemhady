@@ -27,7 +27,8 @@ describe('SpendPacingCard', () => {
     const ui = await SpendPacingCard({ range: { from: '2026-05-14', to: '2026-05-16' } });
     render(ui);
     expect(screen.getByText(/Spend pacing/i)).toBeTruthy();
-    expect(screen.getByText(/CTWA EG May/)).toBeTruthy();
+    // CTWA EG May appears in both the campaign row + the projection warning when pct > 80
+    expect(screen.getAllByText(/CTWA EG May/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/85%/)).toBeTruthy();
     expect(screen.getByText(/Search SA/)).toBeTruthy();
   });

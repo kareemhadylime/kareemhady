@@ -60,7 +60,7 @@ export async function SpendPacingCard({ range }: { range: { from: string; to: st
 
       {pacing.campaigns.filter(c => c.pct_of_cap > 80 && !c.auto_paused).map(c => (
         <div key={`warn-${c.campaign_id}`} className="text-[11px] text-amber-700 dark:text-amber-300">
-          ⚠ projected to hit cap (EGP {c.projected_egp_eom.toLocaleString()} EOM)
+          ⚠ {c.campaign_name} projected to hit cap (EGP {c.projected_egp_eom.toLocaleString()} EOM)
         </div>
       ))}
     </div>
