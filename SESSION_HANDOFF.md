@@ -2170,3 +2170,36 @@ TikTok invalidated the refresh token server-side. Our DB optimistically tracked 
 **TS check:** `npx tsc --noEmit -p .` clean.
 
 **User's next step:** Click "Reconnect" on /beithady/ads/accounts OR retry publish (fix C clears + fix B shows the link inline). Either path completes OAuth → fresh refresh_token stored → publish works.
+
+---
+
+## [2026-05-16] Task 1: BH Ads Insights V1 — Migration 0138
+
+**Status:** DONE
+
+**What was done:**
+- Created migration file `supabase/migrations/0138_bh_ads_insights_breakdowns.sql` with 3 new tables:
+  - `ads_insights_geo` — country/region/city breakdown per campaign/adset/day/platform
+  - `ads_insights_demo` — age × gender breakdown per campaign/adset/day/platform
+  - `ads_insights_device` — device + publisher_platform + placement breakdown
+- Applied migration via Supabase MCP to project `bpjproljatbrbmszwbov` (Postgres 15+)
+- Verified all 3 tables created successfully
+- Committed + pushed to main: commit `63da355`
+
+**Schema design:**
+- Each table shares spine: account_id, campaign_id, ad_set_id, platform, metric_date
+- NULLS NOT DISTINCT on unique indexes (Postgres 15+ feature) to handle nullable ad_set_id/regions/placements
+- Foreign keys cascade on delete to ads_accounts and ads_campaigns
+- Metrics: impressions, clicks, spend_micros, reach, leads; all defaulting to 0
+- Indexed on (campaign_id, metric_date) and (account_id, metric_date) for query performance
+
+**Verification query result:**
+```
+ads_insights_demo
+ads_insights_device
+ads_insights_geo
+```
+
+**Git commit SHA:** `63da355`
+
+**Next:** Task 2 will hydrate these tables via Meta/Google/TikTok API syncs.
