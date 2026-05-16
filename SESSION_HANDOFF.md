@@ -1,3 +1,36 @@
+## 2026-05-16 — BH Ads V3 brainstorm: § 1 architecture awaiting approval
+
+**Status:** Mid-brainstorm. § 1 (architecture + file structure) just presented, awaiting kareem's response before § 2 (per-feature data design + AI prompt).
+
+**Locked so far:**
+- **Q1 — Scope:** All 7 V3 features (D1 heatmap, D2 pacing, D3 period-delta, E1 top-ads, E2 top-assets, E3 anomaly, E4 AI narrative).
+- **Q2 — D1 heatmap source:** Both — lead density (from `ads_leads.created_at` Cairo-local hour) NOW + Meta hourly cron added (new `ads_hourly_metrics` table + extend `beithady-ads-insights` cron to fetch `hourly_stats_aggregated_by_advertiser_time_zone`). Heatmap UI toggles between modes.
+- **Q3 — E4 AI narrative:** On-demand button only (Claude haiku-4-5 ~$0.01/call). No scheduled runs, no new table.
+- **Q4 — E3 anomaly:** Re-compute at page load via shared `anomalies.ts` lib (extract from existing `beithady-ads-anomaly-alert` cron). NO new table; cron keeps firing for off-hours WhatsApp alert.
+- **Approach 2 chosen:** Cluster into 2 new audience tabs (`?tab=time`, `?tab=optimize`) + 3 new main-dashboard cards (`<AiSummaryCard />`, `<AnomalyBanner />`, `<SpendPacingCard />`) + extend KPI cards with `<PeriodDeltaBadge />` for D3.
+
+**Pre-brainstorm context discovery:**
+- E3 anomaly cron `/api/cron/beithady-ads-anomaly-alert` ALREADY EXISTS (sends WhatsApp on spike/zero-leads/low-ROAS). V3 just surfaces those signals visually.
+- E2 asset performance: `ads_asset_performance` view already shipped (migration 0109). V3 just builds a tab.
+- D2 pacing data: `ads_campaigns.monthly_budget_cap_usd` + `auto_paused_at`/`auto_paused_reason` already exist (migration 0104).
+- D1 hourly: NO existing data source; needs new table + cron extension.
+
+**§ 1 architecture presented:**
+- ~17 new source files + colocated tests (~35 new tests)
+- 5 modified files: `beithady-ads-insights` cron (hourly extension), `beithady-ads-anomaly-alert` cron (refactor to shared lib), main page, audience page, `reporting.ts` (prior-period KPI helper for D3)
+- ONE new table: `ads_hourly_metrics` (migration 0140) — campaign_id × metric_date × hour
+- ONE cron extension (not new cron)
+- ONE external API: Claude haiku-4-5 (~$0.01/call, on-demand only)
+- Estimated ~25 TDD tasks
+
+**Awaiting:** Kareem's reply on § 1 — then § 2 covers actual data queries per feature (heatmap aggregation, AI prompt structure, anomaly detection rules, top-ads ranking).
+
+**Spec destination (planned):** `docs/superpowers/specs/2026-05-16-bh-ads-v3-time-optimize-design.md`
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md)
+**V1 + V2 shipped:** Both complete (849 tests passing).
+
+---
+
 ## 2026-05-16 — Personal Net Worth: Task 5 — lift recurring.ts to shared lib (commit b81c20d)
 
 **Status:** DONE. Lifted `computeNextRunDate` + `RecurringFrequency` out of `src/lib/boat-rental/recurring.ts` into a new shared `src/lib/recurring.ts`. Verbatim copy — no logic changes.
