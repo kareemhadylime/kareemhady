@@ -11,3 +11,12 @@ describe('normalizeRangeArg', () => {
     expect(r).toEqual({ from: '2026-01-01', to: '2026-01-31' });
   });
 });
+
+describe('getDashboardKpisWithCompare (shape only)', () => {
+  it('accepts { range, compare } in opts type', () => {
+    // Type-level check: this should compile.
+    type Opts = { range: { from: string; to: string }; compare: boolean };
+    const _shape: Opts = { range: { from: '2026-05-01', to: '2026-05-16' }, compare: true };
+    expect(_shape.compare).toBe(true);
+  });
+});

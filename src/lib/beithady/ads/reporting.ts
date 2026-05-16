@@ -297,3 +297,26 @@ export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
     };
   });
 }
+
+// V3 D3: fetch current KPIs and (when compare=true) prior-period KPIs in one call.
+// Lets the main page render <PeriodDeltaBadge /> next to each <Stat>.
+export async function getDashboardKpisWithCompare(opts: {
+  range: { from: string; to: string };
+  compare: boolean;
+}): Promise<{
+  current: Awaited<ReturnType<typeof getDashboardKpis>>;
+  prior: Awaited<ReturnType<typeof getDashboardKpis>> | null;
+}> {
+  // Lazy import to avoid circular dependency (date-range.ts → reporting.ts is hot-loaded).
+  const { derivePriorPeriod } = await import('./date-range');
+  if (!opts.compare) {
+    const current = await getDashboardKpis({ from: opts.range.from, to: opts.range.to });
+    return { current, prior: null };
+  }
+  const priorRange = derivePriorPeriod(opts.range);
+  const [current, prior] = await Promise.all([
+    getDashboardKpis({ from: opts.range.from, to: opts.range.to }),
+    getDashboardKpis({ from: priorRange.from, to: priorRange.to }),
+  ]);
+  return { current, prior };
+}
