@@ -1,3 +1,38 @@
+## 2026-05-16 — Net Worth deferred follow-ups: 3/5 closed, 2 running 🟡
+
+**Closed in commit `9e9fe8aa`:**
+
+1. **`cairoTodayIso()` extracted to `src/lib/fmt-date.ts`** — promoted from the per-file inline helper in `queries.ts`. 10 networth callsites now `import { cairoTodayIso } from '@/lib/fmt-date'` instead of inlining their own `Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' })` block. Files touched:
+   - `src/lib/personal/networth/queries.ts` (removed local definition)
+   - `src/app/api/personal/networth/recurring/{route.ts, [id]/route.ts, run-now/route.ts}`
+   - `src/app/api/cron/personal-networth-recurring/route.ts`
+   - `src/app/personal/networth/_components/recurring/payment-log-tab.tsx`
+   - `src/app/personal/networth/_components/modals/add-payment-modal.tsx`
+   - `src/app/personal/networth/_components/overview/upcoming-payments.tsx`
+   - `src/app/personal/networth/_components/liabilities/{revolving-detail.tsx, schedule-table.tsx}`
+
+2. **`MixSlice` narrowed to discriminated unions:**
+   - `AssetMixSlice { label: AssetKind | 'stocks_pipe', amountEgp, pct }`
+   - `LiabilityMixSlice { label: LiabilityKind, amountEgp, pct }`
+   - `getAssetMix` / `getLiabilityMix` return the narrower types.
+   - Donut components replaced their `LABEL_OVERRIDES` record with exhaustive `switch` functions (`assetLabel(key)` / `liabilityLabel(key)`). Adding a new kind without updating the switch is now a compile error.
+
+3. **Idempotency for recurring payments (migration 0141 + payment.ts catch):**
+   - New migration `0141_personal_networth_recurring_idempotent.sql` adds `idx_uniq_payments_recurring_per_day` — partial unique index on `personal_networth_payments(recurring_template_id, occurred_on) WHERE recurring_template_id IS NOT NULL`. Applied to live Supabase `bpjproljatbrbmszwbov`.
+   - `recordPaymentForRecurringTemplate`: pre-checks for existing payment (fast path), catches 23505 from the SELECT→INSERT race window (slow path). Returns winning row's id either way — no duplicate payments.
+
+**Running in background (2 agents):**
+
+4. **ConfirmDialog component + swap callsites** — builds shared `<ConfirmDialog>` (backdrop + ix-card + Escape-to-close + danger tone + inline error) and replaces every `window.confirm` / `window.alert` under `src/app/personal/networth/**` (asset-table, liability-table, schedule-table, templates-tab, payment-log-tab). Commit + push when done.
+
+5. **API route tests** — smoke-level Vitest coverage for ~15 networth API route handlers (auth-reject + happy-path with mocked supabase + Zod validation). Pattern mirrors existing cron route tests. Target: 45+ new test cases. Commit + push when done.
+
+Both agents work on non-overlapping files (UI components vs. test files), so parallel execution is safe.
+
+`tsc --noEmit` clean for steps 1-3. Pushed. Will update this handoff after the two background agents land.
+
+---
+
 ## 2026-05-16 — Net Worth 3 post-ship gaps closed ✅
 
 **Commit:** `b7c2a3ad` on `origin/main`.
