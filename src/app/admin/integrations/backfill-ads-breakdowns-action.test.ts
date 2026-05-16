@@ -18,4 +18,12 @@ describe('backfillAdsBreakdownsAction (shape)', () => {
     expect(url).toMatch(/from=\d{4}-\d{2}-\d{2}/);
     expect(url).toMatch(/to=\d{4}-\d{2}-\d{2}/);
   });
+
+  it('returns ok=false on cron failure', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response('boom', { status: 500 }));
+    const { backfillAdsBreakdownsAction } = await import('./backfill-ads-breakdowns-action');
+    const r = await backfillAdsBreakdownsAction();
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('500');
+  });
 });

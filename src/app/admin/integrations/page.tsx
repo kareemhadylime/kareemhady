@@ -64,7 +64,7 @@ export default async function IntegrationsAdminPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <form action={backfillAdsBreakdownsAction}>
+            <form action={async () => { 'use server'; await backfillAdsBreakdownsAction(); }}>
               <button
                 type="submit"
                 className="ix-btn-secondary text-xs"

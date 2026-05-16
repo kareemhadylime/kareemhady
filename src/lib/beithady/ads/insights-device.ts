@@ -132,7 +132,8 @@ export async function queryDeviceRollup(opts: {
     if (campaignIds.length === 0) return [];
     q = q.in('campaign_id', campaignIds);
   }
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) console.error(`[insights-rollup] query failed:`, error);
   const byKey = new Map<string, DeviceRollupRow>();
   for (const r of (data as Array<DeviceRollupRow & { device_platform: string }> | null) ?? []) {
     const k = `${r.device_platform}|${r.publisher_platform ?? ''}|${r.placement ?? ''}`;

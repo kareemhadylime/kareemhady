@@ -168,7 +168,8 @@ export async function queryGeoRollup(opts: {
     if (campaignIds.length === 0) return [];
     q = q.in('campaign_id', campaignIds);
   }
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) console.error(`[insights-rollup] query failed:`, error);
   const byCountry = new Map<string, GeoRollupRow>();
   for (const r of (data as Array<{ country_code: string; impressions: number; clicks: number; spend_micros: number; leads: number }> | null) ?? []) {
     const cur = byCountry.get(r.country_code) ?? {

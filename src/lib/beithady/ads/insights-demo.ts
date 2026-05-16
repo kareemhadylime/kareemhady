@@ -151,7 +151,8 @@ export async function queryDemoRollup(opts: {
     if (campaignIds.length === 0) return [];
     q = q.in('campaign_id', campaignIds);
   }
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error) console.error(`[insights-rollup] query failed:`, error);
   const byKey = new Map<string, DemoRollupRow>();
   for (const r of (data as Array<DemoRollupRow & { age_range: string; gender: string }> | null) ?? []) {
     const k = `${r.age_range}|${r.gender}`;
