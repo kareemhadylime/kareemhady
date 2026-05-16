@@ -1,3 +1,15 @@
+## 2026-05-16 — Closed both deferred follow-ups (rotation persistence + GCP redirect URI) ✅
+
+**Task 1: refresh-token rotation persistence (commit `ee5db106`)** — [src/lib/gmail.ts:38](src/lib/gmail.ts:38) `getGmailClientFromRefresh` now diffs `credentials.refresh_token` against the pre-refresh value and, when Google rotates, writes `encrypt(new)` back to `accounts.oauth_refresh_token_encrypted` keyed off the exact ciphertext that came in. Lookup-by-ciphertext means no callsite changes (none of the ~6 callers pass an account id). Dormant today (Google's default OAuth2 web-server clients don't rotate), but if rotation is ever enabled per-client or becomes default, this avoids the silent self-revoke pattern that would have caused another 2026-05-11-style mass `invalid_grant`.
+
+**Task 2: GCP Console — added `https://app.limeinc.cc/api/auth/google/callback`** — done via Claude-in-Chrome MCP. Project `kareemhady-inboxops`, OAuth 2.0 Client "InboxOps web" (client_id starts `593051355315-b4g0...`, created Apr 19, 2026). Authorized redirect URIs now: 1) `http://localhost:3000/api/auth/google/callback`, 2) `https://limeinc.vercel.app/api/auth/google/callback`, 3) `https://app.limeinc.cc/api/auth/google-youtube/callback` (pre-existing, YouTube), 4) `https://app.limeinc.cc/api/auth/google/callback` (new, Gmail). Google's UI flagged "may take 5 minutes to a few hours for settings to take effect."
+
+**Two-step caveat for user testing app.limeinc.cc → Connect Gmail:**
+1. Wait for Google's propagation (≥5 min from 2026-05-16) — otherwise the OAuth step returns `redirect_uri_mismatch`.
+2. **app.limeinc.cc still serves the OLD code** until kareem updates the alias (per [vercel_lime_alias_quirk.md](file://C:/Users/karee/.claude/projects/C--kareemhady/memory/vercel_lime_alias_quirk.md)) — `vercel alias set <latest-deploy-url> app.limeinc.cc`. Without the alias bump, app.limeinc.cc still hard-codes redirect_uri to limeinc.vercel.app and the new URI never gets exercised. **limeinc.vercel.app works right now** (new code + URI both live).
+
+---
+
 ## 2026-05-16 — SHIPPED: BH Ads Insights V3 (19/19 tasks) ✅
 
 **Scope:** Time/patterns (D1 heatmap, D2 pacing, D3 period delta) + Optimization (E1 top-ads, E2 top-assets, E3 anomaly banner, E4 AI narrative). Spec [docs/superpowers/specs/2026-05-16-bh-ads-v3-time-optimize-design.md](docs/superpowers/specs/2026-05-16-bh-ads-v3-time-optimize-design.md), plan [docs/superpowers/plans/2026-05-16-bh-ads-insights-v3.md](docs/superpowers/plans/2026-05-16-bh-ads-insights-v3.md). Executed task-by-task via subagent-driven-development (implementer + spec reviewer + code-quality reviewer per task).
