@@ -1,3 +1,29 @@
+## 2026-05-16 — Net Worth overview 500 fix (prod live-test surface) 🔧
+
+**User-reported:** `app.limeinc.cc/personal/networth` returned "This page couldn't load — A server error occurred." Browser showed dark page + reload button. Tile (Task 19) routes there but the page (Task 29) was crashing on render.
+
+**Diagnosis (via Vercel runtime logs MCP, dpl_EU8n5Jn21Vr2sD8UiGaidSSiUEot):**
+- Two error log lines at 19:44:51 + 19:46:09 UTC for `GET /personal/networth`
+- Message: `Error: Functions cannot be passed directly to Client Components ...` (Next.js 16 RSC serialization rule violation)
+- Status code in the log row was 200, but with a streaming error — Next renders partial HTML then the client-render trips on the boundary, browser shows generic 500-style page
+
+**Root cause:** `src/app/personal/networth/page.tsx:84` passed `icon={Wallet}` as a prop into `<NetWorthHeader>`. `NetWorthHeader` lives in `src/app/personal/networth/_components/networth-shell.tsx` which is marked `'use client'`. Lucide icon components are functions (`ForwardRefExoticComponent<...>`), and Next 16 forbids serializing functions across the server→client boundary.
+
+**Why this only surfaced now:** the page itself has been on `main` since Task 29 (commit `0feb6896`), but the path was untested live until kareem actually visited the URL. The integration tests added in step 5 of this turn cover route handlers, not page rendering — page tests aren't in scope.
+
+**Fix (commit `8d733efa`):**
+- Dropped `icon={Wallet}` from the page's `<NetWorthHeader>` call.
+- Dropped the now-unused `import { Wallet } from 'lucide-react'`.
+- The default param `icon = Wallet` inside `NetWorthHeader` resolves the same icon client-side, so the rendered output is unchanged.
+
+**Tactical note re: app.limeinc.cc** — per [vercel_lime_alias_quirk.md](file://C:/Users/karee/.claude/projects/C--kareemhady/memory/vercel_lime_alias_quirk.md), `app.limeinc.cc` does NOT auto-update on push. Once the new deploy URL is ready, run `vercel alias set <deploy-url> app.limeinc.cc` to bump the alias. `limeinc.vercel.app` will auto-update fine.
+
+**Follow-up to consider (not blocking, not yet shipped):**
+- Tighten `NetWorthHeader.icon` prop type from `LucideIcon` to a closed string union (`'wallet' | 'wrench' | …`) so a function value becomes a compile error. Prevents the same footgun for future pages. Filed mentally; not in any backlog entry yet.
+- Page-level smoke render tests (Playwright or `next-test-utils`) would catch this class of error. Out of scope for the V1 ship, but worth considering when the module gets its first major content addition.
+
+---
+
 ## 2026-05-16 — Net Worth deferred follow-ups: 5/5 CLOSED ✅
 
 All four originally-deferred items + the late-add (API route tests) are now landed on `origin/main`. Three commits across this batch:
