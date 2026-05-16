@@ -24,6 +24,19 @@ import { supabaseAdmin } from './supabase';
 //     inside Open qty (Shopify decrements on order placement, not on
 //     fulfillment), so leaving them negative double-counts demand.
 
+/** One open order that contains a given variant. Powers the "click the
+ * Orders count to see which orders contain this variant" popup. */
+export type VariantOrder = {
+  order_id: number;
+  order_name: string;
+  customer_name: string | null;
+  email: string | null;
+  created_at: string | null;
+  age_days: number | null;
+  /** Remaining qty of this variant in this order (after partial fulfillments). */
+  qty: number;
+};
+
 export type ManufacturingRow = {
   product_id: number;
   variant_id: number | null;
@@ -40,6 +53,8 @@ export type ManufacturingRow = {
   net_to_make: number;
   /** How many distinct open orders this variant appears in. */
   order_count: number;
+  /** The actual orders behind that count. */
+  orders: VariantOrder[];
   /** Earliest created_at of any open order this variant appears in. */
   oldest_order_date: string | null;
   oldest_age_days: number | null;
@@ -146,9 +161,14 @@ export async function buildKikaManufacturingReport(params: {
 
   // 1. Pull open unfulfilled, non-cancelled orders in the window. We need
   // `raw` for the fulfillments[] array so we can subtract already-shipped
-  // qty from each line item in partial orders.
+  // qty from each line item in partial orders. We also pull `name`,
+  // `customer_name`, `email` so each manufacturing row can carry a list
+  // of the orders behind its count (for the click-through popup).
   type OrderRow = {
     id: number;
+    name: string | null;
+    customer_name: string | null;
+    email: string | null;
     created_at: string | null;
     fulfillment_status: string | null;
     financial_status: string | null;
@@ -161,7 +181,7 @@ export async function buildKikaManufacturingReport(params: {
   while (true) {
     const { data, error } = await sb
       .from('shopify_orders')
-      .select('id, created_at, fulfillment_status, financial_status, cancelled_at, raw')
+      .select('id, name, customer_name, email, created_at, fulfillment_status, financial_status, cancelled_at, raw')
       .gte('created_at', `${params.fromDate}T00:00:00Z`)
       .lt('created_at', `${params.toDate}T23:59:59Z`)
       .is('cancelled_at', null)
@@ -201,6 +221,20 @@ export async function buildKikaManufacturingReport(params: {
 
   const openOrderIds = openOrders.map(o => o.id);
   const orderCreatedById = new Map(openOrders.map(o => [o.id, o.created_at]));
+  const orderInfoById = new Map<
+    number,
+    { name: string | null; customer_name: string | null; email: string | null; created_at: string | null }
+  >(
+    openOrders.map(o => [
+      o.id,
+      {
+        name: o.name,
+        customer_name: o.customer_name,
+        email: o.email,
+        created_at: o.created_at,
+      },
+    ])
+  );
 
   // 1b. Build a {line_item_id -> already_fulfilled_qty} map from the
   // fulfillments embedded in each order's raw payload. We ignore any
@@ -273,14 +307,17 @@ export async function buildKikaManufacturingReport(params: {
     }
   }
 
-  // 4. Aggregate per (product_id, variant_id).
+  // 4. Aggregate per (product_id, variant_id). Per-order qty is tracked in
+  // a nested map so the same variant appearing on two line items in the
+  // same order (rare but possible) sums correctly, and so we can emit a
+  // VariantOrder[] list for the click-through popup.
   type Bucket = {
     product_id: number;
     variant_id: number | null;
     line_title_seed: string | null;   // fallback if product row missing
     line_sku_seed: string | null;
     open_qty: number;
-    order_ids: Set<number>;
+    qtyByOrderId: Map<number, number>;
     oldest_order_date: string | null;
   };
   const buckets = new Map<string, Bucket>();
@@ -298,11 +335,11 @@ export async function buildKikaManufacturingReport(params: {
       line_title_seed: li.title ?? li.name ?? null,
       line_sku_seed: li.sku ?? null,
       open_qty: 0,
-      order_ids: new Set(),
+      qtyByOrderId: new Map(),
       oldest_order_date: null,
     };
     b.open_qty += remaining;
-    b.order_ids.add(li.order_id);
+    b.qtyByOrderId.set(li.order_id, (b.qtyByOrderId.get(li.order_id) || 0) + remaining);
     const created = orderCreatedById.get(li.order_id) || null;
     if (created) {
       if (!b.oldest_order_date || created < b.oldest_order_date) {
@@ -339,6 +376,34 @@ export async function buildKikaManufacturingReport(params: {
     const desc = productRaw && typeof productRaw['body_html'] === 'string'
       ? stripHtml(productRaw['body_html'] as string)
       : null;
+    // Build the per-row order list — sorted oldest first so production sees
+    // the urgent backlog first when they pop it open.
+    const variantOrders: VariantOrder[] = Array.from(b.qtyByOrderId.entries())
+      .map(([orderId, qty]) => {
+        const info = orderInfoById.get(orderId);
+        const created = info?.created_at ?? null;
+        const createdMs = created ? Date.parse(created) : null;
+        const orderAge =
+          createdMs && Number.isFinite(createdMs)
+            ? Math.floor((todayMs - createdMs) / 86_400_000)
+            : null;
+        return {
+          order_id: orderId,
+          order_name: info?.name || `#${orderId}`,
+          customer_name: info?.customer_name ?? null,
+          email: info?.email ?? null,
+          created_at: created,
+          age_days: orderAge,
+          qty,
+        };
+      })
+      .sort((x, y) => {
+        // Oldest first. Nulls sink to the bottom.
+        if (x.created_at && y.created_at) return x.created_at.localeCompare(y.created_at);
+        if (x.created_at) return -1;
+        if (y.created_at) return 1;
+        return 0;
+      });
     rows.push({
       product_id: b.product_id,
       variant_id: b.variant_id,
@@ -350,7 +415,8 @@ export async function buildKikaManufacturingReport(params: {
       open_qty: b.open_qty,
       in_stock: inStock,
       net_to_make: netToMake,
-      order_count: b.order_ids.size,
+      order_count: variantOrders.length,
+      orders: variantOrders,
       oldest_order_date: b.oldest_order_date,
       oldest_age_days: ageDays,
     });

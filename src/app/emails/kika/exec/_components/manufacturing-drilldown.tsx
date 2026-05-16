@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ManufacturingRow } from '@/lib/kika-manufacturing';
+import { VariantOrdersPopup } from './variant-orders-popup';
 
 type Props = {
   rows: ManufacturingRow[];
@@ -84,6 +85,10 @@ export function ManufacturingDrilldown({
 }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('net_to_make');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  // Which row's Orders popup is open. Null = none. Keyed by row index so
+  // re-sorting doesn't lose the open popup (the index changes, but since
+  // the popup is closed before the user re-sorts, this is fine).
+  const [openRow, setOpenRow] = useState<ManufacturingRow | null>(null);
 
   function clickSort(k: SortKey) {
     if (k === sortKey) {
@@ -221,8 +226,15 @@ export function ManufacturingDrilldown({
                   >
                     {fmt(r.net_to_make)}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-500">
-                    {r.order_count}
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    <button
+                      type="button"
+                      onClick={() => setOpenRow(r)}
+                      className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500/40 rounded-sm"
+                      title="Click to see which orders contain this variant"
+                    >
+                      {r.order_count}
+                    </button>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-[11px] text-slate-500">
                     {r.oldest_age_days != null ? `${r.oldest_age_days}d` : '—'}
@@ -233,6 +245,17 @@ export function ManufacturingDrilldown({
           </table>
         </div>
       )}
+
+      <VariantOrdersPopup
+        open={openRow !== null}
+        onClose={() => setOpenRow(null)}
+        productTitle={openRow?.product_title ?? ''}
+        variantTitle={openRow?.variant_title ?? null}
+        sku={openRow?.sku ?? null}
+        imageUrl={openRow?.image_url ?? null}
+        orders={openRow?.orders ?? []}
+        totalQty={openRow?.open_qty ?? 0}
+      />
     </section>
   );
 }

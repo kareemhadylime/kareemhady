@@ -1,3 +1,23 @@
+## 2026-05-16 — FEATURE: KIKA Mfg drill-down — click Orders count → popup → order detail
+
+**Status:** Pending commit + push.
+
+**User ask:** "When I click on orders on this screen, need a popout with the order numbers and details, then click one of the order numbers to open the specific order with previously designed specific order details."
+
+**What I built:**
+- Each manufacturing row now carries a `VariantOrder[]` list of the actual orders behind its count: order id, order name, customer, email, created_at, age_days, and the remaining qty of this variant in that order (post partial-fulfillment netting).
+- The "Orders" column in [src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx](src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx) is now a clickable indigo number. Click → opens a centred modal listing every order that contains that variant, oldest first.
+- New [src/app/emails/kika/exec/_components/variant-orders-popup.tsx](src/app/emails/kika/exec/_components/variant-orders-popup.tsx) renders the popup: product thumbnail + title + variant + SKU header, then a table of (Order, Customer, Placed, Age, Qty) rows. Each order number uses the existing `<OrderNumberButton>` so clicking it stacks the full order-detail modal on top. Two levels of modal — close the order one → drop back to the orders list; close the orders list → drop back to the manufacturing table. ESC closes whichever is on top.
+
+**Builder changes in [src/lib/kika-manufacturing.ts](src/lib/kika-manufacturing.ts):**
+- Pulls `name`, `customer_name`, `email` on the orders select.
+- `Bucket.order_ids: Set<number>` → `Bucket.qtyByOrderId: Map<number, number>` so the same variant on two line items in the same order sums correctly.
+- New `VariantOrder` exported type; each row now exposes `orders: VariantOrder[]` (and `order_count` is now `orders.length`, kept for the PDF/header summary).
+
+**Verification:** `tsc --noEmit` clean. No data-layer changes (additive projection only).
+
+---
+
 ## 2026-05-16 — FIX: KIKA Mfg report — net out partially fulfilled line items
 
 **Status:** Pending commit + push.
