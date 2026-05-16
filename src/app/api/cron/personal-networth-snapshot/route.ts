@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { takeSnapshot } from '@/lib/personal/networth/snapshot';
 
 export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 function cairoHour(): number {
   return Number(
@@ -11,9 +12,10 @@ function cairoHour(): number {
   );
 }
 
-export async function POST(req: Request): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const auth = req.headers.get('authorization');
-  if (!auth || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const expected = process.env.CRON_SECRET;
+  if (!expected || !auth || auth !== `Bearer ${expected}`) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
   const url = new URL(req.url);

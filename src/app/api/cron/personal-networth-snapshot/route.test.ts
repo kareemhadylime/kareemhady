@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { POST } from './route';
+import { GET } from './route';
 
 // Minimal supabase mock: returns no users, so the route's per-user loop is a
 // no-op and we exercise just the auth + Cairo-gate branches in this file.
@@ -16,19 +16,19 @@ process.env.CRON_SECRET = 'test-secret';
 
 function req(opts: { authHeader?: string; url?: string } = {}): Request {
   return new Request(opts.url ?? 'http://localhost/api/cron/personal-networth-snapshot', {
-    method: 'POST',
+    method: 'GET',
     headers: opts.authHeader ? { authorization: opts.authHeader } : {},
   });
 }
 
 describe('personal-networth-snapshot cron route', () => {
   it('rejects without bearer', async () => {
-    const res = await POST(req());
+    const res = await GET(req());
     expect(res.status).toBe(401);
   });
 
   it('rejects wrong bearer', async () => {
-    const res = await POST(req({ authHeader: 'Bearer wrong' }));
+    const res = await GET(req({ authHeader: 'Bearer wrong' }));
     expect(res.status).toBe(401);
   });
 
@@ -39,7 +39,7 @@ describe('personal-networth-snapshot cron route', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-05-16T02:00:00Z')); // Cairo = 05:00
     try {
-      const res = await POST(req({ authHeader: 'Bearer test-secret' }));
+      const res = await GET(req({ authHeader: 'Bearer test-secret' }));
       const body = await res.json();
       expect(res.status).toBe(200);
       expect(body.skipped).toBe(true);
@@ -49,7 +49,7 @@ describe('personal-networth-snapshot cron route', () => {
   });
 
   it('runs with ?force=1 regardless of hour', async () => {
-    const res = await POST(req({
+    const res = await GET(req({
       authHeader: 'Bearer test-secret',
       url: 'http://localhost/api/cron/personal-networth-snapshot?force=1',
     }));
