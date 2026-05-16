@@ -57,4 +57,136 @@ create table personal_networth_settings (
   updated_at             timestamptz not null default now()
 );
 
+-- ============================================================
+-- 2) CORE ENTITIES
+-- ============================================================
+
+create table personal_networth_assets (
+  id            uuid primary key default gen_random_uuid(),
+  app_user_id   uuid not null references app_users(id),
+  name          text not null,
+  kind          text not null check (kind in (
+                  'cash','real_estate','vehicle','gold_jewelry','other'
+                )),
+  currency      text not null references personal_networth_currencies(code),
+  balance       numeric(14,2) not null,
+  as_of_date    date not null default current_date,
+  notes         text,
+  active        boolean not null default true,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index idx_assets_user_active
+  on personal_networth_assets (app_user_id) where active = true;
+
+create table personal_networth_liabilities (
+  id              uuid primary key default gen_random_uuid(),
+  app_user_id     uuid not null references app_users(id),
+  name            text not null,
+  kind            text not null check (kind in (
+                    'amortizing_loan','bnpl','credit_card','overdraft','other'
+                  )),
+  currency        text not null references personal_networth_currencies(code),
+  lender_id       uuid references personal_networth_lenders(id),
+  current_balance numeric(14,2) not null,
+  -- Amortizing / BNPL columns
+  principal       numeric(14,2),
+  apr_pct         numeric(6,3),
+  term_months     int,
+  start_date      date,
+  monthly_payment numeric(14,2),
+  -- Credit card / overdraft columns
+  credit_limit    numeric(14,2),
+  statement_day   int check (statement_day between 1 and 28),
+  due_day         int check (due_day between 1 and 28),
+  min_payment_pct numeric(5,2),
+  notes           text,
+  active          boolean not null default true,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint amortizing_required_fields check (
+    kind not in ('amortizing_loan','bnpl')
+    or (principal is not null and apr_pct is not null
+        and term_months is not null and start_date is not null)
+  ),
+  constraint revolving_required_fields check (
+    kind not in ('credit_card','overdraft')
+    or credit_limit is not null
+  )
+);
+create index idx_liabilities_user_active
+  on personal_networth_liabilities (app_user_id) where active = true;
+
+create table personal_networth_liability_schedule (
+  id                uuid primary key default gen_random_uuid(),
+  liability_id      uuid not null references personal_networth_liabilities(id)
+                    on delete cascade,
+  installment_no    int not null,
+  due_date          date not null,
+  principal_portion numeric(14,2) not null,
+  interest_portion  numeric(14,2) not null,
+  remaining_after   numeric(14,2) not null,
+  paid_on           date,
+  payment_id        uuid,
+  unique (liability_id, installment_no)
+);
+create index idx_schedule_due
+  on personal_networth_liability_schedule (due_date) where paid_on is null;
+
+create table personal_networth_payments (
+  id                    uuid primary key default gen_random_uuid(),
+  app_user_id           uuid not null references app_users(id),
+  occurred_on           date not null,
+  amount                numeric(14,2) not null check (amount > 0),
+  currency              text not null references personal_networth_currencies(code),
+  category              text not null check (category in (
+                          'loan_payment','card_payment','overdraft_payment',
+                          'bnpl_payment','charity','rent','utility','phone',
+                          'subscription','insurance','school_fee','other'
+                        )),
+  liability_id          uuid references personal_networth_liabilities(id),
+  loan_schedule_id      uuid references personal_networth_liability_schedule(id),
+  recurring_template_id uuid,
+  notes                 text,
+  created_at            timestamptz not null default now()
+);
+create index idx_payments_user_date
+  on personal_networth_payments (app_user_id, occurred_on desc);
+create index idx_payments_category
+  on personal_networth_payments (category, occurred_on desc);
+
+alter table personal_networth_liability_schedule
+  add constraint schedule_payment_fk
+  foreign key (payment_id) references personal_networth_payments(id);
+
+create table personal_networth_recurring_templates (
+  id              uuid primary key default gen_random_uuid(),
+  app_user_id     uuid not null references app_users(id),
+  name            text not null,
+  category        text not null check (category in (
+                    'loan_payment','card_payment','overdraft_payment',
+                    'bnpl_payment','charity','rent','utility','phone',
+                    'subscription','insurance','school_fee','other'
+                  )),
+  amount          numeric(14,2) not null check (amount > 0),
+  currency        text not null references personal_networth_currencies(code),
+  frequency       text not null check (frequency in ('monthly','quarterly','yearly')),
+  day_of_period   int not null check (day_of_period between 1 and 28),
+  month_of_year   int check (month_of_year between 1 and 12),
+  liability_id    uuid references personal_networth_liabilities(id),
+  notes           text,
+  active          boolean not null default true,
+  next_run_date   date not null,
+  last_run_date   date,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index idx_recurring_due
+  on personal_networth_recurring_templates (next_run_date) where active = true;
+
+alter table personal_networth_payments
+  add constraint payments_recurring_template_fk
+  foreign key (recurring_template_id)
+  references personal_networth_recurring_templates(id);
+
 commit;
