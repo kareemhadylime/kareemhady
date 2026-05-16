@@ -15,10 +15,11 @@ export async function GET(req: NextRequest) {
   }
   const accountId = Number(accountIdStr);
 
-  // 1. Exchange code for tokens. .trim() defends against trailing whitespace
-  // in the Vercel env var (must match exactly what the start route sent).
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.limeinc.cc').trim();
-  const redirectUri = `${appUrl}/api/auth/google-youtube/callback`;
+  // Must match what the start route sent. Derive from this request's host —
+  // since the callback runs on the same host the start route redirected from,
+  // url.origin here equals url.origin there. Avoids stranding the cookie on
+  // a different host than the env var pointed to. Mirror of Gmail (168a3a11).
+  const redirectUri = `${url.origin}/api/auth/google-youtube/callback`;
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

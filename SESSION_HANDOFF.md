@@ -129,6 +129,16 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 
 ---
 
+## 2026-05-16 — YouTube OAuth redirect URI host derive (DONE)
+
+**Bug:** Inverse of the 168a3a11 Gmail fix — YouTube OAuth start + callback both built `redirectUri` from `NEXT_PUBLIC_APP_URL` (with `.trim()` + a hard-coded `https://app.limeinc.cc` fallback). If a user clicks Connect YouTube from a host other than NEXT_PUBLIC_APP_URL (e.g. `limeinc.vercel.app`), the `oauth_yt_state` cookie is set on the source host, but Google sends the consent to the env-var host — cookie missing on callback → `invalid_state`. Wasn't blocking anyone today; pre-emptive cleanup.
+
+**Fix:** mirror Gmail's approach. Both `src/app/api/auth/google-youtube/start/route.ts` and `.../callback/route.ts` now compute `redirectUri = \`${url.origin}/api/auth/google-youtube/callback\``. Since start and callback run on the same host (Google echoes whatever redirect_uri start sent), the two `url.origin` values agree and the cookie roundtrips cleanly. Every host used must be registered as an Authorized redirect URI in the YouTube OAuth client in Google Cloud Console.
+
+**Verification:** build clean. No runtime test triggered — first real Connect YouTube click from either host will exercise the path.
+
+---
+
 ## 2026-05-16 — Pause/Activate button missing for Google campaigns (DONE)
 
 **Bug:** Live Google campaigns (status='ENABLED') had no Pause button on either the campaign-detail page or the campaigns list page. The UI gate `upperStatus === 'ACTIVE' || upperStatus === 'PAUSED'` only matched Meta/TikTok dialects; Google stores `'ENABLED'`. Backend dispatcher in `status.ts` already translates `'ACTIVE'`→`'ENABLED'` correctly, so this was a UI-only blocker.
