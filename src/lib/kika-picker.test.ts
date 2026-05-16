@@ -2,35 +2,57 @@ import { describe, it, expect } from 'vitest';
 import { resolveScope, bucketKey, netRemaining } from './kika-picker';
 
 describe('resolveScope', () => {
-  const NOW = new Date('2026-05-16T12:00:00Z');
+  const NOW = new Date('2026-05-16T12:00:00Z'); // Saturday
 
-  it('returns null fromDate for "all"', () => {
-    expect(resolveScope('all', NOW)).toEqual({ fromDate: null, label: 'All open backlog' });
+  it('returns all-nulls for "all"', () => {
+    expect(resolveScope('all', NOW)).toEqual({
+      fromDate: null,
+      toDate: null,
+      label: 'All open backlog',
+    });
   });
 
-  it('subtracts 7 days for "older_than_7d" and labels it', () => {
+  it('returns ISO timestamp 7 days before now for "older_than_7d"', () => {
     expect(resolveScope('older_than_7d', NOW)).toEqual({
       fromDate: null,
-      toDate: '2026-05-09',
+      toDate: '2026-05-09T12:00:00.000Z',
       label: 'Older than 7 days',
     });
   });
 
-  it('subtracts 14 days for "older_than_14d"', () => {
+  it('returns ISO timestamp 14 days before now for "older_than_14d"', () => {
     expect(resolveScope('older_than_14d', NOW)).toEqual({
       fromDate: null,
-      toDate: '2026-05-02',
+      toDate: '2026-05-02T12:00:00.000Z',
       label: 'Older than 14 days',
     });
   });
 
-  it('returns start-of-ISO-week for "this_week" (Mon = week start)', () => {
-    // 2026-05-16 is a Saturday. ISO week starts Monday → 2026-05-11.
-    expect(resolveScope('this_week', NOW)).toEqual({
-      fromDate: '2026-05-11',
-      toDate: null,
-      label: 'This week',
-    });
+  it('returns Cairo-local Monday 00:00 for "this_week"', () => {
+    // 2026-05-16 15:00 Cairo (EEST) is a Saturday → ISO Monday is 2026-05-11.
+    // Cairo is in EEST (+03:00) in May.
+    const result = resolveScope('this_week', NOW);
+    expect(result.fromDate).toBe('2026-05-11T00:00:00+03:00');
+    expect(result.toDate).toBeNull();
+    expect(result.label).toBe('This week');
+  });
+
+  it('handles Monday correctly — fromDate is the same Monday', () => {
+    // Pick a Monday at 06:00 UTC = 09:00 Cairo → Monday is the same day.
+    const MONDAY_NOW = new Date('2026-05-11T06:00:00Z');
+    const result = resolveScope('this_week', MONDAY_NOW);
+    expect(result.fromDate).toBe('2026-05-11T00:00:00+03:00');
+  });
+
+  it('handles the Cairo-UTC offset edge case: 01:00 Cairo on Monday is still this week (not last)', () => {
+    // 2026-05-11 22:00 UTC = 2026-05-12 01:00 Cairo (Tuesday).
+    // Wait — that's Tuesday. The edge case we care about is:
+    // 2026-05-11 00:30 Cairo = 2026-05-10 21:30 UTC (still Sunday in UTC).
+    // With the old UTC-based logic this would return the PREVIOUS Monday
+    // (2026-05-04). With the fixed Cairo-based logic it should return 2026-05-11.
+    const EARLY_MONDAY_CAIRO = new Date('2026-05-10T21:30:00Z');
+    const result = resolveScope('this_week', EARLY_MONDAY_CAIRO);
+    expect(result.fromDate).toBe('2026-05-11T00:00:00+03:00');
   });
 });
 

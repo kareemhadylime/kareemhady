@@ -72,42 +72,83 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-function toIsoDate(d: Date): string {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+/** Cairo wall-clock date+weekday at the given instant. */
+function cairoLocalParts(now: Date): {
+  year: number;
+  month: number;
+  day: number;
+  weekday: string; // 'Mon' | 'Tue' | …
+} {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  }).formatToParts(now);
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+  return {
+    year: Number(get('year')),
+    month: Number(get('month')),
+    day: Number(get('day')),
+    weekday: get('weekday'),
+  };
 }
 
-/** Resolves a scope choice to date bounds and a human label.
- * - `all`: no date filter
- * - `older_than_7d`: orders created strictly before (now − 7 days)
- * - `older_than_14d`: orders created strictly before (now − 14 days)
- * - `this_week`: orders created on or after the most recent Monday (UTC)
- * Returns dates as YYYY-MM-DD strings so the Supabase query can use them
- * directly without re-formatting.
+/** Cairo UTC offset at the given instant, as an ISO suffix like '+02:00' or '+03:00'. */
+function cairoOffsetSuffix(at: Date): string {
+  const tz = new Intl.DateTimeFormat('en', {
+    timeZone: 'Africa/Cairo',
+    timeZoneName: 'longOffset',
+  })
+    .formatToParts(at)
+    .find(p => p.type === 'timeZoneName')?.value;
+  // tz is like 'GMT+03:00' or 'GMT+02:00'. Fall back to +02:00 (EET) if Intl
+  // ever fails to produce it (shouldn't happen on any modern runtime).
+  return tz ? tz.replace('GMT', '') : '+02:00';
+}
+
+/** ISO timestamp for Cairo-local Monday 00:00 of the week containing `now`. */
+function cairoMondayIso(now: Date): string {
+  const { year, month, day, weekday } = cairoLocalParts(now);
+  const WEEKDAY_INDEX: Record<string, number> = {
+    Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+  };
+  const daysSinceMonday = WEEKDAY_INDEX[weekday] ?? 0;
+  // Build the Monday date in UTC space first (purely arithmetic).
+  const mondayUtc = new Date(Date.UTC(year, month - 1, day - daysSinceMonday));
+  const isoDate = `${mondayUtc.getUTCFullYear()}-${pad(mondayUtc.getUTCMonth() + 1)}-${pad(mondayUtc.getUTCDate())}`;
+  // Use midday Cairo on that Monday to ask Intl for the correct offset
+  // (avoids any DST-transition ambiguity at 00:00 itself).
+  const offset = cairoOffsetSuffix(new Date(`${isoDate}T12:00:00Z`));
+  return `${isoDate}T00:00:00${offset}`;
+}
+
+/** Resolves a scope choice to ISO timestamp bounds and a human label.
+ * - `all`: no bounds
+ * - `older_than_7d` / `older_than_14d`: orders created strictly before (now − N days)
+ * - `this_week`: orders created on or after Cairo-local Monday 00:00
+ * All non-null bounds are full ISO timestamps (with `Z` for UTC or `±HH:MM`
+ * for Cairo), so consumers can pass them directly to Supabase comparisons.
  */
 export function resolveScope(
   scope: PickerScope,
   now: Date
-): { fromDate: string | null; toDate?: string | null; label: string } {
+): { fromDate: string | null; toDate: string | null; label: string } {
   switch (scope) {
     case 'older_than_7d': {
       const cutoff = new Date(now.getTime() - 7 * 86_400_000);
-      return { fromDate: null, toDate: toIsoDate(cutoff), label: 'Older than 7 days' };
+      return { fromDate: null, toDate: cutoff.toISOString(), label: 'Older than 7 days' };
     }
     case 'older_than_14d': {
       const cutoff = new Date(now.getTime() - 14 * 86_400_000);
-      return { fromDate: null, toDate: toIsoDate(cutoff), label: 'Older than 14 days' };
+      return { fromDate: null, toDate: cutoff.toISOString(), label: 'Older than 14 days' };
     }
-    case 'this_week': {
-      // ISO week: Monday is day 1, Sunday is day 7. JS getUTCDay() returns
-      // 0 for Sunday … 6 for Saturday. Shift so Monday = 0.
-      const dow = now.getUTCDay();
-      const daysSinceMonday = (dow + 6) % 7;
-      const monday = new Date(now.getTime() - daysSinceMonday * 86_400_000);
-      return { fromDate: toIsoDate(monday), toDate: null, label: 'This week' };
-    }
+    case 'this_week':
+      return { fromDate: cairoMondayIso(now), toDate: null, label: 'This week' };
     case 'all':
     default:
-      return { fromDate: null, label: 'All open backlog' };
+      return { fromDate: null, toDate: null, label: 'All open backlog' };
   }
 }
 
