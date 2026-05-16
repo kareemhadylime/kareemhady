@@ -1,3 +1,150 @@
+## 2026-05-16 — SHIPPED: KIKA Reporting module + Picker Report (8/8 tasks complete)
+
+**Status:** Feature complete. All 8 tasks landed on `main`. Pushing to origin in this same turn — Vercel auto-deploys via the GitHub integration.
+
+**Plan:** [docs/superpowers/plans/2026-05-16-kika-reporting-picker.md](docs/superpowers/plans/2026-05-16-kika-reporting-picker.md)
+**Spec:** [docs/superpowers/specs/2026-05-16-kika-reporting-picker-design.md](docs/superpowers/specs/2026-05-16-kika-reporting-picker-design.md)
+
+**What's live:**
+- `/emails/kika/reporting` — new hub page (6 link cards to Exec / Sales / To Manufacture / Delayed / Daily / Financials + featured Picker Report card)
+- `/emails/kika/reporting/picker` — Picker Report: scope filter chips (All open / Older than 7d / Older than 14d / This week), 4 headline stats, expandable buckets table (1/2/3/4+ lines), expandable common-items table (products → variants). Order clicks open the existing order detail modal.
+- `/api/kika/picker-report` — A4 PDF endpoint streaming `application/pdf` inline. Header strip, totals strip, per-bucket order rows (with line items), most-common-items table, page numbers in footer.
+- 6th tile on `/emails/kika` linking to Reporting
+
+**Builder (`src/lib/kika-picker.ts`):**
+- Three pure helpers (`resolveScope`, `bucketKey`, `netRemaining`) with 16 Vitest unit tests passing
+- `resolveScope` returns full ISO timestamps with Cairo-local (`+03:00`) Monday for `this_week` (review-driven improvement over the plan's date-only stub)
+- Partial-fulfillment netting via `raw.fulfillments[].line_items[]` (mirrors the Manufacturing builder's approach)
+
+**Reviewer-driven refinements applied during the run:**
+- Cairo-local week boundary (Important — DST-aware, see CLAUDE.md)
+- ISO timestamp precision on date bounds (Important — prevents sub-day silent drift)
+- `force-dynamic` removed from static hub page (perf)
+- Keyboard a11y on clickable rows: `tabIndex`/`onKeyDown`/`role="button"`/`aria-expanded`/`aria-label`/focus-visible ring (Important — applied to both BucketsBlock and CommonItemsBlock)
+- `aria-current` on active scope chip
+- 365-day cap on `oldest_age_days` rendering (per spec §9)
+- `SCOPE_IDS` Set memo + `as string[]` cast eliminated
+- Dark-mode `Thumb` classes restored
+- A4 PDF column widths corrected to fill ~539pt usable width
+
+**Verification:**
+- `npx tsc --noEmit` — clean
+- `npx vitest run src/lib/kika-picker.test.ts` — 16/16 passing
+- `npx next build` — clean; all 4 new routes registered (`/emails/kika/reporting`, `/emails/kika/reporting/picker`, `/api/kika/picker-report`, modified `/emails/kika`)
+
+**14 picker-related commits** since the plan commit `f5594c1`:
+- `b824d9f` `a7a6916` `fe93254` — Task 1 (helpers + tests)
+- `1cb9ba3` `b075f9b` — Task 2 (full builder)
+- `d84e240` `fe38927` — Task 3 (hub + 6th tile)
+- `9677d73` `5d736f1` — Task 4 (picker page shell)
+- `0a05f47` `10df43e` — Task 5 (BucketsBlock)
+- `f88a648` `75652cd` — Task 6 (CommonItemsBlock)
+- `951699d` `fa092dd` — Task 7 (PDF + API route)
+
+**Post-deploy smoke (manual):**
+1. `/emails/kika` should show 6 cards including the new "Reporting" tile
+2. `/emails/kika/reporting` renders the hub
+3. `/emails/kika/reporting/picker` renders buckets + common items; filter chips switch the data
+4. "Export A4 PDF" opens a real PDF inline with the right contents
+5. Order# clicks anywhere open the existing order-detail modal
+
+---
+
+## 2026-05-16 — EXECUTION: KIKA Reporting + Picker Report (mid-flight, 3.5/8 tasks done, NOT pushed)
+
+**Status:** Plan from earlier today (`docs/superpowers/plans/2026-05-16-kika-reporting-picker.md`) is being executed via `superpowers:subagent-driven-development`. Three full tasks landed locally on `main` with passing tsc + tests + reviews. **Nothing has been pushed to remote yet** — push happens in Task 8 (final).
+
+**Tasks complete:**
+- **Task 1** ✅ — Picker builder pure helpers + Vitest tests
+  - `b824d9f` initial · `a7a6916` review fix (full ISO timestamps + Cairo-local week boundary) · `fe93254` minor nits (weekday lookup throw, test name)
+  - Files: `src/lib/kika-picker.ts` (helpers + types), `src/lib/kika-picker.test.ts` (16 tests passing)
+- **Task 2** ✅ — Full `buildKikaPickerReport` implementation
+  - `1cb9ba3` initial · `b075f9b` style fix (hoist `supabaseAdmin` import to top)
+  - File: `src/lib/kika-picker.ts` (now ~440 lines, mirrors `kika-manufacturing.ts` structure)
+  - Delta from plan text: builder passes `range.fromDate`/`range.toDate` directly (no `T00:00:00Z` concatenation) because Task 1's review fix made `resolveScope` return full ISO timestamps
+- **Task 3** ✅ — Reporting hub page + 6th tile on KIKA module hub
+  - `d84e240` initial · `fe38927` perf fix (drop `force-dynamic` from static hub)
+  - New: `src/app/emails/kika/reporting/page.tsx`
+  - Modified: `src/app/emails/[domain]/page.tsx` (added 6th Reporting tile in `d === 'kika'` block + `ClipboardList` import)
+
+**Task 4 ✅ — Picker page server shell + review fixes:**
+- `9677d73` — page shell; `5d736f1` — 4 review fixes (a11y + age cap + Set lookup)
+- File: `src/app/emails/kika/reporting/picker/page.tsx`
+- Fixes applied: SCOPE_IDS Set (no per-request array alloc), fmtAge capping >365d to "365+d", aria-current on active scope chip, aria-hidden on BigStat decorative icons
+- tsc: clean; PDF button links to Task 7 route (not yet built)
+
+**Task 5 ✅ — BucketsBlock client component:**
+- `0a05f47` — feat(kika-picker): BucketsBlock with expandable order lists
+- Created: `src/app/emails/kika/reporting/picker/_components/buckets-block.tsx`
+- Modified: `src/app/emails/kika/reporting/picker/page.tsx` (import + replaced TODO comment)
+- Used `React.Fragment key={b.key}` (not bare `<>`) to avoid React 19 key warning on fragment-in-map
+- tsc: clean
+
+**Task 6 ✅ — CommonItemsBlock client component:**
+- `f88a648` — feat(kika-picker): CommonItemsBlock with expandable variants
+- Created: `src/app/emails/kika/reporting/picker/_components/common-items-block.tsx`
+- Modified: `src/app/emails/kika/reporting/picker/page.tsx` (import + replaced TODO Task 6 comment)
+- Same `React.Fragment key={p.product_id}` pattern as Task 5 (proactive fix per instructions)
+- Full a11y on clickable rows: tabIndex, onKeyDown, role="button", aria-expanded, aria-label, focus-visible ring, aria-hidden chevron column
+- Thumb sub-component: image with ring/rounded or fallback Package icon div
+- tsc: clean (no output)
+
+**Code-review fixes on BucketsBlock ✅ — keyboard a11y + stable line keys:**
+- `10df43e` — refactor(kika-picker): keyboard a11y on bucket rows + stable line keys
+- Fix 1: clickable `<tr>` now has `tabIndex={0}`, `role="button"`, `aria-expanded`, `aria-label`, `onKeyDown` (Enter/Space), and `focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500`
+- Fix 2: line-item `key` changed from index-only to composite `sku+title+index`
+- tsc: clean
+
+**Task 7 ✅ — A4 PDF document + GET /api/kika/picker-report:**
+- `951699d` — feat(kika-picker): A4 PDF document + GET /api/kika/picker-report
+- Created: `src/lib/kika-picker-pdf.tsx` (KikaPickerPdf React-PDF component)
+- Created: `src/app/api/kika/picker-report/route.ts` (GET handler with scope param)
+- Pattern mirrors `kika-manufacturing-pdf.tsx` exactly: indigo header strip, 4-card totals, bucket+order list, sticky common-items table, page-number footer
+- tsc: clean (no output); 16/16 tests still passing
+- "Export A4 PDF" button on the picker page now returns a real PDF (no longer 404s)
+
+**Tasks remaining:**
+- Task 8 — final tsc + `npx next build` + push to main + SESSION_HANDOFF entry for the shipped feature
+
+**To resume:** Dispatch the code quality reviewer for Task 4 commit `9677d73` (baseline `fe38927`), then continue task-by-task per the plan. Subagent-driven-development skill is the active workflow.
+
+**Conventions reminder for future agents:**
+- No worktree, no PR — push straight to main (per CLAUDE.md). Task 8 includes the push.
+- TDD only the pure helpers — pages, components, and PDF docs in this codebase don't have tests (matches `kika-manufacturing.ts` pattern).
+- Pre-commit hook emits a harmless "null byte" warning — ignore.
+
+---
+
+## 2026-05-16 — CommonItemsBlock dark-mode + truncation cleanup
+
+**Commit:** `75652cd` — refactor(kika-picker): restore dark-mode on Thumb + drop redundant truncation
+
+**Fix 1 — Thumb dark-mode classes restored:**
+- Added `dark:bg-slate-800` to placeholder div, `dark:ring-slate-700` to both placeholder ring and img ring — matching `manufacturing-drilldown.tsx` source.
+
+**Fix 2 — Redundant JS truncation removed:**
+- Dropped `slice(0, 140)` + manual `…` from `short_description` render — `line-clamp-2` already handles CSS ellipsis; the JS was redundant and could collide.
+
+**tsc:** clean (no output)
+
+---
+
+## 2026-05-16 — Investigated phantom LandingPulse on /beithady/gallery (no code change)
+
+**User report:** Dashboard with "Currently staying" tile + occupancy KPI cards was rendering at the bottom of `app.limeinc.cc/beithady/gallery`. Hard refresh made it disappear.
+
+**Verification (no code changed):**
+- `LandingPulse` is imported only at [src/app/beithady/page.tsx:159](src/app/beithady/page.tsx#L159) — wrapped in `<Suspense fallback={null}>`. Not in gallery page, gallery layout, beithady layout, BeithadyShell, error.tsx, or any portal/iframe.
+- Server-side `curl` of `/beithady/gallery` returns 0 occurrences of "Currently staying" / "MTD OCCUPANCY" / "LandingPulse" — production HTML is correct.
+- Vercel: `app.limeinc.cc` aliased to latest deploy 14m ago (no stale-alias issue this time).
+- Service worker `/sw.js` uses network-first for HTML — not the culprit either.
+
+**Diagnosis:** Client-side soft-navigation glitch. User had navigated from `/beithady` (where LandingPulse renders) to `/beithady/gallery`; the Suspense boundary's DOM lingered under the new page content instead of unmounting. Hard refresh wiped client router cache → no recurrence.
+
+**Action:** None. One-off rendering hiccup. If it recurs reliably, candidate fixes are giving the Suspense boundary a stable `key` tied to route, or removing the Suspense wrap entirely.
+
+---
+
 ## 2026-05-16 — V1 ads-insights spec committed (809da68); awaiting kareem review
 
 **Status:** All 6 design sections approved. Spec written, self-reviewed, committed + pushed at `809da68`. Awaiting kareem's go-ahead before invoking writing-plans.
