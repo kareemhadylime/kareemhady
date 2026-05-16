@@ -31,6 +31,7 @@
     { "path": "/api/cron/beithady-vip-digest", "schedule": "0 6 * * *" },
     { "path": "/api/cron/beithady-loyalty-tick", "schedule": "0 4 * * *" },
     { "path": "/api/cron/beithady-ads-insights", "schedule": "30 3 * * *" },
+    { "path": "/api/cron/beithady-ads-breakdowns", "schedule": "0 */6 * * *" },
     { "path": "/api/cron/beithady-ads-attribution", "schedule": "0 5 * * *" },
     { "path": "/api/cron/beithady-ads-google-sync", "schedule": "30 3 * * *" },
     { "path": "/api/cron/beithady-ads-google-sync", "schedule": "30 4 * * *" },
