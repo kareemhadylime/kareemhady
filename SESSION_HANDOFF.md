@@ -1,3 +1,24 @@
+## 2026-05-16 — FIX: KIKA Mfg report — net out partially fulfilled line items
+
+**Status:** Pending commit + push.
+
+**Issue:** Even after the negative-stock clamp, an order with `fulfillment_status = 'partial'` was contributing the *entire* original `line_item.quantity` to Open qty / Net to make. So if a 2-piece order had 1 unit already shipped, we were still telling production to make 2.
+
+**Fix:** [src/lib/kika-manufacturing.ts](src/lib/kika-manufacturing.ts) now reads `raw.fulfillments[].line_items[]` off each open order and builds a `{ line_item_id → already_shipped_qty }` map. For each `shopify_line_items` row, `remaining = max(0, quantity − already_shipped)`. Lines whose remaining is 0 are skipped entirely (so a partially-fulfilled order with one fully-shipped + one untouched line item now only contributes the untouched line). Fulfillments with `status ∈ {cancelled, failure}` are ignored.
+
+**Implementation notes:**
+- Added `raw` to the order select so we can mine `fulfillments[]` without an extra trip.
+- Added `id` to the line-items select so the line-item PK can key into the fulfilled-by-id map.
+- Updated the docstring at the top of the lib to spell out both the partial-netting rule and the negative-stock clamp.
+
+**Net effect** on the dashboard's "501 net to make" / "116 open units" headline numbers: both drop a bit further, by exactly the qty already shipped on partial orders in the period (zero in most cases since KIKA mostly ships orders all-or-nothing, but won't overstate when partials do happen).
+
+**Verification:** `tsc --noEmit` clean.
+
+**Still not handled (deferred — flag for kareem):** the order-detail modal's Line items table still shows `quantity` rather than `remaining qty / fulfilled qty`. If you want that surfaced per line item inside the modal, easy next change — same data source.
+
+---
+
 ## 2026-05-16 — FIX: KIKA Mfg report — clamp negative stock to zero
 
 **Status:** Pending commit + push.

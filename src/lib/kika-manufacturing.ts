@@ -15,6 +15,14 @@ import { supabaseAdmin } from './supabase';
 //     NOT IN ('voided', 'cancelled').
 //   - Granularity is per-variant. Default Title variants (one-variant
 //     products) collapse to product-level naturally.
+//   - For each line item we subtract any quantity already shipped via
+//     non-cancelled fulfillments (raw.fulfillments[].line_items[].quantity
+//     keyed by line_item.id), so partial fulfillments don't inflate the
+//     Open qty / Net to make numbers.
+//   - In stock is clamped to max(0, inventory_quantity). Negative Shopify
+//     stock = oversold past zero, and those units are already counted
+//     inside Open qty (Shopify decrements on order placement, not on
+//     fulfillment), so leaving them negative double-counts demand.
 
 export type ManufacturingRow = {
   product_id: number;
@@ -136,13 +144,16 @@ export async function buildKikaManufacturingReport(params: {
 }): Promise<ManufacturingReport> {
   const sb = supabaseAdmin();
 
-  // 1. Pull open unfulfilled, non-cancelled orders in the window.
+  // 1. Pull open unfulfilled, non-cancelled orders in the window. We need
+  // `raw` for the fulfillments[] array so we can subtract already-shipped
+  // qty from each line item in partial orders.
   type OrderRow = {
     id: number;
     created_at: string | null;
     fulfillment_status: string | null;
     financial_status: string | null;
     cancelled_at: string | null;
+    raw: Record<string, unknown> | null;
   };
   const orders: OrderRow[] = [];
   const PAGE = 1000;
@@ -150,7 +161,7 @@ export async function buildKikaManufacturingReport(params: {
   while (true) {
     const { data, error } = await sb
       .from('shopify_orders')
-      .select('id, created_at, fulfillment_status, financial_status, cancelled_at')
+      .select('id, created_at, fulfillment_status, financial_status, cancelled_at, raw')
       .gte('created_at', `${params.fromDate}T00:00:00Z`)
       .lt('created_at', `${params.toDate}T23:59:59Z`)
       .is('cancelled_at', null)
@@ -191,8 +202,34 @@ export async function buildKikaManufacturingReport(params: {
   const openOrderIds = openOrders.map(o => o.id);
   const orderCreatedById = new Map(openOrders.map(o => [o.id, o.created_at]));
 
-  // 2. Pull line items for those orders.
+  // 1b. Build a {line_item_id -> already_fulfilled_qty} map from the
+  // fulfillments embedded in each order's raw payload. We ignore any
+  // fulfillment whose status is 'cancelled' or 'failure' — those didn't
+  // ship and shouldn't reduce the open qty.
+  const fulfilledByLineItemId = new Map<number, number>();
+  for (const o of openOrders) {
+    const raw = (o.raw || {}) as Record<string, unknown>;
+    const fulfillments =
+      (raw['fulfillments'] as Array<Record<string, unknown>> | null) || [];
+    for (const f of fulfillments) {
+      const status =
+        (typeof f['status'] === 'string' ? (f['status'] as string) : '').toLowerCase();
+      if (status === 'cancelled' || status === 'failure') continue;
+      const flines =
+        (f['line_items'] as Array<Record<string, unknown>> | null) || [];
+      for (const fl of flines) {
+        const id = Number(fl['id']);
+        const qty = Number(fl['quantity']);
+        if (!Number.isFinite(id) || !Number.isFinite(qty) || qty <= 0) continue;
+        fulfilledByLineItemId.set(id, (fulfilledByLineItemId.get(id) || 0) + qty);
+      }
+    }
+  }
+
+  // 2. Pull line items for those orders. We need `id` so we can look it up
+  // in fulfilledByLineItemId for partial-fulfillment netting.
   type LineRow = {
+    id: number;
     order_id: number;
     product_id: number | null;
     variant_id: number | null;
@@ -206,7 +243,7 @@ export async function buildKikaManufacturingReport(params: {
     const chunk = openOrderIds.slice(i, i + 500);
     const { data, error } = await sb
       .from('shopify_line_items')
-      .select('order_id, product_id, variant_id, title, name, sku, quantity')
+      .select('id, order_id, product_id, variant_id, title, name, sku, quantity')
       .in('order_id', chunk);
     if (error) throw new Error(`mfg lines: ${error.message}`);
     lines.push(...((data as LineRow[]) || []));
@@ -250,6 +287,10 @@ export async function buildKikaManufacturingReport(params: {
   const todayMs = Date.now();
   for (const li of lines) {
     if (!li.product_id) continue; // skip free-text line items
+    const totalQty = Number(li.quantity) || 0;
+    const alreadyShipped = fulfilledByLineItemId.get(li.id) || 0;
+    const remaining = Math.max(0, totalQty - alreadyShipped);
+    if (remaining === 0) continue; // line is fully shipped, nothing to make
     const key = `${li.product_id}::${li.variant_id ?? 0}`;
     const b: Bucket = buckets.get(key) || {
       product_id: li.product_id,
@@ -260,7 +301,7 @@ export async function buildKikaManufacturingReport(params: {
       order_ids: new Set(),
       oldest_order_date: null,
     };
-    b.open_qty += Number(li.quantity) || 0;
+    b.open_qty += remaining;
     b.order_ids.add(li.order_id);
     const created = orderCreatedById.get(li.order_id) || null;
     if (created) {
