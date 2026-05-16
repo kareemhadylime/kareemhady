@@ -258,10 +258,10 @@ export function OrderDetailModal({ open, onClose, orderId, orderName }: Props) {
                       <thead className="text-[10px] uppercase tracking-wide text-slate-500">
                         <tr>
                           <th className="text-left py-1 w-12"></th>
-                          <th className="text-left py-1">Product</th>
-                          <th className="text-right py-1">Qty</th>
-                          <th className="text-right py-1">Price</th>
-                          <th className="text-right py-1">Line total</th>
+                          <th className="text-left py-1 px-2">Product</th>
+                          <th className="text-right py-1 px-3 w-14">Qty</th>
+                          <th className="text-right py-1 px-3 w-20">Price</th>
+                          <th className="text-right py-1 pl-3 w-20">Line total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -274,7 +274,7 @@ export function OrderDetailModal({ open, onClose, orderId, orderName }: Props) {
                               <td className="py-1.5 pr-2">
                                 <Thumb src={li.image_url} alt={li.title || li.name || ''} />
                               </td>
-                              <td className="py-1.5 pr-2">
+                              <td className="py-1.5 px-2">
                                 <div className="font-medium text-slate-900 dark:text-slate-100">
                                   {li.title || li.name || '—'}
                                 </div>
@@ -294,11 +294,13 @@ export function OrderDetailModal({ open, onClose, orderId, orderName }: Props) {
                                   </div>
                                 )}
                               </td>
-                              <td className="py-1.5 text-right tabular-nums">{li.quantity ?? '—'}</td>
-                              <td className="py-1.5 text-right tabular-nums text-slate-500">
+                              <td className="py-1.5 px-3 text-right tabular-nums whitespace-nowrap">
+                                {li.quantity ?? '—'}
+                              </td>
+                              <td className="py-1.5 px-3 text-right tabular-nums text-slate-500 whitespace-nowrap">
                                 {li.price != null ? fmt(li.price) : '—'}
                               </td>
-                              <td className="py-1.5 text-right tabular-nums font-medium">
+                              <td className="py-1.5 pl-3 text-right tabular-nums font-medium whitespace-nowrap">
                                 {li.line_total != null ? fmt(li.line_total) : '—'}
                               </td>
                             </tr>

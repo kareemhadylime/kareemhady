@@ -1,3 +1,15 @@
+## 2026-05-16 — UX FIX: order modal line-items table — Qty + Price cells were colliding
+
+**Status:** Pending commit + push.
+
+**Bug:** In the order-detail modal's Line items table, "Qty 1" and "Price 2,800" were rendering with no horizontal padding between them, so `1 2,800` read as `12,800`. Right-aligned `tabular-nums` cells were butted up directly against each other.
+
+**Fix:** Added `px-3` to Qty / Price (header + body), explicit widths (`w-14` Qty, `w-20` Price + Line total), `whitespace-nowrap` so digits never wrap mid-number, and `px-2` to the Product cell so its description text doesn't crash into the Qty column either. Line total keeps `pl-3 pr-0` so it stays flush to the table edge.
+
+**Verification:** `tsc --noEmit` clean. Visual fix only — no logic change.
+
+---
+
 ## 2026-05-16 — FEATURE: KIKA Mfg drill-down — click Orders count → popup → order detail
 
 **Status:** Pending commit + push.
