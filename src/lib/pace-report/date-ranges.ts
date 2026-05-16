@@ -52,9 +52,6 @@ function fmtCustomLabel(fromYmd: string, toYmd: string): string {
   const b = parseYmd(toYmd);
   const aMonth = MONTH_NAMES[a.m - 1];
   const bMonth = MONTH_NAMES[b.m - 1];
-  if (a.y === b.y && a.m === b.m) {
-    return `${aMonth} ${a.d} — ${bMonth} ${b.d}, ${a.y}`;
-  }
   if (a.y === b.y) {
     return `${aMonth} ${a.d} — ${bMonth} ${b.d}, ${a.y}`;
   }
