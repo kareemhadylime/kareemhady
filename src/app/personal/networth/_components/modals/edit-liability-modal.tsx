@@ -38,6 +38,9 @@ export function EditLiabilityModal({
   onSaved: () => void;
   liability: EditableLiability | null;
 }) {
+  // Shared (always editable)
+  const [name, setName] = useState('');
+
   // Amortizing fields
   const [aprPct, setAprPct] = useState('');
   const [monthlyPayment, setMonthlyPayment] = useState('');
@@ -57,6 +60,7 @@ export function EditLiabilityModal({
   // Reset state when modal is opened with a new liability.
   useEffect(() => {
     if (!open || !liability) return;
+    setName(liability.name);
     setAprPct(toStr(liability.apr_pct));
     setMonthlyPayment(toStr(liability.monthly_payment));
     setCreditLimit(toStr(liability.credit_limit));
@@ -83,6 +87,16 @@ export function EditLiabilityModal({
     // Build a payload with only the fields valid for this kind.
     // The PATCH route's Zod schema accepts these snake_case keys.
     const payload: Record<string, number | string | null> = {};
+
+    // Name (always editable, send only when changed and non-empty).
+    const trimmedName = name.trim();
+    if (trimmedName === '') {
+      setError('Name cannot be empty.');
+      return;
+    }
+    if (trimmedName !== liability.name) {
+      payload.name = trimmedName;
+    }
 
     if (isAmortizing(liability.kind)) {
       if (aprPct.trim() !== '') {
@@ -173,8 +187,8 @@ export function EditLiabilityModal({
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {amortizing
-                ? 'Editable: APR, monthly payment, notes.'
-                : 'Editable: credit limit, statement & due days, min payment %, notes.'}
+                ? 'Editable: name, APR, monthly payment, notes.'
+                : 'Editable: name, credit limit, statement & due days, min payment %, notes.'}
             </p>
           </div>
           <button
@@ -189,6 +203,19 @@ export function EditLiabilityModal({
         </div>
 
         <form onSubmit={submit} className="space-y-3">
+          <label className="flex flex-col text-xs">
+            <span className="mb-1 text-slate-600 dark:text-slate-300">Name</span>
+            <input
+              type="text"
+              className="ix-input"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              maxLength={120}
+              placeholder="e.g., Honda Civic loan"
+              required
+            />
+          </label>
+
           {amortizing ? (
             <>
               <div className="grid grid-cols-2 gap-3">

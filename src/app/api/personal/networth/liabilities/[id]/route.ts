@@ -9,6 +9,7 @@ export const runtime = 'nodejs';
 // External-input validation. All fields optional — only those present are written.
 // Schema uses `due_day` (not `payment_day`); accept the alias for back-compat.
 const PatchLiabilityBody = z.object({
+  name: z.string().min(1).max(120).optional(),
   monthly_payment: z.number().finite().positive().nullable().optional(),
   min_payment_pct: z.number().finite().nonnegative().nullable().optional(),
   statement_day: z.number().int().min(1).max(28).nullable().optional(),
@@ -39,6 +40,7 @@ export async function PATCH(
 
   // Build update payload from only the fields the client actually sent.
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (body.name !== undefined) update.name = body.name;
   if (body.monthly_payment !== undefined) update.monthly_payment = body.monthly_payment;
   if (body.min_payment_pct !== undefined) update.min_payment_pct = body.min_payment_pct;
   if (body.statement_day !== undefined) update.statement_day = body.statement_day;

@@ -46,10 +46,19 @@ export default async function LiabilitiesPage() {
   const totalLiabEgp = Number(currentRes.data?.total_liabilities_egp ?? 0);
 
   // Compute aggregates in JS (cheap, single-user).
-  const totalMonthly = liabilities.reduce(
-    (s, l) => s + Number(l.monthly_payment ?? 0),
-    0,
-  );
+  // For amortizing kinds (loan/bnpl), monthly_payment is set explicitly. For
+  // revolving kinds (credit_card/overdraft) monthly_payment is null — fall
+  // back to min_payment_pct × current_balance / 100 so the KPI doesn't
+  // pretend cards have zero monthly outflow.
+  const totalMonthly = liabilities.reduce((s, l) => {
+    if (l.monthly_payment != null) return s + Number(l.monthly_payment);
+    if (l.kind === 'credit_card' || l.kind === 'overdraft') {
+      const pct = Number(l.min_payment_pct ?? 0);
+      const bal = Number(l.current_balance ?? 0);
+      return s + (pct * bal) / 100;
+    }
+    return s;
+  }, 0);
   const highestApr =
     liabilities.length > 0
       ? Math.max(0, ...liabilities.map(l => Number(l.apr_pct ?? 0)))

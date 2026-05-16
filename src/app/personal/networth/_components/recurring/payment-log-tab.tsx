@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Plus, Filter } from 'lucide-react';
+import { Download, Plus, Filter, Trash2 } from 'lucide-react';
 import { AddPaymentModal } from '../modals/add-payment-modal';
 
 type Category =
@@ -25,6 +25,7 @@ type Payment = {
   currency: string;
   category: Category;
   liability_id: string | null;
+  loan_schedule_id: string | null;
   notes: string | null;
   personal_networth_liabilities?: { name?: string } | null;
 };
@@ -91,6 +92,7 @@ export function PaymentLogTab() {
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -136,6 +138,24 @@ export function PaymentLogTab() {
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
+
+  async function deletePayment(p: Payment) {
+    const msg = p.loan_schedule_id
+      ? 'Delete this payment? The linked schedule row will revert to unpaid. Liability balance is NOT auto-restored — adjust manually if needed.'
+      : 'Delete this payment?';
+    if (!window.confirm(msg)) return;
+    setDeleting(p.id);
+    const res = await fetch(`/api/personal/networth/payments/${p.id}`, {
+      method: 'DELETE',
+    });
+    const json = await res.json().catch(() => ({}));
+    setDeleting(null);
+    if (!res.ok || !json.ok) {
+      setLoadErr(json.error ?? 'Failed to delete payment.');
+      return;
+    }
+    fetchPayments();
+  }
 
   function onApply() {
     setAppliedFrom(from);
@@ -276,6 +296,7 @@ export function PaymentLogTab() {
                 <th className="px-3 py-2">Category</th>
                 <th className="px-3 py-2">Liability</th>
                 <th className="px-3 py-2">Notes</th>
+                <th className="px-3 py-2 text-right"></th>
               </tr>
             </thead>
             <tbody>
@@ -308,12 +329,23 @@ export function PaymentLogTab() {
                   <td className="px-3 py-2 text-slate-500 dark:text-slate-400 max-w-[24rem] truncate">
                     {p.notes ?? ''}
                   </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => deletePayment(p)}
+                      disabled={deleting === p.id}
+                      title="Delete payment"
+                      className="text-rose-600 hover:text-rose-700 disabled:text-slate-300 transition"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!loading && visible.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-sm text-slate-400 italic"
                   >
                     No payments match filters.
