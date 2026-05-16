@@ -127,6 +127,39 @@ export async function GET(req: NextRequest) {
       totalLeads += leads;
     }
 
+    // === V3 D1: also pull hourly stats per campaign (Meta only) ===
+    // Fetches hourly_stats_aggregated_by_advertiser_time_zone for yesterday+today
+    // and upserts into ads_hourly_metrics. Per-campaign isolation: a failure on
+    // one campaign doesn't abort the rest. Wrapped in its own try/catch so this
+    // new block can NOT break the existing daily-fetch sync log close.
+    try {
+      const { normalizeMetaHourlyRow } = await import('@/lib/beithady/ads/hourly');
+      const { data: metaCampaigns } = await sb
+        .from('ads_campaigns')
+        .select('id, external_id, account_id')
+        .eq('platform', 'meta')
+        .neq('status', 'REMOVED');
+      for (const c of (metaCampaigns as Array<{ id: number; external_id: string; account_id: number }> | null) ?? []) {
+        const hourlyPath = `${c.external_id}/insights?fields=impressions,clicks,spend,date_start&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&time_range=${encodeURIComponent(JSON.stringify({ since: yesterday, until: today }))}&time_increment=1&level=campaign&limit=200`;
+        const hr = await metaGet<{ data: Array<Record<string, unknown>> }>(hourlyPath, creds.creds.token);
+        if (!hr.ok) {
+          console.warn(`[ads-insights] meta hourly fetch failed for campaign ${c.id}:`, hr.error);
+          continue;
+        }
+        const rawRows = (hr.data?.data ?? []) as Array<Record<string, unknown>>;
+        const normalized = rawRows
+          .map(r => normalizeMetaHourlyRow(r as Parameters<typeof normalizeMetaHourlyRow>[0], { accountId: c.account_id, campaignId: c.id }))
+          .filter((r): r is NonNullable<typeof r> => r !== null);
+        if (normalized.length === 0) continue;
+        const { error: upErr } = await sb
+          .from('ads_hourly_metrics')
+          .upsert(normalized, { onConflict: 'campaign_id,metric_date,hour,platform' });
+        if (upErr) console.error(`[ads-insights] meta hourly upsert failed for campaign ${c.id}:`, upErr);
+      }
+    } catch (e) {
+      console.error('[ads-insights] meta hourly block failed (non-fatal):', e);
+    }
+
     await sb.from('ads_sync_log').update({
       finished_at: new Date().toISOString(),
       status: 'success',
