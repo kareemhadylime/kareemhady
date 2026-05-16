@@ -1,3 +1,15 @@
+## 2026-05-16 — BH Ads V2 Task 8: query*Rollup buildingCode? filter
+
+**Status:** DONE — commit `6124cb0`, pushed to main.
+
+**What shipped:** Added `buildingCode?: string` to opts type of `queryGeoRollup`, `queryDemoRollup`, `queryDeviceRollup`. Each function now calls a local `campaignsAttributableToBuilding()` helper (duplicated across 3 files per spec) that resolves campaign IDs from `ads_leads` using the `attributeLeadToBuilding` + `buildingMapForLeads` join, then filters breakdown rows via `.in('campaign_id', campaignIds)`. Returns `[]` immediately if no campaigns match.
+
+**Tests:** 17/17 pass (16 existing + 1 new shape test in `insights-geo.test.ts`). `tsc --noEmit` clean.
+
+**Files changed:** `insights-geo.ts`, `insights-geo.test.ts`, `insights-demo.ts`, `insights-device.ts`.
+
+---
+
 ## 2026-05-16 — BH Ads V2: plan written, awaiting execution-mode choice
 
 **Status:** V2 spec ✅ + plan ✅ both committed and pushed. Awaiting kareem's execution-mode choice (subagent-driven vs inline) before shipping.
