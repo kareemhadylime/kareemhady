@@ -1,3 +1,79 @@
+## 2026-05-16 — BRAINSTORM (spec written): KIKA Reporting module + Picker Report
+
+**Status:** Spec drafted at [docs/superpowers/specs/2026-05-16-kika-reporting-picker-design.md](docs/superpowers/specs/2026-05-16-kika-reporting-picker-design.md). Awaiting kareem's spec review before invoking `superpowers:writing-plans`.
+
+**All sections approved during brainstorming:**
+- Section 1: Reporting hub page layout (card hub with featured Picker tile + 6 link cards; "To Manufacture" and "Delayed" cards deep-link into Exec via `?focus=`)
+- Section 2: Picker Report page layout (filter chips, headline stats, bucket table with expandable order lists, expandable product→variants common-items table)
+- Section 3: A4 PDF format (KIKA-brand header, totals strip, per-bucket order rows with inline line items, common-items section, page numbers)
+
+**Decisions captured in spec §2:**
+1. Workflow: print/export PDF only — no in-app fulfilling
+2. Bucket definition: distinct line items (1-line, 2-line, 3-line, 4+ buckets)
+3. Stock filter: include all open orders regardless of stock
+4. Most-common items grouping: product list with expandable variants
+5. Time scope: default all open backlog + chips for Older than 7d / 14d / This week only
+6. Page structure: card hub (Approach A)
+7. Theme: reuse existing KIKA tokens — no new colors
+
+**Spec self-review pass:** clarified "Total lines" definition (sum, not distinct count) in §4 and replaced vague "begins on a new line" with concrete `wrap={false}` behavior in §5. No other placeholders or contradictions found.
+
+**Companion server** still running at http://localhost:52835. Last screen pushed: `06-waiting.html`.
+
+**Next step (after kareem says "approved"):** invoke `superpowers:writing-plans` to create the implementation plan. **Hard gate active**: no code/scaffolding until then.
+
+---
+
+## 2026-05-16 — UX FIX: order modal line-items table — Qty + Price cells were colliding
+
+**Status:** Visual Companion accepted. Hub-page design (Section 1 of 3) now on screen, awaiting kareem's review before moving to Section 2.
+
+**Companion server:** running at http://localhost:52835 (PID owned by `start-server.sh`, content dir `C:\kareemhady\.superpowers\brainstorm\17422-1778910086\content`, state dir `…\state`). Auto-shuts after 30 min idle — restart with `"C:/Users/karee/.claude/plugins/marketplaces/superpowers-dev/skills/brainstorming/scripts/start-server.sh" --project-dir "C:/kareemhady"` if needed.
+
+**Decisions locked in (via AskUserQuestion):**
+1. **Workflow for the new report:** "Print/export a pick list" — no in-app fulfilling, just printable PDF (+ probably CSV).
+2. **Bucket definition:** "1 line item" = 1 distinct SKU on the order, regardless of qty. An order with 1 line × qty 3 is in the 1-line bucket. An order with 2 lines × qty 1 each is in the 2-line bucket.
+3. **Stock filter:** Include ALL open orders regardless of stock. KIKA's negative inventory makes a "fulfillable now" filter unreliable.
+4. **Most-common items list:** Both — product list with expandable variants underneath (click product to drill into per-variant breakdown).
+5. **Time scope:** Default to all open backlog. Optional filter at the top of the page lets ops narrow (e.g. "older than 7d", "this week").
+6. **Hub structure:** Approach A — card hub. Featured purple hero card for the new Picker Report + 6 link cards underneath for existing dashboards (Exec / Sales / To Manufacture / Delayed / Daily / Financials). "To Manufacture" and "Delayed" cards are deep-links into Exec with `?focus=` pre-applied.
+
+**Screens pushed so far** (in `…\content\`):
+- `01-context.html` — current KIKA hub + placeholder for the 6th tile
+- `02-approaches.html` — 3 layout approaches (Card hub / Tabs / Long scroll) — kareem picked A
+- `03-hub-design.html` — Section 1/3 design: full mockup of the new Reporting hub
+
+**Next concrete step:** if kareem approves the hub layout, push Section 2 — the Picker Report page itself: bucket table, expandable most-common-items table, period filter, "Export A4 PDF" button. After that Section 3 covers the PDF format + technical/implementation outline. Then write spec to `docs/superpowers/specs/2026-05-16-kika-reporting-picker-report-design.md`, kareem reviews, then I invoke `superpowers:writing-plans`.
+
+**Hard gate active:** no code, no scaffolding, no implementation skill calls until kareem approves the written spec.
+
+---
+
+## 2026-05-16 — UX FIX: order modal line-items table — Qty + Price cells were colliding
+
+**Status:** Brainstorming phase, awaiting user. No code this turn.
+
+**User asked for two things:**
+1. **Create a Reporting module under KIKA** — a new top-level tab on `/emails/kika` that **groups existing dashboards** (Sales, Fulfillment, Delayed, To Manufacture, etc.) with no new functionality, just links/cards.
+2. **Brainstorm a new ops report** that surfaces (a) which orders can be fulfilled with 1 item / 2 items / etc. (cut-and-release by item count), and (b) most common items in unfulfilled orders.
+
+**Where things stand:**
+- I invoked `superpowers:brainstorming`. Per the skill flow I must explore project context → offer visual companion (own message) → ask clarifying questions one at a time → propose 2-3 approaches → present design → write `docs/superpowers/specs/YYYY-MM-DD-…-design.md` → user reviews → invoke `superpowers:writing-plans`. **Hard gate**: no code until the user approves a written design.
+- Explored: confirmed `/emails/kika` hub lives at `src/app/emails/[domain]/page.tsx` (parametrised by domain), with existing cards for Setup / Exec / Financials / Sales / Inventory. The new Reporting card would slot in there as a 6th module. KIKA pages under `/emails/kika/`: `exec`, `financials`, `history`, `inventory` (with `raw-materials` subtab), `sales`, `setup`.
+- I just sent the Visual Companion offer message (own message per skill rule). Waiting on the user's yes/no before asking clarifying questions.
+
+**Next concrete step (whenever the user replies):** start clarifying questions. The first one I'm planning: "What does Operations actually do with the 1-item / 2-item bucket report — pick a bucket and ship the whole bucket at once, or just see the count and triage manually?" — that's the question that drives whether this report needs bulk-action buttons (mark fulfilled / print picking slip / export to delivery sheet) or is read-only.
+
+**Other open questions queued up:**
+- Item-count buckets: by total units (qty sum) or by line-item count? They differ when one line has qty=2.
+- "Most common items" — variant level or product level (same call we made on the Mfg report)?
+- Cut-off period: this report keyed to the dashboard period filter, or always "all open backlog"?
+- PDF export? Print-friendly? Or screen-only?
+
+Nothing committed or deployed this turn.
+
+---
+
 ## 2026-05-16 — UX FIX: order modal line-items table — Qty + Price cells were colliding
 
 **Status:** Pending commit + push.
