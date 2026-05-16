@@ -183,6 +183,49 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 
 ---
 
+## 2026-05-16 — BH Analytics Performance redesign (DONE)
+
+Implemented the four follow-ups to the gross-revenue card work:
+
+1. **Gross card now on the Performance page too.** Was previously only on the landing pulse. Added `hero-mtd-revenue-gross` to `panel-registry.ts` (defaultVisible: true) and a matching HeroKpi block in `dashboard-shell.tsx` between net-OTB and RevPAR.
+2. **Auto-shrink long values.** `hero-kpi.tsx` now picks a font size based on value-string length: ≥9 chars → text-base/lg/xl, ≥7 chars → text-lg/xl/2xl, else text-xl/2xl/3xl. So "$60.1k" sits cleanly and "$1,234.5k" wouldn't overflow either.
+3. **Persistent MoM sub-line on every tile.** New optional `mom?: Delta` prop on `HeroKpi` renders a tiny "▲ +X% vs last month" below the existing delta, in green/red. Dashboard-shell + landing-pulse both load a same-day-last-month snapshot independently of the compare-mode selector (window ±5 days for tolerance) via `loadNearestSnapshot(computePriorDate(date, 'last-month'), 5)`. Each tile computes its own `mom` via `momPp` / `momPct` / `momAbs` helpers; returns `undefined` when the prior is missing or zero so noisy "+∞%" is hidden.
+4. **Grid redesign.** Switched both pages from `lg:grid-cols-5 xl:grid-cols-5` (which gave 5+5+1 orphan after gross card landed) to `lg:grid-cols-4 xl:grid-cols-4`. 11 tiles render as 4+4+3 — balanced, no orphan row.
+
+**On the "active-listings-only occupancy" request:** verified existing code already does this. `src/lib/beithady-daily-report/units.ts:85` `isPhysicalUnit` returns false when `row.active === false`. DB has 87 active + 3 inactive listings; snapshot total_units = 77 (= 87 active − 10 MTL parents/DXB). No code change needed; added confidence comment instead. The gap with Guesty's occupancy (39.8% vs 41.69%) comes from different numerator definitions (likely DXB inclusion / inquiry-vs-confirmed), not denominator scope.
+
+**Files touched:**
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` — added lastMonth props, momPp/momPct/momAbs helpers, gross card, mom prop on all 11 tiles, grid → 4 cols
+- `src/app/beithady/analytics/performance/_components/panels/hero-kpi.tsx` — new mom prop, sizeClassFor() auto-shrink
+- `src/app/beithady/analytics/performance/_lib/panel-registry.ts` — hero-mtd-revenue-gross panel id
+- `src/app/beithady/analytics/performance/page.tsx` — load lastMonth snapshot via existing computePriorDate + loadNearestSnapshot
+- `src/app/beithady/_components/landing-pulse.tsx` — mirror lastMonth load + momPp/momPct/momAbs + mom on tiles + grid → 4 cols
+
+**Status:** build clean.
+
+---
+
+## 2026-05-16 — BH Analytics Performance redesign request (SUPERSEDED — see entry above)
+
+User flagged that the new Gross Revenue card was added to the Beit Hady landing (Today's Pulse) but **NOT to `/beithady/analytics/performance`** — the analytics page still shows only the 9 original tiles in a 5×2 grid plus one orphan ($0m response-time tile). Also asked for four further changes:
+
+1. **Active-listings-only occupancy** — all occupancy calculations should exclude inactive listings (currently inactive listings are counted in the denominator → drags occupancy % down)
+2. **Net Payout tile font shrink** — "$56.5k" label overflows; reduce font so the tile size stays consistent with neighbors
+3. **MoM comparison sub-line on every tile** — small font + colored up/down arrow showing last-month value (green up / red down)
+4. **Grid redesign** — current 5×2 + orphan row looks awkward; need a balanced layout for 10–11 tiles
+
+Status: posted model-suggester (`/model opus recommended for best output`, score 4 — multi-page, multi-system, cross-cutting design + data work). **Standing by for user's `continue` or `/model opus` switch before touching code.**
+
+Files likely to touch when work resumes:
+- `src/app/beithady/analytics/performance/_components/dashboard-shell.tsx` (page that's missing the gross card)
+- `src/app/beithady/analytics/performance/_lib/panel-registry.ts` (where Hero KPIs are registered)
+- `src/app/beithady/analytics/performance/_components/panels/hero-kpi.tsx` (per-tile rendering — font + MoM sub-line)
+- `src/lib/beithady-daily-report/build-buildings.ts` (occupancy denominator — restrict to active listings)
+- `src/lib/beithady-daily-report/types.ts` (add `*_prev_month_usd` / `*_prev_month_pct` twin fields for MoM)
+- `src/lib/beithady-daily-report/build.ts` (compute MoM by querying snapshot for first-of-prev-month or by re-running build for prev month range)
+
+---
+
 ## 2026-05-16 — Reconcile BH dashboard revenue with Guesty Analytics (DONE)
 
 **User question:** "I can't match the Analytic Revenues between BH app & guesty" — Guesty Analytics → General Overview showed $59,061 for May 2026 / Egypt; Today's Pulse "Month Revenue (OTB)" showed $55.3k.

@@ -11,6 +11,7 @@ export type PanelId =
   | 'hero-month-to-end-occupancy'
   | 'hero-month-occupancy'
   | 'hero-mtd-revenue'
+  | 'hero-mtd-revenue-gross'
   | 'hero-mtd-revenue-actual'
   | 'hero-revpar'
   | 'hero-pace'
@@ -65,7 +66,8 @@ export const PANELS: PanelDescriptor[] = [
   { id: 'hero-month-occupancy', label: 'Month Occupancy', group: 'hero', defaultVisible: true },
   { id: 'hero-pace', label: 'Pace', group: 'hero', defaultVisible: true },
   { id: 'hero-mtd-revenue-actual', label: 'MTD Revenue (actual)', group: 'hero', defaultVisible: true },
-  { id: 'hero-mtd-revenue', label: 'Month Revenue (OTB)', group: 'hero', defaultVisible: true },
+  { id: 'hero-mtd-revenue', label: 'Month Revenue (OTB, net payout)', group: 'hero', defaultVisible: true },
+  { id: 'hero-mtd-revenue-gross', label: 'Month Revenue (Gross, matches Guesty)', group: 'hero', defaultVisible: true },
   { id: 'hero-revpar', label: 'RevPAR', group: 'hero', defaultVisible: true },
   { id: 'hero-reviews-avg', label: 'Reviews avg', group: 'hero', defaultVisible: true },
   { id: 'hero-response-time', label: 'Response time', group: 'hero', defaultVisible: true },

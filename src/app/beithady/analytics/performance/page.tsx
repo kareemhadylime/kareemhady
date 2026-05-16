@@ -56,6 +56,19 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
   const priorOffsetDays =
     priorResult && priorResult.status === 'found' ? priorResult.offsetDays : 0;
 
+  // Always-on last-month anchor for the persistent MoM sub-line under every
+  // Hero KPI tile. Independent of compareMode — even if compareMode='none'
+  // or 'last-week', we still load the last-month snapshot for the sub-line.
+  // Window is ±5 days (broader than priorResult's 3) since the MoM signal is
+  // less precise to begin with and we want fewer missing-data holes.
+  const lastMonthTargetDate =
+    result.status === 'found' ? computePriorDate(result.date, 'last-month') : null;
+  const lastMonthResult = lastMonthTargetDate ? await loadNearestSnapshot(lastMonthTargetDate, 5) : null;
+  const lastMonthPayload =
+    lastMonthResult && lastMonthResult.status === 'found' ? lastMonthResult.payload : null;
+  const lastMonthDate =
+    lastMonthResult && lastMonthResult.status === 'found' ? lastMonthResult.date : null;
+
   // Hoist live-activity so dxbCounts can be passed as a separate prop.
   const liveActivity =
     result.status === 'found' && result.date === cairoYmd()
@@ -103,6 +116,8 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             priorDate={priorDate}
             priorTargetDate={priorTargetDate}
             priorOffsetDays={priorOffsetDays}
+            lastMonthPayload={lastMonthPayload}
+            lastMonthDate={lastMonthDate}
           />
         </Suspense>
       )}

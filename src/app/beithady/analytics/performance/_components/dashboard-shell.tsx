@@ -95,6 +95,13 @@ type Props = {
   priorDate: string | null;
   priorTargetDate: string | null;
   priorOffsetDays: number;
+  /**
+   * Same-day-last-month snapshot, independent of the compare-mode selector.
+   * Used to render the persistent "▲ ±X% vs last month" sub-line under every
+   * Hero KPI tile. Null when no neighbor snapshot exists within ±5 days.
+   */
+  lastMonthPayload: DailyReportPayload | null;
+  lastMonthDate: string | null;
   dxbCounts?: { check_ins_today: number; check_outs_today: number; turnovers_today: number; occupied_today: number };
 };
 
@@ -117,6 +124,8 @@ export function DashboardShell({
   priorDate,
   priorTargetDate,
   priorOffsetDays,
+  lastMonthPayload,
+  lastMonthDate: _lastMonthDate,
   dxbCounts,
 }: Props) {
   const { state, update } = usePerfUrlState();
@@ -139,6 +148,10 @@ export function DashboardShell({
 
   const priorBucket =
     priorPayload && (buildingFilter === 'all' ? priorPayload.all : priorPayload.per_building[buildingFilter]);
+  // Bucket sliced from the same-day-last-month snapshot (independent of
+  // compare mode). Drives the persistent MoM sub-line on every Hero KPI.
+  const lastMonthBucket =
+    lastMonthPayload && (buildingFilter === 'all' ? lastMonthPayload.all : lastMonthPayload.per_building[buildingFilter]);
   const priorRevpar = priorPayload?.revpar
     ? isFiltered && priorPayload.revpar.by_building
       ? priorPayload.revpar.by_building[buildingFilter as BuildingCode] ?? null
@@ -179,6 +192,44 @@ export function DashboardShell({
     return {
       direction: dir as 'up' | 'down' | 'flat',
       text: `${sign}${d.toFixed(unit === '★' ? 1 : 0)}${unit} ${compareLabel}`,
+    };
+  }
+
+  // ---- Persistent MoM helpers (independent of compare-mode selector) ----
+  // Each produces a small "▲ +X% vs last month" line for the HeroKpi `mom`
+  // prop. When the last-month snapshot is missing or the prior value is 0,
+  // returns undefined so the line is hidden entirely (vs showing a noisy
+  // "+∞%" or "0% vs last month").
+  function momPp(current: number, prior: number | undefined | null): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
+    if (!lastMonthBucket || prior === undefined || prior === null) return undefined;
+    const d = current - prior;
+    if (Math.abs(d) < 0.05) return { direction: 'flat', text: `flat vs last month` };
+    const sign = d > 0 ? '+' : '';
+    return {
+      direction: d > 0 ? 'up' : 'down',
+      text: `${sign}${d.toFixed(1)}pp vs last month`,
+    };
+  }
+  function momPct(current: number, prior: number | undefined | null, invert = false): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
+    if (!lastMonthBucket || prior === undefined || prior === null || !prior) return undefined;
+    const pct = ((current - prior) / Math.abs(prior)) * 100;
+    if (Math.abs(pct) < 0.1) return { direction: 'flat', text: `flat vs last month` };
+    const sign = pct > 0 ? '+' : '';
+    const dir = invert ? (pct > 0 ? 'down' : 'up') : (pct > 0 ? 'up' : 'down');
+    return {
+      direction: dir as 'up' | 'down' | 'flat',
+      text: `${sign}${pct.toFixed(1)}% vs last month`,
+    };
+  }
+  function momAbs(current: number, prior: number | undefined | null, unit: string, invert = false): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
+    if (!lastMonthPayload || prior === undefined || prior === null) return undefined;
+    const d = current - prior;
+    if (Math.abs(d) < 0.05) return { direction: 'flat', text: `flat vs last month` };
+    const sign = d > 0 ? '+' : '';
+    const dir = invert ? (d > 0 ? 'down' : 'up') : (d > 0 ? 'up' : 'down');
+    return {
+      direction: dir as 'up' | 'down' | 'flat',
+      text: `${sign}${d.toFixed(unit === '★' ? 1 : 0)}${unit} vs last month`,
     };
   }
 
@@ -464,12 +515,15 @@ export function DashboardShell({
         </div>
       )}
 
-      <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
+      {/* Grid: 4-col on xl gives a balanced 4+4+(3|4) layout for 11–12 hero tiles
+          (vs the old 5-col which left a single orphan tile in row 3). */}
+      <div className="col-span-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
         {visibility['hero-occupancy'] && (
           <HeroKpi
             label={`Occupancy today${filterSuffix}`}
             value={`${bucket.occupancy_today_pct.toFixed(1)}%`}
             delta={compareActive && priorBucket ? ppDelta(bucket.occupancy_today_pct, priorBucket.occupancy_today_pct, 'today') : { direction: 'flat', text: 'today' }}
+            mom={momPp(bucket.occupancy_today_pct, lastMonthBucket?.occupancy_today_pct)}
             spark={isFiltered ? undefined : payload.sparklines?.occupancy}
             drillTo="/beithady/analytics/performance"
             accent="ink"
@@ -481,6 +535,7 @@ export function DashboardShell({
             label={`MTD Occupancy${filterSuffix}`}
             value={`${bucket.backward_occupancy_pct.toFixed(1)}%`}
             delta={compareActive && priorBucket ? ppDelta(bucket.backward_occupancy_pct, priorBucket.backward_occupancy_pct, '1st → today') : { direction: 'flat', text: '1st → today' }}
+            mom={momPp(bucket.backward_occupancy_pct, lastMonthBucket?.backward_occupancy_pct)}
             spark={isFiltered ? undefined : payload.sparklines?.mtd_occupancy}
             drillTo="/beithady/analytics/performance?metric=backward-occupancy"
             accent="steel"
@@ -492,6 +547,7 @@ export function DashboardShell({
             label={`Month-to-End Occupancy${filterSuffix}`}
             value={`${bucket.forward_occupancy_pct.toFixed(1)}%`}
             delta={compareActive && priorBucket ? ppDelta(bucket.forward_occupancy_pct, priorBucket.forward_occupancy_pct, 'today → EOM, OTB') : { direction: 'flat', text: 'today → EOM, OTB' }}
+            mom={momPp(bucket.forward_occupancy_pct, lastMonthBucket?.forward_occupancy_pct)}
             spark={isFiltered ? undefined : payload.sparklines?.month_to_end_occupancy}
             drillTo="/beithady/analytics/performance?metric=forward-occupancy"
             accent="steel"
@@ -503,6 +559,7 @@ export function DashboardShell({
             label={`Month Occupancy${filterSuffix}`}
             value={`${(bucket.month_occupancy_pct ?? 0).toFixed(1)}%`}
             delta={compareActive && priorBucket ? ppDelta((bucket.month_occupancy_pct ?? 0), (priorBucket.month_occupancy_pct ?? 0), 'whole month, OTB') : { direction: 'flat', text: 'whole month, OTB' }}
+            mom={momPp(bucket.month_occupancy_pct ?? 0, lastMonthBucket?.month_occupancy_pct)}
             spark={isFiltered ? undefined : payload.sparklines?.month_occupancy}
             drillTo="/beithady/analytics/performance?metric=month-occupancy"
             accent="gold"
@@ -514,6 +571,7 @@ export function DashboardShell({
             label={`Pace${filterSuffix}`}
             value={`${bucket.pickup_vs_prior_month_pct >= 0 ? '+' : ''}${bucket.pickup_vs_prior_month_pct.toFixed(1)}%`}
             delta={compareActive && priorBucket ? ppDelta(bucket.pickup_vs_prior_month_pct, priorBucket.pickup_vs_prior_month_pct, 'vs prior month') : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'vs prior month' }}
+            mom={momPp(bucket.pickup_vs_prior_month_pct, lastMonthBucket?.pickup_vs_prior_month_pct)}
             spark={isFiltered ? undefined : payload.sparklines?.pace}
             drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
             accent={paceAccent as 'green' | 'red'}
@@ -525,6 +583,7 @@ export function DashboardShell({
             label={`MTD Revenue${filterSuffix}`}
             value={`$${((bucket.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
             delta={compareActive && priorBucket ? pctDelta((bucket.revenue_mtd_actual_usd ?? 0), (priorBucket.revenue_mtd_actual_usd ?? 0), 'check-ins so far') : { direction: 'flat', text: 'check-ins so far' }}
+            mom={momPct(bucket.revenue_mtd_actual_usd ?? 0, lastMonthBucket?.revenue_mtd_actual_usd)}
             spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue_actual}
             drillTo="/beithady/financials?period=mtd-actual"
             accent="gold"
@@ -535,11 +594,24 @@ export function DashboardShell({
           <HeroKpi
             label={`Month Revenue (OTB)${filterSuffix}`}
             value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
-            delta={compareActive && priorBucket ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'incl. confirmed → EOM') : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'incl. confirmed → EOM' }}
+            delta={compareActive && priorBucket ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'net payout · → EOM') : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'net payout · → EOM' }}
+            mom={momPct(bucket.revenue_mtd_usd, lastMonthBucket?.revenue_mtd_usd)}
             spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
             drillTo="/beithady/financials?period=month-otb"
             accent="gold"
             onHide={() => setPanel('hero-mtd-revenue', false)}
+          />
+        )}
+        {visibility['hero-mtd-revenue-gross'] && (
+          <HeroKpi
+            label={`Month Revenue (Gross)${filterSuffix}`}
+            value={`$${((bucket.revenue_mtd_gross_usd ?? 0) / 1000).toFixed(1)}k`}
+            delta={compareActive && priorBucket ? pctDelta(bucket.revenue_mtd_gross_usd ?? 0, priorBucket.revenue_mtd_gross_usd ?? 0, 'gross · matches Guesty') : { direction: 'flat', text: 'gross · matches Guesty' }}
+            mom={momPct(bucket.revenue_mtd_gross_usd ?? 0, lastMonthBucket?.revenue_mtd_gross_usd)}
+            spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
+            drillTo="/beithady/financials?period=month-otb"
+            accent="gold"
+            onHide={() => setPanel('hero-mtd-revenue-gross', false)}
           />
         )}
         {visibility['hero-revpar'] && (
@@ -553,6 +625,12 @@ export function DashboardShell({
                   ? { direction: 'flat', text: 'rev / available night' }
                   : { direction: 'flat', text: 'ADR (RevPAR pending)' }
             }
+            mom={revparValue != null && lastMonthPayload?.revpar ? momPct(
+              revparValue,
+              (isFiltered && lastMonthPayload.revpar.by_building)
+                ? (lastMonthPayload.revpar.by_building[buildingFilter as BuildingCode] ?? null)
+                : lastMonthPayload.revpar.all ?? null,
+            ) : undefined}
             spark={isFiltered ? undefined : payload.sparklines?.revpar}
             drillTo="/beithady/financials?metric=revpar"
             accent="steel"
@@ -568,6 +646,7 @@ export function DashboardShell({
                 ? absDelta(payload.reviews.avg_rating_mtd, priorPayload.reviews.avg_rating_mtd, '★', `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`)
                 : { direction: 'flat', text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged` }
             }
+            mom={lastMonthPayload?.reviews ? momAbs(payload.reviews.avg_rating_mtd, lastMonthPayload.reviews.avg_rating_mtd, '★') : undefined}
             spark={payload.sparklines?.reviews_avg}
             drillTo="/beithady/analytics/reviews?period=mtd"
             accent="amber"
@@ -585,6 +664,7 @@ export function DashboardShell({
                   ? { direction: 'flat', text: `first ${payload.conversations.yesterday.first_response_avg_minutes.toFixed(0)}m` }
                   : undefined
             }
+            mom={payload.conversations && lastMonthPayload?.conversations ? momAbs(payload.conversations.yesterday.avg_response_minutes, lastMonthPayload.conversations.yesterday.avg_response_minutes, 'm', true) : undefined}
             spark={payload.sparklines?.response_time}
             drillTo="/beithady/communication/unified?metric=response-time"
             accent="steel"

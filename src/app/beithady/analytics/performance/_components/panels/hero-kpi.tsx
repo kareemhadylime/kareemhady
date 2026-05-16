@@ -9,6 +9,12 @@ type Props = {
   label: string;
   value: string;
   delta?: Delta;
+  /**
+   * Persistent month-over-month sub-line, shown below the main delta. Renders
+   * a small "▲ +X% vs last month" line with green/red coloring. Independent of
+   * the compare-mode selector — this is always visible when supplied.
+   */
+  mom?: Delta;
   spark?: number[];
   drillTo?: string;
   accent?: Accent;
@@ -22,11 +28,21 @@ const ACCENT_COLOR: Record<Accent, string> = {
   ...STATUS_COLORS,
 };
 
-export function HeroKpi({ label, value, delta, spark, drillTo, accent = 'ink', onHide }: Props) {
+// Long values like "$555.5k" or "$1.2M" overflow at the default text-3xl size.
+// Drop a step on tiles whose value string is 7+ chars so the tile keeps a
+// consistent footprint across the grid.
+function sizeClassFor(value: string): string {
+  const len = value.length;
+  if (len >= 9) return 'text-base md:text-lg lg:text-xl';
+  if (len >= 7) return 'text-lg md:text-xl lg:text-2xl';
+  return 'text-xl md:text-2xl lg:text-3xl';
+}
+
+export function HeroKpi({ label, value, delta, mom, spark, drillTo, accent = 'ink', onHide }: Props) {
   return (
     <PanelFrame label={label} drillTo={drillTo} onHide={onHide} accent={accent} className="min-w-[160px]">
       <div
-        className="text-xl md:text-2xl lg:text-3xl font-bold leading-tight tabular-nums"
+        className={`${sizeClassFor(value)} font-bold leading-tight tabular-nums`}
         style={{
           color: ACCENT_COLOR[accent],
           fontFamily: 'Cormorant Garamond, Playfair Display, Georgia, serif',
@@ -44,6 +60,18 @@ export function HeroKpi({ label, value, delta, spark, drillTo, accent = 'ink', o
         >
           {delta.direction === 'up' ? '▲ ' : delta.direction === 'down' ? '▼ ' : ''}
           {delta.text}
+        </div>
+      )}
+      {mom && (
+        <div
+          className="mt-0.5 text-[9px] opacity-90"
+          style={{
+            color: mom.direction === 'up' ? STATUS_COLORS.green : mom.direction === 'down' ? STATUS_COLORS.red : 'var(--bh-steel)',
+          }}
+          title="vs same point last month"
+        >
+          {mom.direction === 'up' ? '▲ ' : mom.direction === 'down' ? '▼ ' : '· '}
+          {mom.text}
         </div>
       )}
       {spark && spark.length > 1 && <Sparkline values={spark} />}

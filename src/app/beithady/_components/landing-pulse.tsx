@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { loadSnapshot, loadLatestSnapshotDate } from '@/app/beithady/analytics/performance/_lib/load-snapshot';
+import { loadSnapshot, loadLatestSnapshotDate, loadNearestSnapshot, computePriorDate } from '@/app/beithady/analytics/performance/_lib/load-snapshot';
 import { DailyActivity } from '@/app/beithady/analytics/performance/_components/panels/daily-activity';
 import { HeroKpi } from '@/app/beithady/analytics/performance/_components/panels/hero-kpi';
 import { loadDailyActivityLive } from '@/lib/beithady/daily-activity-live';
@@ -47,6 +47,53 @@ export async function LandingPulse() {
   }
 
   const { payload, date: snapshotDate } = result;
+
+  // Always-on last-month anchor for the persistent MoM sub-line. Same logic
+  // as the Performance page (see /analytics/performance/page.tsx).
+  const lastMonthTarget = computePriorDate(snapshotDate, 'last-month');
+  const lastMonthResult = lastMonthTarget ? await loadNearestSnapshot(lastMonthTarget, 5) : null;
+  const lastMonthAll =
+    lastMonthResult && lastMonthResult.status === 'found' ? lastMonthResult.payload.all : null;
+  const lastMonthReviews =
+    lastMonthResult && lastMonthResult.status === 'found' ? lastMonthResult.payload.reviews : null;
+  const lastMonthConversations =
+    lastMonthResult && lastMonthResult.status === 'found' ? lastMonthResult.payload.conversations : null;
+
+  // Helpers for per-tile MoM sub-line. Hidden (undefined) when last-month is
+  // missing or prior=0 (avoids meaningless "+∞%"). Matches the Performance
+  // page's momPp / momPct / momAbs helpers.
+  function momPp(current: number, prior: number | null | undefined) {
+    if (!lastMonthAll || prior == null) return undefined;
+    const d = current - prior;
+    if (Math.abs(d) < 0.05) return { direction: 'flat' as const, text: 'flat vs last month' };
+    const sign = d > 0 ? '+' : '';
+    return {
+      direction: (d > 0 ? 'up' : 'down') as 'up' | 'down',
+      text: `${sign}${d.toFixed(1)}pp vs last month`,
+    };
+  }
+  function momPct(current: number, prior: number | null | undefined, invert = false) {
+    if (!lastMonthAll || prior == null || !prior) return undefined;
+    const pct = ((current - prior) / Math.abs(prior)) * 100;
+    if (Math.abs(pct) < 0.1) return { direction: 'flat' as const, text: 'flat vs last month' };
+    const sign = pct > 0 ? '+' : '';
+    const dir = invert ? (pct > 0 ? 'down' : 'up') : (pct > 0 ? 'up' : 'down');
+    return {
+      direction: dir as 'up' | 'down' | 'flat',
+      text: `${sign}${pct.toFixed(1)}% vs last month`,
+    };
+  }
+  function momAbs(current: number, prior: number | null | undefined, unit: string, invert = false) {
+    if (prior == null) return undefined;
+    const d = current - prior;
+    if (Math.abs(d) < 0.05) return { direction: 'flat' as const, text: 'flat vs last month' };
+    const sign = d > 0 ? '+' : '';
+    const dir = invert ? (d > 0 ? 'down' : 'up') : (d > 0 ? 'up' : 'down');
+    return {
+      direction: dir as 'up' | 'down' | 'flat',
+      text: `${sign}${d.toFixed(unit === '★' ? 1 : 0)}${unit} vs last month`,
+    };
+  }
 
   // Synthesize a payload whose `all` and `per_building` daily-activity
   // fields point at TODAY's live numbers, while everything else (MTD
@@ -121,14 +168,16 @@ export async function LandingPulse() {
         />
       </div>
 
+      {/* 4-col grid on lg+ → 11 tiles render as 4+4+3 (balanced, no orphan). */}
       <div
-        className="grid grid-cols-2 gap-3 px-3 pb-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5"
+        className="grid grid-cols-2 gap-3 px-3 pb-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4"
         aria-label="Hero KPIs"
       >
         <HeroKpi
           label="Occupancy today"
           value={`${all.occupancy_today_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'today' }}
+          mom={momPp(all.occupancy_today_pct, lastMonthAll?.occupancy_today_pct)}
           spark={payload.sparklines?.occupancy}
           drillTo="/beithady/analytics/performance"
           accent="ink"
@@ -137,6 +186,7 @@ export async function LandingPulse() {
           label="MTD Occupancy"
           value={`${all.backward_occupancy_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: '1st → today' }}
+          mom={momPp(all.backward_occupancy_pct, lastMonthAll?.backward_occupancy_pct)}
           spark={payload.sparklines?.mtd_occupancy}
           drillTo="/beithady/analytics/performance?metric=backward-occupancy"
           accent="steel"
@@ -145,6 +195,7 @@ export async function LandingPulse() {
           label="Month-to-End Occupancy"
           value={`${all.forward_occupancy_pct.toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'today → EOM, OTB' }}
+          mom={momPp(all.forward_occupancy_pct, lastMonthAll?.forward_occupancy_pct)}
           spark={payload.sparklines?.month_to_end_occupancy}
           drillTo="/beithady/analytics/performance?metric=forward-occupancy"
           accent="steel"
@@ -153,6 +204,7 @@ export async function LandingPulse() {
           label="Month Occupancy"
           value={`${(all.month_occupancy_pct ?? 0).toFixed(1)}%`}
           delta={{ direction: 'flat', text: 'whole month, OTB' }}
+          mom={momPp(all.month_occupancy_pct ?? 0, lastMonthAll?.month_occupancy_pct)}
           spark={payload.sparklines?.month_occupancy}
           drillTo="/beithady/analytics/performance?metric=month-occupancy"
           accent="gold"
@@ -164,6 +216,7 @@ export async function LandingPulse() {
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
             text: 'vs prior month',
           }}
+          mom={momPp(all.pickup_vs_prior_month_pct, lastMonthAll?.pickup_vs_prior_month_pct)}
           spark={payload.sparklines?.pace}
           drillTo={`/beithady/analytics/performance?date=${snapshotDate}&compare=last-month`}
           accent={paceAccent}
@@ -172,6 +225,7 @@ export async function LandingPulse() {
           label="MTD Revenue"
           value={`$${((all.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
           delta={{ direction: 'flat', text: 'check-ins so far' }}
+          mom={momPct(all.revenue_mtd_actual_usd ?? 0, lastMonthAll?.revenue_mtd_actual_usd)}
           spark={payload.sparklines?.mtd_revenue_actual}
           drillTo="/beithady/financials?period=mtd-actual"
           accent="gold"
@@ -181,8 +235,9 @@ export async function LandingPulse() {
           value={`$${(all.revenue_mtd_usd / 1000).toFixed(1)}k`}
           delta={{
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
-            text: 'net payout · incl. confirmed → EOM',
+            text: 'net payout · → EOM',
           }}
+          mom={momPct(all.revenue_mtd_usd, lastMonthAll?.revenue_mtd_usd)}
           spark={payload.sparklines?.mtd_revenue}
           drillTo="/beithady/financials?period=month-otb"
           accent="gold"
@@ -192,8 +247,9 @@ export async function LandingPulse() {
           value={`$${((all.revenue_mtd_gross_usd ?? 0) / 1000).toFixed(1)}k`}
           delta={{
             direction: 'flat',
-            text: 'gross · matches Guesty Analytics',
+            text: 'gross · matches Guesty',
           }}
+          mom={momPct(all.revenue_mtd_gross_usd ?? 0, lastMonthAll?.revenue_mtd_gross_usd)}
           drillTo="/beithady/financials?period=month-otb"
           accent="gold"
         />
@@ -209,6 +265,7 @@ export async function LandingPulse() {
               ? { direction: 'flat', text: 'rev / available night' }
               : { direction: 'flat', text: 'ADR (RevPAR pending)' }
           }
+          mom={payload.revpar?.all != null && lastMonthResult?.status === 'found' && lastMonthResult.payload.revpar?.all != null ? momPct(payload.revpar.all, lastMonthResult.payload.revpar.all) : undefined}
           spark={payload.sparklines?.revpar}
           drillTo="/beithady/financials?metric=revpar"
           accent="steel"
@@ -220,6 +277,7 @@ export async function LandingPulse() {
             direction: 'flat',
             text: `${payload.reviews.count_mtd} reviews · ${payload.reviews.last_24h.filter((r) => r.flagged).length} flagged`,
           }}
+          mom={lastMonthReviews ? momAbs(payload.reviews.avg_rating_mtd, lastMonthReviews.avg_rating_mtd, '★') : undefined}
           spark={payload.sparklines?.reviews_avg}
           drillTo="/beithady/analytics/reviews?period=mtd"
           accent="amber"
@@ -239,6 +297,7 @@ export async function LandingPulse() {
                 }
               : undefined
           }
+          mom={payload.conversations && lastMonthConversations ? momAbs(payload.conversations.yesterday.avg_response_minutes, lastMonthConversations.yesterday.avg_response_minutes, 'm', true) : undefined}
           spark={payload.sparklines?.response_time}
           drillTo="/beithady/communication/unified?metric=response-time"
           accent="steel"
