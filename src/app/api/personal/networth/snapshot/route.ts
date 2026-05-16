@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 export async function POST(): Promise<Response> {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  if (!user.is_admin) return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   const result = await takeSnapshot(user.id, 'manual');
   return NextResponse.json({ ok: true, ...result });
 }
