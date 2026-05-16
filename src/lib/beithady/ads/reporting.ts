@@ -5,6 +5,17 @@ import { convertManyToEgp } from '@/lib/fx-rates';
 // Read helpers for the Phase H Ads UI. Pulls from the views created
 // by the migration plus the lead funnel.
 
+export type RangeArg = number | { from: string; to: string };
+
+export function normalizeRangeArg(arg: RangeArg, opts?: { today?: string }): { from: string; to: string } {
+  const today = opts?.today ?? new Date().toISOString().slice(0, 10);
+  if (typeof arg === 'number') {
+    const fromMs = new Date(today + 'T00:00:00Z').getTime() - (arg - 1) * 86400e3;
+    return { from: new Date(fromMs).toISOString().slice(0, 10), to: today };
+  }
+  return arg;
+}
+
 export type CampaignPerformanceRow = {
   campaign_id: number;
   campaign_name: string;
@@ -115,13 +126,14 @@ export async function listCampaigns(): Promise<CampaignPerformanceRow[]> {
   return ((data as CampaignPerformanceRow[] | null) || []);
 }
 
-export async function listOverviewByDay(days = 30): Promise<DailyOverviewRow[]> {
+export async function listOverviewByDay(range: RangeArg = 30): Promise<DailyOverviewRow[]> {
   const sb = supabaseAdmin();
-  const cutoff = new Date(Date.now() - days * 86400e3).toISOString().slice(0, 10);
+  const { from, to } = normalizeRangeArg(range);
   const { data } = await sb
     .from('ads_overview_daily')
     .select('*')
-    .gte('metric_date', cutoff)
+    .gte('metric_date', from)
+    .lte('metric_date', to)
     .order('metric_date', { ascending: true });
   return ((data as DailyOverviewRow[] | null) || []);
 }
@@ -156,7 +168,7 @@ export async function listLeadFunnel(opts: { stage?: 'new' | 'processed' | 'book
   });
 }
 
-export async function getDashboardKpis(days = 30): Promise<{
+export async function getDashboardKpis(range: RangeArg = 30): Promise<{
   spend: number;
   leads: number;
   bookings: number;
@@ -167,7 +179,7 @@ export async function getDashboardKpis(days = 30): Promise<{
   draft_campaigns: number;
 }> {
   const sb = supabaseAdmin();
-  const cutoff = new Date(Date.now() - days * 86400e3).toISOString().slice(0, 10);
+  const { from, to } = normalizeRangeArg(range);
   // ads_daily_metrics carries spend in the ad-account's native currency
   // (Meta=USD, Google=EGP, TikTok=USD). Group per-currency, convert each
   // currency's total to EGP once, then sum. ads_overview_daily is currency-
@@ -175,11 +187,12 @@ export async function getDashboardKpis(days = 30): Promise<{
   const [{ data: dailyMetrics }, { data: accountsList }, { data: leads }, { count: active }, { count: drafts }] = await Promise.all([
     sb.from('ads_daily_metrics')
       .select('spend_micros, account_id, leads')
-      .gte('metric_date', cutoff)
+      .gte('metric_date', from)
+      .lte('metric_date', to)
       .is('ad_id', null)
       .is('ad_set_id', null),
     sb.from('ads_accounts').select('id, currency'),
-    sb.from('ads_lead_funnel').select('matched_reservation_id, booking_value, booking_currency').gte('created_at', cutoff),
+    sb.from('ads_lead_funnel').select('matched_reservation_id, booking_value, booking_currency').gte('created_at', from).lte('created_at', to + 'T23:59:59'),
     sb.from('ads_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
     sb.from('ads_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'DRAFT'),
   ]);
