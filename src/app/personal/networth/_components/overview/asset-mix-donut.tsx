@@ -1,5 +1,5 @@
 'use client';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { AssetMixSlice } from '@/lib/personal/networth/queries';
 import type { AssetKind } from '@/lib/personal/networth/types';
 
@@ -19,6 +19,10 @@ function assetLabel(key: AssetKind | 'stocks_pipe'): string {
   }
 }
 
+function fmtEgp(n: number): string {
+  return `EGP ${Math.round(n).toLocaleString()}`;
+}
+
 type Slice = AssetMixSlice;
 
 export function AssetMixDonut({ slices }: { slices: Slice[] }) {
@@ -30,29 +34,56 @@ export function AssetMixDonut({ slices }: { slices: Slice[] }) {
       </div>
     );
   }
-  const data = slices.map(s => ({
-    name: assetLabel(s.label),
-    value: s.amountEgp,
-    pct: s.pct,
-  }));
+  // Sort descending by amount so the legend reads largest-first.
+  const data = slices
+    .map(s => ({ name: assetLabel(s.label), value: s.amountEgp, pct: s.pct }))
+    .sort((a, b) => b.value - a.value);
   return (
     <div className="ix-card p-5">
-      <div className="text-sm font-semibold mb-2">Asset Mix</div>
-      <div className="h-64">
-        <ResponsiveContainer>
-          <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={2}>
-              {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-            </Pie>
-            <Tooltip
-              formatter={(v: number, _name, item) => {
-                const pct = (item?.payload as { pct?: number })?.pct ?? 0;
-                return [`EGP ${Number(v).toLocaleString()} (${pct}%)`, item?.payload?.name ?? ''];
-              }}
-            />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="text-sm font-semibold mb-3">Asset Mix</div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-4 items-center">
+        <div className="h-56 min-w-0">
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={56}
+                outerRadius={86}
+                paddingAngle={2}
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v: number, _name, item) => {
+                  const pct = (item?.payload as { pct?: number })?.pct ?? 0;
+                  return [`${fmtEgp(Number(v))} (${pct}%)`, item?.payload?.name ?? ''];
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <ul className="space-y-2 text-sm">
+          {data.map((s, i) => (
+            <li key={s.name} className="flex items-start gap-2">
+              <span
+                className="w-2.5 h-2.5 rounded-full inline-block mt-1.5 flex-shrink-0"
+                style={{ background: COLORS[i % COLORS.length] }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  {s.name}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                  {fmtEgp(s.value)} <span className="text-slate-400">·</span> {s.pct}%
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
