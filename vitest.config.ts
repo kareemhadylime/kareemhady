@@ -18,6 +18,9 @@ export default defineConfig({
       // environments. Alias it to an empty shim so pure-logic unit tests can
       // import modules that carry the guard without Next.js scaffolding.
       'server-only': path.resolve(__dirname, 'src/__mocks__/server-only.ts'),
+      // 'next/cache' calls (revalidatePath, revalidateTag, etc.) require the
+      // Next.js request context and throw in plain Vitest. Shim them out.
+      'next/cache': path.resolve(__dirname, 'src/__mocks__/next-cache.ts'),
     },
   },
 });

@@ -24,6 +24,7 @@ import {
   seedFromEnvAction,
   testCredentialAction,
 } from './actions';
+import { backfillAdsBreakdownsAction } from './backfill-ads-breakdowns-action';
 import { fmtCairoDateTime } from '@/lib/fmt-date';
 
 export const dynamic = 'force-dynamic';
@@ -62,15 +63,26 @@ export default async function IntegrationsAdminPage() {
               reads them dynamically. Env vars are a fallback only.
             </p>
           </div>
-          <form action={seedFromEnvAction}>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
-              title="Copy current env-var values into the DB for any field that isn't already set."
-            >
-              <Download size={14} /> Seed from env vars
-            </button>
-          </form>
+          <div className="flex items-center gap-2 flex-wrap">
+            <form action={backfillAdsBreakdownsAction}>
+              <button
+                type="submit"
+                className="ix-btn-secondary text-xs"
+                title="One-shot: fetch 90 days of audience breakdowns across Meta/Google/TikTok"
+              >
+                Backfill 90d ads breakdowns
+              </button>
+            </form>
+            <form action={seedFromEnvAction}>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
+                title="Copy current env-var values into the DB for any field that isn't already set."
+              >
+                <Download size={14} /> Seed from env vars
+              </button>
+            </form>
+          </div>
         </header>
 
         <SetupTabs activeTab="integrations" />
