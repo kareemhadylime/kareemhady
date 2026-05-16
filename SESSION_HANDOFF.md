@@ -1,4 +1,58 @@
-## 2026-05-17 — Personal stocks: logged investing.com prices for ACTF + BTFH 💹
+## 2026-05-17 — BH Ads Insights V4 brainstorm (IN PROGRESS, awaiting kareem's design approval)
+
+**Status:** Mid-brainstorm. Spec NOT yet written. Design presented in 9 sections; kareem made 5 choices so far. NO code touched yet.
+
+**Decided so far:**
+1. **Snapshot scope:** Full mirror — overview + all 8 audience sub-tabs (geo/demo/device/funnel/quality/cohort/time/optimize)
+2. **PDF strategy:** Browser print path (no @react-pdf/renderer route). Share link = HTML at `/r/beithady/ads/<token>` with "Save as PDF / Print" toolbar button. Mirrors `/r/beithady/[token]` daily-report pattern.
+3. **Link expiry:** Fixed 48h (matches daily-report)
+4. **AI summary in snapshot:** Force regenerate on snapshot creation (~$0.01/share, counts against existing 20/day cap)
+5. **Permissions:** Anyone with `ads:read` can create. Rate limit = 5 share links per user per day (enforced via `beithady_audit_log` count).
+6. **Render path:** Refactor each card to view+fetcher split — pure presentation components that take pre-fetched data props; live cards become thin wrappers. Snapshot route renders same view components with snapshot payload. ~14-16 tasks total.
+
+**Open questions presented to kareem (awaiting answer in next turn):**
+- (a) Does the data flow (snapshot creation → public render → cleanup) match intent?
+- (b) Is graceful AI cap-skip OK (snapshot succeeds, AI block omitted with note) vs failing whole snapshot?
+- (c) Any sub-tab to DROP from the mirror to cut tasks?
+
+**Next steps once approved:**
+- Write spec to `docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md`, commit.
+- Invoke `superpowers:writing-plans` skill → `docs/superpowers/plans/2026-05-17-bh-ads-v4-sharing.md`.
+- Execute via `superpowers:subagent-driven-development` (same workflow as V1/V2/V3).
+
+**Key references for new session pickup:**
+- Roadmap: [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md) § V4 — Sharing
+- Existing /r/<token> pattern: [src/app/r/beithady/[token]/page.tsx](src/app/r/beithady/[token]/page.tsx) + table `daily_report_snapshots` (token, payload jsonb, expires_at 48h, deleted_at, hourly cleanup cron)
+- Token gen: `crypto.randomBytes(24).toString('base64url')` (192-bit entropy)
+- Existing @react-pdf usage (NOT used in V4): `src/lib/beithady-daily-report/render-pdf.tsx`
+
+---
+
+## 2026-05-17 — Personal stocks: brainstormed daily price-cron (Yahoo Finance, Sun–Thu 5PM Cairo) 🧠
+
+Kareem asked: "set a cron to pull both stocks prices from investing.com daily at 5PM". Invoked the brainstorming skill — investing.com has no public API and HTML scraping is fragile, so I flagged the trade-off. Three multiple-choice clarifying questions, all answered:
+
+| Decision | Chosen |
+|---|---|
+| **Source** | Yahoo Finance `.CA` JSON endpoint (recommended over investing.com scraping) |
+| **Scope** | All currently-held positions dynamically (`v_personal_stock_positions WHERE qty_held > 0`), not hardcoded ACTF+BTFH |
+| **Schedule** | Sun–Thu only at 5PM Cairo (EGX trading days only) |
+
+**Design presented, awaiting approval (HARD-GATE — no code yet per brainstorming skill):**
+
+- Add `yahoo_symbol TEXT NULL` column to `personal_stock_instruments` (migration 0144). Backfill `ACT_FINANCIAL_CONSULTING→ACTF.CA`, `BELTONE_FINANCIAL_HOLDING→BTFH.CA`. Cron skips any held instrument with null yahoo_symbol → future EGX positions just need a one-line UPDATE.
+- New handler `src/app/api/cron/personal-stock-prices/route.ts`:
+  - Bearer `$CRON_SECRET` auth + Cairo-hour-17 + weekday-in-Sun..Thu gate (`?force=1` bypass for manual testing).
+  - For each held instrument with a yahoo_symbol: `fetch https://query1.finance.yahoo.com/v8/finance/chart/<sym>?interval=1d&range=5d` → `meta.regularMarketPrice`. Per-ticker try/catch (one bad fetch ≠ aborted batch).
+  - Batch INSERT into `personal_stock_current_prices` with `entered_by='cron'`, `note='yahoo:auto'`, `as_of_date=today Cairo`. No dedup check — views always read latest `as_of_date DESC`.
+- `vercel.json`: two DST-safe entries — `0 14 * * 0-4` (EEST) + `0 15 * * 0-4` (EET), Cairo-hour gate ensures only one fires per day.
+- Open question parked for kareem: use `regularMarketPrice` (last trade) vs `regularMarketPreviousClose` (official EGX close). Identical after 5PM Cairo, but worth confirming.
+
+No code, no migration, no commit, no deploy this turn — pure design discussion.
+
+---
+
+## 2026-05-17 — Personal stocks: logged investing.com prices for ACTF + BTFH, reconciled against AOLB snapshot 💹
 
 Kareem screenshotted his investing.com watchlist and asked for the prices of **Act Financial** and **Beltone Financial Holding** to be applied to his personal stocks holdings.
 
@@ -7,15 +61,32 @@ Inserted two snapshots into `personal_stock_current_prices` (entered_by `kareem`
 - **ACT_FINANCIAL_CONSULTING** (id 12) — `2.88` as of `2026-05-15`
 - **BELTONE_FINANCIAL_HOLDING** (id 13) — `3.240` as of `2026-05-14`
 
-Verified via `v_personal_stock_positions` join — unrealized P&L now flows:
+He then sent the latest AOLB broker snapshot (Cash + Stocks Position tabs) and asked to reconcile. Pulled `personal_stock_accounts`, `v_personal_stock_positions`, and `v_personal_stock_account_balance` for accounts 001 (trading) and 003 (margin) and compared line-by-line.
 
-| Ticker | Qty | Avg Cost | Last | Unrealized |
-|---|---:|---:|---:|---:|
-| ACTF (lot A) | 150,000 | 3.1700 | 2.880 | −EGP 43,500.00 |
-| ACTF (lot B) | 1,281,100 | 3.1709 | 2.880 | −EGP 372,671.99 |
-| BTFH | 86,600 | 3.4350 | 3.240 | −EGP 16,887.00 |
+**Positions — ✅ match exactly**
 
-No code change, no migration, no deploy — pure data insert against prod Supabase.
+| Acct | Ticker | Qty (app) | Qty (broker) | Avg Cost (app) | Avg Cost (broker) |
+|---|---|---:|---:|---:|---:|
+| 001 (trading) | ACTF | 150,000 | (not in screenshot — separate acct) | 3.1700 | — |
+| 003 (margin) | ACTF | 1,281,100 | 1,281,100 ✓ | 3.1709 | 3.1709 ✓ |
+| 003 (margin) | BTFH | 86,600 | 86,600 ✓ | 3.4350 | 3.4350 ✓ |
+
+Total Cost rounding diff: app vs broker is 22 EGP on ACTF and 4 EGP on BTFH — broker rounds avg cost at 4 decimals, app at 6. Negligible.
+
+**Prices — ✅ match**: 2.880 ACTF / 3.240 BTFH (just inserted; matches broker Market Price column).
+
+**Cash balances — ⚠️ drifted (app last upload 2026-05-11, snapshot is 2026-05-17 = 6 days of post-statement activity)**
+
+| Acct | App balance (2026-05-11) | Broker (today) | Drift |
+|---|---:|---:|---:|
+| 001 trading | 2,577.88 | 2,834.77 | +256.89 |
+| 003 margin | −1,916,071.08 | −1,999,435.42 | −83,364.34 |
+
+Margin loan grew ~83K (likely accrued margin interest over the 6-day gap). Trading cash drifted +257 (fee credits or settled dividend). Broker also shows **Receivable 62,893.25** on 001 — pending T+2 sale settlement — not modelled separately in the app schema (cash movements flatten settlements into the cash kind).
+
+**No corrections applied** — `personal_stock_cash_movements` requires `raw_row_id NOT NULL`, so cash drift can only be backfilled by uploading a fresh AOLB statement CSV through `/personal/stocks/import`. Positions and prices are in sync; only the post-2026-05-11 cash needs the next upload to catch up.
+
+No code change, no migration, no deploy — pure data insert (the two prices) + read-only reconciliation against prod Supabase.
 
 ---
 
