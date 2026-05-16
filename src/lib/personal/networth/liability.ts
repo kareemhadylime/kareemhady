@@ -38,12 +38,28 @@ export async function createLiability(input: CreateLiabilityInput): Promise<stri
       statement_day: input.statementDay ?? null, due_day: input.dueDay ?? null,
       min_payment_pct: input.minPaymentPct ?? null, notes: input.notes ?? null,
     }).select('id').single();
-  if (error || !row) throw error ?? new Error('insert failed');
+  if (error || !row) {
+    throw new Error(
+      `createLiability insert failed: ${error?.message ?? 'no row returned'}`,
+    );
+  }
 
   if (input.kind === 'amortizing_loan' || input.kind === 'bnpl') {
+    if (
+      input.principal == null || input.aprPct == null ||
+      input.termMonths == null || input.startDate == null
+    ) {
+      throw new Error(
+        `createLiability: principal, aprPct, termMonths, startDate are required for kind=${input.kind}`,
+      );
+    }
+    // Two-step write: parent inserted first (above), then schedule rows. No SQL
+    // transaction (V1 trade-off, same as snapshot.ts). If the schedule insert
+    // fails below, the parent row remains as an orphaned amortizing liability
+    // with no schedule. Caller must handle the thrown error and surface it.
     const schedule = generateSchedule({
-      principal: input.principal!, aprPct: input.aprPct!,
-      termMonths: input.termMonths!, startDate: input.startDate!,
+      principal: input.principal, aprPct: input.aprPct,
+      termMonths: input.termMonths, startDate: input.startDate,
       monthlyOverride: input.monthlyPayment,
     });
     const rows = schedule.map(s => ({
@@ -55,7 +71,7 @@ export async function createLiability(input: CreateLiabilityInput): Promise<stri
     }));
     const { error: schErr } = await sb
       .from('personal_networth_liability_schedule').insert(rows);
-    if (schErr) throw schErr;
+    if (schErr) throw new Error(`createLiability schedule insert failed: ${schErr.message}`);
   }
   return row.id;
 }
