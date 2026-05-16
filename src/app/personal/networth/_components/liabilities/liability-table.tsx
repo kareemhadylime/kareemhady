@@ -7,6 +7,7 @@ import { Plus } from 'lucide-react';
 import type { LiabilityKind } from '@/lib/personal/networth/types';
 import { AddLiabilityModal, type LenderOption } from '../modals/add-liability-modal';
 import { EditLiabilityModal } from '../modals/edit-liability-modal';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 
 type Liability = {
   id: string;
@@ -90,6 +91,7 @@ export function LiabilityTable({
   const [filter, setFilter] = useState<Filter>('all');
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingClose, setPendingClose] = useState<{ id: string; name: string } | null>(null);
 
   const visible = useMemo(
     () => liabilities.filter(l => matchesFilter(l, filter)),
@@ -112,21 +114,13 @@ export function LiabilityTable({
     [editingId, liabilities],
   );
 
-  async function onClose(id: string) {
-    if (
-      !confirm(
-        'Close this liability? Schedule rows and payments stay queryable.',
-      )
-    ) {
-      return;
-    }
+  async function performClose(id: string) {
     const res = await fetch(`/api/personal/networth/liabilities/${id}`, {
       method: 'DELETE',
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.ok) {
-      alert(`Close failed: ${json.error ?? 'unknown'}`);
-      return;
+      throw new Error(json.error ?? 'Close failed');
     }
     router.refresh();
   }
@@ -235,7 +229,7 @@ export function LiabilityTable({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onClose(l.id)}
+                        onClick={() => setPendingClose({ id: l.id, name: l.name })}
                         className="text-xs text-rose-600 hover:underline"
                       >
                         Close
@@ -276,6 +270,27 @@ export function LiabilityTable({
           router.refresh();
         }}
         liability={editingLiability}
+      />
+
+      <ConfirmDialog
+        open={pendingClose !== null}
+        title="Close liability"
+        tone="danger"
+        confirmLabel="Close liability"
+        message={
+          pendingClose ? (
+            <p>
+              Close <span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;{pendingClose.name}&rdquo;</span>?
+              Schedule rows and payments stay queryable.
+            </p>
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingClose) return;
+          await performClose(pendingClose.id);
+          setPendingClose(null);
+        }}
+        onCancel={() => setPendingClose(null)}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Lock, Plus, X } from 'lucide-react';
 import type { AssetKind } from '@/lib/personal/networth/types';
 import { AddAssetModal } from '../modals/add-asset-modal';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 
 type Asset = {
   id: string;
@@ -70,6 +71,7 @@ export function AssetTable({
   const [filter, setFilter] = useState<Filter>('all');
   const [addOpen, setAddOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Asset | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   const visible = useMemo(
     () => (filter === 'all' ? assets : assets.filter(a => a.kind === filter)),
@@ -106,13 +108,11 @@ export function AssetTable({
     };
   }, [assets, stocksPipeEgp]);
 
-  async function onDelete(id: string, name: string) {
-    if (!confirm(`Remove "${name}"? This soft-deletes the asset (active=false).`)) return;
+  async function performDelete(id: string) {
     const res = await fetch(`/api/personal/networth/assets/${id}`, { method: 'DELETE' });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.ok) {
-      alert(`Delete failed: ${json.error ?? 'unknown'}`);
-      return;
+      throw new Error(json.error ?? 'Delete failed');
     }
     router.refresh();
   }
@@ -236,7 +236,7 @@ export function AssetTable({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDelete(a.id, a.name)}
+                      onClick={() => setPendingDelete({ id: a.id, name: a.name })}
                       className="text-xs text-rose-600 hover:underline"
                     >
                       Delete
@@ -277,6 +277,27 @@ export function AssetTable({
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Remove asset"
+        tone="danger"
+        confirmLabel="Remove"
+        message={
+          pendingDelete ? (
+            <p>
+              Remove <span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;{pendingDelete.name}&rdquo;</span>?
+              This soft-deletes the asset (active=false).
+            </p>
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          await performDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

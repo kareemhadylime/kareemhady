@@ -147,6 +147,7 @@ export function MonthlyReportClient({
 
   async function exportPdf() {
     setExporting(true);
+    setError(null);
     try {
       const res = await fetch('/api/personal/networth/reports/export/pdf', {
         method: 'POST',
@@ -154,7 +155,7 @@ export function MonthlyReportClient({
         body: JSON.stringify({ year, month }),
       });
       if (!res.ok) {
-        alert('PDF export failed');
+        setError('PDF export failed');
         return;
       }
       const blob = await res.blob();
@@ -167,7 +168,7 @@ export function MonthlyReportClient({
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
-      alert('PDF export failed');
+      setError('PDF export failed');
     } finally {
       setExporting(false);
     }

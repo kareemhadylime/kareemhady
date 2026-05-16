@@ -8,6 +8,7 @@ import {
   type LiabilityOption,
   type RecurringEditing,
 } from '../modals/add-recurring-modal';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 
 type Frequency = 'monthly' | 'quarterly' | 'yearly';
 type Currency = 'EGP' | 'USD' | 'EUR' | 'SAR' | 'AED';
@@ -83,6 +84,10 @@ export function TemplatesTab({ liabilities }: { liabilities: LiabilityOption[] }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(
+    null,
+  );
 
   const fetchTemplates = useCallback(async () => {
     setLoadErr(null);
@@ -122,12 +127,13 @@ export function TemplatesTab({ liabilities }: { liabilities: LiabilityOption[] }
   }, [editingId, templates]);
 
   async function onToggle(id: string) {
+    setActionErr(null);
     const res = await fetch(`/api/personal/networth/recurring/${id}/toggle`, {
       method: 'POST',
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.ok) {
-      alert(`Toggle failed: ${json.error ?? 'unknown'}`);
+      setActionErr(`Toggle failed: ${json.error ?? 'unknown'}`);
       return;
     }
     setTemplates(prev =>
@@ -135,17 +141,13 @@ export function TemplatesTab({ liabilities }: { liabilities: LiabilityOption[] }
     );
   }
 
-  async function onDelete(id: string, name: string) {
-    if (!confirm(`Remove "${name}"? This soft-deletes the template (active=false).`)) {
-      return;
-    }
+  async function performDelete(id: string) {
     const res = await fetch(`/api/personal/networth/recurring/${id}`, {
       method: 'DELETE',
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.ok) {
-      alert(`Delete failed: ${json.error ?? 'unknown'}`);
-      return;
+      throw new Error(json.error ?? 'Delete failed');
     }
     await fetchTemplates();
     router.refresh();
@@ -214,6 +216,12 @@ export function TemplatesTab({ liabilities }: { liabilities: LiabilityOption[] }
       {loadErr && (
         <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded px-2 py-1.5">
           {loadErr}
+        </div>
+      )}
+
+      {actionErr && (
+        <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded px-2 py-1.5">
+          {actionErr}
         </div>
       )}
 
@@ -286,7 +294,7 @@ export function TemplatesTab({ liabilities }: { liabilities: LiabilityOption[] }
                     </button>
                     <button
                       type="button"
-                      onClick={() => onDelete(t.id, t.name)}
+                      onClick={() => setPendingDelete({ id: t.id, name: t.name })}
                       className="text-xs text-rose-600 hover:underline"
                     >
                       Delete
@@ -328,6 +336,27 @@ export function TemplatesTab({ liabilities }: { liabilities: LiabilityOption[] }
         }}
         liabilities={liabilities}
         editing={editingTemplate}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Remove recurring template"
+        tone="danger"
+        confirmLabel="Remove"
+        message={
+          pendingDelete ? (
+            <p>
+              Remove <span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;{pendingDelete.name}&rdquo;</span>?
+              This soft-deletes the template (active=false).
+            </p>
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          await performDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );

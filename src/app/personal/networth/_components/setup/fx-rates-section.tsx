@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 
 type FxRate = {
   id: string;
@@ -20,6 +21,7 @@ export function FxRatesSection() {
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<FxRate | null>(null);
 
   async function load() {
     setLoading(true);
@@ -57,11 +59,13 @@ export function FxRatesSection() {
     void load();
   }
 
-  async function del(id: string) {
-    if (!confirm('Delete this FX rate?')) return;
+  async function performDelete(id: string) {
     const res = await fetch(`/api/personal/networth/setup/fx?id=${id}`, { method: 'DELETE' });
     const json = await res.json();
-    if (json.ok) void load();
+    if (!json.ok) {
+      throw new Error(json.error ?? 'Delete failed');
+    }
+    void load();
   }
 
   return (
@@ -146,7 +150,7 @@ export function FxRatesSection() {
                 <td className="py-2 text-slate-500">{r.notes ?? ''}</td>
                 <td className="py-2 text-right">
                   <button
-                    onClick={() => del(r.id)}
+                    onClick={() => setPendingDelete(r)}
                     className="text-xs text-red-600 hover:underline"
                   >
                     Delete
@@ -157,6 +161,27 @@ export function FxRatesSection() {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete FX rate"
+        tone="danger"
+        confirmLabel="Delete"
+        message={
+          pendingDelete ? (
+            <p>
+              Delete the <span className="font-medium text-slate-900 dark:text-slate-100">{pendingDelete.currency_code}</span>{' '}
+              rate ({Number(pendingDelete.rate_to_egp).toFixed(4)}) as of {pendingDelete.as_of_date}?
+            </p>
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          await performDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   );
 }

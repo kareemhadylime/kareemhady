@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 
 type Lender = {
   id: string;
@@ -29,6 +30,7 @@ export function LendersSection() {
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Lender | null>(null);
 
   async function load() {
     setLoading(true);
@@ -67,11 +69,13 @@ export function LendersSection() {
     void load();
   }
 
-  async function del(id: string) {
-    if (!confirm('Delete this lender?')) return;
+  async function performDelete(id: string) {
     const res = await fetch(`/api/personal/networth/setup/lenders?id=${id}`, { method: 'DELETE' });
     const json = await res.json();
-    if (json.ok) void load();
+    if (!json.ok) {
+      throw new Error(json.error ?? 'Delete failed');
+    }
+    void load();
   }
 
   return (
@@ -154,7 +158,7 @@ export function LendersSection() {
                 <td className="py-2 text-slate-500">{l.notes ?? ''}</td>
                 <td className="py-2 text-right">
                   <button
-                    onClick={() => del(l.id)}
+                    onClick={() => setPendingDelete(l)}
                     className="text-xs text-red-600 hover:underline"
                   >
                     Delete
@@ -165,6 +169,26 @@ export function LendersSection() {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete lender"
+        tone="danger"
+        confirmLabel="Delete"
+        message={
+          pendingDelete ? (
+            <p>
+              Delete <span className="font-medium text-slate-900 dark:text-slate-100">&ldquo;{pendingDelete.name}&rdquo;</span>?
+            </p>
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          await performDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   );
 }

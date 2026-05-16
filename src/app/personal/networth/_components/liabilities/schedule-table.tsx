@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cairoTodayIso } from '@/lib/fmt-date';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 
 type ScheduleRow = {
   id: string;
@@ -67,16 +68,12 @@ export function ScheduleTable({
   const today = cairoTodayIso();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingPay, setPendingPay] = useState<{
+    row: ScheduleRow;
+    total: number;
+  } | null>(null);
 
-  async function markPaid(row: ScheduleRow) {
-    const principal = Number(row.principal_portion);
-    const interest = Number(row.interest_portion);
-    const total = Math.round((principal + interest) * 100) / 100;
-    const ok = window.confirm(
-      `Mark installment #${row.installment_no} paid?\nAmount: ${fmtAmount(total, currency)}\nDate: ${today}`,
-    );
-    if (!ok) return;
-
+  async function performMarkPaid(row: ScheduleRow, total: number) {
     setBusyId(row.id);
     setError(null);
     try {
@@ -94,12 +91,11 @@ export function ScheduleTable({
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) {
-        setError(json.error ?? 'Failed to record payment.');
-        return;
+        const msg = json.error ?? 'Failed to record payment.';
+        setError(msg);
+        throw new Error(msg);
       }
       router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusyId(null);
     }
@@ -176,7 +172,7 @@ export function ScheduleTable({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => markPaid(row)}
+                        onClick={() => setPendingPay({ row, total })}
                         disabled={isBusy}
                         className="text-xs text-indigo-600 hover:underline disabled:opacity-50 disabled:no-underline"
                       >
@@ -200,6 +196,43 @@ export function ScheduleTable({
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={pendingPay !== null}
+        title="Mark installment paid"
+        confirmLabel="Mark paid"
+        message={
+          pendingPay ? (
+            <div className="space-y-1">
+              <p>
+                Mark installment{' '}
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  #{pendingPay.row.installment_no}
+                </span>{' '}
+                paid?
+              </p>
+              <p>
+                <span className="text-slate-500 dark:text-slate-400">Amount:</span>{' '}
+                <span className="font-medium text-slate-900 dark:text-slate-100 tabular-nums">
+                  {fmtAmount(pendingPay.total, currency)}
+                </span>
+              </p>
+              <p>
+                <span className="text-slate-500 dark:text-slate-400">Date:</span>{' '}
+                <span className="font-medium text-slate-900 dark:text-slate-100 tabular-nums">
+                  {today}
+                </span>
+              </p>
+            </div>
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingPay) return;
+          await performMarkPaid(pendingPay.row, pendingPay.total);
+          setPendingPay(null);
+        }}
+        onCancel={() => setPendingPay(null)}
+      />
     </section>
   );
 }

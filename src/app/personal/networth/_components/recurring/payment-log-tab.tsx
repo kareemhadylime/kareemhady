@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Plus, Filter, Trash2 } from 'lucide-react';
 import { AddPaymentModal } from '../modals/add-payment-modal';
+import { ConfirmDialog } from '../modals/confirm-dialog';
 import { cairoTodayIso } from '@/lib/fmt-date';
 
 type Category =
@@ -90,6 +91,7 @@ export function PaymentLogTab() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Payment | null>(null);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -136,22 +138,22 @@ export function PaymentLogTab() {
     fetchPayments();
   }, [fetchPayments]);
 
-  async function deletePayment(p: Payment) {
-    const msg = p.loan_schedule_id
-      ? 'Delete this payment? The linked schedule row will revert to unpaid. Liability balance is NOT auto-restored — adjust manually if needed.'
-      : 'Delete this payment?';
-    if (!window.confirm(msg)) return;
+  async function performDelete(p: Payment) {
     setDeleting(p.id);
-    const res = await fetch(`/api/personal/networth/payments/${p.id}`, {
-      method: 'DELETE',
-    });
-    const json = await res.json().catch(() => ({}));
-    setDeleting(null);
-    if (!res.ok || !json.ok) {
-      setLoadErr(json.error ?? 'Failed to delete payment.');
-      return;
+    try {
+      const res = await fetch(`/api/personal/networth/payments/${p.id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        const msg = json.error ?? 'Failed to delete payment.';
+        setLoadErr(msg);
+        throw new Error(msg);
+      }
+      fetchPayments();
+    } finally {
+      setDeleting(null);
     }
-    fetchPayments();
   }
 
   function onApply() {
@@ -329,7 +331,7 @@ export function PaymentLogTab() {
                   <td className="px-3 py-2 text-right">
                     <button
                       type="button"
-                      onClick={() => deletePayment(p)}
+                      onClick={() => setPendingDelete(p)}
                       disabled={deleting === p.id}
                       title="Delete payment"
                       className="text-rose-600 hover:text-rose-700 disabled:text-slate-300 transition"
@@ -362,6 +364,36 @@ export function PaymentLogTab() {
           fetchPayments();
         }}
         liabilities={liabilities}
+      />
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete payment"
+        tone="danger"
+        confirmLabel="Delete"
+        message={
+          pendingDelete ? (
+            pendingDelete.loan_schedule_id ? (
+              <div className="space-y-2">
+                <p>
+                  Delete this payment? The linked schedule row will revert to unpaid.
+                </p>
+                <p className="text-rose-700 dark:text-rose-300">
+                  Liability balance is <span className="font-semibold">NOT</span> auto-restored
+                  &mdash; adjust manually if needed.
+                </p>
+              </div>
+            ) : (
+              <p>Delete this payment?</p>
+            )
+          ) : null
+        }
+        onConfirm={async () => {
+          if (!pendingDelete) return;
+          await performDelete(pendingDelete);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );
