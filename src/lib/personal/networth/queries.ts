@@ -56,6 +56,7 @@ export type UpcomingPayment = {
   category: string;
   amount: number;
   currency: string;
+  liabilityId: string | null;
 };
 
 export async function getUpcomingPayments(
@@ -70,6 +71,7 @@ export async function getUpcomingPayments(
     source: r.source, refId: r.ref_id, dueDate: r.due_date,
     displayName: r.display_name, category: r.category,
     amount: Number(r.amount), currency: r.currency,
+    liabilityId: r.liability_id ?? null,
   }));
 }
 
