@@ -21,7 +21,13 @@
 
 **Workaround given:** open https://limeinc.vercel.app/personal/email/setup/accounts directly (not the app.limeinc.cc bookmark) and click Connect Gmail from there.
 
-**Permanent fix offered (Option A, not implemented):** derive redirect URI from `req.headers.get('host')` in [src/lib/gmail.ts:13](src/lib/gmail.ts:13) + [start/route.ts](src/app/api/auth/google/start/route.ts) + [callback/route.ts:40](src/app/api/auth/google/callback/route.ts:40); register `https://app.limeinc.cc/api/auth/google/callback` as an additional Authorized redirect URI in Google Cloud Console. ~20 LOC + GCP console change.
+**Permanent fix IMPLEMENTED (commit `168a3a11`):** `getAuthUrl` and `exchangeCode` in [src/lib/gmail.ts](src/lib/gmail.ts) now accept an optional `redirectUri`; [start/route.ts](src/app/api/auth/google/start/route.ts) and [callback/route.ts](src/app/api/auth/google/callback/route.ts) compute it from `new URL(req.url).origin` so cookie and callback always land on the same host. Matches the pattern Google Ads already uses ([google-ads/start/route.ts:15-16](src/app/api/auth/google-ads/start/route.ts:15)). `npx tsc --noEmit` clean.
+
+**Requires GCP Console action (user task):** add `https://app.limeinc.cc/api/auth/google/callback` to Authorized redirect URIs on the OAuth client that currently has `https://limeinc.vercel.app/api/auth/google/callback`. Until that's done, Google will reject the redirect from app.limeinc.cc with `redirect_uri_mismatch` (a clear error, distinct from `invalid_state`).
+
+**Out of scope (separate follow-ups):**
+- YouTube OAuth flow ([google-youtube/start/route.ts:22](src/app/api/auth/google-youtube/start/route.ts:22)) has the inverse bug — hard-codes `app.limeinc.cc` via `NEXT_PUBLIC_APP_URL`, so a user starting from `limeinc.vercel.app` would hit the same symptom but in the other direction. Not blocking anyone today since the user is on app.limeinc.cc anyway.
+- `app.limeinc.cc` Vercel alias doesn't auto-update on deploy (per memory `vercel_lime_alias_quirk.md`), so this fix won't be live on app.limeinc.cc until the alias is manually updated via `vercel alias set <deploy-url> app.limeinc.cc`. Works on limeinc.vercel.app immediately.
 
 ---
 
