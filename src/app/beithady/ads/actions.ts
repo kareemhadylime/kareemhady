@@ -878,3 +878,67 @@ export async function generateCaptionAction(formData: FormData): Promise<{ capti
 
   return { caption: result.caption, hashtags: result.hashtags };
 }
+
+// =====================================================================
+// V3 AI Summary — gathers all dashboard slices in parallel and calls
+// generateAiSummary. Returns AiSummaryResult discriminated union.
+// The AiSummaryCard (Task 14) submits a form and renders the result.
+// =====================================================================
+import { generateAiSummary, type AiSummaryResult } from '@/lib/beithady/ads/ai-summary';
+import { getDashboardKpis } from '@/lib/beithady/ads/reporting';
+import { queryGeoRollup } from '@/lib/beithady/ads/insights-geo';
+import { queryDemoRollup } from '@/lib/beithady/ads/insights-demo';
+import { queryDeviceRollup } from '@/lib/beithady/ads/insights-device';
+import { getLeadQualityPerCampaign } from '@/lib/beithady/ads/lead-quality';
+import { getFrtSummary } from '@/lib/beithady/ads/frt';
+import { detectAnomalies } from '@/lib/beithady/ads/anomalies';
+import { getFunnelStages } from '@/lib/beithady/ads/funnel';
+
+export async function generateAiSummaryAction(formData: FormData): Promise<AiSummaryResult> {
+  const from = String(formData.get('from') ?? '');
+  const to = String(formData.get('to') ?? '');
+  if (!from || !to) {
+    return { ok: false, error: 'no_data', cost_usd: 0, detail: 'missing date range' };
+  }
+  const range = { from, to };
+
+  // Gather all dashboard slices in parallel — same data the page renders.
+  const [kpis, geo, demo, device, quality, frt, anomalies, funnel] = await Promise.all([
+    getDashboardKpis({ from, to }),
+    queryGeoRollup({ from, to }),
+    queryDemoRollup({ from, to }),
+    queryDeviceRollup({ from, to }),
+    getLeadQualityPerCampaign({ from, to }),
+    getFrtSummary({ from, to }),
+    detectAnomalies(),
+    getFunnelStages({ from, to }),
+  ]);
+
+  const totalGeoClicks = geo.reduce((s, r) => s + r.clicks, 0) || 1;
+  const totalDemoClicks = demo.reduce((s, r) => s + r.clicks, 0) || 1;
+  const totalDeviceClicks = device.reduce((s, r) => s + r.clicks, 0) || 1;
+
+  const result = await generateAiSummary({
+    range,
+    dashboardData: {
+      kpis: {
+        spend_egp: kpis.spend,
+        leads: kpis.leads,
+        bookings: kpis.bookings,
+        cpl_egp: kpis.cpl,
+        roas: kpis.roas,
+        attributed_revenue_egp: kpis.attributed_revenue,
+      },
+      topCountries: geo.slice(0, 5).map(r => ({ country: r.country_code, clicks: r.clicks, pct: Math.round((r.clicks / totalGeoClicks) * 100) })),
+      topDemos: demo.slice(0, 5).map(r => ({ age_range: r.age_range, gender: r.gender, clicks: r.clicks, pct: Math.round((r.clicks / totalDemoClicks) * 100) })),
+      topDevices: device.slice(0, 5).map(r => ({ device: r.device_platform, clicks: r.clicks, pct: Math.round((r.clicks / totalDeviceClicks) * 100) })),
+      topCampaigns: quality.slice(0, 5).map(r => ({ name: r.campaign_name, platform: r.platform, leads: r.leads, cpl_egp: null, quality_pct: r.quality_pct })),
+      frtSummary: { median_minutes: frt.median_minutes, p95_minutes: frt.p95_minutes, over_1h_pct: frt.over_1h_pct },
+      anomalies,
+      funnelStages: funnel.stages.map(s => ({ key: s.key, count: s.count })),
+    },
+  });
+
+  revalidatePath('/beithady/ads');
+  return result;
+}
