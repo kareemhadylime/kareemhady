@@ -8,6 +8,8 @@ import { fmtCairoDate } from '@/lib/fmt-date';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { AdsTabs } from './_components/ads-tabs';
 import { DateRangeFilter } from './_components/date-range-filter';
+import { PerBuildingFilter } from './_components/per-building-filter';
+import { FrtCard } from './_components/frt-card';
 import { AudienceSummaryWidget } from './_components/audience-summary-widget';
 import { parseDateRange } from '@/lib/beithady/ads/date-range';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
@@ -100,6 +102,7 @@ export default async function AdsLandingPage({
 
       <AdsTabs active="overview" />
       <DateRangeFilter />
+      <PerBuildingFilter />
 
       {/* Per-platform connection status row */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -128,6 +131,11 @@ export default async function AdsLandingPage({
           </span>
         </div>
       )}
+
+      <FrtCard
+        range={{ from: range.from, to: range.to }}
+        buildingCode={sp.building}
+      />
 
       <AudienceSummaryWidget range={{ from: range.from, to: range.to }} />
 
