@@ -4,6 +4,7 @@ import { loadMetaCredentials, fetchMetaInsightsBreakdown } from '@/lib/beithady/
 import {
   loadGoogleAdsCredentials, getGoogleAccessToken,
   fetchGoogleGeoView, fetchGoogleDemoView, fetchGoogleDeviceView,
+  getEffectiveGoogleCustomerIds,
 } from '@/lib/beithady/ads/google-client';
 import {
   loadTikTokAppCredentials, fetchTikTokIntegratedReport,
@@ -63,6 +64,25 @@ export async function GET(req: NextRequest) {
   const acctById = new Map<number, AccountRow>();
   for (const a of acctList) acctById.set(a.id, a);
 
+  // Hoist Google creds + access token + per-account effective customer IDs
+  // out of the per-campaign loop. The OAuth refresh token lives on
+  // ads_accounts.google_refresh_token (NOT integration_credentials), so we
+  // must pass it as the fallback — otherwise loadGoogleAdsCredentials returns
+  // missing_credentials and every Google campaign fails.
+  const { data: firstGooAccRaw } = await sb.from('ads_accounts')
+    .select('google_refresh_token').eq('platform', 'google').eq('status', 'active')
+    .limit(1).maybeSingle();
+  const googleAccountRefreshToken = (firstGooAccRaw as { google_refresh_token?: string | null } | null)?.google_refresh_token;
+  const googleCredsRes = await loadGoogleAdsCredentials(googleAccountRefreshToken);
+  const googleTokRes = googleCredsRes.ok ? await getGoogleAccessToken(googleCredsRes.creds) : null;
+  const googleEffectiveByAccount = new Map<number, string[]>();
+  if (googleCredsRes.ok && googleTokRes?.ok) {
+    for (const acct of acctList.filter(a => a.platform === 'google')) {
+      const eff = await getEffectiveGoogleCustomerIds(acct.external_id, googleCredsRes.creds, googleTokRes.access_token);
+      googleEffectiveByAccount.set(acct.id, eff.ok ? eff.ids : []);
+    }
+  }
+
   const summary: Array<{ campaignId: number; platform: string; ok: boolean; error?: string }> = [];
 
   for (const c of campList) {
@@ -83,21 +103,29 @@ export async function GET(req: NextRequest) {
         if (dev.ok) await upsertDeviceRows(normalizeMetaDeviceRows(dev.rows, ctx));
         summary.push({ campaignId: c.id, platform: 'meta', ok: geo.ok && demo.ok && dev.ok });
       } else if (c.platform === 'google') {
-        const creds = await loadGoogleAdsCredentials();
-        if (!creds.ok) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: creds.error }); continue; }
-        const tok = await getGoogleAccessToken(creds.creds);
-        if (!tok.ok) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: tok.error }); continue; }
-        const customerId = acct.google_login_customer_id || creds.creds.login_customer_id || '';
+        if (!googleCredsRes.ok) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: googleCredsRes.error }); continue; }
+        if (!googleTokRes?.ok) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: 'oauth_failed' }); continue; }
+        const effectiveIds = googleEffectiveByAccount.get(acct.id) || [];
+        if (effectiveIds.length === 0) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: 'no_effective_customer' }); continue; }
         const ctx = { accountId: acct.id, campaignId: c.id, adSetId: null, platform: 'google' as const };
-        const [geo, demo, dev] = await Promise.all([
-          fetchGoogleGeoView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: creds.creds, accessToken: tok.access_token }),
-          fetchGoogleDemoView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: creds.creds, accessToken: tok.access_token }),
-          fetchGoogleDeviceView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: creds.creds, accessToken: tok.access_token }),
-        ]);
-        if (geo.ok) await upsertGeoRows(normalizeGoogleGeoRows(geo.rows, ctx));
-        if (demo.ok) await upsertDemoRows(normalizeGoogleDemoRows({ gender: demo.gender, ageRange: demo.ageRange }, ctx));
-        if (dev.ok) await upsertDeviceRows(normalizeGoogleDeviceRows(dev.rows, ctx));
-        summary.push({ campaignId: c.id, platform: 'google', ok: geo.ok && demo.ok && dev.ok });
+        // For an MCC, only one child customer owns the campaign. Iterate
+        // effective customers, upsert whichever returns rows, and stop on
+        // the first non-empty response. For a leaf, this loop runs once.
+        let geoOk = false, demoOk = false, devOk = false;
+        let lastErr: string | null = null;
+        for (const customerId of effectiveIds) {
+          const [geo, demo, dev] = await Promise.all([
+            fetchGoogleGeoView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: googleCredsRes.creds, accessToken: googleTokRes.access_token }),
+            fetchGoogleDemoView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: googleCredsRes.creds, accessToken: googleTokRes.access_token }),
+            fetchGoogleDeviceView({ customerId, campaignId: c.external_id, fromDate, toDate, creds: googleCredsRes.creds, accessToken: googleTokRes.access_token }),
+          ]);
+          if (geo.ok && geo.rows.length) { await upsertGeoRows(normalizeGoogleGeoRows(geo.rows, ctx)); geoOk = true; }
+          if (demo.ok && (demo.gender.length || demo.ageRange.length)) { await upsertDemoRows(normalizeGoogleDemoRows({ gender: demo.gender, ageRange: demo.ageRange }, ctx)); demoOk = true; }
+          if (dev.ok && dev.rows.length) { await upsertDeviceRows(normalizeGoogleDeviceRows(dev.rows, ctx)); devOk = true; }
+          if (!geo.ok) lastErr = typeof geo.error === 'string' ? geo.error : JSON.stringify(geo.error).slice(0, 200);
+          if (geoOk || demoOk || devOk) break;
+        }
+        summary.push({ campaignId: c.id, platform: 'google', ok: geoOk || demoOk || devOk, ...(geoOk || demoOk || devOk ? {} : { error: lastErr || 'no_rows_any_customer' }) });
       } else if (c.platform === 'tiktok') {
         const creds = await loadTikTokAppCredentials();
         if (!creds.ok) { summary.push({ campaignId: c.id, platform: 'tiktok', ok: false, error: creds.error }); continue; }
@@ -120,7 +148,12 @@ export async function GET(req: NextRequest) {
 
   await recordAudit({
     module: 'ads', action: 'breakdowns_cron',
-    metadata: { fromDate, toDate, total: summary.length, failed: summary.filter(s => !s.ok).length },
+    metadata: {
+      fromDate, toDate,
+      total: summary.length,
+      failed: summary.filter(s => !s.ok).length,
+      failures: summary.filter(s => !s.ok).map(s => ({ campaignId: s.campaignId, platform: s.platform, error: s.error || null })),
+    },
   });
 
   return NextResponse.json({ ok: true, fromDate, toDate, summary });

@@ -246,6 +246,32 @@ export async function fetchGoogleDeviceView(opts: GoogleBreakdownOpts): Promise<
   return gaqlSearch<GoogleDeviceRow>(opts.customerId, q, opts.creds, opts.accessToken);
 }
 
+// MCC expansion — given a root customer id, returns the list of customers that
+// actually own campaigns. If the root is a leaf account, returns [root]. If
+// it's a manager (MCC), enumerates non-manager children at level <= 2.
+// Used by both the spend-sync and the audience-breakdowns cron so all GAQL
+// queries hit the customer that owns the data (queries against the MCC's
+// own customer scope return nothing for child-owned campaigns).
+export async function getEffectiveGoogleCustomerIds(
+  rootCustomerId: string,
+  creds: GoogleAdsCredentials,
+  accessToken: string
+): Promise<{ ok: true; ids: string[]; isManager: boolean } | { ok: false; error: unknown }> {
+  const root = String(rootCustomerId || '').replace(/[^\d]/g, '');
+  if (!root) return { ok: false, error: 'bad_root_customer_id' };
+  const ck = await gaqlSearch<{ customer: { id?: string; manager?: boolean } }>(
+    root, 'SELECT customer.id, customer.manager FROM customer', creds, accessToken
+  );
+  if (!ck.ok) return { ok: false, error: ck.error };
+  const isManager = !!(ck.rows[0]?.customer?.manager);
+  if (!isManager) return { ok: true, ids: [root], isManager: false };
+  const q = "SELECT customer_client.id, customer_client.manager, customer_client.status, customer_client.level FROM customer_client WHERE customer_client.manager = FALSE AND customer_client.level <= 2 AND customer_client.status = 'ENABLED'";
+  const rc = await gaqlSearch<{ customerClient?: { id?: string }; customer_client?: { id?: string } }>(root, q, creds, accessToken);
+  if (!rc.ok) return { ok: false, error: rc.error };
+  const ids = rc.rows.map(r => String((r.customerClient || r.customer_client)?.id || '')).filter(Boolean);
+  return { ok: true, ids, isManager: true };
+}
+
 // Ping — used by /admin/integrations to verify credentials work.
 export async function pingGoogleAds(): Promise<
   | { ok: true; customer_descriptive_name: string | null; currency_code: string | null }

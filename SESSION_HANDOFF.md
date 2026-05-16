@@ -1,3 +1,22 @@
+## 2026-05-16 — Google audience breakdowns cron — fix missing_credentials + MCC expansion (DONE)
+
+**Bug:** Campaign-detail Audience snapshot showed "No data yet" for all three breakdowns (countries / demographics / device) on Google campaigns. `ads_insights_geo|demo|device` had **zero** Google rows.
+
+**Root cause:** `beithady-ads-breakdowns` cron logged `total: 4, failed: 4` at 12:00 UTC. Manual trigger returned `error: "missing_credentials"` for every Google campaign. The cron called `loadGoogleAdsCredentials()` without the per-account refresh-token fallback — but `integration_credentials.google_ads.config` has `refresh_token` absent; the only Google OAuth token lives on `ads_accounts.google_refresh_token` (which the spend-sync already passes through).
+
+**Secondary issue:** cron used `acct.google_login_customer_id || creds.login_customer_id` as the URL path customer — but that's the MCC parent, not the leaf that owns the campaign. Google Ads queries against the wrong customer return zero rows.
+
+**Fixes:**
+- `src/lib/beithady/ads/google-client.ts`: new `getEffectiveGoogleCustomerIds(rootCustomerId, creds, accessToken)` helper — detects manager vs leaf and enumerates non-manager children at level ≤ 2
+- `src/app/api/cron/beithady-ads-breakdowns/route.ts`:
+  - Hoist `loadGoogleAdsCredentials(googleAccountRefreshToken)` + `getGoogleAccessToken` + per-account effective-customer-ID resolution out of the per-campaign loop
+  - Per Google campaign: iterate effective customer IDs, upsert whichever returns rows (handles both leaf accounts and MCCs), break on first hit
+  - Audit log `metadata.failures[]` now includes `{ campaignId, platform, error }` for future diagnostics
+
+**Verification:** `npm run build` clean. Manual trigger after deploy will populate `ads_insights_*` for Google for the last 7d window.
+
+---
+
 ## 2026-05-16 — Task 9: networth snapshot.ts + snapshot.test.ts (DONE)
 
 **What:** Created `src/lib/personal/networth/snapshot.ts` and `snapshot.test.ts`.
