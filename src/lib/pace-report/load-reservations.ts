@@ -20,10 +20,11 @@ const ACTIVE_STATUSES = new Set(['confirmed', 'checked_in', 'checked_out', 'rese
 const CANCELED_STATUSES = new Set(['canceled', 'cancelled']);
 
 /**
- * Pulls reservations whose stay overlaps [range.from, range.to] OR whose
- * createdAt falls within (range.from minus 6 months, range.to). The
- * 6-month look-back is so the pickup-by-creation-month panel can show
- * reservations created up to 6 months before check-in.
+ * Pulls reservations whose stay overlaps [range.from, range.to].
+ *
+ * The pickup-by-creation-month panel doesn't need a separate creation-date
+ * lookback — every row already carries its own `created_at_iso`, and the
+ * aggregator buckets by lead-time between createdAt and check-in month.
  *
  * host_payout is converted to USD via the daily-report FX cache.
  *
