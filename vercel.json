@@ -74,6 +74,10 @@
     { "path": "/api/cron/hr-documents-expiry",       "schedule": "0 6 * * *"  },
     { "path": "/api/cron/hr-documents-expiry",       "schedule": "0 7 * * *"  },
     { "path": "/api/cron/youtube-uploader",   "schedule": "* * * * *" },
-    { "path": "/api/cron/youtube-stats-sync", "schedule": "0 */6 * * *" }
+    { "path": "/api/cron/youtube-stats-sync", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/personal-networth-snapshot",  "schedule": "0 6 1 * *" },
+    { "path": "/api/cron/personal-networth-snapshot",  "schedule": "0 7 1 * *" },
+    { "path": "/api/cron/personal-networth-recurring", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/personal-networth-recurring", "schedule": "0 7 * * *" }
   ]
 }
