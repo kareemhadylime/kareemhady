@@ -302,7 +302,17 @@ User feedback after the gross-card / 4-col grid landed:
 
 **Backfill mechanism:** added `?date=YYYY-MM-DD` (+ `?skip_dist=1`) to the `/api/cron/beithady-daily-report` endpoint, mapping to the existing `runDailyReport({ dateOverride, skipDistribution })` signature. Combined with the earlier `?rebuild=1`, the cron route is now an idempotent historical backfill tool — `curl -H "Bearer …" ".../api/cron/beithady-daily-report?date=2026-04-16&rebuild=1&skip_dist=1"` rebuilds any past date.
 
-**Backfilled April 1-25** in chunks (each build ≈ 30-60s, total ≈ 15-20 min). Critical date 2026-04-16 confirmed in DB with full payload including new `revenue_mtd_gross_usd` field. Today's May 16 MoM now resolves: Occupancy +29.8pp ▲, Revenue (OTB) -13.9% ▼, Revenue (Gross) -11.6% ▼.
+**Backfilled April 1-25 + rebuilt April 26-May 15** in parallel chunks (each build ≈ 30-60s, total ≈ 25-30 min). All 46 days in the April 1 – May 16 window now have the latest snapshot with `revenue_mtd_gross_usd`. Today's May 16 MoM resolves cleanly against April 16:
+
+| KPI | Today | Apr 16 | MoM |
+|---|---:|---:|---|
+| Occupancy today | 61.0% | 31.2% | +29.8pp ▲ |
+| MTD Occupancy | 51.3% | 33.8% | +17.5pp ▲ |
+| Month-to-End Occupancy | 29.0% | 40.8% | −11.8pp ▼ |
+| Month Occupancy | 40.5% | 37.1% | +3.4pp ▲ |
+| MTD Revenue | $40.2k | $35.2k | +14.2% ▲ |
+| Month Revenue (OTB net) | $56.5k | $65.6k | −13.9% ▼ |
+| Month Revenue (Gross) | $60.1k | $68.0k | −11.6% ▼ |
 
 **Operational note:** Going forward, the daily cron writes one new snapshot per day, so MoM remains populated automatically as long as the cron doesn't miss a tick.
 
