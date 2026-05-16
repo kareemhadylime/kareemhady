@@ -14,6 +14,7 @@ import {
   type PickerScope,
 } from '@/lib/kika-picker';
 import { BucketsBlock } from './_components/buckets-block';
+import { CommonItemsBlock } from './_components/common-items-block';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -133,7 +134,7 @@ export default async function KikaPickerPage({
         </section>
 
         <BucketsBlock buckets={report.buckets} />
-        {/* TODO Task 6: CommonItemsBlock */}
+        <CommonItemsBlock items={report.common_items} />
 
         <footer className="text-[11px] text-slate-400 border-t border-slate-200 pt-4">
           Scope: {report.scope_label} · generated {new Date(report.generated_at).toLocaleString('en-US')}
