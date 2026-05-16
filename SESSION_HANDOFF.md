@@ -17,9 +17,26 @@
 
 ---
 
-## 2026-05-16 — Personal Net Worth module — spec written, awaiting review
+## 2026-05-16 — Personal Net Worth module — plan written, awaiting execution choice
 
-**Status:** Brainstorming session for the new `/personal/networth` module is complete. Design spec written to `docs/superpowers/specs/2026-05-16-personal-networth-design.md` and self-reviewed (0 placeholders, charity goal disambiguated to absolute EGP/year target, stocks pipe-in SQL resolved against existing 0117 views). **Awaiting kareem's review of the written spec** before invoking `writing-plans` for the implementation plan.
+**Status:** Spec approved by kareem ✅. **Implementation plan written and self-reviewed: 3,962 lines, 32 tasks across 8 phases (A–H), 0 placeholders, type consistency verified.** Awaiting kareem's execution-mode choice (subagent-driven recommended vs inline) before starting.
+
+**Plan:** [docs/superpowers/plans/2026-05-16-personal-networth.md](docs/superpowers/plans/2026-05-16-personal-networth.md)
+**Spec:** [docs/superpowers/specs/2026-05-16-personal-networth-design.md](docs/superpowers/specs/2026-05-16-personal-networth-design.md)
+
+**Phase summary:**
+- **A (Tasks 1–4):** Migration 0139 — 11 tables, 3 views, `fx_lookup()` SQL helper, seed currencies.
+- **B (Tasks 5–14):** Lift `computeNextRunDate` to shared lib; business logic (`amortization`, `fx`, `snapshot`, `liability`, `payment`, `queries`) all TDD; typecheck checkpoint.
+- **C (Tasks 15–17):** 2 cron routes (bearer auth + DST-safe Cairo-9-AM gate + `?force=1` escape) + register in `vercel.json` + 2 manual trigger routes.
+- **D (Tasks 18–20):** `NetWorthShell`/`NetWorthHeader`/tab nav + new `Net Worth` tile on `/personal` (indigo accent) + `/setup` page (FX, lenders, settings).
+- **E (Tasks 21–25):** `/assets`, `/liabilities` list, `/liabilities/[id]` dual-mode (amortizing vs revolving) + edit/close actions + KPI strips.
+- **F (Tasks 26–28):** `/recurring` (Templates + Payment Log tabs, CSV export) + `/reports` (monthly + 12-month stacked-area chart + PDF export via `@react-pdf/renderer`).
+- **G (Tasks 29–31):** Overview dashboard — hero KPI + 3-card totals + sparkline + asset/liability donuts + upcoming-payments table + charity YTD + loan payoff + quick-entry strip + 4 quick-entry modals (Payment/Liability/Asset/Recurring).
+- **H (Task 32):** End-to-end smoke pass — sample data entry, cron triggers via `?force=1`, dashboard verification.
+
+**Migration roadmap:** `0139_personal_networth.sql` is the main migration (applied in 4 logical parts but can ship as one file). A possible follow-up `0140_personal_networth_upcoming_liability_id.sql` is called out in Task 30 to add `liability_id` to `v_personal_networth_upcoming` so the dashboard "Mark paid" inline button works.
+
+**Crons added to `vercel.json` (Task 17):** 4 entries (snapshot ×2, recurring ×2 — DST-safe Cairo 9 AM double-registered).
 
 **Locked product decisions (8):**
 1. **Currency:** Multi-currency, totals rolled up to EGP via a manually-maintained `personal_networth_fx_rates` table.
