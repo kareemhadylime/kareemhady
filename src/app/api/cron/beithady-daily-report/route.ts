@@ -17,11 +17,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const force = req.nextUrl.searchParams.get('force') === '1';
+  // ?rebuild=1 also passes forceRebuild=true, overriding the already_complete
+  // short-circuit. Useful when a new payload field (e.g. revenue_mtd_gross_usd
+  // added 2026-05-16) is shipped after the morning snapshot already ran —
+  // without this you'd have to wait until the next morning for the field
+  // to populate. Authorized callers only (same Bearer check above).
+  const rebuild = req.nextUrl.searchParams.get('rebuild') === '1';
 
   try {
     const result = await runDailyReport({
       trigger: force ? 'force' : 'cron',
       forceTimeGate: force,
+      forceRebuild: rebuild,
     });
     return NextResponse.json(result, {
       status: result.ok ? 200 : 500,
