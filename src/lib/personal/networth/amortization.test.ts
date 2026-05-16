@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateSchedule } from './amortization';
+import { generateSchedule, earlyPayoffProjection } from './amortization';
 
 describe('generateSchedule', () => {
   it('produces n rows for n-month term', () => {
@@ -86,5 +86,35 @@ describe('generateSchedule', () => {
     expect(() => generateSchedule({
       principal: 1000, aprPct: -1, termMonths: 12, startDate: '2026-01-01',
     })).toThrow(/aprPct must be >= 0/);
+  });
+});
+
+describe('earlyPayoffProjection', () => {
+  it('zero extra returns the original final due date', () => {
+    const schedule = generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
+    });
+    const r = earlyPayoffProjection(schedule, 0, 0, 12);
+    expect(r.newPayoffDate).toBe('2027-01-01');
+    expect(r.monthsSaved).toBe(0);
+    expect(r.totalInterestSaved).toBe(0);
+  });
+
+  it('100 extra/month shortens the payoff and saves interest', () => {
+    const schedule = generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
+    });
+    const r = earlyPayoffProjection(schedule, 0, 100, 12);
+    expect(r.monthsSaved).toBeGreaterThan(0);
+    expect(r.totalInterestSaved).toBeGreaterThan(0);
+  });
+
+  it('already paid installments are not re-counted', () => {
+    const schedule = generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
+    });
+    const r = earlyPayoffProjection(schedule, 6, 0, 12);
+    // 6 paid, 6 remaining at normal pace → final date unchanged
+    expect(r.newPayoffDate).toBe('2027-01-01');
   });
 });

@@ -1,4 +1,4 @@
-import type { AmortizationInput, ScheduleRow } from './types';
+import type { AmortizationInput, EarlyPayoffResult, ScheduleRow } from './types';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -56,4 +56,48 @@ export function generateSchedule(input: AmortizationInput): ScheduleRow[] {
     remaining = newRemaining;
   }
   return rows;
+}
+
+export function earlyPayoffProjection(
+  schedule: ScheduleRow[],
+  paidInstallmentCount: number,
+  extraMonthlyAmount: number,
+  aprPct: number
+): EarlyPayoffResult {
+  const r = aprPct / 100 / 12;
+  const remaining = schedule.slice(paidInstallmentCount);
+  if (remaining.length === 0) {
+    return { newPayoffDate: schedule[schedule.length - 1].dueDate, totalInterestSaved: 0, monthsSaved: 0 };
+  }
+
+  const baseRemainingBalance = paidInstallmentCount === 0
+    ? schedule[0].principalPortion + schedule[0].remainingAfter
+    : schedule[paidInstallmentCount - 1].remainingAfter;
+
+  const baseMonthly = remaining[0].principalPortion + remaining[0].interestPortion;
+  const newMonthly = baseMonthly + extraMonthlyAmount;
+  const baseInterestRemaining = remaining.reduce((s, row) => s + row.interestPortion, 0);
+
+  let balance = baseRemainingBalance;
+  let months = 0;
+  let interestPaid = 0;
+  let lastDueDate = remaining[remaining.length - 1].dueDate;
+  let currentDate = remaining[0].dueDate;
+
+  while (balance > 0.01 && months < remaining.length + 600) {
+    const interest = Math.round(balance * r * 100) / 100;
+    const principalPart = Math.min(balance, Math.round((newMonthly - interest) * 100) / 100);
+    balance = Math.round((balance - principalPart) * 100) / 100;
+    interestPaid += interest;
+    lastDueDate = currentDate;
+    months++;
+    currentDate = addMonths(currentDate, 1);
+    if (principalPart <= 0) break;
+  }
+
+  return {
+    newPayoffDate: lastDueDate,
+    totalInterestSaved: Math.round((baseInterestRemaining - interestPaid) * 100) / 100,
+    monthsSaved: remaining.length - months,
+  };
 }
