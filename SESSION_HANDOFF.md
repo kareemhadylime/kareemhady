@@ -1,3 +1,31 @@
+## 2026-05-16 — BH ads insights roadmap committed; V1 brainstorm starting
+
+**Status:** Roadmap doc committed `684c0ce`. V1 clarifying questions started.
+
+**Roadmap:** `docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md`
+4-phase carve of the 17 brainstormed insights:
+- V1 (next, ~15 tasks): Date filter + B1 Geo + B2 Demo + B3 Device/Placement breakdowns
+- V2 (~15): C1 Funnel + C2 Lead quality + C3 WhatsApp FRT + C4 Per-building + C5 Cohort attribution
+- V3 (~20): D1 Heatmap + D2 Spend pacing + D3 Period delta + E1 Top ads + E2 Top creatives + E3 Anomaly flags + E4 AI narrative
+- V4 (~6): F1 PDF export + F2 Tokenized share link
+
+**V1 Q1 presented:** Where does the audience report live in the UI?
+- A. Main dashboard `/beithady/ads/` only (aggregated)
+- B. Campaign detail page only (per-campaign drill-down)
+- C. (Recommended) Both — dashboard rollup + campaign detail breakdown
+- D. New dedicated `/beithady/ads/audience/` page
+
+**Awaiting kareem's pick on Q1.** Once locked, remaining V1 questions:
+- Data sourcing: store breakdowns in new DB table (allows date filtering) vs on-demand API (no history)
+- Platform coverage: Meta + Google + TikTok all in V1? Or just Meta first?
+- Date filter UX: presets (7d/30d/90d) + custom range picker
+- Drill-down level: campaign → adset → ad? Or just campaign?
+- Chart types: pie/bar/treemap/map per dimension
+
+After Q1-Q5: propose approaches, present design sections, write V1 spec at `docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md`, then writing-plans.
+
+---
+
 ## 2026-05-16 — Ads page insights brainstorm in progress (paper only, no code)
 
 **Status:** Brainstorming a new ads-page enhancement phase. Picked up after V1.2 YouTube cross-post landed + ad-spend EGP conversion fixed. No code yet.
