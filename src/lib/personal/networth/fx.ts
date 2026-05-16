@@ -32,10 +32,12 @@ export async function convertToEgp(
 export async function latestRate(currency: string): Promise<number | null> {
   if (currency === 'EGP') return 1;
   const sb = supabaseAdmin();
+  const today = new Date().toISOString().slice(0, 10);
   const { data } = await sb
     .from('personal_networth_fx_rates')
     .select('rate_to_egp')
     .eq('currency_code', currency)
+    .lte('as_of_date', today)
     .order('as_of_date', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -44,22 +46,18 @@ export async function latestRate(currency: string): Promise<number | null> {
 
 export async function ratesAsOf(asOfDate: string): Promise<Record<string, number>> {
   const sb = supabaseAdmin();
-  const { data } = await sb
-    .from('personal_networth_currencies')
-    .select('code');
-  if (!data) return { EGP: 1 };
+  const { data, error } = await sb
+    .from('personal_networth_fx_rates')
+    .select('currency_code, rate_to_egp, as_of_date')
+    .lte('as_of_date', asOfDate)
+    .order('currency_code', { ascending: true })
+    .order('as_of_date', { ascending: false });
+  if (error || !data) return { EGP: 1 };
   const out: Record<string, number> = { EGP: 1 };
+  // Order is (currency_code asc, as_of_date desc); first row per currency wins.
   for (const row of data) {
-    if (row.code === 'EGP') continue;
-    const r = await sb
-      .from('personal_networth_fx_rates')
-      .select('rate_to_egp')
-      .eq('currency_code', row.code)
-      .lte('as_of_date', asOfDate)
-      .order('as_of_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (r.data) out[row.code] = Number(r.data.rate_to_egp);
+    if (out[row.currency_code] !== undefined) continue;
+    out[row.currency_code] = Number(row.rate_to_egp);
   }
   return out;
 }

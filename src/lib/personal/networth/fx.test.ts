@@ -1,19 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { convertToEgp, latestRate, ratesAsOf } from './fx';
 
-vi.mock('@/lib/supabase', () => ({
-  supabaseAdmin: () => ({
-    rpc: vi.fn(),
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      lte: vi.fn().mockReturnThis(),
-      order: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: { rate_to_egp: 48.2 }, error: null }),
-    })),
-  }),
-}));
+vi.mock('@/lib/supabase', () => {
+  const chain: any = {
+    select: vi.fn(() => chain),
+    eq: vi.fn(() => chain),
+    lte: vi.fn(() => chain),
+    order: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    maybeSingle: vi.fn().mockResolvedValue({ data: { rate_to_egp: 48.2 }, error: null }),
+    then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
+  };
+  return { supabaseAdmin: () => ({ from: vi.fn(() => chain) }) };
+});
+
+describe('latestRate', () => {
+  it('returns 1 for EGP without hitting DB', async () => {
+    const r = await latestRate('EGP');
+    expect(r).toBe(1);
+  });
+});
+
+describe('ratesAsOf', () => {
+  it('always includes EGP=1 in the result', async () => {
+    const r = await ratesAsOf('2026-05-01');
+    expect(r.EGP).toBe(1);
+  });
+});
 
 describe('convertToEgp', () => {
   it('returns amount unchanged for EGP', async () => {
