@@ -1,3 +1,27 @@
+## 2026-05-16 — V1 ads-insights spec committed (809da68); awaiting kareem review
+
+**Status:** All 6 design sections approved. Spec written, self-reviewed, committed + pushed at `809da68`. Awaiting kareem's go-ahead before invoking writing-plans.
+
+**Spec:** [`docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md`](docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md) (~511 lines)
+
+**Roadmap parent:** [`docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md`](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md) (V1-V4 multi-phase)
+
+**Self-review applied:** No placeholders found. Internal consistency verified across § 1-6 (schemas ↔ query patterns ↔ cron upsert ↔ UI tabs). 5 period-delta edge cases all enumerated. Done criteria 12 checkboxes.
+
+**Spec snapshot (V1 scope):**
+- 3 new tables (`ads_insights_geo`, `ads_insights_demo`, `ads_insights_device`) — migration `0138`
+- Cron `beithady-ads-breakdowns` every 6h with rolling 7d window
+- Admin button at `/admin/integrations` for one-shot 90d backfill
+- Date filter component (presets + custom + compare toggle) reused on 4 pages
+- Main dashboard audience summary widget + dedicated `/beithady/ads/audience/` page with 3 tabs
+- Period-delta badges everywhere when `?compare=1`
+- ~12 new files + ~7 modified
+- Test target: ~765 passing (V1.2 baseline 704 + ~60 new)
+
+**Next step:** Awaiting kareem review. On approval → invoke writing-plans skill to break into ~25 TDD-sized implementation tasks.
+
+---
+
 ## 2026-05-16 — V1 ads-insights design § 1-4 presented; § 4 awaiting kareem approval
 
 **Design progress (6 sections planned):**
