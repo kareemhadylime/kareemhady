@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import type { LiabilityKind } from '@/lib/personal/networth/types';
 import { AddLiabilityModal, type LenderOption } from '../modals/add-liability-modal';
+import { EditLiabilityModal } from '../modals/edit-liability-modal';
 
 type Liability = {
   id: string;
@@ -58,14 +59,6 @@ function fmtAmount(amount: number, currency: string) {
   }
 }
 
-function fmtEgp(amount: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'EGP',
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
 function matchesFilter(l: Liability, f: Filter): boolean {
   if (f === 'all') return true;
   if (f === 'loans') return l.kind === 'amortizing_loan' || l.kind === 'bnpl';
@@ -96,44 +89,33 @@ export function LiabilityTable({
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
   const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const visible = useMemo(
     () => liabilities.filter(l => matchesFilter(l, filter)),
     [liabilities, filter],
   );
 
-  // KPI strip: same-currency-only EGP totals (Option B — no FX dependency).
-  const kpi = useMemo(() => {
-    const egp = liabilities.filter(l => l.currency === 'EGP');
-    const totalBalanceEgp = egp.reduce(
-      (sum, l) => sum + Number(l.current_balance ?? 0),
-      0,
-    );
-    const monthlyEgp = egp.reduce((sum, l) => sum + monthlyOutflow(l), 0);
-    const highestApr = liabilities.reduce((max, l) => {
-      const a = Number(l.apr_pct ?? 0);
-      return a > max ? a : max;
-    }, 0);
-
-    const nonEgp: Record<string, number> = {};
+  // Non-EGP subtotals — complements the EGP-converted Total KPI by showing
+  // native amounts per non-EGP currency.
+  const nonEgpSubtotals = useMemo(() => {
+    const acc: Record<string, number> = {};
     for (const l of liabilities) {
       if (l.currency === 'EGP') continue;
-      nonEgp[l.currency] = (nonEgp[l.currency] ?? 0) + Number(l.current_balance ?? 0);
+      acc[l.currency] = (acc[l.currency] ?? 0) + Number(l.current_balance ?? 0);
     }
-
-    return {
-      totalBalanceEgp,
-      monthlyEgp,
-      highestApr,
-      count: liabilities.length,
-      nonEgp,
-    };
+    return acc;
   }, [liabilities]);
 
-  async function onDelete(id: string, name: string) {
+  const editingLiability = useMemo(
+    () => (editingId ? liabilities.find(l => l.id === editingId) ?? null : null),
+    [editingId, liabilities],
+  );
+
+  async function onClose(id: string) {
     if (
       !confirm(
-        `Remove "${name}"? This soft-deletes the liability (active=false). Schedule and payment history are preserved.`,
+        'Close this liability? Schedule rows and payments stay queryable.',
       )
     ) {
       return;
@@ -143,7 +125,7 @@ export function LiabilityTable({
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json.ok) {
-      alert(`Delete failed: ${json.error ?? 'unknown'}`);
+      alert(`Close failed: ${json.error ?? 'unknown'}`);
       return;
     }
     router.refresh();
@@ -151,24 +133,13 @@ export function LiabilityTable({
 
   return (
     <div className="space-y-4">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Total balance (EGP only)" value={fmtEgp(kpi.totalBalanceEgp)} />
-        <KpiCard label="Monthly outflow (EGP)" value={fmtEgp(kpi.monthlyEgp)} />
-        <KpiCard
-          label="Highest APR"
-          value={kpi.highestApr > 0 ? `${kpi.highestApr.toFixed(2)}%` : '—'}
-        />
-        <KpiCard label="# Liabilities" value={String(kpi.count)} />
-      </div>
-
-      {/* Non-EGP subtotals (only if any) */}
-      {Object.keys(kpi.nonEgp).length > 0 && (
+      {/* Non-EGP subtotals (only if any) — complements the EGP KPI strip above. */}
+      {Object.keys(nonEgpSubtotals).length > 0 && (
         <div className="ix-card p-3 text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4 gap-y-1">
           <span className="font-medium text-slate-500 dark:text-slate-400">
             Non-EGP balances (native):
           </span>
-          {Object.entries(kpi.nonEgp).map(([cur, amt]) => (
+          {Object.entries(nonEgpSubtotals).map(([cur, amt]) => (
             <span key={cur}>
               <span className="font-semibold">{cur}</span> {fmtAmount(amt, cur)}
             </span>
@@ -254,19 +225,20 @@ export function LiabilityTable({
                     <td className="px-3 py-2 text-right tabular-nums">
                       {monthly > 0 ? fmtAmount(monthly, l.currency) : '—'}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <Link
-                        href={`/personal/networth/liabilities/${l.id}`}
-                        className="text-xs text-indigo-600 hover:underline mr-3"
-                      >
-                        Open
-                      </Link>
+                    <td className="px-3 py-2 text-right whitespace-nowrap space-x-3">
                       <button
                         type="button"
-                        onClick={() => onDelete(l.id, l.name)}
+                        onClick={() => setEditingId(l.id)}
+                        className="text-xs text-indigo-600 hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onClose(l.id)}
                         className="text-xs text-rose-600 hover:underline"
                       >
-                        Delete
+                        Close
                       </button>
                     </td>
                   </tr>
@@ -295,19 +267,16 @@ export function LiabilityTable({
         onAdded={() => router.refresh()}
         lenders={lenders}
       />
-    </div>
-  );
-}
 
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="ix-card p-3">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        {label}
-      </div>
-      <div className="text-lg font-bold text-slate-900 dark:text-slate-50 mt-1 tabular-nums">
-        {value}
-      </div>
+      <EditLiabilityModal
+        open={editingId !== null}
+        onClose={() => setEditingId(null)}
+        onSaved={() => {
+          setEditingId(null);
+          router.refresh();
+        }}
+        liability={editingLiability}
+      />
     </div>
   );
 }
