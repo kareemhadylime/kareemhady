@@ -342,15 +342,22 @@ export default async function CampaignDetailPage({
       )}
 
       {/* Daily metrics sparkline */}
-      {chartDays.length > 0 && (
+      {chartDays.length > 0 && (() => {
+        const compactFmt = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+        return (
         <section className="ix-card p-5 space-y-3">
           <h2 className="text-sm font-semibold">Daily spend (last {chartDays.length} days)</h2>
-          <div className="flex items-end gap-0.5 h-24">
+          <div className="flex items-end gap-0.5 h-32">
             {chartDays.map((d, i) => {
               const spendEgp = chartSpendEgp[i] || 0;
               const h = maxSpend > 0 ? Math.max(2, (spendEgp / maxSpend) * 96) : 2;
               return (
-                <div key={`${d.metric_date}-${i}`} className="flex-1 bg-emerald-400 dark:bg-emerald-600 rounded-t" style={{ height: `${h}px` }} title={`${d.metric_date}: EGP ${spendEgp.toFixed(2)}`} />
+                <div key={`${d.metric_date}-${i}`} className="flex-1 flex flex-col items-center justify-end gap-0.5 min-w-0" title={`${d.metric_date}: EGP ${spendEgp.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}>
+                  <span className="text-[9px] tabular-nums text-slate-500 dark:text-slate-400 leading-none whitespace-nowrap">
+                    {spendEgp > 0 ? compactFmt.format(spendEgp) : ''}
+                  </span>
+                  <div className="w-full bg-emerald-400 dark:bg-emerald-600 rounded-t" style={{ height: `${h}px` }} />
+                </div>
               );
             })}
           </div>
@@ -359,7 +366,8 @@ export default async function CampaignDetailPage({
             <span>{chartDays[chartDays.length - 1]?.metric_date}</span>
           </div>
         </section>
-      )}
+        );
+      })()}
 
       {/* Ad sets */}
       <section className="ix-card p-5 space-y-3">

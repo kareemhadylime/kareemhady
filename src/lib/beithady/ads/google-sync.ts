@@ -89,6 +89,25 @@ export async function syncGoogleAds(accountId?: number): Promise<SyncResult> {
       effectiveCustomerIds = [rootCustomerId];
     }
 
+    // Sync ads_accounts.currency from the customer's actual currency_code so
+    // the EGP-conversion pipeline in reporting.ts / page roll-ups doesn't
+    // multiply native-currency spend by an FX rate. Google's metrics.cost_micros
+    // is denominated in the customer's local currency.
+    {
+      const probeId = effectiveCustomerIds[0];
+      if (probeId) {
+        const ci = await gaqlSearch<{ customer: { currencyCode?: string; currency_code?: string } }>(
+          probeId,
+          'SELECT customer.currency_code FROM customer',
+          creds, accessToken
+        );
+        const code = ci.ok ? (ci.rows[0]?.customer?.currencyCode || ci.rows[0]?.customer?.currency_code) : null;
+        if (code) {
+          await sb.from('ads_accounts').update({ currency: String(code).toUpperCase() }).eq('id', acc.id);
+        }
+      }
+    }
+
     let acctCampaigns = 0;
     let acctMetrics = 0;
     let acctErr: unknown = null;

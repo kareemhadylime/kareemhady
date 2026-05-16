@@ -1,3 +1,18 @@
+## 2026-05-16 — Fix Google Ads spend EGP double-conversion + add bar labels (DONE)
+
+**Bug 1 — Spend × FX rate:** Campaign detail page (`/beithady/ads/campaigns/[id]`) was showing `EGP 720,863` over 23 days — actual native sum was ≈ EGP 14,650. Root cause: `ads_accounts.currency` for the "Beithady Google Ads" account row (id=3) was stored as `'USD'`, but Google Ads' `metrics.cost_micros` is in the customer's local currency (EGP for this account). `convertManyToEgp` then multiplied by 1/EGP→USD ≈ 49.26.
+
+**Bug 2 — No visible bar amounts:** Daily-spend chart only had HTML `title=` tooltip; no on-screen values.
+
+**Fixes:**
+- DB: `UPDATE ads_accounts SET currency='EGP' WHERE id=3` (Beithady Google Ads)
+- `src/lib/beithady/ads/google-sync.ts`: after detecting manager/leaf, query `customer.currency_code` on the first effective customer and update `ads_accounts.currency` — keeps it in sync going forward, prevents recurrence for any new Google account
+- `src/app/beithady/ads/campaigns/[id]/page.tsx`: added compact (`Intl.NumberFormat notation: 'compact'`) value labels above each bar, container grew from `h-24` → `h-32` to fit labels
+
+**Verification:** `npm run build` clean, no TS/lint errors.
+
+---
+
 ## 2026-05-16 — BH Ads V3 brainstorm: § 2 per-feature design awaiting approval
 
 **Status:** Mid-brainstorm. § 1 ✅ approved (kareem: "ok"). § 2 (per-feature data queries + AI prompt) just presented, awaiting kareem's response before § 3 (UI structure + testing).
@@ -36,6 +51,42 @@
 - `src/lib/personal/networth/amortization.ts` — `generateSchedule(input: AmortizationInput): ScheduleRow[]` with `round2` and `addMonths` helpers
 
 **Results:** 7/7 tests pass, `tsc --noEmit` clean, strict TypeScript, no `any`.
+
+## 2026-05-16 — Personal NetWorth Task 7: earlyPayoffProjection code-review fixes (DONE)
+
+**Commit:** 1da5c33 — `fix(networth): guard earlyPayoffProjection against negative inputs + tighten test 2`
+
+**Fixes applied:**
+1. **Input guard (critical):** Added `if (extraMonthlyAmount < 0) throw` before any mutation — prevents silently corrupted balance state when the loop's `principalPart <= 0` break fires post-mutation.
+2. **Input guard (suggestion #6):** Added `if (paidInstallmentCount < 0) throw` for defensive completeness.
+3. **Test 2 strengthened:** Replaced `toBeGreaterThan(0)` assertions with exact `monthsSaved: 1`, `newPayoffDate: '2026-12-01'`, and a tight `60 < totalInterestSaved < 75` band (actual value: 67.24).
+4. **2 new throw tests:** `throws on negative extraMonthlyAmount` and `throws on negative paidInstallmentCount`.
+
+**Results:** 15/15 tests pass (10 generateSchedule + 5 earlyPayoffProjection), `tsc --noEmit` clean.
+
+## 2026-05-16 — Personal NetWorth Task 7: earlyPayoffProjection TDD (DONE)
+
+**Commit:** a986c81 — `feat(networth): earlyPayoffProjection for amortization`
+
+**Files changed:**
+- `src/lib/personal/networth/amortization.ts` — Appended `earlyPayoffProjection(schedule, paidCount, extraMonthly, aprPct): EarlyPayoffResult`; updated import to include `EarlyPayoffResult` from types. Reused existing `addMonths` shared helper (refactored approach, no duplication).
+- `src/lib/personal/networth/amortization.test.ts` — Updated import to include `earlyPayoffProjection`; added 3-test `describe('earlyPayoffProjection', ...)` block.
+
+**Results:** 13/13 tests pass (10 generateSchedule + 3 earlyPayoffProjection), `tsc --noEmit` clean, strict TypeScript, no `any`.
+
+---
+
+## 2026-05-16 — Personal NetWorth Task 6: amortization.ts code-review fixes (DONE)
+
+**Commit:** 2c0eb24 — `fix(networth): clamp addMonths day-of-month + guard monthlyOverride against negative principal`
+
+**Files changed:**
+- `src/lib/personal/networth/amortization.ts` — Fixed 2 important issues:
+  1. `addMonths`: now clamps day via `new Date(year, month, 0).getDate()` — prevents invalid dates like `2026-02-31` when start day is 29/30/31
+  2. `generateSchedule`: guard after `monthly` constant — throws if `monthlyOverride <= firstInterest` to prevent negative `principal_portion` corrupting data
+- `src/lib/personal/networth/amortization.test.ts` — Added 4 new tests (3 test cases in the "throws on invalid inputs" test, clamping test, and override-too-low test)
+
+**Results:** 10/10 tests pass, `tsc --noEmit` clean.
 
 ---
 
