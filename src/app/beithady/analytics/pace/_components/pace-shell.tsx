@@ -2,6 +2,7 @@
 import type { PaceReportPayload } from '@/lib/pace-report/types';
 import type { PaceUrlState } from '../_hooks/use-pace-url-state';
 import { PaceKpiStrip } from './panels/pace-kpi-strip';
+import { DailyPerformance } from './panels/daily-performance';
 
 type Props = {
   payload: PaceReportPayload;
@@ -36,6 +37,9 @@ export function PaceShell({ payload }: Props) {
           range={payload.date_range}
           priorRange={payload.prior_date_range}
         />
+        <div className="col-span-12">
+          <DailyPerformance rows={payload.daily} />
+        </div>
       </main>
     </div>
   );
