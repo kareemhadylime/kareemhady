@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f1f5f9',
   },
   itemsTd: { padding: 3, fontSize: 8.5 },
-  colProduct: { width: 240 },
+  colProduct: { width: 360 },
   colSku: { width: 80 },
   colOrders: { width: 50, textAlign: 'right' },
   colUnits: { width: 50, textAlign: 'right' },
