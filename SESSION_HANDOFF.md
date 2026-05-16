@@ -208,7 +208,17 @@ Side-by-side per-building check-in / confirmed-only, May 2026:
 - `src/lib/beithady-daily-report/build-buildings.ts`: sum fare_accommodation into accumulator alongside host_payout; emit gross fields per-building + accAll
 - `src/app/beithady/_components/landing-pulse.tsx`: add "Month Revenue (Gross)" hero KPI card next to the existing net "Month Revenue (OTB)" card; relabeled net card sub-text to "net payout · incl. confirmed → EOM" for clarity
 
-**Status:** Build clean. Code shipped; the new card will read `0` until the next morning-cron snapshot runs (or we manually re-trigger). Existing snapshots have no `revenue_mtd_gross_*` fields, so the card stays at $0 until refresh.
+**Cron rebuild flag (commit 59fa632c):** also added `?rebuild=1` to `/api/cron/beithady-daily-report` so we can force a snapshot regen without waiting for the next morning tick whenever a new payload field ships. Passes `forceRebuild: true` to `runDailyReport`, same Bearer-CRON_SECRET auth.
+
+**Verified live:** triggered `?force=1&rebuild=1`, the resulting `daily_report_snapshots` row for 2026-05-16 now carries:
+- `revenue_mtd_usd`: **$56,512.57** (net payout, OTB)
+- `revenue_mtd_gross_usd`: **$60,112.60** (gross) → matches Guesty's **$59,061** within 2% (residual = FX rate differences between our `fx_rates_usd` table and Guesty's internal rates)
+- `revenue_mtd_actual_usd`: $40,198.56
+- `revenue_mtd_gross_actual_usd`: $41,345.20
+
+Dashboard now shows both cards side-by-side on the Beit Hady landing — net for owner economics, gross for Guesty parity.
+
+**Commits:** e9ca504c (feature) + 59fa632c (rebuild flag).
 
 ---
 
