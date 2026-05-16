@@ -71,15 +71,15 @@ export function normalizeMetaGeoRows(
 }
 
 export function normalizeGoogleGeoRows(
-  rows: Array<{ segments?: { date?: string; geoTargetCountry?: string | null; geoTargetCity?: string | null };
+  rows: Array<{ segments?: { date?: string };
+                geographicView?: { countryCriterionId?: string | null };
                 metrics?: { impressions?: string; clicks?: string; costMicros?: string; [key: string]: string | undefined };
                 campaign?: { id?: string } }>,
   ctx: GeoCtx
 ): GeoRow[] {
   const out: GeoRow[] = [];
   for (const r of rows) {
-    const resourceName = r.segments?.geoTargetCountry || '';
-    const idStr = resourceName.split('/').pop() || '';
+    const idStr = r.geographicView?.countryCriterionId ? String(r.geographicView.countryCriterionId) : '';
     const iso2 = GOOGLE_GEO_ISO2[idStr];
     if (!iso2) continue;
     out.push({
@@ -90,7 +90,7 @@ export function normalizeGoogleGeoRows(
       metric_date: String(r.segments?.date || ''),
       country_code: iso2,
       region: null,
-      city: r.segments?.geoTargetCity || null,
+      city: null,
       impressions: asInt(r.metrics?.impressions),
       clicks: asInt(r.metrics?.clicks),
       spend_micros: asInt(r.metrics?.costMicros),

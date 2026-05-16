@@ -27,11 +27,11 @@ describe('normalizeMetaDemoRows', () => {
 });
 
 describe('normalizeGoogleDemoRows', () => {
-  it('joins gender + ageRange by (campaign,date) and emits cross product', () => {
+  it('reads ad_group_criterion.gender.type + ad_group_criterion.age_range.type', () => {
     const out = normalizeGoogleDemoRows({
-      gender: [{ segments: { date: '2026-05-10', gender: 'GENDER_FEMALE' },
+      gender: [{ segments: { date: '2026-05-10' }, adGroupCriterion: { gender: { type: 'GENDER_FEMALE' } },
                  metrics: { impressions: '10', clicks: '1', costMicros: '1000' }, campaign: { id: '5' } }],
-      ageRange: [{ segments: { date: '2026-05-10', ageRange: 'AGE_RANGE_25_34' },
+      ageRange: [{ segments: { date: '2026-05-10' }, adGroupCriterion: { ageRange: { type: 'AGE_RANGE_25_34' } },
                    metrics: { impressions: '20', clicks: '2', costMicros: '2000' }, campaign: { id: '5' } }],
     }, { ...CTX, platform: 'google' });
     // Google reports gender separately from age; we keep them as separate rows

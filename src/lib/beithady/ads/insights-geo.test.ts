@@ -27,20 +27,21 @@ describe('normalizeMetaGeoRows', () => {
 
 describe('normalizeGoogleGeoRows', () => {
   const G_CTX = { ...CTX, platform: 'google' as const };
-  it('maps geoTargetConstants/2818 → GB', () => {
+  it('maps geographic_view.country_criterion_id 2818 → GB', () => {
     const out = normalizeGoogleGeoRows([{
-      segments: { date: '2026-05-10', geoTargetCountry: 'geoTargetConstants/2818', geoTargetCity: null },
+      segments: { date: '2026-05-10' },
+      geographicView: { countryCriterionId: '2818' },
       metrics: { impressions: '10', clicks: '1', costMicros: '12345', conversions: '0' },
       campaign: { id: '5' },
     }], G_CTX);
     expect(out[0].country_code).toBe('GB');
     expect(out[0].spend_micros).toBe(12345);
   });
-  it('maps geoTargetConstants/2818 → EG when EG used; drops unknown ids', () => {
+  it('drops unknown criterion ids', () => {
     const out = normalizeGoogleGeoRows([
-      { segments: { date: '2026-05-10', geoTargetCountry: 'geoTargetConstants/2818' },
+      { segments: { date: '2026-05-10' }, geographicView: { countryCriterionId: '2818' },
         metrics: { impressions: '10', clicks: '1', costMicros: '10', conversions: '0' }, campaign: { id: '5' } },
-      { segments: { date: '2026-05-10', geoTargetCountry: 'geoTargetConstants/99999999' },
+      { segments: { date: '2026-05-10' }, geographicView: { countryCriterionId: '99999999' },
         metrics: { impressions: '1', clicks: '0', costMicros: '0', conversions: '0' }, campaign: { id: '5' } },
     ], G_CTX);
     expect(out).toHaveLength(1);

@@ -103,6 +103,13 @@ export async function GET(req: NextRequest) {
         if (dev.ok) await upsertDeviceRows(normalizeMetaDeviceRows(dev.rows, ctx));
         summary.push({ campaignId: c.id, platform: 'meta', ok: geo.ok && demo.ok && dev.ok });
       } else if (c.platform === 'google') {
+        // Drafts have external_id like 'draft_xxx_camp' which Number() → NaN;
+        // GAQL fails with BAD_NUMBER. They never had Google-side delivery, so
+        // there's no audience data to fetch.
+        if (c.external_id.startsWith('draft_') || !Number.isFinite(Number(c.external_id))) {
+          summary.push({ campaignId: c.id, platform: 'google', ok: true });
+          continue;
+        }
         if (!googleCredsRes.ok) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: googleCredsRes.error }); continue; }
         if (!googleTokRes?.ok) { summary.push({ campaignId: c.id, platform: 'google', ok: false, error: 'oauth_failed' }); continue; }
         const effectiveIds = googleEffectiveByAccount.get(acct.id) || [];

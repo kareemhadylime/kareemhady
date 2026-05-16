@@ -69,10 +69,12 @@ export function normalizeMetaDemoRows(
 
 export function normalizeGoogleDemoRows(
   payload: {
-    gender: Array<{ segments?: { date?: string; gender?: string };
+    gender: Array<{ segments?: { date?: string };
+                    adGroupCriterion?: { gender?: { type?: string } };
                     metrics?: { impressions?: string; clicks?: string; costMicros?: string };
                     campaign?: { id?: string } }>;
-    ageRange: Array<{ segments?: { date?: string; ageRange?: string };
+    ageRange: Array<{ segments?: { date?: string };
+                      adGroupCriterion?: { ageRange?: { type?: string } };
                       metrics?: { impressions?: string; clicks?: string; costMicros?: string };
                       campaign?: { id?: string } }>;
   },
@@ -83,7 +85,7 @@ export function normalizeGoogleDemoRows(
     out.push({
       account_id: ctx.accountId, campaign_id: ctx.campaignId, ad_set_id: ctx.adSetId,
       platform: ctx.platform, metric_date: String(r.segments?.date || ''),
-      age_range: 'unknown', gender: normGender(r.segments?.gender),
+      age_range: 'unknown', gender: normGender(r.adGroupCriterion?.gender?.type),
       impressions: asInt(r.metrics?.impressions), clicks: asInt(r.metrics?.clicks),
       spend_micros: asInt(r.metrics?.costMicros), reach: null, leads: 0,
     });
@@ -92,7 +94,7 @@ export function normalizeGoogleDemoRows(
     out.push({
       account_id: ctx.accountId, campaign_id: ctx.campaignId, ad_set_id: ctx.adSetId,
       platform: ctx.platform, metric_date: String(r.segments?.date || ''),
-      age_range: normAge(r.segments?.ageRange), gender: 'unknown',
+      age_range: normAge(r.adGroupCriterion?.ageRange?.type), gender: 'unknown',
       impressions: asInt(r.metrics?.impressions), clicks: asInt(r.metrics?.clicks),
       spend_micros: asInt(r.metrics?.costMicros), reach: null, leads: 0,
     });

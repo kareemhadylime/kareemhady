@@ -156,7 +156,8 @@ export async function gadsMutate(
 // === Insights breakdown queries (BH Ads V1) ===
 
 export type GoogleGeoRow = {
-  segments?: { date?: string; geoTargetCountry?: string | null; geoTargetCity?: string | null };
+  segments?: { date?: string };
+  geographicView?: { countryCriterionId?: string | null; locationType?: string | null };
   metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
   campaign?: { id?: string };
 };
@@ -171,11 +172,14 @@ export type GoogleBreakdownOpts = {
 };
 
 export async function fetchGoogleGeoView(opts: GoogleBreakdownOpts): Promise<GaqlResult<GoogleGeoRow>> {
+  // geographic_view uses its own resource fields, NOT segments.geo_target_*
+  // (Google rejects those with PROHIBITED_SEGMENT_IN_SELECT_OR_WHERE_CLAUSE).
+  // country_criterion_id is the raw geo-target id (e.g. "2818" = GB).
   const q = `
     SELECT
       segments.date,
-      segments.geo_target_country,
-      segments.geo_target_city,
+      geographic_view.country_criterion_id,
+      geographic_view.location_type,
       metrics.impressions,
       metrics.clicks,
       metrics.cost_micros,
@@ -189,13 +193,15 @@ export async function fetchGoogleGeoView(opts: GoogleBreakdownOpts): Promise<Gaq
 }
 
 export type GoogleDemoGenderRow = {
-  segments?: { date?: string; gender?: string };
+  segments?: { date?: string };
+  adGroupCriterion?: { gender?: { type?: string } };
   metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
   campaign?: { id?: string };
 };
 
 export type GoogleDemoAgeRow = {
-  segments?: { date?: string; ageRange?: string };
+  segments?: { date?: string };
+  adGroupCriterion?: { ageRange?: { type?: string } };
   metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
   campaign?: { id?: string };
 };
@@ -205,8 +211,11 @@ export type GoogleDemoResult =
   | { ok: false; status: number; error: unknown };
 
 export async function fetchGoogleDemoView(opts: GoogleBreakdownOpts): Promise<GoogleDemoResult> {
+  // gender_view / age_range_view carry the gender/age as
+  // ad_group_criterion.{gender,age_range}.type, NOT as segments.* (those are
+  // rejected with PROHIBITED_SEGMENT_IN_SELECT_OR_WHERE_CLAUSE).
   const qGender = `
-    SELECT segments.date, segments.gender,
+    SELECT segments.date, ad_group_criterion.gender.type,
            metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions,
            campaign.id
     FROM gender_view
@@ -214,7 +223,7 @@ export async function fetchGoogleDemoView(opts: GoogleBreakdownOpts): Promise<Go
       AND segments.date BETWEEN '${opts.fromDate}' AND '${opts.toDate}'
   `;
   const qAge = `
-    SELECT segments.date, segments.age_range,
+    SELECT segments.date, ad_group_criterion.age_range.type,
            metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions,
            campaign.id
     FROM age_range_view
