@@ -79,3 +79,45 @@ export async function convertManyToUsd(
     return n * rate;
   });
 }
+
+// EGP conversion = go via USD using the rates table (rate_to_usd), then
+// divide by the EGP→USD rate. Math: amount * rate_to_usd[src] / rate_to_usd['EGP']
+// 1 USD ≈ 49.26 EGP at the fallback rate of EGP=0.0203. The rates table is the
+// source of truth — recomputed weekly by a cron.
+export async function getFxToEgp(currency: string | null | undefined): Promise<number> {
+  const rates = await loadRates();
+  const egpToUsd = rates['EGP'] ?? FALLBACK_RATES.EGP;
+  if (egpToUsd === 0) return 1;     // defensive; shouldn't happen
+  if (!currency) return 1 / egpToUsd;          // assume USD source if missing
+  const code = currency.toUpperCase();
+  if (code === 'EGP') return 1;
+  const srcToUsd = rates[code] ?? FALLBACK_RATES[code] ?? 1;
+  return srcToUsd / egpToUsd;
+}
+
+export async function convertToEgp(
+  amount: number | string | null | undefined,
+  currency: string | null | undefined
+): Promise<number> {
+  const n = Number(amount);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  const rate = await getFxToEgp(currency);
+  return n * rate;
+}
+
+// Batch helper for EGP conversion — same shape as convertManyToUsd.
+export async function convertManyToEgp(
+  rows: Array<{ amount: number | null | undefined; currency: string | null | undefined }>
+): Promise<number[]> {
+  const rates = await loadRates();
+  const egpToUsd = rates['EGP'] ?? FALLBACK_RATES.EGP;
+  const usdToEgp = egpToUsd === 0 ? 1 : 1 / egpToUsd;
+  return rows.map(r => {
+    const n = Number(r.amount);
+    if (!Number.isFinite(n) || n === 0) return 0;
+    const code = (r.currency || 'USD').toUpperCase();
+    if (code === 'EGP') return n;
+    const srcToUsd = rates[code] ?? FALLBACK_RATES[code] ?? 1;
+    return n * srcToUsd * usdToEgp;
+  });
+}

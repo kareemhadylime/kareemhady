@@ -1,6 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
-import { convertManyToUsd } from '@/lib/fx-rates';
+import { convertManyToEgp } from '@/lib/fx-rates';
 
 // Read helpers for the Phase H Ads UI. Pulls from the views created
 // by the migration plus the lead funnel.
@@ -181,11 +181,12 @@ export async function getDashboardKpis(days = 30): Promise<{
   const leadRows = (leads as LeadRollupRow[] | null) || [];
   const bookedRows = leadRows.filter(l => l.matched_reservation_id);
   const bookings = bookedRows.length;
-  // Multi-currency conversion via fx_rates_usd (Phase H+ follow-up shipped).
-  const usdAmounts = await convertManyToUsd(
+  // Multi-currency conversion to EGP (BH operates in Egypt; ad accounts run EGP).
+  // Goes via rate_to_usd then cross-converts USD→EGP.
+  const egpAmounts = await convertManyToEgp(
     bookedRows.map(l => ({ amount: l.booking_value, currency: l.booking_currency }))
   );
-  const attributedRevenue = usdAmounts.reduce((s, n) => s + n, 0);
+  const attributedRevenue = egpAmounts.reduce((s, n) => s + n, 0);
   return {
     spend: Math.round(spend),
     leads: leadCount,
@@ -199,7 +200,8 @@ export async function getDashboardKpis(days = 30): Promise<{
 }
 
 // Per-campaign attributed revenue + ROAS, joined to the campaign performance view.
-// Used by Performance tab. Only counts USD bookings until multi-currency conversion ships.
+// Used by Performance tab. Revenue + spend both in EGP (multi-currency bookings
+// cross-converted to EGP via fx_rates_usd → USD → EGP).
 export type CampaignRoasRow = {
   campaign_id: number;
   campaign_name: string;
@@ -222,9 +224,9 @@ export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
   const perfRows = (perf as PerfRow[] | null) || [];
   const funnelRows = (leads as FunnelRow[] | null) || [];
 
-  // Convert all booked rows to USD once (batched against the FX cache).
+  // Convert all booked rows to EGP once (batched against the FX cache).
   const booked = funnelRows.filter(l => l.campaign_id != null && l.matched_reservation_id);
-  const usdAmounts = await convertManyToUsd(
+  const egpAmounts = await convertManyToEgp(
     booked.map(l => ({ amount: l.booking_value, currency: l.booking_currency }))
   );
 
@@ -233,7 +235,7 @@ export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
     const cid = l.campaign_id as number;
     const entry = bookingsByCampaign[cid] ||= { bookings: 0, revenue: 0 };
     entry.bookings += 1;
-    entry.revenue += usdAmounts[i] || 0;
+    entry.revenue += egpAmounts[i] || 0;
   });
 
   return perfRows.map(p => {

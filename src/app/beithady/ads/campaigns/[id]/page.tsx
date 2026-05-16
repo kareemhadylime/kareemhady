@@ -6,7 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
-import { convertToUsd } from '@/lib/fx-rates';
+import { convertToEgp } from '@/lib/fx-rates';
 import { fmtCairoDateTime, fmtCairoDate } from '@/lib/fmt-date';
 import { setCampaignStatusActionUnified } from '../../actions';
 import { loadMetaCredentials, fetchMetaEntityStatusBatch, fetchMetaCampaignInsights, type MetaLiveStatus, type MetaInsightsSnapshot } from '@/lib/beithady/ads/meta-client';
@@ -114,14 +114,15 @@ export default async function CampaignDetailPage({
   }
   const totalSpend = totalSpendMicros / 1_000_000;
 
-  // Conversion → USD revenue
-  let attributedRevenueUsd = 0;
+  // Multi-currency conversion → EGP revenue (cross-converted from each
+  // booking's source currency via fx_rates_usd, then USD→EGP).
+  let attributedRevenueEgp = 0;
   for (const l of leads) {
     if (l.funnel_stage === 'booked' && l.booking_value && l.booking_currency) {
-      attributedRevenueUsd += await convertToUsd(l.booking_value, l.booking_currency);
+      attributedRevenueEgp += await convertToEgp(l.booking_value, l.booking_currency);
     }
   }
-  const roas = totalSpend > 0 ? attributedRevenueUsd / totalSpend : null;
+  const roas = totalSpend > 0 ? attributedRevenueEgp / totalSpend : null;
 
   // Live Meta delivery status + real-time insights — only for Meta campaigns
   // with non-draft external IDs. Both fetched in parallel.
@@ -265,7 +266,7 @@ export default async function CampaignDetailPage({
           <Stat label="Impressions" value={totalImp.toLocaleString()} />
           <Stat label="Clicks" value={totalClicks.toLocaleString()} />
           <Stat label="Leads" value={totalLeads.toLocaleString()} accent="cyan" />
-          <Stat label="Bookings revenue (EGP)" value={`EGP ${Math.round(attributedRevenueUsd).toLocaleString()}`} accent="emerald" />
+          <Stat label="Bookings revenue (EGP)" value={`EGP ${Math.round(attributedRevenueEgp).toLocaleString()}`} accent="emerald" />
           <Stat label="ROAS" value={roas == null ? '—' : `${roas.toFixed(2)}x`} accent={roas != null && roas >= 1 ? 'emerald' : 'amber'} />
         </div>
 
