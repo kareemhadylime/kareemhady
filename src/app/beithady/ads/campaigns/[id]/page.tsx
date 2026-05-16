@@ -6,7 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
-import { convertToEgp } from '@/lib/fx-rates';
+import { convertToEgp, convertManyToEgp } from '@/lib/fx-rates';
 import { fmtCairoDateTime, fmtCairoDate } from '@/lib/fmt-date';
 import { setCampaignStatusActionUnified } from '../../actions';
 import { loadMetaCredentials, fetchMetaEntityStatusBatch, fetchMetaCampaignInsights, type MetaLiveStatus, type MetaInsightsSnapshot } from '@/lib/beithady/ads/meta-client';
@@ -104,15 +104,20 @@ export default async function CampaignDetailPage({
   const metrics = (metricsRaw as MetricRow[] | null) || [];
   const leads = (leadsRaw as LeadRow[] | null) || [];
 
-  // Aggregate totals
-  let totalImp = 0, totalClicks = 0, totalSpendMicros = 0, totalLeads = 0;
-  for (const m of metrics) {
+  // Aggregate totals. Spend in ads_daily_metrics is in the ad account's
+  // native currency (Meta=USD, Google=EGP, TikTok=USD) — convert each
+  // row to EGP up front so totals + sparkline + tooltips all match.
+  const accountCurrency = account?.currency || 'USD';
+  const dailySpendEgp = await convertManyToEgp(
+    metrics.map(m => ({ amount: (Number(m.spend_micros) || 0) / 1_000_000, currency: accountCurrency }))
+  );
+  let totalImp = 0, totalClicks = 0, totalSpend = 0, totalLeads = 0;
+  metrics.forEach((m, i) => {
     totalImp += Number(m.impressions) || 0;
     totalClicks += Number(m.clicks) || 0;
-    totalSpendMicros += Number(m.spend_micros) || 0;
+    totalSpend += dailySpendEgp[i] || 0;
     totalLeads += Number(m.leads) || 0;
-  }
-  const totalSpend = totalSpendMicros / 1_000_000;
+  });
 
   // Multi-currency conversion → EGP revenue (cross-converted from each
   // booking's source currency via fx_rates_usd, then USD→EGP).
@@ -156,9 +161,11 @@ export default async function CampaignDetailPage({
   const canFlip = upperStatus === 'ACTIVE' || upperStatus === 'PAUSED';
   const nextStatus: 'PAUSED' | 'ACTIVE' = upperStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
 
-  // Sparkline data — last 30 days, normalized
+  // Sparkline data — last 30 days, normalized. Use the already-converted
+  // EGP spend per day so the tooltip and bar heights agree with the totals.
   const chartDays = metrics.slice(-30);
-  const maxSpend = chartDays.reduce((m, d) => Math.max(m, Number(d.spend_micros) || 0), 0);
+  const chartSpendEgp = dailySpendEgp.slice(-30);
+  const maxSpend = chartSpendEgp.reduce((m, v) => Math.max(m, v), 0);
 
   return (
     <BeithadyShell breadcrumbs={[
@@ -332,9 +339,10 @@ export default async function CampaignDetailPage({
           <h2 className="text-sm font-semibold">Daily spend (last {chartDays.length} days)</h2>
           <div className="flex items-end gap-0.5 h-24">
             {chartDays.map((d, i) => {
-              const h = maxSpend > 0 ? Math.max(2, (Number(d.spend_micros) / maxSpend) * 96) : 2;
+              const spendEgp = chartSpendEgp[i] || 0;
+              const h = maxSpend > 0 ? Math.max(2, (spendEgp / maxSpend) * 96) : 2;
               return (
-                <div key={`${d.metric_date}-${i}`} className="flex-1 bg-emerald-400 dark:bg-emerald-600 rounded-t" style={{ height: `${h}px` }} title={`${d.metric_date}: EGP ${(Number(d.spend_micros) / 1_000_000).toFixed(2)}`} />
+                <div key={`${d.metric_date}-${i}`} className="flex-1 bg-emerald-400 dark:bg-emerald-600 rounded-t" style={{ height: `${h}px` }} title={`${d.metric_date}: EGP ${spendEgp.toFixed(2)}`} />
               );
             })}
           </div>

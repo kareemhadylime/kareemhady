@@ -168,16 +168,41 @@ export async function getDashboardKpis(days = 30): Promise<{
 }> {
   const sb = supabaseAdmin();
   const cutoff = new Date(Date.now() - days * 86400e3).toISOString().slice(0, 10);
-  const [{ data: rollup }, { data: leads }, { count: active }, { count: drafts }] = await Promise.all([
-    sb.from('ads_overview_daily').select('spend, leads').gte('metric_date', cutoff),
+  // ads_daily_metrics carries spend in the ad-account's native currency
+  // (Meta=USD, Google=EGP, TikTok=USD). Group per-currency, convert each
+  // currency's total to EGP once, then sum. ads_overview_daily is currency-
+  // blind so we can't use it for accurate totals.
+  const [{ data: dailyMetrics }, { data: accountsList }, { data: leads }, { count: active }, { count: drafts }] = await Promise.all([
+    sb.from('ads_daily_metrics')
+      .select('spend_micros, account_id, leads')
+      .gte('metric_date', cutoff)
+      .is('ad_id', null)
+      .is('ad_set_id', null),
+    sb.from('ads_accounts').select('id, currency'),
     sb.from('ads_lead_funnel').select('matched_reservation_id, booking_value, booking_currency').gte('created_at', cutoff),
     sb.from('ads_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
     sb.from('ads_campaigns').select('id', { count: 'exact', head: true }).eq('status', 'DRAFT'),
   ]);
   type LeadRollupRow = { matched_reservation_id: string | null; booking_value: number | null; booking_currency: string | null };
-  const rollupRows = (rollup as Array<{ spend: number; leads: number }> | null) || [];
-  const spend = rollupRows.reduce((s, r) => s + (Number(r.spend) || 0), 0);
-  const leadCount = rollupRows.reduce((s, r) => s + (Number(r.leads) || 0), 0);
+  // Build per-account currency map
+  const currencyByAccountId = new Map<number, string>();
+  for (const a of (accountsList as Array<{ id: number; currency: string }> | null) ?? []) {
+    currencyByAccountId.set(a.id, a.currency);
+  }
+  // Sum spend per currency, then convert each currency total to EGP and sum.
+  type MetricRow = { spend_micros: number | string; account_id: number; leads: number };
+  const metricRows = (dailyMetrics as MetricRow[] | null) ?? [];
+  const spendByCurrency: Record<string, number> = {};
+  let leadCount = 0;
+  for (const m of metricRows) {
+    const curr = currencyByAccountId.get(m.account_id) ?? 'USD';
+    spendByCurrency[curr] = (spendByCurrency[curr] ?? 0) + (Number(m.spend_micros) || 0) / 1_000_000;
+    leadCount += Number(m.leads) || 0;
+  }
+  const egpSpendByCurrency = await convertManyToEgp(
+    Object.entries(spendByCurrency).map(([currency, amount]) => ({ amount, currency }))
+  );
+  const spend = egpSpendByCurrency.reduce((s, n) => s + n, 0);
   const leadRows = (leads as LeadRollupRow[] | null) || [];
   const bookedRows = leadRows.filter(l => l.matched_reservation_id);
   const bookings = bookedRows.length;
@@ -216,10 +241,10 @@ export type CampaignRoasRow = {
 export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
   const sb = supabaseAdmin();
   const [{ data: perf }, { data: leads }] = await Promise.all([
-    sb.from('ads_campaign_performance').select('campaign_id, campaign_name, platform, spend, leads'),
+    sb.from('ads_campaign_performance').select('campaign_id, campaign_name, platform, spend, leads, account_currency'),
     sb.from('ads_lead_funnel').select('campaign_id, matched_reservation_id, booking_value, booking_currency'),
   ]);
-  type PerfRow = { campaign_id: number; campaign_name: string; platform: string; spend: number; leads: number };
+  type PerfRow = { campaign_id: number; campaign_name: string; platform: string; spend: number; leads: number; account_currency: string };
   type FunnelRow = { campaign_id: number | null; matched_reservation_id: string | null; booking_value: number | null; booking_currency: string | null };
   const perfRows = (perf as PerfRow[] | null) || [];
   const funnelRows = (leads as FunnelRow[] | null) || [];
@@ -238,9 +263,15 @@ export async function listCampaignRoas(): Promise<CampaignRoasRow[]> {
     entry.revenue += egpAmounts[i] || 0;
   });
 
-  return perfRows.map(p => {
+  // Convert all campaign spends to EGP in one batch — spend is in the
+  // ad account's native currency (Meta=USD, Google=EGP, TikTok=USD).
+  const egpSpends = await convertManyToEgp(
+    perfRows.map(p => ({ amount: Number(p.spend) || 0, currency: p.account_currency }))
+  );
+
+  return perfRows.map((p, i) => {
     const b = bookingsByCampaign[p.campaign_id] || { bookings: 0, revenue: 0 };
-    const spend = Number(p.spend) || 0;
+    const spend = egpSpends[i];
     return {
       campaign_id: p.campaign_id,
       campaign_name: p.campaign_name,

@@ -3,6 +3,7 @@ import { Megaphone, Plus, Users, DollarSign, Activity, BarChart3, AlertTriangle,
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
 import { getDashboardKpis, listCampaigns, listLeadFunnel } from '@/lib/beithady/ads/reporting';
+import { convertManyToEgp } from '@/lib/fx-rates';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { AdsTabs } from './_components/ads-tabs';
@@ -45,20 +46,27 @@ export default async function AdsLandingPage({
   const googleConfigured = googleEnabled && (googleStatus.config_keys_set.length >= 4 || googleStatus.has_env_fallback.length >= 4);
   const tiktokConfigured = tiktokEnabled && (tiktokStatus.config_keys_set.length >= 2 || tiktokStatus.has_env_fallback.length >= 2);
 
+  // Per-campaign spend is in the ad account's native currency
+  // (Meta=USD, Google=EGP, TikTok=USD). Convert each row to EGP up front
+  // so the per-platform cards AND the campaigns table both show EGP.
+  const campaignSpendEgp = await convertManyToEgp(
+    campaigns.map(c => ({ amount: Number(c.spend) || 0, currency: c.account_currency }))
+  );
+
   // Per-platform breakdown
   const platformBreakdown: Record<string, { spend: number; leads: number; active: number; drafts: number }> = {
     meta: { spend: 0, leads: 0, active: 0, drafts: 0 },
     google: { spend: 0, leads: 0, active: 0, drafts: 0 },
     tiktok: { spend: 0, leads: 0, active: 0, drafts: 0 },
   };
-  for (const c of campaigns) {
+  campaigns.forEach((c, i) => {
     const p = c.platform || 'meta';
-    if (!platformBreakdown[p]) continue;
-    platformBreakdown[p].spend += Number(c.spend) || 0;
+    if (!platformBreakdown[p]) return;
+    platformBreakdown[p].spend += campaignSpendEgp[i] || 0;
     platformBreakdown[p].leads += Number(c.leads) || 0;
     if (c.campaign_status?.toUpperCase() === 'ACTIVE') platformBreakdown[p].active += 1;
     if (c.campaign_status?.toUpperCase() === 'DRAFT') platformBreakdown[p].drafts += 1;
-  }
+  });
 
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads' }]} containerClass="max-w-7xl">
@@ -150,7 +158,13 @@ export default async function AdsLandingPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {campaigns.slice(0, 12).map(c => (
+                  {campaigns.slice(0, 12).map((c, i) => {
+                    const spendEgp = campaignSpendEgp[i] || 0;
+                    const leads = Number(c.leads) || 0;
+                    // c.cpl from the view is spend/leads in ACCOUNT currency,
+                    // so recompute in EGP for display consistency.
+                    const cplEgp = leads > 0 ? spendEgp / leads : null;
+                    return (
                     <tr key={c.campaign_id} className="border-b border-slate-100 dark:border-slate-800 align-middle">
                       <td className="py-2 pr-3">
                         <Link href={`/beithady/ads/campaigns/${c.campaign_id}`} className="ix-link font-medium">
@@ -166,12 +180,12 @@ export default async function AdsLandingPage({
                       <td className="py-2 pr-3 text-[11px]">
                         {(c.building_codes || []).join(' · ') || '—'}
                       </td>
-                      <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(c.spend).toLocaleString()}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{c.leads.toLocaleString()}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">{c.cpl == null ? '—' : `EGP ${c.cpl.toFixed(2)}`}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">EGP {Math.round(spendEgp).toLocaleString()}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{leads.toLocaleString()}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{cplEgp == null ? '—' : `EGP ${cplEgp.toFixed(2)}`}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{c.ctr_pct == null ? '—' : `${c.ctr_pct.toFixed(2)}%`}</td>
-                    </tr>
-                  ))}
+                    </tr>);
+                  })}
                 </tbody>
               </table>
             </div>
