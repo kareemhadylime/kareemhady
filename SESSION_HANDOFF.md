@@ -1,3 +1,44 @@
+## 2026-05-17 — Personal stocks: daily price-scraping cron SHIPPED (Mubasher, Sun–Thu 5PM Cairo) ✅
+
+Kareem approved the design from earlier this turn. Built and deployed end-to-end.
+
+**Hit one blocker mid-build, pivoted:** investing.com returns **HTTP 403** to Vercel's egress IPs (verified by deploying first, hitting `/api/cron/personal-stock-prices?force=1`, getting `error: "HTTP 403"` on both tickers despite working locally). Yahoo Finance has BTFH.CA but no ACTF coverage. **Switched to `english.mubasher.info`** — same idea, EGP exchange CAI, served from Egypt, no cloud-IP blocks. Same simple regex (`market-summary__last-price[^"]*">([0-9.,]+)`).
+
+**Shipped:**
+
+1. **mig 0144** `personal_stock_investing_url.sql` — added `personal_stock_instruments.investing_url TEXT NULL`, backfilled the two URLs.
+2. **mig 0145** `personal_stock_price_url_rename.sql` — renamed column `investing_url → price_url` (source-neutral) and rewrote ACTF/BTFH URLs to `https://english.mubasher.info/markets/EGX/stocks/{ACTF,BTFH}`.
+3. **handler** [src/app/api/cron/personal-stock-prices/route.ts](src/app/api/cron/personal-stock-prices/route.ts) — auth check, Cairo-hour-17 + weekday-in-Sun..Thu gate (with `?force=1` bypass), per-instrument try/catch fetch + regex extract, batch INSERT with `entered_by='cron'`, `note='mubasher:auto'`. 60s maxDuration.
+4. **vercel.json** — two DST-safe entries (`0 14 * * 0-4` EEST + `0 15 * * 0-4` EET); handler gate picks the right one.
+
+**Production verification (limeinc.vercel.app):**
+
+| Test | Expected | Got |
+|---|---|---|
+| no Bearer | 401 | ✓ HTTP 401 |
+| with auth, no `?force=1` (currently Sat 22:01 Cairo) | skipped: "not 5pm Cairo" | ✓ `{ok:true, skipped:true, reason:"not 5pm Cairo"}` |
+| with auth + `?force=1` | scrapes both, inserts 2 rows | ✓ `{ok:true, fetched:2, inserted:2, results:[{ACTF: 2.87},{BTFH: 3.24}]}` |
+
+Database now shows:
+
+| Ticker | Price | As-of | Entered by | Note |
+|---|---:|---|---|---|
+| ACT_FINANCIAL_CONSULTING | 2.870 | 2026-05-17 | cron | mubasher:auto |
+| BELTONE_FINANCIAL_HOLDING | 3.240 | 2026-05-17 | cron | mubasher:auto |
+| ACT_FINANCIAL_CONSULTING | 2.880 | 2026-05-15 | kareem | investing.com (manual earlier today) |
+| BELTONE_FINANCIAL_HOLDING | 3.240 | 2026-05-14 | kareem | investing.com (manual earlier today) |
+
+Mubasher reads ACTF as 2.87 vs investing.com's 2.88 — one-tick intraday drift, expected. BTFH matches exactly.
+
+**Operational notes:**
+- To add a new EGX position: import via `/personal/stocks/import` as usual, then `UPDATE personal_stock_instruments SET price_url = 'https://english.mubasher.info/markets/EGX/stocks/<TICKER>' WHERE ticker = '<APP_TICKER>'`. Cron auto-picks it up.
+- Held instruments without a `price_url` are skipped with `error: "no price_url set"` in the response — visible in Vercel logs.
+- Manual re-trigger any time: `GET /api/cron/personal-stock-prices?force=1` with `Bearer $CRON_SECRET`.
+
+Commits: [f95aeab3](f95aeab3) (initial), [54cad17d](54cad17d) (Mubasher switch). Both pushed to `main`, both auto-deployed plus explicit `vercel --prod`.
+
+---
+
 ## 2026-05-17 — BH Ads Insights V4 spec WRITTEN + APPROVED (awaiting kareem's read-through before plan)
 
 **Status:** Spec committed and pushed (`64b40386`). All design decisions locked. NO code touched yet. Plan-writing pending kareem's "approved / change X / hold" signal.
