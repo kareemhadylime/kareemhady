@@ -1,3 +1,28 @@
+## 2026-05-16 — Personal Net Worth: Task 5 — lift recurring.ts to shared lib (commit b81c20d)
+
+**Status:** DONE. Lifted `computeNextRunDate` + `RecurringFrequency` out of `src/lib/boat-rental/recurring.ts` into a new shared `src/lib/recurring.ts`. Verbatim copy — no logic changes.
+
+- Deleted `src/lib/boat-rental/recurring.ts` and `src/lib/boat-rental/recurring.test.ts` via `git rm`.
+- Created `src/lib/recurring.ts` and `src/lib/recurring.test.ts` (byte-identical content, import path adjusted in test).
+- Updated 2 importers to `@/lib/recurring`: `src/app/api/cron/boat-rental/generate-recurring-expenses/route.ts` and `src/app/emails/boat-rental/owner/money/recurring/actions.ts`.
+- Tests: **15/15 passing**. `tsc --noEmit` clean.
+
+---
+
+## 2026-05-16 — Personal Net Worth: Task 4 code-review fix (commit d473dfc)
+
+**Status:** DONE. Applied 3 code-review fixes to `supabase/migrations/0139_personal_networth.sql` and the live Supabase views (CREATE OR REPLACE).
+
+- **Issue 1 (Important):** `v_personal_networth_current` re-anchored on `personal_networth_settings` — now always returns 1 row per user with a settings row, even with no assets/liabilities. Old FULL OUTER JOIN of two empty sets → 0 rows bug is gone.
+- **Issue 2 (Suggestion):** Added explanatory comment on the CROSS JOIN single-user broadcast in `v_personal_networth_current`.
+- **Issue 3 (Suggestion):** Added `and li.kind in ('amortizing_loan','bnpl')` defensive filter to `v_personal_networth_upcoming` schedule branch WHERE clause.
+
+**Verification:** Inserted temp settings row for user `c9e43267…` → view returned 1 row with `total_liabilities_egp = 0` and `stocks_pipe_egp` populated from live stocks. Cleaned up temp row. `v_personal_networth_upcoming limit 0` queries without error. Migration `0139_personal_networth_part4_fix_v_current_anchor` applied successfully.
+
+**File changed:** `supabase/migrations/0139_personal_networth.sql` only. No other files touched.
+
+---
+
 ## 2026-05-16 — SHIPPED: BH Ads Insights V2 (17/17 tasks complete) ✅
 
 **Status:** All 17 V2 plan tasks shipped to `main`. Vercel auto-deploys via GitHub integration. NO migrations, NO crons, NO schema changes — pure read-side. Tests: **849 passing / 22 skipped / 0 failures** (up from V1's 795 → +54 new tests). `tsc --noEmit` clean.
