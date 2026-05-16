@@ -1,30 +1,32 @@
-## 2026-05-17 — BH Ads Insights V4 brainstorm (IN PROGRESS, awaiting kareem's design approval)
+## 2026-05-17 — BH Ads Insights V4 spec WRITTEN + APPROVED (awaiting kareem's read-through before plan)
 
-**Status:** Mid-brainstorm. Spec NOT yet written. Design presented in 9 sections; kareem made 5 choices so far. NO code touched yet.
+**Status:** Spec committed and pushed (`64b40386`). All design decisions locked. NO code touched yet. Plan-writing pending kareem's "approved / change X / hold" signal.
 
-**Decided so far:**
+**Spec:** [docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md](docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md) — 428 lines, 15 sections.
+
+**Locked decisions (all 6 from brainstorm + 3 follow-up confirms):**
 1. **Snapshot scope:** Full mirror — overview + all 8 audience sub-tabs (geo/demo/device/funnel/quality/cohort/time/optimize)
 2. **PDF strategy:** Browser print path (no @react-pdf/renderer route). Share link = HTML at `/r/beithady/ads/<token>` with "Save as PDF / Print" toolbar button. Mirrors `/r/beithady/[token]` daily-report pattern.
 3. **Link expiry:** Fixed 48h (matches daily-report)
-4. **AI summary in snapshot:** Force regenerate on snapshot creation (~$0.01/share, counts against existing 20/day cap)
-5. **Permissions:** Anyone with `ads:read` can create. Rate limit = 5 share links per user per day (enforced via `beithady_audit_log` count).
-6. **Render path:** Refactor each card to view+fetcher split — pure presentation components that take pre-fetched data props; live cards become thin wrappers. Snapshot route renders same view components with snapshot payload. ~14-16 tasks total.
+4. **AI summary in snapshot:** Force regenerate on snapshot creation (~$0.01/share, counts against existing 20/day cap). **Cap-reached = graceful skip** (snapshot succeeds, AI block omitted with note, `ai_skipped_reason='cap_reached'` recorded).
+5. **Permissions:** Anyone with `ads:read` can create. Rate limit = 5 share links per user per day (enforced via `beithady_audit_log` count of `action='ads_share_link_created'`).
+6. **Render path:** Refactor each card to view+fetcher split — 13 view components extracted from 5 main-page cards + 8 sub-tab components. Live cards become thin wrappers. Snapshot route renders same view components with snapshot payload. `readonly?: boolean` prop suppresses interactive controls (sort tabs, mode toggles, Generate button).
+7. **Data flow:** Section 5/7 in spec. Single creation flow → token + URL → public `/r/` page reads snapshot + 404s on expired. Confirmed OK.
+8. **Cleanup cron:** Extend existing `beithady-daily-report-cleanup` cron (already hourly, already calls `cleanupExpiredSnapshots()`). Add sibling function `cleanupExpiredAdsSnapshots()` in new `src/lib/beithady/ads/snapshot.ts`. NO `vercel.json` change.
+9. **Sub-tab drops:** None — all 8 sub-tabs in mirror (confirmed "all ok").
 
-**Open questions presented to kareem (awaiting answer in next turn):**
-- (a) Does the data flow (snapshot creation → public render → cleanup) match intent?
-- (b) Is graceful AI cap-skip OK (snapshot succeeds, AI block omitted with note) vs failing whole snapshot?
-- (c) Any sub-tab to DROP from the mirror to cut tasks?
+**Effort estimate:** ~19 TDD tasks (Section 13 of spec breaks them down).
 
-**Next steps once approved:**
-- Write spec to `docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md`, commit.
-- Invoke `superpowers:writing-plans` skill → `docs/superpowers/plans/2026-05-17-bh-ads-v4-sharing.md`.
+**Next steps:**
+- Wait for kareem's spec review.
+- On "approved" → invoke `superpowers:writing-plans` skill → write `docs/superpowers/plans/2026-05-17-bh-ads-v4-sharing.md`.
 - Execute via `superpowers:subagent-driven-development` (same workflow as V1/V2/V3).
 
 **Key references for new session pickup:**
-- Roadmap: [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md) § V4 — Sharing
-- Existing /r/<token> pattern: [src/app/r/beithady/[token]/page.tsx](src/app/r/beithady/[token]/page.tsx) + table `daily_report_snapshots` (token, payload jsonb, expires_at 48h, deleted_at, hourly cleanup cron)
+- Roadmap: [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md) § V4
+- Existing /r/<token> pattern: [src/app/r/beithady/[token]/page.tsx](src/app/r/beithady/[token]/page.tsx)
+- Existing cleanup cron: [src/app/api/cron/beithady-daily-report-cleanup/route.ts](src/app/api/cron/beithady-daily-report-cleanup/route.ts)
 - Token gen: `crypto.randomBytes(24).toString('base64url')` (192-bit entropy)
-- Existing @react-pdf usage (NOT used in V4): `src/lib/beithady-daily-report/render-pdf.tsx`
 
 ---
 
