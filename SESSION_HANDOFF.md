@@ -1,3 +1,34 @@
+## 2026-05-16 — V1 brainstorm all 4 questions locked; design sections in progress
+
+**All V1 locked decisions:**
+- Q1: Main dashboard summary widget + dedicated `/beithady/ads/audience/` page
+- Q2: All three platforms (Meta + Google + TikTok)
+- Q3: D — Presets + custom range + period comparison toggle (absorbs V3's D3)
+- Q4a: Campaign + adset-level drill-down
+- Q4b: 90-day historical backfill on V1 deploy
+- Architecture: **Approach 2 — per-dimension tables** (`ads_insights_geo`, `ads_insights_demo`, `ads_insights_device`)
+
+**V1 task estimate:** ~25.
+
+**Design sections approved:**
+- ✅ § 1 — Architecture overview (5 dimensions × 3 platforms; new cron `beithady-ads-breakdowns` every 6h; ~12 new files + 7 modified)
+- ✅ § 2 — Database schema:
+  - 3 tables with shared spine (`account_id, campaign_id, ad_set_id, platform, metric_date, impressions, clicks, spend_micros, reach, leads, fetched_at`) + dimension-specific columns
+  - Each gets UNIQUE indexes with `NULLS NOT DISTINCT` (Postgres 15+) so campaign-level + adset-level rows don't collide
+  - Per-platform normalization done in app code (country ISO-2, age buckets, gender enum, device_platform enum)
+  - Migration `0138_bh_ads_insights_breakdowns.sql`
+  - Storage estimate: ~8,100 rows total over 90d for current portfolio (<1MB + indexes)
+
+**Sections remaining:**
+- § 3 — Data fetching (Meta/Google/TikTok client extensions + cron + 90d backfill mechanism)
+- § 4 — UI (date filter component + audience summary widget + dedicated audience page + 3 tab components + period-delta badge)
+- § 5 — Error handling
+- § 6 — Testing + deployment + done criteria
+
+After § 6 approval: write spec to `docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md`, self-review, kareem reviews, then writing-plans skill.
+
+---
+
 ## 2026-05-16 — V1 brainstorm Q1+Q2 locked; Q3 awaiting
 
 **Locked decisions:**
