@@ -90,6 +90,60 @@ export async function metaGet<T = unknown>(path: string, token: string): Promise
   }
 }
 
+// === Insights breakdown fetcher (BH Ads V1) ===
+// Wraps /<entityId>/insights with explicit breakdowns + daily time_increment.
+// Follows paging.next until no more pages. Returns row arrays untouched —
+// normalization lives in insights-{geo,demo,device}.ts so this stays a
+// thin HTTP wrapper.
+
+export type MetaInsightsBreakdownOpts = {
+  entityId: string;                                                 // campaign or adset external_id
+  level: 'campaign' | 'adset';
+  breakdowns: 'country' | 'age,gender' | 'device_platform,publisher_platform,publisher_position';
+  fromDate: string;
+  toDate: string;
+  token: string;
+};
+
+export type MetaInsightsBreakdownResult =
+  | { ok: true; rows: Array<Record<string, unknown>> }
+  | { ok: false; status: number; error: string; raw: unknown };
+
+export async function fetchMetaInsightsBreakdown(
+  opts: MetaInsightsBreakdownOpts
+): Promise<MetaInsightsBreakdownResult> {
+  const params = new URLSearchParams({
+    fields: 'impressions,clicks,spend,reach,actions,date_start',
+    breakdowns: opts.breakdowns,
+    time_range: JSON.stringify({ since: opts.fromDate, until: opts.toDate }),
+    time_increment: '1',
+    level: opts.level,
+    limit: '500',
+  });
+  let url: string | null = `${GRAPH}/${opts.entityId}/insights?${params.toString()}&access_token=${encodeURIComponent(opts.token)}`;
+  const rows: Array<Record<string, unknown>> = [];
+  let safety = 0;
+  while (url && safety < 20) {
+    safety += 1;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+      const j = (await r.json().catch(() => ({}))) as {
+        data?: Array<Record<string, unknown>>;
+        paging?: { next?: string };
+        error?: { message?: string };
+      };
+      if (!r.ok || j.error) {
+        return { ok: false, status: r.status, error: j.error?.message || `http_${r.status}`, raw: j };
+      }
+      if (Array.isArray(j.data)) rows.push(...j.data);
+      url = j.paging?.next ?? null;
+    } catch (e) {
+      return { ok: false, status: 0, error: e instanceof Error ? e.message : String(e), raw: null };
+    }
+  }
+  return { ok: true, rows };
+}
+
 // === Instagram Graph API helpers (added Phase H+) ===
 // Reels publishing flow uses the same Meta system-user token. The fb_page_id
 // on ads_accounts resolves to an instagram_business_account.id via the Graph
