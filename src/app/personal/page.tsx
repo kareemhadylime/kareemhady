@@ -5,6 +5,7 @@ import {
   Ship,
   TrendingUp,
   User,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { PersonalShell, PersonalHeader } from './_components/personal-shell';
@@ -16,7 +17,7 @@ type Tile = {
   title: string;
   description: string;
   icon: LucideIcon;
-  accent: 'slate' | 'cyan' | 'emerald';
+  accent: 'slate' | 'cyan' | 'emerald' | 'indigo';
   badge?: { label: string; tone?: 'navy' | 'gold' };
 };
 
@@ -48,6 +49,15 @@ const TILES: Tile[] = [
     accent: 'cyan',
     badge: { label: 'Live', tone: 'navy' },
   },
+  {
+    href: '/personal/networth',
+    title: 'Net Worth',
+    description:
+      "Assets, loans + liabilities, recurring payments, charity, monthly report, and historical net-worth chart — totals in EGP.",
+    icon: Wallet,
+    accent: 'indigo',
+    badge: { label: 'Live', tone: 'navy' },
+  },
 ];
 
 const ACCENTS: Record<Tile['accent'], {
@@ -68,6 +78,11 @@ const ACCENTS: Record<Tile['accent'], {
     iconBg: 'bg-emerald-50 dark:bg-emerald-950', iconText: 'text-emerald-700 dark:text-emerald-300',
     hoverBorder: 'group-hover:border-emerald-400', arrow: 'group-hover:text-emerald-600',
     gradFrom: 'from-emerald-400', gradTo: 'to-emerald-600',
+  },
+  indigo: {
+    iconBg: 'bg-indigo-50 dark:bg-indigo-950', iconText: 'text-indigo-700 dark:text-indigo-300',
+    hoverBorder: 'group-hover:border-indigo-400', arrow: 'group-hover:text-indigo-600',
+    gradFrom: 'from-indigo-400', gradTo: 'to-indigo-600',
   },
 };
 
