@@ -1,3 +1,28 @@
+## 2026-05-16 — PLAN: KIKA Reporting module + Picker Report (ready to execute)
+
+**Status:** Spec approved by kareem. Implementation plan written at [docs/superpowers/plans/2026-05-16-kika-reporting-picker.md](docs/superpowers/plans/2026-05-16-kika-reporting-picker.md). Awaiting kareem's choice of execution strategy (subagent-driven vs inline).
+
+**Plan structure — 8 tasks:**
+1. Picker builder pure helpers + Vitest unit tests (`resolveScope`, `bucketKey`, `netRemaining`)
+2. Full `buildKikaPickerReport` implementation in `src/lib/kika-picker.ts`
+3. Reporting hub page + 6th tile on KIKA module hub
+4. Picker page server-component shell (filter chips, headline stats, "Export PDF" button)
+5. BucketsBlock client component (expandable per-bucket order lists)
+6. CommonItemsBlock client component (expandable products→variants)
+7. A4 PDF document (`kika-picker-pdf.tsx`) + GET `/api/kika/picker-report` route
+8. Final type-check, build, vitest, push to main
+
+**Self-review pass:** spec coverage complete (every spec section maps to a task), no placeholders, type names consistent across tasks.
+
+**Conventions noted in plan (override default skill steps):**
+- No worktree — this project commits straight to `main`, no PRs.
+- No `lint` script; gates are `tsc --noEmit` and `next build`.
+- TDD only the pure helpers (matching existing project rhythm — `kika-manufacturing.ts` has no tests).
+
+**Companion server** still running at http://localhost:52835.
+
+---
+
 ## 2026-05-16 — BRAINSTORM (spec written): KIKA Reporting module + Picker Report
 
 **Status:** Spec drafted at [docs/superpowers/specs/2026-05-16-kika-reporting-picker-design.md](docs/superpowers/specs/2026-05-16-kika-reporting-picker-design.md). Awaiting kareem's spec review before invoking `superpowers:writing-plans`.
