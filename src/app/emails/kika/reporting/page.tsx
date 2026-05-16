@@ -22,7 +22,7 @@ export default function KikaReportingHubPage() {
         <span>Reporting</span>
       </TopNav>
 
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-6 flex-1">
+      <main className="max-w-6xl mx-auto px-6 py-10 space-y-6 flex-1">
         <header>
           <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
             KIKA · Reporting
