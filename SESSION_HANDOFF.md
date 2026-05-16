@@ -1,3 +1,34 @@
+## 2026-05-16 — Ads page insights brainstorm in progress (paper only, no code)
+
+**Status:** Brainstorming a new ads-page enhancement phase. Picked up after V1.2 YouTube cross-post landed + ad-spend EGP conversion fixed. No code yet.
+
+**User asks (explicit):**
+1. Date period filter (currently `getDashboardKpis(30)` is hardcoded; `date` searchParam exists but unused)
+2. Audience report per campaign — where impressions/clicks come from (geo/demo/device/placement)
+
+**Open invitation:** brainstorm more insights to add.
+
+**Q1 menu presented to kareem** (scope decision):
+- A. Just the two explicit asks (date filter + audience B1/B2/B3) — ~10 tasks
+- B. (Recommended) A + C1 funnel chart + C4 per-building breakdown + D3 period-over-period delta + E1 top-ads-in-campaign — ~18 tasks
+- C. Everything (17 ideas) — ~40 tasks, would split V1+V2
+
+**Brainstormed insight catalog** (will live in eventual spec):
+- B1 Geo (country/city), B2 Demo (age/gender), B3 Device/placement
+- C1 Funnel chart, C2 Lead quality %, C3 WhatsApp first-response time, C4 Per-building breakdown, C5 Lead→booking cohort attribution
+- D1 Day-of-week / hour heatmap, D2 Spend pacing vs cap, D3 Period delta
+- E1 Top ads in campaign, E2 Top creative assets, E3 Anomaly flags, E4 AI narrative summary
+- F1 PDF export, F2 Tokenized share link
+
+**Data model gaps:**
+- `ads_daily_metrics` has aggregated impressions/clicks/spend/leads — no demographic dimensions
+- `fetchMetaCampaignInsights` currently fetches lifetime totals without `breakdowns=` param
+- Need new tables OR on-demand API fetches to get geo/demo/device. Likely a new `ads_insights_breakdowns` table (or per-dim tables) populated by an extended cron.
+
+**Awaiting kareem's pick on Q1 scope.** Brainstorming skill requires user approval at each stage; no spec/plan/code until scope locked.
+
+---
+
 ## 2026-05-16 — YouTube V1.2 ad-spend currency conversion + final session state
 
 **Status:** V1.2 code phase DONE (17 of 17 code tasks + 3 post-deploy currency fixes shipped). Manual smoke (Tasks 18-21) awaiting kareem.
