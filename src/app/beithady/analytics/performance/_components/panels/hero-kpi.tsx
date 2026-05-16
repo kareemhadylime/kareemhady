@@ -64,11 +64,11 @@ export function HeroKpi({ label, value, delta, mom, spark, drillTo, accent = 'in
       )}
       {mom && (
         <div
-          className="mt-0.5 text-[9px] opacity-90"
+          className="mt-0.5 text-[11px] font-medium"
           style={{
             color: mom.direction === 'up' ? STATUS_COLORS.green : mom.direction === 'down' ? STATUS_COLORS.red : 'var(--bh-steel)',
           }}
-          title="vs same point last month"
+          title="vs same point last month — arrow shows direction relative to that prior value"
         >
           {mom.direction === 'up' ? '▲ ' : mom.direction === 'down' ? '▼ ' : '· '}
           {mom.text}

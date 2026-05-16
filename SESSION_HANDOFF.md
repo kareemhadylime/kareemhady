@@ -329,6 +329,20 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 
 ---
 
+## 2026-05-16 — MoM sub-line shows prior value, not delta (DONE)
+
+User feedback: "I don't want to see the difference of last month, want to see the Value of Last Month, with arrow direction, slightly bigger font".
+
+Refactored the three mom helpers in `landing-pulse.tsx` + `dashboard-shell.tsx`:
+- Old: `▲ +29.8pp vs last month` (delta only)
+- New: `▲ 31.2% last month` (prior value itself, arrow shows direction relative to it)
+
+`momPp` formats prior as `X.X%`. `momAbs` formats prior with its unit (`4.7★`, `17m`). `momPct` now takes a `formatPrior` function so the caller controls how prior renders — `fmtUsdK = (v) => \`$${(v/1000).toFixed(1)}k\`` for revenue tiles, `(v) => \`$${v.toFixed(2)}\`` for RevPAR. Each revenue tile call site updated.
+
+Font in `hero-kpi.tsx`: `text-[9px] opacity-90` → `text-[11px] font-medium` for better readability of the prior value. Tooltip clarified to "vs same point last month — arrow shows direction relative to that prior value".
+
+---
+
 ## 2026-05-16 — EG scope on tiles + MoM backfill (DONE)
 
 User feedback after the gross-card / 4-col grid landed:

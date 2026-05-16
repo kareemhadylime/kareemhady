@@ -59,41 +59,39 @@ export async function LandingPulse() {
   const lastMonthConversations =
     lastMonthResult && lastMonthResult.status === 'found' ? lastMonthResult.payload.conversations : null;
 
-  // Helpers for per-tile MoM sub-line. Hidden (undefined) when last-month is
-  // missing or prior=0 (avoids meaningless "+∞%"). Matches the Performance
+  // Helpers for per-tile MoM sub-line. Render the *prior value itself* (not
+  // the delta) with an arrow showing whether the current value is higher
+  // (▲) or lower (▼). Hidden (undefined) when last-month is missing or
+  // prior=0 (avoids meaningless "0 last month"). Match the Performance
   // page's momPp / momPct / momAbs helpers.
   function momPp(current: number, prior: number | null | undefined) {
     if (!lastMonthAll || prior == null) return undefined;
     const d = current - prior;
-    if (Math.abs(d) < 0.05) return { direction: 'flat' as const, text: 'flat vs last month' };
-    const sign = d > 0 ? '+' : '';
-    return {
-      direction: (d > 0 ? 'up' : 'down') as 'up' | 'down',
-      text: `${sign}${d.toFixed(1)}pp vs last month`,
-    };
+    const dir: 'up' | 'down' | 'flat' = Math.abs(d) < 0.05 ? 'flat' : d > 0 ? 'up' : 'down';
+    return { direction: dir, text: `${prior.toFixed(1)}% last month` };
   }
-  function momPct(current: number, prior: number | null | undefined, invert = false) {
-    if (!lastMonthAll || prior == null || !prior) return undefined;
-    const pct = ((current - prior) / Math.abs(prior)) * 100;
-    if (Math.abs(pct) < 0.1) return { direction: 'flat' as const, text: 'flat vs last month' };
-    const sign = pct > 0 ? '+' : '';
-    const dir = invert ? (pct > 0 ? 'down' : 'up') : (pct > 0 ? 'up' : 'down');
-    return {
-      direction: dir as 'up' | 'down' | 'flat',
-      text: `${sign}${pct.toFixed(1)}% vs last month`,
-    };
+  function momPct(
+    current: number,
+    prior: number | null | undefined,
+    formatPrior: (v: number) => string,
+    invert = false,
+  ) {
+    if (!lastMonthAll || prior == null) return undefined;
+    const d = current - prior;
+    const dir: 'up' | 'down' | 'flat' =
+      Math.abs(d) < 0.5 ? 'flat' : invert ? (d > 0 ? 'down' : 'up') : d > 0 ? 'up' : 'down';
+    return { direction: dir, text: `${formatPrior(prior)} last month` };
   }
   function momAbs(current: number, prior: number | null | undefined, unit: string, invert = false) {
     if (prior == null) return undefined;
     const d = current - prior;
-    if (Math.abs(d) < 0.05) return { direction: 'flat' as const, text: 'flat vs last month' };
-    const sign = d > 0 ? '+' : '';
-    const dir = invert ? (d > 0 ? 'down' : 'up') : (d > 0 ? 'up' : 'down');
-    return {
-      direction: dir as 'up' | 'down' | 'flat',
-      text: `${sign}${d.toFixed(unit === '★' ? 1 : 0)}${unit} vs last month`,
-    };
+    const dir: 'up' | 'down' | 'flat' =
+      Math.abs(d) < 0.05 ? 'flat' : invert ? (d > 0 ? 'down' : 'up') : d > 0 ? 'up' : 'down';
+    return { direction: dir, text: `${prior.toFixed(unit === '★' ? 1 : 0)}${unit} last month` };
   }
+  // Shared formatter for $XX.Xk-style revenue values, so the prior-value
+  // text matches the main value text on every revenue tile.
+  const fmtUsdK = (v: number) => `$${(v / 1000).toFixed(1)}k`;
 
   // Synthesize a payload whose `all` and `per_building` daily-activity
   // fields point at TODAY's live numbers, while everything else (MTD
@@ -225,7 +223,7 @@ export async function LandingPulse() {
           label="MTD Revenue · EG"
           value={`$${((all.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
           delta={{ direction: 'flat', text: 'check-ins so far' }}
-          mom={momPct(all.revenue_mtd_actual_usd ?? 0, lastMonthAll?.revenue_mtd_actual_usd)}
+          mom={momPct(all.revenue_mtd_actual_usd ?? 0, lastMonthAll?.revenue_mtd_actual_usd, fmtUsdK)}
           spark={payload.sparklines?.mtd_revenue_actual}
           drillTo="/beithady/financials?period=mtd-actual"
           accent="gold"
@@ -237,7 +235,7 @@ export async function LandingPulse() {
             direction: all.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down',
             text: 'net payout · → EOM',
           }}
-          mom={momPct(all.revenue_mtd_usd, lastMonthAll?.revenue_mtd_usd)}
+          mom={momPct(all.revenue_mtd_usd, lastMonthAll?.revenue_mtd_usd, fmtUsdK)}
           spark={payload.sparklines?.mtd_revenue}
           drillTo="/beithady/financials?period=month-otb"
           accent="gold"
@@ -249,7 +247,7 @@ export async function LandingPulse() {
             direction: 'flat',
             text: 'gross · matches Guesty',
           }}
-          mom={momPct(all.revenue_mtd_gross_usd ?? 0, lastMonthAll?.revenue_mtd_gross_usd)}
+          mom={momPct(all.revenue_mtd_gross_usd ?? 0, lastMonthAll?.revenue_mtd_gross_usd, fmtUsdK)}
           drillTo="/beithady/financials?period=month-otb"
           accent="gold"
         />
@@ -265,7 +263,7 @@ export async function LandingPulse() {
               ? { direction: 'flat', text: 'rev / available night' }
               : { direction: 'flat', text: 'ADR (RevPAR pending)' }
           }
-          mom={payload.revpar?.all != null && lastMonthResult?.status === 'found' && lastMonthResult.payload.revpar?.all != null ? momPct(payload.revpar.all, lastMonthResult.payload.revpar.all) : undefined}
+          mom={payload.revpar?.all != null && lastMonthResult?.status === 'found' && lastMonthResult.payload.revpar?.all != null ? momPct(payload.revpar.all, lastMonthResult.payload.revpar.all, (v) => `$${v.toFixed(2)}`) : undefined}
           spark={payload.sparklines?.revpar}
           drillTo="/beithady/financials?metric=revpar"
           accent="steel"

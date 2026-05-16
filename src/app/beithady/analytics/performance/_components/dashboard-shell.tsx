@@ -201,42 +201,37 @@ export function DashboardShell({
   }
 
   // ---- Persistent MoM helpers (independent of compare-mode selector) ----
-  // Each produces a small "▲ +X% vs last month" line for the HeroKpi `mom`
-  // prop. When the last-month snapshot is missing or the prior value is 0,
-  // returns undefined so the line is hidden entirely (vs showing a noisy
-  // "+∞%" or "0% vs last month").
+  // Each produces a small "▲ <prior_value> last month" line for the HeroKpi
+  // `mom` prop — showing the prior value itself, NOT the delta. Arrow
+  // direction reflects whether the current value is higher (▲) or lower (▼)
+  // than that prior. Hidden (undefined) when last-month is missing.
   function momPp(current: number, prior: number | undefined | null): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
     if (!lastMonthBucket || prior === undefined || prior === null) return undefined;
     const d = current - prior;
-    if (Math.abs(d) < 0.05) return { direction: 'flat', text: `flat vs last month` };
-    const sign = d > 0 ? '+' : '';
-    return {
-      direction: d > 0 ? 'up' : 'down',
-      text: `${sign}${d.toFixed(1)}pp vs last month`,
-    };
+    const dir: 'up' | 'down' | 'flat' = Math.abs(d) < 0.05 ? 'flat' : d > 0 ? 'up' : 'down';
+    return { direction: dir, text: `${prior.toFixed(1)}% last month` };
   }
-  function momPct(current: number, prior: number | undefined | null, invert = false): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
-    if (!lastMonthBucket || prior === undefined || prior === null || !prior) return undefined;
-    const pct = ((current - prior) / Math.abs(prior)) * 100;
-    if (Math.abs(pct) < 0.1) return { direction: 'flat', text: `flat vs last month` };
-    const sign = pct > 0 ? '+' : '';
-    const dir = invert ? (pct > 0 ? 'down' : 'up') : (pct > 0 ? 'up' : 'down');
-    return {
-      direction: dir as 'up' | 'down' | 'flat',
-      text: `${sign}${pct.toFixed(1)}% vs last month`,
-    };
+  function momPct(
+    current: number,
+    prior: number | undefined | null,
+    formatPrior: (v: number) => string,
+    invert = false,
+  ): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
+    if (!lastMonthBucket || prior === undefined || prior === null) return undefined;
+    const d = current - prior;
+    const dir: 'up' | 'down' | 'flat' =
+      Math.abs(d) < 0.5 ? 'flat' : invert ? (d > 0 ? 'down' : 'up') : d > 0 ? 'up' : 'down';
+    return { direction: dir, text: `${formatPrior(prior)} last month` };
   }
   function momAbs(current: number, prior: number | undefined | null, unit: string, invert = false): { direction: 'up' | 'down' | 'flat'; text: string } | undefined {
     if (!lastMonthPayload || prior === undefined || prior === null) return undefined;
     const d = current - prior;
-    if (Math.abs(d) < 0.05) return { direction: 'flat', text: `flat vs last month` };
-    const sign = d > 0 ? '+' : '';
-    const dir = invert ? (d > 0 ? 'down' : 'up') : (d > 0 ? 'up' : 'down');
-    return {
-      direction: dir as 'up' | 'down' | 'flat',
-      text: `${sign}${d.toFixed(unit === '★' ? 1 : 0)}${unit} vs last month`,
-    };
+    const dir: 'up' | 'down' | 'flat' =
+      Math.abs(d) < 0.05 ? 'flat' : invert ? (d > 0 ? 'down' : 'up') : d > 0 ? 'up' : 'down';
+    return { direction: dir, text: `${prior.toFixed(unit === '★' ? 1 : 0)}${unit} last month` };
   }
+  // Shared formatter for $XX.Xk-style revenue values.
+  const fmtUsdK = (v: number) => `$${(v / 1000).toFixed(1)}k`;
 
   // ---- Rail content (Period / Building / Compare sections, used both on desktop + mobile) ----
   const yesterdayYmd = ymdMinusOne(snapshotDate);
@@ -588,7 +583,7 @@ export function DashboardShell({
             label={`MTD Revenue${filterSuffix}`}
             value={`$${((bucket.revenue_mtd_actual_usd ?? 0) / 1000).toFixed(1)}k`}
             delta={compareActive && priorBucket ? pctDelta((bucket.revenue_mtd_actual_usd ?? 0), (priorBucket.revenue_mtd_actual_usd ?? 0), 'check-ins so far') : { direction: 'flat', text: 'check-ins so far' }}
-            mom={momPct(bucket.revenue_mtd_actual_usd ?? 0, lastMonthBucket?.revenue_mtd_actual_usd)}
+            mom={momPct(bucket.revenue_mtd_actual_usd ?? 0, lastMonthBucket?.revenue_mtd_actual_usd, fmtUsdK)}
             spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue_actual}
             drillTo="/beithady/financials?period=mtd-actual"
             accent="gold"
@@ -600,7 +595,7 @@ export function DashboardShell({
             label={`Month Revenue (OTB)${filterSuffix}`}
             value={`$${(bucket.revenue_mtd_usd / 1000).toFixed(1)}k`}
             delta={compareActive && priorBucket ? pctDelta(bucket.revenue_mtd_usd, priorBucket.revenue_mtd_usd, 'net payout · → EOM') : { direction: bucket.pickup_vs_prior_month_pct >= 0 ? 'up' : 'down', text: 'net payout · → EOM' }}
-            mom={momPct(bucket.revenue_mtd_usd, lastMonthBucket?.revenue_mtd_usd)}
+            mom={momPct(bucket.revenue_mtd_usd, lastMonthBucket?.revenue_mtd_usd, fmtUsdK)}
             spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
             drillTo="/beithady/financials?period=month-otb"
             accent="gold"
@@ -612,7 +607,7 @@ export function DashboardShell({
             label={`Month Revenue (Gross)${filterSuffix}`}
             value={`$${((bucket.revenue_mtd_gross_usd ?? 0) / 1000).toFixed(1)}k`}
             delta={compareActive && priorBucket ? pctDelta(bucket.revenue_mtd_gross_usd ?? 0, priorBucket.revenue_mtd_gross_usd ?? 0, 'gross · matches Guesty') : { direction: 'flat', text: 'gross · matches Guesty' }}
-            mom={momPct(bucket.revenue_mtd_gross_usd ?? 0, lastMonthBucket?.revenue_mtd_gross_usd)}
+            mom={momPct(bucket.revenue_mtd_gross_usd ?? 0, lastMonthBucket?.revenue_mtd_gross_usd, fmtUsdK)}
             spark={isFiltered ? undefined : payload.sparklines?.mtd_revenue}
             drillTo="/beithady/financials?period=month-otb"
             accent="gold"
@@ -635,6 +630,7 @@ export function DashboardShell({
               (isFiltered && lastMonthPayload.revpar.by_building)
                 ? (lastMonthPayload.revpar.by_building[buildingFilter as BuildingCode] ?? null)
                 : lastMonthPayload.revpar.all ?? null,
+              (v) => `$${v.toFixed(2)}`,
             ) : undefined}
             spark={isFiltered ? undefined : payload.sparklines?.revpar}
             drillTo="/beithady/financials?metric=revpar"
