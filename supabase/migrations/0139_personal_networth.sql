@@ -189,4 +189,58 @@ alter table personal_networth_payments
   foreign key (recurring_template_id)
   references personal_networth_recurring_templates(id);
 
+-- ============================================================
+-- 3) SNAPSHOTS
+-- ============================================================
+
+create table personal_networth_snapshots (
+  id                    uuid primary key default gen_random_uuid(),
+  app_user_id           uuid not null references app_users(id),
+  taken_at              timestamptz not null default now(),
+  kind                  text not null check (kind in ('monthly_auto','manual')),
+  total_assets_egp      numeric(14,2) not null,
+  total_liabilities_egp numeric(14,2) not null,
+  net_worth_egp         numeric(14,2) not null,
+  fx_rates_used         jsonb not null,
+  notes                 text
+);
+create index idx_snapshots_user_date
+  on personal_networth_snapshots (app_user_id, taken_at desc);
+
+create table personal_networth_snapshot_lines (
+  id            uuid primary key default gen_random_uuid(),
+  snapshot_id   uuid not null references personal_networth_snapshots(id)
+                on delete cascade,
+  line_type     text not null check (line_type in ('asset','liability','stocks_pipe')),
+  entity_id     uuid,
+  display_name  text not null,
+  currency      text not null,
+  amount        numeric(14,2) not null,
+  amount_egp    numeric(14,2) not null
+);
+create index idx_snapshot_lines_snapshot
+  on personal_networth_snapshot_lines (snapshot_id);
+
+-- ============================================================
+-- 4) FX HELPER FUNCTION
+-- ============================================================
+
+create or replace function fx_lookup(p_currency text, p_as_of date)
+returns numeric
+language sql
+stable
+as $$
+  select case
+    when p_currency = 'EGP' then 1::numeric
+    else (
+      select rate_to_egp
+      from personal_networth_fx_rates
+      where currency_code = p_currency
+        and as_of_date <= p_as_of
+      order by as_of_date desc
+      limit 1
+    )
+  end
+$$;
+
 commit;
