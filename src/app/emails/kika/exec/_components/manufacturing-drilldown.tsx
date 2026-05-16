@@ -11,6 +11,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ManufacturingRow } from '@/lib/kika-manufacturing';
+import {
+  sortManufacturingRows,
+  type ManufacturingSortKey,
+  type ManufacturingSortDir,
+} from '@/lib/kika-manufacturing-sort';
 import { VariantOrdersPopup } from './variant-orders-popup';
 
 type Props = {
@@ -28,16 +33,10 @@ type Props = {
   closeHref: string;
 };
 
-type SortKey =
-  | 'product'
-  | 'variant'
-  | 'sku'
-  | 'open_qty'
-  | 'in_stock'
-  | 'net_to_make'
-  | 'order_count'
-  | 'oldest_age_days';
-type SortDir = 'asc' | 'desc';
+// Aliases — the shared types live in kika-manufacturing-sort.ts so the
+// PDF API route can apply the exact same sort.
+type SortKey = ManufacturingSortKey;
+type SortDir = ManufacturingSortDir;
 
 const fmt = (n: number): string => n.toLocaleString('en-US');
 
@@ -104,37 +103,17 @@ export function ManufacturingDrilldown({
     }
   }
 
-  const sorted = useMemo(() => {
-    const copy = [...rows];
-    const dir = sortDir === 'asc' ? 1 : -1;
-    copy.sort((a, b) => {
-      switch (sortKey) {
-        case 'product':
-          return a.product_title.localeCompare(b.product_title) * dir;
-        case 'variant':
-          return (a.variant_title || '').localeCompare(b.variant_title || '') * dir;
-        case 'sku':
-          return (a.sku || '').localeCompare(b.sku || '') * dir;
-        case 'open_qty':
-          return (a.open_qty - b.open_qty) * dir;
-        case 'in_stock':
-          return (a.in_stock - b.in_stock) * dir;
-        case 'net_to_make':
-          return (a.net_to_make - b.net_to_make) * dir;
-        case 'order_count':
-          return (a.order_count - b.order_count) * dir;
-        case 'oldest_age_days':
-          return ((a.oldest_age_days ?? -1) - (b.oldest_age_days ?? -1)) * dir;
-        default:
-          return 0;
-      }
-    });
-    return copy;
-  }, [rows, sortKey, sortDir]);
+  const sorted = useMemo(
+    () => sortManufacturingRows(rows, sortKey, sortDir),
+    [rows, sortKey, sortDir]
+  );
 
+  // Pass the current sort to the PDF route so the export preserves it.
   const pdfHref = `/api/kika/manufacturing-report?from=${encodeURIComponent(
     fromDate
-  )}&to=${encodeURIComponent(toDate)}&label=${encodeURIComponent(label)}`;
+  )}&to=${encodeURIComponent(toDate)}&label=${encodeURIComponent(
+    label
+  )}&sort=${encodeURIComponent(sortKey)}&dir=${encodeURIComponent(sortDir)}`;
 
   return (
     <section className="ix-card overflow-hidden">

@@ -1,3 +1,18 @@
+## 2026-05-16 — FIX: Manufacturing PDF now preserves the on-screen sort
+
+**User report:** Sorted by Product name on the on-screen Manufacturing drill-down, exported the PDF, and the PDF came back in the default order (net_to_make desc).
+
+**Root cause:** Sort state lived only in the client component. The "Export A4 PDF" link passed `from`/`to`/`label` but not the sort key/direction, and the route ran `buildKikaManufacturingReport` which returns rows in the default sort.
+
+**Fix:**
+- New module [src/lib/kika-manufacturing-sort.ts](src/lib/kika-manufacturing-sort.ts) — shared sort logic (`sortManufacturingRows`, type exports `ManufacturingSortKey` / `ManufacturingSortDir`, plus `isManufacturingSortKey` / `isManufacturingSortDir` guards). Lives outside `kika-manufacturing.ts` so the client drill-down can import it without dragging `server-only` into the client bundle.
+- [src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx](src/app/emails/kika/exec/_components/manufacturing-drilldown.tsx) — drops the inline sort comparator, re-uses `sortManufacturingRows` via `useMemo`, and appends `&sort=<key>&dir=<dir>` to `pdfHref` so the export reflects the user's current click state.
+- [src/app/api/kika/manufacturing-report/route.ts](src/app/api/kika/manufacturing-report/route.ts) — reads `sort`/`dir` from query string, validates with the two guards, and applies `sortManufacturingRows` to `report.rows` before handing off to the PDF.
+
+**Verification:** `tsc --noEmit` clean. No new tests (pure refactor of existing comparator + 3-line route addition).
+
+---
+
 ## 2026-05-16 — V1 PLAN WRITTEN: BH Ads Insights V1 (date filter + audience breakdowns)
 
 **Status:** Spec approved by kareem. Implementation plan written + committed (`48b01ed`). Awaiting kareem's choice on execution mode (subagent-driven vs inline).

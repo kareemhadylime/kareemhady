@@ -4,6 +4,11 @@ import React from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { requireDomainAccess } from '@/lib/auth';
 import { buildKikaManufacturingReport } from '@/lib/kika-manufacturing';
+import {
+  sortManufacturingRows,
+  isManufacturingSortKey,
+  isManufacturingSortDir,
+} from '@/lib/kika-manufacturing-sort';
 import { KikaManufacturingPdf } from '@/lib/kika-manufacturing-pdf';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +35,14 @@ export async function GET(req: NextRequest) {
     toDate: to,
     label: label || `${from} → ${to}`,
   });
+
+  // Honor the on-screen sort if the export link passed ?sort=&dir=. Without
+  // it the builder's default (net_to_make desc, then oldest_age_days) wins.
+  const sortParam = sp.get('sort');
+  const dirParam = sp.get('dir');
+  if (isManufacturingSortKey(sortParam) && isManufacturingSortDir(dirParam)) {
+    report.rows = sortManufacturingRows(report.rows, sortParam, dirParam);
+  }
 
   const generatedAt = new Date().toLocaleString('en-US', {
     timeZone: 'Africa/Cairo',
