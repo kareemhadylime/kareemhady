@@ -1,3 +1,148 @@
+## 2026-05-16 — SHIPPED: BH Ads Insights V2 (17/17 tasks complete) ✅
+
+**Status:** All 17 V2 plan tasks shipped to `main`. Vercel auto-deploys via GitHub integration. NO migrations, NO crons, NO schema changes — pure read-side. Tests: **849 passing / 22 skipped / 0 failures** (up from V1's 795 → +54 new tests). `tsc --noEmit` clean.
+
+**Plan:** [docs/superpowers/plans/2026-05-16-bh-ads-insights-v2.md](docs/superpowers/plans/2026-05-16-bh-ads-insights-v2.md)
+**Spec:** [docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md](docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md)
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md)
+
+### What's live
+
+- `<FrtCard />` on `/beithady/ads` main — median / p95 / over-1h-SLA% / unresponded + worst-campaign link; hides when no leads in range; emerald/slate/rose tone on SLA cell.
+- `<PerBuildingFilter />` chip row on `/beithady/ads` + `/beithady/ads/audience` — All / BH-26 / BH-73 / BH-435 / BH-OK / BH-34 / Unattributed. URL: `?building=BH-26`.
+- `/beithady/ads/audience`: 6 tabs (Geo / Demo / Device + **Funnel / Quality / Cohort** NEW)
+  - **Funnel tab:** 5-stage SVG bars (impressions → reach → clicks → leads → bookings) + drop-off labels + summary table. Per-building hint when filter active (impressions/reach/clicks are campaign-aggregate).
+  - **Quality tab:** Two stacked tables — lead quality % per campaign (C2) + response speed per campaign with SLA tone (C3).
+  - **Cohort tab:** 6×5 matrix (last 6 complete Cairo-local ISO weeks × lag W+1..W+5plus). Cell colors slate→emerald by % bucket. Ignores date filter (inherently rolling); honors per-building.
+- V1 tabs (Geo / Demo / Device) now honor `?building=` filter (approximate: filters to campaigns with ≥1 attributable lead in window).
+- V1 polish closed inline: `insights-utils.ts` shared `asInt`/`asMicros` (MIN-1), `backfillAdsBreakdownsAction` checks `res.ok` (MIN-2), `query*Rollup` logs Supabase errors (MIN-3).
+
+### Per-building attribution (the key V2 rule)
+
+`attributeLeadToBuilding(lead) = matched_reservation_building ?? lead.building_interest ?? 'Unattributed'`
+
+Lookup path for booked building: `ads_leads.matched_reservation_id` → `guesty_reservations.listing_id` → `guesty_listings.building_code`. Done in TS via `buildingMapForLeads(sb, rows)` shared helper in `funnel.ts`.
+
+Spend share uses proportional split: a campaign with `building_codes=['BH-26','BH-73']` → 50% spend to each. Currencies converted to EGP via `convertManyToEgp` (V1).
+
+### Commits (17, in plan order)
+
+| # | SHA | Task |
+|---|---|---|
+| 1 | `f755a49` | buildings.ts (BH-* code list) |
+| 2 | `47f80fb` | insights-utils.ts (closes V1 MIN-1) |
+| 3 | `a1a7cdf` | per-building.ts (attribution + breakdown) |
+| 4 | `e571180` | funnel.ts |
+| 5 | `cac0918` | lead-quality.ts |
+| 6 | `efa31b4` | frt.ts |
+| 7 | `7075d04` | cohort.ts (Cairo TZ DST-safe) |
+| 8 | `6124cb0` | query*Rollup accepts buildingCode? |
+| 9 | `db86961` | V1 polish (MIN-2 + MIN-3) |
+| 10 | `d17e59e` | <PerBuildingFilter /> |
+| 11 | `e0f3fef` | <FrtCard /> |
+| 12 | `38fe438` | wire main /beithady/ads page |
+| 13 | `4bacd82` + `df55c50` | <FunnelTab /> (+ tidy) |
+| 14 | `68ee7c1` | <QualityTab /> |
+| 15 | `6c1848f` | <CohortTab /> |
+| 16 | `04732b9` | wire 3 new tabs + extend V1 tabs |
+| 17 | (this) | smoke + handoff |
+
+### Verification
+
+- `npm run test` → **849 passing / 22 skipped / 0 failures** (153 test files)
+- `npx tsc --noEmit` → 0 errors
+- Per-feature test counts: buildings 5 + insights-utils 8 + per-building 5 + funnel 3 + lead-quality 3 + frt 7 + cohort 11 + rollup buildingCode 1 + backfill action 1 + PerBuildingFilter 3 + FrtCard 2 + FunnelTab 2 + QualityTab 1 + CohortTab 2 = **54 new tests**
+
+### Manual smoke (operator action)
+
+Walk live prod after GitHub auto-deploy:
+
+1. `/beithady/ads/?preset=7d` — `<FrtCard />` renders if leads exist, hides cleanly otherwise.
+2. Click building chip `BH-26` → URL `?building=BH-26`. Per-platform cards unchanged (campaign-level), audience widget unchanged in V2.
+3. `/beithady/ads/audience` → 6 tabs visible. Click **Funnel** → 5-stage bars + drop-off %s render.
+4. Toggle `?building=BH-26` on Funnel tab → leads/bookings shrink, hint appears below bars.
+5. Click **Quality** → both tables render. SLA cells tinted (emerald < 10% / slate 10-20% / rose > 20%).
+6. Click **Cohort** → 6×5 matrix renders. Cell colors tint by conversion bucket. Tooltip on hover shows raw counts.
+7. `<FrtCard />` worst-campaign link → `/beithady/ads/audience?tab=quality&campaign=<id>` (campaign param plumbed but Quality table doesn't yet filter by it — V2.5 polish).
+
+If `app.limeinc.cc` is stale: `vercel alias set <new-deploy-url> app.limeinc.cc` (alias doesn't auto-update on lime project).
+
+### Architectural notes
+
+- **NO new tables, NO new crons, NO migrations.** All 5 new features query existing tables (`ads_daily_metrics`, `ads_leads`, `ads_lead_funnel` view, `ads_campaigns`, `guesty_reservations`, `guesty_listings`).
+- Per-feature aggregator pattern mirrors V1's `insights-{geo,demo,device}.ts` exactly — pure TS, in-process aggregation, no DB views.
+- `buildingMapForLeads(sb, rows)` shared helper in `funnel.ts` does the 3-hop join once per query; reused by funnel + lead-quality + frt + cohort.
+- The `query*Rollup` per-building filter is APPROXIMATE — it filters to campaigns with attributable leads, not per-row. Documented in the spec.
+
+### Roadmap progress
+
+V1 ✅ V2 ✅ shipped. Next per roadmap: **V3 (Time/Patterns + Optimization)** — 7 features (D1 hourly heatmap, D2 spend pacing, D3 period-delta as cross-cutting, E1 top-performing ads, E2 top creative assets, E3 anomaly detection, E4 AI narrative summary). Estimated ~20 TDD tasks. Awaiting kareem's go.
+
+V2.5 follow-ups (small polish if anything surfaces in practice):
+- Tunable SLA threshold (currently hardcoded 60min)
+- Per-building × per-platform cross-table
+- Cohort granularity toggle (weekly ↔ monthly)
+- Quality tab campaign filter via `?campaign=<id>` (the FrtCard already links with the param)
+
+---
+
+## 2026-05-16 — Personal Net Worth: migration 0139 part 4 (3 views)
+
+**Status:** DONE — commit `3475b86`
+
+**What shipped:** Appended 3 views to `supabase/migrations/0139_personal_networth.sql`, completing the entire schema (11 tables + 1 function + 3 views). Views: `v_personal_networth_current` (stocks pipe-in via CROSS JOIN on `v_personal_stock_positions` + `v_personal_stock_account_balance`, FULL OUTER JOIN assets/liabilities), `v_personal_networth_loan_summary` (GROUP BY liability with FILTER aggregates for paid/remaining/YTD interest, kind IN ('amortizing_loan','bnpl')), `v_personal_networth_upcoming` (UNION ALL of schedule installments due ≤30d + active recurring templates due ≤30d, ORDER BY due_date). Applied via Supabase MCP `apply_migration` (`0139_personal_networth_part4`). Verified: all 3 views query without error (0 rows each — no seed data yet; `v_personal_networth_current` returned 0 rows, stocks CROSS JOIN produced no row since stock positions table is also empty).
+
+**Files changed:** `supabase/migrations/0139_personal_networth.sql` (+110 lines)
+
+**Next:** Phase B begins — Task 5 starts TypeScript business logic.
+
+---
+
+## 2026-05-16 — Personal Net Worth: migration 0139 part 3 (snapshots + fx_lookup)
+
+**Status:** DONE — commit `072f6c3`
+
+**What shipped:** Appended 2 snapshot tables + `fx_lookup()` function to `supabase/migrations/0139_personal_networth.sql`. Tables: `personal_networth_snapshots` (kind CHECK: monthly_auto/manual, fx_rates_used jsonb) + `personal_networth_snapshot_lines` (line_type CHECK: asset/liability/stocks_pipe, `on delete cascade` from snapshot). Function: `fx_lookup(p_currency text, p_as_of date) returns numeric language sql stable` — EGP hardcoded to 1, all others do a descending `as_of_date <= p_as_of` lookup in `personal_networth_fx_rates`. Applied via Supabase MCP `apply_migration` (`0139_personal_networth_part3`). Verified: EGP=1, USD two-point test (on_jan1=47.5, mid_q1=47.5, may1=48.2) all exact.
+
+**Files changed:** `supabase/migrations/0139_personal_networth.sql` (+54 lines)
+
+---
+
+## 2026-05-16 — BH Ads V2 Task 9: backfill res.ok check + rollup error logging
+
+**Status:** DONE — commit `db86961`, pushed to main.
+
+**What shipped:**
+- `backfillAdsBreakdownsAction` now returns `{ ok: boolean; error?: string }` instead of `Promise<void>`. Wraps fetch in try/catch, checks `res.ok`, logs and returns `{ ok: false, error: "cron_returned_${status}" }` on HTTP failure.
+- New test: `backfill-ads-breakdowns-action.test.ts` — added "returns ok=false on cron failure" case (500 mock → `r.ok === false`, `r.error` contains "500"). Suite: 839 passed, 22 skipped.
+- `queryGeoRollup`, `queryDemoRollup`, `queryDeviceRollup`: changed `const { data }` to `const { data, error }` + `if (error) console.error(...)` (MIN-3).
+- `page.tsx`: wrapped form `action` in void inline server action to satisfy strict tsc (action now returns a value, form prop must be `Promise<void>`).
+- Step 3 WAS needed — Task 8 had not handled these lines.
+
+**Files changed:** `backfill-ads-breakdowns-action.ts`, `backfill-ads-breakdowns-action.test.ts`, `insights-geo.ts`, `insights-demo.ts`, `insights-device.ts`, `page.tsx` (6 files).
+
+---
+
+## 2026-05-16 — Personal Net Worth: migration 0139 part 2 (core entities)
+
+**Status:** DONE — commit `f656952`
+
+**What shipped:** Appended 5 new tables to `supabase/migrations/0139_personal_networth.sql` inside the existing `begin;…commit;` block: `personal_networth_assets`, `personal_networth_liabilities` (with `amortizing_required_fields` + `revolving_required_fields` CHECK constraints), `personal_networth_liability_schedule`, `personal_networth_payments`, `personal_networth_recurring_templates`. Plus 2 cross-FK ALTER TABLE statements (`schedule_payment_fk`, `payments_recurring_template_fk`) added after both tables exist. Applied new SQL only via Supabase MCP `apply_migration` (`0139_personal_networth_part2`). Verified 9 tables + 2 FKs in DB.
+
+**Files changed:** `supabase/migrations/0139_personal_networth.sql` (+132 lines)
+
+---
+
+## 2026-05-16 — Personal Net Worth: migration 0139 part 1 (lookup tables + seed)
+
+**Status:** DONE — commit `6791952`
+
+**What shipped:** Created `supabase/migrations/0139_personal_networth.sql` with 4 lookup tables: `personal_networth_currencies` (5-row seed: AED/EGP/EUR/SAR/USD, EGP=base), `personal_networth_fx_rates` (with composite unique + desc index), `personal_networth_lenders`, `personal_networth_settings`. Applied via Supabase MCP `apply_migration` against project `bpjproljatbrbmszwbov`. Verified 5-row currency seed. File ends in `commit;` — Tasks 2-4 will extend it.
+
+**Files changed:** `supabase/migrations/0139_personal_networth.sql` (60 lines, new file)
+
+---
+
 ## 2026-05-16 — BH Ads V2 Task 8: query*Rollup buildingCode? filter
 
 **Status:** DONE — commit `6124cb0`, pushed to main.
