@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { InsightsUpsertError } from './insights-errors';
+import { asInt, asMicros } from './insights-utils';
 
 export type DeviceRow = {
   account_id: number;
@@ -25,12 +26,6 @@ export type DeviceCtx = {
   platform: 'meta' | 'google' | 'tiktok';
 };
 
-function asInt(v: unknown): number {
-  const n = Number(v); return Number.isFinite(n) ? Math.round(n) : 0;
-}
-function asMicros(v: unknown): number {
-  const n = Number(v); return Number.isFinite(n) ? Math.round(n * 1_000_000) : 0;
-}
 
 function normMetaDevice(s: unknown): DeviceRow['device_platform'] {
   const v = String(s || '').toLowerCase();

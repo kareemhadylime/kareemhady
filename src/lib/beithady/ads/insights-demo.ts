@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { InsightsUpsertError } from './insights-errors';
+import { asInt, asMicros } from './insights-utils';
 
 export type DemoRow = {
   account_id: number;
@@ -26,12 +27,7 @@ export type DemoCtx = {
 
 const AGE_BUCKETS = new Set(['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+']);
 
-function asInt(v: unknown): number {
-  const n = Number(v); return Number.isFinite(n) ? Math.round(n) : 0;
-}
-function asMicros(v: unknown): number {
-  const n = Number(v); return Number.isFinite(n) ? Math.round(n * 1_000_000) : 0;
-}
+
 function normGender(g: unknown): 'male' | 'female' | 'unknown' {
   const s = String(g || '').toLowerCase();
   if (s === 'male' || s === 'm' || s === 'gender_male') return 'male';

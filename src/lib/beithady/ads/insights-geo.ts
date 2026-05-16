@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { InsightsUpsertError } from './insights-errors';
+import { asInt, asMicros } from './insights-utils';
 
 export type GeoRow = {
   account_id: number;
@@ -41,15 +42,6 @@ const TIKTOK_ISO3_TO_ISO2: Record<string, string> = {
   USA: 'US', GBR: 'GB',
 };
 
-function asInt(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.round(n) : 0;
-}
-
-function asMicros(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.round(n * 1_000_000) : 0;
-}
 
 export function normalizeMetaGeoRows(
   rows: Array<Record<string, unknown>>,
