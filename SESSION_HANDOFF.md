@@ -1,3 +1,34 @@
+## 2026-05-16 — Net Worth deferred follow-ups: 5/5 CLOSED ✅
+
+All four originally-deferred items + the late-add (API route tests) are now landed on `origin/main`. Three commits across this batch:
+
+**Commit `9e9fe8aa` (steps 1–3, done inline):**
+- `cairoTodayIso()` DRY'd into `src/lib/fmt-date.ts` — 10 networth callsites switched
+- `MixSlice` split into `AssetMixSlice` / `LiabilityMixSlice` discriminated unions; donut components use exhaustive `switch` (compile-error catches missing kinds)
+- Migration `0141_personal_networth_recurring_idempotent.sql` applied to live Supabase `bpjproljatbrbmszwbov` — partial unique index `idx_uniq_payments_recurring_per_day` on `personal_networth_payments(recurring_template_id, occurred_on) WHERE recurring_template_id IS NOT NULL`. `recordPaymentForRecurringTemplate` now has fast-path idempotency check + 23505 race catch.
+
+**Commit `5c8afa60` (step 4, ConfirmDialog rollout):**
+- New shared component `src/app/personal/networth/_components/modals/confirm-dialog.tsx` — backdrop + ix-card + Escape-to-close + danger tone + inline error + working-state.
+- 11 callsites swapped across 9 files (asset-table, liability-table, schedule-table, templates-tab, payment-log-tab, lenders-section, fx-rates-section, monthly-report — including 2 stray `alert()` calls I'd missed in the original scope list). Toggle action's one-shot alert in templates-tab converted to inline `actionErr` banner (no user choice needed).
+- `rg "window\.confirm|window\.alert" src/app/personal/networth` returns zero hits.
+
+**Commit `4e717666` (step 5, API route tests):**
+- 20 new test files (19 route test files + 1 shared helper at `src/app/api/personal/networth/__tests__/helpers.ts`).
+- Helper exports `adminUser`, `viewerUser`, `chain()`, `chainSequence()` — reflexive supabase-chain factory.
+- 119 new tests passing. Full suite went 924 → **1043 passing** (+119); 22 skipped unchanged; 0 failures.
+- Pattern per route: unauth → 401, non-admin → 403, zod-invalid body → 400 where applicable, happy path → 200. Library-delegating routes (mark-paid, pay-card, liabilities POST) also get a "library throws → 400" case. Toggle and payment DELETE get extra not-found (404) coverage.
+- One minor stumble noted: `z.string().uuid()` is strict, so future fixture UUIDs need to be valid v4 (`12345678-1234-4234-8234-123456789abc` works; arbitrary hex doesn't).
+
+**Net Worth module status:** 32/32 plan tasks + 3 post-ship gaps + 5 deferred follow-ups all closed. No remaining known issues. Production-ready and fully covered:
+- 11 tables + 3 views + `fx_lookup` RPC live in production
+- 2 cron routes (DST-safe twin schedules) registered
+- 7 UI routes (overview, assets, liabilities, liabilities/[id], recurring, reports, setup) shipped
+- 19 API route handlers — all `getCurrentUser()` + `is_admin` gated, all Zod-validated where they take request bodies, all with smoke-level tests
+- 1043 tests passing, `tsc --noEmit` clean for the module
+- `kareemhady` repo HEAD is on `main`; GitHub→Vercel auto-deploy in flight after the last push
+
+---
+
 ## 2026-05-16 — Net Worth deferred follow-ups: 3/5 closed, 2 running 🟡
 
 **Closed in commit `9e9fe8aa`:**
