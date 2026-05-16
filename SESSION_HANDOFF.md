@@ -8,6 +8,8 @@
 1. Wait for Google's propagation (≥5 min from 2026-05-16) — otherwise the OAuth step returns `redirect_uri_mismatch`.
 2. **app.limeinc.cc still serves the OLD code** until kareem updates the alias (per [vercel_lime_alias_quirk.md](file://C:/Users/karee/.claude/projects/C--kareemhady/memory/vercel_lime_alias_quirk.md)) — `vercel alias set <latest-deploy-url> app.limeinc.cc`. Without the alias bump, app.limeinc.cc still hard-codes redirect_uri to limeinc.vercel.app and the new URI never gets exercised. **limeinc.vercel.app works right now** (new code + URI both live).
 
+**Alias bump done:** ran `vercel alias set lime-72yjh0f8q-lime-investments.vercel.app app.limeinc.cc` — app.limeinc.cc now serves the latest deploy that includes the OAuth host-aware fix, rotation persistence, select-all-in-category, and sort dropdown. Both hosts (limeinc.vercel.app + app.limeinc.cc) now have working Connect Gmail flows end-to-end. Offered to permanently fix the alias quirk by setting app.limeinc.cc as a Production Domain in Vercel dashboard (deferred — user can ask later).
+
 ---
 
 ## 2026-05-16 — SHIPPED: BH Ads Insights V3 (19/19 tasks) ✅
