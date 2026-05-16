@@ -18,7 +18,6 @@ import {
   getCharityYtd,
 } from '@/lib/personal/networth/queries';
 import { listSnapshotsForChart } from '@/lib/personal/networth/snapshot';
-import { Wallet } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +80,6 @@ export default async function NetWorthOverviewPage() {
         eyebrow="Subsidiary cockpit"
         title="Net Worth"
         subtitle="Assets, liabilities, recurring payments, monthly report, and historical net-worth chart."
-        icon={Wallet}
       />
       <HeroKpi kpis={kpis} snapshots={snapshots} />
       <TotalsRow kpis={kpis} />
