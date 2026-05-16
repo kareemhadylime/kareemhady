@@ -65,8 +65,18 @@ export function BucketsBlock({ buckets }: { buckets: PickerBucket[] }) {
               return (
                 <React.Fragment key={b.key}>
                   <tr
-                    className="border-t border-slate-100 cursor-pointer hover:bg-slate-50"
+                    className="border-t border-slate-100 cursor-pointer hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
                     onClick={() => toggle(b.key)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggle(b.key);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={isOpen}
+                    aria-label={`${b.label} — ${b.total_orders} orders, click to ${isOpen ? 'collapse' : 'expand'}`}
                   >
                     <td className="px-4 py-2">
                       <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-semibold ${pillTone}`}>
@@ -104,7 +114,7 @@ export function BucketsBlock({ buckets }: { buckets: PickerBucket[] }) {
                               </span>
                               <span className="text-[11px] text-slate-500 w-full">
                                 {o.lines.map((ln, i) => (
-                                  <span key={i}>
+                                  <span key={`${ln.sku ?? ''}-${ln.product_title}-${i}`}>
                                     {i > 0 && <span className="text-slate-300 mx-1.5">·</span>}
                                     {ln.qty}× {ln.product_title}
                                     {ln.variant_title && (
