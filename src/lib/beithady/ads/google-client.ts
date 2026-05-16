@@ -228,6 +228,24 @@ export async function fetchGoogleDemoView(opts: GoogleBreakdownOpts): Promise<Go
   return { ok: true, gender: g.rows, ageRange: a.rows };
 }
 
+export type GoogleDeviceRow = {
+  segments?: { date?: string; device?: string };
+  metrics?: { impressions?: string; clicks?: string; costMicros?: string; conversions?: string };
+  campaign?: { id?: string };
+};
+
+export async function fetchGoogleDeviceView(opts: GoogleBreakdownOpts): Promise<GaqlResult<GoogleDeviceRow>> {
+  const q = `
+    SELECT segments.date, segments.device,
+           metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions,
+           campaign.id
+    FROM device_view
+    WHERE campaign.id = ${Number(opts.campaignId)}
+      AND segments.date BETWEEN '${opts.fromDate}' AND '${opts.toDate}'
+  `;
+  return gaqlSearch<GoogleDeviceRow>(opts.customerId, q, opts.creds, opts.accessToken);
+}
+
 // Ping — used by /admin/integrations to verify credentials work.
 export async function pingGoogleAds(): Promise<
   | { ok: true; customer_descriptive_name: string | null; currency_code: string | null }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fetchGoogleGeoView, fetchGoogleDemoView } from './google-client';
+import { fetchGoogleGeoView, fetchGoogleDemoView, fetchGoogleDeviceView } from './google-client';
 
 const FAKE_CREDS = {
   developer_token: 'dev', client_id: 'c', client_secret: 's',
@@ -83,5 +83,30 @@ describe('fetchGoogleDemoView', () => {
       creds: FAKE_CREDS, accessToken: 'tok',
     });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('fetchGoogleDeviceView', () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it('uses device_view + returns rows', async () => {
+    const spy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify([{
+      results: [
+        { segments: { date: '2026-05-10', device: 'MOBILE' },
+          metrics: { impressions: '50', clicks: '5', costMicros: '5000', conversions: '0' },
+          campaign: { id: '5' } },
+      ],
+    }]), { status: 200 }));
+    const r = await fetchGoogleDeviceView({
+      customerId: '1', campaignId: '5',
+      fromDate: '2026-05-10', toDate: '2026-05-10',
+      creds: FAKE_CREDS, accessToken: 'tok',
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.rows).toHaveLength(1);
+    const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.query).toContain('FROM device_view');
+    expect(body.query).toContain('segments.device');
   });
 });
