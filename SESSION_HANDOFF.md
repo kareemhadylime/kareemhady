@@ -1,3 +1,27 @@
+## 2026-05-16 — Personal Net Worth module — spec written, awaiting review
+
+**Status:** Brainstorming session for the new `/personal/networth` module is complete. Design spec written to `docs/superpowers/specs/2026-05-16-personal-networth-design.md` and self-reviewed (0 placeholders, charity goal disambiguated to absolute EGP/year target, stocks pipe-in SQL resolved against existing 0117 views). **Awaiting kareem's review of the written spec** before invoking `writing-plans` for the implementation plan.
+
+**Locked product decisions (8):**
+1. **Currency:** Multi-currency, totals rolled up to EGP via a manually-maintained `personal_networth_fx_rates` table.
+2. **Stocks integration:** Hybrid pipe-in — `/personal/stocks` live data feeds the current dashboard; monthly snapshot freezes the value into `snapshot_lines`.
+3. **Loan model:** Full amortization schedule auto-generated (per-month principal/interest split, payoff projection, early-payoff calculator).
+4. **Snapshots:** Auto monthly on the 1st (Cairo 9 AM, DST-safe) + manual "Snapshot now" button.
+5. **Charity:** Recurring-payment category with a prominent dashboard widget (YTD vs absolute yearly EGP goal). No Zakat / hijri-calendar logic.
+6. **Module shape:** Multi-route stocks-style — 6 top-level routes under `/personal/networth/{overview, liabilities, liabilities/[id], assets, recurring, reports, setup}`.
+7. **Loans + liabilities unified:** one `personal_networth_liabilities` table with a `kind` discriminator (`amortizing_loan` / `bnpl` / `credit_card` / `overdraft` / `other`). Loan + card columns nullable on the same row.
+8. **Dashboard layout A:** Hero + grid (big KPI hero, 3-card totals, mix donuts, upcoming-payments table beside charity/payoff stacked cards, bottom quick-entry strip).
+
+**Schema:** 11 new tables in migration `0139_personal_networth.sql`, 3 views (`v_personal_networth_current`, `v_personal_networth_loan_summary`, `v_personal_networth_upcoming`), 1 SQL helper function (`fx_lookup(currency, date)`).
+
+**Crons:** 2 new in `vercel.json` — `personal-networth-snapshot` (monthly on the 1st) + `personal-networth-recurring` (daily). Both DST-safe double-registered, gated on Cairo 9 AM.
+
+**Visual companion:** Running at `http://localhost:64114` (session dir `27655-1778924263`). 3 dashboard wireframes shown; Kareem picked Layout A. Server idle now; will auto-exit after 30 min of inactivity.
+
+**Next:** wait for spec review → invoke `writing-plans` skill → multi-task implementation plan (estimate ~30-40 TDD tasks) → execute.
+
+---
+
 ## 2026-05-16 — V2 brainstorm in progress (Funnel + Quality)
 
 **Status:** Mid-brainstorm. § 1 (architecture + file structure) just presented, awaiting kareem's approval before § 2 (per-feature data queries).
