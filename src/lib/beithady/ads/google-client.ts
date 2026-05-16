@@ -175,6 +175,11 @@ export async function fetchGoogleGeoView(opts: GoogleBreakdownOpts): Promise<Gaq
   // geographic_view uses its own resource fields, NOT segments.geo_target_*
   // (Google rejects those with PROHIBITED_SEGMENT_IN_SELECT_OR_WHERE_CLAUSE).
   // country_criterion_id is the raw geo-target id (e.g. "2818" = GB).
+  // Filter to LOCATION_OF_PRESENCE so we get one row per (date, country) —
+  // without this, Google emits both PRESENCE and AREA_OF_INTEREST per row,
+  // which double-counts clicks AND collides the (campaign,date,country)
+  // upsert conflict key with "ON CONFLICT DO UPDATE command cannot affect
+  // row a second time".
   const q = `
     SELECT
       segments.date,
@@ -188,6 +193,7 @@ export async function fetchGoogleGeoView(opts: GoogleBreakdownOpts): Promise<Gaq
     FROM geographic_view
     WHERE campaign.id = ${Number(opts.campaignId)}
       AND segments.date BETWEEN '${opts.fromDate}' AND '${opts.toDate}'
+      AND geographic_view.location_type = 'LOCATION_OF_PRESENCE'
   `;
   return gaqlSearch<GoogleGeoRow>(opts.customerId, q, opts.creds, opts.accessToken);
 }
