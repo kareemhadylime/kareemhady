@@ -1,3 +1,24 @@
+## 2026-05-16 — V1 ads-insights design § 1-4 presented; § 4 awaiting kareem approval
+
+**Design progress (6 sections planned):**
+- ✅ § 1 — Architecture overview (12 new files + 7 modified; cron `beithady-ads-breakdowns` every 6h)
+- ✅ § 2 — Database schema (3 tables: `ads_insights_geo`, `ads_insights_demo`, `ads_insights_device`; UNIQUE indexes with `NULLS NOT DISTINCT` for Postgres 15+; migration `0138`)
+- ✅ § 3 — Data fetching: Meta `breakdowns=country/age,gender/device_platform`; Google GAQL on `geographic_view`/`gender_view`/`age_range_view`/`device_view`; TikTok `report/integrated/get/` with dimensions; rolling 7d window per cron run; one-shot 90d backfill button at `/admin/integrations`; quota math fits <1% of limits
+- ⏳ § 4 — UI (PRESENTED, awaiting approval):
+  - `<DateRangeFilter>` — URL-state preset chips + custom date input + compare toggle (`?from=&to=&compare=1`)
+  - `<AudienceSummaryWidget>` — compact card on main dashboard with top-3 per dimension + "Open full report →"
+  - Dedicated `/beithady/ads/audience/` page with 3 tabs (Geo / Demographics / Device & Placement)
+  - GeoTab: country table + city drill-down + period-delta badges
+  - DemoTab: age × gender bars (left=imps, right=clicks) + detail table
+  - DeviceTab: device pie + Meta-only placement bar + per-platform table
+  - `<PeriodDeltaBadge>` reusable: ↑22% green / ↓8% red / → gray, with `reverseColor` prop for "lower is better" metrics like CPL
+- ⏳ § 5 — Error handling (pending)
+- ⏳ § 6 — Testing + done criteria (pending)
+
+After § 6 approval: write spec at `docs/superpowers/specs/2026-05-16-bh-ads-v1-filter-audience-design.md`, self-review, kareem reviews, then writing-plans skill.
+
+---
+
 ## 2026-05-16 — V1 brainstorm all 4 questions locked; design sections in progress
 
 **All V1 locked decisions:**
