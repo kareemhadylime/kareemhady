@@ -243,4 +243,114 @@ as $$
   end
 $$;
 
+-- ============================================================
+-- 5) VIEWS
+-- ============================================================
+
+create view v_personal_networth_current as
+  with latest_prices as (
+    select distinct on (instrument_id) instrument_id, price
+    from personal_stock_current_prices
+    order by instrument_id, as_of_date desc, entered_at desc
+  ),
+  holdings_value as (
+    select coalesce(sum(pos.qty_held * lp.price), 0) as value_egp
+    from v_personal_stock_positions pos
+    left join latest_prices lp on lp.instrument_id = pos.instrument_id
+  ),
+  latest_account_balances as (
+    select distinct on (account_id) account_id, balance_egp
+    from v_personal_stock_account_balance
+    order by account_id, occurred_at desc nulls last, row_index desc
+  ),
+  cash_balance as (
+    select coalesce(sum(balance_egp), 0) as cash_egp
+    from latest_account_balances
+  ),
+  stocks_value as (
+    select hv.value_egp + cb.cash_egp as amount_egp
+    from holdings_value hv, cash_balance cb
+  ),
+  assets_total as (
+    select app_user_id,
+           sum(balance * fx_lookup(currency, current_date)) as amount_egp
+    from personal_networth_assets
+    where active = true
+    group by app_user_id
+  ),
+  liabilities_total as (
+    select app_user_id,
+           sum(current_balance * fx_lookup(currency, current_date)) as amount_egp
+    from personal_networth_liabilities
+    where active = true
+    group by app_user_id
+  )
+  select
+    coalesce(a.app_user_id, l.app_user_id)              as app_user_id,
+    coalesce(a.amount_egp, 0) + coalesce(s.amount_egp, 0) as total_assets_egp,
+    coalesce(l.amount_egp, 0)                            as total_liabilities_egp,
+    coalesce(a.amount_egp, 0) + coalesce(s.amount_egp, 0)
+      - coalesce(l.amount_egp, 0)                        as net_worth_egp,
+    coalesce(s.amount_egp, 0)                            as stocks_pipe_egp
+  from assets_total a
+  full outer join liabilities_total l on l.app_user_id = a.app_user_id
+  cross join stocks_value s;
+
+create view v_personal_networth_loan_summary as
+  select
+    li.id                                              as liability_id,
+    li.app_user_id,
+    li.name,
+    li.kind,
+    li.currency,
+    li.principal,
+    li.apr_pct,
+    li.term_months,
+    li.monthly_payment,
+    li.start_date,
+    count(*)                            filter (where sch.paid_on is not null) as paid_count,
+    sum(sch.principal_portion)          filter (where sch.paid_on is not null) as principal_paid,
+    sum(sch.interest_portion)           filter (where sch.paid_on is not null) as interest_paid,
+    sum(sch.interest_portion)           filter (where date_trunc('year', sch.paid_on)
+                                                       = date_trunc('year', current_date)) as interest_paid_ytd,
+    count(*)                            filter (where sch.paid_on is null)     as remaining_months,
+    min(sch.due_date)                   filter (where sch.paid_on is null)     as next_due_date,
+    max(sch.due_date)                                                          as final_due_date
+  from personal_networth_liabilities li
+  left join personal_networth_liability_schedule sch on sch.liability_id = li.id
+  where li.kind in ('amortizing_loan','bnpl') and li.active = true
+  group by li.id;
+
+create view v_personal_networth_upcoming as
+  select
+    'schedule'::text                       as source,
+    sch.id                                 as ref_id,
+    li.app_user_id,
+    sch.due_date                           as due_date,
+    li.name                                as display_name,
+    case li.kind
+      when 'amortizing_loan' then 'loan_payment'
+      when 'bnpl'            then 'bnpl_payment'
+    end                                    as category,
+    (sch.principal_portion + sch.interest_portion) as amount,
+    li.currency
+  from personal_networth_liability_schedule sch
+  join personal_networth_liabilities li on li.id = sch.liability_id
+  where sch.paid_on is null
+    and sch.due_date <= current_date + interval '30 days'
+  union all
+  select
+    'recurring'::text                      as source,
+    tpl.id                                 as ref_id,
+    tpl.app_user_id,
+    tpl.next_run_date                      as due_date,
+    tpl.name                               as display_name,
+    tpl.category                           as category,
+    tpl.amount,
+    tpl.currency
+  from personal_networth_recurring_templates tpl
+  where tpl.active = true
+    and tpl.next_run_date <= current_date + interval '30 days'
+  order by due_date asc;
+
 commit;
