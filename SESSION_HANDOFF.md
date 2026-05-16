@@ -1,3 +1,54 @@
+## 2026-05-17 — Personal stocks: logged investing.com prices for ACTF + BTFH 💹
+
+Kareem screenshotted his investing.com watchlist and asked for the prices of **Act Financial** and **Beltone Financial Holding** to be applied to his personal stocks holdings.
+
+Inserted two snapshots into `personal_stock_current_prices` (entered_by `kareem`, note `investing.com`):
+
+- **ACT_FINANCIAL_CONSULTING** (id 12) — `2.88` as of `2026-05-15`
+- **BELTONE_FINANCIAL_HOLDING** (id 13) — `3.240` as of `2026-05-14`
+
+Verified via `v_personal_stock_positions` join — unrealized P&L now flows:
+
+| Ticker | Qty | Avg Cost | Last | Unrealized |
+|---|---:|---:|---:|---:|
+| ACTF (lot A) | 150,000 | 3.1700 | 2.880 | −EGP 43,500.00 |
+| ACTF (lot B) | 1,281,100 | 3.1709 | 2.880 | −EGP 372,671.99 |
+| BTFH | 86,600 | 3.4350 | 3.240 | −EGP 16,887.00 |
+
+No code change, no migration, no deploy — pure data insert against prod Supabase.
+
+---
+
+## 2026-05-17 — Personal Email drill-down: sanitize Guesty body-excerpt noise 🧼
+
+Kareem screenshotted `/personal/email/beithady` showing a Guesty reservation email where the "Body excerpt" panel rendered the literal `%opentrack%` token plus two opaque `https://email.guesty.com/c/eJw…` click-tracking URLs sandwiching the actual `NEW BOOKING CONFIRMED! MINA ARRIVES JUN 20.` content. He asked why; on "yes to all" I shipped the fix.
+
+**Root cause:** [extractBodyExcerpt](src/lib/personal-email/ingest.ts:267) prefers `text/plain` MIME parts. Guesty's plain-text alternative contains literal `%opentrack%` (HTML-only token, never substituted) and inlines full tracking redirect URLs (no `<a>` to hide behind). [drill-down-view.tsx:646](src/app/personal/email/_components/drill-down-view.tsx:646) rendered raw inside `<pre>` with no sanitizer.
+
+**Approach chosen:** display-time sanitization ONLY (raw text stays in `email_logs.body_excerpt`, AI classification + forensics unaffected, all existing rows fixed retroactively, zero migration/backfill). Originally proposed ingest-side rewrite + SQL backfill; dropped both as unnecessary scope.
+
+**Code changes (commit `39bc64bd`):**
+- `src/lib/personal-email/sanitize-body-excerpt.ts` — new pure function `sanitizeBodyExcerptForDisplay()` that:
+  1. Drops `%token%` template-placeholder lines (case-insensitive, multiline).
+  2. Strips known tracking redirect URLs: `email.guesty.com/c/`, `click.*`, `*.mandrillapp.com/track/`, `*.sendgrid.net/`.
+  3. Collapses 3+ consecutive newlines into 2.
+  4. Trims leading/trailing whitespace.
+- `src/lib/personal-email/sanitize-body-excerpt.test.ts` — 8 vitest cases: null/undefined/empty, opentrack, multiple ESP tokens, Guesty/Mandrill/Sendgrid/click URLs, blank-line collapse, non-tracker URL preservation, full screenshot pattern end-to-end.
+- `src/app/personal/email/_components/drill-down-view.tsx:646` — pipes `email.body_excerpt` through the sanitizer before rendering. Existing `(no body cached — open in Gmail)` placeholder still fires if sanitizer returns empty.
+
+**Verification:**
+- `npx vitest run src/lib/personal-email/` — 42/42 pass (8 new ones included).
+- `npx tsc --noEmit` clean for all touched files. Pre-existing TS errors in `beithady-daily-report` test fixtures only (unrelated, already noted in earlier handoffs).
+- First Mandrill regex required a subdomain prefix; failing test caught the bare `mandrillapp.com` case → changed `[a-z0-9.-]*\.` to `([a-z0-9.-]+\.)?` (optional subdomain group). Fixed in 30s, test now green.
+
+**Pending in this turn:** push `39bc64bd` to `origin/main` (rebase first, worktree is behind), then `vercel --prod` belt-and-suspenders. GitHub→Vercel autodeploy will also fire on push.
+
+**Expected user-visible result on next refresh of any `/personal/email/<category>` drill-down:**
+- The Mina ElKommos Bsada email body now renders as just `NEW BOOKING CONFIRMED! MINA ARRIVES JUN 20.\n\nSend a message to confirm check-in details or welcome Mina.` — no `%opentrack%`, no `email.guesty.com/c/...`.
+- Same cleanup applies to every existing `email_logs` row (no backfill) and every future ingest.
+
+---
+
 ## 2026-05-17 — Net Worth donuts: split broker positions/cash/margin + add back link 🔧
 
 Kareem opened `/personal/networth` and screenshot showed two real defects after the mig-0143 view rewrite landed:
