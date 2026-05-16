@@ -5,6 +5,9 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
+import { DateRangeFilter } from '../../_components/date-range-filter';
+import { parseDateRange } from '@/lib/beithady/ads/date-range';
+import { AudienceSummaryWidget } from '../../_components/audience-summary-widget';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { convertToEgp, convertManyToEgp } from '@/lib/fx-rates';
 import { fmtCairoDateTime, fmtCairoDate } from '@/lib/fmt-date';
@@ -71,11 +74,12 @@ export default async function CampaignDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ published?: string; status_set?: string; error?: string }>;
+  searchParams: Promise<{ published?: string; status_set?: string; error?: string; from?: string; to?: string; preset?: string; compare?: string }>;
 }) {
   await requireBeithadyPermission('ads', 'read');
   const { id } = await params;
   const sp = await searchParams;
+  const range = parseDateRange({ from: sp.from, to: sp.to, preset: sp.preset, compare: sp.compare });
   const campaignId = Number.parseInt(id, 10);
   if (!Number.isFinite(campaignId)) notFound();
 
@@ -185,6 +189,7 @@ export default async function CampaignDetailPage({
       />
 
       <AdsTabs active="campaigns" />
+      <DateRangeFilter />
 
       {sp.published && (
         <div className="ix-card border-emerald-200 bg-emerald-50 p-3 text-sm">
@@ -303,6 +308,9 @@ export default async function CampaignDetailPage({
           </div>
         )}
       </section>
+
+      {/* Audience breakdown for this campaign */}
+      <AudienceSummaryWidget campaignId={campaignId} range={range} />
 
       {/* Live Meta Insights — real-time from Meta Insights API */}
       {camp.platform === 'meta' && liveInsights && (

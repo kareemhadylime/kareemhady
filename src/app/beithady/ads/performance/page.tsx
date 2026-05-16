@@ -3,21 +3,24 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listCampaigns, listOverviewByDay, getDashboardKpis, listCampaignRoas } from '@/lib/beithady/ads/reporting';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
+import { DateRangeFilter } from '../_components/date-range-filter';
+import { parseDateRange } from '@/lib/beithady/ads/date-range';
 import { PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { DollarSign, Users, BarChart3, TrendingUp, Wallet } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export default async function PerformancePage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
+export default async function PerformancePage({ searchParams }: { searchParams: Promise<{ days?: string; from?: string; to?: string; preset?: string; compare?: string }> }) {
   await requireBeithadyPermission('ads', 'read');
   const sp = await searchParams;
   const days = Math.max(1, Math.min(180, Number.parseInt(sp.days || '30', 10) || 30));
+  const range = parseDateRange({ from: sp.from, to: sp.to, preset: sp.preset, compare: sp.compare });
 
   const [kpis, campaigns, daily, roasRows] = await Promise.all([
-    getDashboardKpis(days),
+    getDashboardKpis({ from: range.from, to: range.to }),
     listCampaigns(),
-    listOverviewByDay(days),
+    listOverviewByDay({ from: range.from, to: range.to }),
     listCampaignRoas(),
   ]);
 
@@ -62,6 +65,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       />
 
       <AdsTabs active="performance" />
+      <DateRangeFilter />
 
       <section className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
         <Stat icon={DollarSign} label={`Spend (${days}d)`} value={`EGP ${kpis.spend.toLocaleString()}`} />
