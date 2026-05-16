@@ -1,3 +1,27 @@
+## 2026-05-16 — V2 brainstorm in progress (Funnel + Quality)
+
+**Status:** Mid-brainstorm. § 1 (architecture + file structure) just presented, awaiting kareem's approval before § 2 (per-feature data queries).
+
+**Locked so far:**
+- **Q1 — Surface:** Extend `/beithady/ads/audience/` with 3 new sub-tabs (Funnel/Quality/Cohort). FRT card on `/beithady/ads` main. Per-building filter chip row applied everywhere.
+- **Q2 — Per-building attribution (C4):** Booked → `matched_reservation.building_code`; unbooked → `lead.building_interest`; else "Unattributed".
+- **Q3 — FRT (C3, assumed default since user didn't override AskUserQuestion):** median + p95 + %>1h SLA card on main, per-campaign table in Quality tab.
+- **Q4 — Cohort granularity (C5, assumed default):** weekly buckets, lag weeks 1-4.
+- **Approach 2 — Pure TS aggregators per feature** (mirrors V1's `insights-*` pattern, no new DB views).
+
+**§ 1 architecture presented:**
+- ~13 new files: `funnel.ts`, `lead-quality.ts`, `frt.ts`, `per-building.ts`, `cohort.ts`, `insights-utils.ts` (shared asInt/asMicros — closes V1 MIN-1), `buildings.ts`, 4 new audience tab components, `<FrtCard />`, `<PerBuildingFilter />`, colocated tests.
+- ~6 modifications: `audience/page.tsx`, `ads/page.tsx`, the 3 V1 tabs (accept `buildingCode?` filter), `insights-{geo,demo,device}.ts` (import shared utils).
+- NO new tables — all existing data sources (`ads_daily_metrics`, `ads_leads`, `ads_lead_funnel` view, `ads_campaigns`, `bh_reservations`).
+- Estimated ~20 TDD tasks (vs V1's 25).
+
+**Next:** Kareem replies to § 1 — then § 2 covers the actual data queries per feature (funnel stage joins, attribution function, FRT percentile calc, cohort matrix shape).
+
+**Spec destination (planned):** `docs/superpowers/specs/2026-05-16-bh-ads-v2-funnel-quality-design.md`
+**Roadmap:** [docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md](docs/superpowers/specs/2026-05-16-bh-ads-insights-roadmap.md)
+
+---
+
 ## 2026-05-16 — SHIPPED: BH Ads Insights V1 (25/25 tasks complete) ✅
 
 **Status:** All 25 plan tasks shipped to `main`. Vercel auto-deploys via GitHub integration. Migration `0138` applied to Supabase (project `bpjproljatbrbmszwbov`). Cron `beithady-ads-breakdowns` registered, runs every 6h. Tests: **795 passing / 22 skipped / 0 failures** (up from 704 baseline → +91 new tests). `tsc --noEmit` clean.
@@ -212,23 +236,35 @@ If 1800 still feels narrow, options noted to kareem: `max-w-[2000px]` (77%), `ma
 
 **User request:** Add a 4th tile to the `/personal` cockpit for net-worth tracking — assets / liabilities / loans / credit cards / cars / overdraft / Valu, loan details (principal, term, interest, monthly payment), monthly charity, payment report, recurring payments, dashboards.
 
-**Status:** Brainstorming skill invoked, project context explored, visual-companion offer surfaced. Awaiting user response on visual companion before first clarifying question.
+**Status:** Brainstorming skill invoked. Visual companion server at `http://localhost:64114` (session dir `27655-1778924263`). 5 clarifying questions answered + module shape locked in. **Sections 1 (schema) and 2 (routes & UX) both presented and approved.** Awaiting user feedback on Section 2 before moving to Section 3 (cron jobs & business logic).
 
-**Context gathered:**
-- Existing personal tiles live in [src/app/personal/page.tsx](src/app/personal/page.tsx) — adding a 4th tile is trivial (one entry in `TILES` array).
-- Closest pattern for recurring payments: [src/lib/boat-rental/recurring.ts](src/lib/boat-rental/recurring.ts) + migration [supabase/migrations/0070_boat_recurring_expense_templates.sql](supabase/migrations/0070_boat_recurring_expense_templates.sql) — daily cron picks rows where `next_run_date <= today`, inserts a payment, advances `next_run_date`.
-- Closest pattern for personal module schema: [supabase/migrations/0116_personal_stock_investment.sql](supabase/migrations/0116_personal_stock_investment.sql) — `personal_*` table prefix, EGP default currency, lookup + audit + core table structure.
-- Next migration slot: `0139_personal_networth_*` (last was 0138).
-- Spec destination once approved: `docs/superpowers/specs/2026-05-16-personal-networth-design.md`.
+**Locked decisions:**
+1. **Currency:** Multi-currency, totals rolled up to EGP via manually-maintained FX rate table.
+2. **Stocks integration:** Hybrid pipe-in — live `/personal/stocks` data feeds the current dashboard; monthly snapshot freezes the value so historical net-worth charts are stable.
+3. **Loan model:** Full amortization schedule auto-generated (per-month principal/interest split, payoff projection).
+4. **Snapshots:** Auto monthly via Vercel cron on the 1st (Cairo 9 AM, DST-safe double-registration) + manual "Snapshot now" button.
+5. **Charity:** One of the recurring-payment categories, with a prominent "Charity YTD" dashboard widget (no Zakat / hijri-calendar logic).
+6. **Module shape:** Multi-route stocks-style — **6 routes** under `/personal/networth/{overview, liabilities, liabilities/[id], assets, recurring, reports, setup}`. Loans are NOT a separate route — they live in `liabilities` (a `kind=amortizing_loan` row). Schedule table renamed to `personal_networth_liability_schedule` to reflect BNPL using it too.
+7. **Parent tile:** New 4th card on `/personal` — title "Net Worth", icon `Wallet`, indigo accent (slate/emerald/cyan already taken), badge "Live".
+8. **Liability detail page** is dual-mode — amortizing layout (schedule + early-payoff calculator + interest YTD) vs revolving layout (utilization gauge + statement timeline + payment history).
+9. **Quick-entry tile** lives on the overview page: 4 buttons (`+ Payment`, `+ Liability`, `+ Asset`, `+ Recurring`).
+10. **Shared shell:** new `NetWorthShell` + `NetWorthHeader` mirroring `PersonalShell`. Top-nav tabs on every networth page.
 
-**Open questions (not yet asked, in priority order):**
-1. Visual companion yes/no (currently pending).
-2. Currency scope — EGP only, or multi-currency (USD overdraft, foreign cards)?
-3. Integration with existing `/personal/stocks` — pipe holdings in as an asset automatically, or enter "stocks balance" manually?
-4. Scope — log+snapshot tool, or personal-CFO with debt-payoff projections / forecasts?
-5. Loan model — full amortization schedule auto-generated, or just track current outstanding balance?
-6. Auto net-worth snapshots (monthly) vs live SQL view.
-7. Single-user (Kareem) or per-user (other Lime users)?
+**Schema proposal currently in front of user (Section 1):**
+- 4 lookup tables: `personal_networth_currencies`, `personal_networth_fx_rates`, `personal_networth_lenders`, `personal_networth_settings`
+- 2 core entities: `personal_networth_assets`, `personal_networth_liabilities` (one-table-many-kinds: amortizing_loan / bnpl / credit_card / overdraft / other, with nullable loan + card columns)
+- 1 generated schedule: `personal_networth_loan_schedule`
+- 2 payments/recurring: `personal_networth_payments`, `personal_networth_recurring_templates` (mirror of boat-rental templates)
+- 2 snapshots: `personal_networth_snapshots`, `personal_networth_snapshot_lines`
+- 3 views: `v_personal_networth_current`, `v_personal_networth_loan_summary`, `v_personal_networth_upcoming`
+- Migration slot: `0139_personal_networth.sql`
+
+**Next steps after schema approval:** Section 2 (routes & UX) → Section 3 (cron jobs) → Section 4 (dashboard widgets, will use visual companion for layout) → Section 5 (tests) → write spec to `docs/superpowers/specs/2026-05-16-personal-networth-design.md`.
+
+**Open questions still TBD:**
+- Single-user vs multi-user (currently leaning single-user with `app_user_id` column for cheap future-proofing).
+- Whether daily cron handles both snapshot-on-1st and recurring-payment generation, or two crons.
+- FX rate source (manual rows for v1, possibly auto-pull later).
 
 ---
 
