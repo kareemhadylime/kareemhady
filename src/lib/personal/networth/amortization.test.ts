@@ -58,4 +58,33 @@ describe('generateSchedule', () => {
       '2026-02-15', '2026-03-15', '2026-04-15',
     ]);
   });
+
+  it('clamps due date to month-end when start day exceeds target month length', () => {
+    const rows = generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 3, startDate: '2026-01-31',
+    });
+    // Feb 2026 has 28 days; March and April both have 31 days
+    expect(rows.map(r => r.dueDate)).toEqual([
+      '2026-02-28', '2026-03-31', '2026-04-30',
+    ]);
+  });
+
+  it('throws when monthlyOverride is below the first month interest', () => {
+    expect(() => generateSchedule({
+      principal: 12000, aprPct: 12, termMonths: 12,
+      startDate: '2026-01-01', monthlyOverride: 100, // below 120 first-month interest
+    })).toThrow(/must exceed first month/);
+  });
+
+  it('throws on invalid inputs', () => {
+    expect(() => generateSchedule({
+      principal: 0, aprPct: 12, termMonths: 12, startDate: '2026-01-01',
+    })).toThrow(/principal must be > 0/);
+    expect(() => generateSchedule({
+      principal: 1000, aprPct: 12, termMonths: 0, startDate: '2026-01-01',
+    })).toThrow(/termMonths must be >= 1/);
+    expect(() => generateSchedule({
+      principal: 1000, aprPct: -1, termMonths: 12, startDate: '2026-01-01',
+    })).toThrow(/aprPct must be >= 0/);
+  });
 });

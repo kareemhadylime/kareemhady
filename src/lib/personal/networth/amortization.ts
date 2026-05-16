@@ -6,9 +6,11 @@ function round2(n: number): number {
 
 function addMonths(dateStr: string, months: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
-  const newY = y + Math.floor((m - 1 + months) / 12);
-  const newM = ((m - 1 + months) % 12) + 1;
-  return `${newY}-${String(newM).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const targetYear = y + Math.floor((m - 1 + months) / 12);
+  const targetMonth = ((m - 1 + months) % 12) + 1; // 1-indexed
+  const daysInMonth = new Date(targetYear, targetMonth, 0).getDate(); // day 0 = last day of prev month
+  const clampedDay = Math.min(d, daysInMonth);
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
 }
 
 export function generateSchedule(input: AmortizationInput): ScheduleRow[] {
@@ -23,6 +25,15 @@ export function generateSchedule(input: AmortizationInput): ScheduleRow[] {
       ? principal / termMonths
       : principal * (r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1)
   );
+
+  if (monthlyOverride !== undefined) {
+    const firstInterest = round2(principal * r);
+    if (monthlyOverride <= firstInterest) {
+      throw new Error(
+        `monthlyOverride (${monthlyOverride}) must exceed first month's interest (${firstInterest})`
+      );
+    }
+  }
 
   const rows: ScheduleRow[] = [];
   let remaining = principal;
