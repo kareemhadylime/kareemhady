@@ -1,4 +1,5 @@
 import 'server-only';
+import { supabaseAdmin } from './supabase';
 
 export type PickerScope = 'all' | 'older_than_7d' | 'older_than_14d' | 'this_week';
 
@@ -165,8 +166,6 @@ export function netRemaining(quantity: number, alreadyFulfilled: number): number
   const remaining = quantity - alreadyFulfilled;
   return remaining > 0 ? remaining : 0;
 }
-
-import { supabaseAdmin } from './supabase';
 
 const OPEN_FULFILLMENT = new Set([
   '',
