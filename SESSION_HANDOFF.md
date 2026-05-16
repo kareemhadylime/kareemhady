@@ -1,3 +1,33 @@
+## 2026-05-16 — Net Worth 3 post-ship gaps closed ✅
+
+**Commit:** `b7c2a3ad` on `origin/main`.
+
+**1. KPI "Monthly outflow" includes card minimums** (`src/app/personal/networth/liabilities/page.tsx`)
+- For `credit_card` / `overdraft` rows where `monthly_payment` is null, falls back to `min_payment_pct × current_balance / 100`. Cards no longer count as zero outflow.
+
+**2. Payment DELETE endpoint** (new: `src/app/api/personal/networth/payments/[id]/route.ts`)
+- Auth: `getCurrentUser()` + `is_admin` gate.
+- Hard-deletes the payment row.
+- If linked to a schedule (`loan_schedule_id` non-null), resets that schedule row to unpaid (`paid_on/paid_amount/payment_id` → null) so UI stays consistent.
+- Does NOT auto-restore liability balance — documented in the route comment + surfaced in the delete-confirm prompt copy. User adjusts via liability detail page if needed.
+- Wired a `Trash2` icon in `payment-log-tab.tsx`; confirm copy is heavier when the payment is schedule-linked.
+
+**3. Liability rename** (`PatchLiabilityBody` Zod + `EditLiabilityModal`)
+- Added `name: z.string().min(1).max(120).optional()` to the PATCH schema's allowlist.
+- `EditLiabilityModal` now has a `Name` input at the top of the form (always visible, both amortizing and revolving paths). Pre-filled from `liability.name`, only sent when changed and non-empty.
+- Renaming "Car Loan" → "Honda Civic 2024" no longer requires SQL.
+
+`npx tsc --noEmit` clean. Pushed; GitHub→Vercel auto-deploys.
+
+**Remaining deferred follow-ups (carry forward):**
+- DRY `cairoTodayIso()` into `src/lib/fmt-date.ts`
+- Narrow `MixSlice.label` to `AssetKind | 'stocks_pipe'` / `LiabilityKind`
+- `recordPaymentForRecurringTemplate` idempotency via partial unique index
+- Replace `window.confirm`/`alert` with proper dialogs
+- API route tests for the 11 networth handlers
+
+---
+
 ## 2026-05-16 — Net Worth post-ship gap analysis (asked: "anything missing?") 🔍
 
 **Scope:** Honest audit after declaring 32/32 done. User asked what's missing. Inspected the code and migration to verify a handful of claims, then surfaced real gaps the smoke pass had glossed over.
