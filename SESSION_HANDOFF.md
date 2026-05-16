@@ -1,3 +1,50 @@
+## 2026-05-16 — Personal-email mailboxes all showing "refresh token invalid — reconnect" (DIAGNOSIS ONLY, no code change)
+
+**User asked why the 3 personal mailboxes (FM+, GMAIL, LIME) all show the reconnect badge.**
+
+**Confirmed via SQL on `personal_email_classification_runs`:**
+- All 3 are returning `invalid_grant` from Google's token endpoint on every 15-min cron tick.
+- FM+ first failed **2026-05-04 07:45 UTC** (alone). GMAIL + LIME first failed together at **2026-05-11 11:15 UTC**.
+- Last successful classify: ~2026-05-11 11:00 UTC for all three.
+- Run counts since: FM+ 365, GMAIL 351, LIME 351.
+
+**Why this isn't a code/config bug:**
+- The 7-day staggered split (FM+ alone, then GMAIL+LIME together) rules out encryption-key rotation, client-secret change, or a code regression — those would have killed all three simultaneously.
+- Tokens were issued 2026-04-19 and lasted 15+22 days, so Google's "OAuth consent screen Testing mode → 7-day expiry" is NOT the cause either.
+- Leading explanations: user revocation at myaccount.google.com/permissions on May 11 (paired death), and an FM+ workspace admin restriction or manual revoke on May 4.
+
+**Action for user:** click Setup → reconnect each mailbox. `accounts` row is upserted on `email` ([api/auth/google/callback/route.ts:55](src/app/api/auth/google/callback/route.ts:55)) so no data loss; the 1,000 already-classified emails stay.
+
+**Follow-up worth flagging (offered as a separate task):** [src/lib/gmail.ts:38](src/lib/gmail.ts:38) `getGmailClientFromRefresh` calls `refreshAccessToken()` but never writes the (possibly rotated) refresh token back to `accounts.oauth_refresh_token_encrypted`. Dormant today (Google's default OAuth2 web-server config doesn't rotate), but if rotation is ever enabled, every refresh silently revokes the stored token — exact symptom would look like this incident.
+
+**Then user hit `{"error":"invalid_state"}` on `/api/auth/google/callback`.** First-pass diagnosis (timing/two-tabs/refresh) was wrong; retries kept failing. **Actual root cause = host mismatch:** user clicks Connect Gmail from `app.limeinc.cc/personal/email/setup/accounts`. Setup link is relative ([src/app/personal/email/setup/accounts/page.tsx:29](src/app/personal/email/setup/accounts/page.tsx:29)) so [start/route.ts:15](src/app/api/auth/google/start/route.ts:15) runs on app.limeinc.cc and sets `oauth_state` cookie there. But `GOOGLE_OAUTH_REDIRECT_URI` is hard-coded to `https://limeinc.vercel.app/api/auth/google/callback`, so Google redirects to limeinc.vercel.app — cookie is stranded on the other host, callback sees no cookie, returns `invalid_state`. Deterministic, not a timing issue.
+
+**Workaround given:** open https://limeinc.vercel.app/personal/email/setup/accounts directly (not the app.limeinc.cc bookmark) and click Connect Gmail from there.
+
+**Permanent fix offered (Option A, not implemented):** derive redirect URI from `req.headers.get('host')` in [src/lib/gmail.ts:13](src/lib/gmail.ts:13) + [start/route.ts](src/app/api/auth/google/start/route.ts) + [callback/route.ts:40](src/app/api/auth/google/callback/route.ts:40); register `https://app.limeinc.cc/api/auth/google/callback` as an additional Authorized redirect URI in Google Cloud Console. ~20 LOC + GCP console change.
+
+---
+
+## 2026-05-16 — payment.ts code review fixes (DONE)
+
+Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
+1. **Correctness bug**: `recordPaymentForRecurringTemplate` — template `next_run_date` update now captures `{ error }` and throws on failure; previously swallowed silently which would cause the cron to re-fire and create a duplicate payment row.
+2. **Correctness bug**: `recordCardPayment` `'min'` preset — throws `Error` when `min_payment_pct` is `null` instead of silently falling back to 5%; responsibility pushed to the form layer.
+
+1/1 tests still pass. `tsc --noEmit` clean. Commit `06c44e30`.
+
+---
+
+## 2026-05-16 — Task 11: payment.ts — recordPayment + variants (DONE)
+
+**Created:**
+- `src/lib/personal/networth/payment.ts` — 4 exports: `recordPayment` (generic insert into `personal_networth_payments`), `recordPaymentForSchedule` (reads schedule row, inserts payment, marks schedule paid, updates balance), `recordPaymentForRecurringTemplate` (reads template, inserts payment, advances `next_run_date`, optionally marks next unpaid schedule row), `recordCardPayment` (credit-card/overdraft preset-based payment with min/statement/full/custom amounts, validates amount > 0).
+- `src/lib/personal/networth/payment.test.ts` — smoke test (1/1 pass).
+
+**TDD:** red → green confirmed. `tsc --noEmit` clean on payment files (2 pre-existing unrelated errors in `insights-demo.test.ts`). Added `ScheduleWithLiability` local type to handle Supabase join result inference. Commit `7e1117c`.
+
+---
+
 ## 2026-05-16 — Google audience breakdowns cron — fix missing_credentials + MCC expansion (DONE)
 
 **Bug:** Campaign-detail Audience snapshot showed "No data yet" for all three breakdowns (countries / demographics / device) on Google campaigns. `ads_insights_geo|demo|device` had **zero** Google rows.
@@ -14,6 +61,40 @@
   - Audit log `metadata.failures[]` now includes `{ campaignId, platform, error }` for future diagnostics
 
 **Verification:** `npm run build` clean. Manual trigger after deploy will populate `ads_insights_*` for Google for the last 7d window.
+
+---
+
+## 2026-05-16 — liability.ts code review fixes (DONE)
+
+Applied 3 fixes from code review to `src/lib/personal/networth/liability.ts`:
+1. **Critical**: validate amortizing required fields (`principal`, `aprPct`, `termMonths`, `startDate`) before generating schedule — throws descriptive error instead of silently passing `undefined` as NaN. Removes all `!` non-null assertions. Adds atomicity comment (V1 two-step write trade-off).
+2. **Important**: parent insert error now uses codebase pattern `throw new Error(\`createLiability insert failed: ${...}\`)` instead of re-throwing raw Supabase error.
+3. **Important**: schedule insert error uses same pattern `throw new Error(\`createLiability schedule insert failed: ${...}\`)`.
+
+1/1 tests still pass. tsc clean on `liability.ts` (5 pre-existing errors in unrelated `anomalies.test.ts`). Commit `9f4db43`.
+
+---
+
+## 2026-05-16 — Task 10: liability.ts — createLiability + updateBalance + markScheduleRowPaid (DONE)
+
+**Created:**
+- `src/lib/personal/networth/liability.ts` — 3 exports: `createLiability` (inserts liability row + auto-generates amortization schedule for `amortizing_loan`/`bnpl` kinds), `updateBalance` (for revolving balances), `markScheduleRowPaid` (links a schedule row to a payment).
+- `src/lib/personal/networth/liability.test.ts` — smoke test (1/1 pass).
+
+**TDD:** red → green confirmed. `tsc --noEmit` clean. Commit `5d2b486`.
+
+---
+
+## 2026-05-16 — snapshot.ts code-quality polish (DONE)
+
+**4 fixes applied to `src/lib/personal/networth/snapshot.ts`:**
+1. Round `stocksEgp` via `Math.round(* 100) / 100` before pushing to lines (consistency with all other lines).
+2. `console.warn` on `currentRes.error` before defaulting `stocksEgp=0` (silent failure was invisible).
+3. Comment above the two-step parent→lines write documenting the orphan-parent V1 trade-off.
+4. `cutoff.setDate(1)` before `setMonth()` in `listSnapshotsForChart` to prevent JS day-overflow bug on month-end call dates.
+
+**Tests:** 2/2 pass. `tsc --noEmit`: clean. Only `snapshot.ts` in commit.
+**Commit:** `38eeff1`
 
 ---
 

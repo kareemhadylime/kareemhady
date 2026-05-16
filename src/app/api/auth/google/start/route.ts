@@ -10,7 +10,12 @@ export async function GET(req: NextRequest) {
   // domain-tagging intent without trusting any other input.
   const csrf = crypto.randomBytes(16).toString('hex');
   const state = `${csrf}.${domainParam}`;
-  const oauthUrl = getAuthUrl(state);
+  // Derive redirect URI from the actual request host so the cookie
+  // (set on this host) and the eventual callback (which Google sends
+  // to redirect_uri) land on the same origin. Every host used must be
+  // registered as an Authorized redirect URI in Google Cloud Console.
+  const redirectUri = `${url.origin}/api/auth/google/callback`;
+  const oauthUrl = getAuthUrl(state, redirectUri);
   const res = NextResponse.redirect(oauthUrl);
   res.cookies.set('oauth_state', csrf, {
     httpOnly: true,

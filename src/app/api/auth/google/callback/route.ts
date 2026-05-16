@@ -37,7 +37,11 @@ export async function GET(req: NextRequest) {
 
   const domain = domainPart === 'personal' ? 'personal' : null;
 
-  const tokens = await exchangeCode(code);
+  // Must match the redirect_uri used in the authorization request, or
+  // Google returns invalid_grant. Both start and callback derive it
+  // from the same request origin so any registered host works.
+  const redirectUri = `${url.origin}/api/auth/google/callback`;
+  const tokens = await exchangeCode(code, redirectUri);
   if (!tokens.refresh_token) {
     return NextResponse.json(
       {

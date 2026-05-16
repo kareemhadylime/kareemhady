@@ -18,8 +18,8 @@ export function getOAuthClient(redirectUri?: string) {
   );
 }
 
-export function getAuthUrl(state: string): string {
-  const client = getOAuthClient();
+export function getAuthUrl(state: string, redirectUri?: string): string {
+  const client = getOAuthClient(redirectUri);
   return client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -29,8 +29,8 @@ export function getAuthUrl(state: string): string {
   });
 }
 
-export async function exchangeCode(code: string) {
-  const client = getOAuthClient();
+export async function exchangeCode(code: string, redirectUri?: string) {
+  const client = getOAuthClient(redirectUri);
   const { tokens } = await client.getToken(code);
   return tokens;
 }
