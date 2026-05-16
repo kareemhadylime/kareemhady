@@ -1,3 +1,52 @@
+## 2026-05-16 — Net Worth MODULE COMPLETE (Task 32: end-to-end smoke pass) ✅
+
+**Scope:** Final verification of the Personal Net Worth module. All 32 tasks across the 32-task plan are now landed on `origin/main`. No new code in this task — verification only.
+
+**Verified:**
+- `npx tsc --noEmit` — zero errors across `src/lib/personal/networth/**`, `src/app/personal/networth/**`, and `src/app/api/personal/networth/**`. Only 2 unrelated pre-existing errors remain (`beithady-daily-report/build-{dxb-section,yesterday-summary}.test.ts` — missing `fare_accommodation_usd` test-fixture field, out of Task 32 scope).
+- `npm run test` — **924 pass, 22 skipped, 0 failed** (172 test files passed, 3 skipped).
+- Supabase project `bpjproljatbrbmszwbov`: migrations `0139_personal_networth_part1..4` + `part4_fix_v_current_anchor` + `0140_personal_networth_upcoming_liability_id` all live. **11 tables** (`personal_networth_{assets, currencies, fx_rates, lenders, liabilities, liability_schedule, payments, recurring_templates, settings, snapshot_lines, snapshots}`) + **3 views** (`v_personal_networth_{current, loan_summary, upcoming}`) + `liability_id` column on `v_personal_networth_upcoming` (proves 0140 applied) + `fx_lookup` RPC.
+- `vercel.json` cron routes registered: `/api/cron/personal-networth-snapshot` (monthly 1st @ Cairo 9 AM, DST-safe twin schedules) + `/api/cron/personal-networth-recurring` (daily @ Cairo 9 AM, DST-safe twin).
+- 6 UI routes live: `/personal/networth`, `/personal/networth/assets`, `/personal/networth/liabilities`, `/personal/networth/liabilities/[id]`, `/personal/networth/recurring`, `/personal/networth/reports`, `/personal/networth/setup`.
+
+**Skipped (no live browser in this agent):** manual data entry (FX rates, lenders, asset/liability rows, recurring templates) + dashboard sanity checks. Kareem will do these in the browser at `app.limeinc.cc/personal/networth`.
+
+**Deferred follow-ups (carry forward):**
+1. Extract shared `cairoTodayIso()` helper into `src/lib/fmt-date.ts` — currently duplicated across networth files.
+2. Tighten `MixSlice.label` to discriminated union of `AssetKind | 'stocks_pipe'` / `LiabilityKind` (currently widened to `string`).
+3. Make `recordPaymentForRecurringTemplate` idempotent via partial unique index on `(recurring_template_id, occurred_on)` — currently relies on caller-side dedup.
+4. Replace `window.confirm` / `alert` with proper confirm dialogs across the module (used in delete-row and run-now flows).
+
+---
+
+## 2026-05-16 — Net Worth Task 31: overview charity YTD + loan payoff + quick-entry strip ✅
+
+**Scope:** Final pieces of the /personal/networth overview dashboard — charity YTD card with optional goal progress, loan-payoff projection card showing top 3 loans by remaining months, and a 4-button quick-entry strip (Payment / Liability / Asset / Recurring) that opens existing modals. Also extracted the inline `AddPaymentModal` out of `payment-log-tab.tsx` so it can be reused by the quick-entry strip.
+
+**Files:**
+- New `src/app/personal/networth/_components/modals/add-payment-modal.tsx` — extracted from `payment-log-tab.tsx`. Single self-contained client modal: occurredOn (Cairo today default), amount, currency, category (12 enum), liability_id (nullable), notes. POSTs to `/api/personal/networth/payments`. Calls `onSaved()` on success — parent decides whether to close + refetch.
+- New `src/app/personal/networth/_components/overview/charity-ytd.tsx` — client; shows YTD total + monthly avg; emerald progress bar when `yearly_goal_egp` is set, otherwise CTA link to `/personal/networth/setup`.
+- New `src/app/personal/networth/_components/overview/loan-payoff.tsx` — client; lists top 3 loans by `remaining_months` (ASC) with `<Link>` to each `[id]` page; empty-state message when no active loans.
+- New `src/app/personal/networth/_components/overview/quick-entry-strip.tsx` — client; 4-button grid (2 cols mobile / 4 cols md). State machine `Open = null | 'payment' | 'liability' | 'asset' | 'recurring'`. `onSaved` closes the modal and calls `router.refresh()` to re-fetch all overview data.
+- Modified `src/app/personal/networth/page.tsx` — added 4 new parallel datasets to the existing `Promise.all` (charity, loans, liabilities, lenders). Renders the new Layout A grid: `lg:grid-cols-[3fr_2fr]` with `UpcomingPayments` on the left and stacked Charity + LoanPayoff on the right; `QuickEntryStrip` below.
+- Modified `src/app/personal/networth/_components/recurring/payment-log-tab.tsx` — removed the inline modal, removed dead `Currency`/`CURRENCIES`/`X` import; now imports `AddPaymentModal` from `../modals/add-payment-modal`.
+
+**Modal prop names (confirmed by reading each file):**
+- `AddAssetModal` — `onAdded`
+- `AddLiabilityModal` — `onAdded` + needs `lenders: LenderOption[]`
+- `AddRecurringModal` — `onSaved` + needs `liabilities: LiabilityOption[]`
+- `AddPaymentModal` — `onSaved` + needs `liabilities: PaymentLiabilityOption[]` (just `{id, name}`)
+
+The two modal-list shapes `LenderOption` and `LiabilityOption` both require `{id, name, kind: string}` — that's why `page.tsx` selects `id, name, kind` for both (not just `id, name`).
+
+**`v_personal_networth_loan_summary`** view columns confirmed in migration `0139_personal_networth.sql:304` — `liability_id`, `app_user_id`, `name`, `kind`, `currency`, `principal`, `apr_pct`, `term_months`, `monthly_payment`, `start_date`, `paid_count`, `principal_paid`, `interest_paid`, `interest_paid_ytd`, `remaining_months`, `next_due_date`, `final_due_date`. We only select * and use `liability_id`, `name`, `remaining_months`, `final_due_date`.
+
+**`npx tsc --noEmit`** — clean for all networth files (`grep "personal/networth"` on full-project output returned nothing). The 2 unrelated pre-existing errors in `beithady-daily-report/build-dxb-section.test.ts` + `build-yesterday-summary.test.ts` (`fare_accommodation_usd` test-fixture mismatch) remain from earlier work and are out of scope.
+
+**Commit + push:** `9d213a9f` on origin/main. Rebased cleanly; a `feat(beithady-analytics)` commit (`31b70770`) had landed between baseline and push but rebase was no-op. Vercel autodeploy will roll out via the GitHub integration.
+
+---
+
 ## 2026-05-16 — Net Worth Task 24: revolving liability detail (credit card / overdraft) ✅
 
 **Scope:** Real detail page for revolving liabilities — utilization gauge with color tier, statement-timeline strip, pay-card modal with 4 presets (Minimum / Statement / Full / Custom), and a 50-row payment history table.
