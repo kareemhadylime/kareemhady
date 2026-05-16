@@ -1,3 +1,40 @@
+## 2026-05-17 — BH Ads Insights V4 plan WRITTEN + COMMITTED (awaiting execution choice 1/2)
+
+**Status:** Plan committed (`ca7d6e32`, 3042 lines, 20 TDD tasks). Spec already committed `64b40386`. Brainstorm + spec + plan all done in this session. NO V4 code touched yet. Awaiting kareem's answer on execution path: (1) subagent-driven-development [recommended, matches V1/V2/V3] vs (2) inline executing-plans.
+
+**Plan:** [docs/superpowers/plans/2026-05-17-bh-ads-v4-sharing.md](docs/superpowers/plans/2026-05-17-bh-ads-v4-sharing.md)
+**Spec:** [docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md](docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md)
+
+**Task list (20 total):**
+1. Migration 0141 `ads_dashboard_snapshots`
+2. `snapshot.ts` — token gen + payload type + `cleanupExpiredAdsSnapshots`
+3. Extend `beithady-daily-report-cleanup` cron to also clean ads snapshots
+4. `getAdsSnapshotData` — gather all 13 data slices
+5. `createAdsShareLinkAction` — rate limit (5/day) + graceful AI cap-skip
+6. `<AiSummaryCard>` — add `readonly` + `skippedReason` props (no split, already mostly view)
+7. Split `<AnomalyBanner>` → view + fetcher
+8. Split `<FrtCard>` → view + fetcher
+9. Split `<SpendPacingCard>` → view + fetcher
+10. Split `<AudienceSummaryWidget>` → view + fetcher
+11. Split Geo/Demo/Device tabs → view + fetcher (3 tabs in one commit)
+12. Split `<FunnelTab>` → view + fetcher
+13. Split `<QualityTab>` → view + fetcher
+14. Split `<CohortTab>` → view + fetcher
+15. Split `<TimeTab>` → view + fetcher (with readonly stacked mode)
+16. Split `<OptimizeTab>` → view + fetcher (readonly hides sort tabs)
+17. `<AdsSnapshotView>` — compose all view components from snapshot payload
+18. Public route `/r/beithady/ads/[token]` + print toolbar + print CSS
+19. `<ShareLinkButton>` + dialog wired into page header
+20. Final smoke + V4 SHIPPED handoff entry
+
+**Key implementation notes for picker-up:**
+- Per CLAUDE.md standing authorization: git push to main + Supabase MCP migrations + Vercel auto-deploy all implicit. Don't ask.
+- BH brand rule (memory `feedback_beithady_brand_only.md`): only `ix-card` / `ix-btn-*` / `ix-input` utilities + emerald/slate/amber/rose palette on BH surfaces.
+- View+fetcher pattern: each card becomes a pure `<XxxView data={...} />` (no async, no Supabase) + thin live wrapper `async function XxxCard(props) { const data = await getXxx(props); return <XxxView data={data} /> }`. Snapshot route passes pre-fetched data with `readonly` prop. Live tests stay green.
+- AI cap-skip MUST be graceful: snapshot succeeds, `ai_summary=null`, `meta.ai_skipped_reason='cap_reached'` recorded. Never fail the whole snapshot on AI errors.
+
+---
+
 ## 2026-05-17 — Personal stocks: daily price-scraping cron SHIPPED (Mubasher, Sun–Thu 5PM Cairo) ✅
 
 Kareem approved the design from earlier this turn. Built and deployed end-to-end.
