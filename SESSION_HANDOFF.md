@@ -1,3 +1,14 @@
+## 2026-05-16 — Session wrap (3 things shipped, 1 user task pending)
+
+This session's full sequence (newest at top below):
+1. **Inbox bulk-all + sort dropdown** — pushed `2806d662`, live after auto-deploy.
+2. **Gmail OAuth host-aware redirect_uri fix** — pushed `168a3a11` + handoff `a12d807f`, live. **Pending user action:** add `https://app.limeinc.cc/api/auth/google/callback` as an Authorized redirect URI in the same Google Cloud Console OAuth 2.0 Client that has `https://limeinc.vercel.app/api/auth/google/callback`. Without it, app.limeinc.cc connects will fail with `redirect_uri_mismatch` (a clear error, not the old `invalid_state`). limeinc.vercel.app works right now.
+3. **Diagnosed 3 mailbox `invalid_grant` mass-revoke** — no code, user action is to click Connect Gmail on each mailbox. Recommended doing from `limeinc.vercel.app/personal/email/setup/accounts` until GCP redirect URI is added.
+
+Open follow-up flagged but not implemented: persist rotated refresh tokens in `getGmailClientFromRefresh` ([src/lib/gmail.ts:38](src/lib/gmail.ts:38)). Dormant today; would matter if Google ever enables rotation by default. YouTube OAuth ([google-youtube/start/route.ts:22](src/app/api/auth/google-youtube/start/route.ts:22)) hard-codes `app.limeinc.cc` — symmetric to the Gmail bug just fixed; not blocking anyone today.
+
+---
+
 ## 2026-05-16 — Personal email category drill-down: select-all-in-category + sort dropdown (DONE)
 
 **User asked for two things on `/personal/email?category=<slug>`:**
