@@ -1,3 +1,43 @@
+## 2026-05-16 — Task 9: networth snapshot.ts + snapshot.test.ts (DONE)
+
+**What:** Created `src/lib/personal/networth/snapshot.ts` and `snapshot.test.ts`.
+- `takeSnapshot(appUserId, kind)` — pulls active assets + liabilities + `v_personal_networth_current.stocks_pipe_egp`, converts all to EGP via `ratesAsOf()`, writes parent row to `personal_networth_snapshots` then N child rows to `personal_networth_snapshot_lines`. Returns `{snapshotId, netWorthEgp}`.
+- `listSnapshotsForChart(appUserId, months)` — returns last N months of snapshots ordered ascending for the hero sparkline.
+- `SnapshotKind` type exported (`'monthly_auto' | 'manual'`).
+- Negative stocks values included (`stocksEgp !== 0`, not `> 0`) — handles margin-account debit scenarios.
+- Smoke tests: 2/2 pass. `tsc --noEmit`: clean.
+- Commit: `0b6f9f5` — `feat(networth): snapshot + listSnapshotsForChart`
+
+**Next:** Task 10 onward (remaining Phase B business logic).
+
+---
+
+## 2026-05-16 — Task 8 code-review fix: ratesAsOf one-query + latestRate date filter (DONE)
+
+**What:** Applied two code-quality fixes to `src/lib/personal/networth/fx.ts`:
+- **Fix 1 (ratesAsOf):** Replaced N+1 query loop (1 currencies query + N per-currency queries) with a single `personal_networth_fx_rates` query, sorted `(currency_code asc, as_of_date desc)`, deduped in a JS loop. One DB round-trip regardless of currency count.
+- **Fix 2 (latestRate):** Added `.lte('as_of_date', today)` guard using `new Date().toISOString().slice(0,10)` (UTC date) so future-dated rates are ignored. Semantically consistent with `convertToEgp`.
+- **Tests:** Updated mock to add a `then` handler (Promise-like) so the array-returning `ratesAsOf` query resolves to `{data:[], error:null}` while `maybeSingle()` still resolves to `{data:{rate_to_egp:48.2}}`. Added 2 new tests: `latestRate returns 1 for EGP` and `ratesAsOf always includes EGP=1`. 4/4 pass. `tsc --noEmit` clean.
+- Commit: `086b73d` — `fix(networth): ratesAsOf one-query rewrite + latestRate filters by today`
+
+**Next:** Task 9 (`snapshot.ts`) — uses `ratesAsOf` to freeze FX into the snapshot's jsonb column.
+
+---
+
+## 2026-05-16 — Task 8: networth fx.ts + fx.test.ts (DONE)
+
+**What:** Created `src/lib/personal/networth/fx.ts` and `fx.test.ts` following TDD.
+- Wrote `fx.test.ts` first (2 tests under `describe('convertToEgp')`), confirmed failure (module not found).
+- Implemented `fx.ts` with 3 exports: `convertToEgp`, `latestRate`, `ratesAsOf`.
+- `convertToEgp` returns discriminated union `{egp, rate, rateAsOf} | {error: 'missing_rate', currency, asOfDate}`.
+- `latestRate` and `convertToEgp` have EGP early-return paths (no DB query needed).
+- Tests: 2/2 pass. `tsc --noEmit`: clean.
+- Commit: `6fdc985` — `feat(networth): fx conversion helpers (convertToEgp, latestRate, ratesAsOf)`
+
+**Next:** Task 9 (`snapshot.ts`) — uses `ratesAsOf` to freeze FX into the snapshot's jsonb column.
+
+---
+
 ## 2026-05-16 — Fix Google Ads spend EGP double-conversion + add bar labels (DONE)
 
 **Bug 1 — Spend × FX rate:** Campaign detail page (`/beithady/ads/campaigns/[id]`) was showing `EGP 720,863` over 23 days — actual native sum was ≈ EGP 14,650. Root cause: `ads_accounts.currency` for the "Beithady Google Ads" account row (id=3) was stored as `'USD'`, but Google Ads' `metrics.cost_micros` is in the customer's local currency (EGP for this account). `convertManyToEgp` then multiplied by 1/EGP→USD ≈ 49.26.
