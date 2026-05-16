@@ -13,6 +13,7 @@ import {
   buildKikaPickerReport,
   type PickerScope,
 } from '@/lib/kika-picker';
+import { BucketsBlock } from './_components/buckets-block';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -131,7 +132,7 @@ export default async function KikaPickerPage({
           />
         </section>
 
-        {/* TODO Task 5: BucketsBlock */}
+        <BucketsBlock buckets={report.buckets} />
         {/* TODO Task 6: CommonItemsBlock */}
 
         <footer className="text-[11px] text-slate-400 border-t border-slate-200 pt-4">
