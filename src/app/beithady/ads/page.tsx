@@ -131,10 +131,10 @@ export default async function AdsLandingPage({
 
       <AudienceSummaryWidget range={{ from: range.from, to: range.to }} />
 
-      {/* KPIs (last 30 days) */}
+      {/* KPIs for the selected date range */}
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-        <Stat label="Spend (30d)" value={`EGP ${kpis.spend.toLocaleString()}`} icon={DollarSign} />
-        <Stat label="Leads (30d)" value={kpis.leads.toLocaleString()} icon={Users} accent="cyan" />
+        <Stat label={`Spend (${range.preset === 'custom' ? `${range.from}—${range.to}` : range.preset})`} value={`EGP ${kpis.spend.toLocaleString()}`} icon={DollarSign} />
+        <Stat label={`Leads (${range.preset === 'custom' ? `${range.from}—${range.to}` : range.preset})`} value={kpis.leads.toLocaleString()} icon={Users} accent="cyan" />
         <Stat label="CPL" value={kpis.cpl == null ? '—' : `EGP ${kpis.cpl.toFixed(2)}`} accent="amber" />
         <Stat label="Bookings attributed" value={kpis.bookings.toLocaleString()} accent="emerald" />
         <Stat label="Revenue (EGP)" value={`EGP ${kpis.attributed_revenue.toLocaleString()}`} accent="emerald" />

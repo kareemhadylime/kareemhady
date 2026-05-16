@@ -325,7 +325,9 @@ export async function fetchTikTokIntegratedReport(
       advertiser_id: opts.advertiserId,
       report_type: 'AUDIENCE',
       data_level: 'AUCTION_CAMPAIGN',
-      dimensions: ['campaign_id', ...opts.dimensions],
+      // Always request stat_time_day — every BH Ads normalizer reads it as metric_date.
+      // Omitting it causes silent upsert failures (date NOT NULL constraint).
+      dimensions: ['campaign_id', 'stat_time_day', ...opts.dimensions],
       metrics: ['impressions', 'clicks', 'spend', 'reach', 'conversion'],
       start_date: opts.fromDate,
       end_date: opts.toDate,

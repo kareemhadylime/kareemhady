@@ -28,6 +28,10 @@ describe('fetchTikTokIntegratedReport', () => {
     expect(body.report_type).toBe('AUDIENCE');
     expect(body.data_level).toBe('AUCTION_CAMPAIGN');
     expect(body.dimensions).toContain('country_code');
+    // Cron normalizers all expect stat_time_day on every row — the fetcher
+    // must inject it regardless of what the caller asks for.
+    expect(body.dimensions).toContain('stat_time_day');
+    expect(body.dimensions).toContain('campaign_id');
     expect(body.advertiser_id).toBe('7000');
     expect(body.start_date).toBe('2026-05-10');
     expect(body.end_date).toBe('2026-05-10');
