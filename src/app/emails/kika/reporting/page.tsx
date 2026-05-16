@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { TopNav } from '@/app/_components/brand';
 
-export const dynamic = 'force-dynamic';
 
 export default function KikaReportingHubPage() {
   return (
