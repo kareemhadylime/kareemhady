@@ -7,6 +7,9 @@ import { convertManyToEgp } from '@/lib/fx-rates';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { AdsTabs } from './_components/ads-tabs';
+import { DateRangeFilter } from './_components/date-range-filter';
+import { AudienceSummaryWidget } from './_components/audience-summary-widget';
+import { parseDateRange } from '@/lib/beithady/ads/date-range';
 import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
 import { syncAllAction } from './actions';
 
@@ -16,10 +19,14 @@ export const maxDuration = 60;
 export default async function AdsLandingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ building?: string; date?: string; signal?: string }>;
+  searchParams: Promise<{
+    building?: string; date?: string; signal?: string;
+    from?: string; to?: string; preset?: string; compare?: string;
+  }>;
 }) {
   await requireBeithadyPermission('ads', 'read');
   const sp = await searchParams;
+  const range = parseDateRange({ from: sp.from, to: sp.to, preset: sp.preset, compare: sp.compare });
 
   const [
     kpis,
@@ -32,7 +39,7 @@ export default async function AdsLandingPage({
     tiktokEnabled,
     tiktokStatus,
   ] = await Promise.all([
-    getDashboardKpis(30),
+    getDashboardKpis({ from: range.from, to: range.to }),
     listCampaigns(),
     listLeadFunnel({ limit: 10 }),
     getProviderEnabled('meta_marketing'),
@@ -92,6 +99,7 @@ export default async function AdsLandingPage({
       />
 
       <AdsTabs active="overview" />
+      <DateRangeFilter />
 
       {/* Per-platform connection status row */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -120,6 +128,8 @@ export default async function AdsLandingPage({
           </span>
         </div>
       )}
+
+      <AudienceSummaryWidget range={{ from: range.from, to: range.to }} />
 
       {/* KPIs (last 30 days) */}
       <section className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
