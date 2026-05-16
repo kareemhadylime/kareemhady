@@ -51,6 +51,17 @@ Applied 2 fixes from code review to `src/lib/personal/networth/payment.ts`:
 
 ---
 
+## 2026-05-16 — Pause/Activate button missing for Google campaigns (DONE)
+
+**Bug:** Live Google campaigns (status='ENABLED') had no Pause button on either the campaign-detail page or the campaigns list page. The UI gate `upperStatus === 'ACTIVE' || upperStatus === 'PAUSED'` only matched Meta/TikTok dialects; Google stores `'ENABLED'`. Backend dispatcher in `status.ts` already translates `'ACTIVE'`→`'ENABLED'` correctly, so this was a UI-only blocker.
+
+**Fix:**
+- `src/lib/beithady/ads/platforms.ts`: added `isRunningCampaignStatus`, `isPausedCampaignStatus`, `isFlippableCampaignStatus`, `nextFlipStatus` helpers — recognize `ACTIVE`/`ENABLED`/`ENABLE` as running and `PAUSED`/`DISABLE`/`DISABLED` as paused
+- `src/app/beithady/ads/campaigns/[id]/page.tsx`: replaced inline `'ACTIVE'`/`'PAUSED'` checks with helpers
+- `src/app/beithady/ads/campaigns/page.tsx`: same fix in three places (gate, value, label/icon)
+
+---
+
 ## 2026-05-16 — Google audience breakdowns: end-to-end fix (DONE)
 
 **Bug:** Campaign-detail Audience snapshot showed "No data yet" for all three breakdowns on Google campaigns. `ads_insights_geo|demo|device` had **zero** Google rows.

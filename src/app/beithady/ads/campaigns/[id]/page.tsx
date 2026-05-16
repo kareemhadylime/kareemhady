@@ -8,7 +8,7 @@ import { AdsTabs } from '../../_components/ads-tabs';
 import { DateRangeFilter } from '../../_components/date-range-filter';
 import { parseDateRange } from '@/lib/beithady/ads/date-range';
 import { AudienceSummaryWidget } from '../../_components/audience-summary-widget';
-import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
+import { statusBadgeClass, PLATFORM_LABEL, isFlippableCampaignStatus, nextFlipStatus } from '@/lib/beithady/ads/platforms';
 import { convertToEgp, convertManyToEgp } from '@/lib/fx-rates';
 import { fmtCairoDateTime, fmtCairoDate } from '@/lib/fmt-date';
 import { setCampaignStatusActionUnified } from '../../actions';
@@ -161,9 +161,11 @@ export default async function CampaignDetailPage({
   const autoPaused = !!camp.auto_paused_at;
   const isDraft = camp.external_id.startsWith('draft_');
 
-  const upperStatus = (camp.status || '').toUpperCase();
-  const canFlip = upperStatus === 'ACTIVE' || upperStatus === 'PAUSED';
-  const nextStatus: 'PAUSED' | 'ACTIVE' = upperStatus === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+  // canFlip + nextStatus need to recognize each platform's "running" dialect
+  // (Google=ENABLED, Meta=ACTIVE, TikTok=ENABLE), not just ACTIVE — otherwise
+  // the Pause button disappears for live Google campaigns.
+  const canFlip = isFlippableCampaignStatus(camp.status);
+  const nextStatus: 'PAUSED' | 'ACTIVE' = nextFlipStatus(camp.status);
 
   // Sparkline data — last 30 days, normalized. Use the already-converted
   // EGP spend per day so the tooltip and bar heights agree with the totals.

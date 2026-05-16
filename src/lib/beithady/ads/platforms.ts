@@ -106,6 +106,26 @@ export function isoCountriesToGoogleGeo(codes: string[] | null | undefined): str
   return out;
 }
 
+// Status normalization for the Pause/Activate UI gate. Each platform mirrors
+// its own dialect into ads_campaigns.status (Google=ENABLED, Meta=ACTIVE,
+// TikTok=ENABLE; PAUSED is common). The unified status dispatcher in
+// status.ts speaks 'ACTIVE' | 'PAUSED' and translates per-platform, so the
+// UI needs to recognize all dialects as "running" or "paused".
+export function isRunningCampaignStatus(status: string | null | undefined): boolean {
+  const u = (status || '').toUpperCase();
+  return u === 'ACTIVE' || u === 'ENABLED' || u === 'ENABLE';
+}
+export function isPausedCampaignStatus(status: string | null | undefined): boolean {
+  const u = (status || '').toUpperCase();
+  return u === 'PAUSED' || u === 'DISABLE' || u === 'DISABLED';
+}
+export function isFlippableCampaignStatus(status: string | null | undefined): boolean {
+  return isRunningCampaignStatus(status) || isPausedCampaignStatus(status);
+}
+export function nextFlipStatus(status: string | null | undefined): 'PAUSED' | 'ACTIVE' {
+  return isRunningCampaignStatus(status) ? 'PAUSED' : 'ACTIVE';
+}
+
 // Status badge classes (Tailwind) for any platform's campaign status
 export function statusBadgeClass(status: string | null | undefined): string {
   if (!status) return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';

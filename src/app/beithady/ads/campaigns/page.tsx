@@ -4,7 +4,7 @@ import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listCampaigns, listCampaignBudgetStates } from '@/lib/beithady/ads/reporting';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
 import { AdsTabs } from '../_components/ads-tabs';
-import { statusBadgeClass, PLATFORM_LABEL } from '@/lib/beithady/ads/platforms';
+import { statusBadgeClass, PLATFORM_LABEL, isFlippableCampaignStatus, isRunningCampaignStatus, nextFlipStatus } from '@/lib/beithady/ads/platforms';
 import { setCampaignStatusActionUnified } from '../actions';
 import { supabaseAdmin } from '@/lib/supabase';
 import { loadMetaCredentials, fetchMetaEntityStatusBatch } from '@/lib/beithady/ads/meta-client';
@@ -152,12 +152,12 @@ export default async function CampaignsListPage({ searchParams }: { searchParams
                     </td>
                     <td className="py-2 pr-3 text-[11px] text-slate-500">{c.last_date || '—'}</td>
                     <td className="py-2 pr-3">
-                      {((c.campaign_status || '').toUpperCase() === 'ACTIVE' || (c.campaign_status || '').toUpperCase() === 'PAUSED') && (
+                      {isFlippableCampaignStatus(c.campaign_status) && (
                         <form action={setCampaignStatusActionUnified} className="inline">
                           <input type="hidden" name="campaign_id" value={c.campaign_id} />
-                          <input type="hidden" name="status" value={(c.campaign_status || '').toUpperCase() === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'} />
-                          <button type="submit" title={(c.campaign_status || '').toUpperCase() === 'ACTIVE' ? 'Pause' : 'Activate'} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">
-                            {(c.campaign_status || '').toUpperCase() === 'ACTIVE' ? <Pause size={12} /> : <Play size={12} />}
+                          <input type="hidden" name="status" value={nextFlipStatus(c.campaign_status)} />
+                          <button type="submit" title={isRunningCampaignStatus(c.campaign_status) ? 'Pause' : 'Activate'} className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">
+                            {isRunningCampaignStatus(c.campaign_status) ? <Pause size={12} /> : <Play size={12} />}
                           </button>
                         </form>
                       )}
