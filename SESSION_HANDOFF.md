@@ -1,3 +1,112 @@
+## 2026-05-16 — YouTube V1.2 ad-spend currency conversion + final session state
+
+**Status:** V1.2 code phase DONE (17 of 17 code tasks + 3 post-deploy currency fixes shipped). Manual smoke (Tasks 18-21) awaiting kareem.
+
+### Session V1.2 commits (chronological)
+
+**Spec + plan:**
+- `d20ace1` spec: YouTube V1.2 (Picker / cross-post) design (~520 lines)
+- `0a35c5a` plan: 21 TDD-sized tasks across 6 phases
+
+**Code (17 tasks shipped via subagent-driven-development):**
+1. Foundation — `6d007a6` migration 0137 ads_youtube_cross_posts, `5c7cbd2` typed errors (PickerSourceUnavailableError, MetaVideoUploadError, TargetPlatform), `e6d9a2d` recordCrossPost best-effort helper
+2. Picker module — `7a57b81` (hybrid DB + YouTube API source merger + 5min in-memory cache + 10 unit tests covering computeIsShorts, computeActions, dedupeByVideoId)
+3. Picker UI — `54520e6` PickerFilters, `b1d0ca7` PickerRow, `f40db48` page + grid, `d283c61` EmbeddedPicker + YouTubeSourceBanner (Lucide `Youtube` → `Video` substitution applied — same V1.1 lesson)
+4. Google PMax — `de4d19d` extended google-pmax-publish for YOUTUBE_VIDEO asset attachment (used `agResource` actual var name, real `gadsMutate(customerId, endpoint, ops, creds, accessToken)` signature, v24 camelCase JSON), `25e650f` page wiring with banner + embedded picker + recordCrossPost before redirect
+5. IG/TikTok — `773f02e` IG Reels page, `a84a51e` TikTok organic action (page is curated embed gallery — action-only wiring), `e6622ff` TikTok paid page
+6. Meta video ad NEW pipeline — `69e14bd` steps 1-3 (uploadMetaVideo + pollMetaVideoStatus + createMetaCampaign + 7 tests), `50d715c` steps 4-6 + orchestrator publishMetaVideoAd. Implementer caught 5 plan-vs-real API divergences: real `loadMetaCredentials()` returns `{ok, creds: {token, businessId, adAccountId, fbPageId}}` nested, `metaPost(path, params, token)` 3-arg, `recordAudit({module, action, target_type, target_id, actor_user_id, metadata})`, `ads_campaigns.objective`/`daily_budget_micros` not `campaign_objective`/`daily_budget_usd`, test mock shapes
+7. Boost page fork — `4e3bd2a` Source: YouTube branch + publishMetaVideoAdAction (uses real `selectedAccount.id`, mirrors sibling action patterns)
+8. Gallery landing link — `5c78cad`
+
+**Currency display fixes (post-deploy):**
+- `78bb26b` initial fix: USD → EGP labels + `$` → `EGP` on 4 dashboard pages (4 files, 28 edits). Implementer flagged that "Bookings revenue" + ROAS "Revenue" col still had USD-converted numbers but EGP labels (lying display).
+- `cd1d539` proper revenue conversion: added `convertToEgp`, `convertManyToEgp`, `getFxToEgp` to `src/lib/fx-rates.ts` (math: amount * rate_to_usd[src] / rate_to_usd['EGP']). Replaced `convertManyToUsd` → `convertManyToEgp` in `getDashboardKpis` + `listCampaignRoas` + `campaigns/[id]` page (renamed `attributedRevenueUsd` → `attributedRevenueEgp`).
+- `f5ceedd` ad-spend conversion: replaced currency-blind `ads_overview_daily` query in `getDashboardKpis` with `ads_daily_metrics` + `ads_accounts.currency` join (groups per-currency, batches convertManyToEgp, sums). Added `account_currency` to `listCampaignRoas`'s ads_campaign_performance select + per-row conversion. campaigns/[id] now pre-converts daily metrics to EGP for totals + sparkline + tooltip consistency. ads/page.tsx PlatformStatusCard + campaigns table show EGP-converted spend.
+
+### Outstanding for V1.3 follow-up (flagged by implementer)
+- Live Meta Insights card on `campaigns/[id]/page.tsx` lines 313-326: Spend/CPM/CPC from Meta Insights API are in account currency (USD) but labelled EGP — still wrong
+- `listAssetPerformance` reads currency-blind `ads_asset_performance` view (assets tab if exists)
+- `listOverviewByDay` still uses `ads_overview_daily` (currency-blind) — wherever this renders is wrong
+- Other USD references in publish form labels (`google/publish`, `google/pmax`, `create`) not touched — kareem deferred to separate scope decision
+- Schema columns `monthly_budget_cap_usd`, `daily_budget_micros`, code vars `dailyBudgetUsd` etc. — naming refactor deferred
+- V1.2 TikTok organic page is currently a curated public-URL embed gallery (not a publish form). `publishTikTokReelAction` got the YT cross-post wiring action-side, so future TikTok publish UI gets it for free.
+
+### Manual smoke pending (Tasks 18-21)
+- Task 18: picker loads + IG Reel cross-post → audit row
+- Task 19: Google PMax with YT video asset → asset visible in Ads Manager
+- Task 20: Meta video ad pipeline → campaign+adset+creative+ad PAUSED
+- Task 21: "Already posted" badges + full coverage
+
+### Vercel alias status
+- Last manual alias update: pointed at `lime-janf7atie` (Task 17 deploy, age ~4 min at the time)
+- Subsequent commits `78bb26b`, `cd1d539`, `f5ceedd` triggered new builds. Alias was updated for `cd1d539` (lime-ians2zrjy). For `f5ceedd` (deploy `lime-95x6jm1l4`) the build was still in-flight at session end — scheduled wakeup pending to point alias once Ready.
+
+### Test target
+V1.1 baseline 617 → V1.2 ~704 passing / 22 skipped. Zero regressions. `tsc --noEmit` clean throughout (pre-existing parallel-session errors in `PayablesBlock.tsx` + `tiktok/organic/actions.ts` are NOT from this work).
+
+---
+
+## 2026-05-16 — DONE: kika-picker Task 4 — Picker page server shell (commit 9677d73)
+
+**What changed:**
+- Created `src/app/emails/kika/reporting/picker/page.tsx` — async server component at `/emails/kika/reporting/picker`.
+- Features: `TopNav` breadcrumb (KIKA → Reporting → Picker Report), "Export A4 PDF" button (links to `/api/kika/picker-report?scope=…`, 404 until Task 7), four scope filter chips (indigo-active / white-bordered style), four headline stat cards (open orders, total lines, total units, oldest backlog age), two TODO comments for Tasks 5+6, footer with scope label + generation timestamp.
+- `dynamic = 'force-dynamic'` and `maxDuration = 60` set.
+- `tsc --noEmit` clean. No push (per task spec).
+
+---
+
+## 2026-05-16 — DONE: kika-picker Task 3 — Reporting hub page + 6th KIKA tile (commit d84e240)
+
+**What changed:**
+- Created `src/app/emails/kika/reporting/page.tsx` — static hub page at `/emails/kika/reporting`. Features a "Featured: Picker Report" card (indigo, links to `/emails/kika/reporting/picker`) and a 2-col grid linking to existing dashboards (Exec, Sales, To Manufacture, Delayed, Daily Report, Financials).
+- Modified `src/app/emails/[domain]/page.tsx` — added `ClipboardList` to the lucide-react import and appended a 6th tile (Reporting, indigo accent) to the `d === 'kika'` grid after the Inventory card.
+- `tsc --noEmit` clean. No push (per task spec).
+
+---
+
+## 2026-05-16 — DONE: kika-picker style fix — hoist supabaseAdmin import to top (commit b075f9b)
+
+**What changed:**
+- `src/lib/kika-picker.ts` — moved `import { supabaseAdmin } from './supabase'` from mid-file (line 169) to immediately after `import 'server-only'` at the top, matching codebase convention.
+- `tsc --noEmit` clean. 16/16 tests pass. No push (per task spec).
+
+---
+
+## 2026-05-16 — DONE: kika-picker Task 2 — full buildKikaPickerReport builder (commit 1cb9ba3)
+
+**What changed:**
+- `src/lib/kika-picker.ts` — appended the full async `buildKikaPickerReport` function plus 4 private helpers (`stripHtml`, `pickPrimaryImage`, `pickVariantTitle`, `pickVariantSku`) and `OPEN_FULFILLMENT` set.
+- Removed stub `export { ISO_DATE_RE }` line and unused `ISO_DATE_RE` const (no longer needed).
+- Builder: paginated open-order fetch → partial-fulfillment netting → line-item + product lookups → bucket grouping → common-items rollup → `PickerReport` return.
+- Dates passed to Supabase comparisons are full ISO timestamps from `resolveScope` (no `T00:00:00Z` concatenation).
+- `tsc --noEmit` clean. 16/16 tests pass.
+
+---
+
+## 2026-05-16 — DONE: kika-picker Task 1 review nits (commit fe93254)
+
+**What changed:**
+- `src/lib/kika-picker.test.ts` Fix 1: corrected test description from "01:00 Cairo" to "00:30 Cairo" to match the actual `Date` value `2026-05-10T21:30:00Z`.
+- `src/lib/kika-picker.ts` Fix 2: replaced `WEEKDAY_INDEX[weekday] ?? 0` with explicit `undefined` check that throws `Error("cairoMondayIso: unrecognized weekday abbreviation …")` instead of silently defaulting to Monday.
+- 16/16 tests pass. `tsc --noEmit` clean.
+
+---
+
+## 2026-05-16 — DONE: kika-picker review fixes (commit a7a6916)
+
+**What changed:**
+- `src/lib/kika-picker.ts` — replaced `resolveScope` + helpers with ISO-timestamp version:
+  - `toDate` is now required (not optional); `all` branch returns `{ fromDate: null, toDate: null, … }`
+  - `older_than_7d` / `older_than_14d` return full `Z`-suffixed ISO strings (`.toISOString()`)
+  - `this_week` uses Cairo-local Monday via `Intl.DateTimeFormat` (`cairoLocalParts`, `cairoOffsetSuffix`, `cairoMondayIso`)
+  - Dropped dead `toIsoDate` helper
+- `src/lib/kika-picker.test.ts` — replaced 4 original `resolveScope` tests with 6 new ones covering full ISO timestamps and the Cairo-UTC edge case
+- **All 16 tests pass. `tsc --noEmit` clean.**
+- Cairo offset: `+03:00` (EEST) confirmed for May 2026 — no surprises.
+
+---
+
 ## 2026-05-16 — PLAN: KIKA Reporting module + Picker Report (ready to execute)
 
 **Status:** Spec approved by kareem. Implementation plan written at [docs/superpowers/plans/2026-05-16-kika-reporting-picker.md](docs/superpowers/plans/2026-05-16-kika-reporting-picker.md). Awaiting kareem's choice of execution strategy (subagent-driven vs inline).
