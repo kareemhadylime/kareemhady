@@ -157,7 +157,7 @@ export default async function KikaExecPage({
         <span>Executive</span>
       </TopNav>
 
-      <main className="max-w-7xl mx-auto px-6 py-10 space-y-8 flex-1">
+      <main className="max-w-[1800px] mx-auto px-6 py-10 space-y-8 flex-1">
         <header className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">
