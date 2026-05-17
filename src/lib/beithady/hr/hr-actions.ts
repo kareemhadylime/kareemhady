@@ -314,11 +314,8 @@ export async function importEmployeesAction(rows: ImportRow[]): Promise<ImportRe
 
     try {
       const companyId = await generateCompanyId();
-      // Mark all required fields as incomplete (user fills via Edit dialog after import)
-      const incompleteFields: string[] = [
-        ...row.incompleteFields,
-        'national_id', 'phone', 'date_of_birth', 'date_joined',
-      ].filter((v, i, a) => a.indexOf(v) === i); // dedupe
+
+      const incompleteFields = [...new Set(row.incompleteFields)];
 
       const { data: emp, error: empErr } = await sb
         .from('hr_employees')
@@ -326,10 +323,17 @@ export async function importEmployeesAction(rows: ImportRow[]): Promise<ImportRe
           company_id:        companyId,
           first_name:        row.first_name,
           last_name:         null,
-          department:        'housekeeping',   // default; user updates via Edit
+          arabic_name:       row.arabic_name ?? null,
+          national_id:       row.national_id ?? null,
+          date_of_birth:     row.date_of_birth ?? null,
+          gender:            row.gender ?? null,
+          phone:             row.phone ?? null,
+          email:             row.email ?? null,
+          department:        row.department ?? 'housekeeping',
           position:          row.position || 'Staff',
-          job_role:          'housekeeper',    // default; user updates via Edit
+          job_role:          'housekeeper',
           status:            row.status,
+          date_joined:       row.date_joined ?? null,
           incomplete_fields: incompleteFields,
           created_by:        user.id,
         })
@@ -347,15 +351,16 @@ export async function importEmployeesAction(rows: ImportRow[]): Promise<ImportRe
       if (row.building_code) {
         await sb.from('hr_employee_contracts').insert({
           employee_id:         employeeId,
-          contract_type:       'permanent',
-          contract_start:      todayStr,
+          contract_type:       row.contract_type ?? 'permanent',
+          contract_start:      row.date_joined ?? todayStr,
           building_code:       row.building_code,
           salary_package:      row.salary_package,
           transport_allowance: row.transport_allowance,
           travel_allowance:    0,
           fixed_bonus:         row.fixed_bonus,
-          payment_method:      'bank',
-          effective_from:      todayStr,
+          bank_iban:           row.bank_iban ?? null,
+          payment_method:      row.payment_method ?? 'bank',
+          effective_from:      row.date_joined ?? todayStr,
           effective_to:        null,
           created_by:          user.id,
         });
@@ -364,8 +369,8 @@ export async function importEmployeesAction(rows: ImportRow[]): Promise<ImportRe
       await sb.from('hr_employee_events').insert({
         employee_id:  employeeId,
         event_type:   'hired',
-        event_date:   todayStr,
-        description:  `Imported from salary sheet — ${row.position || 'Staff'}`,
+        event_date:   row.date_joined ?? todayStr,
+        description:  `Imported — ${row.position || 'Staff'}`,
         created_by:   user.id,
       });
 

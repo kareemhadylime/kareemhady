@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { X, Upload, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
+import { X, Upload, CheckCircle2, AlertCircle, AlertTriangle, Download } from 'lucide-react';
 import { parseImportFile } from '@/lib/beithady/hr/hr-import';
 import { importEmployeesAction } from '@/lib/beithady/hr/hr-actions';
 import { BUILDING_LABELS } from '@/lib/beithady/hr/hr-types';
@@ -106,10 +106,22 @@ export function ImportDialog({ open, onClose }: Props) {
                 </label>
               </div>
               {parseError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{parseError}</p>}
-              <div className="mt-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300 space-y-1">
-                <p className="font-semibold">Expected columns (order flexible):</p>
-                <p>Name · JobTitle · S.Package · Transportation Allowance · Bonus · Analytic</p>
-                <p className="mt-2 text-xs text-slate-400">Red-highlighted rows auto-detected as Terminated. Toggle in Step 2 if detection misses any.</p>
+              <div className="mt-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <p className="font-semibold">Need a template?</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Download, fill in, then upload here. Supports both the full template and the legacy Odoo salary sheet.</p>
+                  </div>
+                  <a
+                    href="/api/hr/employee-template"
+                    download="employee-import-template.xlsx"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-violet-600 text-white hover:bg-violet-700 shrink-0"
+                  >
+                    <Download size={13} />
+                    Download Template
+                  </a>
+                </div>
+                <p className="text-xs text-slate-400 border-t border-slate-200 dark:border-slate-700 pt-2">Red-highlighted rows are auto-detected as Terminated. Toggle in Step 2 if needed.</p>
               </div>
             </div>
           )}

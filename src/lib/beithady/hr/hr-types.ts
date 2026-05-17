@@ -196,13 +196,24 @@ export type ContractInput = {
 
 export type ImportRow = {
   rowIndex: number;
-  first_name: string;           // full name from sheet (last_name left blank)
+  first_name: string;
+  arabic_name: string | null;
+  national_id: string | null;
+  date_of_birth: string | null;
+  gender: 'male' | 'female' | null;
+  phone: string | null;
+  email: string | null;
+  department: Department | null;
   position: string;
   salary_package: number;
   building_code: BuildingCode | null;
+  date_joined: string | null;
+  status: EmployeeStatus;
   transport_allowance: number;
   fixed_bonus: number;
-  status: EmployeeStatus;
+  contract_type: ContractType | null;
+  payment_method: PaymentMethod | null;
+  bank_iban: string | null;
   validationState: 'ready' | 'incomplete' | 'error';
   errors: string[];
   incompleteFields: string[];
