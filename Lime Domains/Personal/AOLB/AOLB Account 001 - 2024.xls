@@ -1,0 +1,5322 @@
+﻿<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40" xmlns="urn:schemas-microsoft-com:office:spreadsheet">
+<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+<Version>12.00</Version>
+</DocumentProperties>
+<ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+<WindowHeight>8130</WindowHeight>
+<WindowWidth>15135</WindowWidth>
+<WindowHeight>8130</WindowHeight>
+<WindowTopX>120</WindowTopX>
+<WindowTopY>45</WindowTopY>
+<ProtectStructure>False</ProtectStructure>
+<ProtectWindow>False</ProtectWindow>
+</ExcelWorkbook>
+<Styles>
+</Styles>
+<Worksheet ss:Name="ag-grid">
+<Table>
+<Column ss:Width="90"/>
+<Column ss:Width="100"/>
+<Column ss:Width="110"/>
+<Column ss:Width="570"/>
+<Column ss:Width="110"/>
+<Column ss:Width="110"/>
+<Column ss:Width="130"/>
+<Column ss:Width="110"/>
+<Row>
+<Cell ss:MergeAcross="2">
+<Data ss:Type="String">Open Balance    0.00 </Data>
+</Cell>
+</Row>
+<Row>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">Details</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Date</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Operation Type</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Description</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Debit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Credit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Balance</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">D/C</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Correction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cancel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">22600</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">22600</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079967</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40079967) @44.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4405.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">18194.9</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079964</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40079964) @77.500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">7756.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10438.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079963</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40079963) @22.840</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2288.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">8149.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079965</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40079965) @38.960</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3900.97</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4248.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079969</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 Speed Medical/L.E./1/Egypt Stock Exchange (inv. 40079969) @0.508</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">54.82</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4193.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079966</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40079966) @31.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3104.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1088.93</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40079968</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 100 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40079968) @3.570</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">361.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">727.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">15-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">200000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">200727.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40087846</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">15-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 57000 Citadel Capital/L.E./1/Egypt Stock Exchange (inv. 40087846) @3.460</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">197377.77</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3350.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">101000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">104350.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3104350.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة مصاريف تحويل نقدي لبنك مصر للعميل 18880001</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3104345.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة تحويل نقدي لبنك مصر للعميل 18880001</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1104345.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3104345.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119538</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40119538) @29.970</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">29993.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3074351.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119537</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 6000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40119537) @69.853</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">419452.3</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2654898.77</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119536</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4100 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40119536) @70.326</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">288567.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2366331.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119535</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1300 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40119535) @70.983</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92351.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2273979.3</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119534</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2500 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40119534) @71.500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">178893.02</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2095086.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119533</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40119533) @20.628</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">103221.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1991864.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119531</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40119531) @20.406</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">40850.18</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1951014.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119532</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2900 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40119532) @21.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">60950.84</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1890063.74</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119539</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1900 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40119539) @30.184</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">57397.16</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1832666.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119540</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40119540) @30.369</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">60788.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1771877.63</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119542</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40119542) @38.398</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">192144.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1579733.08</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119556</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 400 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40119556) @7.640</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3060.77</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1576672.31</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119555</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40119555) @5.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">100080</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1476592.31</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119554</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40119554) @5.180</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">103682.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1372909.43</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119553</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 9900 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40119553) @5.180</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">51326.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1321582.65</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119552</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40119552) @5.163</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">51668.92</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1269913.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119551</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40119551) @65.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">263410.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1006503.17</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119550</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40119550) @67.755</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">135621.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">870881.18</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119549</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1900 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40119549) @65.689</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">124908.96</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">745972.22</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119548</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40119548) @66.200</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">66255.65</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">679716.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119547</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40119547) @66.500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">66553.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">613163.36</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119546</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4500 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40119546) @38.209</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">172085.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">441078.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119545</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 6000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40119545) @38.359</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">230335.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">210742.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119544</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1400 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40119544) @38.090</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">53368.66</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">157374.23</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119543</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2500 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40119543) @38.141</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">95429.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61944.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40119541</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40119541) @30.587</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61226.09</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">718.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2220000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2220718.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122268</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 7000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40122268) @30.143</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">211176.36</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2009542.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122267</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40122267) @75.066</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">375630.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1633911.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122266</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 6000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40122266) @74.999</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">450356.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1183555.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122265</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40122265) @18.900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75660.48</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1107895.04</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122270</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40122270) @35.196</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">352240.38</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">755654.66</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122269</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5500 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40122269) @35.386</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">194778.35</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">560876.31</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122264</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40122264) @18.900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">94575.61</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">466300.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122272</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40122272) @4.824</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">96550.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">369750.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122271</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40122271) @66.500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">332766.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">36984.05</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40122273</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4600 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40122273) @7.650</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">35218.16</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1765.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1763.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3100000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3101763.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124695</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40124695) @4.806</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">96189.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3005574.74</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124694</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 15000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40124694) @35.478</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">532596.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2472978.68</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124693</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40124693) @35.227</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">352552.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2120426.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124687</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 11000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40124687) @18.824</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">207240.38</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1913185.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124691</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 6000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40124691) @29.872</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">179378.17</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1733807.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124690</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40124690) @79.970</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">800343.03</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">933464.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124689</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40124689) @79.417</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">397404.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">536059.97</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124688</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 15000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40124688) @18.989</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">285064.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">250995.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124692</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40124692) @29.880</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">59808.22</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">191187.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124697</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 15000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40124697) @7.623</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">114431.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">76755.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40124696</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40124696) @7.540</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75460.32</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1295.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1950000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1951295.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127110</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40127110) @7.320</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">73258.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1878036.51</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127109</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40127109) @7.320</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">73259.44</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1804777.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127108</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Citadel Capital/L.E./1/Egypt Stock Exchange (inv. 40127108) @3.270</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">65453.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1739323.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127105</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40127105) @78.288</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">391756.69</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1347567.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127107</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40127107) @73.871</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">369652.68</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">977914.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127104</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40127104) @18.815</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">188305.46</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">789608.96</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127111</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 30000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40127111) @7.769</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">233257.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">556351.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40127106</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40127106) @34.881</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">349091.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">207259.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40116624</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 100 Speed Medical/L.E./1/Egypt Stock Exchange (inv. 40116624) @0.505</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">46.48</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">207306.43</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2489000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2696306.43</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129771</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40129771) @79.270</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">396667.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2299638.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129778</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40129778) @7.414</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">74195.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2225442.98</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129770</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40129770) @19.562</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">391552.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1833890.36</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129773</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40129773) @78.092</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">312619.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1521271.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129772</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40129772) @78.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">390312</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1130959.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129777</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 3000 Citadel Capital/L.E./1/Egypt Stock Exchange (inv. 40129777) @3.420</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10268.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1120690.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129776</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40129776) @4.880</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">97678.03</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1023012.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129775</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40129775) @79.400</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">397317.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">625694.82</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129774</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40129774) @31.350</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">313762.43</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">311932.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129779</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40129779) @7.178</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">143684.68</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">168247.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40129780</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40129780) @7.557</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">151265.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">16981.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">06-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer From Account(18880009)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2485000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2501981.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135786</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40135786) @20.822</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">208391.09</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2293590.67</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135787</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 6000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40135787) @74.583</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">447859.72</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1845730.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135791</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40135791) @71.700</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">358786.81</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1486944.14</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135789</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40135789) @42.900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">429343.93</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1057600.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135790</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40135790) @39.700</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">198658.81</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">858941.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135792</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40135792) @6.900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">138110.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">720831</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135793</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 10000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40135793) @6.902</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">69075.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">651755.27</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40135788</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40135788) @73.665</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">368620.74</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">283134.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138194</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2456 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40138194) @328.566</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">807605.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-524470.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138195</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2127 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40138195) @327.505</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">697159.97</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1221630.84</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138196</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2573 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40138196) @327.871</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">844288.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2065919.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138197</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 484 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40138197) @327.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">158394.61</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2224314</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138198</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 500 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40138198) @329.993</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">165128.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2389442.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138199</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40138199) @8.227</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">164675.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2554118.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40138193</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 860 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40138193) @327.351</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">281748.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2835866.63</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126629</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40126629) @21.123</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">633192.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2202674.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126630</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40126630) @20.886</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">521732.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1680941.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126638</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40126638) @6.786</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">169524.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1511417.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126637</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40126637) @6.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">169863.3</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1341554.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126636</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 80000 Citadel Capital/L.E./1/Egypt Stock Exchange (inv. 40126636) @3.180</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">254196.48</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1087357.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126635</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 40000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40126635) @4.353</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">173995.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-913362.47</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126634</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 40000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40126634) @4.363</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">174359.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-739002.69</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126631</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 20000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40126631) @20.854</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">416753.82</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-322248.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126632</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 10000 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40126632) @20.832</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">208157.04</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-114091.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40126633</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 40000 Palm Hills Development Company/L.E./1/Egypt Stock  (inv. 40126633) @4.401</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">175883.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61791.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61789.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40181487</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">17-04-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2500 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40181487) @22.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">55044.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6745.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-04-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6743.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2968.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">9712.08</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">15.63</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">9696.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40212240</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">19-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 450 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40212240) @19.900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">8962.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">733.72</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40215963</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40215963) @63.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">315252</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-314518.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40215964</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40215964) @62.832</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">314411.34</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-628929.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40215962</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40215962) @63.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">315252</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-944181.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40215960</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40215960) @62.845</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">314477.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1258659.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40215961</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40215961) @62.877</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">314636.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1573295.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40215965</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4600 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40215965) @62.500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">287730.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1861025.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196406</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40196406) @6.160</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">153875.18</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1707150.35</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196405</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40196405) @6.172</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">154176.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1552973.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196407</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40196407) @6.151</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">153658.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1399314.92</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196399</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 2950 Oriental Weavers/L.E./1/Egypt Stock Exchange (inv. 40196399) @19.810</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">58392.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1340922.16</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196404</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40196404) @6.164</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">153974.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1186947.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196403</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Fawry banking technology/L.E./1/Egypt Stock Exchan (inv. 40196403) @6.156</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">184525.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1002421.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196402</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 10000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40196402) @31.616</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">315902.54</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-686519.25</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196401</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 10000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40196401) @31.421</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">313954.84</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-372564.41</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40196400</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 12000 Sidi Kerir Petrochemicals/L.E./1/Egypt Stock Excha (inv. 40196400) @31.325</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">375596.12</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3031.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3029.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3027.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-05-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Correction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cancel0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3029.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">02-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">40375</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">43404.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">02-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">212.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">43192.21</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6228.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">49420.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">32.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">49387.82</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40237989</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 900 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40237989) @52.553</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">47336.05</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2051.77</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40245841</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 300 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40245841) @6.590</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1981.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">70.27</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-06-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">68.27</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252060</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 5000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40252060) @59.400</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">297237.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-297169.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252058</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 3000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40252058) @87.874</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">263831.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-561001.32</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252073</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1050 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40252073) @280.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">294235.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-855236.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252057</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 4000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40252057) @90.497</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">362280.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1217517.25</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252061</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1500 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40252061) @59.444</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">89239.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1306757.24</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252062</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 3000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40252062) @59.619</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">178999.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1485756.35</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252063</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2100 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40252063) @59.500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">125049.98</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1610806.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252064</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 3900 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40252064) @59.600</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">232625.94</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1843432.27</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252065</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1150 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40252065) @59.650</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">68652.38</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1912084.65</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252066</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 50000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40252066) @6.881</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">344312.96</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2256397.61</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252067</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 50000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40252067) @6.871</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">343824.86</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2600222.47</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252068</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 50000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40252068) @6.870</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">343774.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2943997.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252069</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 49700 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40252069) @6.865</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">341477.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3285475.31</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252070</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 20000 Emaar Egypt for Development/L.E./1/Egypt Stock Exc (inv. 40252070) @6.936</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">138822.98</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3424298.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252071</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 950 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40252071) @278.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">264311.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3688609.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252072</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1000 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40252072) @278.880</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">279103.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3967713.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40252059</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 2000 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40252059) @87.796</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">175733.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4143446.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40230440</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 20000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40230440) @48.831</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">975835.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3167611.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40230441</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 15000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40230441) @48.777</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">731062.59</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2436549.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40230442</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 15000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40230442) @48.716</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">730153.25</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1706395.76</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40230439</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 20000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40230439) @48.857</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">976354.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-730041.34</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40230438</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 15000 ELSWEDY Electric/L.E./1/Egypt Stock Exchange (inv. 40230438) @48.792</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">731297.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1256.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">16-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة تحويل نقدي لبنك مصر للعميل 18880001</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-998743.74</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">16-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة مصاريف  تحويل نقدي لبنك مصر للعميل 18880001</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-998748.74</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40240875</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">16-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 6200 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40240875) @80.801</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">499060.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-499687.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40240876</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">16-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 6200 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40240876) @80.745</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">498716.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-971.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40244085</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 700 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40244085) @267.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">186563.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">185592.04</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40244086</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 700 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40244086) @265.061</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">185207.34</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">370799.38</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40244082</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 3000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40244082) @58.754</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">175942.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">546742.27</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40244083</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 3000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40244083) @58.702</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">175788.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">722530.97</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40244081</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 6590 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40244081) @58.814</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">386880.14</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1109411.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40244084</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 1450 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40244084) @267.000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">386453.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1495864.22</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة خصم قيمة اكتتاب شركة اكت فاينانشال للاستشارات (الطرح الخاص)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3999999</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2504134.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246153</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 1250 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40246153) @268.516</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">335038.3</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2169096.48</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246152</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 1300 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40246152) @269.085</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">349180.98</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1819915.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246151</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 5450 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40246151) @59.145</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">321758.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1498156.93</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246150</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 3000 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40246150) @59.178</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">177214.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1320942.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246149</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 4300 T M G Holding/L.E./1/Egypt Stock Exchange (inv. 40246149) @59.206</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">254126.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1066816.25</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246147</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 1500 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40246147) @82.400</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">123377.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-943438.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246146</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 3100 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40246146) @82.415</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">255026.17</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-688412.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246145</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 3100 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40246145) @82.460</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">255166.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-433246.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246148</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 1600 Ezz Steel/L.E./1/Egypt Stock Exchange (inv. 40246148) @82.371</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">131555.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-301691.44</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40246154</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 1250 Orascom Construction B L C/L.E./1/Egypt Stock Exch (inv. 40246154) @268.228</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">334679.55</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">32988.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">32986.11</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40286360</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 8500 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 40286360) @3.590</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">30569.94</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2416.17</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">13-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6228.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">8644.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">13-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">CASHDIVIDEND</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">32.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">8611.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40313340</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">22-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 1000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 40313340) @3.750</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3764.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4846.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4844.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880003)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">844.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">842.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">840.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Correction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cancel0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">842.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-10-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">840.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">838.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">836.83</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+</Row>
+<Row>
+<Cell ss:MergeAcross="2">
+<Data ss:Type="String">Close Balance    836.83 Credit</Data>
+</Cell>
+</Row>
+</Table>
+</Worksheet>
+</Workbook>

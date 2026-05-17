@@ -1,0 +1,3378 @@
+﻿<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40" xmlns="urn:schemas-microsoft-com:office:spreadsheet">
+<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+<Version>12.00</Version>
+</DocumentProperties>
+<ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+<WindowHeight>8130</WindowHeight>
+<WindowWidth>15135</WindowWidth>
+<WindowHeight>8130</WindowHeight>
+<WindowTopX>120</WindowTopX>
+<WindowTopY>45</WindowTopY>
+<ProtectStructure>False</ProtectStructure>
+<ProtectWindow>False</ProtectWindow>
+</ExcelWorkbook>
+<Styles>
+</Styles>
+<Worksheet ss:Name="ag-grid">
+<Table>
+<Column ss:Width="90"/>
+<Column ss:Width="100"/>
+<Column ss:Width="100"/>
+<Column ss:Width="160"/>
+<Column ss:Width="85"/>
+<Column ss:Width="170"/>
+<Column ss:Width="120"/>
+<Column ss:Width="90"/>
+<Column ss:Width="90"/>
+<Column ss:Width="100"/>
+<Column ss:Width="100"/>
+<Column ss:Width="120"/>
+<Row>
+<Cell>
+<Data ss:Type="String">Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Type</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Exec.Date</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Stock</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Currency</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Custodian</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Settlement Date</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Quantity</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Avg.Price</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Total Fees</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Total Amount</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Amount Due</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40446958</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Orascom</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">09-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">17.17</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">443.6816</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">116756</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">117199.6816</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443753</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Orascom</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">17.546</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">666.8774</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">175459.95</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">176126.8274</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443752</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Orascom</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">16.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">127.608</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">33580</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">33707.608</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443751</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Orascom</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">16.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">636.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">167500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">168136.5</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443750</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Orascom</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">9000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">16.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">574.56</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">151200</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">151774.56</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443749</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Orascom</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">9000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">16.7946</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">575.2724</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">151151.77</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">151727.0424</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443220</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">50000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.24</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">615.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">162000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">162615.6</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443219</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">50000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.2854</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">628.0655</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">164271.09</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">164899.1555</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40443218</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">21190</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">264.1116</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">69503.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">69767.3116</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40437471</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.3435</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">128.3949</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">33435.15</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">33563.5449</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40437470</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.34</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">38.571</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10020</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10058.571</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40437469</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">70000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.3492</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">892.6655</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">234441.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">235334.3655</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40432737</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">24-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Mena Touristic &amp; Rea</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">40000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4.4998</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">686.517</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">179990.23</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">180676.747</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40432736</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">24-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Mena Touristic &amp; Rea</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">17.1725</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4050</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4067.1725</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40430371</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">59.7089</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1247.917</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">328399.13</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">329647.047</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40430370</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">9500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">59.357</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2142.9167</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">563891.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">566033.9767</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40430369</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">59.1884</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1126.0563</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">295942.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">297068.1563</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40430368</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Oriental Weavers</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">9000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">26.8844</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">919.4543</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">241959.48</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">242878.9343</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40430367</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Oriental Weavers</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">11000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">26.8226</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1122.0989</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">295049</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">296171.0989</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40428754</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">24-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">125000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.6871</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1753.5495</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">460892.14</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">462645.6895</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40428753</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">24-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">15000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">207.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">54600</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">54807.57</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40425042</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">44000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.4106</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">570.8266</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">150065</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">150635.8266</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40425041</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">18000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.4244</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">234.872</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61640</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61874.872</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40425040</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">35000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.43</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">456.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">120050</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">120506.2</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40425039</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">40000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.44</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">522.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">137600</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">138122.88</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40404362</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">62.9157</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">600.1666</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">157289.25</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156689.0834</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40404361</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">62.8758</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">598.0078</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">157189.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156591.3922</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40404360</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">62.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">596.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">157000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156403.4</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40404359</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Oriental Weavers</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">26.1544</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">996.5132</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">261543.82</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">260547.3068</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40404358</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Oriental Weavers</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">26.0594</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">496.827</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">130297.18</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">129800.353</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40403779</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">62.164</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">590.5562</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">155410</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">154819.4438</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40403778</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61.6783</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">941.4283</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">246713.3</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">245771.8717</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40398614</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">58.1515</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">221.5293</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">58151.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">57929.9707</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40398613</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Oriental Weavers</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-12-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">25.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">489.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">128750</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">128260.74</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40394729</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">24-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">SODIC</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">58.8175</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1121.7607</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">294087.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">292965.9393</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40392757</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">T M G Holding</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">59.1411</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1124.5812</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">295705.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">294580.8188</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40392756</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">T M G Holding</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">59.1485</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1125.8096</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">295742.41</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">294616.6004</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40392755</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">114.5971</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2179.6187</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">572985.32</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">570805.7013</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40392754</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">25-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">114.6707</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2179.8927</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">573353.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">571173.8173</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40391458</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">24-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">115.7339</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1759.1677</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">462935.48</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">461176.3123</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40389941</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">19-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">21-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">298.1226</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1132.8613</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">298122.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">296989.7187</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40388565</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">299.25</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">568.5701</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">149625</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">149056.4299</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40388564</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">299.02</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">568.136</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">149510</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">148941.864</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40388563</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">8000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">8.0818</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">247.0787</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">64654.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">64407.2013</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40388562</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">18-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Belton Financial Hol</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">20-11-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">38000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2.96</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">427.6773</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">112480</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">112052.3227</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40335745</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">50000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.4649</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">658.5802</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">173243.47</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">173902.0502</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40335744</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">90000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.4738</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1191.1171</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">312639.72</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">313830.8371</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40335743</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">102.6691</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">390.5851</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">102669.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">103059.6851</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40332812</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.5278</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1005.4353</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">264587.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">265593.0153</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40332811</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">70000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.51</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">933.66</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">245700</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">246633.66</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40324040</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">02-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">440000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.7483</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6287.7267</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1649255.02</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1655542.7467</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40324039</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">02-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">500000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.7172</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">7115.9236</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1858585.93</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1865701.8536</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40324038</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">02-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">108.6438</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2064.8577</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">543218.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">545283.7377</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40324037</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">02-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">109.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4161</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1095000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1099161</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40316437</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">55.608</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14560</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14615.608</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40316436</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">7.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">82.984</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">21840</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">21922.984</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40316435</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">7.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">139.6329</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">36400</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">36539.6329</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40316434</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Belton Financial Hol</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">38000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.28</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">473.624</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">124640</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">125113.624</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40313341</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">22-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ACT Financial</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">16.1975</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3750</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3766.1975</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40308547</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">257.1064</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">980.6525</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">257106.38</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">256125.7275</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40308546</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1350</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">257.8362</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1328.624</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">348078.9</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">346750.276</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40306158</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">262.0524</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000.1709</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">262052.41</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">261052.2391</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40306157</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">262.1709</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">997.5538</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">262170.93</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">261173.3762</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40296539</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">T M G Holding</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">60.0855</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1145.8741</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">300427.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">301573.5741</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40296538</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5103</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">97.9497</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1899.4477</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">499837.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">501736.9477</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40296537</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">98.0491</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1863.7776</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">490245.41</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">492109.1876</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40296536</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">98.0526</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">932.0277</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">245131.54</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">246063.5677</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40296535</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">98.6968</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1500.5541</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">394787.3</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">396287.8541</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40295340</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">106.0871</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4033.1238</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1060870.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1056837.4462</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40295339</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">102.5168</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3895.6443</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1025167.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1021272.1057</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40295338</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">102.6932</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3908.1903</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1026931.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1023023.4497</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40295337</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">103.0817</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3917.5298</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1030816.84</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1026899.3102</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40295336</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-09-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">102.5063</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3897.8386</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1025062.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1021164.9414</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40289836</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">250</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">476.9325</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">125000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">124523.0675</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40286361</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">06-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4397</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">84.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1415.2133</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">372425.9</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">373841.1133</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40272421</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">23-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">T M G Holding</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3190</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">58.5854</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">711.6941</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">186887.49</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">187599.1841</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40272420</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">23-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83.38</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">633.696</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">166760</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">167393.696</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40272419</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">23-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2700</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">84.3896</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">870.4416</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">227851.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">228722.2416</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40270966</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6.5158</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1860.513</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">488687.49</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">486826.977</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40270965</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6.5083</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1854.8901</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">488125</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">486270.1099</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40270964</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6.5489</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1868.439</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">491170.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">489302.361</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40270963</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-08-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6.5598</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1876.7181</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">491984.05</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">490107.3319</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40259887</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Construction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">15-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1500</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">263.9767</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1504.6741</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">395965</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">397469.6741</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40259886</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">15-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">50000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6.7533</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1287.7781</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">337666.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">338954.5281</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40259885</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ezz Steel</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">15-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">86.9418</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1652.6964</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">434708.9</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">436361.5964</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40257477</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">09-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Emaar Misr</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">30000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">6.7</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">763.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">201000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">201763.8</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">40257476</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy </Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">09-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">T M G Holding</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">EGP</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Ahli United</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">14-07-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">10000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">61.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2355.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">619900</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">622255.62</Data>
+</Cell>
+</Row>
+</Table>
+</Worksheet>
+</Workbook>

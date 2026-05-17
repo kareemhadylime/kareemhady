@@ -1,0 +1,1838 @@
+﻿<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40" xmlns="urn:schemas-microsoft-com:office:spreadsheet">
+<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+<Version>12.00</Version>
+</DocumentProperties>
+<ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+<WindowHeight>8130</WindowHeight>
+<WindowWidth>15135</WindowWidth>
+<WindowHeight>8130</WindowHeight>
+<WindowTopX>120</WindowTopX>
+<WindowTopY>45</WindowTopY>
+<ProtectStructure>False</ProtectStructure>
+<ProtectWindow>False</ProtectWindow>
+</ExcelWorkbook>
+<Styles>
+</Styles>
+<Worksheet ss:Name="ag-grid">
+<Table>
+<Column ss:Width="90"/>
+<Column ss:Width="100"/>
+<Column ss:Width="110"/>
+<Column ss:Width="570"/>
+<Column ss:Width="110"/>
+<Column ss:Width="110"/>
+<Column ss:Width="130"/>
+<Column ss:Width="110"/>
+<Row>
+<Cell ss:MergeAcross="2">
+<Data ss:Type="String">Open Balance    -7,881,618.73 Debit</Data>
+</Cell>
+</Row>
+<Row>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">Details</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Date</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Operation Type</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Description</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Debit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Credit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Balance</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">D/C</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-01-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">250000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7631618.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-01-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">INTEREST</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">279218.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7910837.35</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60025960</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60025960) @3.135</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156130.02</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7754707.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60025961</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60025961) @3.140</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156402.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7598304.81</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60025962</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60025962) @2.683</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">133634.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7464670.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60025963</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60025963) @2.680</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">133490.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7331179.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60030762</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60030762) @3.150</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156901.49</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7174278.13</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60030763</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60030763) @3.140</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156403.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-7017874.73</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60030764</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60030764) @2.710</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">134985.09</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6882889.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60030765</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">08-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60030765) @2.700</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">134485</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6748404.64</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60032113</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">09-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60032113) @2.730</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">135981.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6612423.35</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60033653</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60033653) @3.060</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">152418.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6460004.75</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60036344</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">12-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60036344) @3.140</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">156402.94</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6303601.81</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">216906.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6520508</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Correction</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cancel0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">216906.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6303601.81</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">26-02-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">INTEREST</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">216906.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6520508</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60071472</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-03-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60071472) @2.830</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">140962.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6379545.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60071474</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-03-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60071474) @2.602</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">129571.51</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6249974.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60071473</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-03-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60071473) @2.820</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">140464.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6109510</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60071471</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">31-03-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60071471) @2.820</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">140464.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5969045.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">01-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">INTEREST</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">235181.69</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6204227.49</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60077579</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60077579) @2.640</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">78897.49</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6125330</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60077580</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">07-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60077580) @2.640</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">131497.41</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5993832.59</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60109957</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Buy 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60109957) @3.140</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">157596.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-6151429.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60097247</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60097247) @3.120</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">155404.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5996024.39</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60097248</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60097248) @3.120</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">155407.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5840617.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60097249</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 100000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60097249) @2.819</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">280855.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5559762.13</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60097250</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">27-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60097250) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">139466.77</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5420295.36</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60098744</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60098744) @3.090</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">76955.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5343340.07</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60098747</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60098747) @2.790</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">138967.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5204372.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60098746</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60098746) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">139468</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-5064904.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60098745</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">28-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60098745) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">139468</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4925436.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60100427</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60100427) @3.070</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">76458.33</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4848978.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60100428</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60100428) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">139468</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4709510.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60100429</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60100429) @2.860</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">142456.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4567053.85</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60100430</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">29-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60100430) @2.810</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">139965.79</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4427088.06</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">30-04-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">INTEREST</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">205685.52</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4632773.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Daily</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">350</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4633123.58</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60104053</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60104053) @2.851</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">70997.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4562125.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60104052</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60104052) @2.850</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">70979.24</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4491146.47</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60104051</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 50000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60104051) @2.830</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">140962.29</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4350184.18</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60104050</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60104050) @3.080</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">76707.4</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4273476.78</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60104049</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60104049) @3.043</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">75780.68</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4197696.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60104054</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">03-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 25000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60104054) @2.850</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">70979.24</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4126716.86</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105993</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105993) @3.110</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92945.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-4033771.41</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105998</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60105998) @2.850</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">85175.09</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3948596.32</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105991</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105991) @3.110</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92945.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3855650.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105990</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105990) @3.080</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92048.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3763601.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105999</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60105999) @2.850</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">85175.09</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3678426.9</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60106000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60106000) @2.830</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">84577.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3593849.53</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60106001</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60106001) @2.830</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">84577.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3509272.16</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105994</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105994) @3.110</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92945.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3416326.71</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105992</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105992) @3.110</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92945.45</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3323381.26</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105997</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105997) @3.060</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">91451.16</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3231930.1</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105996</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105996) @3.080</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92048.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3139881.22</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60105995</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">04-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60105995) @3.100</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92646.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-3047234.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60107723</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60107723) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83680.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2963553.82</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60107724</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60107724) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83680.8</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2879873.02</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60107722</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60107722) @2.810</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83979.65</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2795893.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60107721</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60107721) @2.800</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83679.87</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2712213.5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60107720</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">05-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60107720) @3.070</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">91750.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2620463.49</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60111504</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60111504) @3.100</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">92646.6</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2527816.89</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60111506</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60111506) @2.810</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83977.88</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2443839.01</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60111505</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">10-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60111505) @2.810</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">83979.65</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2359859.36</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60113438</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60113438) @2.830</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">84575.17</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2275284.19</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60113436</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60113436) @3.200</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">95635.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2179648.99</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60113437</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 ACT Financial Consulting/L.E./1/Egypt Stock Exchan (inv. 60113437) @2.830</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">84577.37</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-2095071.62</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="Number">60113435</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">11-05-2026</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell Invoice</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Sell 30000 Beltone Financial Holding/L.E./1/Egypt Stock Excha (inv. 60113435) @3.200</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">95635.2</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">-1999436.42</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+</Row>
+<Row>
+</Row>
+<Row>
+<Cell ss:MergeAcross="2">
+<Data ss:Type="String">Close Balance    -1,999,436.42 Debit</Data>
+</Cell>
+</Row>
+</Table>
+</Worksheet>
+</Workbook>

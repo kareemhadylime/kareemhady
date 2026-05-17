@@ -1,0 +1,588 @@
+﻿<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40" xmlns="urn:schemas-microsoft-com:office:spreadsheet">
+<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+<Version>12.00</Version>
+</DocumentProperties>
+<ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+<WindowHeight>8130</WindowHeight>
+<WindowWidth>15135</WindowWidth>
+<WindowHeight>8130</WindowHeight>
+<WindowTopX>120</WindowTopX>
+<WindowTopY>45</WindowTopY>
+<ProtectStructure>False</ProtectStructure>
+<ProtectWindow>False</ProtectWindow>
+</ExcelWorkbook>
+<Styles>
+</Styles>
+<Worksheet ss:Name="ag-grid">
+<Table>
+<Column ss:Width="100"/>
+<Column ss:Width="110"/>
+<Column ss:Width="570"/>
+<Column ss:Width="110"/>
+<Column ss:Width="110"/>
+<Row>
+<Cell>
+<Data ss:Type="String">Date</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Operation Type</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Description</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Debit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Credit</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">11-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">22600</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">11-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">180000</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">11-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ايداع نقدى 11-2 ( بنك مصر )</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14000000</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy 1153000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.27869</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">14157329.57</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">12-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4500000</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">13-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy 366300 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.28507</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">4500021.141</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">13-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1500000</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">14-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Buy 122000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.29145</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1499556.9</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">14-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Bank Deposit</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"></Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">300000</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">15-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة مصاريف تحويل نقدي لبنك مصر للعميل 18880009</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">15-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">200000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">15-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة تحويل نقدي لبنك مصر للعميل 18880009</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">100000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">18-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة تحويل نقدي لبنك مصر للعميل 18880009</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">500000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">18-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة مصاريف تحويل نقدي لبنك مصر للعميل 18880009</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">18-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 41000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.31702</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">504997.82</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">25-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة تحويل نقدي لبنك مصر للعميل 1888009</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2500000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">25-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 210000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.36258</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2596141.8</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">25-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">With Drawal</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">قيمة مصاريف تحويل نقدي لبنك مصر للعميل 1888009</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2000000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">101000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">28-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 405000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.38180</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">5014629</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2220000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">29-02-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 178000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.38818</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2205096.04</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3100000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">03-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 250000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.40750</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">3101875</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1950000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">04-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 157300 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.41418</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">1952750.514</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2489000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">05-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 200000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.42087</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2484174</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">06-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Cash Transfer</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">Internet Cash Transfer To Account(18880001)</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2485000</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+</Row>
+<Row>
+<Cell>
+<Data ss:Type="String">06-03-2024</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String">ICS</Data>
+</Cell>
+<Cell>
+<Data ss:Type="String"> Sell 200000 ICS (Makaseb 2nd Edition Fund-NI Capital) @12.42757</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">0</Data>
+</Cell>
+<Cell>
+<Data ss:Type="Number">2485514</Data>
+</Cell>
+</Row>
+</Table>
+</Worksheet>
+</Workbook>
