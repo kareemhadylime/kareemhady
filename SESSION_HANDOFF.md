@@ -1,5 +1,16 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-17 — Email preview: HTML body + images
+
+Added on-demand HTML email rendering to the Beithady inbox preview pane. Previously all emails showed plain text (images stripped at ingest). Now when you click an email in the preview pane, it fetches the full HTML body from Gmail API, sanitizes it server-side with `sanitize-html`, and renders it in a sandboxed `<iframe>` — images, tables, and formatting all display correctly. Scripts are blocked by `sandbox`. Falls back to plain text if the fetch fails.
+
+**Files changed:**
+- `src/app/personal/email/actions.ts` — added `fetchEmailHtmlAction` (Gmail API fetch + sanitize-html)
+- `src/app/personal/email/_components/drill-down-view.tsx` — PreviewPane now auto-fetches + renders HTML iframe
+- `package.json` / `package-lock.json` — added `sanitize-html` + `@types/sanitize-html`
+
+---
+
 ## ✅ 2026-05-17 — BH HR: Employee Import Template (full field coverage)
 
 Added a **Download Template** button inside the Import Team Members dialog (Step 1 upload screen). HR can now grab a pre-formatted `.xlsx`, fill in all employee details, and re-upload it.

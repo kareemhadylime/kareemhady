@@ -10,6 +10,7 @@ import type { CategorySlug } from '@/lib/personal-email/types';
 import { ingestPersonalEmails } from '@/lib/personal-email/ingest';
 import { getGmailClientFromRefresh, markMessagesAsRead } from '@/lib/gmail';
 import { parseFromDomain } from '@/lib/personal-email/feature-extractor';
+import sanitizeHtml from 'sanitize-html';
 
 async function requireAdmin() {
   const u = await getCurrentUser();
@@ -387,4 +388,92 @@ export async function manualRefresh(): Promise<void> {
   await requireAdmin();
   await ingestPersonalEmails({ trigger: 'manual' });
   revalidatePath('/personal/email');
+}
+
+// Fetches the full HTML body from Gmail on demand and sanitizes it so it
+// can be rendered safely in a sandboxed iframe. Never stored in the DB —
+// fetched fresh each time the user opens the preview pane.
+export async function fetchEmailHtmlAction(
+  emailLogId: string,
+): Promise<{ html: string | null; error?: string }> {
+  await requireAdmin();
+  const sb = supabaseAdmin();
+
+  const { data: row } = await sb
+    .from('email_logs')
+    .select('gmail_message_id, accounts(oauth_refresh_token_encrypted)')
+    .eq('id', emailLogId)
+    .single();
+  if (!row) return { html: null, error: 'email_not_found' };
+
+  const tok = (row as any).accounts?.oauth_refresh_token_encrypted;
+  if (!tok) return { html: null, error: 'no_token' };
+
+  try {
+    const gmail = await getGmailClientFromRefresh(tok);
+    const res = await gmail.users.messages.get({
+      userId: 'me',
+      id: row.gmail_message_id,
+      format: 'full',
+    });
+
+    const payload: any = res.data.payload ?? {};
+    let html = '';
+    let plain = '';
+
+    function walkParts(part: any) {
+      if (!part) return;
+      const data = part.body?.data;
+      if (data) {
+        const decoded = Buffer.from(
+          data.replace(/-/g, '+').replace(/_/g, '/'),
+          'base64',
+        ).toString('utf8');
+        if (part.mimeType === 'text/html' && !html) html = decoded;
+        else if (part.mimeType === 'text/plain' && !plain) plain = decoded;
+      }
+      for (const c of part.parts ?? []) walkParts(c);
+    }
+    walkParts(payload);
+
+    if (!html && plain) {
+      // Wrap plain text in minimal HTML so the iframe renders it readably.
+      html = `<pre style="font-family:sans-serif;white-space:pre-wrap;word-break:break-word">${plain
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre>`;
+    }
+    if (!html) return { html: null };
+
+    const safe = sanitizeHtml(html, {
+      allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+        'img', 'figure', 'figcaption', 'picture', 'source',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'font', 'center', 'small', 'big', 'caption',
+        'col', 'colgroup', 'header', 'footer', 'section', 'article', 'main',
+      ]),
+      allowedAttributes: {
+        ...sanitizeHtml.defaults.allowedAttributes,
+        '*': ['style', 'class', 'align', 'valign', 'width', 'height', 'bgcolor', 'color', 'dir'],
+        'a': ['href', 'target', 'rel', 'name', 'style', 'class'],
+        'img': ['src', 'alt', 'width', 'height', 'style', 'class', 'border'],
+        'td': ['colspan', 'rowspan', 'width', 'height', 'align', 'valign', 'bgcolor', 'style', 'class'],
+        'th': ['colspan', 'rowspan', 'width', 'height', 'align', 'valign', 'bgcolor', 'style', 'class'],
+        'table': ['width', 'height', 'border', 'cellpadding', 'cellspacing', 'align', 'bgcolor', 'style', 'class'],
+        'col': ['width', 'span', 'style'],
+        'colgroup': ['width', 'span'],
+        'font': ['color', 'face', 'size'],
+      },
+      allowedSchemes: ['http', 'https', 'mailto', 'cid', 'data'],
+      // Force all links to open in a new tab safely.
+      transformTags: {
+        'a': sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
+      },
+    });
+
+    return { html: safe };
+  } catch (e: any) {
+    return { html: null, error: String(e?.message ?? e) };
+  }
 }

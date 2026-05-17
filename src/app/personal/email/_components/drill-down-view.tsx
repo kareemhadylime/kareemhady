@@ -20,6 +20,7 @@ import {
   archiveAllInCategory,
   markAllReadInCategory,
   moveAllInCategory,
+  fetchEmailHtmlAction,
 } from '../actions';
 import { CATEGORIES } from '@/lib/personal-email/categories';
 import type { CategorySlug } from '@/lib/personal-email/types';
@@ -555,6 +556,26 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
   const toPay = isInvoiceToBePaid(email.subject, email.category);
   const lowPriority = isLowPriority(email.to_address, email.account_email);
 
+  const [htmlBody, setHtmlBody] = useState<string | null>(null);
+  const [loadingHtml, setLoadingHtml] = useState(false);
+  const [htmlError, setHtmlError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHtmlBody(null);
+    setHtmlError(null);
+    setLoadingHtml(true);
+    fetchEmailHtmlAction(email.id).then(res => {
+      if (cancelled) return;
+      setLoadingHtml(false);
+      if (res.html) setHtmlBody(res.html);
+      else setHtmlError(res.error ?? 'failed');
+    }).catch(() => {
+      if (!cancelled) { setLoadingHtml(false); setHtmlError('fetch_failed'); }
+    });
+    return () => { cancelled = true; };
+  }, [email.id]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-2">
@@ -641,11 +662,25 @@ function PreviewPane({ email, onClose }: { email: SelectedEmail; onClose: () => 
 
       <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
         <div className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 mb-1">
-          Body excerpt
+          Email body
         </div>
-        <pre className="whitespace-pre-wrap text-[12px] text-slate-700 dark:text-slate-200 font-sans leading-relaxed">
-          {sanitizeBodyExcerptForDisplay(email.body_excerpt) || '(no body cached — open in Gmail)'}
-        </pre>
+        {loadingHtml && (
+          <div className="text-[11px] text-slate-400 dark:text-slate-500 py-2">Loading…</div>
+        )}
+        {!loadingHtml && htmlBody && (
+          <iframe
+            srcDoc={htmlBody}
+            sandbox="allow-same-origin allow-popups"
+            className="w-full rounded border border-slate-200 dark:border-slate-700"
+            style={{ minHeight: 320, height: 480 }}
+            title="Email body"
+          />
+        )}
+        {!loadingHtml && !htmlBody && (
+          <pre className="whitespace-pre-wrap text-[12px] text-slate-700 dark:text-slate-200 font-sans leading-relaxed">
+            {sanitizeBodyExcerptForDisplay(email.body_excerpt) || '(no body cached — open in Gmail)'}
+          </pre>
+        )}
       </div>
     </div>
   );
