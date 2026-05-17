@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/auth';
 import { hasBeithadyPermission } from '@/lib/beithady/auth';
 import { recordAudit } from '@/lib/beithady/audit';
-import { generateAdCopy, generateCaption, type AdCopyLanguage, SUPPORTED_LANGUAGES } from '@/lib/beithady/ads/ai-copy';
+import { generateAdCopy, generateCaption, generatePmaxCopy, type AdCopyLanguage, SUPPORTED_LANGUAGES } from '@/lib/beithady/ads/ai-copy';
 import { publishCtwaCampaign } from '@/lib/beithady/ads/publish';
 import { metaPost, loadMetaCredentials, resolveIgForAccount } from '@/lib/beithady/ads/meta-client';
 import { publishGoogleSearchCampaign, setGoogleCampaignStatus } from '@/lib/beithady/ads/google-publish';
@@ -911,6 +911,35 @@ export async function regenerateGalleryCaptionAction(formData: FormData): Promis
 // =====================================================================
 // AI caption generation (vision)
 // =====================================================================
+// PMax "Generate with AI" composer — called by AiPmaxComposer client component
+// on /beithady/ads/google/pmax. Returns the three textarea buckets so the
+// component can update its local state without a page reload.
+export async function generatePmaxCopyAction(formData: FormData): Promise<{ headlines: string[]; longHeadlines: string[]; descriptions: string[] }> {
+  await requireFull();
+  const buildingCodes = String(formData.get('building_codes') || '')
+    .split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+  const targetCountries = String(formData.get('target_countries') || '')
+    .split(/[,\n]/).map(s => s.trim().toUpperCase()).filter(Boolean);
+  const businessName = String(formData.get('business_name') || '').trim() || 'Beit Hady';
+  const language = String(formData.get('language') || 'en') as AdCopyLanguage;
+  const finalUrl = String(formData.get('final_url') || '').trim() || undefined;
+  if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) throw new Error('invalid_language');
+
+  const result = await generatePmaxCopy({
+    buildingCodes,
+    targetCountries,
+    businessName,
+    language,
+    finalUrl,
+  });
+
+  return {
+    headlines: result.headlines,
+    longHeadlines: result.longHeadlines,
+    descriptions: result.descriptions,
+  };
+}
+
 export async function generateCaptionAction(formData: FormData): Promise<{ caption: string; hashtags: string[] }> {
   await requireFull();
   const imageUrl = String(formData.get('image_url') || '').trim() || null;

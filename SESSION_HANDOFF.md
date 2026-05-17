@@ -1,5 +1,160 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-17 — TikTok publish page restored at `/tiktok/publish` (YouTube + IG pickers)
+
+**Commit:** `42c9fd9d feat(tiktok): restore publish page at /tiktok/publish — YouTube + IG Reels + IG Stories pickers, cross-post landing`
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**Trigger:** User picked option **1** from previous turn — rebuild the TikTok publish page that was removed by commit `982f263c` (publish-out blocked → pivoted to curated embed reels). Need: YouTube picker + working cross-post button from `/beithady/gallery/youtube/picker`.
+
+**Files created:**
+- `src/lib/beithady/ads/youtube-to-tiktok.ts` — server query `listYouTubePickerItems(limit)` over `ads_youtube_videos` filtering on non-null `source_url` (public mp4 TikTok pulls by URL); plus `buildTikTokDefaultsFromYouTube({adsYtVideoId, youtubeVideoId})` that looks up by DB id (preferred) or YT-side id (fallback) and pre-fills video URL + caption (title+description) with hashtags extracted out.
+- `src/app/beithady/ads/tiktok/publish/page.tsx` — new publish page; pulls accounts + recent posts + IG picker items + YT picker items in parallel. Three source pickers stacked: YouTube (red border + YT/SHORT badge), IG Reels (violet), IG Stories (rose + STORY badge). Prefill banner per source. Hidden inputs carry `yt_video_id` + `ads_yt_video_id` through to `publishTikTokReelAction` so the cross-post audit table records the source.
+
+**Files updated:**
+- `src/app/beithady/ads/_components/ads-tabs.tsx` — added "TikTok Publish" tab (slug `tt-publish`) in publish group alongside existing "TikTok Reels" (curated embed page, unchanged).
+- `src/app/beithady/gallery/youtube/picker/_components/picker-row.tsx` — `PLATFORM_HREF.tiktok_organic` rewired from `/beithady/ads/tiktok/organic` → `/beithady/ads/tiktok/publish`. The "Post to TikTok" button now lands on a functional publish form pre-filled with the YT video.
+
+**Lucide gotcha:** `Youtube` icon isn't exported in this version of `lucide-react` (TS2305). Swapped to `Video`. Fix-then-recheck pattern.
+
+**Prefill precedence:** YouTube wins when both `from_yt` and `from_ig` are set (operator clicked the YT cross-post button explicitly).
+
+**Sandbox-only reality unchanged:** posts go to `beit.hady` test user's TikTok inbox until App Review demo video is submitted and TikTok approves production. Functional end-to-end in sandbox; just won't hit real `@beithady` yet.
+
+---
+
+## 🔵 2026-05-17 — Google PMax: AI-gen vs YouTube copy for text boxes — awaiting decision
+
+**Status:** No code change this turn. Recommendation given, awaiting user pick.
+
+**User asked (with screenshot of `/beithady/ads/google/pmax`):** the Short / Long headline + Description textareas land empty (placeholder text only). Two options offered: (A) AI generates the text from building/country/etc., or (B) copy from a YouTube post when the user comes in via the YT picker. Asked Claude to choose.
+
+**Current state of the page:** `?yt_video_id=` and `?ads_yt_video_id=` already route in from the YouTube picker ([page.tsx:32-61](src/app/beithady/ads/google/pmax/page.tsx#L32-L61)) but only render a `YouTubeSourceBanner` — they do NOT pre-fill any textareas. Meanwhile `?from_ig=…` and `?from_meta=…` DO pre-fill, via `buildPmaxDefaultsFromIgMediaItem` / `buildPmaxDefaultsFromMetaCampaign` ([page.tsx:79-84](src/app/beithady/ads/google/pmax/page.tsx#L79-L84)). So the YouTube path is the inconsistent one.
+
+**Recommendation: Option B (copy from YouTube).** Reasons: (1) mirrors the existing IG/Meta pre-fill flow — one pattern, not two; (2) no LLM cost / failure mode; (3) `ads_youtube_videos.title/description` is already human-written marketing copy; (4) small surface — just add `buildPmaxDefaultsFromYouTubeVideo()` next to the IG helper and feed `defaultHeadlines / defaultLongHeadlines / defaultDescriptions` when `ytVideoIdParam || adsYtVideoIdParam` is set. Tradeoff noted: if a YT video has thin description, textareas are sparse and operator types more.
+
+**Related untracked file:** `src/lib/beithady/ads/youtube-to-tiktok.ts` already has the read-by-id pattern (`buildTikTokDefaultsFromYouTube`) that the PMax helper would mirror — same schema fields (title, description, hashtags via `#tag` extraction).
+
+**If user picks B:** add `buildPmaxDefaultsFromYouTubeVideo()` in `src/lib/beithady/ads/duplicate-to-google.ts` (or a new `youtube-to-pmax.ts`), wire into [page.tsx](src/app/beithady/ads/google/pmax/page.tsx) where `prefill` is computed, ship via commit + push + vercel --prod.
+
+**If user picks A:** route through `@/lib/anthropic` to generate headlines/descriptions from building metadata (analytic account name, country list, hardcoded brand voice). Higher complexity, token cost per publish.
+
+---
+
+## 🔵 2026-05-17 — Cross-post "Post to TikTok" broken — diagnosis, awaiting decision
+
+**Status:** No code change this turn. Investigation + 3-option proposal awaiting user reply.
+
+**User reported:**
+1. From `/beithady/gallery/youtube/picker`, clicking "Post to TikTok" on a video card lands on the curated-reels page and nothing happens.
+2. Wants a "pick from YouTube videos to post to TikTok" picker on the TikTok Reels tab in Ads.
+
+**Diagnosis:** the TikTok Content Posting API publish page was intentionally REMOVED earlier — commit `982f263c "feat(bh-ads): TikTok reels embed-in flow (replaces blocked publish-out)"`. The reason in the commit message: publish-out was blocked. The team replaced it with a "curate public TikTok/IG reel URLs + embed them" page. So:
+- `/beithady/ads/tiktok/organic` now renders the curated-reels page (no publish form).
+- `src/app/beithady/gallery/youtube/picker/_components/picker-row.tsx` PLATFORM_HREF still maps `tiktok_organic → /beithady/ads/tiktok/organic` — pointing at the broken destination.
+- The server action `publishTikTokReelAction` still exists in `src/app/beithady/ads/actions.ts` (~L520) and accepts `yt_video_id`, but no client wires to it any more.
+
+**TikTok publish capability state (recap from earlier this session):**
+- Sandbox OAuth connected (`beit.hady` test user) — sandbox publishing would work end-to-end if the page existed.
+- Production publishing blocked until TikTok App Review approves the app (needs demo video — already flagged earlier).
+
+**3 options offered:**
+1. **Rebuild publish page at `/beithady/ads/tiktok/publish`** with YouTube picker + IG Reels picker (already built in commit `ce00b50a` and `5fbe7859`) + gallery picker + manual URL + AI caption composer. Update PLATFORM_HREF + add new tab. ~30-45 min. Functional in sandbox immediately.
+2. **Disable the broken "Post to TikTok" button** in the cross-post picker. 5 min — cleanest if team has truly pivoted away from API publishing.
+3. **Hybrid:** clicking "Post to TikTok" opens TikTok Studio in new tab + copies caption/hashtags to clipboard. ~20 min.
+
+**Awaiting user pick.** Most likely path is #1 given the explicit ask for a YouTube picker.
+
+**Earlier picker work that's reusable for option #1:** `ce00b50a` (IG Reels picker — mirror IG video to Supabase + pre-fill caption + hashtags) and `5fbe7859` (combined IG Reels + Stories picker). Same pattern would apply to YouTube — query `ads_youtube_videos` table, render thumbnail strip, on pick → fill the publish form. Just need to confirm `ads_youtube_videos.source_url` (or similar) exists for the TikTok pull-by-url step.
+
+---
+
+## 🔴→🟢 2026-05-17 — Google PMax: stale field name `finalUrlExpansionOptOut`
+
+**Commit:** `407f1676 fix(pmax): rename finalUrlExpansionOptOut → urlExpansionOptOut (Google Ads API v24 field name)`
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` when Ready.
+
+**User reported:** PMax publish failed with
+`create_campaign: mutate_failed | {"error":{"code":400,"message":"Invalid JSON payload received. Unknown name \"finalUrlExpansionOptOut\" at 'operations[0].create': Cannot find field.","status":"INVALID_ARGUMENT",...}}`
+
+**Root cause:** `src/lib/beithady/ads/google-pmax-publish.ts:174` was sending `finalUrlExpansionOptOut: false`. Google Ads API v24 (current per `google-client.ts`) renamed the field on the Campaign object to `urlExpansionOptOut` (REST snake_case `url_expansion_opt_out`). Old name returns 400 INVALID_ARGUMENT "Cannot find field."
+
+**Fix:** One-line rename + explanatory comment so future Claude doesn't undo it. Default value stays `false` (URL expansion ON — Google can expand to other landing URLs on the domain).
+
+**Files touched:**
+- `src/lib/beithady/ads/google-pmax-publish.ts` — one line + comment.
+
+**Asked user a clarification (no response yet):** the question text was "Duplicating IG Boost to Google?" — asked whether they came in via the `?from_meta=<id>` pre-fill path or some other "duplicate" route I haven't seen. Either way, the fix above handles the publish step. Awaiting their reply if there's a separate duplicate-to-google flow that also needs auditing.
+
+---
+
+## 🔴→🟢 2026-05-17 — Boost IG: Advantage+ conflict with age_max
+
+**Commit:** `48068f46 fix(boost-ig): disable Advantage+ audience — was forcing age_max>=65 and rejecting operator-set caps`
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**User reported:** Boost IG publish failed with Meta error
+`create_adset: Invalid parameter [sub:1870189] With ad sets that use Advantage+ audience, the maximum age audience control can't be set to lower than 65. You can add a lower maximum age as a suggestion instead when creating or editing an ad set in Ads Manager.`
+
+**Root cause:** `src/lib/beithady/ads/boost-publish.ts:206` had `targeting_automation: { advantage_audience: 1 }`. Meta rule: when Advantage+ audience is on, any `age_max < 65` is rejected at the API layer (the cap becomes a "suggestion" only in the UI, not via the Marketing API). The default form value of `age_max=55` always tripped this.
+
+**Fix:** Flipped to `advantage_audience: 0`. Matches the CTWA publish flow (`publish.ts` already does this). Reasoning written into the code comment: when Boost IG targets a specific post for a specific audience, Advantage+ would override that intent and pump impressions to the wrong people (same LB/JO leakage pattern the per-country split addressed).
+
+**Files touched:**
+- `src/lib/beithady/ads/boost-publish.ts` — single one-line change + explanatory comment.
+
+**Not done:** Did not add a UI toggle to opt-in to Advantage+. Offered to add one if the operator wants max-reach mode on a per-boost basis; awaiting reply. Default is now "honour the operator's targeting verbatim" which is the safer default.
+
+---
+
+## 🟢 2026-05-17 — Meta CTWA publish: split per country (one ad set per target)
+
+**Commit:** `725cf334 feat(ads): split Meta CTWA per country — one ad set per country with equal budget share`
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**Trigger:** User picked option **1** from previous turn's Q&A (split ad sets per country, each with own daily budget). Goal: stop Meta's optimizer from starving SA/AE in favour of cheap-CPM LB/JO.
+
+**Files touched:**
+- `src/lib/beithady/ads/publish.ts` — added `splitByCountry?: boolean` to `PublishCtwaInput`. Live-mode branch refactored to loop ad-set + ad creation per country when split is on:
+  - Budget split evenly with last country absorbing rounding remainder.
+  - Pre-flight guard rejects if per-country budget < 100 cents (Meta $1/day minimum).
+  - Naming: `${campaignName} — ${country}` for each ad set, `${campaignName} — ${country} ad` for each ad.
+  - One creative re-used across all ads (one Meta creative review covers everything).
+  - DB persistence loops too — N rows in `ads_ad_sets` and `ads_ads`, mapped by Meta external_id so the ad row references the right DB ad_set_id.
+  - On partial failure mid-loop (e.g. created LB ad set then SA ad-set creation 4xx'd), error step is `create_adset_${country} (already created: LB, JO)` — surfaces what needs manual cleanup in Meta UI since Meta doesn't auto-rollback.
+- `src/app/beithady/ads/actions.ts` — `publishCampaignAction` reads `split_by_country` form value (1 = on), passes through.
+- `src/app/beithady/ads/create/page.tsx` — new checkbox below the monthly cap field, default ON, with explanatory copy about LB/JO leakage.
+
+**Backward compatible:** uncheck the box to get the old single-combined-adset behaviour. With 1 country selected, the split is a no-op (loops once with the full budget).
+
+**Out of scope this turn:**
+- Existing live campaigns are not modified — they keep their single combined ad set. Operator must duplicate-and-republish through this flow to get the split structure.
+- Google PMax and TikTok publishers unchanged. Same pattern would apply (Google geo_target_constants per ad group, TikTok location_ids per ad group) but no signal yet that they're leaking. Flag if it shows up there too.
+
+**Type-check:** clean (only pre-existing failures in personal/email, hr-import, build-dxb tests).
+
+---
+
+## 🔵 2026-05-17 — Q&A: why Meta ads spend skews to LB+JO over SA (no code change)
+
+**User question:** On `/beithady/ads/audience` (Geo tab, 30d, Meta), Lebanon and Jordan dominated impressions/clicks/spend; Saudi got 12k impressions vs ~63k each for LB/JO. User asked "is it because These two countries have cheaper ads?"
+
+**Answer summary (delivered inline, no code):**
+1. **Partly yes** — LB+JO are cheaper auctions (less advertiser competition; SA is one of the most expensive Arabic ad markets).
+2. **Meta's algorithm chases CTR** — LB 6.90% / JO 7.06% / SA 1.82% — when targeting multiple countries with a single budget under "lowest cost" bid strategy, Meta pours budget toward the cheapest engagement signal even if those clicks don't convert.
+3. **Cultural density** — Cairo is a top destination for Lebanese/Jordanians; Saudis have alternative regional/European options. Interest density per capita is much higher in LB/JO.
+
+**Bigger flag raised:** Leads = 0 across every country in the 30d window. Cheap clicks from LB/JO are meaningless if nothing's converting; either tracking is broken or the funnel loses them at the WhatsApp/landing step. Flagged this as the real problem to investigate before optimizing budget allocation.
+
+**Fix options offered:**
+1. Split ad sets per country (each with own daily budget — most reliable).
+2. Switch to "cost cap" / "bid cap" bid strategy above SA's CPM (forces Meta to compete at SA prices).
+3. Exclude LB+JO if the funnel doesn't convert them.
+
+**Status:** Waiting on user to decide which path. Offered to read the actual campaign config from DB to see current bid strategy + targeting setup; user hasn't responded yet. No files touched.
+
+---
+
 ## 🟢 2026-05-17 — CRM dedup bug fixed + data cleanup (shipped: `f8b5d260`)
 
 **Commit:** `f8b5d260 fix(bh-crm): phone-first dedup; never use email — name as fallback`

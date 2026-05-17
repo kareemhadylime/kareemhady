@@ -10,6 +10,7 @@ import { listIgMedia } from '@/lib/beithady/ads/meta-client';
 import { listPickerVideos } from '@/lib/beithady/youtube/picker';
 import { EmbeddedPicker } from '@/app/beithady/gallery/youtube/picker/_components/embedded-picker';
 import { YouTubeSourceBanner } from '@/app/beithady/gallery/youtube/picker/_components/youtube-source-banner';
+import { AiPmaxComposer } from './_components/ai-pmax-composer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -250,20 +251,11 @@ export default async function GooglePMaxPage({
             </Field>
           </div>
 
-          <div className="space-y-1">
-            <label htmlFor="headlines" className="text-xs font-semibold">Short headlines (3–15, one per line, ≤30 chars each)</label>
-            <textarea id="headlines" name="headlines" required rows={5} className="ix-input font-mono text-xs" placeholder={'Beit Hady Apartments\nLuxury Cairo Stays\nBook on WhatsApp'} defaultValue={defaultHeadlines} />
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="long_headlines" className="text-xs font-semibold">Long headlines (1–5, one per line, ≤90 chars each)</label>
-            <textarea id="long_headlines" name="long_headlines" required rows={3} className="ix-input font-mono text-xs" placeholder={'Premium serviced apartments in Cairo — direct host, 24/7 concierge'} defaultValue={defaultLongHeadlines} />
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="descriptions" className="text-xs font-semibold">Descriptions (2–5, one per line, ≤90 chars each)</label>
-            <textarea id="descriptions" name="descriptions" required rows={4} className="ix-input font-mono text-xs" placeholder={'Premium furnishings, direct host, WhatsApp booking. Message us for live availability.'} defaultValue={defaultDescriptions} />
-          </div>
+          <AiPmaxComposer
+            defaultHeadlines={defaultHeadlines}
+            defaultLongHeadlines={defaultLongHeadlines}
+            defaultDescriptions={defaultDescriptions}
+          />
 
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-slate-500">PMax lands PAUSED. After saving, attach images in Google Ads UI and activate.</p>

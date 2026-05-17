@@ -1,6 +1,7 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase';
+import { BH_BUILDINGS } from '@/lib/beithady/buildings';
 
 // AI ad copy generator. Per Plan v0.3 §F.3, generates 3 variants per
 // language (en, ar, de, fr, ru) for a given building + season + target
@@ -293,4 +294,114 @@ function captionSurfaceLabel(s: CaptionSurface): string {
   if (s === 'google_rsa') return 'Google Search ad';
   if (s === 'meta_ctwa') return 'Meta CTWA';
   return 'social-media';
+}
+
+// =====================================================================
+// PMax copy generation — fills the Google Performance Max textareas
+// from scratch using building + country context. Returns short headlines
+// (≤30c, 3-15), long headlines (≤90c, 1-5), descriptions (≤90c, 2-5).
+//
+// Used by the "Generate with AI" button on /beithady/ads/google/pmax.
+// One Haiku call (~$0.002).
+// =====================================================================
+
+export type PmaxCopyInput = {
+  buildingCodes: string[];
+  targetCountries: string[];        // ISO alpha-2
+  businessName: string;             // defaults to 'Beit Hady'
+  language: AdCopyLanguage;
+  finalUrl?: string;
+};
+
+export type PmaxCopyResult = {
+  headlines: string[];              // ≤30c, up to 15
+  longHeadlines: string[];          // ≤90c, up to 5
+  descriptions: string[];           // ≤90c, up to 5
+  model: string;
+  prompt_version: string;
+};
+
+// PMax char limits are enforced server-side by Google. Clip at the last
+// word boundary so we don't ship half-words; Claude occasionally goes a
+// char or two over even when told the limit.
+function clipForPmax(s: string, max: number): string {
+  const t = (s || '').trim().replace(/\s+/g, ' ');
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
+}
+
+export async function generatePmaxCopy(input: PmaxCopyInput): Promise<PmaxCopyResult> {
+  const client = getClient();
+  const lang = languageNames[input.language] || input.language;
+
+  const buildingNames = input.buildingCodes
+    .map(code => BH_BUILDINGS.find(b => b.code === code)?.name || code)
+    .filter(Boolean)
+    .join(', ');
+
+  const countryList = input.targetCountries.length ? input.targetCountries.join(', ') : 'GCC + EG';
+  const businessName = (input.businessName || '').trim() || 'Beit Hady';
+
+  // Persona brief only useful when a single country is targeted (otherwise tone
+  // is generic). Skip the DB hit otherwise.
+  const personaBrief = input.targetCountries.length === 1
+    ? await getPersonaBrief(input.targetCountries[0])
+    : null;
+
+  const prompt = `You are writing Google Performance Max ad assets for ${businessName}, a serviced-apartment business with properties in Cairo and Dubai. Write in ${lang}.
+
+Property/properties: ${buildingNames || 'Beit Hady apartments'}
+Target countries (ISO): ${countryList}
+${input.finalUrl ? `Landing URL: ${input.finalUrl}` : ''}
+${personaBrief ? `\nMarket persona brief:\n${personaBrief}\n` : ''}
+
+Generate THREE asset buckets for Google PMax. Char limits are hard — Google rejects anything over:
+
+1. "headlines": 5 short headlines, EACH ≤30 characters. Punchy. Mix at least one that uses the business name, one that names Cairo (or Dubai if BH-OK is in the list), and one CTA-style ("Book on WhatsApp", "Stay Direct", etc.).
+2. "longHeadlines": 3 long headlines, EACH ≤90 characters. Full benefit statements.
+3. "descriptions": 3 descriptions, EACH ≤90 characters. Slightly longer, can mention "direct host", "24/7 concierge", "WhatsApp booking".
+
+Tone: warm hospitality, premium-but-approachable. NO emojis. NO exclamation marks. NO all-caps. Don't promise specific prices, dates, or discounts.
+
+Hard rule: STAY UNDER the char limits. Count characters including spaces.
+
+Return STRICT JSON only, no markdown fences:
+{
+  "headlines": ["...", "...", "...", "...", "..."],
+  "longHeadlines": ["...", "...", "..."],
+  "descriptions": ["...", "...", "..."]
+}`;
+
+  const res = await client.messages.create({
+    model: MODEL,
+    max_tokens: 1000,
+    temperature: 0.7,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const text = res.content
+    .map(b => (b.type === 'text' ? b.text : ''))
+    .join('')
+    .trim();
+  const parsed = parseJsonish(text) as { headlines?: unknown[]; longHeadlines?: unknown[]; descriptions?: unknown[] } | null;
+
+  const pick = (v: unknown[] | undefined, maxItems: number, charMax: number): string[] => {
+    if (!Array.isArray(v)) return [];
+    const out: string[] = [];
+    for (const x of v) {
+      const c = clipForPmax(String(x || ''), charMax);
+      if (c.length >= 4 && !out.includes(c)) out.push(c);
+      if (out.length >= maxItems) break;
+    }
+    return out;
+  };
+
+  return {
+    headlines: pick(parsed?.headlines, 15, 30),
+    longHeadlines: pick(parsed?.longHeadlines, 5, 90),
+    descriptions: pick(parsed?.descriptions, 5, 90),
+    model: MODEL,
+    prompt_version: 'pmax-v1',
+  };
 }
