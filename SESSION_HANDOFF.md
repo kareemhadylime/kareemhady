@@ -105,3 +105,26 @@ Cron runs hourly (per vercel.json, no changes needed). Bearer-auth check covers 
 Key implementation note: `getDashboardKpisWithCompare` takes `compare: boolean`, not `'prev_period' | 'prev_year' | null`; converted via `compare !== null`. EGP conversion for campaign spend done upfront via `convertManyToEgp`. Platform status uses `platformConfigured(enabled, status, minKeys)` helper. FRT returns `null` when `total_leads === 0`. Cohort uses empty `{ buckets: [] }` placeholder. `vi.resetModules()` required before `vi.doMock` calls to prevent stale module cache from first `describe` block.
 
 **Session complete (Tasks 1–4).** Ready for Task 5: `createAdsShareLinkAction` server action.
+
+---
+
+## 2026-05-17 · BH Ads V4 — Code-Review Fix: `getAdsSnapshotData` FX Length Guard
+
+**CODE-REVIEW FIX COMPLETE**: Added defensive length check to `getAdsSnapshotData` after FX conversion.
+
+- **File**: `src/lib/beithady/ads/snapshot.ts` (added 4-line guard between `campaignSpendEgp` assignment and `campaignsWithEgp` mapping)
+- **Change**: Inserted length-validation guard:
+  ```ts
+  if (campaignSpendEgp.length !== campaigns.length) {
+    throw new Error(
+      `FX conversion length mismatch: ${campaigns.length} campaigns vs ${campaignSpendEgp.length} converted`,
+    );
+  }
+  ```
+- **Rationale**: `convertManyToEgp` must preserve array length. If FX rates fail partially and shorten the result, downstream `spend_egp: 0` would silently misreport campaign performance. Better to fail loud at snapshot-generation time than ship stale data to the dashboard.
+- **Tests**: All 4 passing ✓ (existing test mocks return `[]` for both campaigns and converted rates, so `0 === 0` passes guard)
+- **TypeScript**: No errors ✓
+- **Commit**: `9fb0326a` — "fix(bh-ads): fail loud on FX conversion length mismatch in snapshot gather"
+- **Push**: Pushed to origin/main ✓
+
+Ready for Task 5: `createAdsShareLinkAction` server action.
