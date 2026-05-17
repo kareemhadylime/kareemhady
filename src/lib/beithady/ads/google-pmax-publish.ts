@@ -171,7 +171,10 @@ export async function publishGooglePerformanceMax(
       status: 'PAUSED',
       campaignBudget: budgetResource,
       maximizeConversions: {},
-      finalUrlExpansionOptOut: false,
+      // Google Ads API v24 calls this `urlExpansionOptOut` (REST: url_expansion_opt_out).
+      // The older `finalUrlExpansionOptOut` was renamed; using it now returns
+      // 400 INVALID_ARGUMENT "Cannot find field".
+      urlExpansionOptOut: false,
     },
   }], creds, accessToken);
   if (!campRes.ok) return { ok: false, mode: 'live', step: 'create_campaign', error: 'mutate_failed', raw: campRes.body };
