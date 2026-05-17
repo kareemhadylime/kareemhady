@@ -105,6 +105,7 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
   const galleryAssetIds = String(formData.get('gallery_asset_ids') || '').split(',').map(s => s.trim()).filter(Boolean);
   const ageMin = Number.parseInt(String(formData.get('age_min') || '25'), 10);
   const ageMax = Number.parseInt(String(formData.get('age_max') || '55'), 10);
+  const splitByCountry = String(formData.get('split_by_country') || '') === '1';
 
   if (!campaignName || !buildingCodes.length || !targetCountries.length || !headline || !primaryText) {
     redirect('/beithady/ads/create?error=missing_required_fields');
@@ -127,6 +128,7 @@ export async function publishCampaignAction(formData: FormData): Promise<void> {
     headline,
     primaryText,
     language,
+    splitByCountry,
   });
 
   if (!result.ok) {

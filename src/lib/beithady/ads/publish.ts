@@ -29,6 +29,12 @@ export type PublishCtwaInput = {
   headline: string;
   primaryText: string;
   language: string;
+  // When true AND targetCountries.length >= 2, create one ad set per country
+  // instead of one combined ad set. Daily budget is split evenly across
+  // countries (last country absorbs any rounding remainder). Prevents Meta's
+  // auction optimizer from starving expensive markets (SA, UAE) in favour of
+  // cheaper-CPM ones (LB, JO). See SESSION_HANDOFF 2026-05-17 for context.
+  splitByCountry?: boolean;
   // For draft mode + DB linking
   copyLogIds?: string[];
 };
@@ -222,32 +228,72 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
       );
     }
   }
-  const adsetPayload: Record<string, unknown> = {
-    name: `${input.campaignName} — adset`,
-    campaign_id: campaignExternalId,
-    status: 'PAUSED',
-    billing_event: 'IMPRESSIONS',
-    optimization_goal: 'CONVERSATIONS',
-    destination_type: 'WHATSAPP',
-    bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-    daily_budget: dailyBudgetCents,
-    promoted_object: { page_id: c.fbPageId },
-    targeting: {
-      ...targetingExtras,
-      geo_locations: { countries: input.targetCountries },
-      publisher_platforms: ['facebook', 'instagram'],
-      facebook_positions: ['feed', 'story'],
-      instagram_positions: ['stream', 'story', 'explore'],
-      targeting_automation: { advantage_audience: 0 },
-    },
-    start_time: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-  };
-  if (input.durationDays && input.durationDays > 0) {
-    adsetPayload.end_time = new Date(Date.now() + input.durationDays * 86400e3).toISOString();
+  // Per-country split: divide budget evenly, last country absorbs rounding.
+  // When false (or only 1 country), single combined ad set with the existing
+  // budget. Block split with < $1/day per country (Meta minimum).
+  const willSplit = !!input.splitByCountry && input.targetCountries.length >= 2;
+  const splitBudgets: number[] = willSplit
+    ? (() => {
+        const n = input.targetCountries.length;
+        const base = Math.floor(dailyBudgetCents / n);
+        const remainder = dailyBudgetCents - base * n;
+        return input.targetCountries.map((_c, i) => base + (i === n - 1 ? remainder : 0));
+      })()
+    : [dailyBudgetCents];
+  if (willSplit && splitBudgets.some(b => b < 100)) {
+    return { ok: false, mode: 'live', step: 'create_adset', error: `per_country_budget_below_meta_min: ${dailyBudgetCents/100}/${input.targetCountries.length} countries = below $1/day each` };
   }
-  const adsetRes = await metaPost<{ id: string }>(`${adAccountPath}/adsets`, adsetPayload, c.token);
-  if (!adsetRes.ok) return { ok: false, mode: 'live', step: 'create_adset', error: adsetRes.error, raw: adsetRes.raw };
-  const adsetExternalId = (adsetRes.data as { id: string }).id;
+
+  type AdsetMeta = { externalId: string; country: string; budgetCents: number; raw: unknown };
+  const createdAdsets: AdsetMeta[] = [];
+  const adsetLoopCountries = willSplit ? input.targetCountries : ['ALL'];
+  const startTime = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  const endTime = (input.durationDays && input.durationDays > 0)
+    ? new Date(Date.now() + input.durationDays * 86400e3).toISOString()
+    : null;
+
+  for (let i = 0; i < adsetLoopCountries.length; i++) {
+    const country = adsetLoopCountries[i];
+    const budgetCents = splitBudgets[i];
+    const geoCountries = willSplit ? [country] : input.targetCountries;
+    const setName = willSplit ? `${input.campaignName} — ${country}` : `${input.campaignName} — adset`;
+    const adsetPayload: Record<string, unknown> = {
+      name: setName,
+      campaign_id: campaignExternalId,
+      status: 'PAUSED',
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: 'CONVERSATIONS',
+      destination_type: 'WHATSAPP',
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      daily_budget: budgetCents,
+      promoted_object: { page_id: c.fbPageId },
+      targeting: {
+        ...targetingExtras,
+        geo_locations: { countries: geoCountries },
+        publisher_platforms: ['facebook', 'instagram'],
+        facebook_positions: ['feed', 'story'],
+        instagram_positions: ['stream', 'story', 'explore'],
+        targeting_automation: { advantage_audience: 0 },
+      },
+      start_time: startTime,
+    };
+    if (endTime) adsetPayload.end_time = endTime;
+    const adsetRes = await metaPost<{ id: string }>(`${adAccountPath}/adsets`, adsetPayload, c.token);
+    if (!adsetRes.ok) {
+      // If we already created some ad sets and this one failed, surface that
+      // — Meta won't auto-rollback the earlier ones; operator needs to clean up.
+      const partial = createdAdsets.length > 0 ? ` (already created: ${createdAdsets.map(a => a.country).join(', ')})` : '';
+      return { ok: false, mode: 'live', step: `create_adset_${country}${partial}`, error: adsetRes.error, raw: adsetRes.raw };
+    }
+    createdAdsets.push({
+      externalId: (adsetRes.data as { id: string }).id,
+      country,
+      budgetCents,
+      raw: adsetRes.data,
+    });
+  }
+  // For backward-compat with the rest of the function (creative + DB persist + return shape)
+  const adsetExternalId = createdAdsets[0].externalId;
 
   // 3. Creative
   const waLink = `https://wa.me/${CTWA_PHONE.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi Beit Hady — interested in ${input.campaignName}`)}`;
@@ -278,19 +324,37 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
   );
   if (!creativeRes.ok) return { ok: false, mode: 'live', step: 'create_creative', error: creativeRes.error, raw: creativeRes.raw };
 
-  // 4. Ad
-  const adRes = await metaPost<{ id: string }>(
-    `${adAccountPath}/ads`,
-    {
-      name: `${input.campaignName} — ad`,
-      adset_id: adsetExternalId,
-      creative: { creative_id: (creativeRes.data as { id: string }).id },
-      status: 'PAUSED',
-    },
-    c.token
-  );
-  if (!adRes.ok) return { ok: false, mode: 'live', step: 'create_ad', error: adRes.error, raw: adRes.raw };
-  const adExternalId = (adRes.data as { id: string }).id;
+  // 4. Ad(s) — one per ad set, sharing the same creative
+  const creativeId = (creativeRes.data as { id: string }).id;
+  type AdMeta = { externalId: string; adsetExternalId: string; country: string; raw: unknown };
+  const createdAds: AdMeta[] = [];
+  for (const adset of createdAdsets) {
+    const adName = willSplit ? `${input.campaignName} — ${adset.country} ad` : `${input.campaignName} — ad`;
+    const adRes = await metaPost<{ id: string }>(
+      `${adAccountPath}/ads`,
+      {
+        name: adName,
+        adset_id: adset.externalId,
+        creative: { creative_id: creativeId },
+        status: 'PAUSED',
+      },
+      c.token
+    );
+    if (!adRes.ok) {
+      const partial = createdAds.length > 0 ? ` (already created ads for: ${createdAds.map(a => a.country).join(', ')})` : '';
+      return { ok: false, mode: 'live', step: `create_ad_${adset.country}${partial}`, error: adRes.error, raw: adRes.raw };
+    }
+    createdAds.push({
+      externalId: (adRes.data as { id: string }).id,
+      adsetExternalId: adset.externalId,
+      country: adset.country,
+      raw: adRes.data,
+    });
+  }
+  // First ad's id is used in the return value for backward-compat;
+  // the result type doesn't currently expose the full array, but the DB
+  // persist below writes all of them. UI can query ads_ads to see the split.
+  const adExternalId = createdAds[0].externalId;
 
   // 5. Persist locally
   const { data: campIns } = await sb
@@ -316,46 +380,57 @@ export async function publishCtwaCampaign(input: PublishCtwaInput): Promise<Publ
     .single();
   const dbCampId = (campIns as { id: number } | null)?.id || 0;
 
-  const { data: setIns } = await sb
-    .from('ads_ad_sets')
-    .upsert(
+  // Persist one ad_sets row per Meta ad set + one ads row per Meta ad.
+  // Map by externalId so the ad row references the right DB ad_set_id.
+  const setIdByExternal = new Map<string, number>();
+  for (const adset of createdAdsets) {
+    const setName = willSplit ? `${input.campaignName} — ${adset.country}` : `${input.campaignName} — adset`;
+    const { data: setIns } = await sb
+      .from('ads_ad_sets')
+      .upsert(
+        {
+          campaign_id: dbCampId,
+          platform: 'meta',
+          external_id: adset.externalId,
+          name: setName,
+          status: 'PAUSED',
+          optimization_goal: 'CONVERSATIONS',
+          daily_budget_micros: Math.round((adset.budgetCents / 100) * 1_000_000),
+          target_countries: willSplit ? [adset.country] : input.targetCountries,
+          age_min: input.ageMin ?? 25,
+          age_max: input.ageMax ?? 65,
+          raw: adset.raw as object,
+        },
+        { onConflict: 'platform,external_id' }
+      )
+      .select('id')
+      .single();
+    const dbId = (setIns as { id: number } | null)?.id;
+    if (dbId) setIdByExternal.set(adset.externalId, dbId);
+  }
+
+  for (const ad of createdAds) {
+    const adName = willSplit ? `${input.campaignName} — ${ad.country} ad` : `${input.campaignName} — ad`;
+    await sb.from('ads_ads').upsert(
       {
-        campaign_id: dbCampId,
+        ad_set_id: setIdByExternal.get(ad.adsetExternalId),
         platform: 'meta',
-        external_id: adsetExternalId,
-        name: `${input.campaignName} — adset`,
+        external_id: ad.externalId,
+        name: adName,
         status: 'PAUSED',
-        optimization_goal: 'CONVERSATIONS',
-        daily_budget_micros: dailyBudgetMicros,
-        target_countries: input.targetCountries,
-        age_min: input.ageMin ?? 25,
-        age_max: input.ageMax ?? 65,
-        raw: adsetRes.data as object,
+        creative_type: isCarousel ? 'carousel' : 'link',
+        creative_url: eligibleUrls[0] || null,
+        headline: input.headline,
+        body: input.primaryText,
+        cta: input.ctaText || 'Send Message',
+        gallery_asset_ids: input.galleryAssetIds,
+        language: input.language,
+        landing_url: waLink,
+        raw: { ad: ad.raw, creative: creativeRes.data, card_count: eligibleUrls.length, country: ad.country },
       },
       { onConflict: 'platform,external_id' }
-    )
-    .select('id')
-    .single();
-
-  await sb.from('ads_ads').upsert(
-    {
-      ad_set_id: (setIns as { id: number } | null)?.id,
-      platform: 'meta',
-      external_id: adExternalId,
-      name: `${input.campaignName} — ad`,
-      status: 'PAUSED',
-      creative_type: isCarousel ? 'carousel' : 'link',
-      creative_url: eligibleUrls[0] || null,
-      headline: input.headline,
-      body: input.primaryText,
-      cta: input.ctaText || 'Send Message',
-      gallery_asset_ids: input.galleryAssetIds,
-      language: input.language,
-      landing_url: waLink,
-      raw: { ad: adRes.data, creative: creativeRes.data, card_count: eligibleUrls.length },
-    },
-    { onConflict: 'platform,external_id' }
-  );
+    );
+  }
 
   await recordAudit({
     module: 'ads',
