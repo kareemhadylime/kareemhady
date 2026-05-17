@@ -17,7 +17,13 @@ import { buildBhWaLink, DEFAULT_GEO_IDS } from './platforms';
 
 export type TikTokPaidInput = {
   accountId: number;                  // ads_accounts.id (platform=tiktok)
-  videoUrl: string;                   // public HTTPS
+  // Spark Ad mode: promote an existing organic TikTok post by its item_id.
+  // When set, videoUrl is ignored, video/cover upload steps are skipped,
+  // and the ad uses ad_format='TIKTOK_VIDEO' instead of 'SINGLE_VIDEO'.
+  // Requires the identity to be on-account (TT_USER) — we already have that
+  // wired via ads_accounts.tiktok_identity_id/_type.
+  tiktokItemId?: string;
+  videoUrl?: string;                  // public HTTPS — required only when tiktokItemId is empty
   adText: string;                     // ≤100 chars
   dailyBudgetUsd: number;
   monthlyBudgetCapUsd?: number | null; // optional auto-pause cap
@@ -49,7 +55,10 @@ export async function publishTikTokTrafficAd(input: TikTokPaidInput): Promise<Ti
 
   // Validate
   if (!input.accountId) return { ok: false, mode: 'live', step: 'validate', error: 'account_id required' };
-  if (!input.videoUrl?.startsWith('https://')) return { ok: false, mode: 'live', step: 'validate', error: 'video_url https required' };
+  const isSparkAd = !!input.tiktokItemId?.trim();
+  if (!isSparkAd && !input.videoUrl?.startsWith('https://')) {
+    return { ok: false, mode: 'live', step: 'validate', error: 'video_url https required (or pass tiktokItemId for Spark Ad)' };
+  }
   if (!input.adText?.trim()) return { ok: false, mode: 'live', step: 'validate', error: 'ad_text required' };
   if (!Number.isFinite(input.dailyBudgetUsd) || input.dailyBudgetUsd < 1) {
     return { ok: false, mode: 'live', step: 'validate', error: 'daily_budget_usd must be >= 1' };
@@ -192,30 +201,33 @@ export async function publishTikTokTrafficAd(input: TikTokPaidInput): Promise<Ti
   const campaignExternalId = String((campRes.body as { data?: { campaign_id?: string } }).data?.campaign_id || '');
   if (!campaignExternalId) return { ok: false, mode: 'live', step: 'create_campaign', error: 'no_campaign_id', raw: campRes.body };
 
-  // Step 2: video upload (pull from URL)
-  const vidRes = await ttBizPost('/file/video/ad/upload/', {
-    advertiser_id: advertiserId,
-    upload_type: 'UPLOAD_BY_URL',
-    video_url: input.videoUrl,
-  }, marketingToken);
-  if (!vidRes.ok) return { ok: false, mode: 'live', step: 'upload_video', error: 'biz_failed', raw: vidRes.body };
-  const vidList = (vidRes.body as { data?: unknown }).data;
-  const video = Array.isArray(vidList) ? vidList[0] : ((vidList as { list?: unknown[] })?.list?.[0]);
-  const videoId = String((video as { video_id?: string } | undefined)?.video_id || '');
-  const videoCoverUrl = String((video as { video_cover_url?: string } | undefined)?.video_cover_url || '');
-  if (!videoId) return { ok: false, mode: 'live', step: 'upload_video', error: 'no_video_id', raw: vidRes.body };
-
-  // Step 3: cover image
+  // Steps 2 + 3: video upload + cover. Skipped entirely in Spark Ad mode
+  // (the post already exists on TikTok with its own video + cover).
+  let videoId = '';
   let coverImageId = '';
-  if (videoCoverUrl) {
-    const imgRes = await ttBizPost('/file/image/ad/upload/', {
+  if (!isSparkAd) {
+    const vidRes = await ttBizPost('/file/video/ad/upload/', {
       advertiser_id: advertiserId,
       upload_type: 'UPLOAD_BY_URL',
-      image_url: videoCoverUrl,
-      file_name: `cover_${videoId}.jpg`,
+      video_url: input.videoUrl,
     }, marketingToken);
-    if (imgRes.ok) {
-      coverImageId = String((imgRes.body as { data?: { image_id?: string } }).data?.image_id || '');
+    if (!vidRes.ok) return { ok: false, mode: 'live', step: 'upload_video', error: 'biz_failed', raw: vidRes.body };
+    const vidList = (vidRes.body as { data?: unknown }).data;
+    const video = Array.isArray(vidList) ? vidList[0] : ((vidList as { list?: unknown[] })?.list?.[0]);
+    videoId = String((video as { video_id?: string } | undefined)?.video_id || '');
+    const videoCoverUrl = String((video as { video_cover_url?: string } | undefined)?.video_cover_url || '');
+    if (!videoId) return { ok: false, mode: 'live', step: 'upload_video', error: 'no_video_id', raw: vidRes.body };
+
+    if (videoCoverUrl) {
+      const imgRes = await ttBizPost('/file/image/ad/upload/', {
+        advertiser_id: advertiserId,
+        upload_type: 'UPLOAD_BY_URL',
+        image_url: videoCoverUrl,
+        file_name: `cover_${videoId}.jpg`,
+      }, marketingToken);
+      if (imgRes.ok) {
+        coverImageId = String((imgRes.body as { data?: { image_id?: string } }).data?.image_id || '');
+      }
     }
   }
 
@@ -246,18 +258,32 @@ export async function publishTikTokTrafficAd(input: TikTokPaidInput): Promise<Ti
   const adgroupExternalId = String((agRes.body as { data?: { adgroup_id?: string } }).data?.adgroup_id || '');
   if (!adgroupExternalId) return { ok: false, mode: 'live', step: 'create_adgroup', error: 'no_adgroup_id', raw: agRes.body };
 
-  // Step 5: ad
-  const creative: Record<string, unknown> = {
-    ad_name: adName,
-    ad_format: 'SINGLE_VIDEO',
-    video_id: videoId,
-    identity_type: identityType,
-    identity_id: identityId,
-    ad_text: input.adText.slice(0, 100),
-    call_to_action: 'WHATSAPP',
-    landing_page_url: landingUrl,
-  };
-  if (coverImageId) creative.image_ids = [coverImageId];
+  // Step 5: ad — creative shape depends on mode
+  // Spark Ad (TIKTOK_VIDEO): promote an existing organic post. No video_id /
+  // image_ids needed — TikTok uses the post's own video + cover. identity_type
+  // must be TT_USER (owned account) or AUTH_CODE (third-party with auth code).
+  const creative: Record<string, unknown> = isSparkAd
+    ? {
+        ad_name: adName,
+        ad_format: 'TIKTOK_VIDEO',
+        tiktok_item_id: input.tiktokItemId,
+        identity_type: identityType,   // already TT_USER for owned accounts
+        identity_id: identityId,
+        ad_text: input.adText.slice(0, 100),
+        call_to_action: 'WHATSAPP',
+        landing_page_url: landingUrl,
+      }
+    : {
+        ad_name: adName,
+        ad_format: 'SINGLE_VIDEO',
+        video_id: videoId,
+        identity_type: identityType,
+        identity_id: identityId,
+        ad_text: input.adText.slice(0, 100),
+        call_to_action: 'WHATSAPP',
+        landing_page_url: landingUrl,
+      };
+  if (!isSparkAd && coverImageId) creative.image_ids = [coverImageId];
 
   const adRes = await ttBizPost('/ad/create/', {
     advertiser_id: advertiserId,
@@ -455,4 +481,76 @@ export async function setTikTokCampaignStatus(
   if (!m.ok) return { ok: false, error: 'biz_failed' };
   await sb.from('ads_campaigns').update({ status: status === 'ENABLED' ? 'ACTIVE' : 'PAUSED' }).eq('id', campaignDbId);
   return { ok: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spark Ads — list the identity's organic TikTok videos.
+// Endpoint: GET /identity/video/list/ on TikTok Marketing API v1.3.
+// Returns the @username's recent posts so the operator can pick one to promote.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type IdentityVideoItem = {
+  item_id: string;
+  cover_image_url: string;
+  display_text: string | null;
+  video_url: string | null;
+  duration: number | null;
+  create_time: number | null;        // unix seconds
+};
+
+export async function listTikTokIdentityVideos(
+  accountId: number,
+  limit = 30,
+): Promise<
+  | { ok: true; videos: IdentityVideoItem[] }
+  | { ok: false; error: string; raw?: unknown }
+> {
+  const sb = supabaseAdmin();
+  const { data: acc } = await sb
+    .from('ads_accounts')
+    .select('platform, tiktok_advertiser_id, tiktok_identity_id, tiktok_identity_type')
+    .eq('id', accountId)
+    .maybeSingle();
+  if (!acc) return { ok: false, error: 'account_not_found' };
+  const a = acc as { platform: string; tiktok_advertiser_id: string | null; tiktok_identity_id: string | null; tiktok_identity_type: string | null };
+  if (a.platform !== 'tiktok') return { ok: false, error: 'not_tiktok_account' };
+  if (!a.tiktok_advertiser_id || !a.tiktok_identity_id) {
+    return { ok: false, error: 'missing_advertiser_or_identity — set them on /beithady/ads/tiktok/accounts' };
+  }
+
+  const credsRes = await loadTikTokAppCredentials();
+  if (!credsRes.ok || !credsRes.creds.marketing_access_token) {
+    return { ok: false, error: 'missing_marketing_token' };
+  }
+  const token = credsRes.creds.marketing_access_token;
+
+  // GET /identity/video/list/ — pass advertiser_id, identity_id, identity_type
+  // as query params. Pagination via page + page_size; first page is enough
+  // for the picker.
+  const qs = new URLSearchParams({
+    advertiser_id: a.tiktok_advertiser_id,
+    identity_id: a.tiktok_identity_id,
+    identity_type: a.tiktok_identity_type || 'TT_USER',
+    page: '1',
+    page_size: String(Math.min(limit, 50)),
+  });
+  const r = await ttBizGet(`/identity/video/list/?${qs.toString()}`, token);
+  if (!r.ok) return { ok: false, error: 'biz_failed', raw: r.body };
+
+  // Response shape: data.videos[] OR data.list[]
+  const data = (r.body as { data?: unknown }).data;
+  const rawList = Array.isArray(data)
+    ? data
+    : ((data as { videos?: unknown[]; list?: unknown[] })?.videos
+       || (data as { videos?: unknown[]; list?: unknown[] })?.list
+       || []);
+  const videos: IdentityVideoItem[] = (rawList as Array<Record<string, unknown>>).map(v => ({
+    item_id: String(v.item_id || v.id || ''),
+    cover_image_url: String(v.cover_image_url || v.cover || ''),
+    display_text: typeof v.display_text === 'string' ? v.display_text : (typeof v.video_description === 'string' ? v.video_description : null),
+    video_url: typeof v.video_url === 'string' ? v.video_url : (typeof v.share_url === 'string' ? v.share_url : null),
+    duration: typeof v.duration === 'number' ? v.duration : null,
+    create_time: typeof v.create_time === 'number' ? v.create_time : null,
+  })).filter(v => v.item_id);
+  return { ok: true, videos };
 }

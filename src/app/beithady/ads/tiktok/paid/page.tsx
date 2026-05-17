@@ -6,6 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { BeithadyShell, BeithadyHeader } from '../../../_components/beithady-shell';
 import { AdsTabs } from '../../_components/ads-tabs';
 import { publishTikTokPaidAction } from '../../actions';
+import { listTikTokIdentityVideos } from '@/lib/beithady/ads/tiktok-paid-publish';
+import { SparkPicker } from './_components/spark-picker';
 import { buildBhWaLink } from '@/lib/beithady/ads/platforms';
 import { listPickerVideos } from '@/lib/beithady/youtube/picker';
 import { EmbeddedPicker } from '@/app/beithady/gallery/youtube/picker/_components/embedded-picker';
@@ -34,6 +36,14 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
   const accounts = (accountsRaw as Array<{ id: number; name: string; tiktok_advertiser_id: string | null; tiktok_identity_id: string | null; status: string }> | null) || [];
   const ready = accounts.filter(a => a.status === 'active' && a.tiktok_advertiser_id && a.tiktok_identity_id);
   const suggestedCountries = (signalsRaw as Array<{ origin_country: string; delta_pct: number | null }> | null) || [];
+
+  // Fetch the identity's organic TikTok posts for the Spark Ads picker.
+  // Uses the first ready account — if there are multiple TikTok identities,
+  // future polish could refetch when the account dropdown changes.
+  const sparkRes = ready.length > 0
+    ? await listTikTokIdentityVideos(ready[0].id, 30).catch(() => null)
+    : null;
+  const sparkPosts = sparkRes?.ok ? sparkRes.videos : [];
 
   // V1.2 cross-post: optional YouTube source pre-fill via ?yt_video_id=…
   const ytVideoIdParam = sp.yt_video_id ?? null;
@@ -168,14 +178,8 @@ export default async function TikTokPaidPage({ searchParams }: { searchParams: P
               <label htmlFor="campaign_name" className="text-xs font-semibold">Campaign name (optional)</label>
               <input id="campaign_name" name="campaign_name" className="ix-input" />
             </div>
-            <div className="space-y-1 md:col-span-2">
-              <label htmlFor="video_url" className="text-xs font-semibold">Video URL (public HTTPS)</label>
-              <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" placeholder="https://..." defaultValue={defaultVideoUrl} />
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <label htmlFor="ad_text" className="text-xs font-semibold">Ad text (≤100 chars)</label>
-              <input id="ad_text" name="ad_text" required maxLength={100} className="ix-input" />
-            </div>
+            {/* Spark Ads / fresh upload picker — handles video_url + ad_text + tiktok_item_id */}
+            <SparkPicker posts={sparkPosts} defaultVideoUrl={defaultVideoUrl} />
             <div className="space-y-1">
               <label htmlFor="daily_budget_usd" className="text-xs font-semibold">Daily budget (USD)</label>
               <input id="daily_budget_usd" name="daily_budget_usd" type="number" min="1" step="1" defaultValue="10" required className="ix-input" />

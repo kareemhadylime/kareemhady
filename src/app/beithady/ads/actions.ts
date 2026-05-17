@@ -343,6 +343,9 @@ export async function publishTikTokPaidAction(formData: FormData): Promise<void>
   const campaignName = String(formData.get('campaign_name') || '').trim() || undefined;
   const landingUrl = String(formData.get('landing_url') || '').trim() || undefined;
   const buildingCodes = String(formData.get('building_codes') || '').split(',').map(s => s.trim()).filter(Boolean);
+  // Spark Ad mode — promote an existing organic TikTok post by item_id.
+  // When set, videoUrl is ignored and the ad uses ad_format=TIKTOK_VIDEO.
+  const tiktokItemId = String(formData.get('tiktok_item_id') || '').trim() || undefined;
   // V1.2 cross-post: optional YouTube source
   const ytVideoId = String(formData.get('yt_video_id') || '').trim() || null;
   const adsYtVideoIdRaw = String(formData.get('ads_yt_video_id') || '').trim();
@@ -352,6 +355,7 @@ export async function publishTikTokPaidAction(formData: FormData): Promise<void>
 
   const result = await publishTikTokTrafficAd({
     accountId,
+    tiktokItemId,
     videoUrl,
     adText,
     dailyBudgetUsd,
