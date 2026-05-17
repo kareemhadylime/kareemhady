@@ -1,5 +1,56 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 2026-05-17 — IG Feed Post + Organic Insights — SHIPPED
+
+**Status:** Phase 1 + Phase 2 both built and pushed in one commit. User asked for both together. Deploy in flight (background).
+
+**Commit:** `454bd9a2 feat(ads): IG feed posts (image/carousel/video) + FB cross-post + organic insights page`
+
+**Migration applied:** `0118_ig_feed_posts_extension` (applied via Supabase MCP + file written to `supabase/migrations/0118_ig_feed_posts_extension.sql`)
+- `ads_instagram_posts.video_url` now nullable
+- Added: `post_type` (default 'reel', check `reel|image|carousel|video`), `image_url`, `child_urls text[]`, `ig_insights jsonb`, `ig_insights_fetched_at`, `fb_insights jsonb`, `fb_insights_fetched_at`
+- New index on `post_type`
+
+**Phase 1 — IG Feed Post page (`/beithady/ads/instagram/post`):**
+- New lib function `publishInstagramFeedPost(input)` in `src/lib/beithady/ads/instagram-publish.ts`
+  - Handles all 3 IG flows: single image (POST `/{ig_id}/media` with `image_url`), carousel (per-child container + parent with `media_type=CAROUSEL`), video (`media_type=VIDEO` + polling)
+  - Container poll logic skips fast for image/carousel, full poll for video
+- New helper `publishFbFeedPost()` for cross-post — `/{page}/photos` for image, `/{page}/videos` for video, multi-photo flow (`published=false` + `/{page}/feed` with `attached_media`) for carousel
+- New server action `publishInstagramPostAction` in `src/app/beithady/ads/actions.ts`
+- New page with mode-tabs UI (Single Image / Carousel / Feed Video), account picker, FB cross-post checkbox, caption + hashtags + building_code, recent posts table
+- New "IG Post" tab in AdsTabs publish row
+
+**Phase 2 — Organic Insights page (`/beithady/ads/instagram/insights`):**
+- New lib `src/lib/beithady/ads/ig-fb-insights.ts`:
+  - `fetchIgPostInsights(mediaId, isVideo)` — hits Graph API `/insights` edge with metric set tailored to video vs image
+  - `fetchFbPostInsights(fbPostId, isVideo)` — same for FB with FB-specific metric names
+  - `refreshInsightsForPosts(rows, {force})` — bulk refresh with 5-min TTL cache on JSONB columns
+- New page with KPI cards (IG views/likes, FB views/likes, IG reach) + per-post table (10 metric columns)
+- Time filter chips: 7d / 30d / 90d / all (filters by `published_at`)
+- "Refresh now" link bypasses cache
+- New "Insights" tab in AdsTabs main row
+
+**Files touched:**
+- `supabase/migrations/0118_ig_feed_posts_extension.sql` (new)
+- `src/lib/beithady/ads/instagram-publish.ts` (extended with `publishInstagramFeedPost` + FB helpers)
+- `src/lib/beithady/ads/ig-fb-insights.ts` (new)
+- `src/app/beithady/ads/actions.ts` (added `publishInstagramPostAction` + import)
+- `src/app/beithady/ads/instagram/post/page.tsx` (new)
+- `src/app/beithady/ads/instagram/insights/page.tsx` (new)
+- `src/app/beithady/ads/_components/ads-tabs.tsx` (added 2 tabs)
+
+**Remaining tasks:**
+- Re-alias `app.limeinc.cc` to the new deploy once Ready (vercel alias set <url> app.limeinc.cc)
+- TypeScript check passed for new files (pre-existing errors in personal/email, hr-import, build-dxb-section tests are unrelated)
+- FB carousel insights may show empty — FB's insights endpoint behaves differently for multi-photo feed posts; if `total_video_views`/`post_impressions_unique` come back empty, will need to surface a clearer "FB insights not available for this post type" hint
+
+**Caveats for the user:**
+- IG insights metric `impressions` deprecated in Graph API v22+ — we use `reach` instead (per-user uniques)
+- IG `views` only returned for VIDEO/REELS; IMAGE/CAROUSEL posts show `—` for views (use Reach instead)
+- 5-min cache means immediate post-publish metrics may be stale until first cache miss
+
+---
+
 ## 2026-05-17 — IG Feed Post + Insights — SCOPED, awaiting go-ahead
 
 **Status:** Design proposed, no code yet. User requested IG feed posting (single image / carousel / feed video) with FB cross-post + an organic insights page (views + likes, time-filtered).
