@@ -1,5 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🔴 2026-05-17 — Fix: /beithady/ads build failure (form action return type) ✅
+
+Two-step fix for `ai-summary-card.tsx` line 21:
+
+1. **Turn 1 fix** (`94bd3b2`): replaced inline arrow with direct `generateAiSummaryAction` reference → fixed runtime serialization but broke TS build: `form action` expects `Promise<void>`, action returns `Promise<AiSummaryResult>`.
+2. **Turn 2 fix** (`f56aaadb`): restored inline wrapper with `'use server'` directive so React can serialize it AND it returns `Promise<void>` (discards result):
+   ```tsx
+   <form action={async (fd: FormData) => { 'use server'; await generateAiSummaryAction(fd); }}>
+   ```
+   Build now passes. Production deploying.
+
+---
+
 ## 🔴 2026-05-17 — Fix: /beithady/ads crash (inline arrow unserializable) ✅
 
 **Bug:** `app.limeinc.cc/beithady/ads` showed "Something went wrong" for all users.
