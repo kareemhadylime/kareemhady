@@ -92,4 +92,16 @@ Token gen mirrors daily-report pattern (24 random bytes → base64url = 32 chars
 
 Cron runs hourly (per vercel.json, no changes needed). Bearer-auth check covers both cleanups. If either throws, route returns 500 + error; hourly retry on next tick.
 
-**Session complete.** All three V4 tasks delivered: migration applied, snapshot helpers created + tested, cron extended.
+**TASK 4 COMPLETE**: Implemented `getAdsSnapshotData` — gather all 13 dashboard slices in parallel (TDD).
+
+- **Files**:
+  - `src/lib/beithady/ads/snapshot.ts` — appended `SnapshotGatherInput`, `SnapshotGatherResult` types, and `getAdsSnapshotData()` function (exports parallel Promise.all of all 13 slices)
+  - `src/lib/beithady/ads/snapshot.test.ts` — appended `describe('getAdsSnapshotData', ...)` block with `vi.resetModules()` + `vi.doMock` for all 15 imported modules
+- **Tests**: All 4 passing ✓ (3 existing + 1 new)
+- **TypeScript**: No new errors (2 pre-existing errors in unrelated `build-dxb-section.test.ts` / `build-yesterday-summary.test.ts`)
+- **Commit**: `4fa33f03` — "feat(bh-ads): getAdsSnapshotData — gather all 13 dashboard slices (V4)"
+- **Push**: Pushed to origin/main ✓ (rebased over concurrent commit first)
+
+Key implementation note: `getDashboardKpisWithCompare` takes `compare: boolean`, not `'prev_period' | 'prev_year' | null`; converted via `compare !== null`. EGP conversion for campaign spend done upfront via `convertManyToEgp`. Platform status uses `platformConfigured(enabled, status, minKeys)` helper. FRT returns `null` when `total_leads === 0`. Cohort uses empty `{ buckets: [] }` placeholder. `vi.resetModules()` required before `vi.doMock` calls to prevent stale module cache from first `describe` block.
+
+**Session complete (Tasks 1–4).** Ready for Task 5: `createAdsShareLinkAction` server action.
