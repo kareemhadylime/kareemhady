@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { ChevronLeft, Megaphone, Sparkles } from 'lucide-react';
+import { ChevronLeft, Megaphone, Sparkles, UploadCloud } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { listAssets, getAsset } from '@/lib/beithady/gallery/gallery-list';
 import { BeithadyShell, BeithadyHeader } from '../../_components/beithady-shell';
+import { Uploader } from '../_components/uploader';
 import { AssetGrid } from '../_components/asset-grid';
 import { AssetDetailModal } from '../_components/asset-detail-modal';
 
@@ -37,13 +38,24 @@ export default async function AdCreativesPage({
 
       {asset && <AssetDetailModal asset={asset} closeHref="/beithady/gallery/ad-creatives" />}
 
+      <section className="ix-card p-4">
+        <h2 className="text-sm font-semibold flex items-center gap-2 mb-2">
+          <UploadCloud size={14} className="text-yellow-600" />
+          Upload ad &amp; post creatives
+        </h2>
+        <p className="text-xs text-slate-500 mb-3">
+          Upload images or videos to use in posts, reels, and carousel ads. Supported: JPG, PNG, WEBP, HEIC, MP4, WEBM.
+        </p>
+        <Uploader category="ad_creative" />
+      </section>
+
       {list.rows.length === 0 ? (
-        <div className="ix-card p-10 text-center text-sm text-slate-500 max-w-xl mx-auto space-y-2">
+        <div className="ix-card p-8 text-center text-sm text-slate-500 max-w-xl mx-auto space-y-2">
           <Megaphone size={20} className="mx-auto text-slate-300" />
-          <p>No ad creatives yet.</p>
+          <p>No ad creatives yet — upload your first one above.</p>
           <p className="text-xs flex items-center gap-1 justify-center">
             <Sparkles size={10} className="text-yellow-600" />
-            Phase H Ads module will save every published carousel + single-image creative here automatically.
+            Phase H Ads module also saves every published carousel + single-image creative here automatically.
           </p>
         </div>
       ) : (
