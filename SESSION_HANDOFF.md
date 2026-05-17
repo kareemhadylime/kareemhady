@@ -1,5 +1,20 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🔵 2026-05-17 — Promoted `/handoff-push-all` + `/pull-all` skills to user scope
+
+Cross-project tooling cleanup. The two skills lived under `.claude/skills/` in this repo, but they're explicitly multi-repo (cover all 5 Lime projects: kareemhady, fmplus-beta, voltauto-pricing, etsy-store, voltauto-website). Project-scope made them invisible in every project except kareemhady — `/handoff-push-all` couldn't be invoked from the ETSY workspace where the user was working.
+
+Moved both folders out of this repo to `C:\Users\karee\.claude\skills\`, where they're loaded for any CWD on this machine. Net effect on this repo: two tracked files deleted.
+
+**Commits this session:**
+- (pending) — single commit covering both deletions + this handoff entry
+
+**State left in:** deployed-equivalent (skills are harness config, not Vercel runtime code; GitHub→Vercel will auto-deploy this docs/.claude change but it has no app surface impact).
+
+**Next session:** nothing pending on this front. If a future session re-creates project-scoped skills, prefer user-scope when the skill clearly spans multiple repos.
+
+---
+
 ## 🟢 New `/beithady/analytics/pace` route — Pace Report (Guesty Business-On-The-Books parity) ✅ SHIPPED
 
 Executed the full 18-task plan at `docs/superpowers/plans/2026-05-16-beithady-pace-route.md` via subagent-driven development. All tests pass (28/28 across 4 test files), full `npm run build` succeeds, brand-grep guard clean (only allowed `emerald-700`/`red-700` for delta badges).
