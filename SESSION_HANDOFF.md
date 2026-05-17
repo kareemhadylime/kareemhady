@@ -1,5 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## ✅ 2026-05-17 — BH HR: Employee Import Template (full field coverage)
+
+Added a **Download Template** button inside the Import Team Members dialog (Step 1 upload screen). HR can now grab a pre-formatted `.xlsx`, fill in all employee details, and re-upload it.
+
+**What shipped (commit `38620134` / `bf3aa9fd`):**
+- **`GET /api/hr/employee-template`** — generates a styled Excel workbook with 18 columns (Name, Arabic Name, NID, DOB, Gender, Phone, Email, Department, Position, Building, Date Joined, Status, Salary Package, Transportation Allowance, Fixed Bonus, Contract Type, Payment Method, Bank IBAN), indigo header row, 2 grey example rows (with note to delete before uploading), in-cell dropdowns for enumerated fields (Gender, Department, Building, Status, Contract Type, Payment Method), frozen top-3 rows, and a Reference sheet with all valid values.
+- **`ImportRow` type** extended with 11 new fields (arabic_name, national_id, date_of_birth, gender, phone, email, department, date_joined, contract_type, payment_method, bank_iban).
+- **`hr-import.ts`** parser updated to detect and parse all 18 columns while remaining **backward-compatible** with the legacy Odoo salary sheet format (Name/JobTitle/S.Package/Analytic columns still work).
+- **`importEmployeesAction`** now persists all newly parsed fields instead of always defaulting to `housekeeping` / `bank` / today's date. `date_joined` is used as both `date_joined` on the employee record and `contract_start`/`effective_from` on the contract. `incomplete_fields` now only flags what's actually missing in the imported row.
+- **Import dialog** got a "Download Template" button with a Download icon, linking directly to the API route.
+
+---
+
 ## 🟢 2026-05-17 — BH Ad Creatives: manual upload ✅ SHIPPED
 
 Added drag-and-drop / click-to-browse upload to `/beithady/gallery/ad-creatives`. The `GalleryProvider` + `UploadTray` were already active for all of `/beithady`; the page just needed the `<Uploader category="ad_creative" />` component wired in (same pattern as the brand-library page).
