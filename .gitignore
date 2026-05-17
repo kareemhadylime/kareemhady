@@ -56,3 +56,11 @@ next-env.d.ts
 .claude/scheduled_tasks.lock
 .superpowers/
 .env*.local
+
+# local-only sensitive / scratch dirs — NEVER commit
+/Lime Domains/
+/public/brand/xlabel branding/
+/scripts/audit-stocks.*
+*.xlsx
+*.xls
+*.pdf
