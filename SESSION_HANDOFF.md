@@ -1,5 +1,76 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-17 — CRM dedup bug fixed + data cleanup (shipped: `f8b5d260`)
+
+**Commit:** `f8b5d260 fix(bh-crm): phone-first dedup; never use email — name as fallback`
+**Deploy:** `lime-9cys40foj-lime-investments.vercel.app` aliased to `app.limeinc.cc`.
+
+### Bug
+`src/lib/beithady/crm/guests-sync.ts` was matching reservations email-first. Manual reservations default to `booking@beithady.com` (host's own fallback email), so every such reservation got dumped into one bucket — collapsing 211 reservations across 131 real phones / 177 real names into ONE guest profile (محمد فرج, showing 161 stays / 526 nights / $44,607). Across the whole table, ~86% of claimed lifetime stays were phantom inflation (80 profiles had 50+ stays — zero real).
+
+### Code fix shipped (one file, +78/-42)
+New match priority in `buildAccumulators()` and `withoutId` upsert path:
+1. `guesty_guest_id` (unchanged)
+2. **phone** (normalized digits, ≥8 chars, denylist applied)
+3. **name fallback** when no phone present (per user instruction this session)
+4. else skip
+
+Placeholder denylist (`PLACEHOLDER_EMAILS = {'booking@beithady.com'}`, `PLACEHOLDER_PHONES = {'97455268813'}`) is also applied to `scrubEmail()` / `scrubPhoneToE164()` so those values never end up stored on real guest profiles.
+
+### Data ops on prod (`bpjproljatbrbmszwbov`) — DML only
+Backups for rollback:
+- `beithady_guests_merge_backup_20260517` — 1,486 rows touched by phone-collision merge
+- `beithady_guests_stats_backup_20260517` — full pre-recompute snapshot of all 5,484 surviving guests' stats
+
+**Step 1 — phone-collision merge:** 6,406 → 5,484 rows (922 dupes collapsed into 564 survivors). Survivor = `ORDER BY lifetime_stays DESC, last_seen DESC, created_at ASC` rn=1. Chosen `full_name` = most-frequent normalized name (mode, tiebreak by length). FKs repointed on 12 child tables (`ads_leads`, `beithady_ai_reply_log`, `beithady_boarding_passes`, `beithady_conversations`, `beithady_csat_responses`, `beithady_guest_notes`, `beithady_leads`, `beithady_messages`, `beithady_pre_arrival_messages`, `beithady_tasks`, `beithady_upsell_offers`). `beithady_guest_timeline_cache` losers DELETEd (UNIQUE(guest_id) blocks UPDATE; TTL 1h refreshes lazily). Did NOT touch `guesty_guest_id` on survivor (UNIQUE constraint trips when both rows hold values mid-tx — losers' values freed naturally by their row deletion).
+
+**Step 2 — lifetime stats recompute:** even post-merge, stats were inflated remnants of the original email-bucket bug. Recomputed `lifetime_stays/nights/spend_usd/first_seen/last_seen/next_arrival_at/loyalty_tier` for everyone by joining `guesty_reservations` on normalized phone digits. Currency inline (USD/AED÷3.6725/SAR÷3.75/EGP÷49). Loyalty thresholds: 10+ platinum, 5+ gold, 3+ silver, 1+ bronze.
+
+### Impact
+| | Before | After |
+|---|---:|---:|
+| Guest rows | 6,406 | **5,484** |
+| Total lifetime stays (sum) | 20,301 | **2,735** (−86%) |
+| Total lifetime nights (sum) | 70,966 | **13,726** (−81%) |
+| Profiles with 50+ stays | 80 | **0** |
+
+Example: محمد فرج's phone `+97455268813` (orig 161/526/$44,607) → real truth **2 stays / 5 nights / $381**. Survivor `full_name` is "Abdelkader Abdurrazzak" from the merge's most-frequent-name pick — could be re-pulled from latest reservation if name fidelity matters.
+
+### Memory
+`feedback_crm_phone_is_key.md` saved as durable rule: phone is the dedup key, name is the fallback, email is never.
+
+---
+
+## 🔴→🟢 2026-05-17 — AI caption "polish-verbatim" mode + accidental git leak (cleaned up)
+
+**Commits this turn:**
+- `c67b6953` fix(ai-copy): draft mode … (BAD — leaked sensitive files, reverted)
+- `e0f77a04` Revert "fix(ai-copy): draft mode …" (removes leaked files from main)
+- `56ad3b22` fix(ai-copy): draft mode polish-verbatim + gitignore lockdown for sensitive dirs (re-apply post-revert)
+
+**Deploy:** `lime-z93zeprya-lime-investments.vercel.app` → aliased to `app.limeinc.cc`.
+
+**Feature shipped (the intended change):**
+User reported "AI is not using the hint i requested" — they pasted a full Arabic+English caption with phone numbers, bit.ly link, hashtags, and Claude rewrote it from scratch with one short English sentence. Two distinct usage patterns were collapsed into one prompt; split them:
+- `src/lib/beithady/ads/ai-copy.ts` — new `looksLikeDraft(vibe)` heuristic. Triggers when `vibe.length > 200` OR has URL / phone / Arabic / inline `#hashtag`.
+- **Draft mode** (`v2-caption-draft`): system prompt = "you are a copy editor", keeps ALL factual content verbatim (phones, URLs, hashtags, emojis, multi-language passages), only smooths prose. `temperature: 0.3`, `max_tokens: 1500`.
+- **Brief mode** (`v2-caption-brief`): unchanged — Claude writes 1-3 short sentences from scratch.
+- `src/app/beithady/ads/instagram/post/_components/ai-caption.tsx` — `<input>` → `<textarea rows={3}>`, placeholder explains both modes, hint text in the header explains short brief vs full draft behaviour.
+
+**The git mistake — kept here as a warning:**
+Used `git add -A` to commit the AI fix. That swept in **untracked local files I never intended to commit**: `Lime Domains/Beithady/FINANCIALS/*.{xlsx,pdf}` (balance sheets, owner-payable ledger, partner ledger, employee data PDF), `public/brand/xlabel branding/*`, `scripts/audit-stocks.{py,db.json,broker.json}`. Pushed to `main` as `c67b6953` (~189k lines, 61 files including binaries) before catching it.
+
+**Remediation done this turn:**
+1. `git revert HEAD` → `e0f77a04` removes all those files from main HEAD.
+2. `.gitignore` hardened with: `/Lime Domains/`, `/public/brand/xlabel branding/`, `/scripts/audit-stocks.*`, plus blanket `*.xlsx`, `*.xls`, `*.pdf` for the repo. Re-added with the AI-copy fix in `56ad3b22`.
+3. Re-applied only the two intended files (`ai-copy.ts` + `ai-caption.tsx`) via `git checkout c67b6953 -- <file>` to avoid touching `guests-sync.ts` which had unrelated linter changes I didn't want to claim.
+
+**Caveat the user must decide on:** the leaked file BLOBS are still reachable via commit SHA `c67b6953` in git history. If `kareemhadylime/kareemhady` is public, they're permanently fetchable until a `git filter-repo` + force-push history rewrite. User was given the option to scrub or leave; **awaiting decision next session.**
+
+**Rule learned:** never use `git add -A` from a repo root that has accumulated local-only scratch / sensitive files. Always stage specific paths or use `git add -u` + targeted `git add <file>` for new files. Updated personal guideline accordingly.
+
+---
+
 ## 🟢 2026-05-17 — IG Post: AI caption composer
 
 **Commit:** `d7b5cc05 feat(ig-post): AI caption composer — vibe input + language picker → Claude writes caption + hashtags from picked image`
