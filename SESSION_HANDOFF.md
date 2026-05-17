@@ -1,5 +1,21 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🔵 2026-05-17 — Q&A: organic IG feed post — feature gap identified, not yet built
+
+Kareem asked how to create a normal IG post (image / carousel / video) from the app. Diagnosis: **feature does not exist yet**. Current Instagram coverage:
+- **IG Reels** (`/beithady/ads/instagram/reels`) — video → Reel format only
+- **Boost IG** (`/beithady/ads/instagram/boost`) — boost existing post OR paid Meta video ad
+- **Meta CTWA** — paid Click-to-WhatsApp campaigns only
+
+**What's needed:** new page `/beithady/ads/instagram/post` + `publishInstagramPostAction` + `publishInstagramPost()` lib covering:
+- Single image: `image_url` + caption → container → publish
+- Carousel: multiple `image_url` items with `is_carousel_item=true` → parent carousel container → publish
+- Feed video: same as Reels but `media_type=VIDEO`
+
+All three use the same `/{ig_user_id}/media` endpoint already wired in `instagram-publish.ts`. No code written this turn — awaiting kareem's go-ahead to build.
+
+---
+
 ## 🔴 2026-05-17 — Fix: /beithady/ads build failure (form action return type) ✅
 
 Two-step fix for `ai-summary-card.tsx` line 21:
