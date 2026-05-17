@@ -1,5 +1,19 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 2026-05-17 — IG Feed Post + Insights — SCOPED, awaiting go-ahead
+
+**Status:** Design proposed, no code yet. User requested IG feed posting (single image / carousel / feed video) with FB cross-post + an organic insights page (views + likes, time-filtered).
+
+**Proposed phased build:**
+- **Phase 1** — `/beithady/ads/instagram/post`: mode tabs (Single Image / Carousel 2-10 / Feed Video) + caption + hashtags + building code + FB cross-post toggle. Mirror existing Reels publish flow shape. New lib `publishInstagramPost()`, new server action `publishInstagramPostAction()`, new page.
+- **Phase 2** — `/beithady/ads/instagram/insights`: list `ads_instagram_posts` rows, fetch Meta Graph `insights` edge per post on-demand (impressions, reach, likes, comments, video_views), cache per row. Time filter 7d/30d/90d/all. Show IG metrics + FB metrics side-by-side.
+
+**Investigated:** Existing `/beithady/ads/performance` is paid-only (spend/leads/ROAS), so insights needs a separate page. Reels flow at `src/app/beithady/ads/instagram/reels/page.tsx` and `publishInstagramReelAction` in `src/app/beithady/ads/actions.ts` are the reference patterns — FB cross-post already exists there (`also_to_facebook` checkbox).
+
+**Next step:** Wait for user confirmation, then implement Phase 1 → ship → Phase 2.
+
+---
+
 ## 🔵 2026-05-17 — Handoff-only session: no new code changes
 
 - Session opened and immediately closed via `/handoff-push-all` — all five repos were already clean and synced with `origin/main`

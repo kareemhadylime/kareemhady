@@ -30,8 +30,10 @@ const TABS: TabDef[] = [
   { slug: 'gpmax',       label: 'Google PMax', href: '/beithady/ads/google/pmax',           icon: Search,          group: 'publish' },
   { slug: 'tiktok-paid', label: 'TikTok Ads',  href: '/beithady/ads/tiktok/paid',           icon: Music2,          group: 'publish' },
   { slug: 'reels',       label: 'IG Reels',    href: '/beithady/ads/instagram/reels',       icon: Camera,          group: 'publish' },
+  { slug: 'ig-post',     label: 'IG Post',     href: '/beithady/ads/instagram/post',        icon: ImageIcon,       group: 'publish' },
   { slug: 'ig-boost',    label: 'Boost IG',    href: '/beithady/ads/instagram/boost',       icon: Rocket,          group: 'publish' },
   { slug: 'tt-organic',  label: 'TikTok Reels',href: '/beithady/ads/tiktok/organic',        icon: Music2,          group: 'publish' },
+  { slug: 'ig-insights', label: 'Insights',    href: '/beithady/ads/instagram/insights',    icon: BarChart3,       group: 'main' },
 
   { slug: 'gallery',     label: 'Gallery',     href: '/beithady/ads/gallery',               icon: ImageIcon,       group: 'manage' },
   { slug: 'accounts',    label: 'Accounts',    href: '/beithady/ads/accounts',              icon: KeyRound,        group: 'manage' },

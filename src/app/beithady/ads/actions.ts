@@ -14,7 +14,7 @@ import { isoCountriesToGoogleGeo } from '@/lib/beithady/ads/platforms';
 import { setCampaignStatusUnified } from '@/lib/beithady/ads/status';
 import { publishTikTokTrafficAd, setTikTokCampaignStatus, listTikTokAdvertisers, listTikTokIdentities } from '@/lib/beithady/ads/tiktok-paid-publish';
 import { publishTikTokReel, pollTikTokPostStatus } from '@/lib/beithady/ads/tiktok-organic-publish';
-import { publishInstagramReel, pollInstagramPostStatus } from '@/lib/beithady/ads/instagram-publish';
+import { publishInstagramReel, pollInstagramPostStatus, publishInstagramFeedPost } from '@/lib/beithady/ads/instagram-publish';
 import { boostInstagramPost } from '@/lib/beithady/ads/boost-publish';
 import { publishMetaVideoAd, type MetaVideoAdInput } from '@/lib/beithady/ads/meta-video-ad-publish';
 import { syncAllPlatforms } from '@/lib/beithady/ads/unified-sync';
@@ -560,6 +560,51 @@ export async function publishInstagramReelAction(formData: FormData): Promise<vo
 
   revalidatePath('/beithady/ads/instagram/reels');
   redirect(`/beithady/ads/instagram/reels?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
+}
+
+// IG Feed Post (image / carousel / video) + optional FB cross-post.
+// Form fields:
+//   post_type=image|carousel|video, account_id, caption, hashtags, building_code,
+//   also_to_facebook=1, fb_caption?, plus one of:
+//     image_url           (image)
+//     child_urls (newline or comma)  (carousel; 2..10)
+//     video_url           (video)
+export async function publishInstagramPostAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const postType = String(formData.get('post_type') || '').trim() as 'image' | 'carousel' | 'video';
+  const caption = String(formData.get('caption') || '').trim() || undefined;
+  const hashtags = String(formData.get('hashtags') || '').split(/[,\n]/).map(s => s.trim().replace(/^#/, '')).filter(Boolean);
+  const alsoToFacebook = String(formData.get('also_to_facebook') || '') === '1';
+  const fbCaption = String(formData.get('fb_caption') || '').trim() || undefined;
+  const buildingCode = String(formData.get('building_code') || '').trim() || null;
+  const imageUrl = String(formData.get('image_url') || '').trim() || undefined;
+  const videoUrl = String(formData.get('video_url') || '').trim() || undefined;
+  const childUrls = String(formData.get('child_urls') || '')
+    .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+
+  if (!Number.isFinite(accountId)) redirect('/beithady/ads/instagram/post?error=missing_account');
+  if (!['image','carousel','video'].includes(postType)) redirect('/beithady/ads/instagram/post?error=invalid_post_type');
+
+  const result = await publishInstagramFeedPost({
+    accountId,
+    postType,
+    imageUrl,
+    videoUrl,
+    childUrls: postType === 'carousel' ? childUrls : undefined,
+    caption,
+    hashtags,
+    alsoToFacebook,
+    fbCaption,
+    buildingCode,
+    createdBy: user.username || null,
+  });
+
+  if (!result.ok) {
+    redirect(`/beithady/ads/instagram/post?error=${encodeURIComponent(`${result.step}: ${result.error}`)}`);
+  }
+  revalidatePath('/beithady/ads/instagram/post');
+  redirect(`/beithady/ads/instagram/post?post=${result.post_id}&status=${encodeURIComponent(result.status)}`);
 }
 
 export async function boostInstagramPostAction(formData: FormData): Promise<void> {
