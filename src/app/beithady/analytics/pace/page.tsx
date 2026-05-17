@@ -38,6 +38,15 @@ export default async function PacePage({ searchParams }: { searchParams: SearchP
   // Carry the filter values forward so the rail can render selected chips.
   payload.filters_applied = { ...urlState.filters };
 
+  // For the rail, load the unfiltered listing universe so users can SEE
+  // all cities/tags even when the current filter narrows the result set.
+  const allListings = await loadPaceListings({
+    countries: [], cities: [], tags: [], listingIds: [],
+    includeInactive: true, includeHistorical: false,
+  });
+  const cityOptions = Array.from(new Set(allListings.map((l) => l.city).filter((c): c is string => !!c))).sort();
+  const tagOptions = Array.from(new Set(allListings.flatMap((l) => l.tags))).sort();
+
   return (
     <BeithadyShell
       containerClass="max-w-[1400px]"
@@ -48,7 +57,12 @@ export default async function PacePage({ searchParams }: { searchParams: SearchP
       ]}
     >
       <Suspense>
-        <PaceShell payload={payload} initialState={urlState} />
+        <PaceShell
+          payload={payload}
+          initialState={urlState}
+          cityOptions={cityOptions}
+          tagOptions={tagOptions}
+        />
       </Suspense>
     </BeithadyShell>
   );

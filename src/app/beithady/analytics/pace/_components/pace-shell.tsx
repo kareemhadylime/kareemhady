@@ -6,13 +6,16 @@ import { DailyPerformance } from './panels/daily-performance';
 import { PickupCohort } from './panels/pickup-cohort';
 import { PropertyBreakdown } from './panels/property-breakdown';
 import { PeriodPicker } from './period-picker';
+import { FilterRail } from './filter-rail';
 
 type Props = {
   payload: PaceReportPayload;
   initialState: PaceUrlState;
+  cityOptions: string[];
+  tagOptions: string[];
 };
 
-export function PaceShell({ payload }: Props) {
+export function PaceShell({ payload, cityOptions, tagOptions }: Props) {
   return (
     <div
       className="overflow-hidden rounded-xl border border-[#003462]/10 text-[#003462]"
@@ -35,22 +38,25 @@ export function PaceShell({ payload }: Props) {
         </div>
         <PeriodPicker currentLabel={payload.date_range.label} />
       </header>
-      <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
-        <PaceKpiStrip
-          kpis={payload.kpis}
-          range={payload.date_range}
-          priorRange={payload.prior_date_range}
-        />
-        <div className="col-span-12">
-          <DailyPerformance rows={payload.daily} />
-        </div>
-        <div className="col-span-12">
-          <PickupCohort rows={payload.pickup_cohorts} />
-        </div>
-        <div className="col-span-12">
-          <PropertyBreakdown byProperty={payload.by_property} byCity={payload.by_city} />
-        </div>
-      </main>
+      <div className="flex">
+        <main className="flex-1 grid grid-cols-12 gap-3 p-4 sm:p-5">
+          <PaceKpiStrip
+            kpis={payload.kpis}
+            range={payload.date_range}
+            priorRange={payload.prior_date_range}
+          />
+          <div className="col-span-12">
+            <DailyPerformance rows={payload.daily} />
+          </div>
+          <div className="col-span-12">
+            <PickupCohort rows={payload.pickup_cohorts} />
+          </div>
+          <div className="col-span-12">
+            <PropertyBreakdown byProperty={payload.by_property} byCity={payload.by_city} />
+          </div>
+        </main>
+        <FilterRail cityOptions={cityOptions} tagOptions={tagOptions} />
+      </div>
     </div>
   );
 }
