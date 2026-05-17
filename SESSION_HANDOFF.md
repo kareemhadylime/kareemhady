@@ -23,21 +23,23 @@
 
 ---
 
-## 🔵 2026-05-17 — Google PMax: AI-gen vs YouTube copy for text boxes — awaiting decision
+## 🟢 2026-05-17 — Google PMax: AI Generate-copy button (shipped)
 
-**Status:** No code change this turn. Recommendation given, awaiting user pick.
+**Commit:** `07b22a1b feat(pmax): AI Generate-copy button — fills headlines/long/desc textareas`
+**Deploy:** background `vercel --prod` running.
 
-**User asked (with screenshot of `/beithady/ads/google/pmax`):** the Short / Long headline + Description textareas land empty (placeholder text only). Two options offered: (A) AI generates the text from building/country/etc., or (B) copy from a YouTube post when the user comes in via the YT picker. Asked Claude to choose.
+**User picked option 1** (AI generation) over Option B (copy-from-YouTube, which was Claude's original recommendation). Built and shipped:
 
-**Current state of the page:** `?yt_video_id=` and `?ads_yt_video_id=` already route in from the YouTube picker ([page.tsx:32-61](src/app/beithady/ads/google/pmax/page.tsx#L32-L61)) but only render a `YouTubeSourceBanner` — they do NOT pre-fill any textareas. Meanwhile `?from_ig=…` and `?from_meta=…` DO pre-fill, via `buildPmaxDefaultsFromIgMediaItem` / `buildPmaxDefaultsFromMetaCampaign` ([page.tsx:79-84](src/app/beithady/ads/google/pmax/page.tsx#L79-L84)). So the YouTube path is the inconsistent one.
+- `src/lib/beithady/ads/ai-copy.ts` — new `generatePmaxCopy()` calls Claude Haiku with a PMax-specific prompt. Returns three buckets with hard char-limit clipping (≤30 / ≤90 / ≤90), dedupe, min-length-4 filter. Up to 15 short / 5 long / 5 descriptions. Looks up `BH_BUILDINGS` for friendly building names (BH-73 → "Beit Hady 73") and queries `beithady_market_signals.ai_persona` when exactly one target country is set.
+- `src/app/beithady/ads/actions.ts` — new `generatePmaxCopyAction()`. Reads `building_codes`, `target_countries`, `business_name`, `final_url`, `language` from FormData; returns `{ headlines, longHeadlines, descriptions }`.
+- `src/app/beithady/ads/google/pmax/_components/ai-pmax-composer.tsx` — new client component, mirrors the `AiCaptionComposer` pattern from `/beithady/ads/instagram/post`. Owns the three textareas via `useState`, sniffs the form for context (`document.querySelector('form[action]')` → named elements), calls the action via `useTransition`. Language selector (EN/AR/DE/FR/RU). "Generate copy" button replaces only the three textarea values — everything else (campaign name, budget, building codes, countries) stays untouched.
+- `src/app/beithady/ads/google/pmax/page.tsx` — replaced the three static `<textarea>` blocks with `<AiPmaxComposer />`, still seeded by the existing `defaultHeadlines / defaultLongHeadlines / defaultDescriptions` props so the IG/Meta/YouTube `?from_*` pre-fill paths keep working.
 
-**Recommendation: Option B (copy from YouTube).** Reasons: (1) mirrors the existing IG/Meta pre-fill flow — one pattern, not two; (2) no LLM cost / failure mode; (3) `ads_youtube_videos.title/description` is already human-written marketing copy; (4) small surface — just add `buildPmaxDefaultsFromYouTubeVideo()` next to the IG helper and feed `defaultHeadlines / defaultLongHeadlines / defaultDescriptions` when `ytVideoIdParam || adsYtVideoIdParam` is set. Tradeoff noted: if a YT video has thin description, textareas are sparse and operator types more.
+**Type-check:** clean for changed files (only pre-existing unrelated failures in personal/email, hr-import, build-dxb tests).
 
-**Related untracked file:** `src/lib/beithady/ads/youtube-to-tiktok.ts` already has the read-by-id pattern (`buildTikTokDefaultsFromYouTube`) that the PMax helper would mirror — same schema fields (title, description, hashtags via `#tag` extraction).
+**UX:** pick language → hit Generate → ~2-4 sec wait → three textareas fill. Edit manually after. Empty AI response shows an error and leaves existing text alone.
 
-**If user picks B:** add `buildPmaxDefaultsFromYouTubeVideo()` in `src/lib/beithady/ads/duplicate-to-google.ts` (or a new `youtube-to-pmax.ts`), wire into [page.tsx](src/app/beithady/ads/google/pmax/page.tsx) where `prefill` is computed, ship via commit + push + vercel --prod.
-
-**If user picks A:** route through `@/lib/anthropic` to generate headlines/descriptions from building metadata (analytic account name, country list, hardcoded brand voice). Higher complexity, token cost per publish.
+**Out of scope:** "Copy from YouTube" path (the original recommendation) was NOT built. The `?yt_video_id=` route still only renders the banner — operator hits Generate (AI) instead. Both can coexist later if wanted.
 
 ---
 
