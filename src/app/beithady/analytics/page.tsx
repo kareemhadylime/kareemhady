@@ -1,4 +1,4 @@
-import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart, Target, Users } from 'lucide-react';
+import { TrendingUp, BedDouble, Star, MessageCircleQuestion, LifeBuoy, Globe2, CalendarRange, MessageSquareReply, FileBarChart, Target, Users, Activity } from 'lucide-react';
 import { requireBeithadyPermission } from '@/lib/beithady/auth';
 import { BeithadyShell, BeithadyHeader } from '../_components/beithady-shell';
 import { BeithadyLauncher, type LauncherTile } from '../_components/beithady-launcher';
@@ -18,6 +18,14 @@ export default async function BeithadyAnalyticsPage() {
       icon: Target,
       accent: 'gold',
       badge: { label: 'Live', tone: 'navy' },
+    },
+    {
+      href: '/beithady/analytics/pace',
+      title: 'Pace Report',
+      description: 'Business-on-the-books · LY vs Selected KPIs · daily perf · pickup-by-creation-month · By Property/City.',
+      icon: Activity,
+      accent: 'slate',
+      badge: { label: 'New', tone: 'gold' },
     },
     {
       href: '/beithady/pricing',
