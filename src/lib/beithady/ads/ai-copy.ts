@@ -196,46 +196,14 @@ export type GeneratedCaption = {
   prompt_version: string;
 };
 
-// Heuristic — if the vibe field is long or carries concrete factual elements
-// (URLs, phone numbers, Arabic copy, existing hashtags, emojis), treat it as
-// a DRAFT the operator wants polished, NOT a brief to reinterpret. In draft
-// mode we keep the structure, contact info, links, hashtags and language
-// switches exactly as provided — just smooth the prose and append/dedupe
-// hashtags.
-function looksLikeDraft(vibe: string | undefined): boolean {
-  if (!vibe) return false;
-  if (vibe.length > 200) return true;
-  if (/https?:\/\/|bit\.ly|wa\.me/i.test(vibe)) return true;
-  if (/\+?\d[\d\s\-()]{6,}/.test(vibe)) return true;     // phone-shaped number
-  if (/[؀-ۿ]/.test(vibe)) return true;          // Arabic block
-  if (/#\w+/.test(vibe)) return true;                     // inline #hashtag
-  return false;
-}
-
 export async function generateCaption(input: GenerateCaptionInput): Promise<GeneratedCaption> {
   const client = getClient();
   const personaBrief = await getPersonaBrief(input.targetCountry || null);
   const lang = languageNames[input.language] || input.language;
-  const draftMode = looksLikeDraft(input.vibe);
 
-  const sys = draftMode
-    ? `You are a copy editor for Beit Hady (premium serviced apartments, Egypt + Dubai). The operator gives you a DRAFT they want polished. You preserve every factual element verbatim — phone numbers, URLs, booking links, hashtags, emojis, line breaks, and any multi-language sections (Arabic, English, etc.) must come through UNCHANGED. You only smooth grammar, flow and tone. Never rewrite from scratch. Never drop links, phone numbers, or hashtags. Never paraphrase the call-to-action.`
-    : `You write social-media captions for Beit Hady, a serviced-apartment business in Egypt + Dubai. Premium hospitality, warm not salesy, no exclamation marks, no all-caps. Match the cultural register of the target language.`;
+  const sys = `You write social-media captions for Beit Hady, a serviced-apartment business in Egypt + Dubai. Premium hospitality, warm not salesy, no exclamation marks, no all-caps. Match the cultural register of the target language.`;
 
-  const ask = draftMode
-    ? `Polish the DRAFT below for a ${captionSurfaceLabel(input.surface)} post. Keep the operator's voice, structure, line breaks, and ALL factual content (phone numbers, URLs, booking links, hashtags, emojis, multi-language passages) exactly as written. Only smooth grammar, fix typos, and tighten prose. If the draft already has hashtags inline, keep them in the caption AND list them separately in the hashtags array.
-
-Building/property: ${input.buildingName || input.buildingCode || 'Beit Hady apartments'}
-${input.targetCountry ? `Primary audience: travelers from ${input.targetCountry}` : ''}
-
-DRAFT (preserve verbatim except prose smoothing):
-"""
-${input.vibe}
-"""
-
-Return STRICT JSON only, no markdown fences:
-{ "caption": "<polished draft, ≤2200 chars>", "hashtags": ["BeitHady", "Cairo", "..."] }`
-    : `Write ONE caption + 5–10 hashtags in ${lang} for this ${captionSurfaceLabel(input.surface)} post.
+  const ask = `Write ONE caption + 5–10 hashtags in ${lang} for this ${captionSurfaceLabel(input.surface)} post.
 
 Building/property: ${input.buildingName || input.buildingCode || 'Beit Hady apartments'}
 ${input.targetCountry ? `Audience: travelers from ${input.targetCountry}` : ''}
@@ -264,10 +232,8 @@ Return STRICT JSON only, no markdown fences:
 
   const res = await client.messages.create({
     model: MODEL,
-    // Draft mode preserves long copy; brief mode writes short captions
-    max_tokens: draftMode ? 1500 : 600,
-    // Draft mode = lower temperature, we're editing not creating
-    temperature: draftMode ? 0.3 : 0.75,
+    max_tokens: 600,
+    temperature: 0.75,
     system: sys,
     messages: [{ role: 'user', content: content as never }],
   });
@@ -284,7 +250,7 @@ Return STRICT JSON only, no markdown fences:
         .slice(0, 10)
     : [];
 
-  return { caption, hashtags, model: MODEL, prompt_version: draftMode ? 'v2-caption-draft' : 'v2-caption-brief' };
+  return { caption, hashtags, model: MODEL, prompt_version: 'v1-caption' };
 }
 
 function captionSurfaceLabel(s: CaptionSurface): string {

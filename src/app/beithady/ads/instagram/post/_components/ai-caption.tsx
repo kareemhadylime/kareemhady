@@ -80,25 +80,25 @@ export function AiCaptionComposer({ postType }: Props) {
       <div className="flex items-center gap-2">
         <Sparkles size={14} className="text-violet-600 dark:text-violet-300" />
         <strong className="text-xs">AI caption composer</strong>
-        <span className="text-[10px] text-slate-500 dark:text-slate-400">— short brief = Claude writes from scratch · long draft (with links / phones / hashtags / Arabic) = Claude polishes verbatim, keeps your contact info untouched</span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400">— describe the vibe, Claude writes caption + hashtags from the picked image</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_140px_auto] gap-2">
-        <textarea
+        <input
+          type="text"
           value={vibe}
           onChange={e => setVibe(e.target.value)}
-          rows={3}
-          placeholder={'Short brief: "rooftop sunset for Cairo weekend escapes"\nOR paste a full draft with your phone, booking link, hashtags, Arabic text — Claude will polish it without changing those.'}
-          className="ix-input text-sm font-mono"
+          placeholder="What do you want? e.g. 'rooftop sunset for Cairo weekend escapes' or 'family-friendly Eid stay, emphasise the pool'"
+          className="ix-input text-sm"
         />
-        <select value={language} onChange={e => setLanguage(e.target.value)} className="ix-input text-sm self-start">
+        <select value={language} onChange={e => setLanguage(e.target.value)} className="ix-input text-sm">
           {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
         <button
           type="button"
           onClick={handleGenerate}
           disabled={pending}
-          className="ix-btn-primary text-sm whitespace-nowrap self-start"
+          className="ix-btn-primary text-sm whitespace-nowrap"
         >
           {pending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           {pending ? 'Generating…' : 'Generate'}
