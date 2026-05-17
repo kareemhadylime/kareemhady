@@ -5,6 +5,7 @@ import { PaceKpiStrip } from './panels/pace-kpi-strip';
 import { DailyPerformance } from './panels/daily-performance';
 import { PickupCohort } from './panels/pickup-cohort';
 import { PropertyBreakdown } from './panels/property-breakdown';
+import { PeriodPicker } from './period-picker';
 
 type Props = {
   payload: PaceReportPayload;
@@ -23,7 +24,7 @@ export function PaceShell({ payload }: Props) {
         backgroundBlendMode: 'soft-light',
       }}
     >
-      <header className="flex items-center justify-between px-5 py-4 border-b border-[#003462]/10">
+      <header className="relative flex items-center justify-between px-5 py-4 border-b border-[#003462]/10">
         <div>
           <h1 className="text-xl font-semibold" style={{ fontFamily: 'var(--bh-heading)' }}>
             Pace Report
@@ -32,6 +33,7 @@ export function PaceShell({ payload }: Props) {
             {payload.date_range.label} · {payload.unit_count_in_scope} units in scope
           </p>
         </div>
+        <PeriodPicker currentLabel={payload.date_range.label} />
       </header>
       <main className="grid grid-cols-12 gap-3 p-4 sm:p-5">
         <PaceKpiStrip
