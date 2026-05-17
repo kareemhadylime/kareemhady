@@ -1,5 +1,22 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🔴 2026-05-17 — Fix: /beithady/ads crash (inline arrow unserializable) ✅
+
+**Bug:** `app.limeinc.cc/beithady/ads` showed "Something went wrong" for all users.
+**Root cause:** `src/app/beithady/ads/_components/ai-summary-card.tsx` line 21 had:
+```tsx
+<form action={async (fd) => { await generateAiSummaryAction(fd); }}>
+```
+React 19 / Next.js 16 cannot serialize an inline arrow function as a form action — it throws `Error: Functions cannot be passed directly to Client Components unless you explicitly expose it by marking it with 'use server'`, which crashed the entire page render.
+
+**Fix:** Replaced with direct server action reference (commit `94bd3b20`):
+```tsx
+<form action={generateAiSummaryAction}>
+```
+`generateAiSummaryAction` is already exported from `actions.ts` (`'use server'` file) and accepts `FormData`, so the hidden `from`/`to` inputs still populate it correctly. Pushed + auto-deployed.
+
+---
+
 ## 🟢 2026-05-17 — /push-all end-of-session sync ✅
 
 - All five Lime repos verified clean and in sync with `origin/main`
