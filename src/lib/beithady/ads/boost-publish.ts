@@ -203,7 +203,11 @@ export async function boostInstagramPost(input: BoostIgInput): Promise<BoostIgRe
       publisher_platforms: ['instagram', 'facebook'],
       instagram_positions: ['stream', 'story', 'explore', 'reels'],
       facebook_positions: ['feed', 'story'],
-      targeting_automation: { advantage_audience: 1 },
+      // advantage_audience: 0 (off) — Advantage+ forces age_max >= 65 and
+      // treats operator-set age caps as suggestions. Boost IG explicitly
+      // targets a specific post + audience, so honour the operator's age range
+      // verbatim. Matches the CTWA publish flow.
+      targeting_automation: { advantage_audience: 0 },
     },
     start_time: new Date(Date.now() + 5 * 60_000).toISOString(),
   };
