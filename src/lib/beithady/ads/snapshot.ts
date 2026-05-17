@@ -77,3 +77,153 @@ export async function cleanupExpiredAdsSnapshots(): Promise<{ ok: true; cleaned:
   if (error) throw new Error(`ads_snapshot_cleanup_failed: ${error.message}`);
   return { ok: true, cleaned: (data as unknown[] | null)?.length ?? 0 };
 }
+
+// ---------------------------------------------------------------------------
+// getAdsSnapshotData — gather all 13 dashboard slices
+// ---------------------------------------------------------------------------
+
+import { getDashboardKpisWithCompare, listCampaigns, listLeadFunnel } from './reporting';
+import { getFrtSummary, getFrtPerCampaign } from './frt';
+import { getSpendPacing } from './pacing';
+import { detectAnomalies } from './anomalies';
+import { queryGeoRollup } from './insights-geo';
+import { queryDemoRollup } from './insights-demo';
+import { queryDeviceRollup } from './insights-device';
+import { getFunnelStages } from './funnel';
+import { getLeadQualityPerCampaign } from './lead-quality';
+import { getLeadDensityHeatmap, getMetaHourlyHeatmap } from './hourly';
+import { getTopAds } from './top-ads';
+import { getTopAssets } from './top-assets';
+import { getProviderEnabled, getProviderStatus } from '@/lib/credentials';
+import { convertManyToEgp } from '@/lib/fx-rates';
+
+/**
+ * Gather every data slice the /beithady/ads dashboard renders.
+ * Called by createAdsShareLinkAction before storing the snapshot.
+ *
+ * All slices fetch in parallel via Promise.all. If any throws, the
+ * whole gather fails — the caller (action) returns a data_error response.
+ *
+ * AI summary is gathered separately by the action (force regenerate
+ * via generateAiSummary, with graceful skip on cap/error).
+ */
+export type SnapshotGatherInput = {
+  range: { from: string; to: string; preset: string };
+  compare: 'prev_period' | 'prev_year' | null;
+  building: string | null;
+};
+
+export type SnapshotGatherResult = Omit<AdsSnapshotPayload, 'meta' | 'ai_summary'>;
+
+export async function getAdsSnapshotData(
+  input: SnapshotGatherInput,
+): Promise<SnapshotGatherResult> {
+  const { range, compare, building } = input;
+  const buildingCode = building ?? undefined;
+
+  const [
+    kpisCompare,
+    campaigns,
+    recent_leads,
+    metaEnabled, metaStatus,
+    googleEnabled, googleStatus,
+    tiktokEnabled, tiktokStatus,
+    frtSummary, frtPerCampaign,
+    spend_pacing,
+    anomalies,
+    audience_geo, audience_demo, audience_device,
+    funnel,
+    quality,
+    leadDensity, metaHourly,
+    top_ads, top_assets,
+  ] = await Promise.all([
+    getDashboardKpisWithCompare({ range: { from: range.from, to: range.to }, compare: compare !== null }),
+    listCampaigns(),
+    listLeadFunnel({ limit: 10 }),
+    getProviderEnabled('meta_marketing'), getProviderStatus('meta_marketing'),
+    getProviderEnabled('google_ads'), getProviderStatus('google_ads'),
+    getProviderEnabled('tiktok_ads'), getProviderStatus('tiktok_ads'),
+    getFrtSummary({ from: range.from, to: range.to, buildingCode }),
+    getFrtPerCampaign({ from: range.from, to: range.to, buildingCode }),
+    getSpendPacing({ range: { from: range.from, to: range.to } }),
+    detectAnomalies(),
+    queryGeoRollup({ from: range.from, to: range.to }),
+    queryDemoRollup({ from: range.from, to: range.to }),
+    queryDeviceRollup({ from: range.from, to: range.to }),
+    getFunnelStages({ from: range.from, to: range.to, buildingCode }),
+    getLeadQualityPerCampaign({ from: range.from, to: range.to }),
+    getLeadDensityHeatmap({ from: range.from, to: range.to, buildingCode }),
+    getMetaHourlyHeatmap({ from: range.from, to: range.to }),
+    getTopAds({ from: range.from, to: range.to, sortBy: 'leads', limit: 20, buildingCode }),
+    getTopAssets({ buildingCode, limit: 20 }),
+  ]);
+
+  // EGP-convert campaign spend up front so the snapshot doesn't need
+  // FX rates at render time.
+  const campaignSpendEgp = await convertManyToEgp(
+    campaigns.map((c: { spend: unknown; account_currency: string }) => ({
+      amount: Number(c.spend) || 0,
+      currency: c.account_currency,
+    })),
+  );
+  const campaignsWithEgp = campaigns.map((c: Record<string, unknown>, i: number) => ({
+    ...c,
+    spend_egp: campaignSpendEgp[i] || 0,
+  }));
+
+  // Platform connection status: matches PlatformStatusCard in page.tsx
+  function platformConfigured(
+    enabled: boolean,
+    status: { config_keys_set: string[]; has_env_fallback: string[] },
+    minKeys: number,
+  ) {
+    return enabled && (status.config_keys_set.length >= minKeys || status.has_env_fallback.length >= minKeys);
+  }
+  const platform_status = {
+    meta: { configured: platformConfigured(metaEnabled, metaStatus, 4) },
+    google: { configured: platformConfigured(googleEnabled, googleStatus, 4) },
+    tiktok: { configured: platformConfigured(tiktokEnabled, tiktokStatus, 2) },
+  };
+
+  // Build the AudienceSummaryWidget shape (it normally fetches all 3
+  // breakdowns + a total). We've already got geo/demo/device above.
+  const audience_summary = {
+    geo: audience_geo.slice(0, 3),
+    demo: audience_demo.slice(0, 3),
+    device: audience_device.slice(0, 3),
+    totals: {
+      geo_clicks: (audience_geo as Array<{ clicks: number }>).reduce((s, r) => s + r.clicks, 0) || 1,
+      demo_clicks: (audience_demo as Array<{ clicks: number }>).reduce((s, r) => s + r.clicks, 0) || 1,
+      device_clicks: (audience_device as Array<{ clicks: number }>).reduce((s, r) => s + r.clicks, 0) || 1,
+    },
+  };
+
+  // FRT: null if no leads in range
+  const frt = frtSummary.total_leads === 0
+    ? null
+    : { summary: frtSummary, per_campaign: frtPerCampaign };
+
+  // Cohort: placeholder shape — getLeadToBookingCohort is a V2 export but
+  // not currently rendered on the dashboard. Add an empty bucket array
+  // (CohortTabView handles empty).
+  const cohort = { buckets: [] };
+
+  return {
+    kpis: { current: kpisCompare.current, prior: kpisCompare.prior },
+    campaigns: campaignsWithEgp,
+    recent_leads,
+    platform_status,
+    frt,
+    spend_pacing,
+    anomalies,
+    audience_summary,
+    audience_geo,
+    audience_demo,
+    audience_device,
+    funnel,
+    quality,
+    cohort,
+    time: { lead_density: leadDensity, meta_hourly: metaHourly },
+    optimize: { top_ads, top_assets },
+  };
+}
