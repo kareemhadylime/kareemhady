@@ -28,4 +28,17 @@ Table mirrors `daily_report_snapshots` schema (token + payload + expires_at + de
 
 Token gen mirrors daily-report pattern (24 random bytes → base64url = 32 chars, 192-bit entropy). Payload type intentionally loosely-typed to avoid circular imports; Task 4 will assemble with real types. Cleanup mirrors `cleanupExpiredSnapshots()` from run.ts — zeroes payload (frees TOAST), sets deleted_at (soft delete for audit). Task 3 will wire into hourly cleanup cron.
 
+**TASK 2 CODE-REVIEW FIX COMPLETE**: Aligned `cleanupExpiredAdsSnapshots()` return shape and cached `nowIso` for atomic timestamp.
+
+- **Issue**: Return shape mismatch (Task 2 returned `{ deleted: number }`, but daily-report cleanup returns `{ ok: true; cleaned: number }`; Task 3 needs consistent shape to aggregate both)
+- **Changes**:
+  - `snapshot.ts`: Return type `Promise<{ ok: true; cleaned: number }>` + cached `nowIso` for both update + filter conditions
+  - `snapshot.test.ts`: Updated test to assert `r.ok === true` + `r.cleaned === 2`
+  - Enhanced JSDoc: "Return shape matches cleanupExpiredSnapshots from beithady-daily-report/run.ts so the cron route can aggregate both cleanly"
+  - Error message: Changed from bare `.throw(error)` to `.throw(new Error(...))` for consistency
+- **Tests**: All 3 passing ✓ (same 3 from Task 2 + updated 3rd test)
+- **TypeScript**: No errors in snapshot files ✓
+- **Commit**: `cd5e9f6f` — "refactor(bh-ads): align cleanupExpiredAdsSnapshots return shape with daily-report pattern"
+- **Push**: Pushed to origin/main ✓
+
 Next: Task 3 (wire cleanup into cron).
