@@ -4,6 +4,7 @@ import type { PaceUrlState } from '../_hooks/use-pace-url-state';
 import { PaceKpiStrip } from './panels/pace-kpi-strip';
 import { DailyPerformance } from './panels/daily-performance';
 import { PickupCohort } from './panels/pickup-cohort';
+import { PropertyBreakdown } from './panels/property-breakdown';
 
 type Props = {
   payload: PaceReportPayload;
@@ -43,6 +44,9 @@ export function PaceShell({ payload }: Props) {
         </div>
         <div className="col-span-12">
           <PickupCohort rows={payload.pickup_cohorts} />
+        </div>
+        <div className="col-span-12">
+          <PropertyBreakdown byProperty={payload.by_property} byCity={payload.by_city} />
         </div>
       </main>
     </div>
