@@ -1,5 +1,14 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-17 — /push-all end-of-session sync ✅
+
+- All five Lime repos verified clean and in sync with `origin/main`
+- voltauto-pricing: committed + pushed `supabase/.temp/cli-latest` drift (commit `5e9ec36`)
+- kareemhady local `main` fast-forwarded 2 commits from a concurrent session (personal email drill-down + HR template)
+- No code changes this turn — admin/sync only
+
+---
+
 ## 🟢 2026-05-17 — Email preview: HTML body + images
 
 Added on-demand HTML email rendering to the Beithady inbox preview pane. Previously all emails showed plain text (images stripped at ingest). Now when you click an email in the preview pane, it fetches the full HTML body from Gmail API, sanitizes it server-side with `sanitize-html`, and renders it in a sandboxed `<iframe>` — images, tables, and formatting all display correctly. Scripts are blocked by `sandbox`. Falls back to plain text if the fetch fails.
