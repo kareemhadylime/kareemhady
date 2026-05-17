@@ -61,15 +61,19 @@ export function generateSnapshotToken(): string {
  * Hourly cleanup — zeroes payload + marks deleted_at on expired rows.
  * Row stays for audit, payload bytes freed via TOAST.
  * Called from the existing beithady-daily-report-cleanup cron.
+ *
+ * Return shape matches cleanupExpiredSnapshots from beithady-daily-report/run.ts
+ * so the cron route can aggregate both cleanly.
  */
-export async function cleanupExpiredAdsSnapshots(): Promise<{ deleted: number }> {
+export async function cleanupExpiredAdsSnapshots(): Promise<{ ok: true; cleaned: number }> {
   const sb = supabaseAdmin();
+  const nowIso = new Date().toISOString();
   const { data, error } = await sb
     .from('ads_dashboard_snapshots')
-    .update({ payload: null, deleted_at: new Date().toISOString() })
-    .lt('expires_at', new Date().toISOString())
+    .update({ payload: null, deleted_at: nowIso })
+    .lt('expires_at', nowIso)
     .is('deleted_at', null)
     .select('id');
-  if (error) throw error;
-  return { deleted: data?.length ?? 0 };
+  if (error) throw new Error(`ads_snapshot_cleanup_failed: ${error.message}`);
+  return { ok: true, cleaned: (data as unknown[] | null)?.length ?? 0 };
 }

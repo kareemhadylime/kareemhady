@@ -27,9 +27,10 @@ describe('snapshot.ts', () => {
     expect(set.size).toBe(50);
   });
 
-  it('cleanupExpiredAdsSnapshots returns count of rows zeroed', async () => {
+  it('cleanupExpiredAdsSnapshots returns ok + count of rows zeroed', async () => {
     const { cleanupExpiredAdsSnapshots } = await import('./snapshot');
     const r = await cleanupExpiredAdsSnapshots();
-    expect(r.deleted).toBe(2);
+    expect(r.ok).toBe(true);
+    expect(r.cleaned).toBe(2);
   });
 });
