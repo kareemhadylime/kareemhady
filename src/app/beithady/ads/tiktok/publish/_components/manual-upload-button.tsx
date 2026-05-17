@@ -40,9 +40,16 @@ export function ManualUploadButton() {
     // The browser's user-activation token expires after `await`, so any window.open
     // after the server call would be blocked as a popup. We open `about:blank` now,
     // then redirect the same tab to TikTok Studio once we're done.
-    const studioTab = window.open('about:blank', '_blank', 'noopener');
+    //
+    // DO NOT pass 'noopener' — per the HTML spec it forces window.open to
+    // return null, which would leave us with a blank tab we can't redirect.
+    const studioTab = window.open('about:blank', '_blank');
     if (studioTab) {
-      studioTab.document.write('<!doctype html><meta charset="utf-8"><title>Preparing TikTok upload…</title><body style="font-family:system-ui;padding:2rem;color:#444">Loading TikTok Studio…</body>');
+      try {
+        studioTab.document.open();
+        studioTab.document.write('<!doctype html><meta charset="utf-8"><title>Preparing TikTok upload…</title><body style="font-family:system-ui;padding:2rem;color:#444">Loading TikTok Studio…</body>');
+        studioTab.document.close();
+      } catch { /* document access may be restricted in some configs — placeholder is cosmetic */ }
     }
 
     startTransition(async () => {
