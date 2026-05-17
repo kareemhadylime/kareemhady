@@ -9,9 +9,12 @@ import { tierForStays } from './loyalty';
 //   1) Open run row in beithady_crm_sync_runs.
 //   2) Pull every guesty_conversations row with a guest_id; upsert
 //      into beithady_guests keyed by guesty_guest_id.
-//   3) Pull every guesty_reservations row; group by (lower(email),
-//      digits(phone)). Match each group to an existing guest by email
-//      or phone; otherwise create a guest with guesty_guest_id NULL.
+//   3) Pull every guesty_reservations row. Match each to an existing
+//      guest by PHONE (normalized digits, denylist applied), then by
+//      NAME when no phone is present. Email is never used as a dedup
+//      key — `booking@beithady.com` is the host's own fallback email
+//      used on manual reservations, so matching by email previously
+//      collapsed hundreds of distinct real guests into one bucket.
 //   4) Compute lifetime stats from completed/active reservations.
 //   5) Derive residence_country from raw.guest.address.country when
 //      available.
@@ -25,6 +28,14 @@ import { tierForStays } from './loyalty';
 
 const AED_PER_USD = 3.6725;
 const SAR_PER_USD = 3.75;
+
+// Placeholder identity values — common Beithady-side defaults used on
+// manual reservations when the real guest didn't share contact info.
+// MUST never be used as dedup keys (otherwise hundreds of distinct real
+// guests collapse into one bucket — see SESSION_HANDOFF.md 2026-05-17).
+// Match priority is: guesty_guest_id → phone → name → skip. Never email.
+const PLACEHOLDER_EMAILS = new Set<string>(['booking@beithady.com']);
+const PLACEHOLDER_PHONES = new Set<string>(['97455268813']); // host front-desk
 
 type GuestyConvRow = {
   guest_id: string | null;
@@ -91,6 +102,26 @@ function digitsOnly(s: string | null | undefined): string {
 }
 function lowerEmail(s: string | null | undefined): string {
   return (s || '').trim().toLowerCase();
+}
+function nameKey(s: string | null | undefined): string {
+  return (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function isPlaceholderEmail(s: string | null | undefined): boolean {
+  return PLACEHOLDER_EMAILS.has(lowerEmail(s));
+}
+function isPlaceholderPhone(digits: string | null | undefined): boolean {
+  return !!digits && PLACEHOLDER_PHONES.has(digits);
+}
+// Drop placeholder values so the host's own email/phone never ends up
+// stored on a real guest's profile.
+function scrubEmail(s: string | null | undefined): string | null {
+  const e = lowerEmail(s);
+  return e && !isPlaceholderEmail(e) ? e : null;
+}
+function scrubPhoneToE164(s: string | null | undefined): string | null {
+  const d = digitsOnly(s);
+  if (d.length < 8 || isPlaceholderPhone(d)) return null;
+  return '+' + d;
 }
 function pickStrongest<T>(a: T | null, b: T | null): T | null {
   if (a && !b) return a;
@@ -205,9 +236,10 @@ async function buildAccumulators(
   egpRate: number
 ): Promise<Map<GuestKey, GuestAccumulator>> {
   const byKey = new Map<GuestKey, GuestAccumulator>();
-  // Index for fast email/phone lookups across keys
-  const keyByEmail = new Map<string, GuestKey>();
+  // Match indexes — phone-first, name as fallback. Email is intentionally
+  // NOT indexed (see PLACEHOLDER_EMAILS rationale at top of file).
   const keyByPhone = new Map<string, GuestKey>();
+  const keyByName  = new Map<string, GuestKey>();
 
   function ensure(
     key: GuestKey,
@@ -248,19 +280,18 @@ async function buildAccumulators(
     const key = `gid:${c.guest_id}`;
     const g = ensure(key, { guesty_guest_id: c.guest_id });
     g.full_name = pickStrongest(g.full_name, c.guest_full_name);
-    g.email = pickStrongest(g.email, c.guest_email);
-    g.phone_e164 = pickStrongest(g.phone_e164, c.guest_phone ? '+' + digitsOnly(c.guest_phone) : null);
-    if (c.guest_email) {
-      const e = lowerEmail(c.guest_email);
-      g.match_emails.add(e);
-      keyByEmail.set(e, key);
+    g.email = pickStrongest(g.email, scrubEmail(c.guest_email));
+    g.phone_e164 = pickStrongest(g.phone_e164, scrubPhoneToE164(c.guest_phone));
+    const cleanEmail = scrubEmail(c.guest_email);
+    if (cleanEmail) g.match_emails.add(cleanEmail);
+    const cPhoneDigits = digitsOnly(c.guest_phone);
+    if (cPhoneDigits.length >= 8 && !isPlaceholderPhone(cPhoneDigits)) {
+      g.match_phones.add(cPhoneDigits);
+      if (!keyByPhone.has(cPhoneDigits)) keyByPhone.set(cPhoneDigits, key);
     }
-    if (c.guest_phone) {
-      const p = digitsOnly(c.guest_phone);
-      if (p.length >= 8) {
-        g.match_phones.add(p);
-        keyByPhone.set(p, key);
-      }
+    const cNameKey = nameKey(c.guest_full_name);
+    if (cNameKey.length >= 3 && !keyByName.has(cNameKey)) {
+      keyByName.set(cNameKey, key);
     }
     g.source_signals.has_conversation = true;
     g.source_signals.is_returning_per_guesty =
@@ -274,33 +305,38 @@ async function buildAccumulators(
   }
 
   // ---- Pass 2: reservations ----
-  // Match each reservation to an existing guest by guesty_guest_id (rare,
-  // not stored on reservations), email, or phone. Otherwise create a
-  // synthetic guest keyed by email|phone.
+  // Match priority: phone (not placeholder) → name fallback (when no
+  // phone) → skip. Email is NEVER used for matching — see
+  // PLACEHOLDER_EMAILS rationale at top of file.
   const todayIso = new Date().toISOString().slice(0, 10);
   for (const r of reservations) {
-    const email = lowerEmail(r.guest_email);
-    const phone = digitsOnly(r.guest_phone);
+    const phoneDigits = digitsOnly(r.guest_phone);
+    const realPhone = phoneDigits.length >= 8 && !isPlaceholderPhone(phoneDigits);
+    const rNameKey = nameKey(r.guest_name);
+    const realName = rNameKey.length >= 3;
     let key: GuestKey | null = null;
-    if (email && keyByEmail.has(email)) key = keyByEmail.get(email)!;
-    else if (phone && phone.length >= 8 && keyByPhone.has(phone)) key = keyByPhone.get(phone)!;
-    else if (email) {
-      key = `email:${email}`;
-      keyByEmail.set(email, key);
-    } else if (phone && phone.length >= 8) {
-      key = `phone:${phone}`;
-      keyByPhone.set(phone, key);
+    if (realPhone && keyByPhone.has(phoneDigits)) {
+      key = keyByPhone.get(phoneDigits)!;
+    } else if (realPhone) {
+      key = `phone:${phoneDigits}`;
+      keyByPhone.set(phoneDigits, key);
+    } else if (realName && keyByName.has(rNameKey)) {
+      key = keyByName.get(rNameKey)!;
+    } else if (realName) {
+      key = `name:${rNameKey}`;
+      keyByName.set(rNameKey, key);
     } else {
-      // Anonymous reservation — skip (very rare in Guesty data).
+      // Truly anonymous (no phone, no name) — skip.
       continue;
     }
 
     const g = ensure(key, { guesty_guest_id: null });
     g.full_name = pickStrongest(g.full_name, r.guest_name);
-    g.email = pickStrongest(g.email, r.guest_email);
-    g.phone_e164 = pickStrongest(g.phone_e164, r.guest_phone ? '+' + digitsOnly(r.guest_phone) : null);
-    if (email) g.match_emails.add(email);
-    if (phone && phone.length >= 8) g.match_phones.add(phone);
+    g.email = pickStrongest(g.email, scrubEmail(r.guest_email));
+    g.phone_e164 = pickStrongest(g.phone_e164, scrubPhoneToE164(r.guest_phone));
+    const cleanResEmail = scrubEmail(r.guest_email);
+    if (cleanResEmail) g.match_emails.add(cleanResEmail);
+    if (realPhone) g.match_phones.add(phoneDigits);
 
     g.source_signals.reservation_count += 1;
     if (r.source && !g.source_signals.sources.includes(r.source)) {
@@ -408,26 +444,26 @@ export async function syncBeithadyGuests(opts: { trigger?: 'cron' | 'manual' | '
       upserted += batch.length;
     }
 
-    // Step 2: rows without guesty_guest_id — match by email or phone
-    // before deciding insert vs update. Keeps us from duplicating
-    // anonymous reservations on every run.
+    // Step 2: rows without guesty_guest_id — match by phone first, then
+    // name when there is no phone at all. Email is NEVER used for matching.
     const withoutId = rows.filter(r => !r.guesty_guest_id);
     for (const r of withoutId) {
       let existingId: string | null = null;
-      if (r.email) {
-        const { data } = await sb
-          .from('beithady_guests')
-          .select('id')
-          .eq('email', r.email.toLowerCase())
-          .limit(1)
-          .maybeSingle();
-        existingId = (data as { id: string } | null)?.id || null;
-      }
-      if (!existingId && r.phone_e164) {
+      if (r.phone_e164) {
         const { data } = await sb
           .from('beithady_guests')
           .select('id')
           .eq('phone_e164', r.phone_e164)
+          .limit(1)
+          .maybeSingle();
+        existingId = (data as { id: string } | null)?.id || null;
+      }
+      if (!existingId && !r.phone_e164 && r.full_name) {
+        const { data } = await sb
+          .from('beithady_guests')
+          .select('id')
+          .ilike('full_name', r.full_name.trim())
+          .is('phone_e164', null)
           .limit(1)
           .maybeSingle();
         existingId = (data as { id: string } | null)?.id || null;
