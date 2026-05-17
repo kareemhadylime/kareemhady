@@ -166,6 +166,14 @@ export async function getAdsSnapshotData(
       currency: c.account_currency,
     })),
   );
+  // Defensive guard: convertManyToEgp must preserve array length. If FX
+  // rates fail partially and shorten the result, downstream `spend_egp: 0`
+  // would silently misreport campaign performance. Better to fail loud.
+  if (campaignSpendEgp.length !== campaigns.length) {
+    throw new Error(
+      `FX conversion length mismatch: ${campaigns.length} campaigns vs ${campaignSpendEgp.length} converted`,
+    );
+  }
   const campaignsWithEgp = campaigns.map((c: Record<string, unknown>, i: number) => ({
     ...c,
     spend_egp: campaignSpendEgp[i] || 0,
