@@ -36,7 +36,7 @@ yarn-error.log*
 .env.*.local
 .env.development.local
 .env.production.local
-# vercel env pull writes these â€” they contain prod secrets
+# vercel env pull writes these — they contain prod secrets
 .env.production
 .env.development
 .env.preview
@@ -56,14 +56,3 @@ next-env.d.ts
 .claude/scheduled_tasks.lock
 .superpowers/
 .env*.local
-
-# Operator-local source documents. Contains sensitive financial data
-# (broker statements, partner ledgers, P&Ls). Never commit.
-/Lime Domains/
-
-# One-off operator scripts (audit reconciliation, etc.). Often contain
-# embedded credentials or environment-specific paths.
-/scripts/audit-stocks.*
-
-# Stray duplicate of public/brand/xlabel — keep the canonical /public/brand/xlabel/
-/public/brand/xlabel branding/

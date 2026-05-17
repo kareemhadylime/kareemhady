@@ -47,8 +47,10 @@ export async function GET(req: NextRequest) {
     // Fetch any reservation touching today — filter to turnover listings below.
     query = query.or(`check_in_date.eq.${date},check_out_date.eq.${date}`);
   } else {
-    // inhouse: check_in_date <= date AND check_out_date >= date
-    query = query.lte('check_in_date', date).gte('check_out_date', date);
+    // inhouse: check_in_date <= date AND check_out_date > date
+    // Strictly greater: guests whose check_out = today are DEPARTING, not staying.
+    // Must match daily-activity-live.ts definition (check_out_date > today).
+    query = query.lte('check_in_date', date).gt('check_out_date', date);
   }
 
   const { data, error } = await query;
