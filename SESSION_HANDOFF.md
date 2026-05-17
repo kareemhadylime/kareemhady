@@ -1,5 +1,57 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟡 2026-05-17 — BH Ads Insights V4 (Sharing) — spec + plan + Tasks 1-5/20 shipped
+
+Brainstormed V4 (Sharing — F1 public share link `/r/beithady/ads/<token>` + F2 PDF via browser print), wrote spec + 20-task TDD plan, and executed Tasks 1-5 via subagent-driven development. Mid-plan stop — 15 tasks remain.
+
+**Decisions baked into the spec (kareem confirmed all):** snapshot scope = full mirror (overview + all 8 audience sub-tabs); PDF strategy = browser print (no @react-pdf, just print CSS on the /r/ page); fixed 48h expiry; AI summary force-regenerated per snapshot with graceful cap-skip (snapshot still ships); 5 share-links/user/day rate limit via `beithady_audit_log` count; render path = refactor each card into pure `<XxxView />` + thin fetcher wrapper so live + snapshot share the same view code.
+
+**Tasks 1-5 shipped:**
+- **Task 1** — migration 0141 `ads_dashboard_snapshots` table applied + verified (commit `1725d00e`)
+- **Task 2** — `src/lib/beithady/ads/snapshot.ts` with `generateSnapshotToken()` (24-byte base64url, 32 chars), `AdsSnapshotPayload` type, `cleanupExpiredAdsSnapshots()` (commit `2a9ef08c`) + return-shape alignment fix to match daily-report pattern (commit `cd5e9f6f`) — 3 tests
+- **Task 3** — extended `beithady-daily-report-cleanup` cron route to call both cleanup functions in `Promise.all` (commit `fd47e83a`)
+- **Task 4** — `getAdsSnapshotData()` gathers all 13 dashboard slices + 3 provider statuses in parallel (19 promises), EGP-converts campaign spend, builds platform_status + audience_summary, returns `SnapshotGatherResult` (commit `4fa33f03`) + FX length-mismatch defensive guard from code review (commit `9fb0326a`) — 1 test (4/4 total in file)
+- **Task 5** — `createAdsShareLinkAction` server action: ads:read permission, Cairo-midnight rate-limit count from `beithady_audit_log`, `getAdsSnapshotData` call with data_error guard, `generateAiSummary` call with graceful cap-skip (snapshot succeeds even on AI cap/error), assembles payload with `meta.schema_version=1`, inserts into `ads_dashboard_snapshots`, audit-logs `ads_share_link_created` (which IS the rate-limit ledger), returns `{ ok: true, token, url: /r/beithady/ads/<token>, expires_at, ai_skipped_reason? }` (commit `aeaa3f8a`) — 4 tests covering success / rate_limit / AI cap-skip / data_error
+
+**Spec compliance:** all 5 tasks ✅ reviewed clean. **Code quality:** Tasks 1-4 ✅ approved (with minor inline fix applied to Task 2 return shape + Task 4 FX guard). **Task 5 code quality review NOT YET RUN** — implementer reported DONE + spec ✅ but the code-reviewer subagent dispatch was interrupted by session close.
+
+**Adaptations the implementers made vs the plan (all sensible):** `getDashboardKpisWithCompare` takes `compare: boolean` not `string|null` (cast via `!== null`); `AiSummaryResult.error` discriminator is `'daily_cap_reached'` in real code (action normalises both `'daily_cap_reached'` and `'cap_reached'` to `'cap_reached'`); `AiSummaryResult` shape uses `.summary` not `.text` (action reads `.summary ?? .text`); `SessionUser` has no typed `.email` (cast defensively); rollup row types loosened to `Array<{ clicks: number }>` for reduce callbacks since `AdsSnapshotPayload` intentionally types slices as `unknown` to avoid circular imports. Anomalies cast to `AnomalyEvent[]` rather than the plan's loose shape.
+
+**Spec + plan paths:**
+- `docs/superpowers/specs/2026-05-17-bh-ads-v4-sharing-design.md` (commit `64b40386`, 428 lines)
+- `docs/superpowers/plans/2026-05-17-bh-ads-v4-sharing.md` (commit `ca7d6e32`, 3042 lines, 20 TDD tasks with full code blocks)
+
+**Commits this session (newest first):**
+- `2d009ee8` chore(handoff): log Task 5 createAdsShareLinkAction complete (V4)
+- `aeaa3f8a` feat(bh-ads): createAdsShareLinkAction — 5/day rate limit + graceful AI cap-skip (V4)
+- `89199881` chore(handoff): log bh-ads FX length guard
+- `9fb0326a` fix(bh-ads): fail loud on FX conversion length mismatch in snapshot gather
+- `eefc03ae` chore(handoff): log V4 Task 4 — getAdsSnapshotData gather function
+- `4fa33f03` feat(bh-ads): getAdsSnapshotData — gather all 13 dashboard slices (V4)
+- `0ffd252d` chore(handoff): log task 3 complete — cleanup cron extended
+- `fd47e83a` feat(bh-ads): extend cleanup cron to purge ads_dashboard_snapshots (V4)
+- `8aeff97f` chore(handoff): log Task 2 code-review fix
+- `cd5e9f6f` refactor(bh-ads): align cleanupExpiredAdsSnapshots return shape with daily-report pattern
+- `66953ee7` chore(handoff): log Task 2 complete (snapshot.ts)
+- `2a9ef08c` feat(bh-ads): snapshot.ts — token gen + payload type + cleanup (V4)
+- `1725d00e` feat(bh-ads): migration 0141 — ads_dashboard_snapshots table (V4)
+- `64b40386` docs: BH Ads V4 sharing design spec (approved by kareem)
+- `ca7d6e32` docs: BH Ads V4 implementation plan (20 TDD tasks)
+
+**State left in:** 5/20 tasks shipped to `origin/main` + auto-deployed to Vercel. Migration applied. **No user-facing surface yet** — the action exists but no UI button calls it (Task 19), no public route renders snapshots (Task 18), no view components extracted yet (Tasks 6-16). So sharing is not usable from `/beithady/ads/` until at least Tasks 6-19 land.
+
+**Next session — resume from:**
+1. **Task 5 code quality review** (run the deferred superpowers:code-reviewer agent against `aeaa3f8a` with base SHA `9fb0326a`). Likely surface: type-safety on the long action body, error message phrasing, deferred audit log writes if insert fails.
+2. **Tasks 6-16: view+fetcher refactor of 13 cards** (mostly mechanical extraction — pure view component takes data as prop, existing card becomes thin wrapper that fetches + delegates). Plan has full code blocks for each. Use haiku for each — 5-10 min per card.
+3. **Task 17: AdsSnapshotView composition** (sonnet — composes all 13 view components in fixed vertical layout with section breaks).
+4. **Task 18: `/r/beithady/ads/[token]/page.tsx`** (sonnet — mirrors existing `/r/beithady/[token]` pattern with print toolbar + @page A4 CSS).
+5. **Task 19: ShareLinkButton + dialog wire** (sonnet — client component with useState/useTransition, calls `createAdsShareLinkAction`, renders 5 dialog states: initial/loading/success/rate_limit/error).
+6. **Task 20: final smoke + V4 SHIPPED handoff** (haiku — vitest + tsc verification, prepend V4 SHIPPED entry, commit + push).
+
+Plan file is fully self-contained with verbatim code per task — a new agent can pick up at any task by reading the plan section.
+
+---
+
 ## 🔵 2026-05-17 — Promoted `/handoff-push-all` + `/pull-all` skills to user scope
 
 Cross-project tooling cleanup. The two skills lived under `.claude/skills/` in this repo, but they're explicitly multi-repo (cover all 5 Lime projects: kareemhady, fmplus-beta, voltauto-pricing, etsy-store, voltauto-website). Project-scope made them invisible in every project except kareemhady — `/handoff-push-all` couldn't be invoked from the ETSY workspace where the user was working.
