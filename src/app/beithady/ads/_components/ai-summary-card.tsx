@@ -18,7 +18,7 @@ export function AiSummaryCard({
           <Sparkles size={14} className="text-emerald-600" />
           <span>AI summary</span>
         </div>
-        <form action={async (fd) => { await generateAiSummaryAction(fd); }}>
+        <form action={generateAiSummaryAction}>
           <input type="hidden" name="from" value={range.from} />
           <input type="hidden" name="to" value={range.to} />
           <button
