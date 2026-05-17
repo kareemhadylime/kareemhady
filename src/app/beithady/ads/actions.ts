@@ -513,6 +513,114 @@ export async function pollTikTokPostAction(formData: FormData): Promise<void> {
 }
 
 // =====================================================================
+// Path 4 — TikTok manual upload helper. Writes a MANUAL_PREPARED row to
+// ads_tiktok_posts and returns the data the client needs to:
+//   1. Trigger a browser download of the video
+//   2. Copy the formatted caption + hashtags to clipboard
+//   3. Open tiktok.com/upload in a new tab
+// The operator then drags the video into TikTok Studio and posts by hand,
+// and clicks "Mark as uploaded" to flip status + record the share URL.
+// =====================================================================
+export async function prepareTikTokManualUploadAction(formData: FormData): Promise<
+  | { ok: true; post_id: number; video_url: string; formatted_caption: string }
+  | { ok: false; error: string }
+> {
+  const user = await requireFull();
+  const accountId = Number.parseInt(String(formData.get('account_id') || ''), 10);
+  const videoUrl = String(formData.get('video_url') || '').trim();
+  const captionText = String(formData.get('caption') || '').trim();
+  const hashtags = String(formData.get('hashtags') || '').split(/[,\n]/).map(s => s.trim().replace(/^#/, '')).filter(Boolean);
+  const buildingCode = String(formData.get('building_code') || '').trim() || null;
+  const privacyLevel = (String(formData.get('privacy_level') || 'PUBLIC_TO_EVERYONE') as 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'SELF_ONLY' | 'FOLLOWER_OF_CREATOR');
+  const ytVideoId = String(formData.get('yt_video_id') || '').trim() || null;
+  const adsYtVideoIdRaw = String(formData.get('ads_yt_video_id') || '').trim();
+  const adsYtVideoId = adsYtVideoIdRaw && Number.isFinite(Number(adsYtVideoIdRaw)) ? Number(adsYtVideoIdRaw) : null;
+
+  if (!Number.isFinite(accountId)) return { ok: false, error: 'missing_account' };
+  if (!videoUrl.startsWith('https://')) return { ok: false, error: 'video_url_must_be_https' };
+
+  // Build the formatted caption the operator will paste into TikTok Studio.
+  // Caption + double newline + space-separated #hashtags (TikTok native style).
+  const tagBlock = hashtags.length
+    ? '\n\n' + hashtags.map(t => (t.startsWith('#') ? t : `#${t}`)).join(' ')
+    : '';
+  const formattedCaption = (captionText + tagBlock).slice(0, 2200);
+
+  const sb = supabaseAdmin();
+  const { data: insRow, error: insErr } = await sb
+    .from('ads_tiktok_posts')
+    .insert({
+      ads_account_id: accountId,
+      video_url: videoUrl,
+      caption: formattedCaption,
+      hashtags,
+      privacy_level: privacyLevel,
+      building_code: buildingCode,
+      status: 'MANUAL_PREPARED',
+      created_by: user.username || null,
+    })
+    .select('id')
+    .single();
+  if (insErr || !insRow) return { ok: false, error: insErr?.message || 'insert_failed' };
+  const postId = (insRow as { id: number }).id;
+
+  // Cross-post audit — same shape as the API publish path
+  if (ytVideoId) {
+    await recordCrossPost({
+      ads_youtube_video_id: adsYtVideoId,
+      youtube_video_id: ytVideoId,
+      target_platform: 'tiktok_organic',
+      target_post_id: postId,
+      // Cross-post audit schema allows queued | published | error only.
+      // 'queued' is the closest fit — operator still needs to do the upload.
+      // markTikTokManualUploadedAction could promote it to 'published' later;
+      // for now leaving as 'queued' so we know a manual prep happened.
+      status: 'queued',
+      created_by_user_id: user.id ? String(user.id) : null,
+    });
+  }
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'ads',
+    action: 'tiktok_manual_prepared',
+    target_type: 'tiktok_post',
+    target_id: String(postId),
+    metadata: { video_url: videoUrl, building_code: buildingCode, yt_video_id: ytVideoId },
+  });
+
+  revalidatePath('/beithady/ads/tiktok/publish');
+  return { ok: true, post_id: postId, video_url: videoUrl, formatted_caption: formattedCaption };
+}
+
+// Marks a MANUAL_PREPARED row as MANUAL_UPLOADED once the operator confirms
+// they posted it through TikTok Studio. Optional share_url for traceability.
+export async function markTikTokManualUploadedAction(formData: FormData): Promise<void> {
+  const user = await requireFull();
+  const postId = Number.parseInt(String(formData.get('post_id') || ''), 10);
+  const shareUrl = String(formData.get('share_url') || '').trim() || null;
+  if (!Number.isFinite(postId)) return;
+
+  const sb = supabaseAdmin();
+  await sb.from('ads_tiktok_posts').update({
+    status: 'MANUAL_UPLOADED',
+    share_url: shareUrl,
+    published_at: new Date().toISOString(),
+  }).eq('id', postId).eq('status', 'MANUAL_PREPARED'); // idempotent — only flip if still MANUAL_PREPARED
+
+  await recordAudit({
+    actor_user_id: user.id,
+    module: 'ads',
+    action: 'tiktok_manual_uploaded',
+    target_type: 'tiktok_post',
+    target_id: String(postId),
+    metadata: { share_url: shareUrl },
+  });
+
+  revalidatePath('/beithady/ads/tiktok/publish');
+}
+
+// =====================================================================
 // Instagram Reels (organic) publish + re-poll
 // =====================================================================
 export async function publishInstagramReelAction(formData: FormData): Promise<void> {

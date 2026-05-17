@@ -9,6 +9,8 @@ import { statusBadgeClass } from '@/lib/beithady/ads/platforms';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { listIgPickerItems, buildTikTokDefaultsFromPickerItem, type IgReelDefaults } from '@/lib/beithady/ads/ig-to-tiktok';
 import { listYouTubePickerItems, buildTikTokDefaultsFromYouTube, type YtTikTokDefaults } from '@/lib/beithady/ads/youtube-to-tiktok';
+import { ManualUploadButton } from './_components/manual-upload-button';
+import { MarkUploadedButton } from './_components/mark-uploaded-button';
 
 // TikTok publish (Content Posting API). Restored after the org-wide "embed
 // curated reels instead" pivot, because we still need the publish-out path
@@ -267,9 +269,14 @@ export default async function TikTokPublishPage({ searchParams }: { searchParams
               </label>
             </div>
           </div>
-          <div className="flex justify-end">
-            <button type="submit" className="ix-btn-primary"><Music2 size={14} /> Publish</button>
+          <div className="flex justify-between items-start gap-3">
+            <ManualUploadButton />
+            <button type="submit" className="ix-btn-primary"><Music2 size={14} /> Publish (API)</button>
           </div>
+          <p className="text-[10px] text-slate-500 -mt-2">
+            <strong>Publish (API)</strong> = direct via TikTok Content Posting API (sandbox-only until App Review approves).
+            <strong> Prepare for manual upload</strong> = no API call; downloads video, copies caption, opens TikTok Studio for you to post by hand to real @beithady.
+          </p>
         </form>
       )}
 
@@ -300,7 +307,8 @@ export default async function TikTokPublishPage({ searchParams }: { searchParams
                   </td>
                   <td className="py-2 pr-3">{p.share_url ? <a href={p.share_url} target="_blank" rel="noreferrer" className="ix-link">open</a> : '—'}</td>
                   <td className="py-2 pr-3">
-                    {!['PUBLISH_COMPLETE', 'SEND_TO_USER_INBOX'].includes(p.status) && (
+                    {p.status === 'MANUAL_PREPARED' && <MarkUploadedButton postId={p.id} />}
+                    {!['PUBLISH_COMPLETE', 'SEND_TO_USER_INBOX', 'MANUAL_PREPARED', 'MANUAL_UPLOADED', 'FAILED', 'EXPIRED'].includes(p.status) && (
                       <form action={pollTikTokPostAction} className="inline">
                         <input type="hidden" name="post_id" value={p.id} />
                         <button className="ix-link text-[11px] inline-flex items-center gap-1"><RefreshCw size={10} /> Re-check</button>

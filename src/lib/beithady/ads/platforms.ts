@@ -135,5 +135,7 @@ export function statusBadgeClass(status: string | null | undefined): string {
   if (u === 'DRAFT') return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
   if (u === 'PUBLISHED' || u === 'PUBLISH_COMPLETE' || u === 'SEND_TO_USER_INBOX') return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-200';
   if (u === 'PROCESSING_UPLOAD' || u === 'PROCESSING_DOWNLOAD' || u === 'IN_PROGRESS' || u === 'PENDING_CREATE' || u === 'PENDING') return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+  if (u === 'MANUAL_PREPARED') return 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-200';
+  if (u === 'MANUAL_UPLOADED') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200';
   return 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200';
 }
