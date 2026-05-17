@@ -17,7 +17,7 @@ const PLATFORM_LABEL: Record<TargetPlatform, string> = {
 
 const PLATFORM_HREF: Record<TargetPlatform, string> = {
   instagram_reel: '/beithady/ads/instagram/reels',
-  tiktok_organic: '/beithady/ads/tiktok/organic',
+  tiktok_organic: '/beithady/ads/tiktok/publish',
   tiktok_paid: '/beithady/ads/tiktok/paid',
   meta_video_ad: '/beithady/ads/instagram/boost',
   google_pmax: '/beithady/ads/google/pmax',
