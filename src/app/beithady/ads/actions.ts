@@ -539,6 +539,26 @@ export async function prepareTikTokManualUploadAction(formData: FormData): Promi
   if (!Number.isFinite(accountId)) return { ok: false, error: 'missing_account' };
   if (!videoUrl.startsWith('https://')) return { ok: false, error: 'video_url_must_be_https' };
 
+  // If the video URL is a Supabase SIGNED URL (private bucket with token + exp
+  // claim), the original token has likely expired by the time the operator
+  // clicks Prepare. Detect, parse out bucket + object path, and regenerate a
+  // fresh signed URL with a 24h TTL so the browser download works and we have
+  // headroom for the operator to actually do the upload.
+  let downloadUrl = videoUrl;
+  try {
+    const u = new URL(videoUrl);
+    const m = u.pathname.match(/^\/storage\/v1\/object\/(?:sign|public)\/([^/]+)\/(.+)$/);
+    if (u.hostname.endsWith('.supabase.co') && m) {
+      const bucket = decodeURIComponent(m[1]);
+      const objectPath = decodeURIComponent(m[2]);
+      const sb = supabaseAdmin();
+      const { data: signed } = await sb.storage.from(bucket).createSignedUrl(objectPath, 60 * 60 * 24);
+      if (signed?.signedUrl) downloadUrl = signed.signedUrl;
+    }
+  } catch {
+    // Non-URL or parse failure — fall through with the original videoUrl.
+  }
+
   // Build the formatted caption the operator will paste into TikTok Studio.
   // Caption + double newline + space-separated #hashtags (TikTok native style).
   const tagBlock = hashtags.length
@@ -590,7 +610,10 @@ export async function prepareTikTokManualUploadAction(formData: FormData): Promi
   });
 
   revalidatePath('/beithady/ads/tiktok/publish');
-  return { ok: true, post_id: postId, video_url: videoUrl, formatted_caption: formattedCaption };
+  // Return the freshly-signed URL so the browser can actually download it.
+  // The DB row stores the original (possibly expired) URL — that's just
+  // reference data for audit; the operator gets the working URL here.
+  return { ok: true, post_id: postId, video_url: downloadUrl, formatted_caption: formattedCaption };
 }
 
 // Marks a MANUAL_PREPARED row as MANUAL_UPLOADED once the operator confirms
