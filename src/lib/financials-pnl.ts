@@ -120,12 +120,51 @@ type SectionKey = keyof PnlReport['sections'];
 // is its own operational cost — not money-out-to-owner. So when the
 // aggregator is scoped to A1 only, we don't route "Rent Costs" into
 // home_owner_cut.
-function classifyAccount(
+// Team-mandated code-level overrides (BH P&L Reconciliation review 2026-05-17).
+// These win over type-based and name-based routing for specific account codes.
+// Add new entries here when the team requests further re-mappings.
+const ACCOUNT_CODE_OVERRIDES: Record<
+  string,
+  { section: SectionKey; subgroupKey: string; subgroupLabel: string; flip: boolean }
+> = {
+  // "other income" — team treats as cost-side, not revenue. flip:true keeps the
+  // income normal-balance convention so the value displays as a positive cost.
+  '401002': {
+    section: 'cost_of_revenue',
+    subgroupKey: 'direct',
+    subgroupLabel: 'Direct cost for reservations',
+    flip: true,
+  },
+  // "water, and gas" — typed as plain `expense` in Egypt+Dubai (and as
+  // `expense_direct_cost` in A1). Route everywhere into Operating Cost.
+  '502105': {
+    section: 'cost_of_revenue',
+    subgroupKey: 'operating',
+    subgroupLabel: 'Operating Cost',
+    flip: false,
+  },
+  '600111': {
+    section: 'general_expenses',
+    subgroupKey: 'back_office',
+    subgroupLabel: 'Back Office Salaries, Benefits',
+    flip: false,
+  },
+  '604101': {
+    section: 'general_expenses',
+    subgroupKey: 'marketing',
+    subgroupLabel: 'Marketing & Tender expenses',
+    flip: false,
+  },
+};
+
+export function classifyAccount(
   code: string,
   name: string,
   accountType: string,
   isA1OnlyScope: boolean
 ): { section: SectionKey; subgroupKey: string; subgroupLabel: string; flip: boolean } | null {
+  const override = ACCOUNT_CODE_OVERRIDES[code];
+  if (override) return override;
   const n = (name || '').toLowerCase();
   const isHomeOwnerName = /home\s*owner/i.test(n);
   const isRentCost = /rent\s*cost/i.test(n);
