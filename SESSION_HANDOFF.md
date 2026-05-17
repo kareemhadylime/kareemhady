@@ -41,4 +41,18 @@ Token gen mirrors daily-report pattern (24 random bytes → base64url = 32 chars
 - **Commit**: `cd5e9f6f` — "refactor(bh-ads): align cleanupExpiredAdsSnapshots return shape with daily-report pattern"
 - **Push**: Pushed to origin/main ✓
 
-Next: Task 3 (wire cleanup into cron).
+**TASK 3 COMPLETE**: Extended hourly cleanup cron to call `cleanupExpiredAdsSnapshots`.
+
+- **File**: `src/app/api/cron/beithady-daily-report-cleanup/route.ts` (31 lines)
+- **Changes**:
+  - Added import: `import { cleanupExpiredAdsSnapshots } from '@/lib/beithady/ads/snapshot';`
+  - Updated comment to document V4 ads snapshots cleanup (48h expiry, soft-delete pattern)
+  - Changed handler to run both cleanups in parallel: `Promise.all([ cleanupExpiredSnapshots(), cleanupExpiredAdsSnapshots() ])`
+  - Return shape: `{ daily: {...}, ads: {...} }` for clean aggregation
+- **TypeScript**: No errors in modified file ✓
+- **Commit**: `fd47e83a` — "feat(bh-ads): extend cleanup cron to purge ads_dashboard_snapshots (V4)"
+- **Push**: Pushed to origin/main ✓
+
+Cron runs hourly (per vercel.json, no changes needed). Bearer-auth check covers both cleanups. If either throws, route returns 500 + error; hourly retry on next tick.
+
+**Session complete.** All three V4 tasks delivered: migration applied, snapshot helpers created + tested, cron extended.
