@@ -16,6 +16,9 @@ type Props = {
 };
 
 export function PaceShell({ payload, cityOptions, tagOptions }: Props) {
+  const hasData =
+    payload.unit_count_in_scope > 0 &&
+    payload.daily.some((d) => d.bookable_days > 0);
   return (
     <div
       className="overflow-hidden rounded-xl border border-[#003462]/10 text-[#003462]"
@@ -40,20 +43,33 @@ export function PaceShell({ payload, cityOptions, tagOptions }: Props) {
       </header>
       <div className="flex">
         <main className="flex-1 grid grid-cols-12 gap-3 p-4 sm:p-5">
-          <PaceKpiStrip
-            kpis={payload.kpis}
-            range={payload.date_range}
-            priorRange={payload.prior_date_range}
-          />
-          <div className="col-span-12">
-            <DailyPerformance rows={payload.daily} />
-          </div>
-          <div className="col-span-12">
-            <PickupCohort rows={payload.pickup_cohorts} />
-          </div>
-          <div className="col-span-12">
-            <PropertyBreakdown byProperty={payload.by_property} byCity={payload.by_city} />
-          </div>
+          {hasData ? (
+            <>
+              <PaceKpiStrip
+                kpis={payload.kpis}
+                range={payload.date_range}
+                priorRange={payload.prior_date_range}
+              />
+              <div className="col-span-12">
+                <DailyPerformance rows={payload.daily} />
+              </div>
+              <div className="col-span-12">
+                <PickupCohort rows={payload.pickup_cohorts} />
+              </div>
+              <div className="col-span-12">
+                <PropertyBreakdown byProperty={payload.by_property} byCity={payload.by_city} />
+              </div>
+            </>
+          ) : (
+            <div className="col-span-12 rounded-lg border border-[#003462]/10 bg-white p-8 text-center">
+              <div className="text-[#003462] font-semibold" style={{ fontFamily: 'var(--bh-heading)' }}>
+                No data for this scope
+              </div>
+              <p className="text-xs text-[#6077a6] mt-1">
+                Adjust the period or clear filters to see results.
+              </p>
+            </div>
+          )}
         </main>
         <FilterRail cityOptions={cityOptions} tagOptions={tagOptions} />
       </div>
