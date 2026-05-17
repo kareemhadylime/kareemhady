@@ -9,6 +9,7 @@ import { statusBadgeClass } from '@/lib/beithady/ads/platforms';
 import { fmtCairoDate } from '@/lib/fmt-date';
 import { listGalleryAssetsForIgPost } from '@/lib/beithady/ads/ig-post-gallery-picker';
 import { IgPostGalleryPicker } from './_components/gallery-picker';
+import { AiCaptionComposer } from './_components/ai-caption';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -132,14 +133,8 @@ export default async function InstagramPostPage({ searchParams }: { searchParams
                 </div>
               )}
 
-              <div className="space-y-1 md:col-span-2">
-                <label htmlFor="caption" className="text-xs font-semibold">Caption (≤2 200 chars, IG)</label>
-                <textarea id="caption" name="caption" rows={3} className="ix-input" />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <label htmlFor="hashtags" className="text-xs font-semibold">Hashtags (comma or newline, no # needed)</label>
-                <input id="hashtags" name="hashtags" className="ix-input" placeholder="BeitHady, Cairo, serviced apartments" />
-              </div>
+              {/* AI caption composer — owns caption + hashtags fields */}
+              <AiCaptionComposer postType={activeType} />
               <div className="space-y-1">
                 <label htmlFor="building_code" className="text-xs font-semibold">Building code</label>
                 <input id="building_code" name="building_code" className="ix-input font-mono text-xs" placeholder="BH-435" />

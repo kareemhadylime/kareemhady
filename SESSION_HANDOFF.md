@@ -1,4 +1,45 @@
-# Kareemhady — Session Handoff (2026-05-08)
+# Kareemhady — Session Handoff (2026-05-17)
+
+## 🟢 2026-05-17 — IG Post: AI caption composer
+
+**Commit:** `d7b5cc05 feat(ig-post): AI caption composer — vibe input + language picker → Claude writes caption + hashtags from picked image`
+**Deploy:** pending re-alias to `app.limeinc.cc` after build is Ready.
+
+User asked: "Why there are no AI Caption, there should be a place where I should write what I want and then AI Implement". Existing `generateCaption()` in `ai-copy.ts` already accepts a `vibe` field — wired it into the form via a new client component.
+
+**Shipped:**
+- New client component `src/app/beithady/ads/instagram/post/_components/ai-caption.tsx` — vibe input, language dropdown (en/ar/de/fr/ru/it/es), Generate button. Owns the caption + hashtags fields so AI output overwrites them (user can still edit by hand). Reads the first picked image URL from the form's hidden `image_url` / `child_urls` so Claude sees the actual creative.
+- Page `instagram/post/page.tsx` now renders `<AiCaptionComposer postType={activeType} />` in place of the bare caption + hashtags fields.
+- Server action `generateCaptionAction` was already in place — no changes needed.
+
+**UX:** the AI panel sits below the gallery picker and above the FB-specific caption field. Visually distinct (violet tint card with Sparkles icon).
+
+**Caveats:**
+- For video posts the image preview isn't passed to Claude (Claude API can't read videos yet). Caption is still generated from the prompt + building context.
+- AI panel queries the DOM with `document.querySelector('form[action]')` to read the picker state — works for the current page where there's only one form, but would break if we ever render multiple action-forms on the same page.
+
+---
+
+## 🟢 2026-05-17 — IG Post gallery picker — browse building albums + ad creatives
+
+**Commit:** `0d61f4e8 feat(ig-post): gallery picker — browse building albums + ad creatives, multi-select for carousels`
+**Deploy:** aliased to `app.limeinc.cc` via `lime-atr2ioof0` earlier this session.
+
+User asked: "We should be able to Choose and Upload from any building album or ad creatives". IG Post page had only manual URL paste before; Gallery page showed BH-26 / BH-73 / BH-435 / BH-OK / BH-34 albums + Ad creatives bucket.
+
+**Shipped:**
+- New server query `listGalleryAssetsForIgPost()` in `src/lib/beithady/ads/ig-post-gallery-picker.ts` — pulls postable assets (`category in ('photo','video','ad_creative')`, `public_url not null`, `deleted_at is null`), groups by `building_code` with synthetic 'ad_creatives' / 'brand' / 'unfiled' buckets.
+- New client component `IgPostGalleryPicker` at `src/app/beithady/ads/instagram/post/_components/gallery-picker.tsx` — tabbed grouping, thumbnail grid, single-select for image/video, multi-select with numbered insertion-order badges for carousel (cap 10).
+- Writes picks into hidden inputs named `image_url` / `video_url` / `child_urls` (the same names the action expects); visible text fields renamed to `*_manual` for paste fallback.
+- Server action `publishInstagramPostAction` merges: gallery picker wins; manual paste is fallback (image/video) or appended (carousel).
+
+**Caveats:**
+- Videos render as black-tile + video-icon (gallery schema has no `thumbnail_url` for videos yet).
+- Brand assets excluded by default (`includeBrand: false`).
+
+---
+
+## Older entries from before this session
 
 ## Latest turn — Standing instruction confirmation + SESSION_HANDOFF reminder
 
