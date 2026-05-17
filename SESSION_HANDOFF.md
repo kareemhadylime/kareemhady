@@ -1,4 +1,41 @@
+# Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 New `/beithady/analytics/pace` route — Pace Report (Guesty Business-On-The-Books parity) ✅ SHIPPED
+
+Executed the full 18-task plan at `docs/superpowers/plans/2026-05-16-beithady-pace-route.md` via subagent-driven development. All tests pass (28/28 across 4 test files), full `npm run build` succeeds, brand-grep guard clean (only allowed `emerald-700`/`red-700` for delta badges).
+
+**What landed:**
+
+- **Lib** at `src/lib/pace-report/`:
+  - `types.ts` — `PaceReportPayload`, `PaceKpi`, `DailyPerfRow`, `PickupCohortRow`, `PropertyRow`, `CityRow`, `PaceFilters`, `CohortBucket`, `COHORT_LABELS`
+  - `date-ranges.ts` — `parsePeriod` (this-month / last-month / last-30-days / custom), `shiftPriorYear` (with leap-day clamp), `enumerateDays`, `daysBetween` — 10 unit tests
+  - `cohorts.ts` — `bucketCohort(createdAt, checkIn)` → same/1mo/2mo/3-5mo/6+mo — 6 unit tests
+  - `load-listings.ts` — server-only; pulls `guesty_listings` with country/city/tag/active filters; excludes MTL parents; normalizes Egypt/UAE country codes
+  - `load-reservations.ts` — server-only; paginated 1000-row batches; USD-normalizes via `toUsd`; keeps cancellations with `is_canceled` flag
+  - `aggregate.ts` — `aggregatePaceReport(input)` returns KPIs (revenue/booked_days/occupancy_pct/anr LY-vs-Selected), daily grid, pickup cohorts, per-property + per-city — 7 unit tests
+
+- **Route** at `src/app/beithady/analytics/pace/`:
+  - `page.tsx` — server component; parallel current/prior reservation queries; loads unfiltered listing universe for rail options
+  - `_hooks/use-pace-url-state.ts` — `usePaceUrlState`, `parsePaceSearchParams`, `paceStateToSearchParams` — 5 unit tests
+  - `_components/pace-shell.tsx` — lavender BH container, header with PeriodPicker, flex layout with main + FilterRail; empty-state when no data
+  - `_components/tab-strip.tsx` — brand-locked generic tab primitive
+  - `_components/period-picker.tsx` — This Month / Last Month / Last 30 Days + Custom range popover
+  - `_components/filter-rail.tsx` — 260px right rail with Country (EG/AE), City, Tag chips + Display toggles
+  - `_components/panels/pace-kpi-strip.tsx` — 4 paired bars (prior #a8b6d4 vs selected #003462) for Revenue / Booked Days / Occupancy / ANR
+  - `_components/panels/daily-performance.tsx` — date × revenue/booked/reserved/bookable/available/occ/ANR with zebra rows + Grand Total
+  - `_components/panels/pickup-cohort.tsx` — stacked bar by check-in month, 5-color legend (Guesty palette: #5b8bd6/#f1a07a/#e35a78/#9ec5b8/#6077a6), tabs for Revenue / Booked Days / ANR
+  - `_components/panels/property-breakdown.tsx` — table with By Property / By City tabs; columns: Nickname, Unit Type, Revenue, Booked, Reserved, Bookable, Available, Occupancy, ANR, RevPAR
+
+- **Tile** added to `/beithady/analytics` landing — slate accent, Activity icon, "New" gold badge.
+
+**Phase-1 caveats** (encoded in types + docstrings):
+- `reserved_days` always 0 — needs Guesty inquiry-hold sync (deferred to Phase 2 plan)
+- `bookable_days` = `physical_units × period_days` — owner-block deduction deferred (same)
+- BH-DXB included in scope (unlike daily report) since country is a user-driven filter
+
+**Brand lockdown enforced**: every UI piece uses lavender `#eae9f3` bg with pattern overlay, navy `#003462` text, muted `#6077a6` secondary, `var(--bh-heading)` font, shared `PanelFrame` chrome. Only `emerald-700`/`red-700` for delta-up/down indicators (matches existing `stly-yoy.tsx`).
+
+Ready for forward-deploy to production via auto-deploy on push.
 
 ---
 
