@@ -7,6 +7,8 @@ import { AdsTabs } from '../../_components/ads-tabs';
 import { publishInstagramPostAction, pollInstagramPostAction } from '../../actions';
 import { statusBadgeClass } from '@/lib/beithady/ads/platforms';
 import { fmtCairoDate } from '@/lib/fmt-date';
+import { listGalleryAssetsForIgPost } from '@/lib/beithady/ads/ig-post-gallery-picker';
+import { IgPostGalleryPicker } from './_components/gallery-picker';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -24,9 +26,10 @@ export default async function InstagramPostPage({ searchParams }: { searchParams
   const activeType: 'image' | 'carousel' | 'video' = sp.type || 'image';
   const sb = supabaseAdmin();
 
-  const [{ data: accountsRaw }, { data: postsRaw }] = await Promise.all([
+  const [{ data: accountsRaw }, { data: postsRaw }, galleryGroups] = await Promise.all([
     sb.from('ads_accounts').select('id, name, fb_page_id, fb_page_name, ig_business_id, ig_username').eq('platform', 'meta').order('id'),
     sb.from('ads_instagram_posts').select('id, post_type, image_url, video_url, child_urls, caption, status, permalink, thumbnail_url, fb_status, fb_permalink, building_code, created_at, published_at').neq('post_type', 'reel').order('created_at', { ascending: false }).limit(25),
+    listGalleryAssetsForIgPost({ limit: 500 }),
   ]);
   const accounts = (accountsRaw as Array<{ id: number; name: string; fb_page_id: string | null; fb_page_name: string | null; ig_business_id: string | null; ig_username: string | null }> | null) || [];
   const ready = accounts.filter(a => !!a.ig_business_id);
@@ -105,22 +108,27 @@ export default async function InstagramPostPage({ searchParams }: { searchParams
                 </div>
               </div>
 
+              {/* Gallery picker — writes to hidden image_url/video_url/child_urls */}
+              <div className="md:col-span-2">
+                <IgPostGalleryPicker postType={activeType} groups={galleryGroups} />
+              </div>
+
               {activeType === 'image' && (
                 <div className="space-y-1 md:col-span-2">
-                  <label htmlFor="image_url" className="text-xs font-semibold">Image URL (public HTTPS, ≥320×320, JPEG)</label>
-                  <input id="image_url" name="image_url" required className="ix-input font-mono text-xs" />
+                  <label htmlFor="image_url_manual" className="text-xs font-semibold">Or paste an image URL (used only if no gallery asset picked)</label>
+                  <input id="image_url_manual" name="image_url_manual" className="ix-input font-mono text-xs" placeholder="https://example.com/photo.jpg" />
                 </div>
               )}
               {activeType === 'video' && (
                 <div className="space-y-1 md:col-span-2">
-                  <label htmlFor="video_url" className="text-xs font-semibold">Video URL (public HTTPS, MP4/MOV ≤100 MB)</label>
-                  <input id="video_url" name="video_url" required className="ix-input font-mono text-xs" />
+                  <label htmlFor="video_url_manual" className="text-xs font-semibold">Or paste a video URL (used only if no gallery asset picked)</label>
+                  <input id="video_url_manual" name="video_url_manual" className="ix-input font-mono text-xs" placeholder="https://example.com/clip.mp4" />
                 </div>
               )}
               {activeType === 'carousel' && (
                 <div className="space-y-1 md:col-span-2">
-                  <label htmlFor="child_urls" className="text-xs font-semibold">Carousel image URLs — one per line (2–10 images)</label>
-                  <textarea id="child_urls" name="child_urls" required rows={5} className="ix-input font-mono text-xs" placeholder="https://...jpg&#10;https://...jpg&#10;https://...jpg" />
+                  <label htmlFor="child_urls_manual" className="text-xs font-semibold">Or paste carousel URLs — one per line (merged with gallery picks)</label>
+                  <textarea id="child_urls_manual" name="child_urls_manual" rows={3} className="ix-input font-mono text-xs" placeholder="https://...jpg&#10;https://...jpg" />
                 </div>
               )}
 

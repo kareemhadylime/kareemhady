@@ -578,10 +578,17 @@ export async function publishInstagramPostAction(formData: FormData): Promise<vo
   const alsoToFacebook = String(formData.get('also_to_facebook') || '') === '1';
   const fbCaption = String(formData.get('fb_caption') || '').trim() || undefined;
   const buildingCode = String(formData.get('building_code') || '').trim() || null;
-  const imageUrl = String(formData.get('image_url') || '').trim() || undefined;
-  const videoUrl = String(formData.get('video_url') || '').trim() || undefined;
-  const childUrls = String(formData.get('child_urls') || '')
-    .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  // Gallery picker writes to image_url / video_url / child_urls (hidden inputs).
+  // Manual paste field falls back to *_manual if the picker is empty.
+  const imageUrl = (String(formData.get('image_url') || '').trim()
+    || String(formData.get('image_url_manual') || '').trim()) || undefined;
+  const videoUrl = (String(formData.get('video_url') || '').trim()
+    || String(formData.get('video_url_manual') || '').trim()) || undefined;
+  // Carousel: merge picker picks (already newline-separated) with manual paste
+  const childUrls = [
+    ...String(formData.get('child_urls') || '').split(/[\n,]/),
+    ...String(formData.get('child_urls_manual') || '').split(/[\n,]/),
+  ].map(s => s.trim()).filter(Boolean);
 
   if (!Number.isFinite(accountId)) redirect('/beithady/ads/instagram/post?error=missing_account');
   if (!['image','carousel','video'].includes(postType)) redirect('/beithady/ads/instagram/post?error=invalid_post_type');
