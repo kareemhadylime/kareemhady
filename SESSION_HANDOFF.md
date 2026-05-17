@@ -1,5 +1,68 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 2026-05-17 — BH P&L reconciliation — 4 classifier overrides + variance root-caused — SHIPPED
+
+**Commit:** `58cbb0e4 fix(bh-pnl): re-route 4 accounts per team reconciliation review (2026-05-17)`
+**Deploy:** `lime-hj29hvwix-lime-investments.vercel.app` (READY) → aliased to `app.limeinc.cc`.
+
+**What the team flagged (image 1):** 4 accounts in the wrong P&L subgroup. Implemented as a code-level override map `ACCOUNT_CODE_OVERRIDES` at the top of `classifyAccount()` in [src/lib/financials-pnl.ts](src/lib/financials-pnl.ts) — wins over both type and name heuristics. Easy to extend when team requests more.
+
+| Code | Was | Now |
+|---|---|---|
+| 401002 "other income" | Activity Revenues | **Direct cost for reservations** (flip:true preserves income normal balance) |
+| 502105 "water, and gas " | Other Expenses (typed as plain `expense` in 5+10, so the operating regex inside the `expense_direct_cost` branch never fired) | **Operating Cost** |
+| 600111 "Hospitality expenses G/A" | Other Expenses | **Back Office Salaries, Benefits** |
+| 604101 "Plat Form subscriptions G&A" | Other Expenses | **Marketing & Tender expenses** |
+
+New test file [src/lib/financials-pnl.classifier.test.ts](src/lib/financials-pnl.classifier.test.ts) — 4 override tests + 3 regression tests (generic income → Activity Revenues, home-owner → Home Owner Cut, generic G&A salary → Back Office). Full vitest run: 1091 pass / 3 pre-existing failures (hr-import, daily-report tests — unrelated to financials, verified by stash/re-run).
+
+**What the team flagged (image 2): NOT a code bug — scope mismatch.**
+
+Queried `odoo_move_lines` for JAN-2026 lines in scope [5, 10]:
+- 401002: Egypt sum -19,968.10 + Dubai sum -44,141.55 = **-64,109.65** (flipped to +64,110 in APP) ✓
+- 401001: Egypt sum -313.26 + Dubai sum -658.19 = **-971.45** (flipped to +971 in APP) ✓
+
+Team's ODOO column shows Dubai-only totals (44,142 and 658). APP shows consolidated Egypt + Dubai (default scope `PNL_COMPANY_IDS = [5, 10]`). **APP is correct.** Resolution path for team:
+- Re-export Odoo with both companies (5 + 10), OR
+- Use the APP's per-company scope toggle (`scopeCompanyIds('dubai')`) to compare 1:1 with their Dubai-only Odoo export.
+
+**Note on 401002 sign:** Team said "move from operating cost to direct cost," but the classifier never put 401002 in operating cost — it was in Activity Revenues. Took the team's intent literally: moved to Direct cost for reservations bucket. Kept `flip:true` so the income value displays positive there (matches the convention that cost buckets show positive numbers). If team wanted the value to net against direct cost as a credit (-) rather than add as a debit (+), the override `flip` should switch to false. Flag this on next review.
+
+**Files touched:**
+- `src/lib/financials-pnl.ts` — added `ACCOUNT_CODE_OVERRIDES` map + `export` on `classifyAccount`
+- `src/lib/financials-pnl.classifier.test.ts` (new) — 7 tests (4 overrides + 3 regression)
+
+**Process:** Followed superpowers:systematic-debugging (Phase 1 evidence → SQL query revealed variance was scope mismatch, not code bug) + superpowers:test-driven-development (RED with 4 failing tests for the right reason, GREEN after override map added).
+
+---
+
+## 2026-05-17 — BH P&L reconciliation — Team comments triage (Q&A, no code changes — SUPERSEDED)
+
+**Trigger:** User pasted two screenshots of "Team comments on BH P&L Reconciliation up to 31-JAN-2026" and asked "??". No implementation requested yet — waiting on user direction.
+
+**Two distinct issues in the comments:**
+
+1. **Category-mapping fixes (4 accounts)** — all live in `classifyAccount()` in `src/lib/financials-pnl.ts:123`:
+   - **401002 "other income"** → team wants in **Direct cost for reservations**. If Odoo `account_type = expense_direct_cost`, the operating-cost regex at L170 likely catches it via some keyword; add a code-level override `401002` ahead of that block.
+   - **502105 "water, and gas"** → team wants **Operating Cost**. Name matches `water|gas` in the direct-cost branch (L171), so if it's landing in Other Expenses it must be typed as plain `expense` in Odoo — add `water|gas` to the regex in the `expense` branch (L190+) or re-tag in Odoo.
+   - **600111 "Hospitality expenses G/A"** → team wants **Back Office Salaries, Benefits**. Add `hospitality` to the back-office regex at L208.
+   - **604101 "Plat Form subscriptions G&A"** → team wants **Marketing & Tender expenses**. Add `platform|subscription` to the marketing regex at L240.
+
+2. **Value variance (JAN 2026, ODOO vs APP):**
+   - 401002 "other income": ODOO 44,142 vs APP 64,110 (Δ +19,968)
+   - 401001 "Gain in foreign Exchange Rate": ODOO 658 vs APP 971 (Δ +313)
+   - Not a categorization bug — values disagree. Suspect order: scope mismatch (analytic-account filter `[4,5,10]` vs report's `BH-435` only), sign-flip handling on income (L141), or period-boundary inclusions.
+
+**Action presented to user (AskUserQuestion):** patch the 4 classifier rules / investigate variance first / both / just discuss. Awaiting answer — **no files changed, no commits, no deploys.**
+
+**Files referenced (read-only):**
+- `src/lib/beithady/financials/reconciliation.ts` (just builds variance rows from `bh_balance_snapshot_accounts`)
+- `src/lib/financials-pnl.ts:120-265` (the classifier that decides which P&L bucket each Odoo account lands in)
+
+**Next session pickup:** when user picks an option, the classifier patches are mechanical (4 regex/code-override edits in one file). Variance investigation will need a scoped Odoo query — likely `mcp__…__execute_sql` against the Odoo-mirror tables in Supabase to compare what's being summed for 401001/401002 in JAN.
+
+---
+
 ## 2026-05-17 — IG Feed Post + Organic Insights — SHIPPED
 
 **Status:** Phase 1 + Phase 2 both built and pushed in one commit. User asked for both together. Deploy in flight (background).
