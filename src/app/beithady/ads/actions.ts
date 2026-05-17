@@ -552,7 +552,15 @@ export async function prepareTikTokManualUploadAction(formData: FormData): Promi
       const bucket = decodeURIComponent(m[1]);
       const objectPath = decodeURIComponent(m[2]);
       const sb = supabaseAdmin();
-      const { data: signed } = await sb.storage.from(bucket).createSignedUrl(objectPath, 60 * 60 * 24);
+      // Pass `download: <filename>` so Supabase serves the file with
+      // Content-Disposition: attachment. Without this, Chrome plays mp4
+      // inline instead of triggering a download.
+      const fileName = (objectPath.split('/').pop() || 'tiktok-video.mp4').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const { data: signed } = await sb.storage.from(bucket).createSignedUrl(
+        objectPath,
+        60 * 60 * 24,
+        { download: fileName },
+      );
       if (signed?.signedUrl) downloadUrl = signed.signedUrl;
     }
   } catch {

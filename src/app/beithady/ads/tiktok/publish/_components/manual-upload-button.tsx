@@ -36,42 +36,47 @@ export function ManualUploadButton() {
     }
     const fd = new FormData(form);
 
+    // CRITICAL: open TikTok Studio FIRST, synchronously inside the click handler.
+    // The browser's user-activation token expires after `await`, so any window.open
+    // after the server call would be blocked as a popup. We open `about:blank` now,
+    // then redirect the same tab to TikTok Studio once we're done.
+    const studioTab = window.open('about:blank', '_blank', 'noopener');
+    if (studioTab) {
+      studioTab.document.write('<!doctype html><meta charset="utf-8"><title>Preparing TikTok upload…</title><body style="font-family:system-ui;padding:2rem;color:#444">Loading TikTok Studio…</body>');
+    }
+
     startTransition(async () => {
       try {
         const res = await prepareTikTokManualUploadAction(fd);
         if (!res.ok) {
           setError(res.error);
+          if (studioTab) studioTab.close();
           return;
         }
 
-        // 1. Copy caption to clipboard
+        // 1. Copy caption to clipboard (best-effort; safe to fail silently)
         try {
           await navigator.clipboard.writeText(res.formatted_caption);
-        } catch {
-          // Some browsers block clipboard outside user gestures or in iframes;
-          // it's fine, the caption is still in the DB and visible on the page.
-        }
+        } catch { /* clipboard may be restricted; caption is still in DB */ }
 
-        // 2. Trigger video download — anchor with download attr
+        // 2. Trigger video download. The server passed `download: filename` to
+        // createSignedUrl, so Supabase returns Content-Disposition: attachment.
+        // That makes the browser save the file instead of navigating to it.
         const a = document.createElement('a');
         a.href = res.video_url;
-        // Hint the filename; browsers honour this for same-origin or CORS-allowed
-        // responses. Cross-origin without CORS will navigate instead of download,
-        // but Supabase public URLs respond with the right headers.
-        const fileName = (res.video_url.split('/').pop() || 'tiktok-video.mp4').split('?')[0];
-        a.download = fileName;
-        a.target = '_blank';   // fallback: open in new tab if download attr is ignored
+        a.download = ''; // attribute presence is what matters; filename comes from CD header
         a.rel = 'noopener';
         document.body.appendChild(a);
         a.click();
         a.remove();
 
-        // 3. Open TikTok Studio in another new tab
-        window.open('https://www.tiktok.com/upload', '_blank', 'noopener');
+        // 3. Now redirect the pre-opened tab to TikTok Studio
+        if (studioTab) studioTab.location.href = 'https://www.tiktok.com/upload';
 
         setSuccess(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'prepare_failed');
+        if (studioTab) studioTab.close();
       }
     });
   }
