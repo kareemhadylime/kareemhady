@@ -1,5 +1,18 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-17 — BH Ad Creatives: manual upload ✅ SHIPPED
+
+Added drag-and-drop / click-to-browse upload to `/beithady/gallery/ad-creatives`. The `GalleryProvider` + `UploadTray` were already active for all of `/beithady`; the page just needed the `<Uploader category="ad_creative" />` component wired in (same pattern as the brand-library page).
+
+**What changed:**
+- `src/app/beithady/gallery/ad-creatives/page.tsx` — added `Uploader` import + upload section card above the asset grid; updated empty-state copy to direct users to the uploader
+- Accepts JPG/PNG/WEBP/HEIC + MP4/WEBM; large videos auto-compressed; AI labels in ~2 min
+- Files land in `beithady-gallery` (private bucket) under `ad-creatives/{date}/{id}.ext`; can be promoted to ad-eligible (public CDN) via the asset detail modal
+
+**Commit:** `2cef1ced` — pushed to `origin/main`, Vercel auto-deploy triggered.
+
+---
+
 ## 🟡 2026-05-17 — BH Ads Insights V4 (Sharing) — spec + plan + Tasks 1-5/20 shipped
 
 Brainstormed V4 (Sharing — F1 public share link `/r/beithady/ads/<token>` + F2 PDF via browser print), wrote spec + 20-task TDD plan, and executed Tasks 1-5 via subagent-driven development. Mid-plan stop — 15 tasks remain.
