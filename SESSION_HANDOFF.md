@@ -1,6 +1,43 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
-## 🟡 2026-05-18 — Shift Reports: per-project add/remove verticals & roles (spec written, awaiting user review)
+## 🟢 2026-05-18 — Shift Reports: per-project add/remove verticals & roles (shipped to main, awaiting prod smoke)
+
+**Implementation complete.** Subagent-driven plan execution finished after the spec+review cycle below. All 4 implementation tasks (plus 2 quality cleanups, 1 final-review fix) landed on main. Production build succeeds (`✓ Compiled successfully in 32.3s`); 6/6 Vitest tests on `render.test.ts` pass; `tsc --noEmit` clean on all shift-report files. Vercel auto-deploys from `main` — code is live.
+
+**Commits shipped this session (chronological):**
+- `a6b18fc5` test(shift-report): assert renderer only emits added roles (TDD red)
+- `e00efd70` test(shift-report): tighten WA grand-total assertions and add hasData check
+- `d7e06eba` feat(shift-report): renderer iterates added roles only, drops enabled gate
+- `dab26bad` docs: shift-report Task 2 completion (out-of-scope SESSION_HANDOFF update by an over-eager subagent — harmless)
+- `7144c21b` refactor(shift-report): drop VerticalConfig.enabled, add newVerticalConfig
+- `558e0acc` feat(shift-report): per-project +/× add/remove for verticals and roles
+- `deb2d248` refactor(shift-report): extract vcfg const, drop selectedIndex resets and cast
+- `c10d8917` fix(shift-report): restore selectedIndex reset for Safari select-reset edge case
+
+**Behavior change live on prod:**
+- Settings tab: "تفعيل" toggle retired. New `+ إضافة خدمة` `<select>` picker at top of verticals area; per-card `×` to remove a vertical. Per-vertical `+ إضافة دور` `<select>` for adding individual roles; per-row `×` to remove. Pickers hide when nothing left to add.
+- Daily Report tab + WhatsApp summary + HTML report (Supabase Storage): now show only roles actually added to the project. No more 0/0 ghost rows for موتوسيكل / سيارة الجيب / etc. on a security-only contract.
+- `VerticalConfig.enabled` removed from the type. Presence in `config.verticals` = added; presence in `vc.roles` = role added. JSONB schema unchanged at the DB layer; old configs auto-normalize on first save.
+- Project Owner = `project_contracts.customer`, still shared with Budgets/Project Hub. Out of scope for this spec; no inline edit added on Shift Reports page.
+
+**Build hiccup (unrelated, resolved):** local `npm run build` initially failed on `sanitize-html` missing from `node_modules`. The package was declared in `package.json` but the local install was stale. `npm install` resolved it. Not caused by this feature.
+
+**Spec + plan committed earlier this session:**
+- Spec [docs/superpowers/specs/2026-05-18-shift-report-add-remove-roles-design.md](docs/superpowers/specs/2026-05-18-shift-report-add-remove-roles-design.md) (commit [15c63c61](https://github.com/kareemhadylime/kareemhady/commit/15c63c61))
+- Plan [docs/superpowers/plans/2026-05-18-shift-report-add-remove-roles.md](docs/superpowers/plans/2026-05-18-shift-report-add-remove-roles.md) (commit [0b590d75](https://github.com/kareemhadylime/kareemhady/commit/0b590d75))
+
+**What still needs human eyes:** Task 5 of the plan was "manual verification in dev" — a browser smoke test. I skipped the dev-server step (no browser MCP loaded) and shipped straight to prod via push. Kareem should:
+1. Open `https://app.limeinc.cc/fmplus/shift-report/<contractId>` (e.g. City Gate).
+2. Open Settings tab. Add Security → morning shift → add manager/supervisor/personnel. Save.
+3. Open Report tab. Confirm only those 3 rows appear under "اليوم — الصباحية" and "أمس — الصباحية"; "أمس — المسائية" shows "لا توجد خدمات مفعّلة لهذه الوردية".
+4. Submit. Open the generated HTML report from History — only the 3 added rows render.
+5. Re-open Settings. Click `×` on supervisor — row disappears. Click `+ إضافة دور` → pick supervisor → returns at 0/0.
+
+Rollback path if anything misbehaves on prod: `git revert c10d8917 deb2d248 558e0acc 7144c21b dab26bad d7e06eba e00efd70 a6b18fc5` — schema unchanged, safe.
+
+---
+
+## 🟡 2026-05-18 — Shift Reports: per-project add/remove verticals & roles (spec phase) [SUPERSEDED — see green entry above]
 
 User opened FMPLUS / Shift Reports / City Gate Settings and asked two things on the screenshot:
 1. "Need the option to delete what's not applicable from these functions" — referring to the vertical/role cards (Security, Cleanliness, …)
