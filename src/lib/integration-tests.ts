@@ -33,6 +33,8 @@ export async function testProvider(provider: ProviderId): Promise<TestResult> {
         return await testScrapingBee();
       case 'tiktok_ads':
         return await testTikTokAds();
+      case 'tiktok_business':
+        return await testTikTokBusiness();
       case 'google_ads':
       case 'meta_marketing':
       case 'meta_waba':
@@ -188,6 +190,30 @@ async function testTikTokAds(): Promise<TestResult> {
     return { ok: false, error: `Business API → code ${j?.code}: ${j?.message || 'unknown'}` };
   }
   return { ok: true, detail: `app_id set · no access token yet — complete OAuth to enable posting` };
+}
+
+// --- TikTok Marketing API (Business) ---
+// If OAuth has been completed we have an access_token; call /user/info/ to
+// confirm it's live. Otherwise just confirm app_id+secret are stored and
+// guide the user to click "Authorize Marketing API" on the accounts page.
+async function testTikTokBusiness(): Promise<TestResult> {
+  const { loadTikTokBusinessCredentials } = await import('./beithady/ads/tiktok-client');
+  const credsRes = await loadTikTokBusinessCredentials();
+  if (!credsRes.ok) return { ok: false, error: `${credsRes.error}${credsRes.missing?.length ? ` (missing: ${credsRes.missing.join(', ')})` : ''}` };
+  const { creds } = credsRes;
+  if (!creds.marketing_access_token) {
+    return { ok: true, detail: `app_id + secret set · click "Authorize Marketing API" on /beithady/ads/tiktok/accounts to complete OAuth` };
+  }
+  const res = await fetch(`https://business-api.tiktok.com/open_api/v1.3/user/info/`, {
+    headers: { 'Access-Token': creds.marketing_access_token, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15_000),
+  });
+  const j = await res.json().catch(() => null) as { code?: number; message?: string; data?: { display_name?: string; email?: string } } | null;
+  if (j?.code === 0) {
+    const advBit = creds.default_advertiser_id ? ` · advertiser ${creds.default_advertiser_id}` : '';
+    return { ok: true, detail: `Authenticated · ${j.data?.display_name || j.data?.email || 'token live'}${advBit}` };
+  }
+  return { ok: false, error: `Business API → code ${j?.code}: ${j?.message || 'unknown'}` };
 }
 
 // --- ScrapingBee ---
