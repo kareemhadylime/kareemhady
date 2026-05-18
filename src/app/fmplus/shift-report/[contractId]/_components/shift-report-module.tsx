@@ -383,6 +383,7 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
                   onChange={(e) => {
                     const val = e.target.value as VerticalKey | '';
                     if (val) addVertical(val);
+                    e.currentTarget.selectedIndex = 0;
                   }}
                   className="ix-input text-sm flex-1 min-w-[160px]"
                 >
@@ -510,6 +511,7 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val) addRole(v.key, val);
+                                e.currentTarget.selectedIndex = 0;
                               }}
                               className="ix-input text-sm flex-1 min-w-[160px]"
                             >
