@@ -94,7 +94,7 @@ describe('buildShiftReportHtml (partial config)', () => {
     const html = buildShiftReportHtml({ name: 'City Gate' }, cfg, data);
 
     // Added roles must appear
-    expect(html).toContain('مدير الامن');
+    expect(html).toContain('مدير الأمن');
     expect(html).toContain('مشرف أمن');
     expect(html).toContain('فرد أمن');
 
