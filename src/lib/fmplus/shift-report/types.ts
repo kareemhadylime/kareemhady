@@ -57,9 +57,8 @@ export interface RolePlanned {
 }
 
 export interface VerticalConfig {
-  enabled: boolean;
-  shifts:  ShiftKey[];
-  roles:   Record<string, RolePlanned>;
+  shifts: ShiftKey[];
+  roles:  Record<string, RolePlanned>;
 }
 
 export interface ShiftReportConfig {
@@ -76,14 +75,14 @@ export interface ShiftReportData {
   yesterday_night:   ShiftSectionData;
 }
 
-export function defaultVerticalConfig(): Record<VerticalKey, VerticalConfig> {
-  const out = {} as Record<VerticalKey, VerticalConfig>;
-  SR_VERTICALS.forEach((v) => {
-    const roles: Record<string, RolePlanned> = {};
-    v.roles.forEach((r) => { roles[r.key] = { morning: 0, night: 0 }; });
-    out[v.key] = { enabled: false, shifts: [], roles };
-  });
-  return out;
+/** Default for a fresh, unconfigured project — no verticals added yet. */
+export function defaultVerticalConfig(): Partial<Record<VerticalKey, VerticalConfig>> {
+  return {};
+}
+
+/** Factory for a newly-added vertical (used by the Settings tab add-vertical handler). */
+export function newVerticalConfig(): VerticalConfig {
+  return { shifts: [], roles: {} };
 }
 
 export function defaultReportData(): ShiftReportData {
