@@ -19,7 +19,8 @@ export type ProviderId =
   | 'meta_marketing'   // Phase H: Meta Marketing API (campaigns + insights)
   | 'meta_waba'        // Phase H/E: Meta WhatsApp Business Cloud API
   | 'google_ads'       // Phase H follow-up
-  | 'tiktok_ads'       // Phase H follow-up
+  | 'tiktok_ads'       // Phase H follow-up — Login Kit / Content Posting (developers.tiktok.com)
+  | 'tiktok_business'  // TikTok For Business / Marketing API (business-api.tiktok.com) — read-only ad reporting
   | 'scrapingbee';     // M.16: residential-proxy scraper for Amazon EG enrichment (replaces blocked web_fetch)
 
 export type CredentialSpec = {
@@ -364,14 +365,26 @@ export const CREDENTIAL_SPECS: Record<ProviderId, CredentialSpec> = {
   },
   tiktok_ads: {
     provider: 'tiktok_ads',
-    label: 'TikTok Marketing API',
-    description: 'Phase H follow-up. Requires TikTok For Business app review (~3-10 days).',
+    label: 'TikTok Login Kit (Content Posting)',
+    description: 'developers.tiktok.com app — used for organic publishing (video.publish, video.upload). Separate from the Marketing API provider below.',
+    helpUrl: 'https://developers.tiktok.com/apps',
+    fields: [
+      { key: 'app_id', label: 'Client key (App ID)', envVar: 'TIKTOK_APP_ID' },
+      { key: 'secret', label: 'Client secret', envVar: 'TIKTOK_APP_SECRET', type: 'password' },
+      { key: 'access_token', label: 'Long-lived access token (legacy)', envVar: 'TIKTOK_ACCESS_TOKEN', type: 'password' },
+      { key: 'advertiser_id', label: 'Advertiser ID (legacy)', envVar: 'TIKTOK_ADVERTISER_ID' },
+    ],
+  },
+  tiktok_business: {
+    provider: 'tiktok_business',
+    label: 'TikTok Marketing API (Business)',
+    description: 'business-api.tiktok.com app — read-only ad reporting. After pasting App ID + Secret, click "Authorize Marketing API" on /beithady/ads/tiktok/accounts to OAuth into an advertiser; access_token + advertiser_id below get filled automatically.',
     helpUrl: 'https://business-api.tiktok.com/portal/docs',
     fields: [
-      { key: 'app_id', label: 'App ID', envVar: 'TIKTOK_APP_ID' },
-      { key: 'secret', label: 'App secret', envVar: 'TIKTOK_APP_SECRET', type: 'password' },
-      { key: 'access_token', label: 'Long-lived access token', envVar: 'TIKTOK_ACCESS_TOKEN', type: 'password' },
-      { key: 'advertiser_id', label: 'Advertiser ID', envVar: 'TIKTOK_ADVERTISER_ID' },
+      { key: 'app_id', label: 'App ID', envVar: 'TIKTOK_BUSINESS_APP_ID' },
+      { key: 'secret', label: 'App secret', envVar: 'TIKTOK_BUSINESS_APP_SECRET', type: 'password' },
+      { key: 'access_token', label: 'Access token (auto-filled by OAuth)', envVar: 'TIKTOK_BUSINESS_ACCESS_TOKEN', type: 'password' },
+      { key: 'advertiser_id', label: 'Default advertiser ID (auto-filled by OAuth)', envVar: 'TIKTOK_BUSINESS_ADVERTISER_ID' },
     ],
   },
   scrapingbee: {

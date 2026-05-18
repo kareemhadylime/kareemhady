@@ -7,7 +7,7 @@ import {
   getEffectiveGoogleCustomerIds,
 } from '@/lib/beithady/ads/google-client';
 import {
-  loadTikTokAppCredentials, fetchTikTokIntegratedReport,
+  loadTikTokBusinessCredentials, fetchTikTokIntegratedReport,
 } from '@/lib/beithady/ads/tiktok-client';
 import {
   normalizeMetaGeoRows, normalizeGoogleGeoRows, normalizeTikTokGeoRows, upsertGeoRows,
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
           ...(anyOk ? {} : { error: errs.length ? errs.join(' | ').slice(0, 1500) : 'no_rows_any_customer' }),
         });
       } else if (c.platform === 'tiktok') {
-        const creds = await loadTikTokAppCredentials();
+        const creds = await loadTikTokBusinessCredentials();
         if (!creds.ok) { summary.push({ campaignId: c.id, platform: 'tiktok', ok: false, error: creds.error }); continue; }
         const advertiserId = acct.external_id;
         const ctx = { accountId: acct.id, campaignId: c.id, adSetId: null, platform: 'tiktok' as const };

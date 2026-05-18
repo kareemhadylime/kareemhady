@@ -1,7 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
-  loadTikTokAppCredentials,
+  loadTikTokBusinessCredentials,
   ttBizGet,
   ttBizPost,
   tikTokStatusToOurs,
@@ -24,7 +24,7 @@ export async function syncTikTokAds(accountId?: number): Promise<SyncResult> {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
 
-  const credsRes = await loadTikTokAppCredentials();
+  const credsRes = await loadTikTokBusinessCredentials();
   if (!credsRes.ok || !credsRes.creds.marketing_access_token) {
     await logSync(sb, startedAt, 0, [], 'error', 'missing_marketing_token');
     return { ok: false, platform: 'tiktok', job_name: JOB_NAME, rows_upserted: 0, leads_ingested: 0, duration_ms: Date.now() - t0, error: 'missing_marketing_token' };

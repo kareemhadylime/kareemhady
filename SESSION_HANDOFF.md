@@ -1,5 +1,113 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟡 2026-05-18 — TikTok ad-monitoring readiness audit (no code changes)
+
+User asked "Can you monitor TikTok ads on our app" after sharing a screenshot of TikTok Ads Manager showing campaign **BH-73** (Beithady Hospitality0605 advertiser) — Smart+ campaign, 2 ad groups (one Active, one *Review not approved*), 0 spend in the 2026-05-16 → 2026-05-18 window.
+
+**Answer:** Yes — full monitoring is already built (sync engine + daily cron + UI), but the **TikTok Business / Marketing API OAuth side is not connected**, so BH-73 cannot be pulled yet.
+
+**What's wired and ready:**
+- [src/lib/beithady/ads/tiktok-sync.ts](src/lib/beithady/ads/tiktok-sync.ts) — `syncTikTokAds()` pulls campaigns / ad groups / ads / 30-day metrics into `ads_campaigns` etc.
+- [src/app/api/cron/beithady-ads-tiktok-sync/route.ts](src/app/api/cron/beithady-ads-tiktok-sync/route.ts) — Cairo-9-AM daily cron, `?force=1&secret=...` to trigger manually
+- UI pages: `/beithady/ads/campaigns` (with auto-status reconcile for Meta only), `/beithady/ads/campaigns/[id]`, `/beithady/ads/performance`, `/beithady/ads/audience`, `/beithady/ads/tiktok/accounts`
+
+**What's missing (verified via Supabase MCP on `bpjproljatbrbmszwbov`):**
+
+`ads_accounts.id=4` ("Beithady Tiktok", status=active):
+- `tiktok_advertiser_id` = **NULL** → [tiktok-sync.ts:49](src/lib/beithady/ads/tiktok-sync.ts:49) skips with `no_advertiser_id`
+- `tiktok_bc_id` = NULL, `tiktok_username` = NULL
+- `tiktok_open_id` ✅, `tiktok_refresh_token` ✅ (valid until 2027-05-14) — but this is the **Login Kit / creator** OAuth used by the organic publish flow, not the Business OAuth
+
+`integration_credentials.provider='tiktok_ads'`:
+- `app_id` ✅, `secret` ✅, `enabled` = true
+- `access_token` (Marketing API) = **empty**
+- `advertiser_id` (default) = NULL
+- `last_test_status = ok` but note literally says *"no access token yet — complete OAuth to enable posting"*
+
+**Two paths offered to user (awaiting decision):**
+
+1. **Proper fix** — finish the TikTok for Business OAuth (separate TikTok app + Marketing API scopes). No `/api/auth/tiktok-business/*` route exists yet; the sync was scaffolded but the Business-side OAuth was never built.
+2. **Quick fix (read-only)** — if user can generate a long-lived Marketing API token from Ads Manager → Tools → Developer, I'd paste it into `integration_credentials.config.access_token` and set `ads_accounts.id=4.tiktok_advertiser_id` to BH-73's advertiser ID (from the URL bar in Ads Manager, the number after `aadvid=`).
+
+**State:** ⏸️ Awaiting user choice between option 1 (build Business OAuth) and option 2 (paste a Marketing API token + advertiser ID). No code changes this turn — investigation + DB inspection only.
+
+**Follow-up exchange same session:**
+
+- User clarified: "we have created a tiktok business app before and linked it??" — verified the app credentials (`app_id` + `secret` for `tiktok_ads` provider) ARE saved in `integration_credentials`, but it's only half-done. The OAuth handshake itself uses Login Kit scopes (`user.info.basic,video.publish,video.upload` against `tiktok.com/v2/auth/authorize/` — see [/api/auth/tiktok/start/route.ts](src/app/api/auth/tiktok/start/route.ts:20)), NOT the Marketing API (`business-api.tiktok.com/portal/auth` with `ads.read`, `report.read`). So app keys exist but the access_token + advertiser_id are empty.
+- User then revealed the **Business app review was rejected** — TikTok said it violates their guidelines. They already built manual posting/ads flows; now they want a read-only monitoring path.
+- Discussed sandbox: ruled out (sandbox = synthetic test data only, cannot read real BH-73).
+- Offered: (1) re-apply with read-only-scopes-only app, (2) appeal the rejection, (3) XLSX import as today-ship fallback.
+- User picked option 2 (appeal). Asked where to find the rejection text. Pointed them to `business-api.tiktok.com/portal/` → My Apps (separate from Business Center where they were screenshotting). Also offered XLSX import as an immediate workaround if appeal fails.
+
+**State after follow-up:** ⏸️ Waiting on user to dig up the rejection text/screenshot from the Marketing API developer portal so we can draft the appeal. XLSX import (~1-2h build) remains the ready-to-ship fallback if/when they want to monitor BH-73 without API access.
+
+**Second follow-up — actually a fresh-start path opened up:**
+
+- User screenshotted `business-api.tiktok.com/portal/` developer registration wizard (Step 1: Business Information, empty profile, no apps listed in "My Apps"). They asked "why don't I have any apps, I created one before??"
+- **Realized:** the two TikTok developer portals are SEPARATE registrations. `developers.tiktok.com` (Login Kit / Content Posting) ≠ `business-api.tiktok.com/portal/` (Marketing API). The rejected app was the Login Kit one — that rejection is irrelevant to Marketing API.
+- The `app_id` + `secret` stored in `integration_credentials.tiktok_ads` are almost certainly Login Kit keys (matches the OAuth scopes in [/api/auth/tiktok/start/route.ts](src/app/api/auth/tiktok/start/route.ts) — `user.info.basic,video.publish,video.upload`). They happen to be filed under `tiktok_ads` provider but they're not Marketing-API-grade.
+- **This is good news:** Marketing API path is untouched, no prior baggage, can do a fresh narrow-scope read-only application.
+- User walked through registration wizard; got to final step (Egypt / Travel / "Campaign Management" + "Creative Management" + something selected as primary use cases / blank description box).
+- Flagged the use-case picks: "Campaign Management" + "Creative Management" imply write permissions and will hurt review. Recommended swapping for read-only options like "Reporting & Insights" / "Reporting & Analytics" / "Performance Measurement".
+- Provided paste-ready ~200-word description copy: factual, narrow, explicit about read-only reporting on own advertiser account only, no third-party usage, no writes, no posting. Mentions endpoints (`/report/integrated/get/`), advertiser ID placeholder (`1865472183792785` from BH-73 URL bar — user should verify).
+- Told user: after dev registration approval, "My Apps" will be available → that's where the actual app gets created with `report.read` + `ads.read` scopes. We'll need to build a new OAuth route `/api/auth/tiktok-business/*` (different from the existing Login Kit `/api/auth/tiktok/*`).
+
+**State after second follow-up:** ⏸️ User is filling out developer registration. Next user action: fix use-case picks → paste description → submit. After developer-portal approval, app creation step is the next checkpoint where we'll need to:
+1. Build `/api/auth/tiktok-business/start` + `/callback` routes against `business-api.tiktok.com/portal/auth` with read-only scopes
+2. Add a separate `tiktok_business` provider (or extend `tiktok_ads`) for Marketing API credentials so we don't collide with the Login Kit keys
+3. Set `ads_accounts.id=4.tiktok_advertiser_id` post-OAuth and let the existing `syncTikTokAds()` work as designed
+
+**Third follow-up — dev profile submitted, user reached "Create New App" form:**
+
+- Developer profile is **under review** (~3 days per the TikTok popup). User can build the app skeleton in parallel.
+- Walked user through the "Create New App" modal — App name + 500-char description (provided 478-char paste-ready copy emphasizing read-only / own-advertiser / single-tenant / no writes) + Advertiser redirect URL (`https://limeinc.vercel.app/api/auth/tiktok-business/callback`, route to be built later, just needs to match).
+- **Scope picks — critical:** told user to expand each category with ▶ and check ONLY individual `/get/` endpoints, never the parent category. Recommended scopes:
+  - **Ad Account Management:** `/advertiser/info/`, `/oauth2/advertiser/get/`
+  - **Ads Management:** only `/campaign/get/`, `/adgroup/get/`, `/ad/get/` (plus any other `/*/get/` like `/ad/aco/get/`, `/creative/portfolio/get/`). Explicitly NO writes (no `/create/`, `/update/`, `/delete/`, `/status/update/`).
+  - **Reporting:** `/report/integrated/get/`, `/report/task/create/`, `/report/task/check/`, `/report/task/download/` (Reporting is read-only by design).
+  - Everything else (Audience, Creative, Pixel, DPA, Reach&Frequency, Lead, TCM, TikTok Creator, Ad Comments, Business Plugin, Automated Rules, TikTok Accounts, Onsite Commerce, Offline Events, Ad Diagnosis, Mentions, CRM, Business Recommendation, CTX Events, Brand Safety, Partner Insights, Payment Portfolio) — **leave unchecked**.
+
+**Fourth follow-up — user can't find the right scope targets:**
+
+- User screenshotted the "View App" scope picker scrolled further down (showing Pixel Management through Minis Management) and said "we don't find the right targets."
+- Likely means: the previously recommended endpoints (`/campaign/get/`, `/adgroup/get/`, `/ad/get/`, `/report/integrated/get/`, etc.) aren't visible from this scroll position because those live under **Reporting** and **Ads Management** at the top of the list, not in the lower categories shown in this screenshot.
+- Model-suggester hook fired suggesting `/model sonnet` for this lightweight follow-up. Followed the hook instructions: output only the two suggester lines and stopped. Awaiting user "continue" or model switch.
+- **Next response (when user resumes):** tell them to scroll back to the TOP of the scope list and expand **Reporting** + **Ads Management** + **Ad Account Management** — those are where the read endpoints live. If still missing, share a screenshot of the expanded Reporting / Ads Management sections.
+
+**Fifth follow-up — user replied "continue", clarified scope-picker UX:**
+
+- Explained the interaction model: the right-side endpoint panel reflects whichever left-column category is currently *highlighted* (gray-background row). In their earlier screenshot "Ad Diagnosis" was highlighted, hence the Business Center / Diagnosis endpoints on the right — not what we want.
+- Action: scroll left-column to top → click **Ad Account Management** row → tick `/advertiser/info/` + `/oauth2/advertiser/get/` in right column → click **Ads Management** → tick `/campaign/get/`, `/adgroup/get/`, `/ad/get/` → click **Reporting** → tick `/report/integrated/get/`, `/report/task/create/`, `/report/task/check/`, `/report/task/download/`.
+- Reiterated: don't tick the parent-category checkbox; only individual endpoints in the right panel.
+- Offered to verify endpoint names against TikTok v1.3 if they don't match what's visible — TikTok occasionally renames endpoints.
+
+**Sixth follow-up — APP APPROVED (much faster than expected):**
+
+- User screenshotted the "My Apps" page showing **Beithady Operations Dashboard** with:
+  - App ID: `7641164776478867457`
+  - Verification Status: ● **Approved**
+  - Online toggle enabled
+  - Secret masked as `1a7••••••f17`
+- Approval was nearly instant (~minutes), not the 3-day estimate from the TikTok popup. Either the narrow read-only scope picks made it auto-approvable, or the dev profile and app reviews were merged.
+- Laid out the implementation plan in 4 phases (~2h total):
+  1. **Backend plumbing** — add `tiktok_business` provider to [src/lib/credentials.ts](src/lib/credentials.ts) (separate from existing `tiktok_ads` Login Kit row) + surface in [/admin/integrations](src/app/admin/integrations/page.tsx).
+  2. **OAuth flow** — build `/api/auth/tiktok-business/start/route.ts` (redirect to `https://business-api.tiktok.com/portal/auth`) + `/api/auth/tiktok-business/callback/route.ts` (token exchange → fetch advertisers via `/oauth2/advertiser/get/` → let user pick BH-73 → store `access_token` + `tiktok_advertiser_id`).
+  3. **Wire sync** — patch [src/lib/beithady/ads/tiktok-sync.ts](src/lib/beithady/ads/tiktok-sync.ts) `loadTikTokAppCredentials()` to read from `tiktok_business` instead of `tiktok_ads` (one-line change).
+  4. **Connect button** — add "Authorize Marketing API" button to [/beithady/ads/tiktok/accounts](src/app/beithady/ads/tiktok/accounts/page.tsx) targeting `/api/auth/tiktok-business/start?account_id=4`.
+- After deploy, user pastes App ID + Secret in `/admin/integrations` (avoids secret in chat), clicks Authorize, picks BH-73, then `?force=1&secret=$CRON_SECRET` triggers a sync.
+- **Asked user for go-ahead** to build all 4 steps now. Waiting on approval.
+
+**Final state of this session:** ⏸️ App approved on TikTok side. Awaiting user's "go ahead" before building the OAuth flow + sync integration (estimated ~2h, ships to main).
+
+**Final state of this session:** ⏸️ User to submit app with the narrow scope picks → wait ~3 days for both dev-profile and app review → return with App ID + App Secret. Then implementation work resumes:
+1. Build `/api/auth/tiktok-business/start` + `/callback` against `business-api.tiktok.com`
+2. Add `tiktok_business` provider in [src/lib/credentials.ts](src/lib/credentials.ts) (separate from existing Login-Kit-flavored `tiktok_ads` row)
+3. New `ads_accounts` row OR overwrite id=4's `tiktok_advertiser_id` post-OAuth depending on whether we want to keep Login Kit + Marketing API on the same account row
+4. Existing `syncTikTokAds()` already does the right thing once the token + advertiser_id are present — no changes needed there
+5. XLSX import workaround remains available if 3-day review takes longer or fails
+
+---
+
 ## 🟢 2026-05-18 — `/handoff-push-all` ran cleanly — all repos closed for /clear
 
 **Commit:** `91d2ff35 docs: session handoff 2026-05-17/18 — TikTok publish/manual upload/Spark Ads + ad-flow fixes`

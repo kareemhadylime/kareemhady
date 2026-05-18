@@ -34,7 +34,7 @@ async function addTikTokAccountAction(formData: FormData): Promise<void> {
   redirect('/beithady/ads/tiktok/accounts?added=1');
 }
 
-export default async function TikTokAccountsPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; advertiser?: string; identity?: string; connected?: string }> }) {
+export default async function TikTokAccountsPage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; advertiser?: string; identity?: string; connected?: string; marketing_connected?: string }> }) {
   await requireBeithadyPermission('ads', 'full');
   const sp = await searchParams;
   const sb = supabaseAdmin();
@@ -44,6 +44,18 @@ export default async function TikTokAccountsPage({ searchParams }: { searchParam
     .eq('platform', 'tiktok')
     .order('id');
   const rows = (data as Array<{ id: number; name: string; external_id: string; tiktok_advertiser_id: string | null; tiktok_bc_id: string | null; tiktok_identity_id: string | null; tiktok_identity_type: string | null; tiktok_username: string | null; tiktok_refresh_token: string | null }> | null) || [];
+
+  // Marketing API (Business) credential status — surfaces whether the provider
+  // has app_id + secret + access_token so we can show a single connect button
+  // per row that knows what to do.
+  const { data: mcRow } = await sb
+    .from('integration_credentials')
+    .select('config, enabled')
+    .eq('provider', 'tiktok_business')
+    .maybeSingle();
+  const mcConfig = ((mcRow as { config?: Record<string, string> } | null)?.config) || {};
+  const marketingHasApp = !!mcConfig.app_id && !!mcConfig.secret;
+  const marketingHasToken = !!mcConfig.access_token;
 
   return (
     <BeithadyShell breadcrumbs={[{ label: 'Ads', href: '/beithady/ads' }, { label: 'Accounts', href: '/beithady/ads/accounts' }, { label: 'TikTok' }]} containerClass="max-w-5xl">
@@ -55,9 +67,9 @@ export default async function TikTokAccountsPage({ searchParams }: { searchParam
 
       <AdsTabs active="accounts" />
 
-      {(sp.added || sp.advertiser || sp.identity || sp.connected) && (
+      {(sp.added || sp.advertiser || sp.identity || sp.connected || sp.marketing_connected) && (
         <div className="ix-card border-emerald-200 bg-emerald-50 p-3 text-sm">
-          {sp.added && 'Account added.'} {sp.advertiser && 'Advertiser saved.'} {sp.identity && 'Identity saved.'} {sp.connected && `Connected ${sp.connected}.`}
+          {sp.added && 'Account added.'} {sp.advertiser && 'Advertiser saved.'} {sp.identity && 'Identity saved.'} {sp.connected && `Login Kit connected ${sp.connected}.`} {sp.marketing_connected && `Marketing API connected — ${sp.marketing_connected}.`}
         </div>
       )}
       {sp.error && <div className="ix-card border-rose-200 bg-rose-50 p-3 text-sm font-mono">{sp.error}</div>}
@@ -70,16 +82,24 @@ export default async function TikTokAccountsPage({ searchParams }: { searchParam
           <div className="space-y-4">
             {rows.map(r => (
               <div key={r.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="font-medium text-sm">{r.name} <span className="text-[10px] text-slate-400 font-mono ml-2">({r.external_id})</span></div>
-                    <div className="text-[10px] text-slate-500">
-                      OAuth: {r.tiktok_refresh_token ? <span className="text-emerald-600">connected{r.tiktok_username ? ` as @${r.tiktok_username}` : ''}</span> : <span className="text-amber-600">not connected</span>}
+                    <div className="text-[10px] text-slate-500 space-y-0.5 pt-1">
+                      <div>Login Kit (posting): {r.tiktok_refresh_token ? <span className="text-emerald-600">connected{r.tiktok_username ? ` as @${r.tiktok_username}` : ''}</span> : <span className="text-amber-600">not connected</span>}</div>
+                      <div>Marketing API (reporting): {marketingHasToken && r.tiktok_advertiser_id ? <span className="text-emerald-600">connected · advertiser {r.tiktok_advertiser_id}</span> : <span className="text-amber-600">{marketingHasApp ? 'app linked, OAuth pending' : 'app credentials missing — see /admin/integrations'}</span>}</div>
                     </div>
                   </div>
-                  {!r.tiktok_refresh_token && (
-                    <Link href={`/api/auth/tiktok/start?account_id=${r.id}`} className="ix-btn-primary text-xs">Connect OAuth</Link>
-                  )}
+                  <div className="flex flex-col gap-1.5 items-end">
+                    {!r.tiktok_refresh_token && (
+                      <Link href={`/api/auth/tiktok/start?account_id=${r.id}`} className="ix-btn-secondary text-xs">Connect Login Kit</Link>
+                    )}
+                    {marketingHasApp && (
+                      <Link href={`/api/auth/tiktok-business/start?account_id=${r.id}`} className="ix-btn-primary text-xs">
+                        {marketingHasToken ? 'Re-authorize Marketing API' : 'Authorize Marketing API'}
+                      </Link>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
@@ -126,8 +146,11 @@ export default async function TikTokAccountsPage({ searchParams }: { searchParam
           </div>
         </form>
         <p className="text-[11px] text-slate-500">
-          App-level TikTok credentials (app_id, secret, marketing access token) live in
-          {' '}<Link className="ix-link" href="/admin/integrations">/admin/integrations</Link> (provider <code>tiktok_ads</code>).
+          App-level credentials live in <Link className="ix-link" href="/admin/integrations">/admin/integrations</Link>.
+          Two separate providers:
+          {' '}<code>tiktok_ads</code> (Login Kit / posting — developers.tiktok.com app)
+          {' and '}<code>tiktok_business</code> (Marketing API / read-only reporting — business-api.tiktok.com app).
+          Paste each app&apos;s App ID + Secret into the matching card, then come back here and click the Authorize button(s).
         </p>
       </section>
     </BeithadyShell>

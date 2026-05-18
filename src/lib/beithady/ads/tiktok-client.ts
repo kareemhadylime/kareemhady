@@ -51,6 +51,112 @@ export async function loadTikTokAppCredentials(): Promise<
   return { ok: true, creds: { app_id, secret, marketing_access_token, default_advertiser_id } };
 }
 
+// Marketing API credentials live under a separate provider (`tiktok_business`)
+// so they don't collide with the Login Kit app keys in `tiktok_ads`. The two
+// TikTok developer portals — developers.tiktok.com (Login Kit) and
+// business-api.tiktok.com (Marketing API) — issue independent app_id/secret
+// pairs even for the same TikTok account.
+export async function loadTikTokBusinessCredentials(): Promise<
+  | { ok: true; creds: TikTokAppCredentials }
+  | { ok: false; error: string; missing: string[] }
+> {
+  const enabled = await getProviderEnabled('tiktok_business');
+  if (!enabled) return { ok: false, error: 'tiktok_business_disabled', missing: [] };
+  const [app_id, secret, marketing_access_token, default_advertiser_id] = await Promise.all([
+    getCredential('tiktok_business', 'app_id'),
+    getCredential('tiktok_business', 'secret'),
+    getCredential('tiktok_business', 'access_token'),
+    getCredential('tiktok_business', 'advertiser_id'),
+  ]);
+  const missing = [
+    !app_id && 'app_id',
+    !secret && 'secret',
+  ].filter((x): x is string => !!x);
+  if (missing.length) return { ok: false, error: 'missing_credentials', missing };
+  return { ok: true, creds: { app_id, secret, marketing_access_token, default_advertiser_id } };
+}
+
+// Exchange a Marketing API auth_code for a long-lived access_token + the list
+// of advertiser_ids the user authorized. Different endpoint + payload shape
+// than the Login Kit oauth/token flow. Marketing API tokens are valid ~1 year
+// and do not need refresh.
+export async function exchangeTikTokBusinessAuthCode(
+  authCode: string
+): Promise<
+  | {
+      ok: true;
+      access_token: string;
+      advertiser_ids: string[];
+      scope: number[];
+    }
+  | { ok: false; error: string; raw?: unknown }
+> {
+  const credsRes = await loadTikTokBusinessCredentials();
+  if (!credsRes.ok) return { ok: false, error: credsRes.error };
+  try {
+    const r = await fetch(`${TT_BIZ_BASE}/oauth2/access_token/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        app_id: credsRes.creds.app_id,
+        secret: credsRes.creds.secret,
+        auth_code: authCode,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    const code = j.code as number | undefined;
+    if (!r.ok || (code !== 0 && code !== undefined)) {
+      return { ok: false, error: 'business_oauth_exchange_failed', raw: j };
+    }
+    const data = (j.data || {}) as { access_token?: string; advertiser_ids?: string[]; scope?: number[] };
+    const access = String(data.access_token || '');
+    if (!access) return { ok: false, error: 'missing_access_token', raw: j };
+    return {
+      ok: true,
+      access_token: access,
+      advertiser_ids: data.advertiser_ids || [],
+      scope: data.scope || [],
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+// Fetch the advertisers visible to a Marketing API access_token. Used to
+// resolve human-readable names + currency after OAuth so the picker UI can
+// show "Beithady Hospitality0605 (EGP)" instead of a bare numeric ID.
+export async function fetchTikTokAdvertisers(
+  accessToken: string,
+  advertiserIds: string[]
+): Promise<{ ok: true; list: Array<{ advertiser_id: string; advertiser_name: string; currency: string }> } | { ok: false; error: string; raw?: unknown }> {
+  if (!advertiserIds.length) return { ok: true, list: [] };
+  try {
+    const credsRes = await loadTikTokBusinessCredentials();
+    if (!credsRes.ok) return { ok: false, error: credsRes.error };
+    const qs = new URLSearchParams({
+      app_id: credsRes.creds.app_id,
+      secret: credsRes.creds.secret,
+    }).toString();
+    const r = await fetch(`${TT_BIZ_BASE}/oauth2/advertiser/get/?${qs}`, {
+      method: 'GET',
+      headers: { 'Access-Token': accessToken },
+      signal: AbortSignal.timeout(30_000),
+    });
+    const j = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    const code = j.code as number | undefined;
+    if (!r.ok || (code !== 0 && code !== undefined)) return { ok: false, error: 'advertiser_get_failed', raw: j };
+    const list = ((j.data as { list?: Array<{ advertiser_id?: string; advertiser_name?: string; currency?: string }> } | undefined)?.list || []).map(a => ({
+      advertiser_id: String(a.advertiser_id || ''),
+      advertiser_name: String(a.advertiser_name || ''),
+      currency: String(a.currency || ''),
+    }));
+    return { ok: true, list };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // Refresh a per-account TikTok access token (organic Content Posting API).
 // Rotates the stored refresh token + expiry on success.
 export async function refreshTikTokAccessToken(
