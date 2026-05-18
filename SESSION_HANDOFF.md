@@ -1,5 +1,44 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟡 2026-05-18 — Shift Reports: per-project add/remove verticals & roles (spec written, awaiting user review)
+
+User opened FMPLUS / Shift Reports / City Gate Settings and asked two things on the screenshot:
+1. "Need the option to delete what's not applicable from these functions" — referring to the vertical/role cards (Security, Cleanliness, …)
+2. "Need Option to Edit Project Owner or Is it reading from Budgets ??"
+
+**Explored code (no edits):**
+- [src/lib/fmplus/shift-report/types.ts:23](src/lib/fmplus/shift-report/types.ts:23) — `SR_VERTICALS` is a fixed const: 4 verticals (security/cleaning/pest_control/landscape) each with a fixed role list. Per-project config only `enabled` / `shifts` / planned headcount — no delete primitive existed.
+- [shift-report-module.tsx:339](src/app/fmplus/shift-report/[contractId]/_components/shift-report-module.tsx:339) — Settings tab renders all 4 verticals as cards regardless of state; "تفعيل" toggle gates roles.
+- [shift-report/\[contractId\]/page.tsx:23-27, 55](src/app/fmplus/shift-report/[contractId]/page.tsx:23) — header reads `project_contracts.name` + `customer` (uppercased → "SODIC"). **Same row as Budgets/Project Hub.** Editable at `/fmplus/financial/budget/projects/[contractId]` via `edit-contract-form.tsx`.
+
+**Q2 (Project Owner) resolved:** reads from `project_contracts.customer`, shared single source of truth with Budgets/Project Hub. Recommended keeping single editor in Project Hub (not duplicating one in Shift Reports). User accepted. Out of scope for this spec.
+
+**Q1 (delete scope) iterated through three framings:**
+1. First clarification: "Hide zero inputs roles" → auto-filter design proposed (Daily Report only).
+2. User then asked: "Make it more universal — `+` to add a role from dropdown, `×` at row end to delete" → pivoted to explicit add/remove model. **Replaces** the hide-zero auto-rule.
+3. User confirmed yes to extending the same `+ / ×` pattern up to **verticals** themselves, retiring the legacy "تفعيل" toggle. Presence in `config.verticals` = added.
+
+**Spec written + committed:** [docs/superpowers/specs/2026-05-18-shift-report-add-remove-roles-design.md](docs/superpowers/specs/2026-05-18-shift-report-add-remove-roles-design.md) (commit [15c63c61](https://github.com/kareemhadylime/kareemhady/commit/15c63c61), pushed to main).
+
+Highlights:
+- No DB migration. `fmplus_shift_report_configs.verticals` JSONB already accommodates partial shapes — drop `enabled` from `VerticalConfig` type, treat key presence as added, old configs auto-clean on next save.
+- Settings: `+ إضافة خدمة` picker at top + `×` per vertical card; `+ إضافة دور` picker inside each card + `×` per role row. Native `<select>` for the pickers (RTL-safe, a11y).
+- Daily Report: iterate `Object.keys(vc.roles)` (canonical order), drop empty verticals.
+- Renderer (`computeShiftTotals` / `buildShiftWAMessage` / `buildShiftReportHtml`): iterate config keys only — WhatsApp summary + HTML report match on-screen rows.
+- Orphan handling: in-session typed counts for removed roles are silently dropped on submit. Intentional, no warning.
+
+**Files to touch (4):**
+1. `src/lib/fmplus/shift-report/types.ts` — drop `enabled`, add `newVerticalConfig()`.
+2. `src/app/fmplus/shift-report/[contractId]/_components/shift-report-module.tsx` — handlers + UI for both pickers and removal.
+3. `src/lib/fmplus/shift-report/render.ts` — iterate config keys.
+4. `src/lib/fmplus/shift-report/render.test.ts` (new Vitest) — coverage of partial-config rendering.
+
+**Where we stopped:** user prompted to review the committed spec before I hand off to `writing-plans`. Awaiting their feedback / approval. Once approved, next step is invoking the `writing-plans` skill to produce the implementation plan, then `executing-plans` for the actual code changes.
+
+No code/runtime changes shipped this session — only the spec doc.
+
+---
+
 ## 🟢 2026-05-18 — TikTok Marketing API end-to-end: build, ship, configure
 
 - Diagnosed TikTok ad-monitoring gap: `integration_credentials.tiktok_ads` only had Login Kit keys; Marketing API and Login Kit are separate TikTok developer portals with independent app registrations
