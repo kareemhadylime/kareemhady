@@ -1,5 +1,23 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-18 — `/handoff-push-all` ran cleanly — all repos closed for /clear
+
+**Commit:** `91d2ff35 docs: session handoff 2026-05-17/18 — TikTok publish/manual upload/Spark Ads + ad-flow fixes`
+
+Ran the handoff workflow. Only kareemhady had uncommitted changes (SESSION_HANDOFF.md update); fmplus-beta / voltauto-pricing / etsy / voltauto-website all clean. No worktree rebase needed (working from main checkout). No explicit `vercel --prod` needed — docs-only commit, GitHub→Vercel auto-handles. Session code shipped earlier in the turn; `app.limeinc.cc` was aliased to `lime-hhl1zuii4` during the build.
+
+**Headline ships this session:**
+- New TikTok publish page `/tiktok/publish` with YouTube + IG Reels + IG Stories pickers + cross-post landing (`42c9fd9d`)
+- Path 4 manual upload helper (`d91309c0`) + 3 bugfixes (signed-URL refresh, Content-Disposition, popup blocker)
+- TikTok Spark Ads — promote existing organic posts via Marketing API (`02135442`)
+- IG feed posts (image / carousel / video) + FB cross-post + organic insights page + gallery picker + AI caption composer (`454bd9a2`, `0d61f4e8`, `d7b5cc05`)
+- Meta CTWA per-country ad-set split (`725cf334`)
+- 4 misc fixes: Boost IG age-cap, PMax field rename, IG Stories picker, AI caption draft-mode
+
+**State:** ✅ All deployed. ✅ Safe to /clear. No pending decisions.
+
+---
+
 ## 🔵 2026-05-18 — TikTok ad-group rejection appeal text drafted
 
 User screenshotted the **Ad group appeal** dialog inside TikTok Ads Manager (Beithady Hospitality0605 account) and asked for appeal copy clarifying that Beithady is **not a real estate company** — it's a short-stay property management operator running homestays in Egypt + UAE, targeting Saudi as an outbound-tourist source market.
