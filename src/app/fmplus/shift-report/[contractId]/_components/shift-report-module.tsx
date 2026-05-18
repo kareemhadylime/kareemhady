@@ -7,6 +7,7 @@ import {
   AR_DAYS,
   defaultReportData,
   formatDate,
+  newVerticalConfig,
   type ShiftReportConfig,
   type ShiftReportData,
   type SectionKey,
@@ -31,7 +32,7 @@ interface Props {
 }
 
 export function ShiftReportModule({ contractId, projectName, initialConfig, initialHistory }: Props) {
-  const hasConfig = Object.values(initialConfig.verticals ?? {}).some((v) => v?.enabled);
+  const hasConfig = Object.keys(initialConfig.verticals ?? {}).length > 0;
 
   const [tab, setTab]         = useState<TabKey>(hasConfig ? 'report' : 'config');
   const [config, setConfig]   = useState<ShiftReportConfig>(initialConfig);
@@ -60,7 +61,7 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
     const v = Math.max(0, parseInt(raw, 10) || 0);
     setConfig((prev) => {
       const verticals = { ...(prev.verticals ?? {}) };
-      const vc: VerticalConfig = verticals[vert] ?? { enabled: false, shifts: [], roles: {} };
+      const vc: VerticalConfig = verticals[vert] ?? { shifts: [], roles: {} };
       verticals[vert] = {
         ...vc,
         roles: { ...vc.roles, [role]: { ...vc.roles[role], [shiftKey]: v } },
@@ -69,11 +70,46 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
     });
   }
 
-  function toggleVertical(vert: VerticalKey) {
+  function addVertical(vert: VerticalKey) {
+    setConfig((prev) => {
+      if (prev.verticals?.[vert]) return prev;
+      return {
+        ...prev,
+        verticals: { ...(prev.verticals ?? {}), [vert]: newVerticalConfig() },
+      };
+    });
+  }
+
+  function removeVertical(vert: VerticalKey) {
+    setConfig((prev) => {
+      const next = { ...(prev.verticals ?? {}) };
+      delete next[vert];
+      return { ...prev, verticals: next };
+    });
+  }
+
+  function addRole(vert: VerticalKey, roleKey: string) {
     setConfig((prev) => {
       const verticals = { ...(prev.verticals ?? {}) };
-      const vc: VerticalConfig = verticals[vert] ?? { enabled: false, shifts: [], roles: {} };
-      verticals[vert] = { ...vc, enabled: !vc.enabled };
+      const vc = verticals[vert];
+      if (!vc) return prev;
+      if (roleKey in vc.roles) return prev;
+      verticals[vert] = {
+        ...vc,
+        roles: { ...vc.roles, [roleKey]: { morning: 0, night: 0 } },
+      };
+      return { ...prev, verticals };
+    });
+  }
+
+  function removeRole(vert: VerticalKey, roleKey: string) {
+    setConfig((prev) => {
+      const verticals = { ...(prev.verticals ?? {}) };
+      const vc = verticals[vert];
+      if (!vc) return prev;
+      const nextRoles = { ...vc.roles };
+      delete nextRoles[roleKey];
+      verticals[vert] = { ...vc, roles: nextRoles };
       return { ...prev, verticals };
     });
   }
@@ -81,7 +117,7 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
   function toggleShift(vert: VerticalKey, shiftKey: ShiftKey) {
     setConfig((prev) => {
       const verticals = { ...(prev.verticals ?? {}) };
-      const vc: VerticalConfig = verticals[vert] ?? { enabled: false, shifts: [], roles: {} };
+      const vc: VerticalConfig = verticals[vert] ?? { shifts: [], roles: {} };
       const has = vc.shifts.includes(shiftKey);
       verticals[vert] = { ...vc, shifts: has ? vc.shifts.filter((s) => s !== shiftKey) : [...vc.shifts, shiftKey] };
       return { ...prev, verticals };
@@ -335,71 +371,89 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
               </div>
             </div>
 
-            {/* Verticals */}
-            {SR_VERTICALS.map((v) => {
-              const vc = config.verticals[v.key] ?? { enabled: false, shifts: [], roles: {} };
-              return (
-                <div
-                  key={v.key}
-                  className={
-                    'ix-card p-4 ' +
-                    (vc.enabled ? 'border-fmplus-gold/50 dark:border-fmplus-yellow/50' : '')
-                  }
+            {/* Vertical picker — visible while there are still unadded verticals */}
+            {SR_VERTICALS.some((v) => !((config.verticals ?? {})[v.key])) && (
+              <div className="ix-card p-3 flex items-center gap-3 flex-wrap">
+                <span className="text-xs font-semibold text-fmplus-gold dark:text-fmplus-yellow">
+                  + إضافة خدمة
+                </span>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const val = e.target.value as VerticalKey | '';
+                    if (val) addVertical(val);
+                    e.currentTarget.selectedIndex = 0;
+                  }}
+                  className="ix-input text-sm flex-1 min-w-[160px]"
                 >
-                  <div className="flex justify-between items-center mb-3">
-                    <span className={
-                      'text-sm font-bold ' +
-                      (vc.enabled ? 'text-fmplus-gold dark:text-fmplus-yellow' : 'text-slate-700 dark:text-slate-300')
-                    }>
-                      {v.icon} {v.nameAr}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => toggleVertical(v.key)}
-                      className={
-                        'text-xs font-bold px-3 py-1 rounded border transition ' +
-                        (vc.enabled
-                          ? 'bg-fmplus-yellow/20 border-fmplus-gold text-fmplus-gold'
-                          : 'border-slate-300 dark:border-slate-600 text-slate-500 hover:border-slate-400')
-                      }
-                    >
-                      {vc.enabled ? '✓ مفعّل' : 'تفعيل'}
-                    </button>
-                  </div>
+                  <option value="" disabled>اختر خدمة…</option>
+                  {SR_VERTICALS
+                    .filter((v) => !((config.verticals ?? {})[v.key]))
+                    .map((v) => (
+                      <option key={v.key} value={v.key}>{v.icon} {v.nameAr}</option>
+                    ))}
+                </select>
+              </div>
+            )}
 
-                  {vc.enabled && (
-                    <>
-                      {/* Shift toggles */}
-                      <div className="flex gap-2 mb-3">
-                        {(['morning', 'night'] as ShiftKey[]).map((sk) => {
-                          const ar = sk === 'morning' ? 'الصباحية' : 'المسائية';
-                          const active = vc.shifts.includes(sk);
-                          return (
-                            <button
-                              key={sk}
-                              type="button"
-                              onClick={() => toggleShift(v.key, sk)}
-                              className={
-                                'text-xs font-medium px-3 py-1 rounded border transition ' +
-                                (active
-                                  ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-400 text-indigo-700 dark:text-indigo-300 font-bold'
-                                  : 'border-slate-300 dark:border-slate-600 text-slate-500 hover:border-slate-400')
-                              }
-                            >
-                              {sk === 'morning' ? '🌅' : '🌙'} {ar}
-                            </button>
-                          );
-                        })}
-                      </div>
+            {/* Vertical cards (canonical order) */}
+            {SR_VERTICALS
+              .filter((v) => (config.verticals ?? {})[v.key])
+              .map((v) => {
+                const vc = (config.verticals ?? {})[v.key] as VerticalConfig;
+                const unaddedRoles = v.roles.filter((r) => !(r.key in vc.roles));
+                return (
+                  <div
+                    key={v.key}
+                    className="ix-card p-4 border-fmplus-gold/50 dark:border-fmplus-yellow/50"
+                  >
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-sm font-bold text-fmplus-gold dark:text-fmplus-yellow">
+                        {v.icon} {v.nameAr}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeVertical(v.key)}
+                        aria-label={`حذف ${v.nameAr}`}
+                        className="text-base leading-none px-2 py-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                      >
+                        ×
+                      </button>
+                    </div>
 
-                      {/* Planned headcount per role */}
-                      {vc.shifts.length > 0 && (
-                        <div>
-                          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-                            الأعداد التعاقدية (مخطط):
-                          </div>
-                          <div className="space-y-1">
-                            {v.roles.map((role) => {
+                    {/* Shift toggles */}
+                    <div className="flex gap-2 mb-3">
+                      {(['morning', 'night'] as ShiftKey[]).map((sk) => {
+                        const ar = sk === 'morning' ? 'الصباحية' : 'المسائية';
+                        const active = vc.shifts.includes(sk);
+                        return (
+                          <button
+                            key={sk}
+                            type="button"
+                            onClick={() => toggleShift(v.key, sk)}
+                            className={
+                              'text-xs font-medium px-3 py-1 rounded border transition ' +
+                              (active
+                                ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-400 text-indigo-700 dark:text-indigo-300 font-bold'
+                                : 'border-slate-300 dark:border-slate-600 text-slate-500 hover:border-slate-400')
+                            }
+                          >
+                            {sk === 'morning' ? '🌅' : '🌙'} {ar}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Roles section (only when at least one shift is selected) */}
+                    {vc.shifts.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
+                          الأعداد التعاقدية (مخطط):
+                        </div>
+                        <div className="space-y-1">
+                          {v.roles
+                            .filter((role) => role.key in vc.roles)
+                            .map((role) => {
                               const rVals = vc.roles[role.key] ?? {};
                               return (
                                 <div
@@ -433,17 +487,46 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
                                       />
                                     </div>
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeRole(v.key, role.key)}
+                                    aria-label={`حذف ${role.labelAr}`}
+                                    className="text-base leading-none px-2 py-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                                  >
+                                    ×
+                                  </button>
                                 </div>
                               );
                             })}
-                          </div>
                         </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })}
+
+                        {/* Role picker — only when there are still unadded roles for this vertical */}
+                        {unaddedRoles.length > 0 && (
+                          <div className="mt-3 flex items-center gap-3 flex-wrap">
+                            <span className="text-xs font-semibold text-fmplus-gold dark:text-fmplus-yellow">
+                              + إضافة دور
+                            </span>
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) addRole(v.key, val);
+                                e.currentTarget.selectedIndex = 0;
+                              }}
+                              className="ix-input text-sm flex-1 min-w-[160px]"
+                            >
+                              <option value="" disabled>اختر دور…</option>
+                              {unaddedRoles.map((r) => (
+                                <option key={r.key} value={r.key}>{r.labelAr}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
             <button
               onClick={handleSaveConfig}
@@ -480,7 +563,9 @@ function ShiftSection({ title, emoji, dayLabel, dateLabel, section, shiftKey, to
   const vcfg = config.verticals ?? {};
   const activeVerts = SR_VERTICALS.filter((v) => {
     const vc = vcfg[v.key];
-    return vc?.enabled && vc.shifts.includes(shiftKey);
+    return vc
+      && vc.shifts.includes(shiftKey)
+      && Object.keys(vc.roles).length > 0;
   });
 
   const toneClass = tone === 'gold'
@@ -511,25 +596,27 @@ function ShiftSection({ title, emoji, dayLabel, dateLabel, section, shiftKey, to
               <div className="text-xs font-bold text-fmplus-gold dark:text-fmplus-yellow mb-1 pb-1 border-b border-slate-200 dark:border-slate-700">
                 {v.icon} {v.nameAr}
               </div>
-              {v.roles.map((role) => {
-                const planned = vc.roles[role.key]?.[shiftKey] ?? 0;
-                return (
-                  <div
-                    key={role.key}
-                    className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800 last:border-b-0"
-                  >
-                    <span className="text-sm text-slate-700 dark:text-slate-300 flex-1">{role.labelAr}</span>
-                    <span className="text-[10px] text-slate-500 mx-2">(مخطط: {planned})</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={sData[role.key] ?? 0}
-                      onChange={(e) => onChange(section, v.key, role.key, e.target.value)}
-                      className="ix-input w-16 text-sm text-center"
-                    />
-                  </div>
-                );
-              })}
+              {v.roles
+                .filter((role) => role.key in vc.roles)
+                .map((role) => {
+                  const planned = vc.roles[role.key]?.[shiftKey] ?? 0;
+                  return (
+                    <div
+                      key={role.key}
+                      className="flex items-center gap-2 py-1 border-b border-slate-100 dark:border-slate-800 last:border-b-0"
+                    >
+                      <span className="text-sm text-slate-700 dark:text-slate-300 flex-1">{role.labelAr}</span>
+                      <span className="text-[10px] text-slate-500 mx-2">(مخطط: {planned})</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={sData[role.key] ?? 0}
+                        onChange={(e) => onChange(section, v.key, role.key, e.target.value)}
+                        className="ix-input w-16 text-sm text-center"
+                      />
+                    </div>
+                  );
+                })}
             </div>
           );
         })
