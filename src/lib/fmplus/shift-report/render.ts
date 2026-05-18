@@ -32,10 +32,11 @@ export function computeShiftTotals(
   let planned = 0;
   SR_VERTICALS.forEach((v) => {
     const vc = vcfg[v.key];
-    if (!vc?.enabled) return;
+    if (!vc) return;
     if (!vc.shifts.includes(shiftKey)) return;
     const vData = shiftData[v.key] ?? {};
     v.roles.forEach((role) => {
+      if (!(role.key in vc.roles)) return;       // only added roles
       actual  += Number(vData[role.key]) || 0;
       planned += Number(vc.roles[role.key]?.[shiftKey]) || 0;
     });
@@ -130,10 +131,12 @@ export function buildShiftReportHtml(
     let rowsHtml = '';
     SR_VERTICALS.forEach((v) => {
       const vc = vcfg[v.key];
-      if (!vc?.enabled || !vc.shifts.includes(shiftKey)) return;
+      if (!vc || !vc.shifts.includes(shiftKey)) return;
+      const addedRoles = v.roles.filter((r) => r.key in vc.roles);
+      if (addedRoles.length === 0) return;
       const vData = shiftData[v.key] ?? {};
       let vActual = 0, vPlanned = 0;
-      v.roles.forEach((r) => {
+      addedRoles.forEach((r) => {
         vActual  += Number(vData[r.key]) || 0;
         vPlanned += Number(vc.roles[r.key]?.[shiftKey]) || 0;
       });
@@ -141,7 +144,7 @@ export function buildShiftReportHtml(
       rowsHtml += `<tr class="vh"><td colspan="4">${v.icon} ${escapeHtml(v.nameAr)}` +
         `  <span class="vtot">(الفعلي ${vActual} / التعاقدي ${vPlanned} = ` +
         `<span class="${pctClass(vPct)}">${vPct.toFixed(1)}%</span>)</span></td></tr>`;
-      v.roles.forEach((r) => {
+      addedRoles.forEach((r) => {
         const actual  = Number(vData[r.key]) || 0;
         const planned = Number(vc.roles[r.key]?.[shiftKey]) || 0;
         const rPct    = planned > 0 ? Math.round((actual / planned) * 1000) / 10 : (actual > 0 ? 100 : 0);
