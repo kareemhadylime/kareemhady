@@ -83,6 +83,7 @@ describe('computeShiftTotals (partial config)', () => {
     const t = computeShiftTotals(verticals, 'morning', data.today_morning);
     expect(t.planned).toBe(3);
     expect(t.actual).toBe(2);
+    expect(t.hasData).toBe(true);
   });
 });
 
@@ -124,11 +125,11 @@ describe('buildShiftWAMessage (partial config)', () => {
     const data = emptyReport();
     const msg  = buildShiftWAMessage({ name: 'City Gate' }, cfg, data);
 
-    // Today morning: planned 8, actual 7
-    expect(msg).toContain('الفعلي: *7*');
-    expect(msg).toContain('التعاقدي: *8*');
+    // Today morning: planned 8, actual 7. Combined assertions tie each
+    // number to its specific rendered line so a regression that swaps numbers
+    // across blocks would not pass.
+    expect(msg).toContain('الفعلي: *7*  /  التعاقدي: *8*');
     // Grand total: morning today (7/8) + morning yesterday (7/8) + night (0/0) = 14/16
-    expect(msg).toContain('الفعلي: *14*');
-    expect(msg).toContain('التعاقدي: *16*');
+    expect(msg).toContain('الفعلي: *14*  /  التعاقدي: *16*');
   });
 });
