@@ -7721,3 +7721,22 @@ Audited all 13 files that reference check_in_date/check_out_date. Found 3 missin
 3. gr-brief.ts (WhatsApp GR brief) — added grRenewedListings, renamed arrRaw/depRaw, filtered arr/dep before all counts + section lists
 Already correct: daily-activity-live.ts, daily-reservations/route.ts, activity-drawer.tsx
 tsc --noEmit: 0 errors. Pushed + Vercel deploy triggered.
+
+---
+## 2026-05-18 — Task 2/6: Shift Reports Renderer TDD (Green)
+
+**Shift Reports add/remove roles feature, Task 2 of 6:** Updated `render.ts` to iterate only added roles, removing the `enabled` gate.
+
+Changes:
+1. `computeShiftTotals`: replaced `if (!vc?.enabled)` with `if (!vc)` + added inner guard `if (!(role.key in vc.roles))` to only count roles present in config
+2. `buildShiftReportHtml` inner role loop: precomputed `addedRoles = v.roles.filter((r) => r.key in vc.roles)`, replaced all `v.roles` loops with `addedRoles`, added early-exit if no roles added (verticals with zero added roles now drop completely, no empty header row)
+
+Test results: All 6 tests passing (was 1/6 before Task 2).
+- `computeShiftTotals`: 3 tests green (only counts added roles, ignores shift gate, backward compat for old enabled:false)
+- `buildShiftReportHtml`: 2 tests green (renders only added roles, omits verticals not in config)
+- `buildShiftWAMessage`: 1 test green (totals match partial config)
+
+Commit d7e06eba pushed to origin/main. TypeScript strict mode: clean.
+
+Next: Task 3 - remove `enabled` field from VerticalConfig type definition.
+
