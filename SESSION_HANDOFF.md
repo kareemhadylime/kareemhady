@@ -1,5 +1,67 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟡 2026-05-18 — FM+ Setup tile + User Access (spec written, awaiting user review)
+
+User said "Continue" → took my three default recommendations: reuse `mobile_number` for WhatsApp, include disabled-toggle + last-login + reset-password in v1, admin-only gating for v1.
+
+**Spec committed:** [docs/superpowers/specs/2026-05-18-fmplus-setup-user-access-design.md](docs/superpowers/specs/2026-05-18-fmplus-setup-user-access-design.md) (commit [37dc45bf](https://github.com/kareemhadylime/kareemhady/commit/37dc45bf), pushed to main).
+
+**Spec self-review passed:**
+- All 5 role presets (operations_manager / site_manager / shift_submitter / budget_manager / financials_viewer) listed consistently in the matrix and the CHECK constraint.
+- File layout aligns with UI design (5 new files under `src/app/fmplus/setup/` + `src/lib/fmplus/setup/roles.ts`).
+- Verification steps cover migration, tile rendering, admin gating, create flow, advanced overrides, reset password, disable, existing-user backfill, prod build.
+- Phase 2 boundary is explicit: this PR stores the role data but does NOT enforce module-level gates.
+
+**Key design decisions captured in spec:**
+- Reuses existing `app_users` table (no parallel `fmplus_users`). Auto-grants `fmplus` domain row in `app_user_domain_roles` on create.
+- New columns on `app_users`: `full_name text`, `fmplus_role text` (CHECK-constrained to 5 presets), `fmplus_perms jsonb`. All nullable so existing rows keep working.
+- Globally `role='editor'` for FM+ users (gives write capability on granted domains; not admin).
+- Tile visible to everyone with `fmplus` domain access (no per-tile conditional rendering yet); page behind it 404s for non-admins.
+- Setup landing designed to host more cards later; v1 ships one card "User Access".
+
+**Awaiting:** user spec review. Once approved → invoke writing-plans skill to produce the implementation plan, then subagent-driven-development to execute (same flow as the shift-report add/remove feature earlier this session).
+
+---
+
+## 🟡 2026-05-18 — FM+ Setup tile + User Access (design presented, awaiting approval) [SUPERSEDED — see entry above]
+
+User asked: add a 5th tile on `/fmplus` for "Setup" — v1 scope is FM+ User Access with Name / username+password / WhatsApp + email / "App Roles Access inside FM+". User asked me to suggest improvements.
+
+**Exploration findings (important to know before writing any code):**
+- A full user-management system already exists at [/admin/users](src/app/admin/users/page.tsx) backed by [`app_users`](src/lib/auth.ts) (scrypt password hashing, sessions via `app_sessions`, per-domain access via `app_user_domain_roles`).
+- `fmplus` is already a registered domain in [`src/lib/rules/presets.ts`](src/lib/rules/presets.ts) — so domain-level access is already wired.
+- Existing fields on `app_users`: `username`, `password_hash`, `mobile_number`, `email`, `position`, `role` (admin/editor/viewer), `last_login_at`, `disabled_at`. **No `full_name`, no FM+-specific role.**
+
+**Three design decisions locked via AskUserQuestion:**
+1. **Architecture** → ✅ Scoped view of existing users (reuse `app_users`, add FM+ sub-role field). NOT a brand-new isolated user system, NOT just a deep-link to /admin/users.
+2. **Role granularity** → ✅ **Both** — preset roles + Advanced per-module overrides. Presets: `operations_manager` / `site_manager` / `shift_submitter` / `budget_manager` / `financials_viewer`. Advanced exposes a 5-row matrix (Financials / Budget / Performance / Shift Reports / Setup) with per-module access levels.
+3. **Project scoping** → ✅ FM+-wide for v1, per-project deferred to Phase 2.
+
+**Design presented (awaiting 👍):**
+- Schema migration: add `full_name text`, `fmplus_role text`, `fmplus_perms jsonb` to `app_users`. Reuse existing `mobile_number` for WhatsApp (proposed; flagged that user can ask for a separate `whatsapp_number` column if preferred).
+- Tile: new 5th tile on `/fmplus/page.tsx` between Performance and Shift Reports, icon `Settings`, links to `/fmplus/setup`.
+- Pages: `/fmplus/setup` (landing, designed to host more cards later) → `/fmplus/setup/users` (list + create/edit form).
+- Form: Name / Username / Password (scrypt via existing `hashPassword`) / WhatsApp / Email / FM+ Role preset / Advanced toggle revealing matrix. On submit: create `app_users` row, auto-grant `fmplus` domain in `app_user_domain_roles`, store role + perms.
+- Auth gating v1: Setup tile + `/fmplus/setup/*` = `is_admin === true` only. Existing 4 FM+ tiles unchanged (no per-module enforcement in this spec — Phase 2).
+- Out of scope (Phase 2): module-level enforcement, per-project scoping, invite links, audit log, other Setup cards.
+
+**Improvement suggestions surfaced to user (awaiting their picks):**
+1. Invite-link signup (admin enters Name+Email, user sets own password). Recommend deferring to Phase 2.
+2. `disabled_at` toggle on the user list (trivial — recommend including in v1).
+3. Show last-login timestamp on the list (free — recommend including in v1).
+4. Per-row "Reset password" button for admins (~30 min — recommend including in v1).
+
+**Three yes/no questions still pending:**
+- Reuse `mobile_number` for WhatsApp, or separate column?
+- Include #2/#3/#4 in v1?
+- Admin-only gating fine for v1?
+
+Once user 👍s: write spec to `docs/superpowers/specs/2026-05-18-fmplus-setup-user-access-design.md`, self-review, hand off to writing-plans.
+
+No code/migration changes this turn — design phase.
+
+---
+
 ## 🟢 2026-05-18 — Shift Reports: role-catalog expansion from FM+ budget spreadsheets (shipped)
 
 Follow-up to the add/remove-roles feature below. User pointed to `C:\kareemhady\.claude\Documents\FM+\` (19 FM project budget xlsx files) and asked: "add all possible roles to the dropdown lists, differentiate between personnel and equipment."
