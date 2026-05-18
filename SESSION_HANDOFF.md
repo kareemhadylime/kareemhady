@@ -1,5 +1,15 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-18 — TikTok Marketing API end-to-end: build, ship, configure
+
+- Diagnosed TikTok ad-monitoring gap: `integration_credentials.tiktok_ads` only had Login Kit keys; Marketing API and Login Kit are separate TikTok developer portals with independent app registrations
+- Walked user through registering a new TikTok For Business developer profile + creating "Beithady Operations Dashboard" Marketing API app (App ID `7641164776478867457`) with narrow read-only scopes — approved instantly
+- Shipped Marketing API integration in one go — new `tiktok_business` credential provider, `/api/auth/tiktok-business/start` + `/callback` OAuth routes, `loadTikTokBusinessCredentials()` + `exchangeTikTokBusinessAuthCode()` + `fetchTikTokAdvertisers()` helpers, "Authorize Marketing API" button on the accounts page, sync + breakdowns cron switched to the new provider — commit `61a22a8f`
+- Follow-up fix: wired the admin Test Connection handler for `tiktok_business` to resolve `unknown_provider` error — commit `f7695010`
+- Configuration phase pending: user typed `kareemhady` (username) into the App ID field by mistake — needs to clear and re-paste the numeric `7641164776478867457`, then click "Authorize Marketing API" on `/beithady/ads/tiktok/accounts` to complete OAuth → after which BH-73 will sync into the dashboard
+
+---
+
 ## 🟡 2026-05-18 — TikTok ad-monitoring readiness audit (no code changes)
 
 User asked "Can you monitor TikTok ads on our app" after sharing a screenshot of TikTok Ads Manager showing campaign **BH-73** (Beithady Hospitality0605 advertiser) — Smart+ campaign, 2 ad groups (one Active, one *Review not approved*), 0 spend in the 2026-05-16 → 2026-05-18 window.
@@ -135,6 +145,14 @@ User said "go ahead". Built and pushed the full Marketing API OAuth + read-side 
 - Empty `advertiser_ids[]` from OAuth → user didn't tick BH-73 on consent screen, re-authorize
 
 **State:** ✅ Code shipped. ⏸️ Waiting on user to complete steps 1-4 (post-deploy credential paste + OAuth consent). Implementation phase is complete; remaining work is configuration.
+
+**Eighth follow-up — deploy verified on prod:**
+
+- User screenshotted `/admin/integrations` showing both new cards live: "TikTok Login Kit (Content Posting)" rendering as CONNECTED (existing state preserved) and "TikTok Marketing API (Business)" as ⚠ INCOMPLETE (App ID UNSET).
+- Told user: scroll to second card, paste App ID `7641164776478867457` + App Secret (from `business-api.tiktok.com/portal/` after clicking Show on masked `1a7••••••f17`), leave access_token + advertiser_id blank, tick Enabled, Save → then click "Authorize Marketing API" on `/beithady/ads/tiktok/accounts`.
+- **Pre-flight reminder:** before clicking Authorize, verify the Advertiser redirect URL in the TikTok app config matches `https://limeinc.vercel.app/api/auth/tiktok-business/callback` exactly — mismatch will fail OAuth with `redirect_uri mismatch`.
+
+**State:** ⏸️ Awaiting user's credential paste + OAuth consent flow.
 
 **Final state of this session:** ⏸️ User to submit app with the narrow scope picks → wait ~3 days for both dev-profile and app review → return with App ID + App Secret. Then implementation work resumes:
 1. Build `/api/auth/tiktok-business/start` + `/callback` against `business-api.tiktok.com`
