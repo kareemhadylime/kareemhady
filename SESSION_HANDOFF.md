@@ -1,5 +1,224 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🔵 2026-05-18 — TikTok ad-group rejection appeal text drafted
+
+User screenshotted the **Ad group appeal** dialog inside TikTok Ads Manager (Beithady Hospitality0605 account) and asked for appeal copy clarifying that Beithady is **not a real estate company** — it's a short-stay property management operator running homestays in Egypt + UAE, targeting Saudi as an outbound-tourist source market.
+
+**Delivered:**
+- Recommended radio option: `appeal_reason_category_not_violate_rule`.
+- Paste-ready Description text (~5 short paragraphs) — frames Beithady as hospitality (same category as hotels / Airbnb / Booking.com), explicitly states no KSA real estate inventory, no property sales/leases, ads point to nightly bookings only. Offers Egypt MoT + UAE DTCM/DET tourism licenses as supporting docs.
+- Suggested uploading tourism license + landing-page screenshot (showing nightly rates / "Book now" CTA) under *Supporting materials*.
+- Suggested holding `appeal_category_similar_ads_passed_the_review` as a fallback for a second appeal round if the first is denied.
+- Offered to draft a ~300-char shorter version if the textarea limit is tighter than it looks.
+
+**No code changes** — purely advisory copywriting.
+
+---
+
+## 🟢 2026-05-18 — TikTok Spark Ads (Option B): wired into dashboard
+
+User picked Option B from previous turn — build Spark Ads into `/beithady/ads/tiktok/paid` instead of doing it manually in TikTok Ads Manager.
+
+**Commit:** `(committed via background push)` — `feat(tiktok-paid): Spark Ads — promote existing TikTok post via tiktok_item_id picker`
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**Files touched:**
+- `src/lib/beithady/ads/tiktok-paid-publish.ts`:
+  - `TikTokPaidInput` — added `tiktokItemId?: string` (Spark mode), made `videoUrl` optional
+  - `publishTikTokTrafficAd` — validation accepts either `videoUrl` or `tiktokItemId`; when Spark mode, skips video-upload + cover-upload steps entirely; ad creative payload switches to `ad_format: 'TIKTOK_VIDEO'` + `tiktok_item_id`
+  - New `listTikTokIdentityVideos(accountId, limit)` — calls `GET /identity/video/list/` on Marketing API v1.3 with `advertiser_id` + `identity_id` + `identity_type`; returns `IdentityVideoItem[]` (item_id, cover_image_url, display_text, video_url, duration, create_time)
+- `src/app/beithady/ads/actions.ts` — `publishTikTokPaidAction` now reads `tiktok_item_id` from FormData and passes it through
+- `src/app/beithady/ads/tiktok/paid/_components/spark-picker.tsx` (NEW client component):
+  - Mode toggle: "Use new video URL" vs "Promote existing TikTok post (Spark Ad)"
+  - Horizontal thumbnail strip of identity's organic posts in Spark mode
+  - Selecting a post auto-seeds `ad_text` from the post's caption (if blank)
+  - Hidden `tiktok_item_id` input wired to picker state
+  - In Spark mode, `video_url` is set to a placeholder so the `required` validation passes; server ignores it
+- `src/app/beithady/ads/tiktok/paid/page.tsx`:
+  - Added `listTikTokIdentityVideos(ready[0].id, 30)` fetch (uses first ready account; future polish to refetch on account dropdown change)
+  - Replaced inline video_url + ad_text fields with `<SparkPicker posts={sparkPosts} defaultVideoUrl={...} />`
+
+**Type-check:** clean (only pre-existing failures in unrelated test files).
+
+**Server-side mode branching:**
+- Spark Ad path: skips Steps 2+3 (video upload, cover upload). Ad uses `ad_format: 'TIKTOK_VIDEO'` + `tiktok_item_id` + existing `identity_id`/`identity_type` from `ads_accounts` row.
+- Fresh upload path: unchanged, still does 3-step video → cover → SINGLE_VIDEO ad creation.
+
+**Caveats:**
+- Picker uses first ready TikTok account only. If multiple identities exist, only the first's posts show.
+- Requires identity to be on-account (`TT_USER`) for `tiktok_item_id` to work without an Ad Authorization code. Our OAuth wiring already provides this.
+- TikTok's identity-video index has propagation delay — very recently uploaded posts (within minutes) may not appear yet.
+
+**Backward compatible:** fresh-upload mode unchanged; Spark mode is opt-in via toggle.
+
+---
+
+## 🔵 2026-05-18 — Q&A: TikTok Spark Ads (promote existing post) — explained, awaiting decision
+
+User landed on `/beithady/ads/tiktok/paid` and asked: "How to Create a Tiktok ad from an already present post on Tiktok" (showed TikTok Studio with 34 posts on @beithady).
+
+**This is Spark Ads** — TikTok's name for promoting an organic post as a paid ad. Walked through the two options:
+
+**Option A — TikTok Ads Manager directly (no dashboard code):**
+- `ads.tiktok.com` → Campaign → Ad level → switch dropdown from "Use a single video" to "Use TikTok account"
+- Two sub-flows: owned account (pick @beithady from picker) OR authorized post (enable Ad Authorization on the post in TikTok Studio → 6-digit code → paste in Ads Manager)
+- Works today, but loses our dashboard targeting presets + building attribution + cross-post audit
+
+**Option B — Wire Spark Ads into our dashboard (1-2 hours):**
+- Current `src/lib/beithady/ads/tiktok-paid-publish.ts` only does `ad_format: 'SINGLE_VIDEO'` (fresh upload via `video_id`)
+- Would add a mode toggle on the paid form: "Use new video" vs "Promote existing TikTok post"
+- New picker fetches @beithady's posts via Marketing API `/identity/video/list/`, same UX as YouTube/IG pickers built earlier today
+- Ad creative payload changes to `ad_format: 'TIKTOK_VIDEO'` + `tiktok_item_id: <post_id>` + existing identity context (`tiktok_identity_id` already saved on the account row, so no extra setup)
+
+**Recommended Option A first** for 1-2 ads to confirm Spark Ads works for our identity setup (potential gotchas: "identity needs additional approval", "Ad Authorization required even for owned accounts"). Once one ad ships through Ads Manager and goes live, build Option B as a 30-second dashboard flow.
+
+**Status:** Waiting on user to pick A-first vs build-B-now. No code change this turn.
+
+---
+
+## 📝 2026-05-17 — Listing copy: BH-73 Apt 405 (Lotus, New Cairo)
+
+**Request:** Operator posting a video for Apartment 405 in Building 73 (Lotus, New Cairo). Asked for a ≤4,000-char marketing description covering luxury, professional management, 24/7 security, private building pool, gym, other Beithady hospitality advantages, plus WhatsApp + website + hashtags.
+
+**What I did (no code changes):**
+- Listed `G:\My Drive\Beit Hady\BH-73\405\` (38 photos + `BH73-405.mp4`).
+- Read 8 representative photos to ground the copy in what's actually visible: open-plan living/dining with geometric tray ceiling + bouclé sofas + marble oval 6-seat dining table + Netflix smart TV; full kitchen (fridge, gas stove+oven, dishwasher, washing machine, microwave, kettle); master bedroom (king bed, vanity, walk-in wardrobe with bathrobes, split AC); second bedroom (two singles, slatted headboard, built-in bookcase); modern bathrooms.
+- Pulled official booking endpoints from the codebase so the copy matches the rest of our marketing:
+  - Website: `https://beithady.com` (from [src/lib/beithady/youtube/ai-metadata.ts:5](src/lib/beithady/youtube/ai-metadata.ts))
+  - WhatsApp: `https://wa.me/201501010103` (same file, line 6)
+  - (Note: stay-pass pages use `wa.me/201101300300` for in-stay guest support — different line, kept booking-line for marketing.)
+- Delivered a ~3,650-char description + 25 hashtags inline in chat. Final character count ~3,650 so it fits Airbnb/Booking 4,000-char limits with headroom.
+
+**Followups operator may want:**
+- Arabic translation of the same copy.
+- Short Instagram caption variant (2,200-char limit) + Reels caption (≤150 chars hook).
+- Booking.com-tuned variant (no emoji-heavy, different structure).
+- If we ship this often, worth wiring an AI listing-copy generator under `/beithady/...` mirroring the YouTube-metadata flow that already exists.
+
+---
+
+## 🔴→🟢 2026-05-17 — TikTok Path 4 fix #3: drop `noopener` so `window.open` returns a usable reference
+
+**Bug reported:** After fix #2 (force download + pre-open studio tab), download worked but the new tab stayed at `about:blank` forever — TikTok Studio never loaded.
+
+**Root cause:** Used `window.open('about:blank', '_blank', 'noopener')`. Per the HTML spec, passing `noopener` forces `window.open` to return `null` (it deliberately severs the opener relationship, including the return value). So my `studioTab` variable was `null`, and both the `document.write` placeholder and the later `studioTab.location.href = '...'` redirect were skipped by the `if (studioTab)` guards. The tab opened blank and just sat there.
+
+**Fix (commit pending background push):**
+- `src/app/beithady/ads/tiktok/publish/_components/manual-upload-button.tsx` — dropped `'noopener'` from the popup call. `studioTab` is now a usable window reference.
+- Also wrapped the document.write block in `document.open()` / `document.close()` per spec + try/catch in case some browser config restricts cross-document writes.
+- Security note: still only redirect the popup to `tiktok.com/upload` (trusted), and `.close()` on error.
+
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**Lesson:** `window.open` with `noopener` returns `null`. Always. If you need the popup reference (to set placeholder content or redirect after async work), don't pass `noopener` in the third arg — use a different mitigation (only navigate to trusted URLs, close on error, etc.).
+
+**Pattern check across the codebase:** if any other "open popup then await then redirect" flow exists with `noopener`, it would have the same bug. Search next session if reports come in.
+
+---
+
+## 🔴→🟢 2026-05-17 — TikTok Path 4 fix #2: force download + pre-open TikTok Studio
+
+**Bug reported:** After the signed-URL refresh fix, Prepare button worked but: (1) video opened inline in browser instead of downloading; (2) TikTok Studio tab didn't open.
+
+**Root causes:**
+1. **Inline play instead of download** — Supabase served the mp4 with `Content-Type: video/mp4` and no `Content-Disposition: attachment` header. Chrome's `<a download>` attribute only works for same-origin OR cross-origin responses with `Content-Disposition: attachment`. Neither was true.
+2. **Popup blocker on TikTok Studio** — `window.open` was called AFTER an `await` (the server action). Browsers consume the user-activation token at the first popup/await; subsequent `window.open` from non-gesture context gets blocked.
+
+**Fixes (commit pending background push):**
+
+1. `src/app/beithady/ads/actions.ts` — `prepareTikTokManualUploadAction` now passes `{ download: <filename> }` as the third arg to `createSignedUrl()`. Supabase responds with `Content-Disposition: attachment; filename="..."` which forces the browser to save instead of play inline.
+2. `src/app/beithady/ads/tiktok/publish/_components/manual-upload-button.tsx` — re-ordered the click handler:
+   - **Synchronously** (inside the user-gesture window, before any await): call `window.open('about:blank', '_blank', 'noopener')`, store the reference, write a "Loading TikTok Studio…" placeholder to it. This "claims" the popup permission slot.
+   - Await the server action.
+   - On success: copy caption (silent fail OK), trigger anchor download, then `studioTab.location.href = 'https://www.tiktok.com/upload'` to redirect the pre-opened tab.
+   - On failure: `studioTab.close()` so no orphan blank tab.
+
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**Lesson:** Browser user-activation rules — any `window.open` after `await` is blocked. The fix pattern is: open `about:blank` synchronously to claim the slot, then redirect that tab once the async work completes. Worth remembering for any other "do server work then open external service" flow.
+
+---
+
+## 🔴→🟢 2026-05-17 — TikTok Path 4 fix: refresh expired Supabase signed URLs
+
+**Bug reported:** Clicking "Prepare for manual upload" → browser-download URL returned Supabase `400 InvalidJWT — "exp" claim timestamp check failed`. URL: `bpjproljatbrbmszwbov.supabase.co/storage/v1/object/sign/beithady-gallery/BH-73/.../d5di71kv.mp4?token=...`
+
+**Root cause:** the video URL stored in the source row (gallery asset / IG mirror / YouTube source) was a Supabase **signed URL** with an `exp` JWT claim. Signed URLs are time-limited; the original token had expired well before the operator clicked Prepare.
+
+**Fix:** `src/app/beithady/ads/actions.ts` — `prepareTikTokManualUploadAction` now detects Supabase signed/public URLs via regex on `*.supabase.co/storage/v1/object/(sign|public)/<bucket>/<path>`. When matched, parses bucket + object path and calls `supabaseAdmin().storage.from(bucket).createSignedUrl(path, 60*60*24)` to regenerate a fresh 24h-TTL signed URL. That fresh URL is returned to the client for the browser download; DB row stores the original URL unchanged (audit reference).
+
+**Robustness:**
+- Try/catch around URL parsing — falls back to original `videoUrl` if not parseable.
+- Non-Supabase URLs (raw IG CDN, etc.) pass through unchanged.
+- Public bucket URLs also re-signed (harmless overhead but consistent).
+- 24h TTL gives operator plenty of headroom to complete the manual upload.
+
+**Commit:** `(committed via background push)` — running now.
+**Deploy:** background `vercel --prod` pushing; will alias `app.limeinc.cc` when Ready.
+
+**Not done:** the underlying architectural issue — IG mirror / gallery asset / YouTube source URLs are stored as time-bombed signed URLs in the first place — is unaddressed. Long-term fix is either (a) store assets in the public bucket (no signing needed), or (b) always regenerate signed URLs at consumption time across all consumers (PMax publish, TikTok API publish, ad creative URLs, etc.). For now the fix is local to Path 4; if a similar `InvalidJWT` shows up on PMax or another publisher, apply the same pattern there.
+
+---
+
+## 🟢 2026-05-17 — TikTok Path 4: manual upload helper (shipped)
+
+**Commit:** `d91309c0 feat(tiktok): Path 4 manual upload helper — prepare button downloads video + copies caption + opens TikTok Studio, with mark-uploaded flow`
+**Deploy:** background `vercel --prod` running; will alias `app.limeinc.cc` once Ready.
+
+**Trigger:** User picked "Path 4" — a no-API-approval-needed flow for posting to real @beithady via human upload.
+
+**Migration:** `0119_tiktok_manual_upload_status` (applied via MCP + file written):
+- Drops + recreates `ads_tiktok_posts.status` CHECK constraint to add two values:
+  - `MANUAL_PREPARED` (operator clicked prep button — video downloaded, caption copied, TikTok Studio opened)
+  - `MANUAL_UPLOADED` (operator confirmed post is live, optionally pasted share URL)
+- Existing API flow values (PENDING_CREATE → PROCESSING_* → PUBLISH_COMPLETE) untouched.
+
+**Server actions (in `src/app/beithady/ads/actions.ts`):**
+- `prepareTikTokManualUploadAction(formData)` — reads the publish form's current values, builds the formatted caption (`text + '\n\n' + #tag1 #tag2…`), inserts MANUAL_PREPARED row, records cross-post audit (status `'queued'` — that table's CHECK only allows queued|published|error, manual prep uses queued), returns `{ ok, post_id, video_url, formatted_caption }` to the client.
+- `markTikTokManualUploadedAction(formData)` — flips MANUAL_PREPARED → MANUAL_UPLOADED, stores optional share_url, sets published_at. Idempotent via `.eq('status', 'MANUAL_PREPARED')` so double-clicks don't break anything.
+
+**Client components (in `src/app/beithady/ads/tiktok/publish/_components/`):**
+- `manual-upload-button.tsx` — outline-style button next to the primary "Publish (API)" button. On click: reads form via `closest('form')` + `new FormData(form)`, calls the prepare action, then in browser:
+  1. `navigator.clipboard.writeText(formatted_caption)` (with try/catch — silently fails in clipboard-restricted contexts, caption still in DB)
+  2. Creates `<a download href={video_url}>`, clicks programmatically, removes
+  3. `window.open('https://www.tiktok.com/upload', '_blank', 'noopener')`
+  4. Renders 4-step emerald success banner: "Ready to upload: video downloading, caption copied, TikTok Studio open, drag + paste + post"
+- `mark-uploaded-button.tsx` — inline button on MANUAL_PREPARED rows. Opens inline mini-form asking for TikTok share URL (optional), submits, refreshes.
+
+**Page updates (`tiktok/publish/page.tsx`):**
+- Form footer now has manual-upload button (left) + Publish (API) button (right) + explanatory caption.
+- Recent posts table renders MarkUploadedButton for MANUAL_PREPARED rows; Re-check button now skipped for MANUAL_*/FAILED/EXPIRED rows (was only skipped for PUBLISH_COMPLETE/SEND_TO_USER_INBOX before).
+
+**Status badge colors (`src/lib/beithady/ads/platforms.ts:statusBadgeClass`):**
+- MANUAL_PREPARED → violet badge
+- MANUAL_UPLOADED → emerald badge
+
+**Type-check:** clean (only pre-existing failures in unrelated test files).
+
+**Caveats noted to user:**
+- Browser download requires CORS-friendly video URL. Supabase URLs are; IG picker already mirrors to Supabase so that path works. Raw IG CDN URLs would fall through to "open in new tab" behavior.
+- Clipboard write silently fails in iframes / no-gesture contexts — caption still in DB + visible on page as fallback.
+- "Mark uploaded" depends on operator discipline; if forgotten, row stays MANUAL_PREPARED forever (no auto-promotion).
+- Cross-post audit row stays as `'queued'` for manual flow; future polish: have `markTikTokManualUploadedAction` also bump audit row to `'published'`.
+
+---
+
+## 🔵 2026-05-17 — Q&A: clarified the 3 TikTok integration paths (no code)
+
+User asked: "what i understand we communicated before there was another route to tiktok other than sandbox as tiktok has refused the tiktok app connection?"
+
+Confirmed they're remembering correctly — laid out the three paths:
+
+1. **API publish-out (Content Posting API)** — `/beithady/ads/tiktok/publish` (built earlier this turn). Sandbox works against `beit.hady` test user only. Real `@beithady` blocked until App Review approves (demo video still not submitted).
+2. **Embed-in (curated reels)** — `/beithady/ads/tiktok/organic` (the "TikTok Reels" tab). Does NOT post to TikTok; just embeds public TikTok URLs inside our dashboard for team display. This was the "replacement" after publish-out got blocked (commit `982f263c`).
+3. **Spark Ads / Promoted Posts** — `/beithady/ads/tiktok/paid`. Uses TikTok **Marketing API** (less restrictive approval than Content Posting). Workflow: manually post organic to @beithady via TikTok app → then promote via our dashboard as paid ad. Needs Advertiser ID + Identity ID on the account row.
+
+Practical workflow without App Review = post by hand to real @beithady → either curate URL on Reels page (display) OR run Spark Ads via Paid page.
+
+Asked user if they were thinking of Spark Ads or want a new "Path 4" — one-click "download video + copy caption to clipboard" prep for manual upload. Awaiting their pick.
+
+---
+
 ## 🟢 2026-05-17 — TikTok publish page restored at `/tiktok/publish` (YouTube + IG pickers)
 
 **Commit:** `42c9fd9d feat(tiktok): restore publish page at /tiktok/publish — YouTube + IG Reels + IG Stories pickers, cross-post landing`
