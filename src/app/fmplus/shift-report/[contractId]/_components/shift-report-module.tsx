@@ -163,6 +163,7 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
     });
   }
 
+  const vcfg = config.verticals ?? {};
   const today = new Date();
   const yest  = new Date(today); yest.setDate(yest.getDate() - 1);
 
@@ -372,7 +373,7 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
             </div>
 
             {/* Vertical picker — visible while there are still unadded verticals */}
-            {SR_VERTICALS.some((v) => !((config.verticals ?? {})[v.key])) && (
+            {SR_VERTICALS.some((v) => !vcfg[v.key]) && (
               <div className="ix-card p-3 flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-semibold text-fmplus-gold dark:text-fmplus-yellow">
                   + إضافة خدمة
@@ -382,13 +383,12 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
                   onChange={(e) => {
                     const val = e.target.value as VerticalKey | '';
                     if (val) addVertical(val);
-                    e.currentTarget.selectedIndex = 0;
                   }}
                   className="ix-input text-sm flex-1 min-w-[160px]"
                 >
                   <option value="" disabled>اختر خدمة…</option>
                   {SR_VERTICALS
-                    .filter((v) => !((config.verticals ?? {})[v.key]))
+                    .filter((v) => !vcfg[v.key])
                     .map((v) => (
                       <option key={v.key} value={v.key}>{v.icon} {v.nameAr}</option>
                     ))}
@@ -397,11 +397,10 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
             )}
 
             {/* Vertical cards (canonical order) */}
-            {SR_VERTICALS
-              .filter((v) => (config.verticals ?? {})[v.key])
-              .map((v) => {
-                const vc = (config.verticals ?? {})[v.key] as VerticalConfig;
-                const unaddedRoles = v.roles.filter((r) => !(r.key in vc.roles));
+            {SR_VERTICALS.map((v) => {
+              const vc = vcfg[v.key];
+              if (!vc) return null;
+              const unaddedRoles = v.roles.filter((r) => !(r.key in vc.roles));
                 return (
                   <div
                     key={v.key}
@@ -511,7 +510,6 @@ export function ShiftReportModule({ contractId, projectName, initialConfig, init
                               onChange={(e) => {
                                 const val = e.target.value;
                                 if (val) addRole(v.key, val);
-                                e.currentTarget.selectedIndex = 0;
                               }}
                               className="ix-input text-sm flex-1 min-w-[160px]"
                             >
