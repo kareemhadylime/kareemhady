@@ -1,5 +1,40 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
+## 🟢 2026-05-18 — Shift Reports: role-catalog expansion from FM+ budget spreadsheets (shipped)
+
+Follow-up to the add/remove-roles feature below. User pointed to `C:\kareemhady\.claude\Documents\FM+\` (19 FM project budget xlsx files) and asked: "add all possible roles to the dropdown lists, differentiate between personnel and equipment."
+
+**Data source:** Loaded the xlsx skill and scanned the Manning Schedule / Manpower Schedule sheets in City Gate, Tanta Mall, D5, AUC, AEON budgets. City Gate's "Manning Schedule" sheet is the most comprehensive — its line items map cleanly to verticals (MEP Services / Housekeeping / Pest Control / Landscape / Security Services / Transportation).
+
+**Four design picks (asked via `AskUserQuestion`, user answered all):**
+1. Add MEP / Maintenance vertical → ✅ Yes (الصيانة)
+2. Personnel vs Equipment differentiation → ✅ **Separate verticals entirely** (Security Personnel + Security Equipment as distinct cards, not a `kind` tag)
+3. Where back-office roles live → ✅ New "الإدارة المكتبية / BackOffice" vertical
+4. Arabic labels → ✅ Use my translations, fix in prod as needed
+
+**Single commit:** [b6d2eece](https://github.com/kareemhadylime/kareemhady/commit/b6d2eece) — `feat(shift-report): expand role catalog — split personnel/equipment, add MEP + BackOffice verticals`. Only touches `src/lib/fmplus/shift-report/types.ts` + 1-line fix in `render.test.ts` (typo `مدير الامن` → `مدير الأمن` corrected, test follows).
+
+**Resulting catalog (9 verticals, ~55 roles, was 4/14):**
+- `security` 🛡️ الأمن - أفراد (6 roles incl. مشرف السلامة, مشغل كاميرات المراقبة — kept existing key)
+- `security_equipment` 🚓 الأمن - معدات (motorcycle/jeep/pickup/golf_car/wireless — moved from old `security`)
+- `cleaning` 🧹 النظافة - أفراد (11 roles — manager, asst manager, senior sup, facades sup+labor, waste sup+labor, trainer added)
+- `cleaning_equipment` 🚛 النظافة - معدات (road_sweeper/waste_truck/pressure_washer/scrubber)
+- `pest_control` 🐛 بيست كنترول (label clarified; same 2 roles)
+- `landscape` 🌿 لاندسكيب (3 roles — added manager)
+- `mep` 🔧 الصيانة - أفراد (24 roles: FM/site/maintenance managers, senior engineer, 3 supervisors by trade, 4 team leaders, 6 technicians by trade incl. HVAC + BMS, civil worker, painter, carpenter, helper, CAFM coordinator, help desk)
+- `mep_equipment` 🛠️ الصيانة - معدات (manlift/scissor_lift/tools_van)
+- `backoffice` 📋 الإدارة المكتبية (admin/storekeeper/purchaser/controller/driver/receptionist)
+
+**Why no migration needed:** Existing key names (`security`, `cleaning`, `pest_control`, `landscape`) preserved. Old saved configs continue to load — equipment role keys that used to live inside `security.roles` (motorcycle/wireless/jeep) are orphaned by the renderer's `role.key in v.roles` filter and silently dropped from output; user can re-add them via the new `security_equipment` card.
+
+**Production build:** `✓ Compiled successfully in 31.6s` after the change. 6/6 renderer Vitest tests still pass. Vercel auto-deploys from main.
+
+**Scratch files cleaned:** `_scan.py` and `_roles_scan.txt` were temporary scratch (Python pandas scanner for the xlsx files) — both removed.
+
+**What needs human attention next:** Open prod and walk through the `+ إضافة خدمة` picker to confirm all 9 verticals show. Trickiest Arabic labels to second-guess (per the original turn note): "ماكينة جلي" (scrubber), "عربة عدد" (tools van), "مكتب خدمة العملاء" (help desk) — easy to patch in `types.ts` if any read off.
+
+---
+
 ## 🟢 2026-05-18 — Shift Reports: per-project add/remove verticals & roles (shipped to main, awaiting prod smoke)
 
 **Implementation complete.** Subagent-driven plan execution finished after the spec+review cycle below. All 4 implementation tasks (plus 2 quality cleanups, 1 final-review fix) landed on main. Production build succeeds (`✓ Compiled successfully in 32.3s`); 6/6 Vitest tests on `render.test.ts` pass; `tsc --noEmit` clean on all shift-report files. Vercel auto-deploys from `main` — code is live.
