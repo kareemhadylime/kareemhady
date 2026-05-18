@@ -1,6 +1,54 @@
 # Kareemhady — Session Handoff (2026-05-17)
 
-## 🟡 2026-05-18 — FM+ Setup tile + User Access (spec written, awaiting user review)
+## 🟢 2026-05-18 — FM+ Setup tile + User Access shipped (8 commits, prod build clean)
+
+User said "continue" on the spec → I wrote the implementation plan ([4870e8a8](https://github.com/kareemhadylime/kareemhady/commit/4870e8a8)) and executed it via subagent-driven flow. All 9 tasks complete.
+
+**Commits shipped to main (chronological):**
+- `d107a06d` feat(fmplus): migration — add full_name + fmplus_role + fmplus_perms to app_users
+- `335e77bb` feat(fmplus): role preset catalog + resolveFmplusPerms helper with vitest coverage
+- `4c7568fb` feat(fmplus): add Setup tile linking to /fmplus/setup
+- `a47bfa92` feat(fmplus): Setup landing page with User Access card (admin-gated)
+- `902935a3` feat(fmplus): FmplusRolePicker — preset select + advanced overrides matrix
+- `de461c21` feat(fmplus): server actions — create/update/role/reset-password/disable FM+ users
+- `4d9da619` feat(fmplus): per-row edit pop-out — profile/role/password/disable
+- `1d886c22` feat(fmplus): User Access page — list + create-user form + per-row edit
+
+**What's live (admin only):**
+- 5th tile on `/fmplus` titled "Setup" (Settings icon) between Performance Dashboard and Shift Reports.
+- `/fmplus/setup` landing with one card "User Access" (designed to host more cards later).
+- `/fmplus/setup/users` — list of users with `fmplus` domain grant + Create-User form at top.
+- Create form: Name / Username / Password / WhatsApp (reuses `mobile_number`) / Email / FM+ Role (preset) + Advanced toggle matrix.
+- Per-row Edit pop-out: profile fields, FM+ role picker, Reset password, Disable/Re-enable account (with session-kill on disable, self-disable guard). Auto-closes 1.5s after successful save.
+- WhatsApp number renders as `wa.me/…` link in the list (chat with the user in one click).
+- 5 FM+ role presets: Operations Manager / Site Manager / Shift Submitter / Budget Manager / Financials Viewer. Each with default per-module permissions (financials / budget / performance / shift_reports / setup). Stored as `fmplus_role` text + `fmplus_perms` jsonb on `app_users`. Resolver merges preset defaults + overrides via `resolveFmplusPerms()`.
+
+**Migration applied** via Supabase MCP against `bpjproljatbrbmszwbov`: 3 new nullable columns + CHECK constraint pinning fmplus_role to the 5 presets + partial index. Schema verified live; old `app_users` rows pass through fine with NULL FM+ fields.
+
+**Production build:** `✓ Compiled successfully in 41s` after Task 8. Vercel auto-deploys; expect `app.limeinc.cc/fmplus` to show the new tile within ~90s of `1d886c22`.
+
+**Phase 1 boundary held:** stored the role data but did NOT add module-level enforcement to Financials / Budget / Performance / Shift Reports. That's Phase 2.
+
+**Code-quality polish noted but not applied** (per Task 2 reviewer, all minor):
+- `FMPLUS_PERMS_DENY_ALL` could be `Readonly<ResolvedFmplusPerms>` for stronger immutability guarantees.
+- `as const` at the end of `FMPLUS_ROLE_PRESETS` is redundant given the type annotation widens.
+- Add comment near `perms.setup ?? base.setup` so future devs don't reflexively swap `??` → `||`.
+
+Cheap follow-up: open as separate PR if anyone cares about defensive hygiene.
+
+**What needs human eyes (Phase 1 acceptance):**
+1. Open `https://app.limeinc.cc/fmplus` as kareemhady (admin). Confirm 5 tiles, click Setup.
+2. Click User Access. Create a test user (Yasser / yasser_test / tempPass1 / +201234567890 / yasser@example.com / Site Manager). Submit.
+3. Verify row appears with preset label. Edit row → toggle Advanced → bump Budget to "edit" → Save role. Row shows "advanced" pill.
+4. Reset password → log in as yasser_test with the new password → succeeds. Old password fails.
+5. Disable account → cannot log in (`account_disabled`). Re-enable → can.
+6. Non-admin signs in (or use a non-admin user via /admin/users with fmplus domain), hits `/fmplus/setup` → 404. Tile is visible (Phase 2 will hide).
+
+Rollback if needed: revert `1d886c22 4d9da619 de461c21 902935a3 a47bfa92 4c7568fb 335e77bb d107a06d`. Migration is forward-only — the 3 new columns + CHECK constraint + index stay. If you want to also drop them: `ALTER TABLE app_users DROP COLUMN full_name, DROP COLUMN fmplus_role, DROP COLUMN fmplus_perms;` (the constraint and index drop automatically with the columns).
+
+---
+
+## 🟡 2026-05-18 — FM+ Setup tile + User Access (spec + plan committed, awaiting execution) [SUPERSEDED — see entry above]
 
 User said "Continue" → took my three default recommendations: reuse `mobile_number` for WhatsApp, include disabled-toggle + last-login + reset-password in v1, admin-only gating for v1.
 
