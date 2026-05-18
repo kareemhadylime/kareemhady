@@ -99,6 +99,43 @@ User asked "Can you monitor TikTok ads on our app" after sharing a screenshot of
 
 **Final state of this session:** ⏸️ App approved on TikTok side. Awaiting user's "go ahead" before building the OAuth flow + sync integration (estimated ~2h, ships to main).
 
+**Seventh follow-up — SHIPPED. Commit `61a22a8f` on main:**
+
+User said "go ahead". Built and pushed the full Marketing API OAuth + read-side wiring in one commit. Changes:
+
+- **New `tiktok_business` provider** in [src/lib/credentials.ts](src/lib/credentials.ts) — fields `app_id`, `secret`, `access_token`, `advertiser_id`. Relabeled existing `tiktok_ads` as *"TikTok Login Kit (Content Posting)"* to disambiguate. Both providers can coexist with independent app credentials.
+
+- **New helpers** in [src/lib/beithady/ads/tiktok-client.ts](src/lib/beithady/ads/tiktok-client.ts):
+  - `loadTikTokBusinessCredentials()` — mirror of `loadTikTokAppCredentials()` but reads from `tiktok_business`
+  - `exchangeTikTokBusinessAuthCode(authCode)` — POSTs to `${TT_BIZ_BASE}/oauth2/access_token/` with JSON body `{app_id, secret, auth_code}` (NOT the form-urlencoded `/v2/oauth/token/` Login Kit flow). Returns `access_token` + `advertiser_ids[]` + `scope[]`.
+  - `fetchTikTokAdvertisers(token, ids)` — calls `/oauth2/advertiser/get/` to resolve human-readable names + currency for the picker confirmation message.
+
+- **New OAuth routes** under [src/app/api/auth/tiktok-business/](src/app/api/auth/tiktok-business/):
+  - `start/route.ts` — redirects to `https://business-api.tiktok.com/portal/auth?app_id=X&state=<account_id>&redirect_uri=Y` (no scope param — scopes are app-level).
+  - `callback/route.ts` — exchanges `auth_code`, resolves advertisers, reads existing `integration_credentials.tiktok_business.config` first (preserves app_id+secret), then upserts merged config with `access_token` + primary `advertiser_id`. Also stamps `ads_accounts.tiktok_advertiser_id` on the row from `state`. Calls `invalidateCredentials('tiktok_business')` so subsequent reads pick up the fresh token.
+
+- **Read-side callers switched to `loadTikTokBusinessCredentials()`:**
+  - [src/lib/beithady/ads/tiktok-sync.ts](src/lib/beithady/ads/tiktok-sync.ts) — daily campaigns/adsets/ads/metrics sync
+  - [src/app/api/cron/beithady-ads-breakdowns/route.ts](src/app/api/cron/beithady-ads-breakdowns/route.ts) — geo/demo/device breakdowns
+  - Leftin place using old `tiktok_ads`: [tiktok-paid-publish.ts](src/lib/beithady/ads/tiktok-paid-publish.ts) (write-side Spark Ads, was already non-functional since marketing_access_token was never set; switching it wouldn't help — read-only token can't write). [integration-tests.ts](src/lib/integration-tests.ts) also unchanged for now.
+
+- **UI** at [src/app/beithady/ads/tiktok/accounts/page.tsx](src/app/beithady/ads/tiktok/accounts/page.tsx) — per-row now shows BOTH connection states (Login Kit posting + Marketing API reporting), with a separate "Authorize Marketing API" button that only appears if `tiktok_business` has app_id+secret. Banner gained a `marketing_connected` case. Footer note rewritten to explain the two-provider model.
+
+- **Build verified** — full `next build` with `NODE_OPTIONS=--max-old-space-size=8192` passed, both new routes present in the manifest (`/api/auth/tiktok-business/callback`, `/api/auth/tiktok-business/start`). First attempt OOM'd on TS check; bumped heap and second attempt was clean.
+
+**User next steps (queued, walked through in chat):**
+1. Copy App Secret from `business-api.tiktok.com/portal/` (Beithady Operations Dashboard app, App ID `7641164776478867457`).
+2. Paste App ID + Secret into `/admin/integrations` under the new "TikTok Marketing API (Business)" card. Leave access_token + advertiser_id blank.
+3. Open `/beithady/ads/tiktok/accounts` → click "Authorize Marketing API" on the Beithady Tiktok row → consent → pick BH-73 advertiser.
+4. Trigger sync: `curl "https://limeinc.vercel.app/api/cron/beithady-ads-tiktok-sync?force=1&secret=$CRON_SECRET"` or wait for 9 AM Cairo.
+5. View at `/beithady/ads/campaigns` + `/performance` + `/audience`.
+
+**Likely failure modes flagged to user:**
+- Redirect URI mismatch on TikTok side → fix to `https://limeinc.vercel.app/api/auth/tiktok-business/callback`
+- Empty `advertiser_ids[]` from OAuth → user didn't tick BH-73 on consent screen, re-authorize
+
+**State:** ✅ Code shipped. ⏸️ Waiting on user to complete steps 1-4 (post-deploy credential paste + OAuth consent). Implementation phase is complete; remaining work is configuration.
+
 **Final state of this session:** ⏸️ User to submit app with the narrow scope picks → wait ~3 days for both dev-profile and app review → return with App ID + App Secret. Then implementation work resumes:
 1. Build `/api/auth/tiktok-business/start` + `/callback` against `business-api.tiktok.com`
 2. Add `tiktok_business` provider in [src/lib/credentials.ts](src/lib/credentials.ts) (separate from existing Login-Kit-flavored `tiktok_ads` row)
